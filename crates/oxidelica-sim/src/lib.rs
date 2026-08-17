@@ -1,14 +1,17 @@
-//! oxidelica-sim — компиляция плоской модели M0 в явную систему ОДУ
-//! и её интегрирование методом RK4.
+//! oxidelica-sim — compiles a flat M0 model into an explicit ODE system
+//! and integrates it with a fixed-step RK4 solver.
 //!
-//! Ограничения M0 (снимаются в M1+): уравнения состояний в явной форме
-//! `der(x) = f(...)` (или зеркально), алгебраические уравнения — в форме
-//! присваивания `y = g(...)` без циклических зависимостей.
+//! M0 limitations (lifted in M1+): state equations must be explicit
+//! (`der(x) = f(...)` or mirrored), algebraic equations must be
+//! assignments (`y = g(...)`) without cyclic dependencies.
+
+#![deny(missing_docs)]
 
 use oxidelica_parser::{EquationItem, Expr, Model, Variability};
 use std::collections::HashMap;
 use std::fmt;
 
+/// A compilation or simulation error.
 #[derive(Debug)]
 pub struct SimError(pub String);
 
@@ -24,27 +27,31 @@ fn err<T>(message: impl Into<String>) -> Result<T, SimError> {
     Err(SimError(message.into()))
 }
 
-/// Модель, приведённая к виду «состояния + упорядоченные алгебраические присваивания».
+/// A model reduced to "states plus ordered algebraic assignments".
 #[derive(Debug)]
 pub struct CompiledModel {
+    /// Model name.
     pub name: String,
-    /// Значения параметров и констант.
+    /// Evaluated parameter and constant values, sorted by name.
     pub parameters: Vec<(String, f64)>,
-    /// Имена состояний (порядок = порядок вектора y).
+    /// State names (defines the order of the state vector `y`).
     pub states: Vec<String>,
-    /// Начальные значения состояний.
+    /// Initial state values.
     pub initial: Vec<f64>,
-    /// Правая часть для каждого состояния.
+    /// Right-hand side expression for each state.
     derivatives: Vec<Expr>,
-    /// Алгебраические переменные в порядке вычисления.
+    /// Algebraic variables in evaluation order.
     pub algebraics: Vec<String>,
     algebraic_exprs: Vec<Expr>,
+    /// Simulation end time.
     pub stop_time: f64,
+    /// Integration step.
     pub step: f64,
 }
 
+/// Compile a parsed flat model into an executable form.
 pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
-    // 1. Параметры и константы: многопроходное вычисление зависимостей.
+    // 1. Parameters and constants: multi-pass dependency evaluation.
     let mut params: HashMap<String, f64> = HashMap::new();
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
     for c in &model.components {
@@ -55,7 +62,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             let binding = c.binding.as_ref().or(c.start.as_ref());
             match binding {
                 Some(expr) => pending.push((&c.name, expr)),
-                None => return err(format!("параметр {} без значения", c.name)),
+                None => return err(format!("parameter {} has no value", c.name)),
             }
         }
     }
@@ -82,12 +89,12 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         if pending.len() == before {
             let names: Vec<_> = pending.iter().map(|(n, _)| *n).collect();
             return err(format!(
-                "не удалось вычислить параметры {names:?}: цикл или неизвестная ссылка"
+                "cannot evaluate parameters {names:?}: cycle or unknown reference"
             ));
         }
     }
 
-    // 2. Классификация уравнений: состояния vs алгебраические присваивания.
+    // 2. Equation classification: states vs algebraic assignments.
     let continuous: Vec<&str> = model
         .components
         .iter()
@@ -111,51 +118,47 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         if let Some(state) = target {
             if !continuous.contains(&state) {
                 return err(format!(
-                    "der({state}): {state} не является непрерывной переменной"
+                    "der({state}): {state} is not a continuous variable"
                 ));
             }
             if value.contains_der() {
-                return err(
-                    "M0: der() допустим только отдельно в одной части уравнения".to_string()
-                );
+                return err("M0: der() must appear alone on one side of an equation".to_string());
             }
             if state_rhs.insert(state.to_string(), value.clone()).is_some() {
-                return err(format!("два уравнения для der({state})"));
+                return err(format!("two equations for der({state})"));
             }
             continue;
         }
 
-        // алгебраическое: v = expr | expr = v
+        // Algebraic: v = expr | expr = v
         let (var, expr) = match (lhs, rhs) {
             (Expr::Ref(v), e) => (v, e),
             (e, Expr::Ref(v)) => (v, e),
             _ => {
                 return err(format!(
-                    "M0 требует явных уравнений (v = ... или der(v) = ...): {lhs:?} = {rhs:?}"
+                    "M0 requires explicit equations (v = ... or der(v) = ...): {lhs:?} = {rhs:?}"
                 ))
             }
         };
         if expr.contains_der() {
-            return err("M0: der() в алгебраическом уравнении не поддерживается".to_string());
+            return err("M0: der() in an algebraic equation is not supported".to_string());
         }
         if alg_rhs.insert(var.clone(), expr.clone()).is_some() {
-            return err(format!("два уравнения для {var}"));
+            return err(format!("two equations for {var}"));
         }
     }
 
-    // 3. Каждая непрерывная переменная должна быть определена ровно одним способом.
+    // 3. Every continuous variable must be determined in exactly one way.
     let mut states: Vec<String> = Vec::new();
     let mut algebraic_names: Vec<String> = Vec::new();
     for name in &continuous {
         let is_state = state_rhs.contains_key(*name);
         let is_alg = alg_rhs.contains_key(*name);
         match (is_state, is_alg) {
-            (true, true) => {
-                return err(format!("{name}: и состояние, и алгебраическая переменная"))
-            }
+            (true, true) => return err(format!("{name}: both a state and an algebraic variable")),
             (true, false) => states.push((*name).to_string()),
             (false, true) => algebraic_names.push((*name).to_string()),
-            (false, false) => return err(format!("нет уравнения для переменной {name}")),
+            (false, false) => return err(format!("no equation for variable {name}")),
         }
     }
     let unknown_eq: Vec<&String> = state_rhs
@@ -165,14 +168,14 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         .collect();
     if !unknown_eq.is_empty() {
         return err(format!(
-            "уравнения для необъявленных переменных: {unknown_eq:?}"
+            "equations for undeclared variables: {unknown_eq:?}"
         ));
     }
 
-    // 4. Топологическая сортировка алгебраических присваиваний.
+    // 4. Topological sort of algebraic assignments.
     let ordered_algs = topo_sort(&algebraic_names, &alg_rhs)?;
 
-    // 5. Начальные значения состояний.
+    // 5. Initial state values.
     let ctx = EvalCtx {
         vars: &params,
         time: 0.0,
@@ -181,7 +184,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     for s in &states {
         let comp = model.components.iter().find(|c| &c.name == s).unwrap();
         let value = match &comp.start {
-            Some(expr) => eval(expr, &ctx).map_err(|e| SimError(format!("start у {s}: {e}")))?,
+            Some(expr) => eval(expr, &ctx).map_err(|e| SimError(format!("start of {s}: {e}")))?,
             None => 0.0,
         };
         initial.push(value);
@@ -229,21 +232,21 @@ fn topo_sort(names: &[String], exprs: &HashMap<String, Expr>) -> Result<Vec<Stri
         if remaining.len() == before {
             let cycle: Vec<_> = remaining.iter().map(|s| s.as_str()).collect();
             return Err(SimError(format!(
-                "циклическая зависимость алгебраических переменных {cycle:?} (M1: решение неявных систем)"
+                "cyclic dependency among algebraic variables {cycle:?} (M1: implicit systems)"
             )));
         }
     }
     Ok(ordered)
 }
 
-// --- вычисление выражений ---
+// --- expression evaluation ---
 
 struct EvalCtx<'a> {
     vars: &'a HashMap<String, f64>,
     time: f64,
 }
 
-/// Булевы значения представляем как 1.0 / 0.0 (типизация — задача M1+).
+/// Booleans are represented as 1.0 / 0.0 (proper typing is an M1+ task).
 fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     use oxidelica_parser::ast::RelOp;
     use oxidelica_parser::BinOp::*;
@@ -259,7 +262,7 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
         Expr::Time => ctx.time,
         Expr::Ref(name) => match ctx.vars.get(name) {
             Some(v) => *v,
-            None => return err(format!("неизвестная переменная «{name}»")),
+            None => return err(format!("unknown variable `{name}`")),
         },
         Expr::Neg(inner) => -eval(inner, ctx)?,
         Expr::Not(inner) => {
@@ -326,13 +329,13 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     Ok(())
                 } else {
                     err(format!(
-                        "{name}: ожидается {n} аргумент(ов), получено {}",
+                        "{name}: expects {n} argument(s), got {}",
                         vals.len()
                     ))
                 }
             };
             match name.as_str() {
-                "der" => return err("der() вне уравнения состояния — не поддерживается в M0"),
+                "der" => return err("der() outside a state equation is not supported in M0"),
                 "sin" => {
                     arity(1)?;
                     vals[0].sin()
@@ -405,22 +408,25 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     arity(2)?;
                     vals[0].max(vals[1])
                 }
-                other => return err(format!("неизвестная функция «{other}»")),
+                other => return err(format!("unknown function `{other}`")),
             }
         }
     })
 }
 
-// --- интегрирование ---
+// --- integration ---
 
+/// Simulation output: a table of time, states and algebraic variables.
 #[derive(Debug)]
 pub struct SimResult {
-    /// Заголовок: time, состояния, алгебраические.
+    /// Column headers: time, states, algebraics.
     pub columns: Vec<String>,
+    /// One row per output point.
     pub rows: Vec<Vec<f64>>,
 }
 
 impl SimResult {
+    /// Render the result as CSV text.
     pub fn to_csv(&self) -> String {
         let mut out = self.columns.join(",");
         out.push('\n');
@@ -434,8 +440,8 @@ impl SimResult {
 }
 
 impl CompiledModel {
-    /// Вычислить алгебраические переменные и производные в точке (t, y).
-    /// `env` переиспользуется между вызовами, чтобы не аллоцировать на каждом шаге.
+    /// Evaluate algebraic variables and derivatives at point (t, y).
+    /// `env` is reused between calls to avoid per-step allocation.
     fn eval_point(
         &self,
         t: f64,
@@ -461,7 +467,7 @@ impl CompiledModel {
         Ok(())
     }
 
-    /// Классический RK4 с фиксированным шагом.
+    /// Classic fixed-step RK4 integration over `[0, stop_time]`.
     pub fn simulate(&self) -> Result<SimResult, SimError> {
         let n = self.states.len();
         let steps = (self.stop_time / self.step).ceil() as usize;
@@ -542,7 +548,7 @@ mod tests {
         assert!((t - 5.0).abs() < 1e-12);
         assert!(
             (x - (-5.0f64).exp()).abs() < 1e-9,
-            "x(5)={x}, ожидалось e^-5"
+            "x(5)={x}, expected e^-5"
         );
     }
 
@@ -560,18 +566,18 @@ mod tests {
         let e_end = energy(result.rows.last().unwrap());
         assert!(
             ((e_end - e0) / e0).abs() < 1e-9,
-            "энергия уплыла: {e0} -> {e_end}"
+            "energy drifted: {e0} -> {e_end}"
         );
     }
 
     #[test]
     fn algebraic_chain_is_ordered() {
-        // y зависит от x, x — от состояния; порядок объявления обратный.
+        // y depends on x, x on the state; declaration order is reversed.
         let result = run("model A Real s(start = 1.0); Real y; Real x; \
              equation der(s) = -s; y = 2*x; x = s + 1; \
              annotation(experiment(StopTime=1.0, Interval=0.01)); end A;");
         let first = &result.rows[0];
-        // columns: time, s, x, y (алгебраические в порядке вычисления)
+        // Columns: time, s, x, y (algebraics in evaluation order).
         assert_eq!(result.columns, vec!["time", "s", "x", "y"]);
         assert!((first[2] - 2.0).abs() < 1e-12); // x = s+1 = 2
         assert!((first[3] - 4.0).abs() < 1e-12); // y = 2x = 4
@@ -581,12 +587,12 @@ mod tests {
     fn reports_missing_equation() {
         let model = parse_model("model B Real x; Real y; equation x = 1; end B;").unwrap();
         let error = compile(&model).unwrap_err();
-        assert!(error.0.contains("нет уравнения"), "{}", error.0);
+        assert!(error.0.contains("no equation"), "{}", error.0);
     }
 
     #[test]
     fn if_expression_saturates() {
-        // насыщение: y = clamp(x, -1, 1); x растёт линейно от 0 до 2
+        // Saturation: y = clamp(x, -1, 1); x grows linearly from 0 to 2.
         let result = run("model S Real x(start = 0.0); Real y; \
              equation der(x) = 1; y = if x > 1 then 1 elseif x < -1 then -1 else x; \
              annotation(experiment(StopTime=2.0, Interval=0.01)); end S;");
@@ -602,7 +608,7 @@ mod tests {
         let model =
             parse_model("model C Real x; Real y; equation x = y + 1; y = x - 1; end C;").unwrap();
         let error = compile(&model).unwrap_err();
-        assert!(error.0.contains("цикл"), "{}", error.0);
+        assert!(error.0.contains("cyclic"), "{}", error.0);
     }
 
     fn compile_err(source: &str) -> String {
@@ -665,72 +671,71 @@ mod tests {
 
     #[test]
     fn compile_error_paths() {
-        // параметр без значения
+        // Parameter without a value.
         assert!(
             compile_err("model M parameter Real p; Real x; equation x = 1; end M;")
-                .contains("без значения")
+                .contains("has no value")
         );
-        // цикл параметров
+        // Parameter cycle.
         assert!(compile_err(
             "model M parameter Real a = b; parameter Real b = a; Real x; equation x = 1; end M;"
         )
-        .contains("цикл"));
-        // der от параметра
+        .contains("cycle"));
+        // der of a parameter.
         assert!(
             compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")
-                .contains("непрерывной")
+                .contains("continuous")
         );
-        // der с обеих сторон
+        // der on both sides.
         assert!(
             compile_err("model M Real x; Real y; equation der(x) = der(y); y = 1; end M;")
-                .contains("der() допустим только отдельно")
+                .contains("must appear alone")
         );
-        // два уравнения для одного состояния
+        // Two equations for one state.
         assert!(
             compile_err("model M Real x; equation der(x) = 1; der(x) = 2; end M;")
-                .contains("два уравнения")
+                .contains("two equations")
         );
-        // два уравнения для алгебраической
+        // Two equations for an algebraic variable.
         assert!(
-            compile_err("model M Real y; equation y = 1; y = 2; end M;").contains("два уравнения")
+            compile_err("model M Real y; equation y = 1; y = 2; end M;").contains("two equations")
         );
-        // и состояние, и алгебраическая
+        // Both a state and an algebraic variable.
         assert!(
             compile_err("model M Real x; equation der(x) = 1; x = 2; end M;")
-                .contains("и состояние, и алгебраическая")
+                .contains("both a state and an algebraic")
         );
-        // неявное уравнение
+        // Implicit equation.
         assert!(
             compile_err("model M Real x; Real y; equation x + y = 2; y = 1; end M;")
-                .contains("явных уравнений")
+                .contains("explicit equations")
         );
-        // der внутри алгебраического выражения
+        // der inside an algebraic expression.
         assert!(
             compile_err("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
-                .contains("алгебраическом")
+                .contains("algebraic")
         );
-        // уравнение для необъявленной переменной
-        assert!(
-            compile_err("model M Real x; equation x = 1; q = 2; end M;").contains("необъявленных")
-        );
-        // ошибка в start-выражении
+        // Equation for an undeclared variable.
+        assert!(compile_err("model M Real x; equation x = 1; q = 2; end M;").contains("undeclared"));
+        // Error in a start expression.
         assert!(
             compile_err("model M Real x(start = q); equation der(x) = 1; end M;")
-                .contains("start у x")
+                .contains("start of x")
         );
     }
 
     #[test]
     fn runtime_error_paths() {
-        // неизвестная переменная в выражении
-        assert!(simulate_err("model M Real y; equation y = z + 1; end M;")
-            .contains("неизвестная переменная"));
-        // неизвестная функция
-        assert!(simulate_err("model M Real y; equation y = frob(1); end M;")
-            .contains("неизвестная функция"));
-        // неверная арность
+        // Unknown variable in an expression.
         assert!(
-            simulate_err("model M Real y; equation y = sin(1, 2); end M;").contains("аргумент")
+            simulate_err("model M Real y; equation y = z + 1; end M;").contains("unknown variable")
+        );
+        // Unknown function.
+        assert!(simulate_err("model M Real y; equation y = frob(1); end M;")
+            .contains("unknown function"));
+        // Wrong arity.
+        assert!(
+            simulate_err("model M Real y; equation y = sin(1, 2); end M;").contains("argument")
         );
     }
 
@@ -738,7 +743,7 @@ mod tests {
     fn csv_output_and_defaults() {
         let model = parse_model("model M Real x(start=1); equation der(x) = -x; end M;").unwrap();
         let compiled = compile(&model).unwrap();
-        // без annotation — умолчания
+        // Defaults apply without an annotation.
         assert_eq!(compiled.stop_time, 1.0);
         assert_eq!(compiled.step, 1e-3);
         let result = compiled.simulate().unwrap();
@@ -760,14 +765,15 @@ mod tests {
 
     #[test]
     fn mirrored_equation_forms_and_default_start() {
-        // expr = der(v), expr = v, состояние без start (иниц. нулём), вычитание
+        // expr = der(v), expr = v, a state without start (zero-initialized),
+        // and subtraction.
         let result = run("model M Real x; Real y; equation \
              -x - 1 = der(x); 2 + time = y; \
              annotation(experiment(StopTime=1.0, Interval=0.001)); end M;");
         let first = &result.rows[0];
-        assert_eq!(first[1], 0.0); // x(0) = 0 по умолчанию
+        assert_eq!(first[1], 0.0); // x(0) = 0 by default
         assert!((first[2] - 2.0).abs() < 1e-12); // y(0) = 2
-                                                 // der(x) = -x - 1, x(0)=0 → x(t) = e^{-t} - 1
+                                                 // der(x) = -x - 1, x(0)=0 -> x(t) = e^{-t} - 1
         let last = result.rows.last().unwrap();
         assert!(
             (last[1] - ((-1.0f64).exp() - 1.0)).abs() < 1e-9,
@@ -787,8 +793,8 @@ mod tests {
              annotation(experiment(StopTime=0.01, Interval=0.01)); end B;");
         let r_idx = result.columns.iter().position(|n| n == "r").unwrap();
         let y_idx = result.columns.iter().position(|n| n == "y").unwrap();
-        assert_eq!(result.rows[0][r_idx], 1.0); // только >= истинно
-        assert_eq!(result.rows[0][y_idx], 0.0); // все ложные ветви
+        assert_eq!(result.rows[0][r_idx], 1.0); // only >= holds
+        assert_eq!(result.rows[0][y_idx], 0.0); // all false branches
     }
 
     #[test]

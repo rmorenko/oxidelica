@@ -1,5 +1,5 @@
-//! Oxidelica IDE — среда моделирования: меню, редактор кода,
-//! симуляция, графики. Локализация EN/RU, тёмная/светлая темы.
+//! Oxidelica IDE — the modeling environment: menu, code editor,
+//! simulation, plots. EN/RU localization, dark/light themes.
 
 mod i18n;
 mod settings;
@@ -14,15 +14,18 @@ use settings::{Settings, Theme};
 use std::path::PathBuf;
 use std::time::Instant;
 
+/// Model shown when no example files are found.
 const DEFAULT_MODEL: &str = "model Demo \"Damped oscillator\"\n  parameter Real k = 4.0;\n  parameter Real d = 0.3;\n  Real x(start = 1.0);\n  Real v(start = 0.0);\nequation\n  der(x) = v;\n  der(v) = -k * x - d * v;\n  annotation(experiment(StopTime = 10.0, Interval = 0.001));\nend Demo;\n";
 
+/// Simulation output prepared for plotting.
 struct SimData {
     columns: Vec<String>,
     rows: Vec<Vec<f64>>,
-    /// Видимость кривых (по одной на каждый столбец, кроме time).
+    /// Curve visibility, one flag per column except time.
     visible: Vec<bool>,
 }
 
+/// The whole IDE state, stored as a Bevy resource.
 #[derive(Resource)]
 struct Ide {
     source: String,
@@ -31,7 +34,7 @@ struct Ide {
     log: String,
     result: Option<SimData>,
     settings: Settings,
-    /// Какая тема сейчас реально применена к egui (None — ещё ни одна).
+    /// The theme currently applied to egui (None — none yet).
     applied_theme: Option<Theme>,
     show_about: bool,
 }
@@ -73,6 +76,7 @@ fn main() {
         .run();
 }
 
+/// Collect the `.mo` files from the `examples` directory.
 fn list_examples() -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = std::fs::read_dir("examples")
         .into_iter()
@@ -85,12 +89,14 @@ fn list_examples() -> Vec<PathBuf> {
     found
 }
 
+/// File name for UI labels.
 fn file_label(path: &std::path::Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default()
 }
 
+/// Load an example file into the editor.
 fn load_example(ide: &mut Ide, path: PathBuf) {
     let s = ide.settings.lang.strings();
     match std::fs::read_to_string(&path) {
@@ -104,6 +110,7 @@ fn load_example(ide: &mut Ide, path: PathBuf) {
     }
 }
 
+/// Save the editor buffer to the current file.
 fn save_current(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     match &ide.file {
@@ -115,11 +122,12 @@ fn save_current(ide: &mut Ide) {
     }
 }
 
+/// The single per-frame UI system: menus, panels, plots, dialogs.
 fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWriter<AppExit>) {
     let ctx = contexts.ctx_mut();
     let ide = &mut *ide;
 
-    // применяем тему при первом кадре и при каждой смене
+    // Apply the theme on the first frame and on every change.
     if ide.applied_theme != Some(ide.settings.theme) {
         style::apply(ctx, ide.settings.theme);
         ide.applied_theme = Some(ide.settings.theme);
@@ -129,7 +137,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
     let s = ide.settings.lang.strings();
     let accent = style::accent(ide.settings.theme);
 
-    // --- строка меню ---
+    // --- menu bar ---
     egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
         egui::menu::bar(ui, |ui| {
             ui.menu_button(s.menu_file, |ui| {
@@ -191,7 +199,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
         });
     });
 
-    // --- тулбар: быстрый доступ ---
+    // --- toolbar: quick access ---
     egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
         ui.add_space(4.0);
         ui.horizontal(|ui| {
@@ -217,9 +225,9 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
                 load_example(ide, path);
             }
 
-            let run =
-                egui::Button::new(egui::RichText::new(s.simulate).color(egui::Color32::WHITE))
-                    .fill(accent);
+            let run_label = format!("\u{25B6} {}", s.simulate);
+            let run = egui::Button::new(egui::RichText::new(run_label).color(egui::Color32::WHITE))
+                .fill(accent);
             if ui.add(run).clicked() {
                 run_simulation(ide);
             }
@@ -227,14 +235,14 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
         ui.add_space(4.0);
     });
 
-    // --- статусная строка ---
+    // --- status line ---
     egui::TopBottomPanel::bottom("log").show(ctx, |ui| {
         ui.add_space(2.0);
         ui.monospace(&ide.log);
         ui.add_space(2.0);
     });
 
-    // --- редактор ---
+    // --- editor ---
     egui::SidePanel::left("editor")
         .resizable(true)
         .default_width(600.0)
@@ -250,7 +258,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
             });
         });
 
-    // --- графики ---
+    // --- plots ---
     egui::CentralPanel::default().show(ctx, |ui| match &mut ide.result {
         None => {
             ui.centered_and_justified(|ui| {
@@ -278,7 +286,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
         }
     });
 
-    // --- о программе ---
+    // --- about dialog ---
     if ide.show_about {
         egui::Window::new(s.menu_about)
             .collapsible(false)
@@ -299,6 +307,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
     }
 }
 
+/// Parse, compile and simulate the editor buffer; report to the log line.
 fn run_simulation(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     let started = Instant::now();

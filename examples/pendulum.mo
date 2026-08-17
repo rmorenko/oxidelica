@@ -1,10 +1,10 @@
-model Pendulum "Плоский маятник в угловых координатах + декартовы координаты груза"
-  parameter Real g = 9.81 "ускорение свободного падения";
-  parameter Real L = 1.0 "длина подвеса";
-  Real phi(start = 0.7, fixed = true) "угол от вертикали";
-  Real w(start = 0.0, fixed = true) "угловая скорость";
-  Real x "декартова x груза";
-  Real y "декартова y груза";
+model Pendulum "Planar pendulum in angle coordinates plus Cartesian bob coordinates"
+  parameter Real g = 9.81 "gravitational acceleration";
+  parameter Real L = 1.0 "rod length";
+  Real phi(start = 0.7, fixed = true) "angle from vertical";
+  Real w(start = 0.0, fixed = true) "angular velocity";
+  Real x "bob x coordinate";
+  Real y "bob y coordinate";
 equation
   der(phi) = w;
   der(w) = -(g / L) * sin(phi);

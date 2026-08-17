@@ -1,3 +1,3 @@
-# typos — быстрый спеллчекер кода (латиница; кириллицу не трогает)
+# typos - a fast source-code spell checker (Latin script only)
 [files]
 extend-exclude = ["target/", "Cargo.lock"]

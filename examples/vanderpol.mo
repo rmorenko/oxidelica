@@ -1,5 +1,5 @@
-model VanDerPol "Осциллятор Ван дер Поля: предельный цикл при любом старте"
-  parameter Real mu = 1.0 "нелинейное демпфирование";
+model VanDerPol "Van der Pol oscillator: a limit cycle from any start"
+  parameter Real mu = 1.0 "nonlinear damping";
   Real x(start = 0.1, fixed = true);
   Real v(start = 0.0, fixed = true);
 equation

@@ -1,30 +1,37 @@
 # Oxidelica
 
-Современная кроссплатформенная среда физического моделирования на Rust, совместимая с языком Modelica. Цель — полная спецификация языка, современный GUI и 3D-визуализация на Bevy. Подробности: [docs/CONCEPT.md](docs/CONCEPT.md) ([EN](docs/CONCEPT.en.md)).
+A modern cross-platform physical modeling environment in Rust, compatible with the Modelica language. The goal is the full language specification, a modern GUI and 3D visualization on Bevy. Details: [docs/CONCEPT.md](docs/CONCEPT.md) ([Russian](docs/CONCEPT.ru.md)).
 
-**Статус: M0 (спайк)** — парсер среза Modelica + RK4-симулятор + CLI.
+Russian version of this file: [README.ru.md](README.ru.md).
 
-## Быстрый старт
+**Status: M0 (spike)** — a parser for a Modelica slice + an RK4 simulator + CLI + the IDE v0.
+
+## Quick start
 
 ```bash
 cargo run -p oxidelica-cli -- simulate examples/pendulum.mo -o pendulum.csv
 cargo run -p oxidelica-cli -- parse examples/decay.mo
+cargo run -p oxidelica-ide
 cargo test
 ```
 
-## Тесты и покрытие
+## Quality
 
-Порог проекта — **95% строк** по ядру (parser, sim, cli; GUI-крейт исключён — event loop Bevy юнит-тестами не покрывается):
+The project threshold is **95% line coverage** for the core (parser, sim, cli; the GUI crate is excluded — the Bevy event loop is not unit-testable). The full pipeline lives in the Makefile:
 
 ```bash
-cargo test
-./scripts/coverage.sh --summary-only
+make help
+make check
+make cov-report
 ```
 
-## Структура
+Language rule: no Cyrillic anywhere except Markdown files with a `.ru.md` suffix and the IDE locale file `locales/ru.conf`; enforced by `make lint-cyrillic`.
 
-- `crates/oxidelica-parser` — лексер, AST, рекурсивный спуск по срезу Modelica
-- `crates/oxidelica-sim` — компиляция плоской модели в явную ОДУ + RK4
-- `crates/oxidelica-cli` — бинарник `oxidelica` (simulate / parse)
-- `docs/` — концепция и дорожная карта (M0…M8)
-- `examples/` — модели на честном синтаксисе Modelica (открываются и в OpenModelica)
+## Layout
+
+- `crates/oxidelica-parser` — lexer, AST, recursive descent over the Modelica slice
+- `crates/oxidelica-sim` — compilation of a flat model into explicit ODEs + RK4
+- `crates/oxidelica-cli` — the `oxidelica` binary (simulate / parse)
+- `crates/oxidelica-ide` — the Bevy + egui IDE (menu, editor, plots, EN/RU, themes)
+- `docs/` — concept and roadmap (M0…M8)
+- `examples/` — models in honest Modelica syntax (they open in OpenModelica too)

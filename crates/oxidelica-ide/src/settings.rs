@@ -1,17 +1,22 @@
-//! Настройки IDE: язык и тема. Хранятся в `~/.config/oxidelica/ide.conf`
-//! в формате `ключ=значение` — без зависимостей, читаемо глазами.
+//! IDE settings: language and theme. Stored in
+//! `~/.config/oxidelica/ide.conf` as `key=value` lines — no
+//! dependencies, readable by eye.
 
 use crate::i18n::Lang;
 use std::path::PathBuf;
 
+/// Color theme of the IDE.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Theme {
+    /// Dark theme (default).
     #[default]
     Dark,
+    /// Light theme.
     Light,
 }
 
 impl Theme {
+    /// Identifier used in the settings file.
     pub fn code(self) -> &'static str {
         match self {
             Theme::Dark => "dark",
@@ -19,6 +24,7 @@ impl Theme {
         }
     }
 
+    /// Parse an identifier from the settings file.
     pub fn from_code(code: &str) -> Option<Theme> {
         match code {
             "dark" => Some(Theme::Dark),
@@ -28,9 +34,12 @@ impl Theme {
     }
 }
 
+/// Persisted user preferences.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Settings {
+    /// Interface language.
     pub lang: Lang,
+    /// Color theme.
     pub theme: Theme,
 }
 
@@ -44,6 +53,7 @@ fn config_path() -> Option<PathBuf> {
     )
 }
 
+/// Load settings from disk, falling back to defaults.
 pub fn load() -> Settings {
     let mut settings = Settings::default();
     let Some(path) = config_path() else {
@@ -73,6 +83,7 @@ pub fn load() -> Settings {
     settings
 }
 
+/// Persist settings to disk (best effort — errors are ignored).
 pub fn save(settings: Settings) {
     let Some(path) = config_path() else { return };
     if let Some(dir) = path.parent() {

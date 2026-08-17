@@ -1,52 +1,52 @@
-# Oxidelica — концепция
+# Oxidelica — Concept
 
-**Современная кроссплатформенная среда физического моделирования на Rust, совместимая с языком Modelica.**
+**A modern cross-platform physical modeling environment in Rust, compatible with the Modelica language.**
 
-## Зачем
+## Why
 
-OpenModelica — мощный, но тяжёлый в эксплуатации инструмент: нативной сборки под macOS нет, GUI требует X11/Docker-акробатики, интерфейс архаичен. Oxidelica — попытка построить среду моделирования новой генерации: один нативный бинарник на Mac/Linux/Windows, современный интерфейс и 3D-визуализация на Bevy, ядро на Rust без сборки C-кода на машине пользователя.
+OpenModelica is powerful but operationally heavy: no native macOS build, GUI requires X11/Docker acrobatics, dated interface. Oxidelica is an attempt to build a next-generation modeling environment: a single native binary for Mac/Linux/Windows, a modern interface with 3D visualization built on Bevy, and a Rust core that never invokes a C compiler on the user's machine.
 
-## Что это
+## What it is
 
-- **Компилятор языка Modelica** (цель — полная спецификация; путь — поэтапно расширяемое подмножество): парсер → инстанцирование и flattening → символьный анализ ДАУ (сортировка, приведение индекса, tearing) → исполняемая форма.
-- **Численное ядро**: явные и неявные решатели ОДУ/ДАУ (RK, BDF/IDA-класс), события, гибридные системы.
-- **Среда**: редактор схем, графики, 3D-анимация MultiBody-моделей — всё на Bevy (ECS + wgpu), UI-панели на egui.
+- **A Modelica compiler** (goal — the full specification; path — an incrementally growing subset): parser → instantiation & flattening → symbolic DAE analysis (sorting, index reduction, tearing) → executable form.
+- **A numeric core**: explicit and implicit ODE/DAE solvers (RK, BDF/IDA-class), events, hybrid systems.
+- **An environment**: diagram editor, plotting, 3D animation of MultiBody models — all on Bevy (ECS + wgpu), UI panels on egui.
 
-## Принципы
+## Principles
 
-1. **Настоящий язык.** Никакого «диалекта»: любой этап парсит подмножество честной Modelica, файлы совместимы с OpenModelica.
-2. **Сверка с эталоном.** Каждая модель из тестового набора прогоняется в OpenModelica (в CI, в докере) — результаты сравниваются численно.
-3. **Каждый этап полезен.** Не «большой взрыв через три года», а инструмент, которым можно пользоваться после каждой вехи.
-4. **Один бинарник.** Симуляция интерпретацией/JIT, без вызова системного компилятора C.
+1. **The real language.** No "dialect": every stage parses a subset of honest Modelica; files stay compatible with OpenModelica.
+2. **Reference checking.** Every model in the test suite is also run in OpenModelica (in CI, via Docker) — results are compared numerically.
+3. **Every milestone is useful.** Not a "big bang in three years" but a usable tool after each milestone.
+4. **Single binary.** Simulation via interpretation/JIT, no system C compiler involved.
 
-## Дорожная карта
+## Roadmap
 
-| Веха                      | Содержимое                                                         | Критерий готовности                                         |
-| ------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------- |
-| **M0. Спайк**             | Парсер среза языка + RK4, CLI                                      | `der(x)=-x` и маятник считаются, ошибка vs аналитики < 1e-6 |
-| **M1. ОДУ-подмножество**  | Полные выражения, параметры, алгебраические уравнения, adaptive RK | 10 учебных моделей сходятся с OpenModelica                  |
-| **M2. Компоненты**        | Классы, наследование, connect, flattening                          | RC-цепь и масса-пружина из компонентов                      |
-| **M3. ДАУ**               | Pantelides, dummy derivatives, tearing, BDF                        | Маятник в декартовых координатах (index-3)                  |
-| **M4. События**           | when/if-уравнения, zero-crossing, reinit                           | Прыгающий мяч, диод                                         |
-| **M5. Массивы и функции** | Массивы, for-уравнения, functions, records                         | Дискретизация теплопроводности                              |
-| **M6. MSL-ядро**          | Blocks, Electrical.Analog, Mechanics.Rotational                    | Примеры из MSL работают без правок                          |
-| **M7. GUI**               | Bevy: редактор схем, графики                                       | Собрать и посчитать модель мышкой                           |
-| **M8. 3D**                | MultiBody-визуализация, анимация                                   | Двойной маятник крутится в 3D                               |
+| Milestone                  | Scope                                                          | Definition of done                                             |
+| -------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
+| **M0. Spike**              | Parser for a language slice + RK4, CLI                         | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6 |
+| **M1. ODE subset**         | Full expressions, parameters, algebraic equations, adaptive RK | 10 textbook models match OpenModelica                          |
+| **M2. Components**         | Classes, inheritance, connect, flattening                      | RC circuit and mass-spring built from components               |
+| **M3. DAE**                | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                   |
+| **M4. Events**             | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                           |
+| **M5. Arrays & functions** | Arrays, for-equations, functions, records                      | Discretized heat conduction                                    |
+| **M6. MSL core**           | Blocks, Electrical.Analog, Mechanics.Rotational                | MSL examples run unmodified                                    |
+| **M7. GUI**                | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                      |
+| **M8. 3D**                 | MultiBody visualization, animation                             | Double pendulum spins in 3D                                    |
 
-**Трек IDE идёт параллельно языковому с самого начала** (решение от 2026-08-15): v0 — Bevy-окно с редактором кода, кнопкой запуска и графиками (готово вместе с M0); далее постепенно — фоновая симуляция, подсветка синтаксиса, схемный редактор (M7) и 3D-сцена (M8) в том же приложении. Языковой трек при этом движется своим темпом: M1, M2, M3…
+**The IDE track runs in parallel with the language track from the start** (decision of 2026-08-15): v0 — a Bevy window with a code editor, a run button, and plots (shipped with M0); then incrementally — background simulation, syntax highlighting, the diagram editor (M7) and the 3D scene (M8) in the same app. The language track advances at its own pace: M1, M2, M3…
 
-## Технологический стек
+## Tech stack
 
-- **Ядро**: Rust, workspace из крейтов: `parser` → `flatten` → `dae` → `sim` → `runtime`.
-- **GUI/3D**: Bevy + bevy_egui (панели), wgpu-рендер. Плюс WASM-сборка ядра для веба (позже).
-- **Тесты**: cargo test + эталонные прогоны против OpenModelica в Docker (CI).
+- **Core**: Rust, a workspace of crates: `parser` → `flatten` → `dae` → `sim` → `runtime`.
+- **GUI/3D**: Bevy + bevy_egui (panels), wgpu rendering. Plus a WASM build of the core for the web (later).
+- **Tests**: cargo test + reference runs against OpenModelica in Docker (CI).
 
-## Главные риски
+## Key risks
 
-1. **Приведение индекса ДАУ (M3)** — самая наукоёмкая часть; митигируем ранним прототипом Pantelides на бумажных примерах.
-2. **Длинный хвост семантики MSL (M6)** — MSL использует тёмные углы языка; митигируем сверкой с эталоном с первого дня.
-3. **Зрелость Bevy как UI-фреймворка (M7)** — редактор схем на ECS нетривиален; митигируем: вся «офисная» часть UI на egui, Bevy отвечает за канву и 3D.
+1. **DAE index reduction (M3)** — the most research-heavy part; mitigate with an early Pantelides prototype on paper examples.
+2. **The long tail of MSL semantics (M6)** — MSL exercises dark corners of the language; mitigate with reference checking from day one.
+3. **Bevy maturity as a UI framework (M7)** — a diagram editor on ECS is nontrivial; mitigate: all "office" UI in egui, Bevy owns the canvas and 3D.
 
-## Спайк (M0) — определение
+## Spike (M0) — definition
 
-Срез языка: `model … end`, объявления `Real`/`parameter Real` с атрибутом `start`, секция `equation`, `der()`, арифметика, элементарные функции, `time`, `annotation(experiment(StopTime=…))`. Решатель RK4 с фиксированным шагом, вывод CSV. Критерий: распад и маятник совпадают с аналитикой; код спайка становится фундаментом M1, а не выбрасывается.
+Language slice: `model … end`, `Real`/`parameter Real` declarations with the `start` attribute, an `equation` section, `der()`, arithmetic, elementary functions, `time`, `annotation(experiment(StopTime=…))`. Fixed-step RK4 solver, CSV output. Success criterion: exponential decay and a pendulum match analytics; the spike code becomes the foundation of M1, not a throwaway.

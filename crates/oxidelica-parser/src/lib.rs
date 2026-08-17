@@ -1,4 +1,6 @@
-//! oxidelica-parser — лексер, AST и парсер среза Modelica (веха M0).
+//! oxidelica-parser — lexer, AST and parser for the M0 Modelica slice.
+
+#![deny(missing_docs)]
 
 pub mod ast;
 pub mod lexer;

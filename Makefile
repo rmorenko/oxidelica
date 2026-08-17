@@ -1,50 +1,51 @@
-# Oxidelica — качество кода одной командой.
+# Oxidelica — code quality in one command.
 #
-#   make help      — список целей
-#   make fmt       — применить все форматеры (rust, toml, md/json/yaml)
-#   make check     — всё в режиме проверки: форматы, линтеры, спеллинг, тесты, покрытие
+#   make help      — list targets
+#   make fmt       — apply all formatters (rust, toml, md/json/yaml)
+#   make check     — everything in check mode: formats, linters, spelling,
+#                    tests, coverage
 #
-# Инструменты: rustfmt, clippy, taplo, prettier (npx), markdownlint-cli2,
+# Tools: rustfmt, clippy, taplo, prettier (npx), markdownlint-cli2,
 # yamllint (uvx), jq, xmllint, typos, codespell (uvx), cargo-audit,
 # cargo-machete, cargo-llvm-cov.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
-# файлы по типам (target/ и .git исключены)
+# Files by type (target/ and .git are excluded).
 FIND := find . -path ./target -prune -o -path ./.git -prune -o
 JSON_FILES := $(shell $(FIND) -name '*.json' -print)
 XML_FILES  := $(shell $(FIND) \( -name '*.xml' -o -name '*.svg' \) -print)
 
 .PHONY: help
-help: ## показать этот список
+help: ## show this list
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-# ---------- форматирование ----------
+# ---------- formatting ----------
 
 .PHONY: fmt
-fmt: ## применить все форматеры
+fmt: ## apply all formatters
 	cargo fmt --all
 	taplo fmt
 	npx --yes prettier --write "**/*.{md,json,yaml,yml}" --log-level warn
 
 .PHONY: fmt-check
-fmt-check: ## проверить форматирование без изменений
+fmt-check: ## verify formatting without changes
 	cargo fmt --all -- --check
 	taplo fmt --check --diff
 	npx --yes prettier --check "**/*.{md,json,yaml,yml}" --log-level warn
 
-# ---------- линтеры ----------
+# ---------- linters ----------
 
 .PHONY: lint
-lint: lint-rust lint-toml lint-md lint-yaml lint-json lint-xml ## все линтеры
+lint: lint-rust lint-toml lint-md lint-yaml lint-json lint-xml lint-cyrillic ## all linters
 
 .PHONY: lint-rust
-lint-rust: ## clippy со строгими предупреждениями
+lint-rust: ## clippy with warnings as errors
 	cargo clippy --workspace --all-targets -- -D warnings
 
 .PHONY: lint-toml
-lint-toml: ## валидация TOML (taplo)
+lint-toml: ## TOML validation (taplo)
 	taplo check
 
 .PHONY: lint-md
@@ -52,68 +53,72 @@ lint-md: ## markdownlint
 	markdownlint-cli2 "**/*.md" "!target"
 
 .PHONY: lint-yaml
-lint-yaml: ## yamllint (если есть yaml-файлы)
+lint-yaml: ## yamllint (when yaml files exist)
 	@files=$$($(FIND) \( -name '*.yaml' -o -name '*.yml' \) -print); \
-	if [ -n "$$files" ]; then uvx yamllint -s $$files; else echo "yaml: файлов нет"; fi
+	if [ -n "$$files" ]; then uvx yamllint -s $$files; else echo "yaml: no files"; fi
 
 .PHONY: lint-json
-lint-json: ## валидация JSON (jq)
+lint-json: ## JSON validation (jq)
 	@ok=1; for f in $(JSON_FILES); do \
-	  jq empty "$$f" || { echo "невалидный JSON: $$f"; ok=0; }; \
+	  jq empty "$$f" || { echo "invalid JSON: $$f"; ok=0; }; \
 	done; [ $$ok -eq 1 ]
-	@echo "json: ок ($(words $(JSON_FILES)) файлов)"
+	@echo "json: ok ($(words $(JSON_FILES)) files)"
 
 .PHONY: lint-xml
-lint-xml: ## валидация XML/SVG (xmllint)
-	@if [ -n "$(XML_FILES)" ]; then xmllint --noout $(XML_FILES) && echo "xml: ок"; \
-	else echo "xml: файлов нет"; fi
+lint-xml: ## XML/SVG validation (xmllint)
+	@if [ -n "$(XML_FILES)" ]; then xmllint --noout $(XML_FILES) && echo "xml: ok"; \
+	else echo "xml: no files"; fi
 
-# ---------- спеллинг ----------
+.PHONY: lint-cyrillic
+lint-cyrillic: ## language rule: no Cyrillic outside *.ru.md and locales/ru.conf
+	python3 scripts/check_cyrillic.py
+
+# ---------- spelling ----------
 
 .PHONY: spell
-spell: ## проверка орфографии (typos + codespell)
+spell: ## spell check (typos + codespell)
 	typos
 	uvx codespell --config .codespellrc
 
 .PHONY: spell-fix
-spell-fix: ## автоисправление опечаток
+spell-fix: ## auto-fix typos
 	typos --write-changes
 	uvx codespell --config .codespellrc --write-changes
 
-# ---------- зависимости ----------
+# ---------- dependencies ----------
 
 .PHONY: audit
-audit: ## уязвимости (cargo-audit) и неиспользуемые зависимости (cargo-machete)
+audit: ## vulnerabilities (cargo-audit) and unused deps (cargo-machete)
 	cargo audit
 	cargo machete
 
-# ---------- тесты и покрытие ----------
+# ---------- tests and coverage ----------
 
 .PHONY: test
-test: ## все тесты
+test: ## all tests
 	cargo test --workspace
 
 .PHONY: cov
-cov: ## покрытие ядра с порогом 95% строк
+cov: ## core coverage with the 95% line threshold
 	./scripts/coverage.sh --summary-only
 
 .PHONY: cov-report
-cov-report: ## HTML-отчёт по покрытию (и открыть в браузере)
+cov-report: ## HTML coverage report (opens in the browser)
 	cargo llvm-cov -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli --html
-	@echo "отчёт: target/llvm-cov/html/index.html"
+	@echo "report: target/llvm-cov/html/index.html"
 	open target/llvm-cov/html/index.html
 
 .PHONY: cov-lcov
-cov-lcov: ## покрытие в формате lcov (для CI)
+cov-lcov: ## lcov coverage output (for CI)
 	cargo llvm-cov -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli \
 	  --lcov --output-path target/lcov.info
-	@echo "отчёт: target/lcov.info"
+	@echo "report: target/lcov.info"
 
-# ---------- агрегаты ----------
+# ---------- aggregates ----------
 
 .PHONY: check
-check: fmt-check lint spell audit test cov ## полная проверка (как в CI)
-	@echo "✅ все проверки пройдены"
+check: fmt-check lint spell audit test cov ## full check (as in CI)
+	@echo "OK: all checks passed"
 
 .PHONY: ci
-ci: check ## синоним check
+ci: check ## alias for check

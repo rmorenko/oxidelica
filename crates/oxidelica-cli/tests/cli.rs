@@ -1,4 +1,4 @@
-//! Интеграционные тесты CLI: запускают настоящий бинарник `oxidelica`.
+//! CLI integration tests: they run the real `oxidelica` binary.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -21,7 +21,7 @@ fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
-/// Временный файл, уникальный на тест, удаляется в конце.
+/// A per-test temporary file removed on drop.
 struct TempFile(PathBuf);
 
 impl TempFile {
@@ -47,14 +47,14 @@ impl Drop for TempFile {
 fn no_args_prints_usage() {
     let out = bin().output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("Использование"));
+    assert!(stderr(&out).contains("Usage"));
 }
 
 #[test]
 fn unknown_command_prints_usage() {
     let out = bin().arg("frobnicate").output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("Использование"));
+    assert!(stderr(&out).contains("Usage"));
 }
 
 #[test]
@@ -65,9 +65,9 @@ fn parse_dumps_model_structure() {
         .unwrap();
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
-    assert!(text.contains("модель Pendulum"));
-    assert!(text.contains("состояния (2)"));
-    assert!(text.contains("алгебраические (2)"));
+    assert!(text.contains("model Pendulum"));
+    assert!(text.contains("states (2)"));
+    assert!(text.contains("algebraic (2)"));
     assert!(text.contains("g = 9.81"));
 }
 
@@ -87,8 +87,8 @@ fn simulate_writes_csv_to_stdout() {
     assert!(out.status.success(), "{}", stderr(&out));
     let csv = stdout(&out);
     assert!(csv.starts_with("time,x"));
-    assert_eq!(csv.lines().count(), 12); // заголовок + 11 точек (0..=1 с шагом 0.1)
-    assert!(stderr(&out).contains("финальная точка"));
+    assert_eq!(csv.lines().count(), 12); // header + 11 points (0..=1, step 0.1)
+    assert!(stderr(&out).contains("final point"));
 }
 
 #[test]
@@ -104,7 +104,7 @@ fn simulate_writes_csv_to_file() {
         .output()
         .unwrap();
     assert!(out.status.success(), "{}", stderr(&out));
-    assert!(stdout(&out).contains("шагов за"));
+    assert!(stdout(&out).contains("steps in"));
     let written = std::fs::read_to_string(&result).unwrap();
     assert!(written.starts_with("time,x"));
     let _ = std::fs::remove_file(result);
@@ -117,7 +117,7 @@ fn simulate_reports_flag_errors() {
 
     let out = bin().args(["simulate", decay, "--stop"]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("требует значения"));
+    assert!(stderr(&out).contains("requires a value"));
 
     let out = bin()
         .args(["simulate", decay, "--stop", "abc"])
@@ -131,11 +131,11 @@ fn simulate_reports_flag_errors() {
         .output()
         .unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("неизвестный флаг"));
+    assert!(stderr(&out).contains("unknown flag"));
 
     let out = bin().args(["simulate", decay, "--dt"]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("требует значения"));
+    assert!(stderr(&out).contains("requires a value"));
 
     let out = bin()
         .args(["simulate", decay, "--dt", "xyz"])
@@ -146,7 +146,7 @@ fn simulate_reports_flag_errors() {
 
     let out = bin().args(["simulate", decay, "-o"]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("требует значения"));
+    assert!(stderr(&out).contains("requires a value"));
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn missing_file_is_reported() {
         .output()
         .unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("не удалось прочитать"));
+    assert!(stderr(&out).contains("cannot read"));
 }
 
 #[test]
@@ -164,7 +164,7 @@ fn parse_error_is_reported_with_line() {
     let bad = TempFile::new("bad.mo", "model M Real x end");
     let out = bin().args(["parse", bad.path()]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("строка"));
+    assert!(stderr(&out).contains("line"));
 }
 
 #[test]
@@ -172,7 +172,7 @@ fn compile_error_is_reported() {
     let bad = TempFile::new("nocov.mo", "model M Real x; Real y; equation x = 1; end M;");
     let out = bin().args(["simulate", bad.path()]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("нет уравнения"));
+    assert!(stderr(&out).contains("no equation"));
 }
 
 #[test]
@@ -180,7 +180,7 @@ fn simulation_runtime_error_is_reported() {
     let bad = TempFile::new("runtime.mo", "model M Real y; equation y = frob(1); end M;");
     let out = bin().args(["simulate", bad.path()]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("неизвестная функция"));
+    assert!(stderr(&out).contains("unknown function"));
 }
 
 #[test]
@@ -195,5 +195,5 @@ fn output_write_error_is_reported() {
         .output()
         .unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("не удалось записать"));
+    assert!(stderr(&out).contains("cannot write"));
 }

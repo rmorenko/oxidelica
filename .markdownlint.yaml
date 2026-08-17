@@ -1,4 +1,4 @@
-# markdownlint: включено всё, кроме осознанных послаблений
+# markdownlint: everything on, with deliberate relaxations
 default: true
-MD013: false # длину строк не ограничиваем — проза в доках
-MD033: false # inline HTML допустим
+MD013: false # no line-length limit: docs are prose
+MD033: false # inline HTML is allowed

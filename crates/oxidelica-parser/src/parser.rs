@@ -1,6 +1,6 @@
-//! Рекурсивный спуск по срезу Modelica (M0).
+//! Recursive-descent parser for the M0 Modelica slice.
 //!
-//! Грамматика среза:
+//! Slice grammar:
 //! ```text
 //! model      : "model" IDENT [STRING] { declaration } ["equation" { eq_item }]
 //!              ["annotation" "(" ... ")" ";"] "end" IDENT ";"
@@ -8,32 +8,43 @@
 //!              ["=" expr] [STRING] ";"
 //! attr       : IDENT "=" (expr | "true" | "false")
 //! eq_item    : expr "=" expr [STRING] ";"
-//! expr       : ["+"|"-"] term { ("+"|"-") term }
+//! expr       : if_expr | logical_or
+//! if_expr    : "if" expr "then" expr {"elseif" expr "then" expr} "else" expr
+//! logical_or : logical_and { "or" logical_and }
+//! logical_and: logical_not { "and" logical_not }
+//! logical_not: ["not"] relation
+//! relation   : arith [("<"|"<="|">"|">="|"=="|"<>") arith]
+//! arith      : ["+"|"-"] term { ("+"|"-") term }
 //! term       : factor { ("*"|"/") factor }
 //! factor     : primary ["^" primary]
-//! primary    : NUMBER | IDENT ["(" [expr {"," expr}] ")"] | "(" expr ")" | "time"
+//! primary    : NUMBER | "true" | "false" | IDENT ["(" [expr {"," expr}] ")"]
+//!            | "(" expr ")" | "time"
 //! ```
-//! Приоритеты соответствуют спецификации Modelica: `^` выше `*`/`/`,
-//! унарный минус — на уровне сложения (`-a*b` = `-(a*b)`).
+//! Precedence follows the Modelica specification: `^` binds tighter than
+//! `*`/`/`; unary minus lives at the addition level (`-a*b` = `-(a*b)`).
 
 use crate::ast::*;
 use crate::lexer::{lex, Spanned, Token};
 use std::fmt;
 
+/// A parse error with its source line.
 #[derive(Debug)]
 pub struct ParseError {
+    /// Human-readable description of the problem.
     pub message: String,
+    /// 1-based line number where the error occurred.
     pub line: u32,
 }
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "строка {}: {}", self.line, self.message)
+        write!(f, "line {}: {}", self.line, self.message)
     }
 }
 
 impl std::error::Error for ParseError {}
 
+/// Parse a single flat model from Modelica source text.
 pub fn parse_model(source: &str) -> Result<Model, ParseError> {
     let tokens = lex(source).map_err(|e| ParseError {
         message: e.message,
@@ -70,7 +81,7 @@ impl Parser {
             Ok(())
         } else {
             Err(self.err(format!(
-                "ожидалось «{expected}» ({context}), найдено «{}»",
+                "expected `{expected}` ({context}), found `{}`",
                 self.peek()
             )))
         }
@@ -89,9 +100,7 @@ impl Parser {
                 self.bump();
                 Ok(name)
             }
-            other => Err(self.err(format!(
-                "ожидался идентификатор ({context}), найдено «{other}»"
-            ))),
+            other => Err(self.err(format!("expected identifier ({context}), found `{other}`"))),
         }
     }
 
@@ -105,8 +114,8 @@ impl Parser {
     }
 
     fn model(&mut self) -> Result<Model, ParseError> {
-        self.expect(&Token::Model, "начало модели")?;
-        let name = self.ident("имя модели")?;
+        self.expect(&Token::Model, "model keyword")?;
+        let name = self.ident("model name")?;
         let description = self.opt_string();
 
         let mut components = Vec::new();
@@ -118,13 +127,13 @@ impl Parser {
             match self.peek() {
                 Token::End => {
                     self.bump();
-                    let end_name = self.ident("имя после end")?;
+                    let end_name = self.ident("name after end")?;
                     if end_name != name {
-                        return Err(self.err(format!(
-                            "end {end_name}; не совпадает с именем модели {name}"
-                        )));
+                        return Err(
+                            self.err(format!("end {end_name}; does not match model name {name}"))
+                        );
                     }
-                    self.expect(&Token::Semi, "точка с запятой после end")?;
+                    self.expect(&Token::Semi, "semicolon after end")?;
                     break;
                 }
                 Token::Equation => {
@@ -134,7 +143,7 @@ impl Parser {
                 Token::Annotation => {
                     self.parse_annotation(&mut experiment)?;
                 }
-                Token::Eof => return Err(self.err("неожиданный конец файла: нет end".into())),
+                Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
                 _ => {
                     if in_equations {
                         equations.push(self.equation_item()?);
@@ -167,21 +176,19 @@ impl Parser {
             _ => Variability::Continuous,
         };
 
-        let type_name = self.ident("тип компонента")?;
+        let type_name = self.ident("component type")?;
         if type_name != "Real" {
-            return Err(self.err(format!(
-                "M0 поддерживает только тип Real, найден «{type_name}»"
-            )));
+            return Err(self.err(format!("M0 supports only type Real, found `{type_name}`")));
         }
-        let name = self.ident("имя компонента")?;
+        let name = self.ident("component name")?;
 
         let mut start = None;
         let mut fixed = None;
         if self.peek() == &Token::LParen {
             self.bump();
             loop {
-                let attr = self.ident("имя атрибута")?;
-                self.expect(&Token::Assign, "= в атрибуте")?;
+                let attr = self.ident("attribute name")?;
+                self.expect(&Token::Assign, "`=` in attribute")?;
                 match attr.as_str() {
                     "start" => start = Some(self.expr()?),
                     "fixed" => {
@@ -189,14 +196,15 @@ impl Parser {
                             Token::True => true,
                             Token::False => false,
                             other => {
-                                return Err(self
-                                    .err(format!("fixed ожидает true/false, найдено «{other}»")))
+                                return Err(
+                                    self.err(format!("fixed expects true/false, found `{other}`"))
+                                )
                             }
                         });
                     }
                     other => {
                         return Err(
-                            self.err(format!("неизвестный атрибут «{other}» (M0: start, fixed)"))
+                            self.err(format!("unknown attribute `{other}` (M0: start, fixed)"))
                         );
                     }
                 }
@@ -209,9 +217,9 @@ impl Parser {
                         break;
                     }
                     other => {
-                        return Err(
-                            self.err(format!("ожидалась , или ) в атрибутах, найдено «{other}»"))
-                        )
+                        return Err(self.err(format!(
+                            "expected `,` or `)` in attributes, found `{other}`"
+                        )))
                     }
                 }
             }
@@ -225,7 +233,7 @@ impl Parser {
         };
 
         let description = self.opt_string();
-        self.expect(&Token::Semi, "точка с запятой после объявления")?;
+        self.expect(&Token::Semi, "semicolon after declaration")?;
 
         Ok(Component {
             name,
@@ -239,23 +247,23 @@ impl Parser {
 
     fn equation_item(&mut self) -> Result<EquationItem, ParseError> {
         let lhs = self.expr()?;
-        self.expect(&Token::Assign, "= в уравнении")?;
+        self.expect(&Token::Assign, "`=` in equation")?;
         let rhs = self.expr()?;
         self.opt_string();
-        self.expect(&Token::Semi, "точка с запятой после уравнения")?;
+        self.expect(&Token::Semi, "semicolon after equation")?;
         Ok(EquationItem { lhs, rhs })
     }
 
-    /// `annotation ( ... ) ;` — разбираем толерантно: из всего содержимого
-    /// извлекаем только experiment(StopTime=…, Interval=…, Tolerance=…),
-    /// остальное пропускаем по балансу скобок.
+    /// `annotation ( ... ) ;` — parsed tolerantly: only
+    /// `experiment(StopTime=…, Interval=…, Tolerance=…)` is extracted,
+    /// everything else is skipped by balancing parentheses.
     fn parse_annotation(&mut self, experiment: &mut Experiment) -> Result<(), ParseError> {
         self.expect(&Token::Annotation, "annotation")?;
-        self.expect(&Token::LParen, "скобка после annotation")?;
+        self.expect(&Token::LParen, "parenthesis after annotation")?;
         let mut depth = 1usize;
         while depth > 0 {
             match self.peek().clone() {
-                Token::Eof => return Err(self.err("незакрытая annotation".into())),
+                Token::Eof => return Err(self.err("unterminated annotation".into())),
                 Token::LParen => {
                     depth += 1;
                     self.bump();
@@ -266,27 +274,27 @@ impl Parser {
                 }
                 Token::Ident(name) if depth == 1 && name == "experiment" => {
                     self.bump();
-                    self.expect(&Token::LParen, "скобка после experiment")?;
+                    self.expect(&Token::LParen, "parenthesis after experiment")?;
                     loop {
-                        let key = self.ident("параметр experiment")?;
-                        self.expect(&Token::Assign, "= в experiment")?;
+                        let key = self.ident("experiment parameter")?;
+                        self.expect(&Token::Assign, "`=` in experiment")?;
                         let value = self.number_literal()?;
                         match key.as_str() {
                             "StopTime" => experiment.stop_time = Some(value),
                             "Interval" => experiment.interval = Some(value),
                             "Tolerance" => experiment.tolerance = Some(value),
                             "StartTime" if value != 0.0 => {
-                                return Err(self.err("M0: StartTime должен быть 0".into()));
+                                return Err(self.err("M0: StartTime must be 0".into()));
                             }
                             "StartTime" => {}
-                            _ => {} // незнакомые ключи молча пропускаем
+                            _ => {} // Unknown keys are silently skipped.
                         }
                         match self.bump() {
                             Token::Comma => continue,
                             Token::RParen => break,
                             other => {
                                 return Err(self.err(format!(
-                                    "ожидалась , или ) в experiment, найдено «{other}»"
+                                    "expected `,` or `)` in experiment, found `{other}`"
                                 )))
                             }
                         }
@@ -297,7 +305,7 @@ impl Parser {
                 }
             }
         }
-        self.expect(&Token::Semi, "точка с запятой после annotation")?;
+        self.expect(&Token::Semi, "semicolon after annotation")?;
         Ok(())
     }
 
@@ -310,13 +318,13 @@ impl Parser {
         };
         match self.bump() {
             Token::Number(n) => Ok(if negative { -n } else { n }),
-            other => Err(self.err(format!("ожидалось число, найдено «{other}»"))),
+            other => Err(self.err(format!("expected a number, found `{other}`"))),
         }
     }
 
-    // --- выражения ---
-    // Иерархия по спецификации Modelica:
-    // expr → if | logical_or; or → and → not → relation → арифметика.
+    // --- expressions ---
+    // Hierarchy per the Modelica specification:
+    // expr -> if | logical_or; or -> and -> not -> relation -> arithmetic.
 
     fn expr(&mut self) -> Result<Expr, ParseError> {
         if self.peek() == &Token::If {
@@ -325,22 +333,23 @@ impl Parser {
         self.logical_or()
     }
 
-    /// `if c then a {elseif c2 then b} else d` → вложенные `If`.
+    /// `if c then a {elseif c2 then b} else d` — becomes nested `If`s.
     fn if_expression(&mut self) -> Result<Expr, ParseError> {
         self.expect(&Token::If, "if")?;
         self.if_body()
     }
 
-    /// Общее тело для if и elseif: `<условие> then <выражение> (elseif …| else …)`.
+    /// Shared body for if and elseif:
+    /// `<condition> then <expression> (elseif … | else …)`.
     fn if_body(&mut self) -> Result<Expr, ParseError> {
         let condition = self.expr()?;
-        self.expect(&Token::Then, "then после условия")?;
+        self.expect(&Token::Then, "then after condition")?;
         let then_branch = self.expr()?;
         let else_branch = match self.bump() {
             Token::ElseIf => self.if_body()?,
             Token::Else => self.expr()?,
             other => {
-                return Err(self.err(format!("ожидалось else/elseif, найдено «{other}»")));
+                return Err(self.err(format!("expected else/elseif, found `{other}`")));
             }
         };
         Ok(Expr::If(
@@ -396,7 +405,7 @@ impl Parser {
     }
 
     fn arith(&mut self) -> Result<Expr, ParseError> {
-        // унарный знак уровня сложения
+        // Unary sign at the addition level.
         let leading_neg = match self.peek() {
             Token::Minus => {
                 self.bump();
@@ -467,7 +476,7 @@ impl Parser {
             Token::LParen => {
                 self.bump();
                 let inner = self.expr()?;
-                self.expect(&Token::RParen, "закрывающая скобка")?;
+                self.expect(&Token::RParen, "closing parenthesis")?;
                 Ok(inner)
             }
             Token::Ident(name) => {
@@ -489,13 +498,13 @@ impl Parser {
                             }
                         }
                     }
-                    self.expect(&Token::RParen, "закрывающая скобка вызова")?;
+                    self.expect(&Token::RParen, "closing parenthesis of call")?;
                     Ok(Expr::Call(name, args))
                 } else {
                     Ok(Expr::Ref(name))
                 }
             }
-            other => Err(self.err(format!("неожиданный токен в выражении: «{other}»"))),
+            other => Err(self.err(format!("unexpected token in expression: `{other}`"))),
         }
     }
 }
@@ -519,13 +528,13 @@ mod tests {
         let m = parse_model("model M Real a; Real b; Real c; equation c = -a*b^2; end M;").unwrap();
         let rhs = &m.equations[0].rhs;
         let Expr::Neg(inner) = rhs else {
-            panic!("ожидался унарный минус: {rhs:?}")
+            panic!("expected unary minus: {rhs:?}")
         };
         let Expr::Bin(BinOp::Mul, _, r) = inner.as_ref() else {
-            panic!("ожидалось умножение: {inner:?}")
+            panic!("expected multiplication: {inner:?}")
         };
         assert!(matches!(r.as_ref(), Expr::Bin(BinOp::Pow, _, _)));
-        // унарный плюс — прозрачен
+        // Unary plus is transparent.
         let m2 = parse_model("model M Real c; equation c = +5; end M;").unwrap();
         assert_eq!(m2.equations[0].rhs, Expr::Number(5.0));
     }
@@ -547,77 +556,59 @@ mod tests {
         assert!(parse_model("model A Real x; equation x = 1; end B;").is_err());
     }
 
-    #[test]
-    fn parses_if_elseif_chain() {
-        let m = parse_model(
-            "model M Real x; Real y; equation \
-             y = if x > 1 then 1 elseif x < -1 then -1 else x; end M;",
-        )
-        .unwrap();
-        // elseif развернулся во вложенный If в ветке else
-        let Expr::If(_, _, else_branch) = &m.equations[0].rhs else {
-            panic!("ожидался If: {:?}", m.equations[0].rhs)
-        };
-        assert!(matches!(else_branch.as_ref(), Expr::If(_, _, _)));
-        // fixed=false тоже разбирается
-        let m2 =
-            parse_model("model M Real x(start=0, fixed=false); equation der(x)=1; end M;").unwrap();
-        assert_eq!(m2.components[0].fixed, Some(false));
-    }
-
     fn err_of(source: &str) -> String {
         parse_model(source).unwrap_err().to_string()
     }
 
     #[test]
     fn error_paths_are_reported() {
-        // конец файла без end
-        assert!(err_of("model M Real x;").contains("конец файла"));
-        // не Real
-        assert!(err_of("model M Integer x; end M;").contains("только тип Real"));
-        // неизвестный атрибут
-        assert!(err_of("model M Real x(min=0); end M;").contains("неизвестный атрибут"));
-        // fixed не булев
+        // End of file without `end`.
+        assert!(err_of("model M Real x;").contains("end of file"));
+        // Not Real.
+        assert!(err_of("model M Integer x; end M;").contains("only type Real"));
+        // Unknown attribute.
+        assert!(err_of("model M Real x(min=0); end M;").contains("unknown attribute"));
+        // Non-boolean fixed.
         assert!(err_of("model M Real x(fixed=1); end M;").contains("true/false"));
-        // пропущена запятая в атрибутах
-        assert!(err_of("model M Real x(start=1 fixed=true); end M;").contains(", или )"));
-        // нет точки с запятой после уравнения
-        assert!(err_of("model M Real x; equation x = 1 end M;").contains("точка с запятой"));
-        // if без else
+        // Missing comma between attributes.
+        assert!(err_of("model M Real x(start=1 fixed=true); end M;").contains("`,` or `)`"));
+        // Missing semicolon after an equation.
+        assert!(err_of("model M Real x; equation x = 1 end M;").contains("semicolon"));
+        // If without else.
         assert!(err_of("model M Real y; equation y = if 1 > 0 then 1; end M;").contains("else"));
-        // мусор в выражении
-        assert!(err_of("model M Real x; equation x = ;; end M;").contains("неожиданный токен"));
-        // незакрытая скобка
-        assert!(err_of("model M Real x; equation x = (1 + 2; end M;").contains("закрывающая"));
-        // имя модели не идентификатор
-        assert!(err_of("model 1 end 1;").contains("идентификатор"));
+        // Garbage in an expression.
+        assert!(err_of("model M Real x; equation x = ;; end M;").contains("unexpected token"));
+        // Unclosed parenthesis.
+        assert!(err_of("model M Real x; equation x = (1 + 2; end M;").contains("closing"));
+        // Model name is not an identifier.
+        assert!(err_of("model 1 end 1;").contains("identifier"));
     }
 
     #[test]
     fn annotation_error_paths() {
-        // незакрытая annotation (обрыв на балансе скобок вне experiment)
+        // Unterminated annotation (cut off while balancing parentheses).
         assert!(err_of("model M Real x; equation x = 1; annotation(uses(")
-            .contains("незакрытая annotation"));
-        // обрыв внутри experiment — своя диагностика
+            .contains("unterminated annotation"));
+        // Cut off inside experiment has its own diagnostics.
         assert!(
             err_of("model M Real x; equation x = 1; annotation(experiment(")
-                .contains("параметр experiment")
+                .contains("experiment parameter")
         );
-        // StartTime != 0 не поддержан
+        // StartTime != 0 is unsupported.
         assert!(err_of(
             "model M Real x; equation x = 1; annotation(experiment(StartTime=2)); end M;"
         )
         .contains("StartTime"));
-        // не число в experiment
+        // Not a number in experiment.
         assert!(err_of(
             "model M Real x; equation x = 1; annotation(experiment(StopTime=abc)); end M;"
         )
-        .contains("ожидалось число"));
-        // мусор вместо , или )
+        .contains("expected a number"));
+        // Garbage instead of `,` or `)`.
         assert!(err_of(
             "model M Real x; equation x = 1; annotation(experiment(StopTime=1 abc)); end M;"
         )
-        .contains(", или ) в experiment"));
+        .contains("`,` or `)` in experiment"));
     }
 
     #[test]
@@ -629,7 +620,7 @@ mod tests {
         .unwrap();
         assert_eq!(m.experiment.stop_time, Some(2.0));
         assert_eq!(m.experiment.tolerance, Some(1e-6));
-        // отрицательный литерал проходит через number_literal
+        // A negative literal goes through number_literal.
         let m2 = parse_model(
             "model M Real x; equation x = 1; annotation(experiment(StopTime=-1)); end M;",
         )
@@ -640,11 +631,11 @@ mod tests {
     #[test]
     fn parses_descriptions_and_der_on_rhs() {
         let m = parse_model(
-            "model M \"модель\" Real x \"переменная\"; equation -x = der(x) \"уравнение\"; end M;",
+            "model M \"a model\" Real x \"a variable\"; equation -x = der(x) \"an equation\"; end M;",
         )
         .unwrap();
-        assert_eq!(m.description.as_deref(), Some("модель"));
-        assert_eq!(m.components[0].description.as_deref(), Some("переменная"));
+        assert_eq!(m.description.as_deref(), Some("a model"));
+        assert_eq!(m.components[0].description.as_deref(), Some("a variable"));
         assert_eq!(m.equations[0].rhs.as_der_of(), Some("x"));
     }
 
@@ -663,6 +654,24 @@ mod tests {
     }
 
     #[test]
+    fn parses_if_elseif_chain() {
+        let m = parse_model(
+            "model M Real x; Real y; equation \
+             y = if x > 1 then 1 elseif x < -1 then -1 else x; end M;",
+        )
+        .unwrap();
+        // elseif unfolds into a nested If in the else branch.
+        let Expr::If(_, _, else_branch) = &m.equations[0].rhs else {
+            panic!("expected If: {:?}", m.equations[0].rhs)
+        };
+        assert!(matches!(else_branch.as_ref(), Expr::If(_, _, _)));
+        // fixed=false parses as well.
+        let m2 =
+            parse_model("model M Real x(start=0, fixed=false); equation der(x)=1; end M;").unwrap();
+        assert_eq!(m2.components[0].fixed, Some(false));
+    }
+
+    #[test]
     fn parses_logic_precedence() {
         // a or b and not c  ==  a or (b and (not c))
         let m = parse_model(
@@ -671,10 +680,10 @@ mod tests {
         )
         .unwrap();
         let Expr::If(cond, _, _) = &m.equations[0].rhs else {
-            panic!("ожидался If: {:?}", m.equations[0].rhs)
+            panic!("expected If: {:?}", m.equations[0].rhs)
         };
         let Expr::Or(_, or_rhs) = cond.as_ref() else {
-            panic!("ожидался Or на верхнем уровне: {cond:?}")
+            panic!("expected Or at the top level: {cond:?}")
         };
         assert!(matches!(or_rhs.as_ref(), Expr::And(_, _)));
     }

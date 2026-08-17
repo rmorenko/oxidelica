@@ -1,5 +1,5 @@
-//! CLI спайка M0: `oxidelica simulate model.mo [--stop T] [--dt H] [-o out.csv]`
-//! и `oxidelica parse model.mo` для дампа скомпилированной модели.
+//! M0 spike CLI: `oxidelica simulate model.mo [--stop T] [--dt H] [-o out.csv]`
+//! and `oxidelica parse model.mo` to dump the compiled model structure.
 
 use oxidelica_sim::compile;
 use std::process::ExitCode;
@@ -8,18 +8,19 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
-            eprintln!("ошибка: {message}");
+            eprintln!("error: {message}");
             ExitCode::FAILURE
         }
     }
 }
 
-const USAGE: &str = "Oxidelica M0 — симулятор среза Modelica
+const USAGE: &str = "Oxidelica M0 - a Modelica subset simulator
 
-Использование:
-  oxidelica simulate <файл.mo> [--stop T] [--dt H] [-o результат.csv]
-  oxidelica parse <файл.mo>";
+Usage:
+  oxidelica simulate <file.mo> [--stop T] [--dt H] [-o result.csv]
+  oxidelica parse <file.mo>";
 
+/// Dispatch the command line to a subcommand.
 fn run() -> Result<(), String> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = args.first().map(String::as_str);
@@ -31,40 +32,42 @@ fn run() -> Result<(), String> {
     }
 }
 
+/// Read and parse a model file.
 fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
-    let source =
-        std::fs::read_to_string(path).map_err(|e| format!("не удалось прочитать {path}: {e}"))?;
+    let source = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
     oxidelica_parser::parse_model(&source).map_err(|e| format!("{path}: {e}"))
 }
 
+/// `parse` subcommand: print the compiled model structure.
 fn parse(args: &[String]) -> Result<(), String> {
     let path = args.first().ok_or(USAGE)?;
     let model = load(path)?;
     let compiled = compile(&model).map_err(|e| e.to_string())?;
 
-    println!("модель {}", compiled.name);
+    println!("model {}", compiled.name);
     if let Some(desc) = &model.description {
-        println!("  «{desc}»");
+        println!("  \"{desc}\"");
     }
-    println!("  параметры:");
+    println!("  parameters:");
     for (name, value) in &compiled.parameters {
         println!("    {name} = {value}");
     }
-    println!("  состояния ({}):", compiled.states.len());
+    println!("  states ({}):", compiled.states.len());
     for (name, init) in compiled.states.iter().zip(&compiled.initial) {
         println!("    {name}(start = {init})");
     }
-    println!("  алгебраические ({}):", compiled.algebraics.len());
+    println!("  algebraic ({}):", compiled.algebraics.len());
     for name in &compiled.algebraics {
         println!("    {name}");
     }
     println!(
-        "  эксперимент: stop = {}, шаг = {}",
+        "  experiment: stop = {}, step = {}",
         compiled.stop_time, compiled.step
     );
     Ok(())
 }
 
+/// `simulate` subcommand: run the model and emit CSV.
 fn simulate(args: &[String]) -> Result<(), String> {
     let path = args.first().ok_or(USAGE)?;
     let mut stop: Option<f64> = None;
@@ -77,7 +80,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
             *i += 1;
             args.get(*i)
                 .cloned()
-                .ok_or_else(|| format!("{} требует значения", args[*i - 1]))
+                .ok_or_else(|| format!("{} requires a value", args[*i - 1]))
         };
         match args[i].as_str() {
             "--stop" => {
@@ -95,7 +98,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
                 )
             }
             "-o" | "--out" => out = Some(take_value(&mut i)?),
-            other => return Err(format!("неизвестный флаг «{other}»\n\n{USAGE}")),
+            other => return Err(format!("unknown flag `{other}`\n\n{USAGE}")),
         }
         i += 1;
     }
@@ -116,9 +119,9 @@ fn simulate(args: &[String]) -> Result<(), String> {
     match out {
         Some(file) => {
             std::fs::write(&file, result.to_csv())
-                .map_err(|e| format!("не удалось записать {file}: {e}"))?;
+                .map_err(|e| format!("cannot write {file}: {e}"))?;
             println!(
-                "{}: {} шагов за {:.1?} → {}",
+                "{}: {} steps in {:.1?} -> {}",
                 compiled.name,
                 result.rows.len() - 1,
                 elapsed,
@@ -128,7 +131,8 @@ fn simulate(args: &[String]) -> Result<(), String> {
         None => print!("{}", result.to_csv()),
     }
 
-    // короткая сводка финальной точки в stderr, чтобы не мешать CSV в stdout
+    // A short final-point summary on stderr so it does not mix with CSV
+    // on stdout.
     if let Some(last) = result.rows.last() {
         let summary: Vec<String> = result
             .columns
@@ -136,7 +140,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
             .zip(last)
             .map(|(name, value)| format!("{name} = {value:.6}"))
             .collect();
-        eprintln!("финальная точка: {}", summary.join(", "));
+        eprintln!("final point: {}", summary.join(", "));
     }
     Ok(())
 }

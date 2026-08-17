@@ -1,47 +1,82 @@
-//! Лексер среза Modelica (M0): идентификаторы, числа, строки, комментарии,
-//! ключевые слова и односимвольные знаки.
+//! Lexer for the M0 Modelica slice: identifiers, numbers, strings,
+//! comments, keywords and single/double-character punctuation.
 
 use std::fmt;
 
+/// A lexical token of the Modelica slice.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
+    /// Identifier (variable, type or function name).
     Ident(String),
+    /// Numeric literal, including scientific notation.
     Number(f64),
+    /// Double-quoted string literal (descriptions).
     Str(String),
-    // ключевые слова
+    /// Keyword `model`.
     Model,
+    /// Keyword `end`.
     End,
+    /// Keyword `equation`.
     Equation,
+    /// Keyword `parameter`.
     Parameter,
+    /// Keyword `constant`.
     Constant,
+    /// Boolean literal `true`.
     True,
+    /// Boolean literal `false`.
     False,
+    /// Keyword `annotation`.
     Annotation,
+    /// Keyword `if`.
     If,
+    /// Keyword `then`.
     Then,
+    /// Keyword `elseif`.
     ElseIf,
+    /// Keyword `else`.
     Else,
+    /// Keyword `and`.
     And,
+    /// Keyword `or`.
     Or,
+    /// Keyword `not`.
     Not,
-    // знаки
+    /// `(`
     LParen,
+    /// `)`
     RParen,
+    /// `;`
     Semi,
+    /// `,`
     Comma,
-    Assign, // =
+    /// `=` (declaration binding / equation sign).
+    Assign,
+    /// `+`
     Plus,
+    /// `-`
     Minus,
+    /// `*`
     Star,
+    /// `/`
     Slash,
+    /// `^`
     Caret,
+    /// `.`
     Dot,
-    Lt,   // <
-    Le,   // <=
-    Gt,   // >
-    Ge,   // >=
-    EqEq, // ==
-    Ne,   // <>
+    /// `<`
+    Lt,
+    /// `<=`
+    Le,
+    /// `>`
+    Gt,
+    /// `>=`
+    Ge,
+    /// `==`
+    EqEq,
+    /// `<>`
+    Ne,
+    /// End of input marker.
     Eof,
 }
 
@@ -88,24 +123,32 @@ impl fmt::Display for Token {
     }
 }
 
+/// A token together with the 1-based source line it starts on.
 #[derive(Debug, Clone)]
 pub struct Spanned {
+    /// The token itself.
     pub token: Token,
+    /// 1-based line number in the source text.
     pub line: u32,
 }
 
+/// A lexical error with its source line.
 #[derive(Debug)]
 pub struct LexError {
+    /// Human-readable description of the problem.
     pub message: String,
+    /// 1-based line number where the error occurred.
     pub line: u32,
 }
 
 impl fmt::Display for LexError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "строка {}: {}", self.line, self.message)
+        write!(f, "line {}: {}", self.line, self.message)
     }
 }
 
+/// Tokenize Modelica source text into a `Spanned` token stream
+/// terminated by [`Token::Eof`].
 pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
     let mut out = Vec::new();
     let bytes: Vec<char> = source.chars().collect();
@@ -130,7 +173,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 loop {
                     if i + 1 >= bytes.len() {
                         return Err(LexError {
-                            message: "незакрытый комментарий /*".into(),
+                            message: "unterminated /* comment".into(),
                             line,
                         });
                     }
@@ -151,7 +194,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     match bytes.get(i) {
                         None => {
                             return Err(LexError {
-                                message: "незакрытая строка".into(),
+                                message: "unterminated string".into(),
                                 line,
                             })
                         }
@@ -165,7 +208,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                                 i += 2;
                             } else {
                                 return Err(LexError {
-                                    message: "незакрытая строка".into(),
+                                    message: "unterminated string".into(),
                                     line,
                                 });
                             }
@@ -187,13 +230,14 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
             '0'..='9' => {
                 let start = i;
                 while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == '.') {
-                    // точка допустима только один раз и не как разделитель имени: 1.0.x не бывает в числах
+                    // A dot is part of the number only when followed by a
+                    // digit; `1.x` is Number(1), Dot, Ident(x).
                     if bytes[i] == '.' && !bytes.get(i + 1).is_some_and(|c| c.is_ascii_digit()) {
                         break;
                     }
                     i += 1;
                 }
-                // экспонента: 1e-3, 2.5E+10
+                // Exponent part: 1e-3, 2.5E+10.
                 if i < bytes.len() && (bytes[i] == 'e' || bytes[i] == 'E') {
                     let mut j = i + 1;
                     if matches!(bytes.get(j), Some('+') | Some('-')) {
@@ -208,7 +252,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 }
                 let text: String = bytes[start..i].iter().collect();
                 let value = text.parse::<f64>().map_err(|_| LexError {
-                    message: format!("некорректное число «{text}»"),
+                    message: format!("invalid number `{text}`"),
                     line,
                 })?;
                 out.push(Spanned {
@@ -363,7 +407,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
             }
             other => {
                 return Err(LexError {
-                    message: format!("неожиданный символ «{other}»"),
+                    message: format!("unexpected character `{other}`"),
                     line,
                 });
             }
@@ -472,7 +516,7 @@ mod tests {
 
     #[test]
     fn dot_after_number_is_separate_token() {
-        // "1.x" — это Number(1), Dot, Ident: точка не съедается числом
+        // `1.x` is Number(1), Dot, Ident: the dot is not part of the number.
         assert_eq!(
             tokens("1.x"),
             vec![
@@ -487,7 +531,7 @@ mod tests {
     #[test]
     fn rejects_double_dot_number() {
         let e = lex("1.2.3").unwrap_err();
-        assert!(e.message.contains("некорректное число"), "{}", e.message);
+        assert!(e.message.contains("invalid number"), "{}", e.message);
     }
 
     #[test]
@@ -507,7 +551,7 @@ line2""#
 
     #[test]
     fn skips_comments_and_counts_lines() {
-        let spanned = lex("// комментарий\n/* блок\nещё */ x").unwrap();
+        let spanned = lex("// line comment\n/* block\nmore */ x").unwrap();
         assert_eq!(spanned[0].token, Token::Ident("x".into()));
         assert_eq!(spanned[0].line, 3);
     }
@@ -516,23 +560,23 @@ line2""#
     fn error_reports_line_number() {
         let e = lex("x\ny\n#").unwrap_err();
         assert_eq!(e.line, 3);
-        assert!(e.to_string().contains("строка 3"));
-        assert!(e.message.contains("неожиданный символ"));
+        assert!(e.to_string().contains("line 3"));
+        assert!(e.message.contains("unexpected character"));
     }
 
     #[test]
     fn rejects_unclosed_constructs() {
-        assert!(lex("/* без конца")
+        assert!(lex("/* no end")
             .unwrap_err()
             .message
-            .contains("незакрытый комментарий"));
-        assert!(lex("\"без конца")
+            .contains("unterminated /* comment"));
+        assert!(lex("\"no end")
             .unwrap_err()
             .message
-            .contains("незакрытая строка"));
-        assert!(lex("\"хвост\\")
+            .contains("unterminated string"));
+        assert!(lex("\"tail\\")
             .unwrap_err()
             .message
-            .contains("незакрытая строка"));
+            .contains("unterminated string"));
     }
 }
