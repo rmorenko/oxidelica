@@ -26,7 +26,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 | **M0. Spike**              | Parser for a language slice + RK4, CLI                         | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6 |
 | **M1. ODE subset**         | Full expressions, parameters, algebraic equations, adaptive RK | 10 textbook models match OpenModelica                          |
 | **M2. Components**         | Classes, inheritance, connect, flattening                      | RC circuit and mass-spring built from components               |
-| **M3. DAE**                | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                   |
+| **M3. DAE** (done)         | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                   |
 | **M4. Events**             | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                           |
 | **M5. Arrays & functions** | Arrays, for-equations, functions, records                      | Discretized heat conduction                                    |
 | **M6. MSL core**           | Blocks, Electrical.Analog, Mechanics.Rotational                | MSL examples run unmodified                                    |
@@ -43,7 +43,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 
 ## Key risks
 
-1. **DAE index reduction (M3)** — the most research-heavy part; mitigate with an early Pantelides prototype on paper examples.
+1. **DAE index reduction (M3)** — done: Pantelides with dummy derivatives, tearing and an implicit BDF solver. The state selection is static (chosen by numerical pivoting at the initial point); models that need it to change mid-run — a pendulum swinging full circle — are the known limit.
 2. **The long tail of MSL semantics (M6)** — MSL exercises dark corners of the language; mitigate with reference checking from day one.
 3. **Bevy maturity as a UI framework (M7)** — a diagram editor on ECS is nontrivial; mitigate: all "office" UI in egui, Bevy owns the canvas and 3D.
 

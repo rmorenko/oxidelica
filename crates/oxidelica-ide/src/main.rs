@@ -92,6 +92,8 @@ struct Tuner {
     last_change: Option<Instant>,
     /// Whether the tuner has been populated at least once.
     initialized: bool,
+    /// Integration method chosen for the next run.
+    solver: oxidelica_sim::SolverMethod,
 }
 
 impl Tuner {
@@ -619,6 +621,25 @@ fn ui_system(
                             });
                         }
                     }
+                    ui.add_space(6.0);
+                    ui.horizontal(|ui| {
+                        ui.label(s.solver_label);
+                        let before = tuner.solver;
+                        egui::ComboBox::from_id_salt("solver-combo")
+                            .selected_text(tuner.solver.name())
+                            .show_ui(ui, |ui| {
+                                for method in [
+                                    oxidelica_sim::SolverMethod::Dopri45,
+                                    oxidelica_sim::SolverMethod::Bdf,
+                                    oxidelica_sim::SolverMethod::Rk4,
+                                ] {
+                                    ui.selectable_value(&mut tuner.solver, method, method.name());
+                                }
+                            });
+                        if tuner.solver != before {
+                            changed = true;
+                        }
+                    });
                     ui.add_space(8.0);
                     if ui
                         .button(format!(
@@ -893,6 +914,7 @@ fn run_simulation(ide: &mut Ide) {
     };
     ide.tuner.refresh(&compiled);
     ide.tuner.apply(&mut compiled);
+    compiled.method = ide.tuner.solver;
 
     let (sender, receiver) = mpsc::channel();
     std::thread::spawn(move || {

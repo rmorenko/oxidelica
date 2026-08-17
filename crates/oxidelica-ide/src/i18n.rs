@@ -145,6 +145,7 @@ define_strings!(
     inits_title,
     reset_all,
     simulating,
+    solver_label,
 );
 
 #[cfg(test)]

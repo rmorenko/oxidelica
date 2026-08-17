@@ -104,6 +104,9 @@ pub struct CompiledModel {
     pub algebraics: Vec<String>,
     /// Initial Newton guesses for algebraic variables (start attributes).
     algebraic_start: Vec<f64>,
+    /// Algebraic variables declared `fixed = true`: their start value is
+    /// an initial condition, not a guess, so the solution must match it.
+    fixed_starts: Vec<(String, f64)>,
     /// Evaluation plan: explicit assignments and implicit Newton blocks.
     stages: Vec<AlgStage>,
     /// Simulation end time.
@@ -123,10 +126,11 @@ impl CompiledModel {
     /// implicit block is regular there. Catches models that are
     /// structurally fine but numerically underdetermined.
     fn check_block_regularity(&self) -> Result<(), SimError> {
-        if !self
-            .stages
-            .iter()
-            .any(|s| matches!(s, AlgStage::Implicit { .. }))
+        if self.fixed_starts.is_empty()
+            && !self
+                .stages
+                .iter()
+                .any(|s| matches!(s, AlgStage::Implicit { .. }))
         {
             return Ok(());
         }
@@ -149,6 +153,18 @@ impl CompiledModel {
                 }
                 stage @ AlgStage::Implicit { .. } => {
                     self.solve_implicit_block(0.0, &mut env, stage, &mut alg_guess, true)?;
+                }
+            }
+        }
+        // A variable demoted by index reduction is solved from the
+        // constraints; if it was declared `fixed = true`, that solution
+        // has to agree with the declared initial condition.
+        for (name, expected) in &self.fixed_starts {
+            if let Some(actual) = env.get(name) {
+                if (actual - expected).abs() > 1e-6 {
+                    return err(format!(
+                        "initial value of `{name}` is fixed at {expected} but the constraints require {actual}"
+                    ));
                 }
             }
         }
@@ -266,12 +282,12 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     }
 
     // 3. Unknowns and reference validation.
-    let states: Vec<String> = continuous
+    let mut states: Vec<String> = continuous
         .iter()
         .filter(|n| state_rhs.contains_key(**n))
         .map(|n| n.to_string())
         .collect();
-    let unknowns: Vec<String> = continuous
+    let mut unknowns: Vec<String> = continuous
         .iter()
         .filter(|n| !state_rhs.contains_key(**n))
         .map(|n| n.to_string())
@@ -303,33 +319,18 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         ));
     }
 
-    // 3.5. Initial state values (needed for the constraint check below).
-    let ctx0 = EvalCtx {
-        vars: &params,
-        time: 0.0,
-    };
-    let mut initial = Vec::new();
-    for s in &states {
-        let comp = model.components.iter().find(|c| &c.name == s).unwrap();
-        let value = match &comp.start {
-            Some(expr) => eval(expr, &ctx0).map_err(|e| SimError(format!("start of {s}: {e}")))?,
-            None => 0.0,
-        };
-        initial.push(value);
-    }
-
-    // 4. Bipartite matching of equations to unknowns. A structurally
-    // unmatched equation is a DAE constraint: it is differentiated
-    // symbolically (Pantelides-style) with Baumgarte stabilization
-    // (R -> R' + k*R) until the system becomes regular.
-    const BAUMGARTE: f64 = 10.0;
-    const MAX_DIFFERENTIATIONS: usize = 8;
-
-    let var_index: HashMap<&str, usize> = unknowns
-        .iter()
-        .enumerate()
-        .map(|(i, n)| (n.as_str(), i))
-        .collect();
+    // 4. Structural analysis: match equations to unknowns. An equation
+    // that cannot be matched is a DAE constraint, and index reduction
+    // takes one step (Pantelides with dummy derivatives):
+    //
+    //   * differentiate the constraint symbolically and *add* the
+    //     result as a new equation (the original stays, so it keeps
+    //     holding exactly - no drift, no stabilization term);
+    //   * demote one state appearing in the constraint to an algebraic
+    //     unknown. Its former state equation becomes an ordinary
+    //     equation and its derivative becomes a dummy unknown, which
+    //     restores the equation/unknown balance.
+    const MAX_INDEX_REDUCTIONS: usize = 16;
 
     // Augmenting-path maximum matching.
     fn try_match(
@@ -352,10 +353,40 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         false
     }
 
-    let n_alg = unknowns.len();
-    let mut diff_count = vec![0usize; n_alg];
-    let mut original_constraints: Vec<(Expr, Expr)> = Vec::new();
-    let (matched_eq, eq_vars) = loop {
+    // Start values of every continuous variable: used to pick the
+    // demotion victim by numerical pivoting.
+    let start_env: HashMap<String, f64> = {
+        let mut env = params.clone();
+        for component in &model.components {
+            if component.variability == Variability::Continuous {
+                let value = component
+                    .start
+                    .as_ref()
+                    .and_then(|expr| {
+                        eval(
+                            expr,
+                            &EvalCtx {
+                                vars: &params,
+                                time: 0.0,
+                            },
+                        )
+                        .ok()
+                    })
+                    .unwrap_or(0.0);
+                env.insert(component.name.clone(), value);
+            }
+        }
+        env
+    };
+
+    let mut dummies: HashMap<String, String> = HashMap::new();
+    let mut reductions = 0usize;
+    let (matched_eq, eq_vars, n_alg) = loop {
+        let var_index: HashMap<&str, usize> = unknowns
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.as_str(), i))
+            .collect();
         let eq_vars: Vec<Vec<usize>> = algebraic_eqs
             .iter()
             .map(|(lhs, rhs)| {
@@ -371,9 +402,11 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 vars
             })
             .collect();
+
+        let n_alg = unknowns.len();
         let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];
         let mut failed = None;
-        for eq in 0..n_alg {
+        for eq in 0..algebraic_eqs.len() {
             let mut visited = vec![false; n_alg];
             if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
                 failed = Some(eq);
@@ -381,14 +414,40 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             }
         }
         let Some(eq) = failed else {
-            break (matched_eq, eq_vars);
+            break (matched_eq, eq_vars, n_alg);
         };
-        let (lhs, rhs) = &algebraic_eqs[eq];
-        if diff_count[eq] >= MAX_DIFFERENTIATIONS {
+
+        let (lhs, rhs) = algebraic_eqs[eq].clone();
+        if reductions >= MAX_INDEX_REDUCTIONS {
             return err(format!(
-                "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched even after differentiation"
+                "structurally singular model: equation {lhs:?} = {rhs:?} still cannot be matched after {MAX_INDEX_REDUCTIONS} index reductions"
             ));
         }
+        reductions += 1;
+
+        // Explicit definitions let differentiation reach through
+        // algebraic unknowns.
+        let alg_defs: HashMap<String, Expr> = algebraic_eqs
+            .iter()
+            .enumerate()
+            // The equation under reduction cannot define its own way
+            // out: `u = 3` must be read through `u = 2*x`, not itself.
+            .filter(|(index, _)| *index != eq)
+            .map(|(_, pair)| pair)
+            .filter_map(|(l, r)| match (l, r) {
+                (Expr::Ref(name), other) | (other, Expr::Ref(name)) if unknowns.contains(name) => {
+                    let mut refs = Vec::new();
+                    other.collect_refs(&mut refs);
+                    if refs.contains(&name.as_str()) {
+                        None
+                    } else {
+                        Some((name.clone(), other.clone()))
+                    }
+                }
+                _ => None,
+            })
+            .collect();
+
         let residual = Expr::Bin(
             oxidelica_parser::BinOp::Sub,
             Box::new(lhs.clone()),
@@ -399,57 +458,111 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             &DiffTarget::Time {
                 state_rhs: &state_rhs,
                 params: &params,
+                dummies: &dummies,
+                alg_defs: &alg_defs,
             },
         ) {
-            Ok(d) => d,
+            Ok(d) => simplify(&d),
             Err(reason) => {
                 return err(format!(
                     "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown ({reason})"
                 ))
             }
         };
-        if diff_count[eq] == 0 {
-            original_constraints.push((lhs.clone(), rhs.clone()));
-        }
-        // Baumgarte stabilization keeps the original constraint from
-        // drifting: the replacement is R' + k*R = 0.
-        let stabilized = Expr::Bin(
-            oxidelica_parser::BinOp::Add,
-            Box::new(derivative),
-            Box::new(Expr::Bin(
-                oxidelica_parser::BinOp::Mul,
-                Box::new(Expr::Number(BAUMGARTE)),
-                Box::new(residual),
-            )),
-        );
-        algebraic_eqs[eq] = (simplify(&stabilized), Expr::Number(0.0));
-        diff_count[eq] += 1;
-    };
-    let mut matched_var: Vec<usize> = vec![0; n_alg];
-    for (v, eq) in matched_eq.iter().enumerate() {
-        matched_var[eq.unwrap()] = v;
-    }
 
-    // Differentiated constraints must hold at the initial point.
-    if !original_constraints.is_empty() {
-        let mut env: HashMap<String, f64> = params.clone();
-        for (name, value) in states.iter().zip(&initial) {
-            env.insert(name.clone(), *value);
-        }
-        for (lhs, rhs) in &original_constraints {
-            let ctx = EvalCtx {
-                vars: &env,
-                time: 0.0,
-            };
-            if let (Ok(l), Ok(r)) = (eval(lhs, &ctx), eval(rhs, &ctx)) {
-                if (l - r).abs() > 1e-4 {
-                    return err(format!(
-                        "initial values violate the constraint {lhs:?} = {rhs:?} (residual {:.6})",
-                        l - r
-                    ));
+        // Demote a state the constraint actually constrains. The
+        // choice is a pivot: the constraint has to *determine* the
+        // demoted variable, so prefer the state with the largest
+        // sensitivity at the start point. (The selection is static;
+        // models that need it to change mid-run - a pendulum swinging
+        // full circle - are the known limit of this implementation.)
+        // Reachable states: the constraint may pin a state only
+        // indirectly, through the definition of an algebraic unknown
+        // (`u = 3` with `u = 2*x` constrains x).
+        let mut reachable: Vec<String> = Vec::new();
+        {
+            let mut queue: Vec<String> = Vec::new();
+            let mut direct = Vec::new();
+            residual.collect_refs(&mut direct);
+            queue.extend(direct.into_iter().map(str::to_string));
+            let mut seen: Vec<String> = Vec::new();
+            while let Some(name) = queue.pop() {
+                if seen.contains(&name) {
+                    continue;
+                }
+                seen.push(name.clone());
+                if states.iter().any(|s| s == &name) {
+                    reachable.push(name.clone());
+                } else if let Some(definition) = alg_defs.get(&name) {
+                    let mut more = Vec::new();
+                    definition.collect_refs(&mut more);
+                    queue.extend(more.into_iter().map(str::to_string));
                 }
             }
         }
+        let sensitivity = |name: &str| -> f64 {
+            differentiate(&residual, &DiffTarget::Variable(name))
+                .ok()
+                .map(|d| simplify(&d))
+                .and_then(|d| {
+                    eval(
+                        &d,
+                        &EvalCtx {
+                            vars: &start_env,
+                            time: 0.0,
+                        },
+                    )
+                    .ok()
+                })
+                .map(f64::abs)
+                .unwrap_or(0.0)
+        };
+        let Some(victim) = reachable.into_iter().max_by(|a, b| {
+            sensitivity(a)
+                .partial_cmp(&sensitivity(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            return err(format!(
+                "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
+            ));
+        };
+
+        let dummy = format!("der({victim})");
+        let victim_rhs = state_rhs
+            .remove(&victim)
+            .expect("a state has a defining derivative");
+        states.retain(|s| s != &victim);
+        unknowns.push(victim.clone());
+        unknowns.push(dummy.clone());
+        dummies.insert(victim.clone(), dummy.clone());
+        // The former state equation `der(v) = rhs` now determines the
+        // dummy, and the differentiated constraint joins the system.
+        algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
+        algebraic_eqs.push((derivative, Expr::Number(0.0)));
+    };
+
+    let mut matched_var: Vec<usize> = vec![0; n_alg];
+    for (v, eq) in matched_eq.iter().enumerate() {
+        matched_var[eq.expect("maximum matching covers every unknown")] = v;
+    }
+
+    // Initial values of the states that survived demotion.
+    let ctx0 = EvalCtx {
+        vars: &params,
+        time: 0.0,
+    };
+    let mut initial = Vec::new();
+    for s in &states {
+        let comp = model
+            .components
+            .iter()
+            .find(|c| &c.name == s)
+            .expect("states come from declared components");
+        let value = match &comp.start {
+            Some(expr) => eval(expr, &ctx0).map_err(|e| SimError(format!("start of {s}: {e}")))?,
+            None => 0.0,
+        };
+        initial.push(value);
     }
 
     // Kahn topological order over equations.
@@ -648,6 +761,18 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         })
         .collect();
 
+    let fixed_starts: Vec<(String, f64)> = ordered_algs
+        .iter()
+        .filter_map(|name| {
+            let component = model.components.iter().find(|c| &c.name == name)?;
+            if component.fixed != Some(true) {
+                return None;
+            }
+            let value = eval(component.start.as_ref()?, &ctx).ok()?;
+            Some((name.clone(), value))
+        })
+        .collect();
+
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -659,6 +784,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         derivatives,
         algebraics: ordered_algs,
         algebraic_start,
+        fixed_starts,
         stages,
         stop_time: model.experiment.stop_time.unwrap_or(1.0),
         step: model.experiment.interval.unwrap_or(1e-3),
@@ -799,6 +925,12 @@ enum DiffTarget<'a> {
         state_rhs: &'a HashMap<String, Expr>,
         /// Known parameters (constant in time).
         params: &'a HashMap<String, f64>,
+        /// Demoted states and the dummy derivative standing in for
+        /// their `der(...)`.
+        dummies: &'a HashMap<String, String>,
+        /// Explicit definitions of algebraic unknowns, differentiated
+        /// recursively when their derivative is needed.
+        alg_defs: &'a HashMap<String, Expr>,
     },
     /// Differentiate with respect to one variable, all else constant.
     Variable(&'a str),
@@ -820,11 +952,25 @@ fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
             DiffTarget::Variable(_) => Expr::Number(0.0),
         },
         Expr::Ref(name) => match target {
-            DiffTarget::Time { state_rhs, params } => {
+            DiffTarget::Time {
+                state_rhs,
+                params,
+                dummies,
+                alg_defs,
+            } => {
                 if let Some(rhs) = state_rhs.get(name) {
                     rhs.clone()
                 } else if params.contains_key(name) {
                     Expr::Number(0.0)
+                } else if let Some(dummy) = dummies.get(name) {
+                    // A demoted state: its derivative is the dummy.
+                    Expr::Ref(dummy.clone())
+                } else if let Some(definition) = alg_defs.get(name) {
+                    // An algebraic unknown with an explicit definition:
+                    // differentiate the definition instead (Pantelides
+                    // reaches the derivative through the equation that
+                    // determines the variable).
+                    d(definition)?
                 } else {
                     return Err(format!(
                         "cannot differentiate through algebraic variable `{name}`"
@@ -2513,15 +2659,28 @@ mod tests {
     }
 
     #[test]
-    fn inconsistent_initial_values_are_rejected() {
-        // q(0) = 1 contradicts the constraint q = time^2 at t = 0.
-        let model = parse_model(
+    fn a_plain_start_is_a_guess_but_fixed_is_an_initial_condition() {
+        // q is demoted by index reduction and solved from q = time^2,
+        // so a plain start is only a Newton guess: q(0) = 0 wins.
+        let result = run(
             "model D Real z; Real q(start = 1); equation der(q) = z; q = time ^ 2; \
+             annotation(experiment(StopTime=1.0, Interval=0.01)); end D;",
+        );
+        let q_idx = result.columns.iter().position(|c| c == "q").unwrap();
+        assert!(
+            result.rows[0][q_idx].abs() < 1e-9,
+            "q(0) = {}",
+            result.rows[0][q_idx]
+        );
+        // Declaring it fixed turns the contradiction into an error.
+        let model = parse_model(
+            "model D Real z; Real q(start = 1, fixed = true); \
+             equation der(q) = z; q = time ^ 2; \
              annotation(experiment(StopTime=1.0, Interval=0.01)); end D;",
         )
         .unwrap();
         let error = compile(&model).unwrap_err();
-        assert!(error.0.contains("initial values violate"), "{}", error.0);
+        assert!(error.0.contains("is fixed at"), "{}", error.0);
     }
 
     #[test]
@@ -2530,7 +2689,7 @@ mod tests {
         // help because b never appears.
         let error = compile_err("model M Real a; Real b; equation a = 1; a = 2; end M;");
         assert!(
-            error.contains("structurally singular") && error.contains("cannot differentiate"),
+            error.contains("structurally singular") && error.contains("constrains no state"),
             "{error}"
         );
     }
@@ -2801,6 +2960,54 @@ mod tests {
         let plan = compiled.plan_summary();
         assert_eq!(plan.len(), 2);
         assert!(plan.iter().all(|line| line.starts_with("explicit")));
+    }
+
+    #[test]
+    fn dummy_derivatives_demote_a_state_and_keep_the_constraint_exact() {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../examples/cartesian_pendulum.mo"),
+        )
+        .unwrap();
+        let compiled = compile(&parse_model(&source).unwrap()).unwrap();
+        // Index reduction demoted one position and one velocity: four
+        // states became two, and their derivatives became dummies.
+        assert_eq!(compiled.states, vec!["x", "vx"]);
+        assert!(compiled.algebraics.contains(&"der(y)".to_string()));
+        assert!(compiled.algebraics.contains(&"der(vy)".to_string()));
+
+        // The constraint is solved, not stabilized: its residual stays
+        // at solver tolerance instead of drifting with time.
+        let result = compiled.simulate().unwrap();
+        let x = result.columns.iter().position(|c| c == "x").unwrap();
+        let y = result.columns.iter().position(|c| c == "y").unwrap();
+        let violation = |row: &Vec<f64>| (row[x] * row[x] + row[y] * row[y] - 1.0).abs();
+        let early = result.rows[result.rows.len() / 10..result.rows.len() / 5]
+            .iter()
+            .map(violation)
+            .fold(0.0f64, f64::max);
+        let late = result.rows[result.rows.len() * 4 / 5..]
+            .iter()
+            .map(violation)
+            .fold(0.0f64, f64::max);
+        assert!(late < 1e-8, "late violation {late}");
+        assert!(late < 100.0 * early.max(1e-12), "drift: {early} -> {late}");
+    }
+
+    #[test]
+    fn index_reduction_reaches_states_through_algebraic_definitions() {
+        // `u = 3` names no state, but `u = 2*x` ties it to one: x is
+        // pinned at 1.5 and its velocity has to vanish.
+        let result = run("model N Real x(start = 1.0); Real v; Real u; \
+             equation der(x) = v; u = 2 * x; u = 3; \
+             annotation(experiment(StopTime=1.0, Interval=0.5)); end N;");
+        let value = |name: &str| {
+            let index = result.columns.iter().position(|c| c == name).unwrap();
+            result.rows.last().unwrap()[index]
+        };
+        assert!((value("x") - 1.5).abs() < 1e-9, "x = {}", value("x"));
+        assert!(value("v").abs() < 1e-9, "v = {}", value("v"));
+        assert!((value("u") - 3.0).abs() < 1e-9, "u = {}", value("u"));
     }
 
     #[test]
