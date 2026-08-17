@@ -104,10 +104,18 @@ pub fn parse_model_with_libraries(libraries: &[String], source: &str) -> Result<
         classes.extend(parse_file(library)?);
     }
     let own = parse_file(source)?;
+    // The model to simulate is the last one written at the top level of
+    // the file; models nested inside other classes are components' types,
+    // not entry points.
     let top = own
         .iter()
         .rev()
-        .find(|c| c.kind == ClassKind::Model && !c.partial)
+        .find(|c| c.kind == ClassKind::Model && !c.partial && !c.name.contains('.'))
+        .or_else(|| {
+            own.iter()
+                .rev()
+                .find(|c| c.kind == ClassKind::Model && !c.partial)
+        })
         .ok_or_else(|| ParseError {
             message: "no model class in file".into(),
             line: 1,

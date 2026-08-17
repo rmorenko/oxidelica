@@ -60,7 +60,7 @@ fn collect_members(
     if depth > MAX_DEPTH {
         return;
     }
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
             collect_members(registry, base, info, depth + 1);
@@ -249,7 +249,7 @@ fn instantiate(
         ));
     }
 
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
 
     // `inner` declarations of this class and of its bases own the
     // instances that `outer` declarations inside it refer to. They are
@@ -714,7 +714,7 @@ fn collect_inners(
     if depth > MAX_DEPTH {
         return;
     }
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
             collect_inners(registry, base, prefix, out, depth + 1);
@@ -740,7 +740,7 @@ fn bind_outers(
     class: &ClassDef,
     inners: &HashMap<String, InnerInstance>,
 ) -> Result<HashMap<String, String>, String> {
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     let mut outers = HashMap::new();
     for component in class.components.iter().filter(|c| c.scope == Scope::Outer) {
         let inner = inners.get(&component.name).ok_or_else(|| {
@@ -783,7 +783,7 @@ fn extends_class(
     let Some(class) = registry.get(candidate) else {
         return false;
     };
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     class.extends.iter().any(|extend| {
         lookup(registry, &extend.base, scope, &class.imports)
             .is_some_and(|base| extends_class(registry, &base.name, target, depth + 1))
@@ -800,7 +800,7 @@ fn qualify_redeclare(
     prefix: &str,
     outers: &HashMap<String, String>,
 ) -> Result<Redeclare, String> {
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     let target =
         lookup(registry, &redeclare.type_name, scope, &class.imports).ok_or_else(|| {
             format!(
@@ -840,7 +840,7 @@ fn check_redeclare(
     let Some(constraint) = &component.constrained_by else {
         return Ok(());
     };
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     let constraint = lookup(registry, constraint, scope, &class.imports).ok_or_else(|| {
         format!(
             "unknown constraining class `{constraint}` of `{}`",
@@ -892,7 +892,7 @@ fn resolve_type(
             }
         }
         // The next alias in the chain resolves where it was written.
-        scope = scope_of(&class.name).to_string();
+        scope = class.name.clone();
         imports = class.imports.clone();
     }
 }
@@ -1398,8 +1398,12 @@ fn substitute_class_constants(
 }
 
 /// Resolve a class name the way Modelica scoping does: an import
-/// alias first, then the enclosing packages from the inside out, then
-/// the global name.
+/// alias first, then the class's own nested classes, then the
+/// enclosing packages from the inside out, then the global name.
+///
+/// `scope` is the qualified name of the class doing the looking - not
+/// its parent - so that `connector Pin` declared inside `model Bus` is
+/// found by components of `Bus` itself.
 fn lookup<'a>(
     registry: &HashMap<&'a str, &'a ClassDef>,
     name: &str,
@@ -1436,14 +1440,6 @@ fn lookup<'a>(
             None if prefix.is_empty() => return None,
             None => prefix.clear(),
         }
-    }
-}
-
-/// The package path enclosing a class: `A.B.C` lives in `A.B`.
-fn scope_of(qualified_name: &str) -> &str {
-    match qualified_name.rfind('.') {
-        Some(cut) => &qualified_name[..cut],
-        None => "",
     }
 }
 
@@ -1811,7 +1807,7 @@ fn collect_shapes(
     if depth > MAX_DEPTH {
         return;
     }
-    let scope = scope_of(&class.name);
+    let scope = class.name.as_str();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
             collect_shapes(registry, base, consts, out, depth + 1);
@@ -2411,7 +2407,7 @@ fn inline_function(
         consts,
         &sizes,
         registry,
-        scope_of(&class.name),
+        &class.name,
         &class.imports,
         depth + 1,
     )?;
@@ -2673,6 +2669,34 @@ mod tests {
         // Built-ins are not shadowed by the registry lookup.
         let builtin = parse_model("model M Real y; equation y = sin(time); end M;").unwrap();
         assert!(format!("{:?}", builtin.equations[0].rhs).contains("Call(\"sin\""));
+    }
+
+    #[test]
+    fn classes_nested_inside_a_model_are_visible_to_it() {
+        // A connector and a function declared in the model itself, not
+        // in an enclosing package: resolution starts at the class doing
+        // the looking, so both are found.
+        let m = parse_model(
+            "model Bus                connector Pin Real v; flow Real i; end Pin;                function double input Real a; output Real b;                algorithm b := 2 * a; end double;                Pin left; Pin right; Real y;              equation left.v = 3; right.i = 0.5;                connect(left, right); y = double(left.v); end Bus;",
+        )
+        .unwrap();
+        assert!(m.components.iter().any(|c| c.name == "left.v"));
+        // The call inlined and the connection generated its equations.
+        let text = format!("{:?}", m.equations);
+        assert!(!text.contains("Call"), "{text}");
+        assert!(text.contains("right.v"), "{text}");
+
+        // The inner name wins over an outer one of the same spelling.
+        let shadowed = parse_model(
+            "package Kit model Gain parameter Real k = 100; Real u; Real y;              equation y = k * u; end Gain; end Kit;              model M                model Gain parameter Real k = 2; Real u; Real y;                equation y = k * u; end Gain;                Gain g; Real out;              equation g.u = 1; out = g.y; end M;",
+        )
+        .unwrap();
+        let k = shadowed
+            .components
+            .iter()
+            .find(|c| c.name == "g.k")
+            .unwrap();
+        assert_eq!(k.binding, Some(Expr::Number(2.0)));
     }
 
     #[test]
