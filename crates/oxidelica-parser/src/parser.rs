@@ -8,8 +8,8 @@
 //!              ["=" expr] [STRING] ";"
 //! attr       : IDENT "=" (expr | "true" | "false")
 //! eq_item    : expr "=" expr [STRING] ";"
-//! when_term  : "when" expr "then" "terminate" "(" STRING ")" ";"
-//!              "end" "when" ";"
+//! when_eq    : "when" expr "then" { action ";" } "end" "when" ";"
+//! action     : "reinit" "(" IDENT "," expr ")" | "terminate" "(" STRING ")"
 //! expr       : if_expr | logical_or
 //! if_expr    : "if" expr "then" expr {"elseif" expr "then" expr} "else" expr
 //! logical_or : logical_and { "or" logical_and }
@@ -156,7 +156,7 @@ impl Parser {
         let mut extends = Vec::new();
         let mut equations = Vec::new();
         let mut connects = Vec::new();
-        let mut terminations = Vec::new();
+        let mut when_clauses = Vec::new();
         let mut experiment = Experiment::default();
         let mut in_equations = false;
 
@@ -181,7 +181,7 @@ impl Parser {
                     self.parse_annotation(&mut experiment)?;
                 }
                 Token::When => {
-                    terminations.push(self.when_termination()?);
+                    when_clauses.push(self.when_clause()?);
                 }
                 Token::Extends => {
                     extends.push(self.extends_clause()?);
@@ -208,7 +208,7 @@ impl Parser {
             extends,
             equations,
             connects,
-            terminations,
+            when_clauses,
             experiment,
         })
     }
@@ -271,33 +271,57 @@ impl Parser {
         Ok(modifiers)
     }
 
-    /// `when <cond> then terminate("<msg>"); end when;` — the M4 slice:
-    /// only `terminate` is supported inside `when` for now.
-    fn when_termination(&mut self) -> Result<Termination, ParseError> {
+    /// `when <cond> then <action>; ... end when;`
+    ///
+    /// Supported actions are `reinit(state, expr)` and
+    /// `terminate("message")`.
+    fn when_clause(&mut self) -> Result<WhenClause, ParseError> {
         self.expect(&Token::When, "when")?;
         let condition = self.expr()?;
         self.expect(&Token::Then, "then after when condition")?;
-        let callee = self.ident("call inside when")?;
-        if callee != "terminate" {
-            return Err(self.err(format!(
-                "M0 supports only terminate() inside when, found `{callee}`"
-            )));
-        }
-        self.expect(&Token::LParen, "parenthesis after terminate")?;
-        let message = match self.bump() {
-            Token::Str(message) => message,
-            other => {
-                return Err(self.err(format!(
-                    "terminate expects a string message, found `{other}`"
-                )))
+        let mut actions = Vec::new();
+        while self.peek() != &Token::End {
+            if self.peek() == &Token::Eof {
+                return Err(self.err("unterminated when clause".into()));
             }
-        };
-        self.expect(&Token::RParen, "closing parenthesis of terminate")?;
-        self.expect(&Token::Semi, "semicolon after terminate")?;
+            let callee = self.ident("call inside when")?;
+            if callee != "reinit" && callee != "terminate" {
+                return Err(self.err(format!(
+                    "only reinit() and terminate() are supported inside when, found `{callee}`"
+                )));
+            }
+            self.expect(&Token::LParen, "parenthesis after the call")?;
+            match callee.as_str() {
+                "reinit" => {
+                    let state = self.component_ref()?;
+                    self.expect(&Token::Comma, "comma in reinit")?;
+                    let value = self.expr()?;
+                    self.expect(&Token::RParen, "closing parenthesis of reinit")?;
+                    actions.push(WhenAction::Reinit(state, value));
+                }
+                "terminate" => {
+                    let message = match self.bump() {
+                        Token::Str(message) => message,
+                        other => {
+                            return Err(self.err(format!(
+                                "terminate expects a string message, found `{other}`"
+                            )))
+                        }
+                    };
+                    self.expect(&Token::RParen, "closing parenthesis of terminate")?;
+                    actions.push(WhenAction::Terminate(message));
+                }
+                _ => unreachable!("the action name was validated above"),
+            }
+            self.expect(&Token::Semi, "semicolon after the action")?;
+        }
         self.expect(&Token::End, "end when")?;
         self.expect(&Token::When, "when after end")?;
         self.expect(&Token::Semi, "semicolon after end when")?;
-        Ok(Termination { condition, message })
+        if actions.is_empty() {
+            return Err(self.err("when clause has no actions".into()));
+        }
+        Ok(WhenClause { condition, actions })
     }
 
     fn declaration(&mut self) -> Result<Component, ParseError> {
@@ -825,18 +849,42 @@ mod tests {
     }
 
     #[test]
-    fn parses_when_terminate() {
+    fn parses_when_clauses() {
         let m = parse_model(
             "model M Real x; equation x = time; \
              when x > 1 and time > 0.5 then terminate(\"done\"); end when; end M;",
         )
         .unwrap();
-        assert_eq!(m.terminations.len(), 1);
-        assert_eq!(m.terminations[0].message, "done");
-        // Errors: something other than terminate; a non-string message.
+        assert_eq!(m.when_clauses.len(), 1);
+        assert!(matches!(
+            m.when_clauses[0].actions.as_slice(),
+            [WhenAction::Terminate(message)] if message == "done"
+        ));
+        // reinit is the other supported action, and clauses may hold
+        // several of them.
+        let with_reinit = parse_model(
+            "model M Real x(start = 1); equation der(x) = -1; \
+             when x < 0 then reinit(x, 1); terminate(\"bounced\"); end when; end M;",
+        )
+        .unwrap();
+        assert_eq!(with_reinit.when_clauses[0].actions.len(), 2);
+        assert!(matches!(
+            with_reinit.when_clauses[0].actions[0],
+            WhenAction::Reinit(ref name, _) if name == "x"
+        ));
+        // Errors: an unsupported action, an empty body, an unterminated
+        // clause and a non-string message.
         assert!(
             err_of("model M Real x; equation x = 1; when x > 1 then x = 2; end when; end M;")
-                .contains("only terminate")
+                .contains("only reinit() and terminate()")
+        );
+        assert!(
+            err_of("model M Real x; equation x = 1; when x > 1 then end when; end M;")
+                .contains("no actions")
+        );
+        assert!(
+            err_of("model M Real x; equation x = 1; when x > 1 then reinit(x, 0);")
+                .contains("unterminated when")
         );
         assert!(err_of(
             "model M Real x; equation x = 1; when x > 1 then terminate(42); end when; end M;"

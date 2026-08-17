@@ -104,7 +104,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         description: top_class.description.clone(),
         components: acc.components,
         equations: acc.equations,
-        terminations: acc.terminations,
+        when_clauses: acc.when_clauses,
         experiment: top_class.experiment.clone(),
     })
 }
@@ -114,7 +114,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
 struct Flat {
     components: Vec<Component>,
     equations: Vec<EquationItem>,
-    terminations: Vec<Termination>,
+    when_clauses: Vec<WhenClause>,
     /// Connector instance path -> connector class name.
     connectors: HashMap<String, String>,
     /// Connect statements with fully prefixed paths.
@@ -191,10 +191,19 @@ fn instantiate(
             rhs: prefix_expr(&equation.rhs, prefix),
         });
     }
-    for termination in &class.terminations {
-        acc.terminations.push(Termination {
-            condition: prefix_expr(&termination.condition, prefix),
-            message: termination.message.clone(),
+    for clause in &class.when_clauses {
+        acc.when_clauses.push(WhenClause {
+            condition: prefix_expr(&clause.condition, prefix),
+            actions: clause
+                .actions
+                .iter()
+                .map(|action| match action {
+                    WhenAction::Reinit(state, value) => {
+                        WhenAction::Reinit(format!("{prefix}{state}"), prefix_expr(value, prefix))
+                    }
+                    WhenAction::Terminate(message) => WhenAction::Terminate(message.clone()),
+                })
+                .collect(),
         });
     }
     for (a, b) in &class.connects {

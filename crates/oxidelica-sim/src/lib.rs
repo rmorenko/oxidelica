@@ -8,7 +8,7 @@
 
 #![deny(missing_docs)]
 
-use oxidelica_parser::ast::Termination;
+use oxidelica_parser::ast::{WhenAction, WhenClause};
 use oxidelica_parser::{EquationItem, Expr, Model, Variability};
 use std::collections::HashMap;
 use std::fmt;
@@ -117,8 +117,12 @@ pub struct CompiledModel {
     pub tolerance: f64,
     /// Selected integration method.
     pub method: SolverMethod,
-    /// Termination clauses checked at every output point.
-    pub terminations: Vec<Termination>,
+    /// `when` clauses; their actions fire on a false-to-true edge.
+    when_clauses: Vec<WhenClause>,
+    /// Event indicators: expressions whose sign change marks an event.
+    /// Built from every relation in the model, so switching branches of
+    /// an `if` expression are located exactly, not stepped over.
+    indicators: Vec<Expr>,
 }
 
 impl CompiledModel {
@@ -761,6 +765,23 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         })
         .collect();
 
+    // Event indicators: one per relation anywhere in the model.
+    let indicators: Vec<Expr> = {
+        let mut out = Vec::new();
+        let mut collect = |expr: &Expr| collect_relations(expr, &mut out);
+        for (lhs, rhs) in &algebraic_eqs {
+            collect(lhs);
+            collect(rhs);
+        }
+        for expr in state_rhs.values() {
+            collect(expr);
+        }
+        for clause in &model.when_clauses {
+            collect(&clause.condition);
+        }
+        out
+    };
+
     let fixed_starts: Vec<(String, f64)> = ordered_algs
         .iter()
         .filter_map(|name| {
@@ -790,7 +811,8 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
-        terminations: model.terminations.clone(),
+        when_clauses: model.when_clauses.clone(),
+        indicators,
     };
     compiled.check_block_regularity()?;
     Ok(compiled)
@@ -803,6 +825,34 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
 /// Differentiating through an algebraic unknown or a non-smooth
 /// function is reported as an error (dummy derivatives arrive with the
 /// full M3).
+/// Collect `lhs - rhs` for every relation in an expression: these are
+/// the functions whose sign changes mark an event.
+fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
+    match expr {
+        Expr::Rel(_, l, r) => {
+            out.push(simplify(&Expr::Bin(
+                oxidelica_parser::BinOp::Sub,
+                Box::new((**l).clone()),
+                Box::new((**r).clone()),
+            )));
+            collect_relations(l, out);
+            collect_relations(r, out);
+        }
+        Expr::Bin(_, l, r) | Expr::And(l, r) | Expr::Or(l, r) => {
+            collect_relations(l, out);
+            collect_relations(r, out);
+        }
+        Expr::Neg(inner) | Expr::Not(inner) => collect_relations(inner, out),
+        Expr::If(c, a, b) => {
+            collect_relations(c, out);
+            collect_relations(a, out);
+            collect_relations(b, out);
+        }
+        Expr::Call(_, args) => args.iter().for_each(|a| collect_relations(a, out)),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Ref(_) | Expr::Time => {}
+    }
+}
+
 /// Constant folding and algebraic identities.
 ///
 /// Symbolic derivatives are built structurally and carry a lot of dead
@@ -1234,25 +1284,68 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     })
 }
 
+/// Outcome of handling an event.
+#[derive(Default)]
+struct EventOutcome {
+    /// Set when a `terminate(...)` fired.
+    terminated: Option<String>,
+    /// Whether any state was reinitialized (the integrator restarts).
+    reinitialized: bool,
+}
+
 impl CompiledModel {
-    /// Evaluate termination clauses at an output point; the `env` must
-    /// already hold every variable (as after `eval_point`). Returns the
-    /// report line of the first clause that holds.
-    fn check_terminations(
+    /// Values of the event indicators at a point already evaluated into
+    /// `env`.
+    fn indicator_values(&self, t: f64, env: &HashMap<String, f64>) -> Result<Vec<f64>, SimError> {
+        self.indicators
+            .iter()
+            .map(|expr| eval(expr, &EvalCtx { vars: env, time: t }))
+            .collect()
+    }
+
+    /// Current truth value of every `when` condition.
+    fn when_conditions(&self, t: f64, env: &HashMap<String, f64>) -> Result<Vec<bool>, SimError> {
+        self.when_clauses
+            .iter()
+            .map(|clause| Ok(eval(&clause.condition, &EvalCtx { vars: env, time: t })? != 0.0))
+            .collect()
+    }
+
+    /// Fire the `when` clauses whose condition just became true,
+    /// applying their actions to the state vector.
+    fn handle_event(
         &self,
         t: f64,
         env: &HashMap<String, f64>,
-    ) -> Result<Option<String>, SimError> {
-        for clause in &self.terminations {
-            let ctx = EvalCtx { vars: env, time: t };
-            if eval(&clause.condition, &ctx)? != 0.0 {
-                return Ok(Some(format!(
-                    "terminated at t = {t:.6}: {}",
-                    clause.message
-                )));
+        y: &mut [f64],
+        previous: &mut Vec<bool>,
+    ) -> Result<EventOutcome, SimError> {
+        let now = self.when_conditions(t, env)?;
+        let mut outcome = EventOutcome::default();
+        for (index, clause) in self.when_clauses.iter().enumerate() {
+            let was = previous.get(index).copied().unwrap_or(false);
+            if !now[index] || was {
+                continue;
+            }
+            for action in &clause.actions {
+                match action {
+                    WhenAction::Terminate(message) => {
+                        outcome.terminated = Some(format!("terminated at t = {t:.6}: {message}"));
+                    }
+                    WhenAction::Reinit(name, value) => {
+                        let Some(slot) = self.states.iter().position(|s| s == name) else {
+                            return err(format!(
+                                "reinit({name}, ...): `{name}` is not a state of the flattened model"
+                            ));
+                        };
+                        y[slot] = eval(value, &EvalCtx { vars: env, time: t })?;
+                        outcome.reinitialized = true;
+                    }
+                }
             }
         }
-        Ok(None)
+        *previous = now;
+        Ok(outcome)
     }
 }
 
@@ -1617,8 +1710,13 @@ impl CompiledModel {
         let mut alg_guess = self.algebraic_start.clone();
         let mut last_out_t = 0.0f64;
         let mut terminated: Option<String> = None;
+        // Modelica treats `when` conditions as false before the start,
+        // so one that already holds at t = 0 fires immediately.
+        let mut when_prev = vec![false; self.when_clauses.len()];
         record(0.0, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
-        if let Some(message) = self.check_terminations(0.0, &env)? {
+        let start_event = self.handle_event(0.0, &env, &mut y, &mut when_prev)?;
+        let mut indicators_prev = self.indicator_values(0.0, &env)?;
+        if let Some(message) = start_event.terminated {
             return Ok(SimResult {
                 columns,
                 rows,
@@ -1637,7 +1735,9 @@ impl CompiledModel {
                 record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
                 last_out_t = t;
                 out_i += 1;
-                terminated = self.check_terminations(t, &env)?;
+                terminated = self
+                    .handle_event(t, &env, &mut y, &mut when_prev)?
+                    .terminated;
                 if terminated.is_some() {
                     break;
                 }
@@ -1708,24 +1808,112 @@ impl CompiledModel {
                 // FSAL: the derivative at t+h.
                 self.eval_point(t + h, &y5, &mut env, &mut k[6], &mut alg_guess)?;
                 evals += 1;
+
+                // Cubic Hermite interpolation across the accepted step.
+                let interpolate = |theta: f64, out: &mut Vec<f64>, y: &[f64], k: &[Vec<f64>]| {
+                    out.clear();
+                    for j in 0..n {
+                        let (y0, y1) = (y[j], y5[j]);
+                        let (f0, f1) = (k[0][j], k[6][j]);
+                        out.push(
+                            (1.0 - theta) * y0
+                                + theta * y1
+                                + theta
+                                    * (theta - 1.0)
+                                    * ((1.0 - 2.0 * theta) * (y1 - y0)
+                                        + (theta - 1.0) * h * f0
+                                        + theta * h * f1),
+                        );
+                    }
+                };
+
+                // Did any event indicator change sign across the step?
+                // An indicator sitting on zero (we just handled an event
+                // there) is re-baselined instead of firing again.
+                let indicators_new = self.indicator_values(t + h, &env)?;
+                let mut event_theta: Option<f64> = None;
+                for (index, (&before, &after)) in
+                    indicators_prev.iter().zip(&indicators_new).enumerate()
+                {
+                    if before.abs() <= 1e-12 || before * after >= 0.0 {
+                        continue;
+                    }
+                    let (mut lo, mut hi) = (0.0f64, 1.0f64);
+                    for _ in 0..40 {
+                        let mid = 0.5 * (lo + hi);
+                        interpolate(mid, &mut interp, &y, &k);
+                        self.eval_point(
+                            t + mid * h,
+                            &interp,
+                            &mut env,
+                            &mut derivatives_scratch,
+                            &mut alg_guess,
+                        )?;
+                        if before * self.indicator_values(t + mid * h, &env)?[index] <= 0.0 {
+                            hi = mid;
+                        } else {
+                            lo = mid;
+                        }
+                    }
+                    // A hair past the crossing, so the relation has
+                    // definitely switched when the condition is tested.
+                    let crossed = (hi + 1e-9).min(1.0);
+                    event_theta = Some(event_theta.map_or(crossed, |c: f64| c.min(crossed)));
+                }
+
+                if let Some(theta) = event_theta {
+                    let t_event = t + theta * h;
+                    // Grid points before the event still come from the
+                    // smooth part of the step.
+                    loop {
+                        let out_t = out_i as f64 * out_step;
+                        if out_t > t_event + 1e-12 || out_t > stop + 1e-12 {
+                            break;
+                        }
+                        interpolate(((out_t - t) / h).clamp(0.0, 1.0), &mut interp, &y, &k);
+                        record(
+                            out_t,
+                            &interp,
+                            &mut env,
+                            &mut derivatives_scratch,
+                            &mut alg_guess,
+                        )?;
+                        last_out_t = out_t;
+                        out_i += 1;
+                    }
+                    interpolate(theta, &mut interp, &y, &k);
+                    y.copy_from_slice(&interp);
+                    self.eval_point(
+                        t_event,
+                        &y,
+                        &mut env,
+                        &mut derivatives_scratch,
+                        &mut alg_guess,
+                    )?;
+                    let outcome = self.handle_event(t_event, &env, &mut y, &mut when_prev)?;
+                    t = t_event;
+                    self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess)?;
+                    indicators_prev = self.indicator_values(t, &env)?;
+                    if let Some(message) = outcome.terminated {
+                        record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
+                        terminated = Some(message);
+                        break;
+                    }
+                    if outcome.reinitialized {
+                        record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
+                    }
+                    h = (h * theta.max(0.1)).max(1e-12);
+                    continue;
+                }
+                indicators_prev = indicators_new;
+
                 // Dense output on the grid via cubic Hermite interpolation.
                 loop {
                     let out_t = out_i as f64 * out_step;
                     if out_t > t + h + 1e-12 || out_t > stop + 1e-12 {
                         break;
                     }
-                    let theta = ((out_t - t) / h).clamp(0.0, 1.0);
-                    for j in 0..n {
-                        let (y0, y1) = (y[j], y5[j]);
-                        let (f0, f1) = (k[0][j], k[6][j]);
-                        interp[j] = (1.0 - theta) * y0
-                            + theta * y1
-                            + theta
-                                * (theta - 1.0)
-                                * ((1.0 - 2.0 * theta) * (y1 - y0)
-                                    + (theta - 1.0) * h * f0
-                                    + theta * h * f1);
-                    }
+                    interpolate(((out_t - t) / h).clamp(0.0, 1.0), &mut interp, &y, &k);
                     record(
                         out_t,
                         &interp,
@@ -1735,13 +1923,6 @@ impl CompiledModel {
                     )?;
                     last_out_t = out_t;
                     out_i += 1;
-                    terminated = self.check_terminations(out_t, &env)?;
-                    if terminated.is_some() {
-                        break;
-                    }
-                }
-                if terminated.is_some() {
-                    break;
                 }
                 t += h;
                 y.copy_from_slice(&y5);
@@ -1764,7 +1945,9 @@ impl CompiledModel {
         }
         if terminated.is_none() && last_out_t < stop - 1e-12 {
             record(stop, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
-            terminated = self.check_terminations(stop, &env)?;
+            terminated = self
+                .handle_event(stop, &env, &mut y, &mut when_prev)?
+                .terminated;
         }
         Ok(SimResult {
             columns,
@@ -1847,8 +2030,11 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut terminated: Option<String> = None;
+        let mut when_prev = vec![false; self.when_clauses.len()];
         record(0.0, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
-        if let Some(message) = self.check_terminations(0.0, &env)? {
+        let start_event = self.handle_event(0.0, &env, &mut y, &mut when_prev)?;
+        let mut indicators_prev = self.indicator_values(0.0, &env)?;
+        if let Some(message) = start_event.terminated {
             return Ok(SimResult {
                 columns,
                 rows,
@@ -1868,7 +2054,9 @@ impl CompiledModel {
                 record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
                 last_out_t = t;
                 out_i += 1;
-                terminated = self.check_terminations(t, &env)?;
+                terminated = self
+                    .handle_event(t, &env, &mut y, &mut when_prev)?
+                    .terminated;
                 if terminated.is_some() {
                     break;
                 }
@@ -2031,25 +2219,77 @@ impl CompiledModel {
                     interp_values.push(slot);
                 }
                 let mut interp = vec![0.0; n];
+                let sample = |at: f64, interp: &mut Vec<f64>| {
+                    for (i, slot) in interp.iter_mut().enumerate() {
+                        *slot = lagrange_value(&interp_nodes, &interp_values, i, at);
+                    }
+                };
+
+                // Locate the earliest event indicator crossing, if any.
+                self.eval_point(t_new, &y_new, &mut env, &mut f_scratch, &mut alg_guess)?;
+                let indicators_new = self.indicator_values(t_new, &env)?;
+                let mut event_t: Option<f64> = None;
+                for (index, (&before, &after)) in
+                    indicators_prev.iter().zip(&indicators_new).enumerate()
+                {
+                    if before.abs() <= 1e-12 || before * after >= 0.0 {
+                        continue;
+                    }
+                    let (mut lo, mut hi) = (t, t_new);
+                    for _ in 0..40 {
+                        let mid = 0.5 * (lo + hi);
+                        sample(mid, &mut interp);
+                        self.eval_point(mid, &interp, &mut env, &mut f_scratch, &mut alg_guess)?;
+                        if before * self.indicator_values(mid, &env)?[index] <= 0.0 {
+                            hi = mid;
+                        } else {
+                            lo = mid;
+                        }
+                    }
+                    let crossed = (hi + 1e-9 * (t_new - t)).min(t_new);
+                    event_t = Some(event_t.map_or(crossed, |c: f64| c.min(crossed)));
+                }
+
+                let horizon = event_t.unwrap_or(t_new);
                 loop {
                     let out_t = out_i as f64 * out_step;
-                    if out_t > t_new + 1e-12 || out_t > stop + 1e-12 {
+                    if out_t > horizon + 1e-12 || out_t > stop + 1e-12 {
                         break;
                     }
-                    for (i, slot) in interp.iter_mut().enumerate() {
-                        *slot = lagrange_value(&interp_nodes, &interp_values, i, out_t);
-                    }
+                    sample(out_t, &mut interp);
                     record(out_t, &interp, &mut env, &mut f_scratch, &mut alg_guess)?;
                     last_out_t = out_t;
                     out_i += 1;
-                    terminated = self.check_terminations(out_t, &env)?;
-                    if terminated.is_some() {
+                }
+
+                if let Some(t_event) = event_t {
+                    sample(t_event, &mut interp);
+                    y.copy_from_slice(&interp);
+                    self.eval_point(t_event, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                    let outcome = self.handle_event(t_event, &env, &mut y, &mut when_prev)?;
+                    t = t_event;
+                    // The history is meaningless across a discontinuity.
+                    t_hist.clear();
+                    y_hist.clear();
+                    t_hist.push(t);
+                    y_hist.push(y.clone());
+                    order = 1;
+                    consecutive_ok = 0;
+                    jac = None;
+                    self.eval_point(t, &y, &mut env, &mut f_last, &mut alg_guess)?;
+                    indicators_prev = self.indicator_values(t, &env)?;
+                    if let Some(message) = outcome.terminated {
+                        record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                        terminated = Some(message);
                         break;
                     }
+                    if outcome.reinitialized {
+                        record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                    }
+                    h = (h * 0.25).max(1e-12);
+                    continue;
                 }
-                if terminated.is_some() {
-                    break;
-                }
+                indicators_prev = indicators_new;
 
                 t = t_new;
                 y.copy_from_slice(&y_new);
@@ -2095,7 +2335,9 @@ impl CompiledModel {
 
         if terminated.is_none() && last_out_t < stop - 1e-12 {
             record(stop, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
-            terminated = self.check_terminations(stop, &env)?;
+            terminated = self
+                .handle_event(stop, &env, &mut y, &mut when_prev)?
+                .terminated;
         }
         Ok(SimResult {
             columns,
@@ -2138,7 +2380,10 @@ impl CompiledModel {
         };
 
         record(0.0, &y, &mut env, &mut k1, self, &mut alg_guess)?;
-        let mut terminated = self.check_terminations(0.0, &env)?;
+        let mut when_prev = vec![false; self.when_clauses.len()];
+        let mut terminated = self
+            .handle_event(0.0, &env, &mut y, &mut when_prev)?
+            .terminated;
 
         for i in 0..steps {
             if terminated.is_some() {
@@ -2164,7 +2409,9 @@ impl CompiledModel {
                 y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
             }
             record(t + h, &y, &mut env, &mut k1, self, &mut alg_guess)?;
-            terminated = self.check_terminations(t + h, &env)?;
+            terminated = self
+                .handle_event(t + h, &env, &mut y, &mut when_prev)?
+                .terminated;
         }
 
         Ok(SimResult {
@@ -3008,6 +3255,123 @@ mod tests {
         assert!((value("x") - 1.5).abs() < 1e-9, "x = {}", value("x"));
         assert!(value("v").abs() < 1e-9, "v = {}", value("v"));
         assert!((value("u") - 3.0).abs() < 1e-9, "u = {}", value("u"));
+    }
+
+    fn example(name: &str) -> String {
+        std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../examples")
+                .join(name),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn bouncing_ball_reinits_at_every_impact() {
+        let result = compile(&parse_model(&example("bouncing_ball.mo")).unwrap())
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let h = result.columns.iter().position(|c| c == "h").unwrap();
+        let v = result.columns.iter().position(|c| c == "v").unwrap();
+
+        // The floor is never breached beyond event-location tolerance.
+        let deepest = result
+            .rows
+            .iter()
+            .map(|row| row[h])
+            .fold(f64::INFINITY, f64::min);
+        assert!(deepest > -1e-6, "ball fell through the floor: {deepest}");
+
+        // First impact: free fall from 1 m, rebound at 0.8 of the
+        // impact speed.
+        let first = result
+            .rows
+            .windows(2)
+            .find(|w| w[0][v] < 0.0 && w[1][v] > 0.0)
+            .expect("at least one bounce");
+        let expected_t = (2.0f64 / 9.81).sqrt();
+        let expected_v = 0.8 * (2.0 * 9.81f64).sqrt();
+        assert!(
+            (first[1][0] - expected_t).abs() < 1e-4,
+            "t = {}",
+            first[1][0]
+        );
+        assert!(
+            (first[1][v] - expected_v).abs() < 1e-3,
+            "v = {}",
+            first[1][v]
+        );
+
+        // Impacts crowd toward the Zeno limit, where terminate fires.
+        let message = result.terminated.expect("terminates at rest");
+        assert!(message.contains("come to rest"), "{message}");
+    }
+
+    #[test]
+    fn ideal_diode_never_conducts_while_blocking() {
+        let result = compile(&parse_model(&example("rectifier.mo")).unwrap())
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (vs, vc, id) = (index("vs"), index("vc"), index("id"));
+        for row in &result.rows {
+            if row[vs] - row[vc] < -1e-9 {
+                assert!(row[id].abs() < 1e-12, "blocking diode carried {}", row[id]);
+            }
+        }
+        // The load charges toward the source amplitude.
+        let peak = result.rows.iter().map(|r| r[vc]).fold(0.0f64, f64::max);
+        assert!((0.8..1.0).contains(&peak), "load peaked at {peak}");
+    }
+
+    #[test]
+    fn events_are_located_rather_than_stepped_over() {
+        // A coarse output grid must not blunt the event: the impact is
+        // found to solver tolerance even between grid points.
+        let result = run(
+            "model B parameter Real g = 9.81; Real h(start = 1.0); Real v(start = 0.0); \
+             equation der(h) = v; der(v) = -g; \
+             when h < 0 then reinit(v, -v); end when; \
+             annotation(experiment(StopTime=1.0, Interval=0.25, Tolerance=1e-9)); end B;",
+        );
+        let v = result.columns.iter().position(|c| c == "v").unwrap();
+        let h = result.columns.iter().position(|c| c == "h").unwrap();
+        // Perfectly elastic: after the bounce the ball returns to 1 m.
+        let peak_after = result
+            .rows
+            .iter()
+            .filter(|row| row[0] > 0.46)
+            .map(|row| row[h])
+            .fold(f64::NEG_INFINITY, f64::max);
+        assert!(peak_after > 0.9, "rebound reached only {peak_after}");
+        assert!(result.rows.iter().any(|row| row[v] > 0.0), "never bounced");
+    }
+
+    #[test]
+    fn reinit_targets_must_be_states() {
+        let model = parse_model(
+            "model R Real x(start = 1.0); Real y; equation der(x) = -2; y = 2 * x; \
+             when x < 0 then reinit(y, 0); end when; \
+             annotation(experiment(StopTime=1.0, Interval=0.01)); end R;",
+        )
+        .unwrap();
+        let error = compile(&model).unwrap().simulate().unwrap_err();
+        assert!(error.0.contains("is not a state"), "{}", error.0);
+    }
+
+    #[test]
+    fn when_clauses_fire_on_the_rising_edge_only() {
+        // A single terminate that stays true must not fire twice, and a
+        // condition true at t = 0 fires immediately.
+        let result = run("model E Real x(start = 0.0); equation der(x) = 1; \
+             when x > 0.25 then terminate(\"crossed\"); end when; \
+             annotation(experiment(StopTime=1.0, Interval=0.1)); end E;");
+        let message = result.terminated.unwrap();
+        assert!(message.contains("crossed"), "{message}");
+        let last_t = result.rows.last().unwrap()[0];
+        assert!((last_t - 0.25).abs() < 1e-6, "stopped at {last_t}");
     }
 
     #[test]

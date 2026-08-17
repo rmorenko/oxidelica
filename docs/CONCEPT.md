@@ -27,7 +27,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 | **M1. ODE subset**         | Full expressions, parameters, algebraic equations, adaptive RK | 10 textbook models match OpenModelica                          |
 | **M2. Components**         | Classes, inheritance, connect, flattening                      | RC circuit and mass-spring built from components               |
 | **M3. DAE** (done)         | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                   |
-| **M4. Events**             | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                           |
+| **M4. Events** (done)      | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                           |
 | **M5. Arrays & functions** | Arrays, for-equations, functions, records                      | Discretized heat conduction                                    |
 | **M6. MSL core**           | Blocks, Electrical.Analog, Mechanics.Rotational                | MSL examples run unmodified                                    |
 | **M7. GUI**                | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                      |

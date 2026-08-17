@@ -78,19 +78,29 @@ pub struct ClassDef {
     pub equations: Vec<EquationItem>,
     /// `connect(a, b);` statements (component reference paths).
     pub connects: Vec<(String, String)>,
-    /// Termination clauses.
-    pub terminations: Vec<Termination>,
+    /// `when` clauses (events).
+    pub when_clauses: Vec<WhenClause>,
     /// Experiment settings.
     pub experiment: Experiment,
 }
 
-/// A `when <condition> then terminate("<message>"); end when;` clause.
+/// What a `when` clause does when its condition becomes true.
 #[derive(Debug, Clone)]
-pub struct Termination {
-    /// The boolean condition that ends the simulation when it holds.
+pub enum WhenAction {
+    /// `reinit(state, expr)` — restart integration of `state` from a
+    /// new value (a bouncing ball reversing its velocity).
+    Reinit(String, Expr),
+    /// `terminate("message")` — end the simulation.
+    Terminate(String),
+}
+
+/// A `when <condition> then <actions> end when;` clause.
+#[derive(Debug, Clone)]
+pub struct WhenClause {
+    /// The condition; actions fire on its false-to-true edge.
     pub condition: Expr,
-    /// The message reported to the user.
-    pub message: String,
+    /// Actions performed at the event.
+    pub actions: Vec<WhenAction>,
 }
 
 /// Simulation settings from `annotation(experiment(...))`.
@@ -115,8 +125,8 @@ pub struct Model {
     pub components: Vec<Component>,
     /// Equations in source order.
     pub equations: Vec<EquationItem>,
-    /// Termination clauses (`when ... then terminate(...)`).
-    pub terminations: Vec<Termination>,
+    /// `when` clauses (events).
+    pub when_clauses: Vec<WhenClause>,
     /// Experiment settings (defaults when absent).
     pub experiment: Experiment,
 }
