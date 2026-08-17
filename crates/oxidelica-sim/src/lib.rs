@@ -33,8 +33,12 @@ fn err<T>(message: impl Into<String>) -> Result<T, SimError> {
 /// Integration method used by [`CompiledModel::simulate`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SolverMethod {
-    /// Adaptive Dormand-Prince 5(4) with error control (default).
+    /// Start explicit and watch: a problem whose step size is limited by
+    /// stability rather than accuracy is handed to the implicit solver
+    /// instead (default).
     #[default]
+    Auto,
+    /// Adaptive Dormand-Prince 5(4) with error control.
     Dopri45,
     /// Classic fixed-step RK4.
     Rk4,
@@ -46,6 +50,7 @@ impl SolverMethod {
     /// Parse a method name (CLI and IDE selectors).
     pub fn from_name(name: &str) -> Option<SolverMethod> {
         match name {
+            "auto" => Some(SolverMethod::Auto),
             "dopri" | "dopri45" => Some(SolverMethod::Dopri45),
             "rk4" => Some(SolverMethod::Rk4),
             "bdf" => Some(SolverMethod::Bdf),
@@ -56,6 +61,7 @@ impl SolverMethod {
     /// Short name of the method.
     pub fn name(self) -> &'static str {
         match self {
+            SolverMethod::Auto => "auto",
             SolverMethod::Dopri45 => "dopri45",
             SolverMethod::Rk4 => "rk4",
             SolverMethod::Bdf => "bdf",
@@ -118,6 +124,13 @@ pub struct CompiledModel {
     pub tolerance: f64,
     /// Selected integration method.
     pub method: SolverMethod,
+    /// Groups of state indices whose Jacobian columns can be probed
+    /// together: no two columns of a group touch the same row, so one
+    /// evaluation yields all of them. Empty when the structure was not
+    /// worked out, which falls back to one column at a time.
+    jacobian_groups: Vec<Vec<usize>>,
+    /// Rows each column touches, in the same order as the states.
+    jacobian_rows: Vec<Vec<usize>>,
     /// Discrete variables: they keep their value between events, so the
     /// continuous part sees them as knowns and only a `when` clause
     /// changes them.
@@ -331,6 +344,13 @@ impl CompiledModel {
         })
     }
 
+    /// How many evaluations one Jacobian costs: the number of column
+    /// groups, which for a banded structure is far below the number of
+    /// states. Reported by the CLI, and what the colouring is for.
+    pub fn jacobian_cost(&self) -> usize {
+        self.jacobian_groups.len()
+    }
+
     /// Human-readable summary of the algebraic evaluation plan:
     /// one line per stage (explicit assignment or implicit block).
     pub fn plan_summary(&self) -> Vec<String> {
@@ -353,6 +373,131 @@ impl CompiledModel {
             })
             .collect()
     }
+}
+
+/// Which states each state's right-hand side depends on, and a grouping
+/// of the columns that can be probed together.
+///
+/// The dependency runs through the algebraic plan: a derivative that
+/// reads an algebraic variable depends on whatever that variable was
+/// computed from. An implicit block is taken as a whole, since its
+/// unknowns are solved together and each may move with any input of the
+/// block.
+///
+/// Two columns may share a group when no row depends on both. Finding
+/// the fewest groups is graph colouring, so this takes the greedy
+/// answer, which for the banded Jacobians of a discretized field is
+/// already the optimum: three groups for a tridiagonal one.
+fn jacobian_structure(
+    states: &[String],
+    algebraics: &[String],
+    derivatives: &[Expr],
+    stages: &[AlgStage],
+) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    let index_of_state: HashMap<&str, usize> = states.iter().map(|s| s.as_str()).zip(0..).collect();
+    let index_of_algebraic: HashMap<&str, usize> =
+        algebraics.iter().map(|a| a.as_str()).zip(0..).collect();
+
+    // What each algebraic variable depends on, in evaluation order.
+    // `None` means "not worked out": such a variable is taken to depend
+    // on every state, because a missing entry would quietly cost the
+    // Jacobian a term while an extra one only costs an evaluation.
+    let mut through_algebraic: Vec<Option<Vec<bool>>> = vec![None; algebraics.len()];
+    let depends_on = |expr: &Expr, out: &mut Vec<bool>, through: &[Option<Vec<bool>>]| {
+        let mut refs = Vec::new();
+        expr.collect_refs(&mut refs);
+        for name in refs {
+            if let Some(&state) = index_of_state.get(name) {
+                out[state] = true;
+            } else if let Some(&algebraic) = index_of_algebraic.get(name) {
+                match through.get(algebraic) {
+                    Some(Some(inherited)) => {
+                        for (state, &touched) in inherited.iter().enumerate() {
+                            out[state] |= touched;
+                        }
+                    }
+                    _ => out.iter_mut().for_each(|touched| *touched = true),
+                }
+            }
+        }
+    };
+
+    for stage in stages {
+        match stage {
+            AlgStage::Explicit { var, expr } => {
+                let mut row = vec![false; states.len()];
+                depends_on(expr, &mut row, &through_algebraic);
+                through_algebraic[*var] = Some(row);
+            }
+            AlgStage::Implicit {
+                vars,
+                inner,
+                residuals,
+                ..
+            } => {
+                // Everything the block reads reaches everything it solves.
+                let mut row = vec![false; states.len()];
+                for (_, expr) in inner {
+                    depends_on(expr, &mut row, &through_algebraic);
+                }
+                for (lhs, rhs) in residuals {
+                    depends_on(lhs, &mut row, &through_algebraic);
+                    depends_on(rhs, &mut row, &through_algebraic);
+                }
+                for &var in vars {
+                    through_algebraic[var] = Some(row.clone());
+                }
+            }
+        }
+    }
+
+    // Rows of the Jacobian: the states each derivative depends on.
+    let mut rows_of_column: Vec<Vec<usize>> = vec![Vec::new(); states.len()];
+    for (row, expr) in derivatives.iter().enumerate() {
+        let mut touched = vec![false; states.len()];
+        depends_on(expr, &mut touched, &through_algebraic);
+        for (column, &yes) in touched.iter().enumerate() {
+            if yes {
+                rows_of_column[column].push(row);
+            }
+        }
+    }
+
+    // Greedy colouring: a column joins the first group whose rows it
+    // does not overlap.
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut taken: Vec<Vec<bool>> = Vec::new();
+    for (column, touched) in rows_of_column.iter().enumerate() {
+        let mut placed = false;
+        for (group, rows) in groups.iter_mut().zip(taken.iter_mut()) {
+            if touched.iter().all(|&row| !rows[row]) {
+                for &row in touched {
+                    rows[row] = true;
+                }
+                group.push(column);
+                placed = true;
+                break;
+            }
+        }
+        if !placed {
+            let mut rows = vec![false; derivatives.len()];
+            for &row in touched {
+                rows[row] = true;
+            }
+            groups.push(vec![column]);
+            taken.push(rows);
+        }
+    }
+    (groups, rows_of_column)
+}
+
+/// What the adaptive solver came back with: either the finished run, or
+/// the verdict that this problem belongs to the implicit solver.
+enum AdaptiveOutcome {
+    /// The run completed.
+    Finished(SimResult),
+    /// The step size was being held down by stability, not accuracy.
+    Stiff,
 }
 
 /// Values that change only at events, by name: every discrete variable,
@@ -1175,7 +1320,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     }
 
     let ctx = ctx0;
-    let derivatives = states.iter().map(|s| state_rhs[s].clone()).collect();
+    let derivatives: Vec<Expr> = states.iter().map(|s| state_rhs[s].clone()).collect();
     let algebraic_start: Vec<f64> = ordered_algs
         .iter()
         .map(|name| {
@@ -1220,6 +1365,9 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         })
         .collect();
 
+    let (jacobian_groups, jacobian_rows) =
+        jacobian_structure(&states, &ordered_algs, &derivatives, &stages);
+
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
 
@@ -1237,6 +1385,8 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
+        jacobian_groups,
+        jacobian_rows,
         discretes,
         discrete_start,
         samples,
@@ -2025,16 +2175,34 @@ pub struct SimResult {
     /// Set when a `when ... then terminate(...)` clause fired; contains
     /// a human-readable "terminated at t = ...: message" line.
     pub terminated: Option<String>,
+    /// The method that produced these rows. With `Auto` this is the one
+    /// the run settled on, never `Auto` itself.
+    pub method: SolverMethod,
 }
 
 impl SimResult {
     /// Render the result as CSV text.
     pub fn to_csv(&self) -> String {
-        let mut out = self.columns.join(",");
+        use std::fmt::Write;
+        // A large result is mostly numbers, so this writes them straight
+        // into one buffer: a `format!` per cell would allocate a string
+        // for every value, which on a big model costs more than the
+        // simulation that produced them. The values are written at full
+        // precision - shortest text that reads back as the same double -
+        // rather than padded to a fixed number of decimals.
+        let mut out = String::with_capacity(
+            self.columns.iter().map(|c| c.len() + 1).sum::<usize>()
+                + self.rows.len() * self.columns.len() * 12,
+        );
+        out.push_str(&self.columns.join(","));
         out.push('\n');
         for row in &self.rows {
-            let line: Vec<String> = row.iter().map(|v| format!("{v:.9}")).collect();
-            out.push_str(&line.join(","));
+            for (index, value) in row.iter().enumerate() {
+                if index > 0 {
+                    out.push(',');
+                }
+                let _ = write!(out, "{value}");
+            }
             out.push('\n');
         }
         out
@@ -2195,9 +2363,34 @@ impl CompiledModel {
     /// Integrate over `[0, stop_time]` with the selected method.
     pub fn simulate(&self) -> Result<SimResult, SimError> {
         match self.method {
+            SolverMethod::Auto => self.simulate_auto(),
             SolverMethod::Dopri45 => self.simulate_adaptive(),
             SolverMethod::Rk4 => self.simulate_rk4(),
             SolverMethod::Bdf => self.simulate_bdf(),
+        }
+    }
+
+    /// Integrate without being told which method fits.
+    ///
+    /// The explicit solver goes first and watches the product of the
+    /// step size and the dominant eigenvalue of the Jacobian, which it
+    /// gets for free from two stages it has already evaluated. A step
+    /// size held down by stability rather than by accuracy is what
+    /// "stiff" means, and once that is clear the run starts again with
+    /// the implicit solver - which on a stiff problem is so much faster
+    /// that the abandoned attempt costs nothing worth counting.
+    fn simulate_auto(&self) -> Result<SimResult, SimError> {
+        match self.adaptive(true)? {
+            AdaptiveOutcome::Finished(result) => Ok(result),
+            AdaptiveOutcome::Stiff => self.simulate_bdf(),
+        }
+    }
+
+    /// Adaptive Dormand-Prince 5(4) integration with dense output.
+    pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
+        match self.adaptive(false)? {
+            AdaptiveOutcome::Finished(result) => Ok(result),
+            AdaptiveOutcome::Stiff => err("the stiffness watch fired without being asked"),
         }
     }
 
@@ -2206,7 +2399,11 @@ impl CompiledModel {
     /// dynamics (close encounters, kinks) and grows on smooth stretches;
     /// a persistent step-size underflow is reported as a probable
     /// singularity instead of returning garbage.
-    pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
+    ///
+    /// With `watch_stiffness` the run gives up as soon as the step size
+    /// is clearly limited by stability rather than accuracy, so that the
+    /// caller can hand the problem to the implicit solver.
+    fn adaptive(&self, watch_stiffness: bool) -> Result<AdaptiveOutcome, SimError> {
         // Dormand-Prince Butcher tableau.
         const C: [f64; 7] = [0.0, 0.2, 0.3, 0.8, 8.0 / 9.0, 1.0, 1.0];
         const A: [[f64; 6]; 7] = [
@@ -2316,12 +2513,13 @@ impl CompiledModel {
         )?;
         let mut indicators_prev = self.indicator_values(0.0, &env)?;
         if let Some(message) = start_event.terminated {
-            return Ok(SimResult {
+            return Ok(AdaptiveOutcome::Finished(SimResult {
                 columns,
                 rows,
                 parameters: self.parameters.clone(),
                 terminated: Some(message),
-            });
+                method: SolverMethod::Dopri45,
+            }));
         }
 
         // Pure-algebraic models: no ODE to integrate, only the grid.
@@ -2377,16 +2575,23 @@ impl CompiledModel {
                     &state.values,
                 )?;
             }
-            return Ok(SimResult {
+            return Ok(AdaptiveOutcome::Finished(SimResult {
                 columns,
                 rows,
                 parameters: self.parameters.clone(),
                 terminated,
-            });
+                method: SolverMethod::Dopri45,
+            }));
         }
 
         let mut k: Vec<Vec<f64>> = vec![vec![0.0; n]; 7];
         let mut stage = vec![0.0; n];
+        let mut penultimate = vec![0.0; n];
+        // Steps that looked stiff, and the calm ones that clear them.
+        // A single step over the boundary is noise - a kink, an event, a
+        // bad guess; a run of them is the method saying it is held back
+        // by stability rather than accuracy.
+        let (mut stiff_steps, mut calm_steps) = (0usize, 0usize);
         let mut y5 = vec![0.0; n];
         let mut interp = vec![0.0; n];
         let mut t = 0.0f64;
@@ -2413,6 +2618,13 @@ impl CompiledModel {
                         acc += A[s][q] * k_q[j];
                     }
                     stage[j] = y[j] + h * acc;
+                }
+                if s == 5 {
+                    // The sixth stage sits at t + h, like the solution
+                    // itself but at a different point; the gap between
+                    // the two, and between their derivatives, is what
+                    // the stiffness estimate is made of.
+                    penultimate.copy_from_slice(&stage);
                 }
                 let (head, tail) = k.split_at_mut(s);
                 let _ = head;
@@ -2462,6 +2674,34 @@ impl CompiledModel {
                     &state.values,
                 )?;
                 evals += 1;
+
+                if watch_stiffness {
+                    // h times the dominant eigenvalue of the Jacobian,
+                    // read off two points at t + h the step has already
+                    // produced. Past the stability limit of the method
+                    // (3.25 for Dormand-Prince) the step size is no
+                    // longer about accuracy.
+                    let (mut numerator, mut denominator) = (0.0f64, 0.0f64);
+                    for j in 0..n {
+                        numerator += (k[6][j] - k[5][j]).powi(2);
+                        denominator += (y5[j] - penultimate[j]).powi(2);
+                    }
+                    if denominator > 0.0 && h * (numerator / denominator).sqrt() > 3.25 {
+                        calm_steps = 0;
+                        stiff_steps += 1;
+                        if stiff_steps >= 15 {
+                            return Ok(AdaptiveOutcome::Stiff);
+                        }
+                    } else {
+                        // The estimate hovers around the boundary on a
+                        // stiff problem, so a single step below it means
+                        // nothing; only a calm stretch clears the count.
+                        calm_steps += 1;
+                        if calm_steps >= 6 {
+                            stiff_steps = 0;
+                        }
+                    }
+                }
 
                 // Cubic Hermite interpolation across the accepted step.
                 let interpolate = |theta: f64, out: &mut Vec<f64>, y: &[f64], k: &[Vec<f64>]| {
@@ -2666,12 +2906,13 @@ impl CompiledModel {
                 .handle_event(stop, &mut y, &mut env, &mut alg_guess, &mut state)?
                 .terminated;
         }
-        Ok(SimResult {
+        Ok(AdaptiveOutcome::Finished(SimResult {
             columns,
             rows,
             parameters: self.parameters.clone(),
             terminated,
-        })
+            method: SolverMethod::Dopri45,
+        }))
     }
 
     /// Finite-difference Jacobian `df/dy` of the state right-hand side
@@ -2691,13 +2932,20 @@ impl CompiledModel {
         let mut probe = y.to_vec();
         let mut scratch = alg_guess.to_vec();
         let mut f = Vec::with_capacity(n);
-        for j in 0..n {
-            let delta = 1e-7 * (1.0 + y[j].abs());
-            probe[j] = y[j] + delta;
+        let mut deltas = vec![0.0f64; n];
+        for group in &self.jacobian_groups {
+            // Every column of a group is perturbed at once: they share
+            // no row, so each difference belongs to exactly one of them.
+            for &j in group {
+                deltas[j] = 1e-7 * (1.0 + y[j].abs());
+                probe[j] = y[j] + deltas[j];
+            }
             self.eval_point(t, &probe, env, &mut f, &mut scratch, discrete)?;
-            probe[j] = y[j];
-            for (i, row) in jac.iter_mut().enumerate() {
-                row[j] = (f[i] - f0[i]) / delta;
+            for &j in group {
+                probe[j] = y[j];
+                for &i in &self.jacobian_rows[j] {
+                    jac[i][j] = (f[i] - f0[i]) / deltas[j];
+                }
             }
         }
         Ok(jac)
@@ -2774,6 +3022,7 @@ impl CompiledModel {
                 rows,
                 parameters: self.parameters.clone(),
                 terminated: Some(message),
+                method: SolverMethod::Bdf,
             });
         }
 
@@ -2836,6 +3085,7 @@ impl CompiledModel {
                 rows,
                 parameters: self.parameters.clone(),
                 terminated,
+                method: SolverMethod::Bdf,
             });
         }
 
@@ -2947,6 +3197,10 @@ impl CompiledModel {
                         &state.values,
                     )?);
                 }
+                // The iteration matrix only moves when the Jacobian is
+                // refreshed or the step coefficient changes, so it is
+                // eliminated once and its factors reused - both between
+                // the iterations of a step and between steps.
                 let mut matrix: Vec<Vec<f64>> = jac
                     .as_ref()
                     .expect("jacobian present")
@@ -3229,6 +3483,7 @@ impl CompiledModel {
             rows,
             parameters: self.parameters.clone(),
             terminated,
+            method: SolverMethod::Bdf,
         })
     }
 
@@ -3354,6 +3609,7 @@ impl CompiledModel {
             rows,
             parameters: self.parameters.clone(),
             terminated,
+            method: SolverMethod::Rk4,
         })
     }
 }
@@ -3638,8 +3894,14 @@ mod tests {
         let csv = result.to_csv();
         let mut lines = csv.lines();
         assert_eq!(lines.next().unwrap(), "time,x");
-        assert!(lines.next().unwrap().starts_with("0.000000000,1.000000000"));
+        // Values are written at full precision in the shortest text that
+        // reads back as the same double, so a round number is round.
+        assert_eq!(lines.next().unwrap(), "0,1");
         assert_eq!(csv.lines().count(), result.rows.len() + 1);
+        // And a value that is not round keeps every digit it needs.
+        let last = csv.lines().last().unwrap();
+        let value: f64 = last.split(',').nth(1).unwrap().parse().unwrap();
+        assert!((value - result.rows.last().unwrap()[1]).abs() == 0.0);
     }
 
     #[test]
@@ -4853,6 +5115,51 @@ mod tests {
              initial equation der(b) = 0; end M;"
         )
         .contains("is not a state"));
+    }
+
+    #[test]
+    fn the_solver_picks_itself() {
+        // A decay with a time constant of a microsecond over a second of
+        // simulated time: the explicit method could only crawl through
+        // it, so the run should end up on the implicit one - and land on
+        // the analytic answer all the same.
+        let stiff = run(
+            "model S Real x(start = 1, fixed = true); Real slow(start = 1, fixed = true); \
+             equation der(x) = -1e6 * (x - slow); der(slow) = -slow; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.05, Tolerance = 1e-6)); end S;",
+        );
+        assert_eq!(stiff.method, SolverMethod::Bdf, "a stiff model needs bdf");
+        let slow = stiff.columns.iter().position(|c| c == "slow").unwrap();
+        let last = stiff.rows.last().unwrap();
+        assert!(
+            (last[slow] - (-1.0f64).exp()).abs() < 1e-5,
+            "{}",
+            last[slow]
+        );
+        // The fast state follows the slow one, which is the point of the
+        // stiff pair.
+        let x = stiff.columns.iter().position(|c| c == "x").unwrap();
+        assert!((last[x] - last[slow]).abs() < 1e-5);
+
+        // An ordinary model stays where it started, and says so.
+        let gentle = run(
+            "model G Real x(start = 1, fixed = true); equation der(x) = -x; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end G;",
+        );
+        assert_eq!(gentle.method, SolverMethod::Dopri45);
+        // The default tolerance is 1e-6, so that is what to expect of it.
+        assert!((gentle.rows.last().unwrap()[1] - (-1.0f64).exp()).abs() < 1e-6);
+
+        // Asking for a method by name still overrides the choice.
+        assert_eq!(SolverMethod::from_name("auto"), Some(SolverMethod::Auto));
+        let model = parse_model(
+            "model G Real x(start = 1, fixed = true); equation der(x) = -x; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end G;",
+        )
+        .unwrap();
+        let mut compiled = compile(&model).unwrap();
+        compiled.method = SolverMethod::Bdf;
+        assert_eq!(compiled.simulate().unwrap().method, SolverMethod::Bdf);
     }
 
     #[test]

@@ -18,7 +18,7 @@ const USAGE: &str = "Oxidelica M0 - a Modelica subset simulator
 
 Usage:
   oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [-o result.csv]
-                            solvers: dopri45 (default), bdf (stiff), rk4
+                            solvers: auto (default), dopri45, bdf (stiff), rk4
   oxidelica parse <file.mo>";
 
 /// Dispatch the command line to a subcommand.
@@ -78,6 +78,11 @@ fn parse(args: &[String]) -> Result<(), String> {
     for name in &compiled.algebraics {
         println!("    {name}");
     }
+    println!(
+        "  jacobian: {} evaluation(s) per refresh for {} state(s)",
+        compiled.jacobian_cost(),
+        compiled.states.len()
+    );
     println!("  evaluation plan:");
     for line in compiled.plan_summary() {
         println!("    {line}");
@@ -158,7 +163,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
                 compiled.name,
                 result.rows.len() - 1,
                 elapsed,
-                compiled.method.name(),
+                result.method.name(),
                 file
             );
         }
