@@ -105,13 +105,24 @@ pub enum Causality {
     Output,
 }
 
-/// One statement of a function body.
+/// One branch of an `if` statement inside an algorithm.
 #[derive(Debug, Clone)]
-pub struct Assignment {
-    /// Assigned variable.
-    pub target: String,
-    /// Assigned expression.
-    pub value: Expr,
+pub struct StatementBranch {
+    /// The condition; `None` marks the `else` branch.
+    pub condition: Option<Expr>,
+    /// Statements of the branch.
+    pub body: Vec<Statement>,
+}
+
+/// One statement of an algorithm section.
+#[derive(Debug, Clone)]
+pub enum Statement {
+    /// `target := value;`
+    Assign(String, Expr),
+    /// `if c then … elseif … else … end if;`
+    If(Vec<StatementBranch>),
+    /// `for i in lo:hi loop … end for;`
+    For(String, (Expr, Expr), Vec<Statement>),
 }
 
 /// The kind of a class definition.
@@ -169,12 +180,16 @@ pub struct ClassDef {
     pub extends: Vec<Extend>,
     /// Ordinary equations.
     pub equations: Vec<EquationItem>,
+    /// Equations of the `initial equation` section: they hold at the
+    /// start and decide the state the simulation begins from.
+    pub initial_equations: Vec<EquationItem>,
     /// `for` equations, unrolled while flattening.
     pub for_equations: Vec<ForEquation>,
     /// `if` equations, resolved while flattening.
     pub if_equations: Vec<IfEquation>,
-    /// Statements of a `function` body.
-    pub algorithm: Vec<Assignment>,
+    /// Statements of an `algorithm` section: the body of a function, or
+    /// a block of a model that is executed into equations.
+    pub algorithm: Vec<Statement>,
     /// `connect(a, b);` statements (component reference paths).
     pub connects: Vec<(String, String)>,
     /// `when` clauses (events).
@@ -280,6 +295,8 @@ pub struct Model {
     pub components: Vec<Component>,
     /// Equations in source order.
     pub equations: Vec<EquationItem>,
+    /// Equations that hold only at the start.
+    pub initial_equations: Vec<EquationItem>,
     /// `when` clauses (events).
     pub when_clauses: Vec<WhenClause>,
     /// Experiment settings (defaults when absent).

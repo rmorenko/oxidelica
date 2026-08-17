@@ -189,6 +189,148 @@ impl CompiledModel {
         Ok(())
     }
 
+    /// Solve the initialization problem: the state vector a run starts
+    /// from is the one satisfying the `initial equation` section
+    /// together with every state declared `fixed = true`.
+    ///
+    /// Without such a section nothing changes and the declared `start`
+    /// values are the initial state. With one they become what they mean
+    /// in the language once a model says something else about its start:
+    /// the guess Newton begins from.
+    fn solve_initialization(
+        &mut self,
+        initial_equations: &[EquationItem],
+        fixed: &[bool],
+    ) -> Result<(), SimError> {
+        if initial_equations.is_empty() {
+            return Ok(());
+        }
+        let n = self.states.len();
+        let pinned = fixed.iter().filter(|f| **f).count();
+        if initial_equations.len() + pinned != n {
+            return err(format!(
+                "initialization is not square: {} initial equation(s) and {pinned} fixed start(s) for {n} state(s)",
+                initial_equations.len()
+            ));
+        }
+
+        // `der(x)` in an initial equation is the right-hand side the
+        // model gives that state, so a steady start reads `der(x) = 0`.
+        let substituted: Vec<(Expr, Expr)> = initial_equations
+            .iter()
+            .map(|equation| {
+                Ok((
+                    self.substitute_derivatives(&equation.lhs)?,
+                    self.substitute_derivatives(&equation.rhs)?,
+                ))
+            })
+            .collect::<Result<Vec<_>, SimError>>()?;
+
+        let guess = self.initial.clone();
+        let discrete = self.event_state().values;
+        let mut env = HashMap::new();
+        let mut derivatives = Vec::new();
+        let mut alg_guess = self.algebraic_start.clone();
+        let mut y = guess.clone();
+
+        let residual = |y: &[f64],
+                        env: &mut HashMap<String, f64>,
+                        derivatives: &mut Vec<f64>,
+                        alg_guess: &mut Vec<f64>|
+         -> Result<Vec<f64>, SimError> {
+            self.eval_point(0.0, y, env, derivatives, alg_guess, &discrete)?;
+            let ctx = EvalCtx {
+                vars: env,
+                time: 0.0,
+            };
+            let mut out = Vec::with_capacity(n);
+            for (lhs, rhs) in &substituted {
+                out.push(eval(lhs, &ctx)? - eval(rhs, &ctx)?);
+            }
+            for (index, pinned) in fixed.iter().enumerate() {
+                if *pinned {
+                    out.push(y[index] - guess[index]);
+                }
+            }
+            Ok(out)
+        };
+
+        for _ in 0..50 {
+            let f = residual(&y, &mut env, &mut derivatives, &mut alg_guess)?;
+            let solved = f.iter().all(|r| r.abs() < 1e-10);
+            let mut jac = vec![vec![0.0; n]; n];
+            for j in 0..n {
+                let h = 1e-7 * (1.0 + y[j].abs());
+                let mut probe = y.clone();
+                probe[j] += h;
+                let fp = residual(&probe, &mut env, &mut derivatives, &mut alg_guess)?;
+                for (i, row) in jac.iter_mut().enumerate() {
+                    row[j] = (fp[i] - f[i]) / h;
+                }
+            }
+            if solved {
+                // Satisfied is not the same as determined: a singular
+                // Jacobian means the equations leave a whole family of
+                // starting points and this one is just the guess.
+                let probe = vec![1.0; n];
+                if solve_linear(&mut jac.clone(), &probe).is_none() {
+                    return err(
+                        "the initialization problem is singular: its equations do not pin the states down"
+                            .to_string(),
+                    );
+                }
+                self.initial = y;
+                return Ok(());
+            }
+            let Some(step) = solve_linear(&mut jac, &f) else {
+                return err(
+                    "the initialization problem is singular: its equations do not pin the states down"
+                        .to_string(),
+                );
+            };
+            for j in 0..n {
+                y[j] -= step[j];
+            }
+            if y.iter().any(|value| !value.is_finite()) {
+                return err("initialization diverged".to_string());
+            }
+        }
+        err("initialization did not converge in 50 Newton iterations".to_string())
+    }
+
+    /// Replace every `der(x)` with the right-hand side of that state.
+    fn substitute_derivatives(&self, expr: &Expr) -> Result<Expr, SimError> {
+        if let Some(state) = expr.as_der_of() {
+            let Some(index) = self.states.iter().position(|s| s == state) else {
+                return err(format!(
+                    "der({state}): `{state}` is not a state of the model"
+                ));
+            };
+            return Ok(self.derivatives[index].clone());
+        }
+        let recur = |e: &Expr| self.substitute_derivatives(e);
+        Ok(match expr {
+            Expr::Call(name, args) => Expr::Call(
+                name.clone(),
+                args.iter()
+                    .map(recur)
+                    .collect::<Result<Vec<_>, SimError>>()?,
+            ),
+            Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
+            Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
+            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
+            Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
+            Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
+            Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
+            Expr::If(c, a, b) => Expr::If(
+                Box::new(recur(c)?),
+                Box::new(recur(a)?),
+                Box::new(recur(b)?),
+            ),
+            other => other.clone(),
+        })
+    }
+
     /// Human-readable summary of the algebraic evaluation plan:
     /// one line per stage (explicit assignment or implicit block).
     pub fn plan_summary(&self) -> Vec<String> {
@@ -507,6 +649,16 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         }
         when_clauses.push(WhenClause { branches });
     }
+    let initial_equations: Vec<EquationItem> = model
+        .initial_equations
+        .iter()
+        .map(|equation| {
+            Ok(EquationItem {
+                lhs: rewrite.expr(&equation.lhs)?,
+                rhs: rewrite.expr(&equation.rhs)?,
+            })
+        })
+        .collect::<Result<Vec<_>, SimError>>()?;
     let samples = rewrite.samples;
 
     // 2. Split equations: explicit state derivatives vs general
@@ -1071,7 +1223,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
 
-    let compiled = CompiledModel {
+    let mut compiled = CompiledModel {
         name: model.name.clone(),
         parameters,
         states,
@@ -1091,6 +1243,21 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         when_clauses,
         indicators,
     };
+    // States the model pins down itself: `fixed = true` says the start
+    // value is an initial condition, not a guess Newton may move.
+    let fixed_states: Vec<bool> = compiled
+        .states
+        .iter()
+        .map(|name| {
+            model
+                .components
+                .iter()
+                .find(|c| &c.name == name)
+                .and_then(|c| c.fixed)
+                .unwrap_or(false)
+        })
+        .collect();
+    compiled.solve_initialization(&initial_equations, &fixed_states)?;
     compiled.check_block_regularity()?;
     Ok(compiled)
 }
@@ -4580,6 +4747,112 @@ mod tests {
         let stiff = compiled.simulate().unwrap();
         let u = stiff.columns.iter().position(|c| c == "u").unwrap();
         assert!((stiff.rows.last().unwrap()[u] - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn an_algorithm_converts_a_held_sample_into_a_staircase() {
+        let result = compile(&with_library("quantizer.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (sample, quantized, error) = (index("adc.y"), index("quantized"), index("error"));
+        let (step, levels, period) = (0.25f64, 4, 0.05f64);
+
+        // The staircase the algorithm describes, evaluated the same way
+        // it is written: strictly above a level to reach it.
+        let staircase = |value: f64| {
+            let mut out = 0.0;
+            for i in 1..=levels {
+                if value > i as f64 * step {
+                    out = i as f64 * step;
+                }
+                if value < -(i as f64) * step {
+                    out = -(i as f64) * step;
+                }
+            }
+            out
+        };
+        for row in &result.rows {
+            assert_eq!(row[quantized], staircase(row[sample]));
+            assert!(row[error].abs() <= step + 1e-12);
+            // Between ticks the converter holds the signal it sampled.
+            let t = row[0];
+            if (t / period - (t / period).round()).abs() < 1e-9 {
+                continue;
+            }
+            let tick = (t / period).floor() * period;
+            let held = (2.0 * std::f64::consts::PI * tick).sin();
+            assert!(
+                (row[sample] - held).abs() < 1e-8,
+                "t = {t}: held {} vs {held}",
+                row[sample]
+            );
+        }
+    }
+
+    #[test]
+    fn an_initial_equation_section_starts_the_model_in_equilibrium() {
+        let result = compile(&with_library("steady_start.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (temperature, x, v) = (index("T"), index("x"), index("v"));
+        let first = &result.rows[0];
+
+        // Heater against losses, and the spring against gravity.
+        assert!((first[temperature] - (5.0 + 3000.0 / 250.0)).abs() < 1e-9);
+        assert!((first[x] - (-2.0 * 9.81 / 40.0)).abs() < 1e-9);
+        assert!(first[v].abs() < 1e-12);
+        // Started at the balance point, nothing moves for the whole run.
+        for row in &result.rows {
+            assert!((row[temperature] - first[temperature]).abs() < 1e-9);
+            assert!((row[x] - first[x]).abs() < 1e-9);
+            assert!(row[v].abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn initialization_mixes_fixed_starts_with_initial_equations() {
+        // One state is pinned by `fixed = true`, the other follows from
+        // an initial equation that ties the two together.
+        let result = run(
+            "model M Real a(start = 2, fixed = true); Real b(start = 0); \
+             equation der(a) = -a; der(b) = a - b; \
+             initial equation b = 3 * a; \
+             annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;",
+        );
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let first = &result.rows[0];
+        assert!((first[index("a")] - 2.0).abs() < 1e-12);
+        assert!((first[index("b")] - 6.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn initialization_reports_what_it_cannot_solve() {
+        let error = |source: &str| {
+            let model = parse_model(source).unwrap();
+            compile(&model).unwrap_err().to_string()
+        };
+        // Two initial equations for one free state.
+        assert!(error(
+            "model M Real a(start = 1); equation der(a) = -a; \
+             initial equation a = 1; der(a) = 0; end M;"
+        )
+        .contains("not square"));
+        // An initial equation that says nothing about the state.
+        assert!(error(
+            "model M Real a(start = 1); Real b; equation der(a) = -a; b = 2 * a; \
+             initial equation b = 2 * a; end M;"
+        )
+        .contains("singular"));
+        // `der` of something that is not a state.
+        assert!(error(
+            "model M Real a(start = 1); Real b; equation der(a) = -a; b = a; \
+             initial equation der(b) = 0; end M;"
+        )
+        .contains("is not a state"));
     }
 
     #[test]

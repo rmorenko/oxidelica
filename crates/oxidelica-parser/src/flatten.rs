@@ -179,6 +179,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         description: top_class.description.clone(),
         components: acc.components,
         equations: acc.equations,
+        initial_equations: acc.initial_equations,
         when_clauses: acc.when_clauses,
         experiment: top_class.experiment.clone(),
     })
@@ -190,6 +191,8 @@ struct Flat {
     components: Vec<Component>,
     equations: Vec<EquationItem>,
     when_clauses: Vec<WhenClause>,
+    /// Equations of the `initial equation` sections, prefixed.
+    initial_equations: Vec<EquationItem>,
     /// Connector instance path -> connector class name.
     connectors: HashMap<String, String>,
     /// Connect statements with fully prefixed paths.
@@ -471,6 +474,40 @@ fn instantiate(
             lhs: resolve_here(&equation.lhs)?,
             rhs: resolve_here(&equation.rhs)?,
         });
+    }
+
+    for equation in &class.initial_equations {
+        acc.initial_equations.push(EquationItem {
+            lhs: resolve_here(&equation.lhs)?,
+            rhs: resolve_here(&equation.rhs)?,
+        });
+    }
+
+    // An `algorithm` section of a model is executed symbolically: what
+    // comes out is one equation per variable it assigns, which is what
+    // the rest of the pipeline understands.
+    if class.kind != ClassKind::Function && !class.algorithm.is_empty() {
+        let mut bindings: HashMap<String, Expr> = HashMap::new();
+        let mut assigned: Vec<String> = Vec::new();
+        execute(
+            &class.algorithm,
+            &mut bindings,
+            &mut assigned,
+            &local_consts,
+            registry,
+            scope,
+            &class.imports,
+            depth,
+        )?;
+        for name in assigned {
+            let value = bindings
+                .get(&name)
+                .ok_or_else(|| format!("`{name}` is assigned by the algorithm but has no value"))?;
+            acc.equations.push(EquationItem {
+                lhs: Expr::Ref(flat_name(&name, prefix, &outers)),
+                rhs: resolve_here(value)?,
+            });
+        }
     }
 
     // `for` equations are unrolled: the loop variable is a constant.
@@ -1376,6 +1413,160 @@ fn resolve(
     })
 }
 
+/// Symbolically execute an algorithm section.
+///
+/// `bindings` maps every variable the section has written to the
+/// expression it now holds; reading a variable substitutes that
+/// expression, which is what turns a sequence of assignments into one
+/// expression per assigned variable. `assigned` collects the targets in
+/// the order they were first written, so the equations a model gets out
+/// of the section are in source order.
+///
+/// An `if` runs both ways: each branch is executed on its own copy of
+/// the bindings and the results are merged into one `if` expression per
+/// variable, with the value from before the statement as the fallback.
+/// A `for` is unrolled, its variable being a compile-time constant.
+#[allow(clippy::too_many_arguments)]
+fn execute(
+    statements: &[Statement],
+    bindings: &mut HashMap<String, Expr>,
+    assigned: &mut Vec<String>,
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<(), String> {
+    if depth > MAX_DEPTH {
+        return Err("algorithm nested deeper than the instantiation limit".to_string());
+    }
+    for statement in statements {
+        match statement {
+            Statement::Assign(target, value) => {
+                let value = substitute_refs(value, bindings);
+                let value = resolve(
+                    &value,
+                    &HashMap::new(),
+                    consts,
+                    registry,
+                    scope,
+                    imports,
+                    depth + 1,
+                )?;
+                if !assigned.contains(target) {
+                    assigned.push(target.clone());
+                }
+                bindings.insert(target.clone(), value);
+            }
+            Statement::If(branches) => {
+                let before = bindings.clone();
+                let mut outcomes: Vec<(Option<Expr>, HashMap<String, Expr>)> = Vec::new();
+                for branch in branches {
+                    let mut local = before.clone();
+                    execute(
+                        &branch.body,
+                        &mut local,
+                        assigned,
+                        consts,
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                    )?;
+                    let condition = branch
+                        .condition
+                        .as_ref()
+                        .map(|c| {
+                            let c = substitute_refs(c, &before);
+                            resolve(
+                                &c,
+                                &HashMap::new(),
+                                consts,
+                                registry,
+                                scope,
+                                imports,
+                                depth + 1,
+                            )
+                        })
+                        .transpose()?;
+                    outcomes.push((condition, local));
+                }
+                // Every variable any branch wrote gets one merged value.
+                let mut touched: Vec<String> = Vec::new();
+                for (_, local) in &outcomes {
+                    for name in local.keys() {
+                        if before.get(name) != local.get(name) && !touched.contains(name) {
+                            touched.push(name.clone());
+                        }
+                    }
+                }
+                touched.sort();
+                for name in touched {
+                    let fallback = before.get(&name).cloned();
+                    let mut value = match outcomes.last() {
+                        // A trailing `else` supplies the last value.
+                        Some((None, local)) => local.get(&name).cloned().or(fallback.clone()),
+                        _ => fallback.clone(),
+                    };
+                    for (condition, local) in outcomes.iter().rev() {
+                        let Some(condition) = condition else { continue };
+                        let taken = local.get(&name).cloned().or_else(|| fallback.clone());
+                        match (taken, value) {
+                            (Some(taken), Some(otherwise)) => {
+                                value = Some(Expr::If(
+                                    Box::new(condition.clone()),
+                                    Box::new(taken),
+                                    Box::new(otherwise),
+                                ));
+                            }
+                            _ => {
+                                return Err(format!(
+                                    "`{name}` is assigned in one branch only and has no value before the `if`"
+                                ))
+                            }
+                        }
+                    }
+                    let Some(value) = value else {
+                        return Err(format!(
+                            "`{name}` is assigned in one branch only and has no value before the `if`"
+                        ));
+                    };
+                    bindings.insert(name, value);
+                }
+            }
+            Statement::For(variable, (lower, upper), body) => {
+                let bound = |expr: &Expr| -> Result<i64, String> {
+                    let expr = substitute_refs(expr, bindings);
+                    let value = const_eval(&expr, consts).ok_or_else(|| {
+                        format!("loop bound of `{variable}` is not a compile-time constant")
+                    })?;
+                    if value.fract() != 0.0 {
+                        return Err(format!("loop bound must be a whole number, got {value}"));
+                    }
+                    Ok(value as i64)
+                };
+                let (lower, upper) = (bound(lower)?, bound(upper)?);
+                for index in lower..=upper {
+                    bindings.insert(variable.clone(), Expr::Number(index as f64));
+                    execute(
+                        body,
+                        bindings,
+                        assigned,
+                        consts,
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                    )?;
+                }
+                bindings.remove(variable);
+                assigned.retain(|name| name != variable);
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Inline a function call: arguments are bound to the inputs, the
 /// algorithm's assignments are substituted in order, and the output
 /// expression replaces the call.
@@ -1426,19 +1617,17 @@ fn inline_function(
             }
         }
     }
-    for assignment in &class.algorithm {
-        let value = substitute_refs(&assignment.value, &bindings);
-        let value = resolve(
-            &value,
-            &HashMap::new(),
-            consts,
-            registry,
-            scope_of(&class.name),
-            &class.imports,
-            depth + 1,
-        )?;
-        bindings.insert(assignment.target.clone(), value);
-    }
+    let mut assigned = Vec::new();
+    execute(
+        &class.algorithm,
+        &mut bindings,
+        &mut assigned,
+        consts,
+        registry,
+        scope_of(&class.name),
+        &class.imports,
+        depth + 1,
+    )?;
     bindings.get(&outputs[0].name).cloned().ok_or_else(|| {
         format!(
             "function `{}` never assigns its output `{}`",
@@ -2183,6 +2372,68 @@ mod tests {
         let x = m.components.iter().find(|c| c.name == "x").unwrap();
         assert_eq!(x.fixed, Some(true));
         assert_eq!(x.start, Some(Expr::Number(2.0)));
+    }
+
+    #[test]
+    fn an_algorithm_section_of_a_model_becomes_equations() {
+        let m = parse_model(
+            "model M parameter Real limit = 1.5; Real u; Real y; Real gain; Real total; \
+             equation u = 2 * time; \
+             algorithm \
+               gain := 1.0; \
+               if u > limit then y := limit; gain := limit / u; \
+               elseif u < -limit then y := -limit; gain := -limit / u; \
+               else y := u; end if; \
+               total := 0.0; \
+               for i in 1:3 loop total := total + i * u; end for; \
+             end M;",
+        )
+        .unwrap();
+        // One equation per assigned variable, in the order the algorithm
+        // writes them, plus the one from the equation section.
+        let assigned: Vec<String> = m
+            .equations
+            .iter()
+            .skip(1)
+            .map(|e| format!("{:?}", e.lhs))
+            .collect();
+        assert_eq!(
+            assigned,
+            vec![
+                "Ref(\"gain\")".to_string(),
+                "Ref(\"y\")".to_string(),
+                "Ref(\"total\")".to_string()
+            ]
+        );
+        // The branch became one if-expression, and the loop unrolled
+        // into 1*u + 2*u + 3*u rather than staying a loop.
+        let gain = &m.equations[1].rhs;
+        assert!(matches!(gain, Expr::If(_, _, _)), "{gain:?}");
+        let total = format!("{:?}", m.equations[3].rhs);
+        assert!(!total.contains("Ref(\"i\")"), "the loop variable survived");
+        assert_eq!(total.matches("Ref(\"u\")").count(), 3);
+    }
+
+    #[test]
+    fn algorithm_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // A variable written in one branch only, with nothing before it.
+        assert!(err("model M Real u; Real y; equation u = time; \
+             algorithm if u > 1 then y := 1; end if; end M;")
+        .contains("assigned in one branch only"));
+        // A loop whose bounds are not constant.
+        assert!(err("model M Real u; Real y; equation u = time; \
+             algorithm y := 0; for i in 1:u loop y := y + i; end for; end M;")
+        .contains("not a compile-time constant"));
+        // `while` says so instead of parsing into something wrong.
+        assert!(err(
+            "model M Real y; algorithm y := 0; while y < 1 loop y := y + 1; end while; end M;"
+        )
+        .contains("`while` inside an algorithm"));
+        // An empty loop body.
+        assert!(
+            err("model M Real y; algorithm for i in 1:2 loop end for; end M;").contains("no body")
+        );
     }
 
     #[test]

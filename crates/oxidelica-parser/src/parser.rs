@@ -254,6 +254,7 @@ impl Parser {
                 components: Vec::new(),
                 extends: Vec::new(),
                 equations: Vec::new(),
+                initial_equations: Vec::new(),
                 for_equations: Vec::new(),
                 if_equations: Vec::new(),
                 algorithm: Vec::new(),
@@ -275,8 +276,12 @@ impl Parser {
         let mut for_equations = Vec::new();
         let mut if_equations = Vec::new();
         let mut algorithm = Vec::new();
+        let mut initial_equations = Vec::new();
         let mut experiment = Experiment::default();
         let mut in_equations = false;
+        // `initial equation` holds equations that describe the state the
+        // model starts from rather than how it moves.
+        let mut in_initial = false;
 
         loop {
             match self.peek() {
@@ -294,10 +299,22 @@ impl Parser {
                 Token::Equation => {
                     self.bump();
                     in_equations = true;
+                    in_initial = false;
+                }
+                // `initial` is not a keyword: `initial()` is a built-in
+                // of the event layer, so the section is recognized by
+                // the pair of tokens.
+                Token::Ident(word)
+                    if word == "initial" && self.peek_ahead(1) == &Token::Equation =>
+                {
+                    self.bump();
+                    self.bump();
+                    in_equations = true;
+                    in_initial = true;
                 }
                 Token::Algorithm => {
                     self.bump();
-                    algorithm.extend(self.assignments()?);
+                    algorithm.extend(self.statements()?);
                 }
                 Token::For => {
                     for_equations.push(self.for_equation()?);
@@ -366,7 +383,9 @@ impl Parser {
                     self.expect(&Token::Semi, "semicolon after assert")?;
                 }
                 _ => {
-                    if in_equations {
+                    if in_initial {
+                        initial_equations.push(self.equation_item()?);
+                    } else if in_equations {
                         equations.push(self.equation_item()?);
                     } else {
                         components.push(self.declaration()?);
@@ -387,6 +406,7 @@ impl Parser {
             components,
             extends,
             equations,
+            initial_equations,
             for_equations,
             if_equations,
             algorithm,
@@ -561,17 +581,88 @@ impl Parser {
         Ok((equations, connects))
     }
 
-    /// A function body: a sequence of `target := expression;`.
-    fn assignments(&mut self) -> Result<Vec<Assignment>, ParseError> {
+    /// An algorithm section: assignments, `if` and `for` statements, up
+    /// to whatever ends the section.
+    fn statements(&mut self) -> Result<Vec<Statement>, ParseError> {
         let mut out = Vec::new();
-        while matches!(self.peek(), Token::Ident(_)) {
-            let target = self.ident("assignment target")?;
-            self.expect(&Token::Becomes, "`:=` in assignment")?;
-            let value = self.expr()?;
-            self.expect(&Token::Semi, "semicolon after assignment")?;
-            out.push(Assignment { target, value });
+        loop {
+            match self.peek() {
+                Token::Ident(_) => {
+                    let target = self.component_ref()?;
+                    self.expect(&Token::Becomes, "`:=` in assignment")?;
+                    let value = self.expr()?;
+                    self.opt_string();
+                    if self.peek() == &Token::Annotation {
+                        self.annotation_body(&mut Experiment::default())?;
+                    }
+                    self.expect(&Token::Semi, "semicolon after assignment")?;
+                    out.push(Statement::Assign(target, value));
+                }
+                Token::If => out.push(self.if_statement()?),
+                Token::For => out.push(self.for_statement()?),
+                // A `while` has no trip count the compiler can see, so
+                // it cannot be executed into equations.
+                Token::While => {
+                    return Err(self.err(
+                        "`while` inside an algorithm is not supported: use a `for` with constant bounds"
+                            .into(),
+                    ))
+                }
+                _ => break,
+            }
         }
         Ok(out)
+    }
+
+    /// `if c then … elseif … else … end if;` inside an algorithm.
+    fn if_statement(&mut self) -> Result<Statement, ParseError> {
+        self.expect(&Token::If, "if")?;
+        let mut branches = Vec::new();
+        loop {
+            let condition = self.expr()?;
+            self.expect(&Token::Then, "then after the condition of an if statement")?;
+            branches.push(StatementBranch {
+                condition: Some(condition),
+                body: self.statements()?,
+            });
+            match self.peek() {
+                Token::ElseIf => {
+                    self.bump();
+                }
+                Token::Else => {
+                    self.bump();
+                    branches.push(StatementBranch {
+                        condition: None,
+                        body: self.statements()?,
+                    });
+                    break;
+                }
+                _ => break,
+            }
+        }
+        self.expect(&Token::End, "end if")?;
+        self.expect(&Token::If, "if after end")?;
+        self.expect(&Token::Semi, "semicolon after end if")?;
+        Ok(Statement::If(branches))
+    }
+
+    /// `for i in lo:hi loop … end for;` inside an algorithm.
+    fn for_statement(&mut self) -> Result<Statement, ParseError> {
+        self.expect(&Token::For, "for")?;
+        let variable = self.ident("loop variable")?;
+        self.expect(&Token::In, "in after the loop variable")?;
+        let lower = self.expr()?;
+        self.expect(&Token::Colon, "`:` in the loop range")?;
+        let upper = self.expr()?;
+        self.expect(&Token::Loop, "loop after the range")?;
+        let body = self.statements()?;
+        self.expect(&Token::End, "end for")?;
+        self.expect(&Token::For, "for after end")?;
+        self.expect(&Token::Semi, "semicolon after end for")?;
+        if body.is_empty() {
+            return Err(self.err("for statement has no body".into()));
+        }
+        Ok(Statement::For(variable, (lower, upper), body))
     }
 
     /// `enumeration(NoInit, SteadyState "start at steady state")`.

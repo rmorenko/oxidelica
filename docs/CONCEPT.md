@@ -21,18 +21,18 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 
 ## Roadmap
 
-| Milestone                         | Scope                                                          | Definition of done                                               |
-| --------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **M0. Spike**                     | Parser for a language slice + RK4, CLI                         | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6   |
-| **M1. ODE subset**                | Full expressions, parameters, algebraic equations, adaptive RK | 10 textbook models match OpenModelica                            |
-| **M2. Components**                | Classes, inheritance, connect, flattening                      | RC circuit and mass-spring built from components                 |
-| **M3. DAE** (done)                | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                     |
-| **M4. Events** (done)             | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                             |
-| **M5. Arrays & functions** (done) | Arrays, for-equations, functions, records                      | Discretized heat conduction                                      |
-| **M6. MSL core** (done)           | Blocks, Electrical.Analog, Mechanics.Rotational                | A library in MSL layout ships; MSL structure parses and flattens |
-| **M7. GUI** (done)                | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                        |
-| **M8. 3D** (done)                 | MultiBody visualization, animation                             | Double pendulum spins in 3D                                      |
-| **M9. Discrete layer** (partial)  | Discrete variables, `when` equations, `pre`, `sample`          | A sampled controller and a hysteresis thermostat run             |
+| Milestone                         | Scope                                                                                 | Definition of done                                               |
+| --------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| **M0. Spike**                     | Parser for a language slice + RK4, CLI                                                | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6   |
+| **M1. ODE subset**                | Full expressions, parameters, algebraic equations, adaptive RK                        | 10 textbook models match OpenModelica                            |
+| **M2. Components**                | Classes, inheritance, connect, flattening                                             | RC circuit and mass-spring built from components                 |
+| **M3. DAE** (done)                | Pantelides, dummy derivatives, tearing, BDF                                           | Cartesian pendulum (index-3)                                     |
+| **M4. Events** (done)             | when/if equations, zero-crossing, reinit                                              | Bouncing ball, diode                                             |
+| **M5. Arrays & functions** (done) | Arrays, for-equations, functions, records                                             | Discretized heat conduction                                      |
+| **M6. MSL core** (done)           | Blocks, Electrical.Analog, Mechanics.Rotational                                       | A library in MSL layout ships; MSL structure parses and flattens |
+| **M7. GUI** (done)                | Bevy: diagram editor, plotting                                                        | Build and simulate a model with the mouse                        |
+| **M8. 3D** (done)                 | MultiBody visualization, animation                                                    | Double pendulum spins in 3D                                      |
+| **M9. Discrete layer** (done)     | Discrete variables, `when` equations, `pre`, `sample`, algorithms, `initial equation` | A sampled controller, a thermostat and a steady start run        |
 
 **The IDE track runs in parallel with the language track from the start** (decision of 2026-08-15): v0 — a Bevy window with a code editor, a run button, and plots (shipped with M0); then incrementally — background simulation, syntax highlighting, the diagram editor (M7) and the 3D scene (M8) in the same app. The language track advances at its own pace: M1, M2, M3…
 
@@ -46,7 +46,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 
 1. **DAE index reduction (M3)** — done: Pantelides with dummy derivatives, tearing and an implicit BDF solver. The state selection is static (chosen by numerical pivoting at the initial point); models that need it to change mid-run — a pendulum swinging full circle — are the known limit.
 2. **The long tail of MSL semantics (M6)** — closed for the packages the milestone covers. A standard library in MSL layout ships with the tool, and the structure real MSL files are built on works: `replaceable`/`redeclare` checked against `constrainedby`, `inner`/`outer` instances, enumerations, conditional components with the connections to them removed, `if` equations chosen by a structural parameter, declaration equations, nested modifiers reaching a child's attribute, chained type aliases, and the annotations MSL puts on declarations, equations and connections. Still out of scope: class-level redeclaration (`replaceable package Medium = …`), connections between arrays of components, and the descriptive attributes (`unit`, `min`, `max`, `nominal`, `stateSelect`), which are parsed and ignored.
-3. **The discrete layer (M9)** — the event side is done: variables that change only at events, `when` equations with `elsewhen`, `pre`/`edge`/`change`/`initial()`, the clock of `sample(start, interval)` with the solver stepping exactly onto it, and event iteration so that one event can chain several clauses. What is still missing: `algorithm` sections in models (they work in functions only) and `initial equation`, which needs an initialization system of its own.
+3. **The discrete layer (M9)** — done: variables that change only at events, `when` equations with `elsewhen`, `pre`/`edge`/`change`/`initial()`, the clock of `sample(start, interval)` with the solver stepping exactly onto it, and event iteration so one event can chain several clauses. `algorithm` sections now work in models too — the compiler executes them symbolically into one equation per assigned variable, merging the branches of an `if` into an expression and unrolling a `for`. `initial equation` solves for the state the run starts from by Newton, with the declared `start` values as the guess. Out of scope: `while` in an algorithm (no trip count the compiler can see) and `when` inside an algorithm.
 4. **Bevy maturity as a UI framework (M7)** — a diagram editor on ECS is nontrivial; mitigate: all "office" UI in egui, Bevy owns the canvas and 3D.
 
 ## Spike (M0) — definition

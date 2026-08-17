@@ -62,6 +62,8 @@ pub enum Token {
     In,
     /// Keyword `loop`.
     Loop,
+    /// Keyword `while`.
+    While,
     /// Keyword `function`.
     Function,
     /// Keyword `record`.
@@ -181,6 +183,7 @@ impl fmt::Display for Token {
             Token::For => write!(f, "for"),
             Token::In => write!(f, "in"),
             Token::Loop => write!(f, "loop"),
+            Token::While => write!(f, "while"),
             Token::Function => write!(f, "function"),
             Token::Record => write!(f, "record"),
             Token::Input => write!(f, "input"),
@@ -397,6 +400,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "for" => Token::For,
                     "in" => Token::In,
                     "loop" => Token::Loop,
+                    "while" => Token::While,
                     "function" => Token::Function,
                     "record" => Token::Record,
                     "input" => Token::Input,
@@ -635,6 +639,7 @@ mod tests {
             Token::For,
             Token::In,
             Token::Loop,
+            Token::While,
             Token::Function,
             Token::Record,
             Token::Input,

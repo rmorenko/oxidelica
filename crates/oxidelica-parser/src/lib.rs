@@ -8,8 +8,8 @@ pub mod lexer;
 pub mod parser;
 
 pub use ast::{
-    BinOp, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, RelOp,
-    Variability, WhenAction, WhenBranch, WhenClause,
+    BinOp, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, RelOp, Statement,
+    StatementBranch, Variability, WhenAction, WhenBranch, WhenClause,
 };
 pub use flatten::{class_info, ClassInfo};
 pub use parser::{parse_file, parse_model, parse_model_with_libraries, ParseError};
