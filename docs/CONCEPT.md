@@ -15,7 +15,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 ## Principles
 
 1. **The real language.** No "dialect": every stage parses a subset of honest Modelica; files stay compatible with OpenModelica.
-2. **Reference checking.** Every model in the test suite is also run in OpenModelica (in CI, via Docker) — results are compared numerically.
+2. **Reference checking.** Every model in the test suite is checked against something independent of the code that produced it: a closed form where one exists (analytic trajectory, steady state, conserved quantity), or a second formulation of the same physics.
 3. **Every milestone is useful.** Not a "big bang in three years" but a usable tool after each milestone.
 4. **Single binary.** Simulation via interpretation/JIT, no system C compiler involved.
 
@@ -24,7 +24,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 | Milestone                         | Scope                                                                                 | Definition of done                                               |
 | --------------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | **M0. Spike**                     | Parser for a language slice + RK4, CLI                                                | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6   |
-| **M1. ODE subset**                | Full expressions, parameters, algebraic equations, adaptive RK                        | 10 textbook models match OpenModelica                            |
+| **M1. ODE subset**                | Full expressions, parameters, algebraic equations, adaptive RK                        | 10 textbook models match their closed forms                      |
 | **M2. Components**                | Classes, inheritance, connect, flattening                                             | RC circuit and mass-spring built from components                 |
 | **M3. DAE** (done)                | Pantelides, dummy derivatives, tearing, BDF                                           | Cartesian pendulum (index-3)                                     |
 | **M4. Events** (done)             | when/if equations, zero-crossing, reinit                                              | Bouncing ball, diode                                             |
@@ -40,7 +40,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 
 - **Core**: Rust, a workspace of crates: `parser` → `flatten` → `dae` → `sim` → `runtime`.
 - **GUI/3D**: Bevy + bevy_egui (panels), wgpu rendering. Plus a WASM build of the core for the web (later).
-- **Tests**: cargo test + reference runs against OpenModelica in Docker (CI).
+- **Tests**: cargo test, with every example checked against a closed form or an equivalent model.
 
 ## Key risks
 
