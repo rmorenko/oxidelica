@@ -35,7 +35,10 @@ impl fmt::Display for ParseError {
 impl std::error::Error for ParseError {}
 
 pub fn parse_model(source: &str) -> Result<Model, ParseError> {
-    let tokens = lex(source).map_err(|e| ParseError { message: e.message, line: e.line })?;
+    let tokens = lex(source).map_err(|e| ParseError {
+        message: e.message,
+        line: e.line,
+    })?;
     Parser { tokens, pos: 0 }.model()
 }
 
@@ -66,12 +69,18 @@ impl Parser {
             self.bump();
             Ok(())
         } else {
-            Err(self.err(format!("ожидалось «{expected}» ({context}), найдено «{}»", self.peek())))
+            Err(self.err(format!(
+                "ожидалось «{expected}» ({context}), найдено «{}»",
+                self.peek()
+            )))
         }
     }
 
     fn err(&self, message: String) -> ParseError {
-        ParseError { message, line: self.line() }
+        ParseError {
+            message,
+            line: self.line(),
+        }
     }
 
     fn ident(&mut self, context: &str) -> Result<String, ParseError> {
@@ -80,7 +89,9 @@ impl Parser {
                 self.bump();
                 Ok(name)
             }
-            other => Err(self.err(format!("ожидался идентификатор ({context}), найдено «{other}»"))),
+            other => Err(self.err(format!(
+                "ожидался идентификатор ({context}), найдено «{other}»"
+            ))),
         }
     }
 
@@ -134,7 +145,13 @@ impl Parser {
             }
         }
 
-        Ok(Model { name, description, components, equations, experiment })
+        Ok(Model {
+            name,
+            description,
+            components,
+            equations,
+            experiment,
+        })
     }
 
     fn declaration(&mut self) -> Result<Component, ParseError> {
@@ -152,7 +169,9 @@ impl Parser {
 
         let type_name = self.ident("тип компонента")?;
         if type_name != "Real" {
-            return Err(self.err(format!("M0 поддерживает только тип Real, найден «{type_name}»")));
+            return Err(self.err(format!(
+                "M0 поддерживает только тип Real, найден «{type_name}»"
+            )));
         }
         let name = self.ident("имя компонента")?;
 
@@ -170,14 +189,15 @@ impl Parser {
                             Token::True => true,
                             Token::False => false,
                             other => {
-                                return Err(self.err(format!(
-                                    "fixed ожидает true/false, найдено «{other}»"
-                                )))
+                                return Err(self
+                                    .err(format!("fixed ожидает true/false, найдено «{other}»")))
                             }
                         });
                     }
                     other => {
-                        return Err(self.err(format!("неизвестный атрибут «{other}» (M0: start, fixed)")));
+                        return Err(
+                            self.err(format!("неизвестный атрибут «{other}» (M0: start, fixed)"))
+                        );
                     }
                 }
                 match self.peek() {
@@ -189,7 +209,9 @@ impl Parser {
                         break;
                     }
                     other => {
-                        return Err(self.err(format!("ожидалась , или ) в атрибутах, найдено «{other}»")))
+                        return Err(
+                            self.err(format!("ожидалась , или ) в атрибутах, найдено «{other}»"))
+                        )
                     }
                 }
             }
@@ -205,7 +227,14 @@ impl Parser {
         let description = self.opt_string();
         self.expect(&Token::Semi, "точка с запятой после объявления")?;
 
-        Ok(Component { name, variability, start, fixed, binding, description })
+        Ok(Component {
+            name,
+            variability,
+            start,
+            fixed,
+            binding,
+            description,
+        })
     }
 
     fn equation_item(&mut self) -> Result<EquationItem, ParseError> {
@@ -246,11 +275,10 @@ impl Parser {
                             "StopTime" => experiment.stop_time = Some(value),
                             "Interval" => experiment.interval = Some(value),
                             "Tolerance" => experiment.tolerance = Some(value),
-                            "StartTime" => {
-                                if value != 0.0 {
-                                    return Err(self.err("M0: StartTime должен быть 0".into()));
-                                }
+                            "StartTime" if value != 0.0 => {
+                                return Err(self.err("M0: StartTime должен быть 0".into()));
                             }
+                            "StartTime" => {}
                             _ => {} // незнакомые ключи молча пропускаем
                         }
                         match self.bump() {
@@ -315,7 +343,11 @@ impl Parser {
                 return Err(self.err(format!("ожидалось else/elseif, найдено «{other}»")));
             }
         };
-        Ok(Expr::If(Box::new(condition), Box::new(then_branch), Box::new(else_branch)))
+        Ok(Expr::If(
+            Box::new(condition),
+            Box::new(then_branch),
+            Box::new(else_branch),
+        ))
     }
 
     fn logical_or(&mut self) -> Result<Expr, ParseError> {
@@ -486,7 +518,9 @@ mod tests {
         // -a*b^2 == -((a)*(b^2))
         let m = parse_model("model M Real a; Real b; Real c; equation c = -a*b^2; end M;").unwrap();
         let rhs = &m.equations[0].rhs;
-        let Expr::Neg(inner) = rhs else { panic!("ожидался унарный минус: {rhs:?}") };
+        let Expr::Neg(inner) = rhs else {
+            panic!("ожидался унарный минус: {rhs:?}")
+        };
         let Expr::Bin(BinOp::Mul, _, r) = inner.as_ref() else {
             panic!("ожидалось умножение: {inner:?}")
         };
@@ -526,7 +560,8 @@ mod tests {
         };
         assert!(matches!(else_branch.as_ref(), Expr::If(_, _, _)));
         // fixed=false тоже разбирается
-        let m2 = parse_model("model M Real x(start=0, fixed=false); equation der(x)=1; end M;").unwrap();
+        let m2 =
+            parse_model("model M Real x(start=0, fixed=false); equation der(x)=1; end M;").unwrap();
         assert_eq!(m2.components[0].fixed, Some(false));
     }
 
@@ -549,8 +584,7 @@ mod tests {
         // нет точки с запятой после уравнения
         assert!(err_of("model M Real x; equation x = 1 end M;").contains("точка с запятой"));
         // if без else
-        assert!(err_of("model M Real y; equation y = if 1 > 0 then 1; end M;")
-            .contains("else"));
+        assert!(err_of("model M Real y; equation y = if 1 > 0 then 1; end M;").contains("else"));
         // мусор в выражении
         assert!(err_of("model M Real x; equation x = ;; end M;").contains("неожиданный токен"));
         // незакрытая скобка
@@ -562,25 +596,28 @@ mod tests {
     #[test]
     fn annotation_error_paths() {
         // незакрытая annotation (обрыв на балансе скобок вне experiment)
-        assert!(err_of("model M Real x; equation x = 1; annotation(uses(").contains("незакрытая annotation"));
+        assert!(err_of("model M Real x; equation x = 1; annotation(uses(")
+            .contains("незакрытая annotation"));
         // обрыв внутри experiment — своя диагностика
-        assert!(err_of("model M Real x; equation x = 1; annotation(experiment(")
-            .contains("параметр experiment"));
+        assert!(
+            err_of("model M Real x; equation x = 1; annotation(experiment(")
+                .contains("параметр experiment")
+        );
         // StartTime != 0 не поддержан
-        assert!(
-            err_of("model M Real x; equation x = 1; annotation(experiment(StartTime=2)); end M;")
-                .contains("StartTime")
-        );
+        assert!(err_of(
+            "model M Real x; equation x = 1; annotation(experiment(StartTime=2)); end M;"
+        )
+        .contains("StartTime"));
         // не число в experiment
-        assert!(
-            err_of("model M Real x; equation x = 1; annotation(experiment(StopTime=abc)); end M;")
-                .contains("ожидалось число")
-        );
+        assert!(err_of(
+            "model M Real x; equation x = 1; annotation(experiment(StopTime=abc)); end M;"
+        )
+        .contains("ожидалось число"));
         // мусор вместо , или )
-        assert!(
-            err_of("model M Real x; equation x = 1; annotation(experiment(StopTime=1 abc)); end M;")
-                .contains(", или ) в experiment")
-        );
+        assert!(err_of(
+            "model M Real x; equation x = 1; annotation(experiment(StopTime=1 abc)); end M;"
+        )
+        .contains(", или ) в experiment"));
     }
 
     #[test]

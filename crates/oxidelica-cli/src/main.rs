@@ -32,8 +32,8 @@ fn run() -> Result<(), String> {
 }
 
 fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
-    let source = std::fs::read_to_string(path)
-        .map_err(|e| format!("не удалось прочитать {path}: {e}"))?;
+    let source =
+        std::fs::read_to_string(path).map_err(|e| format!("не удалось прочитать {path}: {e}"))?;
     oxidelica_parser::parse_model(&source).map_err(|e| format!("{path}: {e}"))
 }
 
@@ -58,7 +58,10 @@ fn parse(args: &[String]) -> Result<(), String> {
     for name in &compiled.algebraics {
         println!("    {name}");
     }
-    println!("  эксперимент: stop = {}, шаг = {}", compiled.stop_time, compiled.step);
+    println!(
+        "  эксперимент: stop = {}, шаг = {}",
+        compiled.stop_time, compiled.step
+    );
     Ok(())
 }
 
@@ -72,11 +75,25 @@ fn simulate(args: &[String]) -> Result<(), String> {
     while i < args.len() {
         let take_value = |i: &mut usize| -> Result<String, String> {
             *i += 1;
-            args.get(*i).cloned().ok_or_else(|| format!("{} требует значения", args[*i - 1]))
+            args.get(*i)
+                .cloned()
+                .ok_or_else(|| format!("{} требует значения", args[*i - 1]))
         };
         match args[i].as_str() {
-            "--stop" => stop = Some(take_value(&mut i)?.parse().map_err(|e| format!("--stop: {e}"))?),
-            "--dt" => dt = Some(take_value(&mut i)?.parse().map_err(|e| format!("--dt: {e}"))?),
+            "--stop" => {
+                stop = Some(
+                    take_value(&mut i)?
+                        .parse()
+                        .map_err(|e| format!("--stop: {e}"))?,
+                )
+            }
+            "--dt" => {
+                dt = Some(
+                    take_value(&mut i)?
+                        .parse()
+                        .map_err(|e| format!("--dt: {e}"))?,
+                )
+            }
             "-o" | "--out" => out = Some(take_value(&mut i)?),
             other => return Err(format!("неизвестный флаг «{other}»\n\n{USAGE}")),
         }

@@ -129,7 +129,10 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 i += 2;
                 loop {
                     if i + 1 >= bytes.len() {
-                        return Err(LexError { message: "незакрытый комментарий /*".into(), line });
+                        return Err(LexError {
+                            message: "незакрытый комментарий /*".into(),
+                            line,
+                        });
                     }
                     if bytes[i] == '\n' {
                         line += 1;
@@ -146,7 +149,12 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 let mut s = String::new();
                 loop {
                     match bytes.get(i) {
-                        None => return Err(LexError { message: "незакрытая строка".into(), line }),
+                        None => {
+                            return Err(LexError {
+                                message: "незакрытая строка".into(),
+                                line,
+                            })
+                        }
                         Some('"') => {
                             i += 1;
                             break;
@@ -156,7 +164,10 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                                 s.push(next);
                                 i += 2;
                             } else {
-                                return Err(LexError { message: "незакрытая строка".into(), line });
+                                return Err(LexError {
+                                    message: "незакрытая строка".into(),
+                                    line,
+                                });
                             }
                         }
                         Some(&ch) => {
@@ -168,13 +179,16 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                         }
                     }
                 }
-                out.push(Spanned { token: Token::Str(s), line });
+                out.push(Spanned {
+                    token: Token::Str(s),
+                    line,
+                });
             }
             '0'..='9' => {
                 let start = i;
                 while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == '.') {
                     // точка допустима только один раз и не как разделитель имени: 1.0.x не бывает в числах
-                    if bytes[i] == '.' && bytes.get(i + 1).map_or(true, |c| !c.is_ascii_digit()) {
+                    if bytes[i] == '.' && !bytes.get(i + 1).is_some_and(|c| c.is_ascii_digit()) {
                         break;
                     }
                     i += 1;
@@ -197,7 +211,10 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     message: format!("некорректное число «{text}»"),
                     line,
                 })?;
-                out.push(Spanned { token: Token::Number(value), line });
+                out.push(Spanned {
+                    token: Token::Number(value),
+                    line,
+                });
             }
             c if c.is_alphabetic() || c == '_' => {
                 let start = i;
@@ -225,41 +242,137 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 };
                 out.push(Spanned { token, line });
             }
-            '(' => { out.push(Spanned { token: Token::LParen, line }); i += 1; }
-            ')' => { out.push(Spanned { token: Token::RParen, line }); i += 1; }
-            ';' => { out.push(Spanned { token: Token::Semi, line }); i += 1; }
-            ',' => { out.push(Spanned { token: Token::Comma, line }); i += 1; }
+            '(' => {
+                out.push(Spanned {
+                    token: Token::LParen,
+                    line,
+                });
+                i += 1;
+            }
+            ')' => {
+                out.push(Spanned {
+                    token: Token::RParen,
+                    line,
+                });
+                i += 1;
+            }
+            ';' => {
+                out.push(Spanned {
+                    token: Token::Semi,
+                    line,
+                });
+                i += 1;
+            }
+            ',' => {
+                out.push(Spanned {
+                    token: Token::Comma,
+                    line,
+                });
+                i += 1;
+            }
             '=' if bytes.get(i + 1) == Some(&'=') => {
-                out.push(Spanned { token: Token::EqEq, line });
+                out.push(Spanned {
+                    token: Token::EqEq,
+                    line,
+                });
                 i += 2;
             }
-            '=' => { out.push(Spanned { token: Token::Assign, line }); i += 1; }
+            '=' => {
+                out.push(Spanned {
+                    token: Token::Assign,
+                    line,
+                });
+                i += 1;
+            }
             '<' if bytes.get(i + 1) == Some(&'=') => {
-                out.push(Spanned { token: Token::Le, line });
+                out.push(Spanned {
+                    token: Token::Le,
+                    line,
+                });
                 i += 2;
             }
             '<' if bytes.get(i + 1) == Some(&'>') => {
-                out.push(Spanned { token: Token::Ne, line });
+                out.push(Spanned {
+                    token: Token::Ne,
+                    line,
+                });
                 i += 2;
             }
-            '<' => { out.push(Spanned { token: Token::Lt, line }); i += 1; }
+            '<' => {
+                out.push(Spanned {
+                    token: Token::Lt,
+                    line,
+                });
+                i += 1;
+            }
             '>' if bytes.get(i + 1) == Some(&'=') => {
-                out.push(Spanned { token: Token::Ge, line });
+                out.push(Spanned {
+                    token: Token::Ge,
+                    line,
+                });
                 i += 2;
             }
-            '>' => { out.push(Spanned { token: Token::Gt, line }); i += 1; }
-            '+' => { out.push(Spanned { token: Token::Plus, line }); i += 1; }
-            '-' => { out.push(Spanned { token: Token::Minus, line }); i += 1; }
-            '*' => { out.push(Spanned { token: Token::Star, line }); i += 1; }
-            '/' => { out.push(Spanned { token: Token::Slash, line }); i += 1; }
-            '^' => { out.push(Spanned { token: Token::Caret, line }); i += 1; }
-            '.' => { out.push(Spanned { token: Token::Dot, line }); i += 1; }
+            '>' => {
+                out.push(Spanned {
+                    token: Token::Gt,
+                    line,
+                });
+                i += 1;
+            }
+            '+' => {
+                out.push(Spanned {
+                    token: Token::Plus,
+                    line,
+                });
+                i += 1;
+            }
+            '-' => {
+                out.push(Spanned {
+                    token: Token::Minus,
+                    line,
+                });
+                i += 1;
+            }
+            '*' => {
+                out.push(Spanned {
+                    token: Token::Star,
+                    line,
+                });
+                i += 1;
+            }
+            '/' => {
+                out.push(Spanned {
+                    token: Token::Slash,
+                    line,
+                });
+                i += 1;
+            }
+            '^' => {
+                out.push(Spanned {
+                    token: Token::Caret,
+                    line,
+                });
+                i += 1;
+            }
+            '.' => {
+                out.push(Spanned {
+                    token: Token::Dot,
+                    line,
+                });
+                i += 1;
+            }
             other => {
-                return Err(LexError { message: format!("неожиданный символ «{other}»"), line });
+                return Err(LexError {
+                    message: format!("неожиданный символ «{other}»"),
+                    line,
+                });
             }
         }
     }
-    out.push(Spanned { token: Token::Eof, line });
+    out.push(Spanned {
+        token: Token::Eof,
+        line,
+    });
     Ok(out)
 }
 
@@ -362,7 +475,12 @@ mod tests {
         // "1.x" — это Number(1), Dot, Ident: точка не съедается числом
         assert_eq!(
             tokens("1.x"),
-            vec![Token::Number(1.0), Token::Dot, Token::Ident("x".into()), Token::Eof]
+            vec![
+                Token::Number(1.0),
+                Token::Dot,
+                Token::Ident("x".into()),
+                Token::Eof
+            ]
         );
     }
 
@@ -375,9 +493,15 @@ mod tests {
     #[test]
     fn lexes_strings_with_escapes_and_newlines() {
         assert_eq!(
-            tokens(r#""a\"b" "line1
-line2""#),
-            vec![Token::Str("a\"b".into()), Token::Str("line1\nline2".into()), Token::Eof]
+            tokens(
+                r#""a\"b" "line1
+line2""#
+            ),
+            vec![
+                Token::Str("a\"b".into()),
+                Token::Str("line1\nline2".into()),
+                Token::Eof
+            ]
         );
     }
 
@@ -398,8 +522,17 @@ line2""#),
 
     #[test]
     fn rejects_unclosed_constructs() {
-        assert!(lex("/* без конца").unwrap_err().message.contains("незакрытый комментарий"));
-        assert!(lex("\"без конца").unwrap_err().message.contains("незакрытая строка"));
-        assert!(lex("\"хвост\\").unwrap_err().message.contains("незакрытая строка"));
+        assert!(lex("/* без конца")
+            .unwrap_err()
+            .message
+            .contains("незакрытый комментарий"));
+        assert!(lex("\"без конца")
+            .unwrap_err()
+            .message
+            .contains("незакрытая строка"));
+        assert!(lex("\"хвост\\")
+            .unwrap_err()
+            .message
+            .contains("незакрытая строка"));
     }
 }

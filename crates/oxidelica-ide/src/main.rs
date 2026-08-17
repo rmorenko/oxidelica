@@ -54,7 +54,9 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(EguiPlugin { enable_multipass_for_primary_context: false })
+        .add_plugins(EguiPlugin {
+            enable_multipass_for_primary_context: false,
+        })
         .insert_resource(Ide {
             source,
             file,
@@ -115,7 +117,10 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
                             .file_name()
                             .map(|n| n.to_string_lossy().into_owned())
                             .unwrap_or_default();
-                        if ui.selectable_label(Some(path) == ide.file.as_ref(), name).clicked() {
+                        if ui
+                            .selectable_label(Some(path) == ide.file.as_ref(), name)
+                            .clicked()
+                        {
                             selected = Some(path.clone());
                         }
                     }
@@ -152,7 +157,11 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
                     Theme::Dark => "☀",
                     Theme::Light => "🌙",
                 };
-                if ui.button(theme_icon).on_hover_text(s.theme_tooltip).clicked() {
+                if ui
+                    .button(theme_icon)
+                    .on_hover_text(s.theme_tooltip)
+                    .clicked()
+                {
                     ide.settings.theme = match ide.settings.theme {
                         Theme::Dark => Theme::Light,
                         Theme::Light => Theme::Dark,
@@ -197,35 +206,30 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
             });
         });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
-        match &mut ide.result {
-            None => {
-                ui.centered_and_justified(|ui| {
-                    ui.label(s.press_simulate);
-                });
-            }
-            Some(data) => {
-                ui.horizontal_wrapped(|ui| {
-                    for (index, name) in data.columns.iter().skip(1).enumerate() {
-                        ui.checkbox(&mut data.visible[index], name);
+    egui::CentralPanel::default().show(ctx, |ui| match &mut ide.result {
+        None => {
+            ui.centered_and_justified(|ui| {
+                ui.label(s.press_simulate);
+            });
+        }
+        Some(data) => {
+            ui.horizontal_wrapped(|ui| {
+                for (index, name) in data.columns.iter().skip(1).enumerate() {
+                    ui.checkbox(&mut data.visible[index], name);
+                }
+            });
+            Plot::new("sim-plot")
+                .legend(Legend::default())
+                .show(ui, |plot_ui| {
+                    for (index, name) in data.columns.iter().enumerate().skip(1) {
+                        if !data.visible[index - 1] {
+                            continue;
+                        }
+                        let points: PlotPoints =
+                            data.rows.iter().map(|row| [row[0], row[index]]).collect();
+                        plot_ui.line(Line::new(points).name(name));
                     }
                 });
-                Plot::new("sim-plot")
-                    .legend(Legend::default())
-                    .show(ui, |plot_ui| {
-                        for (index, name) in data.columns.iter().enumerate().skip(1) {
-                            if !data.visible[index - 1] {
-                                continue;
-                            }
-                            let points: PlotPoints = data
-                                .rows
-                                .iter()
-                                .map(|row| [row[0], row[index]])
-                                .collect();
-                            plot_ui.line(Line::new(points).name(name));
-                        }
-                    });
-            }
         }
     });
 }

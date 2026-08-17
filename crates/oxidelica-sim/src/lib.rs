@@ -48,7 +48,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     let mut params: HashMap<String, f64> = HashMap::new();
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
     for c in &model.components {
-        if matches!(c.variability, Variability::Parameter | Variability::Constant) {
+        if matches!(
+            c.variability,
+            Variability::Parameter | Variability::Constant
+        ) {
             let binding = c.binding.as_ref().or(c.start.as_ref());
             match binding {
                 Some(expr) => pending.push((&c.name, expr)),
@@ -59,7 +62,13 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     loop {
         let before = pending.len();
         pending.retain(|(name, expr)| {
-            match eval(expr, &EvalCtx { vars: &params, time: 0.0 }) {
+            match eval(
+                expr,
+                &EvalCtx {
+                    vars: &params,
+                    time: 0.0,
+                },
+            ) {
                 Ok(v) => {
                     params.insert((*name).to_string(), v);
                     false
@@ -101,10 +110,14 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
 
         if let Some(state) = target {
             if !continuous.contains(&state) {
-                return err(format!("der({state}): {state} не является непрерывной переменной"));
+                return err(format!(
+                    "der({state}): {state} не является непрерывной переменной"
+                ));
             }
             if value.contains_der() {
-                return err("M0: der() допустим только отдельно в одной части уравнения".to_string());
+                return err(
+                    "M0: der() допустим только отдельно в одной части уравнения".to_string()
+                );
             }
             if state_rhs.insert(state.to_string(), value.clone()).is_some() {
                 return err(format!("два уравнения для der({state})"));
@@ -137,7 +150,9 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         let is_state = state_rhs.contains_key(*name);
         let is_alg = alg_rhs.contains_key(*name);
         match (is_state, is_alg) {
-            (true, true) => return err(format!("{name}: и состояние, и алгебраическая переменная")),
+            (true, true) => {
+                return err(format!("{name}: и состояние, и алгебраическая переменная"))
+            }
             (true, false) => states.push((*name).to_string()),
             (false, true) => algebraic_names.push((*name).to_string()),
             (false, false) => return err(format!("нет уравнения для переменной {name}")),
@@ -149,20 +164,24 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         .filter(|k| !continuous.contains(&k.as_str()))
         .collect();
     if !unknown_eq.is_empty() {
-        return err(format!("уравнения для необъявленных переменных: {unknown_eq:?}"));
+        return err(format!(
+            "уравнения для необъявленных переменных: {unknown_eq:?}"
+        ));
     }
 
     // 4. Топологическая сортировка алгебраических присваиваний.
     let ordered_algs = topo_sort(&algebraic_names, &alg_rhs)?;
 
     // 5. Начальные значения состояний.
-    let ctx = EvalCtx { vars: &params, time: 0.0 };
+    let ctx = EvalCtx {
+        vars: &params,
+        time: 0.0,
+    };
     let mut initial = Vec::new();
     for s in &states {
         let comp = model.components.iter().find(|c| &c.name == s).unwrap();
         let value = match &comp.start {
-            Some(expr) => eval(expr, &ctx)
-                .map_err(|e| SimError(format!("start у {s}: {e}")))?,
+            Some(expr) => eval(expr, &ctx).map_err(|e| SimError(format!("start у {s}: {e}")))?,
             None => 0.0,
         };
         initial.push(value);
@@ -187,10 +206,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     })
 }
 
-fn topo_sort(
-    names: &[String],
-    exprs: &HashMap<String, Expr>,
-) -> Result<Vec<String>, SimError> {
+fn topo_sort(names: &[String], exprs: &HashMap<String, Expr>) -> Result<Vec<String>, SimError> {
     let mut ordered = Vec::new();
     let mut done: Vec<&str> = Vec::new();
     let mut remaining: Vec<&String> = names.iter().collect();
@@ -309,29 +325,86 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                 if vals.len() == n {
                     Ok(())
                 } else {
-                    err(format!("{name}: ожидается {n} аргумент(ов), получено {}", vals.len()))
+                    err(format!(
+                        "{name}: ожидается {n} аргумент(ов), получено {}",
+                        vals.len()
+                    ))
                 }
             };
             match name.as_str() {
                 "der" => return err("der() вне уравнения состояния — не поддерживается в M0"),
-                "sin" => { arity(1)?; vals[0].sin() }
-                "cos" => { arity(1)?; vals[0].cos() }
-                "tan" => { arity(1)?; vals[0].tan() }
-                "asin" => { arity(1)?; vals[0].asin() }
-                "acos" => { arity(1)?; vals[0].acos() }
-                "atan" => { arity(1)?; vals[0].atan() }
-                "atan2" => { arity(2)?; vals[0].atan2(vals[1]) }
-                "sinh" => { arity(1)?; vals[0].sinh() }
-                "cosh" => { arity(1)?; vals[0].cosh() }
-                "tanh" => { arity(1)?; vals[0].tanh() }
-                "exp" => { arity(1)?; vals[0].exp() }
-                "log" => { arity(1)?; vals[0].ln() }
-                "log10" => { arity(1)?; vals[0].log10() }
-                "sqrt" => { arity(1)?; vals[0].sqrt() }
-                "abs" => { arity(1)?; vals[0].abs() }
-                "sign" => { arity(1)?; vals[0].signum() }
-                "min" => { arity(2)?; vals[0].min(vals[1]) }
-                "max" => { arity(2)?; vals[0].max(vals[1]) }
+                "sin" => {
+                    arity(1)?;
+                    vals[0].sin()
+                }
+                "cos" => {
+                    arity(1)?;
+                    vals[0].cos()
+                }
+                "tan" => {
+                    arity(1)?;
+                    vals[0].tan()
+                }
+                "asin" => {
+                    arity(1)?;
+                    vals[0].asin()
+                }
+                "acos" => {
+                    arity(1)?;
+                    vals[0].acos()
+                }
+                "atan" => {
+                    arity(1)?;
+                    vals[0].atan()
+                }
+                "atan2" => {
+                    arity(2)?;
+                    vals[0].atan2(vals[1])
+                }
+                "sinh" => {
+                    arity(1)?;
+                    vals[0].sinh()
+                }
+                "cosh" => {
+                    arity(1)?;
+                    vals[0].cosh()
+                }
+                "tanh" => {
+                    arity(1)?;
+                    vals[0].tanh()
+                }
+                "exp" => {
+                    arity(1)?;
+                    vals[0].exp()
+                }
+                "log" => {
+                    arity(1)?;
+                    vals[0].ln()
+                }
+                "log10" => {
+                    arity(1)?;
+                    vals[0].log10()
+                }
+                "sqrt" => {
+                    arity(1)?;
+                    vals[0].sqrt()
+                }
+                "abs" => {
+                    arity(1)?;
+                    vals[0].abs()
+                }
+                "sign" => {
+                    arity(1)?;
+                    vals[0].signum()
+                }
+                "min" => {
+                    arity(2)?;
+                    vals[0].min(vals[1])
+                }
+                "max" => {
+                    arity(2)?;
+                    vals[0].max(vals[1])
+                }
                 other => return err(format!("неизвестная функция «{other}»")),
             }
         }
@@ -402,7 +475,12 @@ impl CompiledModel {
         columns.extend(self.algebraics.iter().cloned());
         let mut rows = Vec::with_capacity(steps + 1);
 
-        let mut record = |t: f64, y: &[f64], env: &mut HashMap<String, f64>, k: &mut Vec<f64>, this: &CompiledModel| -> Result<(), SimError> {
+        let mut record = |t: f64,
+                          y: &[f64],
+                          env: &mut HashMap<String, f64>,
+                          k: &mut Vec<f64>,
+                          this: &CompiledModel|
+         -> Result<(), SimError> {
             this.eval_point(t, y, env, k)?;
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
@@ -455,26 +533,25 @@ mod tests {
 
     #[test]
     fn decay_matches_analytic() {
-        let result = run(
-            "model D parameter Real a = 1.0; Real x(start = 1.0); \
+        let result = run("model D parameter Real a = 1.0; Real x(start = 1.0); \
              equation der(x) = -a*x; \
-             annotation(experiment(StopTime=5.0, Interval=0.001)); end D;",
-        );
+             annotation(experiment(StopTime=5.0, Interval=0.001)); end D;");
         let last = result.rows.last().unwrap();
         let t = last[0];
         let x = last[1];
         assert!((t - 5.0).abs() < 1e-12);
-        assert!((x - (-5.0f64).exp()).abs() < 1e-9, "x(5)={x}, ожидалось e^-5");
+        assert!(
+            (x - (-5.0f64).exp()).abs() < 1e-9,
+            "x(5)={x}, ожидалось e^-5"
+        );
     }
 
     #[test]
     fn pendulum_conserves_energy() {
-        let result = run(
-            "model P parameter Real g = 9.81; parameter Real L = 1.0; \
+        let result = run("model P parameter Real g = 9.81; parameter Real L = 1.0; \
              Real phi(start = 0.7); Real w(start = 0.0); \
              equation der(phi) = w; der(w) = -(g/L)*sin(phi); \
-             annotation(experiment(StopTime=10.0, Interval=0.001)); end P;",
-        );
+             annotation(experiment(StopTime=10.0, Interval=0.001)); end P;");
         let energy = |row: &Vec<f64>| {
             let (phi, w) = (row[1], row[2]);
             0.5 * w * w + 9.81 * (1.0 - phi.cos())
@@ -490,11 +567,9 @@ mod tests {
     #[test]
     fn algebraic_chain_is_ordered() {
         // y зависит от x, x — от состояния; порядок объявления обратный.
-        let result = run(
-            "model A Real s(start = 1.0); Real y; Real x; \
+        let result = run("model A Real s(start = 1.0); Real y; Real x; \
              equation der(s) = -s; y = 2*x; x = s + 1; \
-             annotation(experiment(StopTime=1.0, Interval=0.01)); end A;",
-        );
+             annotation(experiment(StopTime=1.0, Interval=0.01)); end A;");
         let first = &result.rows[0];
         // columns: time, s, x, y (алгебраические в порядке вычисления)
         assert_eq!(result.columns, vec!["time", "s", "x", "y"]);
@@ -512,11 +587,9 @@ mod tests {
     #[test]
     fn if_expression_saturates() {
         // насыщение: y = clamp(x, -1, 1); x растёт линейно от 0 до 2
-        let result = run(
-            "model S Real x(start = 0.0); Real y; \
+        let result = run("model S Real x(start = 0.0); Real y; \
              equation der(x) = 1; y = if x > 1 then 1 elseif x < -1 then -1 else x; \
-             annotation(experiment(StopTime=2.0, Interval=0.01)); end S;",
-        );
+             annotation(experiment(StopTime=2.0, Interval=0.01)); end S;");
         let mid = &result.rows[result.rows.len() / 2]; // t=1: y == x == 1
         let last = result.rows.last().unwrap(); // t=2: x=2, y=1
         assert!((mid[2] - 1.0).abs() < 1e-6, "y(1)={}", mid[2]);
@@ -526,16 +599,16 @@ mod tests {
 
     #[test]
     fn reports_algebraic_cycle() {
-        let model = parse_model(
-            "model C Real x; Real y; equation x = y + 1; y = x - 1; end C;",
-        )
-        .unwrap();
+        let model =
+            parse_model("model C Real x; Real y; equation x = y + 1; y = x - 1; end C;").unwrap();
         let error = compile(&model).unwrap_err();
         assert!(error.0.contains("цикл"), "{}", error.0);
     }
 
     fn compile_err(source: &str) -> String {
-        compile(&parse_model(source).unwrap()).unwrap_err().to_string()
+        compile(&parse_model(source).unwrap())
+            .unwrap_err()
+            .to_string()
     }
 
     fn simulate_err(source: &str) -> String {
@@ -548,29 +621,41 @@ mod tests {
 
     #[test]
     fn evaluates_every_builtin_function() {
-        let result = run(
-            "model F Real y; equation \
+        let result = run("model F Real y; equation \
              y = sin(1) + cos(1) + tan(1) + asin(0.5) + acos(0.5) + atan(1) \
                + atan2(1, 2) + sinh(1) + cosh(1) + tanh(1) + exp(1) + log(2) \
                + log10(100) + sqrt(4) + abs(-3) + sign(-2) + min(1, 2) + max(1, 5) + 2 ^ 10; \
-             annotation(experiment(StopTime=0.01, Interval=0.01)); end F;",
-        );
-        let expected = 1f64.sin() + 1f64.cos() + 1f64.tan() + 0.5f64.asin() + 0.5f64.acos()
-            + 1f64.atan() + 1f64.atan2(2.0) + 1f64.sinh() + 1f64.cosh() + 1f64.tanh()
-            + 1f64.exp() + 2f64.ln() + 100f64.log10() + 2.0 + 3.0 + (-1.0) + 1.0 + 5.0 + 1024.0;
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end F;");
+        let expected = 1f64.sin()
+            + 1f64.cos()
+            + 1f64.tan()
+            + 0.5f64.asin()
+            + 0.5f64.acos()
+            + 1f64.atan()
+            + 1f64.atan2(2.0)
+            + 1f64.sinh()
+            + 1f64.cosh()
+            + 1f64.tanh()
+            + 1f64.exp()
+            + 2f64.ln()
+            + 100f64.log10()
+            + 2.0
+            + 3.0
+            + (-1.0)
+            + 1.0
+            + 5.0
+            + 1024.0;
         assert!((result.rows[0][1] - expected).abs() < 1e-12);
     }
 
     #[test]
     fn evaluates_booleans_and_relations() {
-        let result = run(
-            "model B Real y; Real r; equation \
+        let result = run("model B Real y; Real r; equation \
              y = if true and not false or false then 1 else 0; \
              r = (if 1 < 2 then 1 else 0) + (if 2 <= 2 then 1 else 0) \
                + (if 3 > 2 then 1 else 0) + (if 2 >= 3 then 0 else 1) \
                + (if 1 == 1 then 1 else 0) + (if 1 <> 2 then 1 else 0); \
-             annotation(experiment(StopTime=0.01, Interval=0.01)); end B;",
-        );
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end B;");
         let names = &result.columns;
         let y_idx = names.iter().position(|n| n == "y").unwrap();
         let r_idx = names.iter().position(|n| n == "r").unwrap();
@@ -581,40 +666,58 @@ mod tests {
     #[test]
     fn compile_error_paths() {
         // параметр без значения
-        assert!(compile_err("model M parameter Real p; Real x; equation x = 1; end M;")
-            .contains("без значения"));
+        assert!(
+            compile_err("model M parameter Real p; Real x; equation x = 1; end M;")
+                .contains("без значения")
+        );
         // цикл параметров
         assert!(compile_err(
             "model M parameter Real a = b; parameter Real b = a; Real x; equation x = 1; end M;"
         )
         .contains("цикл"));
         // der от параметра
-        assert!(compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")
-            .contains("непрерывной"));
+        assert!(
+            compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")
+                .contains("непрерывной")
+        );
         // der с обеих сторон
-        assert!(compile_err("model M Real x; Real y; equation der(x) = der(y); y = 1; end M;")
-            .contains("der() допустим только отдельно"));
+        assert!(
+            compile_err("model M Real x; Real y; equation der(x) = der(y); y = 1; end M;")
+                .contains("der() допустим только отдельно")
+        );
         // два уравнения для одного состояния
-        assert!(compile_err("model M Real x; equation der(x) = 1; der(x) = 2; end M;")
-            .contains("два уравнения"));
+        assert!(
+            compile_err("model M Real x; equation der(x) = 1; der(x) = 2; end M;")
+                .contains("два уравнения")
+        );
         // два уравнения для алгебраической
-        assert!(compile_err("model M Real y; equation y = 1; y = 2; end M;")
-            .contains("два уравнения"));
+        assert!(
+            compile_err("model M Real y; equation y = 1; y = 2; end M;").contains("два уравнения")
+        );
         // и состояние, и алгебраическая
-        assert!(compile_err("model M Real x; equation der(x) = 1; x = 2; end M;")
-            .contains("и состояние, и алгебраическая"));
+        assert!(
+            compile_err("model M Real x; equation der(x) = 1; x = 2; end M;")
+                .contains("и состояние, и алгебраическая")
+        );
         // неявное уравнение
-        assert!(compile_err("model M Real x; Real y; equation x + y = 2; y = 1; end M;")
-            .contains("явных уравнений"));
+        assert!(
+            compile_err("model M Real x; Real y; equation x + y = 2; y = 1; end M;")
+                .contains("явных уравнений")
+        );
         // der внутри алгебраического выражения
-        assert!(compile_err("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
-            .contains("алгебраическом"));
+        assert!(
+            compile_err("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
+                .contains("алгебраическом")
+        );
         // уравнение для необъявленной переменной
-        assert!(compile_err("model M Real x; equation x = 1; q = 2; end M;")
-            .contains("необъявленных"));
+        assert!(
+            compile_err("model M Real x; equation x = 1; q = 2; end M;").contains("необъявленных")
+        );
         // ошибка в start-выражении
-        assert!(compile_err("model M Real x(start = q); equation der(x) = 1; end M;")
-            .contains("start у x"));
+        assert!(
+            compile_err("model M Real x(start = q); equation der(x) = 1; end M;")
+                .contains("start у x")
+        );
     }
 
     #[test]
@@ -626,8 +729,9 @@ mod tests {
         assert!(simulate_err("model M Real y; equation y = frob(1); end M;")
             .contains("неизвестная функция"));
         // неверная арность
-        assert!(simulate_err("model M Real y; equation y = sin(1, 2); end M;")
-            .contains("аргумент"));
+        assert!(
+            simulate_err("model M Real y; equation y = sin(1, 2); end M;").contains("аргумент")
+        );
     }
 
     #[test]
@@ -647,10 +751,9 @@ mod tests {
 
     #[test]
     fn parameter_uses_start_as_fallback_value() {
-        let model = parse_model(
-            "model M parameter Real p(start = 3); Real x; equation x = p; end M;",
-        )
-        .unwrap();
+        let model =
+            parse_model("model M parameter Real p(start = 3); Real x; equation x = p; end M;")
+                .unwrap();
         let compiled = compile(&model).unwrap();
         assert_eq!(compiled.parameters, vec![("p".to_string(), 3.0)]);
     }
@@ -658,30 +761,30 @@ mod tests {
     #[test]
     fn mirrored_equation_forms_and_default_start() {
         // expr = der(v), expr = v, состояние без start (иниц. нулём), вычитание
-        let result = run(
-            "model M Real x; Real y; equation \
+        let result = run("model M Real x; Real y; equation \
              -x - 1 = der(x); 2 + time = y; \
-             annotation(experiment(StopTime=1.0, Interval=0.001)); end M;",
-        );
+             annotation(experiment(StopTime=1.0, Interval=0.001)); end M;");
         let first = &result.rows[0];
         assert_eq!(first[1], 0.0); // x(0) = 0 по умолчанию
         assert!((first[2] - 2.0).abs() < 1e-12); // y(0) = 2
-        // der(x) = -x - 1, x(0)=0 → x(t) = e^{-t} - 1
+                                                 // der(x) = -x - 1, x(0)=0 → x(t) = e^{-t} - 1
         let last = result.rows.last().unwrap();
-        assert!((last[1] - ((-1.0f64).exp() - 1.0)).abs() < 1e-9, "x(1)={}", last[1]);
+        assert!(
+            (last[1] - ((-1.0f64).exp() - 1.0)).abs() < 1e-9,
+            "x(1)={}",
+            last[1]
+        );
     }
 
     #[test]
     fn false_branches_of_relations_and_logic() {
-        let result = run(
-            "model B Real r; Real y; equation \
+        let result = run("model B Real r; Real y; equation \
              r = (if 2 < 1 then 1 else 0) + (if 3 <= 2 then 1 else 0) \
                + (if 2 > 3 then 1 else 0) + (if 3 >= 2 then 1 else 0) \
                + (if 1 == 2 then 1 else 0) + (if 1 <> 1 then 1 else 0); \
              y = (if false or false then 1 else 0) + (if false and true then 1 else 0) \
                + (if not true then 1 else 0) + (if false then 1 else 0); \
-             annotation(experiment(StopTime=0.01, Interval=0.01)); end B;",
-        );
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end B;");
         let r_idx = result.columns.iter().position(|n| n == "r").unwrap();
         let y_idx = result.columns.iter().position(|n| n == "y").unwrap();
         assert_eq!(result.rows[0][r_idx], 1.0); // только >= истинно
@@ -690,10 +793,8 @@ mod tests {
 
     #[test]
     fn time_is_available_in_equations() {
-        let result = run(
-            "model T Real y; equation y = 2 * time; \
-             annotation(experiment(StopTime=1.0, Interval=0.5)); end T;",
-        );
+        let result = run("model T Real y; equation y = 2 * time; \
+             annotation(experiment(StopTime=1.0, Interval=0.5)); end T;");
         let last = result.rows.last().unwrap();
         assert!((last[1] - 2.0).abs() < 1e-12);
     }

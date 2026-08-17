@@ -1,10 +1,10 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/oxidelica-parser",
-    "crates/oxidelica-sim",
-    "crates/oxidelica-cli",
-    "crates/oxidelica-ide",
+  "crates/oxidelica-parser",
+  "crates/oxidelica-sim",
+  "crates/oxidelica-cli",
+  "crates/oxidelica-ide",
 ]
 
 [workspace.package]

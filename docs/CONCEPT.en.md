@@ -21,17 +21,17 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 
 ## Roadmap
 
-| Milestone | Scope | Definition of done |
-|-----------|-------|--------------------|
-| **M0. Spike** | Parser for a language slice + RK4, CLI | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6 |
-| **M1. ODE subset** | Full expressions, parameters, algebraic equations, adaptive RK | 10 textbook models match OpenModelica |
-| **M2. Components** | Classes, inheritance, connect, flattening | RC circuit and mass-spring built from components |
-| **M3. DAE** | Pantelides, dummy derivatives, tearing, BDF | Cartesian pendulum (index-3) |
-| **M4. Events** | when/if equations, zero-crossing, reinit | Bouncing ball, diode |
-| **M5. Arrays & functions** | Arrays, for-equations, functions, records | Discretized heat conduction |
-| **M6. MSL core** | Blocks, Electrical.Analog, Mechanics.Rotational | MSL examples run unmodified |
-| **M7. GUI** | Bevy: diagram editor, plotting | Build and simulate a model with the mouse |
-| **M8. 3D** | MultiBody visualization, animation | Double pendulum spins in 3D |
+| Milestone                  | Scope                                                          | Definition of done                                             |
+| -------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
+| **M0. Spike**              | Parser for a language slice + RK4, CLI                         | `der(x)=-x` and a pendulum simulate, error vs analytics < 1e-6 |
+| **M1. ODE subset**         | Full expressions, parameters, algebraic equations, adaptive RK | 10 textbook models match OpenModelica                          |
+| **M2. Components**         | Classes, inheritance, connect, flattening                      | RC circuit and mass-spring built from components               |
+| **M3. DAE**                | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                   |
+| **M4. Events**             | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                           |
+| **M5. Arrays & functions** | Arrays, for-equations, functions, records                      | Discretized heat conduction                                    |
+| **M6. MSL core**           | Blocks, Electrical.Analog, Mechanics.Rotational                | MSL examples run unmodified                                    |
+| **M7. GUI**                | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                      |
+| **M8. 3D**                 | MultiBody visualization, animation                             | Double pendulum spins in 3D                                    |
 
 **The IDE track runs in parallel with the language track from the start** (decision of 2026-08-15): v0 — a Bevy window with a code editor, a run button, and plots (shipped with M0); then incrementally — background simulation, syntax highlighting, the diagram editor (M7) and the 3D scene (M8) in the same app. The language track advances at its own pace: M1, M2, M3…
 

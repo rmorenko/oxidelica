@@ -1,0 +1,3 @@
+# typos — быстрый спеллчекер кода (латиница; кириллицу не трогает)
+[files]
+extend-exclude = ["target/", "Cargo.lock"]

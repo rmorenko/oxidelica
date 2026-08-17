@@ -8,7 +8,9 @@ fn bin() -> Command {
 }
 
 fn example(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples").join(name)
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples")
+        .join(name)
 }
 
 fn stdout(output: &Output) -> String {
@@ -24,7 +26,8 @@ struct TempFile(PathBuf);
 
 impl TempFile {
     fn new(name: &str, content: &str) -> TempFile {
-        let path = std::env::temp_dir().join(format!("oxidelica-test-{}-{name}", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("oxidelica-test-{}-{name}", std::process::id()));
         std::fs::write(&path, content).unwrap();
         TempFile(path)
     }
@@ -56,7 +59,10 @@ fn unknown_command_prints_usage() {
 
 #[test]
 fn parse_dumps_model_structure() {
-    let out = bin().args(["parse", example("pendulum.mo").to_str().unwrap()]).output().unwrap();
+    let out = bin()
+        .args(["parse", example("pendulum.mo").to_str().unwrap()])
+        .output()
+        .unwrap();
     assert!(out.status.success(), "{}", stderr(&out));
     let text = stdout(&out);
     assert!(text.contains("модель Pendulum"));
@@ -68,7 +74,14 @@ fn parse_dumps_model_structure() {
 #[test]
 fn simulate_writes_csv_to_stdout() {
     let out = bin()
-        .args(["simulate", example("decay.mo").to_str().unwrap(), "--stop", "1", "--dt", "0.1"])
+        .args([
+            "simulate",
+            example("decay.mo").to_str().unwrap(),
+            "--stop",
+            "1",
+            "--dt",
+            "0.1",
+        ])
         .output()
         .unwrap();
     assert!(out.status.success(), "{}", stderr(&out));
@@ -82,7 +95,12 @@ fn simulate_writes_csv_to_stdout() {
 fn simulate_writes_csv_to_file() {
     let result = std::env::temp_dir().join(format!("oxidelica-out-{}.csv", std::process::id()));
     let out = bin()
-        .args(["simulate", example("decay.mo").to_str().unwrap(), "-o", result.to_str().unwrap()])
+        .args([
+            "simulate",
+            example("decay.mo").to_str().unwrap(),
+            "-o",
+            result.to_str().unwrap(),
+        ])
         .output()
         .unwrap();
     assert!(out.status.success(), "{}", stderr(&out));
@@ -101,11 +119,17 @@ fn simulate_reports_flag_errors() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("требует значения"));
 
-    let out = bin().args(["simulate", decay, "--stop", "abc"]).output().unwrap();
+    let out = bin()
+        .args(["simulate", decay, "--stop", "abc"])
+        .output()
+        .unwrap();
     assert!(!out.status.success());
     assert!(stderr(&out).contains("--stop"));
 
-    let out = bin().args(["simulate", decay, "--nonsense"]).output().unwrap();
+    let out = bin()
+        .args(["simulate", decay, "--nonsense"])
+        .output()
+        .unwrap();
     assert!(!out.status.success());
     assert!(stderr(&out).contains("неизвестный флаг"));
 
@@ -113,7 +137,10 @@ fn simulate_reports_flag_errors() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("требует значения"));
 
-    let out = bin().args(["simulate", decay, "--dt", "xyz"]).output().unwrap();
+    let out = bin()
+        .args(["simulate", decay, "--dt", "xyz"])
+        .output()
+        .unwrap();
     assert!(!out.status.success());
     assert!(stderr(&out).contains("--dt"));
 
@@ -124,7 +151,10 @@ fn simulate_reports_flag_errors() {
 
 #[test]
 fn missing_file_is_reported() {
-    let out = bin().args(["simulate", "/nonexistent/model.mo"]).output().unwrap();
+    let out = bin()
+        .args(["simulate", "/nonexistent/model.mo"])
+        .output()
+        .unwrap();
     assert!(!out.status.success());
     assert!(stderr(&out).contains("не удалось прочитать"));
 }
@@ -156,7 +186,12 @@ fn simulation_runtime_error_is_reported() {
 #[test]
 fn output_write_error_is_reported() {
     let out = bin()
-        .args(["simulate", example("decay.mo").to_str().unwrap(), "-o", "/nonexistent/dir/out.csv"])
+        .args([
+            "simulate",
+            example("decay.mo").to_str().unwrap(),
+            "-o",
+            "/nonexistent/dir/out.csv",
+        ])
         .output()
         .unwrap();
     assert!(!out.status.success());
