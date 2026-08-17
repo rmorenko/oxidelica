@@ -28,6 +28,43 @@ struct SimData {
     visible: Vec<bool>,
 }
 
+/// Which view occupies the central panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ViewMode {
+    /// Time-series plots of all variables.
+    Plots,
+    /// Animated trajectory of two selected variables.
+    Animation,
+}
+
+/// Trajectory animation state.
+struct Anim {
+    /// Current animation time within the simulated interval.
+    time: f64,
+    playing: bool,
+    /// Playback speed multiplier.
+    speed: f64,
+    /// Column index used as the X coordinate.
+    x_col: usize,
+    /// Column index used as the Y coordinate.
+    y_col: usize,
+    /// Draw a rod from the origin to the current point (pendulums).
+    rod: bool,
+}
+
+impl Default for Anim {
+    fn default() -> Self {
+        Anim {
+            time: 0.0,
+            playing: true,
+            speed: 1.0,
+            x_col: 0,
+            y_col: 1,
+            rod: false,
+        }
+    }
+}
+
 /// The whole IDE state, stored as a Bevy resource.
 #[derive(Resource)]
 struct Ide {
@@ -44,6 +81,10 @@ struct Ide {
     /// Whether the icon font has been installed into the egui context.
     fonts_installed: bool,
     show_about: bool,
+    /// Active central view.
+    view: ViewMode,
+    /// Trajectory animation state.
+    anim: Anim,
 }
 
 fn main() {
@@ -80,6 +121,8 @@ fn main() {
             applied_theme: None,
             fonts_installed: false,
             show_about: false,
+            view: ViewMode::Plots,
+            anim: Anim::default(),
         })
         .add_systems(Update, ui_system)
         .run();
@@ -345,34 +388,56 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
             });
         });
 
-    // --- plots ---
-    egui::CentralPanel::default().show(ctx, |ui| match &mut ide.result {
-        None => {
-            ui.centered_and_justified(|ui| {
-                ui.label(
-                    egui::RichText::new(format!("{}  {}", icons::CHART_LINE, s.press_simulate))
-                        .weak(),
-                );
-            });
-        }
-        Some(data) => {
-            ui.horizontal_wrapped(|ui| {
-                for (index, name) in data.columns.iter().skip(1).enumerate() {
-                    ui.checkbox(&mut data.visible[index], name);
-                }
-            });
-            Plot::new("sim-plot")
-                .legend(Legend::default())
-                .show(ui, |plot_ui| {
-                    for (index, name) in data.columns.iter().enumerate().skip(1) {
-                        if !data.visible[index - 1] {
-                            continue;
-                        }
-                        let points: PlotPoints =
-                            data.rows.iter().map(|row| [row[0], row[index]]).collect();
-                        plot_ui.line(Line::new(points).name(name));
-                    }
+    // --- central panel: plots / animation tabs ---
+    egui::CentralPanel::default().show(ctx, |ui| {
+        ui.horizontal(|ui| {
+            ui.selectable_value(
+                &mut ide.view,
+                ViewMode::Plots,
+                format!("{} {}", icons::CHART_LINE, s.tab_plots),
+            );
+            ui.selectable_value(
+                &mut ide.view,
+                ViewMode::Animation,
+                format!("{} {}", icons::PLAY, s.tab_animation),
+            );
+        });
+        ui.separator();
+
+        let Ide {
+            result, anim, view, ..
+        } = &mut *ide;
+        match result {
+            None => {
+                ui.centered_and_justified(|ui| {
+                    ui.label(
+                        egui::RichText::new(format!("{}  {}", icons::CHART_LINE, s.press_simulate))
+                            .weak(),
+                    );
                 });
+            }
+            Some(data) => match view {
+                ViewMode::Plots => {
+                    ui.horizontal_wrapped(|ui| {
+                        for (index, name) in data.columns.iter().skip(1).enumerate() {
+                            ui.checkbox(&mut data.visible[index], name);
+                        }
+                    });
+                    Plot::new("sim-plot")
+                        .legend(Legend::default())
+                        .show(ui, |plot_ui| {
+                            for (index, name) in data.columns.iter().enumerate().skip(1) {
+                                if !data.visible[index - 1] {
+                                    continue;
+                                }
+                                let points: PlotPoints =
+                                    data.rows.iter().map(|row| [row[0], row[index]]).collect();
+                                plot_ui.line(Line::new(points).name(name));
+                            }
+                        });
+                }
+                ViewMode::Animation => animation_ui(ui, data, anim, s, &p),
+            },
         }
     });
 
@@ -396,6 +461,126 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
     if settings_before != ide.settings {
         settings::save(ide.settings);
     }
+}
+
+/// The trajectory animation view: playback controls, X/Y variable
+/// selection and the animated plot (marker, optional rod, trail).
+fn animation_ui(
+    ui: &mut egui::Ui,
+    data: &SimData,
+    anim: &mut Anim,
+    s: &i18n::Strings,
+    p: &style::Palette,
+) {
+    let stop = data.rows.last().map(|row| row[0]).unwrap_or(1.0).max(1e-9);
+    anim.x_col = anim.x_col.min(data.columns.len() - 1);
+    anim.y_col = anim.y_col.min(data.columns.len() - 1);
+
+    // Controls.
+    ui.horizontal(|ui| {
+        let icon = if anim.playing {
+            icons::PAUSE
+        } else {
+            icons::PLAY
+        };
+        if ui.button(egui::RichText::new(icon).size(16.0)).clicked() {
+            anim.playing = !anim.playing;
+        }
+        ui.add(
+            egui::Slider::new(&mut anim.time, 0.0..=stop)
+                .show_value(false)
+                .trailing_fill(true),
+        );
+        ui.monospace(format!("t = {:6.2}", anim.time));
+        ui.separator();
+        ui.label(s.anim_speed);
+        ui.add(
+            egui::Slider::new(&mut anim.speed, 0.1..=10.0)
+                .logarithmic(true)
+                .show_value(false),
+        );
+        for (label, col) in [("X", &mut anim.x_col), ("Y", &mut anim.y_col)] {
+            egui::ComboBox::from_id_salt(label)
+                .selected_text(format!("{label}: {}", data.columns[*col]))
+                .show_ui(ui, |ui| {
+                    for (index, name) in data.columns.iter().enumerate() {
+                        ui.selectable_value(col, index, name);
+                    }
+                });
+        }
+        ui.checkbox(&mut anim.rod, s.anim_rod);
+    });
+
+    // Advance playback.
+    if anim.playing {
+        anim.time += ui.input(|i| i.stable_dt) as f64 * anim.speed;
+        if anim.time > stop {
+            anim.time = 0.0;
+        }
+    }
+
+    // Current sample and a decimated trail up to it.
+    let idx = data
+        .rows
+        .partition_point(|row| row[0] < anim.time)
+        .min(data.rows.len() - 1);
+    let step = (idx / 3000).max(1);
+    let trail: PlotPoints = data.rows[..=idx]
+        .iter()
+        .step_by(step)
+        .map(|row| [row[anim.x_col], row[anim.y_col]])
+        .collect();
+    let current = [data.rows[idx][anim.x_col], data.rows[idx][anim.y_col]];
+
+    // Fixed bounds over the whole trajectory so the view does not jump.
+    let (mut min_x, mut max_x, mut min_y, mut max_y) = (
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+    );
+    for row in &data.rows {
+        min_x = min_x.min(row[anim.x_col]);
+        max_x = max_x.max(row[anim.x_col]);
+        min_y = min_y.min(row[anim.y_col]);
+        max_y = max_y.max(row[anim.y_col]);
+    }
+    if anim.rod {
+        min_x = min_x.min(0.0);
+        max_x = max_x.max(0.0);
+        min_y = min_y.min(0.0);
+        max_y = max_y.max(0.0);
+    }
+    let margin_x = ((max_x - min_x) * 0.1).max(0.1);
+    let margin_y = ((max_y - min_y) * 0.1).max(0.1);
+
+    let mut plot = Plot::new("anim-plot");
+    if anim.rod {
+        plot = plot.data_aspect(1.0);
+    }
+    plot.show(ui, |plot_ui| {
+        plot_ui.set_plot_bounds(egui_plot::PlotBounds::from_min_max(
+            [min_x - margin_x, min_y - margin_y],
+            [max_x + margin_x, max_y + margin_y],
+        ));
+        plot_ui.line(
+            Line::new(trail)
+                .color(p.accent.gamma_multiply(0.4))
+                .width(1.5),
+        );
+        if anim.rod {
+            plot_ui.line(
+                Line::new(PlotPoints::from(vec![[0.0, 0.0], current]))
+                    .color(p.accent)
+                    .width(3.0),
+            );
+        }
+        plot_ui.points(
+            egui_plot::Points::new(vec![current])
+                .radius(6.0)
+                .color(p.accent),
+        );
+    });
 }
 
 /// Parse, compile and simulate the editor buffer; report to the log line.
@@ -429,6 +614,19 @@ fn run_simulation(ide: &mut Ide) {
                 result.columns[1..].join(", ")
             );
             ide.log_ok = true;
+            // Animation defaults: literal x/y columns turn on pendulum
+            // mode (rod from the origin, equal aspect).
+            let find = |name: &str| result.columns.iter().position(|c| c == name);
+            let (x_col, y_col) = match (find("x"), find("y")) {
+                (Some(x), Some(y)) => (x, y),
+                _ => (0, 1.min(result.columns.len() - 1)),
+            };
+            ide.anim = Anim {
+                rod: find("x").is_some() && find("y").is_some(),
+                x_col,
+                y_col,
+                ..Anim::default()
+            };
             ide.result = Some(SimData {
                 visible: vec![true; result.columns.len().saturating_sub(1)],
                 columns: result.columns,

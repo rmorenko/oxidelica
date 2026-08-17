@@ -134,6 +134,11 @@ define_strings!(
     steps_in,
     variables,
     press_simulate,
+    tab_plots,
+    tab_animation,
+    anim_speed,
+    anim_rod,
+    anim_no_data,
 );
 
 #[cfg(test)]
