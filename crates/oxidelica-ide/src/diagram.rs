@@ -581,27 +581,31 @@ impl Diagram {
             );
         });
         ui.separator();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            let needle = filter.to_lowercase();
-            for class in &self.palette {
-                if !needle.is_empty() && !class.to_lowercase().contains(&needle) {
-                    continue;
+        // Every scroll area needs its own id: two of them deriving the
+        // same one is what makes egui paint id-clash warnings.
+        egui::ScrollArea::vertical()
+            .id_salt("diagram-palette-scroll")
+            .show(ui, |ui| {
+                let needle = filter.to_lowercase();
+                for class in &self.palette {
+                    if !needle.is_empty() && !class.to_lowercase().contains(&needle) {
+                        continue;
+                    }
+                    let short = class.rsplit('.').next().unwrap_or(class);
+                    let response = ui.selectable_label(false, short);
+                    let tooltip = self
+                        .catalog
+                        .get(class)
+                        .and_then(|info| info.description.clone())
+                        .unwrap_or_else(|| class.clone());
+                    if response
+                        .on_hover_text(format!("{class}\n{tooltip}"))
+                        .clicked()
+                    {
+                        chosen = Some(class.clone());
+                    }
                 }
-                let short = class.rsplit('.').next().unwrap_or(class);
-                let response = ui.selectable_label(false, short);
-                let tooltip = self
-                    .catalog
-                    .get(class)
-                    .and_then(|info| info.description.clone())
-                    .unwrap_or_else(|| class.clone());
-                if response
-                    .on_hover_text(format!("{class}\n{tooltip}"))
-                    .clicked()
-                {
-                    chosen = Some(class.clone());
-                }
-            }
-        });
+            });
         chosen
     }
 

@@ -578,19 +578,21 @@ fn ui_system(
         .resizable(true)
         .default_width(600.0)
         .show(ctx, |ui| {
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                let response = ui.add(
-                    egui::TextEdit::multiline(&mut ide.source)
-                        .font(egui::TextStyle::Monospace)
-                        .code_editor()
-                        .desired_rows(40)
-                        .desired_width(f32::INFINITY)
-                        .layouter(&mut layouter),
-                );
-                if response.changed() {
-                    source_edited = true;
-                }
-            });
+            egui::ScrollArea::vertical()
+                .id_salt("editor-scroll")
+                .show(ui, |ui| {
+                    let response = ui.add(
+                        egui::TextEdit::multiline(&mut ide.source)
+                            .font(egui::TextStyle::Monospace)
+                            .code_editor()
+                            .desired_rows(40)
+                            .desired_width(f32::INFINITY)
+                            .layouter(&mut layouter),
+                    );
+                    if response.changed() {
+                        source_edited = true;
+                    }
+                });
         });
     if source_edited {
         refresh_tuner(ide);
@@ -928,38 +930,47 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
     let side = 170.0f32.min(available.x * 0.25);
     let inspector = 190.0f32.min(available.x * 0.28);
     ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.set_width(side);
-            ui.set_height(available.y);
-            ui.strong(s.diagram_palette);
-            if let Some(class) = ide.diagram.palette_ui(ui, &mut ide.palette_filter) {
-                let slot = ide.diagram.free_slot();
-                ide.diagram.add(&class, slot);
-            }
+        // Each column gets its own id namespace, so widgets in one
+        // cannot collide with widgets in another.
+        ui.push_id("diagram-palette", |ui| {
+            ui.vertical(|ui| {
+                ui.set_width(side);
+                ui.set_height(available.y);
+                ui.strong(s.diagram_palette);
+                if let Some(class) = ide.diagram.palette_ui(ui, &mut ide.palette_filter) {
+                    let slot = ide.diagram.free_slot();
+                    ide.diagram.add(&class, slot);
+                }
+            });
         });
         ui.separator();
-        ui.vertical(|ui| {
-            ui.set_width((available.x - side - inspector - 40.0).max(120.0));
-            ui.set_height(available.y);
-            egui::ScrollArea::both()
-                .auto_shrink([false, false])
-                .show(ui, |ui| {
-                    ide.diagram.canvas_ui(ui, p.accent);
-                });
+        ui.push_id("diagram-canvas", |ui| {
+            ui.vertical(|ui| {
+                ui.set_width((available.x - side - inspector - 40.0).max(120.0));
+                ui.set_height(available.y);
+                egui::ScrollArea::both()
+                    .id_salt("diagram-canvas-scroll")
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ide.diagram.canvas_ui(ui, p.accent);
+                    });
+            });
         });
         ui.separator();
-        ui.vertical(|ui| {
-            ui.set_width(inspector);
-            ide.diagram.inspector_ui(
-                ui,
-                &diagram::Labels {
-                    wire: s.diagram_wire,
-                    delete: s.diagram_delete,
-                    delete_icon: icons::TRASH,
-                    nothing_selected: s.diagram_select_hint,
-                    danger: p.error_red,
-                },
-            );
+        ui.push_id("diagram-inspector", |ui| {
+            ui.vertical(|ui| {
+                ui.set_width(inspector);
+                ide.diagram.inspector_ui(
+                    ui,
+                    &diagram::Labels {
+                        wire: s.diagram_wire,
+                        delete: s.diagram_delete,
+                        delete_icon: icons::TRASH,
+                        nothing_selected: s.diagram_select_hint,
+                        danger: p.error_red,
+                    },
+                );
+            });
         });
     });
 }
