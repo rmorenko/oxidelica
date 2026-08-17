@@ -631,11 +631,22 @@ fn instantiate(
             )?;
         }
         for (a, b) in &branch.connects {
-            let (a, b) = (flat_name(a, prefix, &outers), flat_name(b, prefix, &outers));
-            if acc.is_disabled(&a) || acc.is_disabled(&b) {
-                continue;
-            }
-            acc.connects.push((a, b));
+            let shapes = Shapes {
+                sizes: &sizes_here,
+                loop_vars: &no_loop_vars,
+                consts: &local_consts,
+            };
+            push_connects(
+                a,
+                b,
+                &shapes,
+                prefix,
+                &outers,
+                registry,
+                scope,
+                &class.imports,
+                acc,
+            )?;
         }
     }
 
@@ -664,15 +675,26 @@ fn instantiate(
         }
         acc.when_clauses.push(WhenClause { branches });
     }
+    // A connection to a component that a condition left out goes with
+    // it: this is how the standard library switches a support flange
+    // between an external connector and an internal ground.
     for (a, b) in &class.connects {
-        let (a, b) = (flat_name(a, prefix, &outers), flat_name(b, prefix, &outers));
-        // A connection to a component that a condition left out goes
-        // with it: this is how the standard library switches a support
-        // flange between an external connector and an internal ground.
-        if acc.is_disabled(&a) || acc.is_disabled(&b) {
-            continue;
-        }
-        acc.connects.push((a, b));
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+        };
+        push_connects(
+            a,
+            b,
+            &shapes,
+            prefix,
+            &outers,
+            registry,
+            scope,
+            &class.imports,
+            acc,
+        )?;
     }
     Ok(())
 }
@@ -937,6 +959,14 @@ fn unroll(
                         )
                     };
                     push_equations(&side(&equation.lhs)?, &side(&equation.rhs)?, acc)?;
+                }
+                ForBody::Connect(a, b) => {
+                    let shapes = Shapes {
+                        sizes,
+                        loop_vars: &loop_vars,
+                        consts,
+                    };
+                    push_connects(a, b, &shapes, prefix, outers, registry, scope, imports, acc)?;
                 }
                 ForBody::Nested(inner) => unroll(
                     inner, &loop_vars, consts, prefix, outers, sizes, registry, scope, imports, acc,
@@ -1678,6 +1708,62 @@ fn execute(
                 assigned.retain(|name| name != variable);
             }
         }
+    }
+    Ok(())
+}
+
+/// Resolve both sides of a `connect` into instance paths and pair them.
+///
+/// A subscripted reference folds to one path; a whole array of
+/// connectors pairs element by element with the other side, which must
+/// then have the same length. Connections to components a condition
+/// left out are dropped, like everywhere else.
+#[allow(clippy::too_many_arguments)]
+fn push_connects(
+    a: &Expr,
+    b: &Expr,
+    shapes: &Shapes,
+    prefix: &str,
+    outers: &HashMap<String, String>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    acc: &mut Flat,
+) -> Result<(), String> {
+    let side = |expr: &Expr| -> Result<Vec<String>, String> {
+        let value = expand(
+            &prefix_expr(expr, prefix, outers),
+            shapes,
+            registry,
+            scope,
+            imports,
+            0,
+        )?;
+        let mut items = Vec::new();
+        value.flatten_into(&mut items);
+        items
+            .into_iter()
+            .map(|item| match item {
+                Expr::Ref(path) => Ok(path),
+                other => Err(format!(
+                    "a side of connect must reference connectors, found {other:?}"
+                )),
+            })
+            .collect()
+    };
+    let (left, right) = (side(a)?, side(b)?);
+    if left.len() != right.len() {
+        return Err(format!(
+            "connect between {} and {} connector(s)",
+            left.len(),
+            right.len()
+        ));
+    }
+    for (a, b) in left.into_iter().zip(right) {
+        if acc.is_disabled(&a) || acc.is_disabled(&b) {
+            continue;
+        }
+        acc.connects.push((a, b));
     }
     Ok(())
 }
@@ -3192,6 +3278,35 @@ mod tests {
             err("model M Real v[2]; Real q; equation q = 1; v = fill(1.0, q); end M;")
                 .contains("compiler can see")
         );
+    }
+
+    #[test]
+    fn connects_take_subscripts_loops_and_whole_arrays() {
+        // A chain wired inside a for loop, with subscripted references.
+        let chain = parse_model(
+            "connector Pin Real v; flow Real i; end Pin;              model Two Pin p; Pin n; equation p.i + n.i = 0; p.v - n.v = p.i; end Two;              model Ground Pin p; equation p.v = 0; end Ground;              model Chain Two r[3]; Ground ground;              equation for i in 1:2 loop connect(r[i].n, r[i + 1].p); end for;              connect(r[3].n, ground.p); r[1].p.v = 6; r[1].p.i + 0 = 0; end Chain;",
+        )
+        .unwrap();
+        // Two joints of the loop plus the ground joint: the potentials
+        // of neighbouring pins are equal in the flat model.
+        let text = format!("{:?}", chain.equations);
+        assert!(text.contains("r[2].p.v"), "{text}");
+
+        // Two whole arrays pair element by element.
+        let bus = parse_model(
+            "connector Pin Real v; flow Real i; end Pin;              model Bus Pin left[2]; Pin right[2];              equation left[1].v = 1; left[2].v = 2;              right[1].i = 0.1; right[2].i = 0.2;              connect(left, right); end Bus;",
+        )
+        .unwrap();
+        let text = format!("{:?}", bus.equations);
+        assert!(text.contains("right[2].v"), "{text}");
+
+        // Arrays of different lengths are refused with the counts.
+        let error = parse_model(
+            "connector Pin Real v; flow Real i; end Pin;              model B Pin a[2]; Pin b[3]; equation connect(a, b); end B;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("2 and 3"), "{error}");
     }
 
     #[test]

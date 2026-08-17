@@ -5528,6 +5528,33 @@ mod tests {
     }
 
     #[test]
+    fn a_ladder_of_resistors_wired_by_a_loop_divides_the_supply() {
+        // One array declaration, `each R`, and the wiring written as a
+        // loop of connects over the elements. Five equal resistors on
+        // 10 V put exactly 8, 6, 4, 2, 0 volts on the taps.
+        let result = compile(&with_library("resistor_ladder.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+        for i in 1..=5 {
+            let expected = 10.0 * (5 - i) as f64 / 5.0;
+            let got = last[index(&format!("taps[{i}]"))];
+            assert!(
+                (got - expected).abs() < 1e-12,
+                "tap {i}: {got} vs {expected}"
+            );
+        }
+        // The same current runs through the whole chain.
+        let current = last[index("r[1].i")];
+        assert!((current - 10.0 / (5.0 * 220.0)).abs() < 1e-15);
+        for i in 2..=5 {
+            assert!((last[index(&format!("r[{i}].i"))] - current).abs() < 1e-15);
+        }
+    }
+
+    #[test]
     fn results_carry_the_parameter_values() {
         // Consumers such as the 3D view read sizes and colours from
         // here, since those never appear as columns.

@@ -128,7 +128,7 @@ struct Parser {
 type Modifications = (Vec<(String, Expr)>, Vec<Redeclare>);
 
 /// The contents of one branch of an `if` equation.
-type BranchBody = (Vec<EquationItem>, Vec<(String, String)>);
+type BranchBody = (Vec<EquationItem>, Vec<(Expr, Expr)>);
 
 impl Parser {
     fn peek(&self) -> &Token {
@@ -506,6 +506,10 @@ impl Parser {
             match self.peek() {
                 Token::Eof => return Err(self.err("unterminated for equation".into())),
                 Token::For => body.push(ForBody::Nested(self.for_equation()?)),
+                Token::Connect => {
+                    let (a, b) = self.connect_clause()?;
+                    body.push(ForBody::Connect(a, b));
+                }
                 _ => body.push(ForBody::Equation(self.equation_item()?)),
             }
         }
@@ -706,19 +710,50 @@ impl Parser {
         })
     }
 
-    /// `connect(a.b, c.d) annotation(...);`
-    fn connect_clause(&mut self) -> Result<(String, String), ParseError> {
+    /// `connect(a.b, c.d) annotation(...);` — the references may carry
+    /// subscripts (`pins[i]`, `a[2].p`) or name whole arrays.
+    fn connect_clause(&mut self) -> Result<(Expr, Expr), ParseError> {
         self.expect(&Token::Connect, "connect")?;
         self.expect(&Token::LParen, "parenthesis after connect")?;
-        let left = self.component_ref()?;
+        let left = self.connect_ref()?;
         self.expect(&Token::Comma, "comma in connect")?;
-        let right = self.component_ref()?;
+        let right = self.connect_ref()?;
         self.expect(&Token::RParen, "closing parenthesis of connect")?;
         if self.peek() == &Token::Annotation {
             self.annotation_body(&mut Experiment::default())?;
         }
         self.expect(&Token::Semi, "semicolon after connect")?;
         Ok((left, right))
+    }
+
+    /// One side of a `connect`: a dotted name, optionally subscripted,
+    /// optionally followed by more of the path.
+    fn connect_ref(&mut self) -> Result<Expr, ParseError> {
+        let name = self.component_ref()?;
+        if self.peek() != &Token::LBracket {
+            return Ok(Expr::Ref(name));
+        }
+        self.bump();
+        let mut subscripts = Vec::new();
+        loop {
+            subscripts.push(self.expr()?);
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RBracket => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `]` in a subscript, found `{other}`"
+                    )))
+                }
+            }
+        }
+        let indexed = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
+        if self.peek() == &Token::Dot {
+            self.bump();
+            let path = self.component_ref()?;
+            return Ok(Expr::Member(Box::new(indexed), path));
+        }
+        Ok(indexed)
     }
 
     /// A dotted component reference: `a.b.c`.

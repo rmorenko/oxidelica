@@ -8,7 +8,7 @@
 //! statements become boxes and wires.
 
 use bevy_egui::egui;
-use oxidelica_parser::{class_info, ClassDef, ClassInfo};
+use oxidelica_parser::{class_info, ClassDef, ClassInfo, Expr};
 use std::collections::HashMap;
 
 /// Strings and colors the inspector needs, passed in so this module
@@ -546,7 +546,10 @@ impl Diagram {
             });
         }
         for (a, b) in &class.connects {
-            let split = |path: &str| -> Option<(usize, String)> {
+            // The canvas draws plain pin-to-pin wires; subscripted and
+            // whole-array connections stay in the source text.
+            let split = |expr: &Expr| -> Option<(usize, String)> {
+                let Expr::Ref(path) = expr else { return None };
                 let (instance, port) = path.split_once('.')?;
                 Some((*index_of.get(instance)?, port.to_string()))
             };

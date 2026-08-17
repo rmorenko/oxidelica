@@ -190,8 +190,11 @@ pub struct ClassDef {
     /// Statements of an `algorithm` section: the body of a function, or
     /// a block of a model that is executed into equations.
     pub algorithm: Vec<Statement>,
-    /// `connect(a, b);` statements (component reference paths).
-    pub connects: Vec<(String, String)>,
+    /// `connect(a, b);` statements. Each side is an expression so that
+    /// a reference may carry subscripts (`pins[i]`, `a[2].p`) or name a
+    /// whole array of connectors; flattening resolves both to instance
+    /// paths.
+    pub connects: Vec<(Expr, Expr)>,
     /// `when` clauses (events).
     pub when_clauses: Vec<WhenClause>,
     /// Experiment settings.
@@ -225,6 +228,8 @@ pub struct WhenBranch {
 pub enum ForBody {
     /// An ordinary equation.
     Equation(EquationItem),
+    /// A `connect` between references that may use the loop variable.
+    Connect(Expr, Expr),
     /// A nested loop.
     Nested(ForEquation),
 }
@@ -248,7 +253,7 @@ pub struct IfBranch {
     /// Equations the branch contributes.
     pub equations: Vec<EquationItem>,
     /// `connect` statements the branch contributes.
-    pub connects: Vec<(String, String)>,
+    pub connects: Vec<(Expr, Expr)>,
 }
 
 /// An `if <cond> then … elseif … else … end if;` in an equation section.
