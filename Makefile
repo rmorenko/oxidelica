@@ -92,6 +92,21 @@ audit: ## vulnerabilities (cargo-audit) and unused deps (cargo-machete)
 	cargo audit
 	cargo machete
 
+# ---------- other platforms ----------
+
+.PHONY: linux-check
+linux-check: ## build and test the core on Linux in Docker
+	docker run --rm -v "$$PWD":/src -w /src -e CARGO_TARGET_DIR=/tmp/target \
+	  -v oxidelica-cargo:/usr/local/cargo/registry rust:slim \
+	  cargo test -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli
+
+.PHONY: linux-check-ide
+linux-check-ide: ## build the GUI on Linux in Docker (pulls Bevy's system libraries)
+	docker run --rm -v "$$PWD":/src -w /src -e CARGO_TARGET_DIR=/tmp/target \
+	  -v oxidelica-cargo:/usr/local/cargo/registry rust:slim bash -c \
+	  "apt-get update -qq && apt-get install -y -qq pkg-config libasound2-dev libudev-dev \
+	   && cargo build -p oxidelica-ide"
+
 # ---------- tests and coverage ----------
 
 .PHONY: test
@@ -106,7 +121,8 @@ cov: ## core coverage with the 95% line threshold
 cov-report: ## HTML coverage report (opens in the browser)
 	cargo llvm-cov -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli --html
 	@echo "report: target/llvm-cov/html/index.html"
-	open target/llvm-cov/html/index.html
+	@if command -v open > /dev/null; then open target/llvm-cov/html/index.html; \
+	 elif command -v xdg-open > /dev/null; then xdg-open target/llvm-cov/html/index.html; fi
 
 .PHONY: cov-lcov
 cov-lcov: ## lcov coverage output (for CI)

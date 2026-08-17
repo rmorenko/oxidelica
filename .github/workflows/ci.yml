@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # Weekly, so a new advisory shows up on its own rather than in
+    # whichever commit happens to come next.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # The claim this project is built on is a single native binary on all
+  # three desktops, so every commit is built and tested on all three.
+  test:
+    name: test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Linux libraries Bevy links against
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            pkg-config libasound2-dev libudev-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+      - name: The examples all simulate
+        shell: bash
+        run: |
+          cargo build --release -p oxidelica-cli
+          status=0
+          for model in examples/*.mo; do
+            if ! ./target/release/oxidelica simulate "$model" > /dev/null 2>&1; then
+              echo "FAILED: $model"
+              status=1
+            fi
+          done
+          exit $status
+
+  # Coverage and the linters for everything that is not Rust run once,
+  # where the tooling is cheapest to install.
+  quality:
+    name: coverage and linters
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Linux libraries Bevy links against
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            pkg-config libasound2-dev libudev-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov,taplo-cli,typos-cli,cargo-machete
+
+      - name: Core coverage, the project threshold is 95% of lines
+        run: ./scripts/coverage.sh --summary-only
+
+      - name: TOML
+        run: |
+          taplo fmt --check --diff
+          taplo check
+
+      - name: Markdown, JSON and YAML
+        run: npx --yes prettier --check "**/*.{md,json,yaml,yml}" --log-level warn
+
+      - name: Markdown rules
+        run: npx --yes markdownlint-cli2 "**/*.md" "!target"
+
+      - name: Spelling
+        run: typos
+
+      - name: No Cyrillic outside the files that may hold it
+        run: python3 scripts/check_cyrillic.py
+
+      - name: Unused dependencies
+        run: cargo machete
+
+      - name: Documentation builds, and every public item has some
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --no-deps
+
+  audit:
+    name: advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit

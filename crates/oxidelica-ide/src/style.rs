@@ -127,15 +127,15 @@ pub fn apply(ctx: &egui::Context, theme: Theme) {
     visuals.widgets.inactive.weak_bg_fill = p.surface;
     visuals.widgets.hovered.weak_bg_fill = p.hover;
     visuals.widgets.active.weak_bg_fill = p.hover;
-    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, p.border);
-    visuals.window_stroke = Stroke::new(1.0, p.border);
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, p.border);
+    visuals.window_stroke = Stroke::new(1.0_f32, p.border);
 
     // Accent: selection, hover, links.
     visuals.selection.bg_fill = p.accent.gamma_multiply(0.35);
-    visuals.selection.stroke = Stroke::new(1.0, p.accent);
+    visuals.selection.stroke = Stroke::new(1.0_f32, p.accent);
     visuals.hyperlink_color = p.accent;
-    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, p.accent.gamma_multiply(0.5));
-    visuals.widgets.active.bg_stroke = Stroke::new(1.0, p.accent);
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, p.accent.gamma_multiply(0.5));
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, p.accent);
 
     let mut style = (*ctx.style()).clone();
     style.visuals = visuals;

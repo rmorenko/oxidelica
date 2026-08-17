@@ -15,6 +15,24 @@ cargo run -p oxidelica-ide
 cargo test
 ```
 
+## Platforms
+
+The point of the project is one native binary on all three desktops, so
+every commit is built and tested on macOS, Linux and Windows by
+[the CI workflow](.github/workflows/ci.yml); tagging `v*` builds the
+archives for the three targets. What has been verified locally so far:
+macOS natively, Linux in Docker (core and GUI), and the core crates
+type-checked for `x86_64-pc-windows-msvc`. Building the GUI for Windows
+needs the MSVC tools, so that one is on CI.
+
+Linux needs the libraries Bevy links against — on Debian and Ubuntu
+`pkg-config libasound2-dev libudev-dev`. The Linux build can be checked
+from a Mac without leaving the repository:
+
+```bash
+make linux-check
+```
+
 ## Quality
 
 The project threshold is **95% line coverage** for the core (parser, sim, cli; the GUI crate is excluded — the Bevy event loop is not unit-testable). The full pipeline lives in the Makefile:

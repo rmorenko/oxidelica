@@ -8,7 +8,7 @@
 //!
 //! Without declared shapes, bodies fall back to being detected from
 //! result columns by naming convention:
-//! `x`/`y`[/`z`] with a shared suffix form one body (`x1`,`y1` ->
+//! `x`/`y` and optionally `z`, with a shared suffix, form one body (`x1`,`y1` ->
 //! body "1"; plain `x`,`y` -> a single body). Each body is a sphere;
 //! trails and the pendulum rod are drawn with gizmos. The camera
 //! orbits with mouse drag and zooms with the scroll wheel.
@@ -151,7 +151,8 @@ pub struct BodyCols {
     pub z: Option<usize>,
 }
 
-/// Detect coordinate column groups: `x<sfx>`/`y<sfx>`[/`z<sfx>`].
+/// Detect coordinate column groups: `x<sfx>`, `y<sfx>` and, where it
+/// exists, `z<sfx>`.
 pub fn detect_bodies(columns: &[String]) -> Vec<BodyCols> {
     let find = |name: &str| columns.iter().position(|c| c == name);
     let mut bodies = Vec::new();

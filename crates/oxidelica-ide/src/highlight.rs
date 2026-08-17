@@ -3,7 +3,7 @@
 //! A small standalone scanner (independent from the strict parser, so
 //! it never fails on incomplete code) classifies the source into
 //! comments, strings, numbers, keywords, types and built-in functions,
-//! and produces an [`egui::text::LayoutJob`] with JetBrains-inspired
+//! and produces an `egui::text::LayoutJob` with JetBrains-inspired
 //! colors.
 
 use crate::settings::Theme;

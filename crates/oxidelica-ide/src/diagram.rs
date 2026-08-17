@@ -95,7 +95,7 @@ const GRID: egui::Vec2 = egui::vec2(170.0, 120.0);
 /// to tell a resistor from a capacitor at a glance. Anything unknown
 /// falls back to a plain block.
 fn draw_symbol(painter: &egui::Painter, area: egui::Rect, class: &str, color: egui::Color32) {
-    let stroke = egui::Stroke::new(1.8, color);
+    let stroke = egui::Stroke::new(1.8_f32, color);
     let (left, right) = (
         egui::pos2(area.left(), area.center().y),
         egui::pos2(area.right(), area.center().y),
@@ -243,7 +243,7 @@ fn draw_symbol(painter: &egui::Painter, area: egui::Rect, class: &str, color: eg
                     egui::pos2(body.center().x, body.top()),
                     egui::pos2(body.center().x, body.bottom()),
                 ],
-                egui::Stroke::new(3.0, color),
+                egui::Stroke::new(3.0_f32, color),
             );
         }
         "Fixed" => {
@@ -618,7 +618,8 @@ impl Diagram {
         let visuals = ui.visuals().clone();
 
         // A faint grid gives the canvas a sense of place while scrolling.
-        let grid_stroke = egui::Stroke::new(1.0, visuals.weak_text_color().gamma_multiply(0.25));
+        let grid_stroke =
+            egui::Stroke::new(1.0_f32, visuals.weak_text_color().gamma_multiply(0.25));
         let mut x = 0.0;
         while x <= CANVAS_SIZE.x {
             painter.line_segment(
@@ -660,16 +661,16 @@ impl Diagram {
             let selected = self.selection == Selection::Wire(index);
             let near = hovered_wire == Some(index);
             let (width, color) = match (selected, near) {
-                (true, _) => (3.5, egui::Color32::from_rgb(219, 92, 92)),
-                (_, true) => (3.0, accent),
-                _ => (2.0, accent.gamma_multiply(0.9)),
+                (true, _) => (3.5_f32, egui::Color32::from_rgb(219, 92, 92)),
+                (_, true) => (3.0_f32, accent),
+                _ => (2.0_f32, accent.gamma_multiply(0.9)),
             };
             painter.line_segment([a, b], egui::Stroke::new(width, color));
             if selected || near {
                 let middle = a + (b - a) * 0.5;
                 painter.circle_filled(middle, 5.5, color);
                 let arm = 2.6;
-                let cross = egui::Stroke::new(1.6, visuals.extreme_bg_color);
+                let cross = egui::Stroke::new(1.6_f32, visuals.extreme_bg_color);
                 painter.line_segment(
                     [
                         middle + egui::vec2(-arm, -arm),
@@ -695,7 +696,7 @@ impl Diagram {
             ) {
                 painter.line_segment(
                     [start + origin, pointer],
-                    egui::Stroke::new(1.5, accent.gamma_multiply(0.5)),
+                    egui::Stroke::new(1.5_f32, accent.gamma_multiply(0.5)),
                 );
             }
         }
@@ -734,7 +735,7 @@ impl Diagram {
                 } else {
                     visuals.widgets.inactive.weak_bg_fill
                 },
-                egui::Stroke::new(if selected { 2.0 } else { 1.0 }, accent),
+                egui::Stroke::new(if selected { 2.0_f32 } else { 1.0_f32 }, accent),
                 egui::StrokeKind::Inside,
             );
             let short = placed.class.rsplit('.').next().unwrap_or(&placed.class);
@@ -778,7 +779,7 @@ impl Diagram {
                     at,
                     if hovered { 6.0 } else { 4.5 },
                     if hovered { accent } else { visuals.panel_fill },
-                    egui::Stroke::new(1.5, accent),
+                    egui::Stroke::new(1.5_f32, accent),
                 );
                 if hovered {
                     painter.text(

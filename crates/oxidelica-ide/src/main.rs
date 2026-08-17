@@ -263,7 +263,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Oxidelica IDE".into(),
-                resolution: (1440.0, 900.0).into(),
+                resolution: (1440.0_f32, 900.0_f32).into(),
                 ..default()
             }),
             ..default()
@@ -1124,18 +1124,18 @@ fn animation_ui(
         plot_ui.line(
             Line::new(trail)
                 .color(p.accent.gamma_multiply(0.4))
-                .width(1.5),
+                .width(1.5_f32),
         );
         if anim.rod {
             plot_ui.line(
                 Line::new(PlotPoints::from(vec![[0.0, 0.0], current]))
                     .color(p.accent)
-                    .width(3.0),
+                    .width(3.0_f32),
             );
         }
         plot_ui.points(
             egui_plot::Points::new(vec![current])
-                .radius(6.0)
+                .radius(6.0_f32)
                 .color(p.accent),
         );
     });
