@@ -47,14 +47,23 @@ pub struct Settings {
     pub last_view: Option<String>,
 }
 
+/// Where the settings file lives, which is not the same place on every
+/// desktop: `%APPDATA%\oxidelica\ide.conf` on Windows, where `HOME` is
+/// usually not set at all, and `~/.config/oxidelica/ide.conf` elsewhere.
 fn config_path() -> Option<PathBuf> {
-    let home = std::env::var_os("HOME")?;
-    Some(
-        PathBuf::from(home)
-            .join(".config")
-            .join("oxidelica")
-            .join("ide.conf"),
-    )
+    let (base, folder) = if cfg!(windows) {
+        let base = std::env::var_os("APPDATA").or_else(|| std::env::var_os("USERPROFILE"))?;
+        (base, None)
+    } else {
+        (std::env::var_os("HOME")?, Some(".config"))
+    };
+    let mut path = PathBuf::from(base);
+    if let Some(folder) = folder {
+        path.push(folder);
+    }
+    path.push("oxidelica");
+    path.push("ide.conf");
+    Some(path)
 }
 
 /// Load settings from disk, falling back to defaults.

@@ -100,6 +100,12 @@ linux-check: ## build and test the core on Linux in Docker
 	  -v oxidelica-cargo:/usr/local/cargo/registry rust:slim \
 	  cargo test -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli
 
+.PHONY: windows-check
+windows-check: ## cross-build and lint the whole workspace for Windows
+	cargo build --target x86_64-pc-windows-gnu --workspace
+	cargo clippy --workspace --all-targets --target x86_64-pc-windows-gnu -- -D warnings
+	@echo "note: needs the mingw-w64 toolchain (brew install mingw-w64)"
+
 .PHONY: linux-check-ide
 linux-check-ide: ## build the GUI on Linux in Docker (pulls Bevy's system libraries)
 	docker run --rm -v "$$PWD":/src -w /src -e CARGO_TARGET_DIR=/tmp/target \
