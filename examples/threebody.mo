@@ -34,5 +34,5 @@ equation
   der(vy2) = G * m1 * (y1 - y2) / r12 + G * m3 * (y3 - y2) / r23;
   der(vx3) = G * m1 * (x1 - x3) / r13 + G * m2 * (x2 - x3) / r23;
   der(vy3) = G * m1 * (y1 - y3) / r13 + G * m2 * (y2 - y3) / r23;
-  annotation(experiment(StopTime = 12.6518, Interval = 0.001));
+  annotation(experiment(StopTime = 12.6518, Interval = 0.001, Tolerance = 1e-9));
 end ThreeBody;

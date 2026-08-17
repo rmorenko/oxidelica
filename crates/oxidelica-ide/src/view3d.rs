@@ -207,18 +207,37 @@ pub fn sync_scene(
         return;
     }
 
-    // Scene extent from all body coordinates (for camera and sizes).
-    let mut extent = 0.0f64;
-    for row in &data.rows {
-        for g in &groups {
-            extent = extent.max(row[g.x].abs()).max(row[g.y].abs());
-            if let Some(z) = g.z {
-                extent = extent.max(row[z].abs());
-            }
-        }
-    }
-    let extent = extent.max(1e-6) as f32;
-    let radius = extent * 0.05;
+    // Robust scene extent: the 95th percentile of per-sample coordinate
+    // magnitudes, so a single escaping body does not dwarf the rest.
+    let stride = (data.rows.len() / 2000).max(1);
+    let mut samples: Vec<f64> = data
+        .rows
+        .iter()
+        .step_by(stride)
+        .map(|row| {
+            groups
+                .iter()
+                .map(|g| {
+                    row[g.x]
+                        .abs()
+                        .max(row[g.y].abs())
+                        .max(g.z.map(|z| row[z].abs()).unwrap_or(0.0))
+                })
+                .fold(0.0f64, f64::max)
+        })
+        .collect();
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let extent = samples
+        .get(
+            samples
+                .len()
+                .saturating_sub(1)
+                .min(samples.len() * 95 / 100),
+        )
+        .copied()
+        .unwrap_or(1.0)
+        .max(1e-6) as f32;
+    let radius = extent * 0.035;
 
     // Camera orbit.
     let dist = scene.dist * extent;

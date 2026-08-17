@@ -27,6 +27,16 @@ fn err<T>(message: impl Into<String>) -> Result<T, SimError> {
     Err(SimError(message.into()))
 }
 
+/// Integration method used by [`CompiledModel::simulate`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SolverMethod {
+    /// Adaptive Dormand-Prince 5(4) with error control (default).
+    #[default]
+    Dopri45,
+    /// Classic fixed-step RK4.
+    Rk4,
+}
+
 /// A model reduced to "states plus ordered algebraic assignments".
 #[derive(Debug)]
 pub struct CompiledModel {
@@ -45,8 +55,12 @@ pub struct CompiledModel {
     algebraic_exprs: Vec<Expr>,
     /// Simulation end time.
     pub stop_time: f64,
-    /// Integration step.
+    /// Integration step (fixed step for RK4, output grid for Dopri45).
     pub step: f64,
+    /// Relative tolerance for the adaptive solver.
+    pub tolerance: f64,
+    /// Selected integration method.
+    pub method: SolverMethod,
 }
 
 /// Compile a parsed flat model into an executable form.
@@ -206,6 +220,8 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         algebraic_exprs,
         stop_time: model.experiment.stop_time.unwrap_or(1.0),
         step: model.experiment.interval.unwrap_or(1e-3),
+        tolerance: model.experiment.tolerance.unwrap_or(1e-6),
+        method: SolverMethod::default(),
     })
 }
 
@@ -467,8 +483,229 @@ impl CompiledModel {
         Ok(())
     }
 
-    /// Classic fixed-step RK4 integration over `[0, stop_time]`.
+    /// Integrate over `[0, stop_time]` with the selected method.
     pub fn simulate(&self) -> Result<SimResult, SimError> {
+        match self.method {
+            SolverMethod::Dopri45 => self.simulate_adaptive(),
+            SolverMethod::Rk4 => self.simulate_rk4(),
+        }
+    }
+
+    /// Adaptive Dormand-Prince 5(4) integration with dense output on
+    /// the `step` grid. The step size shrinks automatically near sharp
+    /// dynamics (close encounters, kinks) and grows on smooth stretches;
+    /// a persistent step-size underflow is reported as a probable
+    /// singularity instead of returning garbage.
+    pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
+        // Dormand-Prince Butcher tableau.
+        const C: [f64; 7] = [0.0, 0.2, 0.3, 0.8, 8.0 / 9.0, 1.0, 1.0];
+        const A: [[f64; 6]; 7] = [
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.2, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [3.0 / 40.0, 9.0 / 40.0, 0.0, 0.0, 0.0, 0.0],
+            [44.0 / 45.0, -56.0 / 15.0, 32.0 / 9.0, 0.0, 0.0, 0.0],
+            [
+                19372.0 / 6561.0,
+                -25360.0 / 2187.0,
+                64448.0 / 6561.0,
+                -212.0 / 729.0,
+                0.0,
+                0.0,
+            ],
+            [
+                9017.0 / 3168.0,
+                -355.0 / 33.0,
+                46732.0 / 5247.0,
+                49.0 / 176.0,
+                -5103.0 / 18656.0,
+                0.0,
+            ],
+            [
+                35.0 / 384.0,
+                0.0,
+                500.0 / 1113.0,
+                125.0 / 192.0,
+                -2187.0 / 6784.0,
+                11.0 / 84.0,
+            ],
+        ];
+        /// 5th-order weights (the last tableau row, FSAL).
+        const B5: [f64; 7] = [
+            35.0 / 384.0,
+            0.0,
+            500.0 / 1113.0,
+            125.0 / 192.0,
+            -2187.0 / 6784.0,
+            11.0 / 84.0,
+            0.0,
+        ];
+        /// 4th-order weights of the embedded method.
+        const B4: [f64; 7] = [
+            5179.0 / 57600.0,
+            0.0,
+            7571.0 / 16695.0,
+            393.0 / 640.0,
+            -92097.0 / 339200.0,
+            187.0 / 2100.0,
+            1.0 / 40.0,
+        ];
+
+        let n = self.states.len();
+        let stop = self.stop_time;
+        let out_step = self.step.max(1e-12);
+        let rtol = self.tolerance;
+        let atol = self.tolerance * 1e-3;
+
+        let mut env = HashMap::new();
+        let mut columns = vec!["time".to_string()];
+        columns.extend(self.states.iter().cloned());
+        columns.extend(self.algebraics.iter().cloned());
+        let mut rows: Vec<Vec<f64>> = Vec::new();
+        let mut derivatives_scratch = Vec::new();
+
+        let mut record = |t: f64,
+                          y: &[f64],
+                          env: &mut HashMap<String, f64>,
+                          k: &mut Vec<f64>|
+         -> Result<(), SimError> {
+            self.eval_point(t, y, env, k)?;
+            let mut row = Vec::with_capacity(1 + n + self.algebraics.len());
+            row.push(t);
+            row.extend_from_slice(y);
+            for name in &self.algebraics {
+                row.push(env[name]);
+            }
+            rows.push(row);
+            Ok(())
+        };
+
+        let mut y = self.initial.clone();
+        let mut last_out_t = 0.0f64;
+        record(0.0, &y, &mut env, &mut derivatives_scratch)?;
+
+        // Pure-algebraic models: no ODE to integrate, only the grid.
+        if n == 0 {
+            let mut out_i = 1usize;
+            loop {
+                let t = out_i as f64 * out_step;
+                if t > stop + 1e-12 {
+                    break;
+                }
+                record(t, &y, &mut env, &mut derivatives_scratch)?;
+                last_out_t = t;
+                out_i += 1;
+            }
+            if last_out_t < stop - 1e-12 {
+                record(stop, &y, &mut env, &mut derivatives_scratch)?;
+            }
+            return Ok(SimResult { columns, rows });
+        }
+
+        let mut k: Vec<Vec<f64>> = vec![vec![0.0; n]; 7];
+        let mut stage = vec![0.0; n];
+        let mut y5 = vec![0.0; n];
+        let mut interp = vec![0.0; n];
+        let mut t = 0.0f64;
+        let mut h = out_step.min(stop).max(1e-9);
+        let mut out_i = 1usize;
+        let mut evals: u64 = 0;
+
+        self.eval_point(t, &y, &mut env, &mut k[0])?;
+
+        while t < stop - 1e-12 {
+            h = h.min(stop - t);
+            // Stages 2..7 (stage 1 is FSAL from the previous step).
+            for s in 1..7 {
+                for j in 0..n {
+                    let mut acc = 0.0;
+                    for (q, k_q) in k.iter().enumerate().take(s) {
+                        acc += A[s][q] * k_q[j];
+                    }
+                    stage[j] = y[j] + h * acc;
+                }
+                let (head, tail) = k.split_at_mut(s);
+                let _ = head;
+                self.eval_point(t + C[s] * h, &stage, &mut env, &mut tail[0])?;
+            }
+            evals += 6;
+            if evals > 20_000_000 {
+                return err(format!(
+                    "solver exceeded the evaluation budget at t = {t:.6}"
+                ));
+            }
+
+            // 5th-order solution and the embedded error estimate.
+            let mut err_norm = 0.0f64;
+            for j in 0..n {
+                let mut acc5 = 0.0;
+                let mut acc4 = 0.0;
+                for q in 0..7 {
+                    acc5 += B5[q] * k[q][j];
+                    acc4 += B4[q] * k[q][j];
+                }
+                let y5j = y[j] + h * acc5;
+                let y4j = y[j] + h * acc4;
+                let scale = atol + rtol * y[j].abs().max(y5j.abs());
+                let e = (y5j - y4j) / scale;
+                err_norm += e * e;
+                y5[j] = y5j;
+            }
+            err_norm = (err_norm / n as f64).sqrt();
+
+            let accepted = err_norm.is_finite() && err_norm <= 1.0;
+            if accepted {
+                // FSAL: the derivative at t+h.
+                self.eval_point(t + h, &y5, &mut env, &mut k[6])?;
+                evals += 1;
+                // Dense output on the grid via cubic Hermite interpolation.
+                loop {
+                    let out_t = out_i as f64 * out_step;
+                    if out_t > t + h + 1e-12 || out_t > stop + 1e-12 {
+                        break;
+                    }
+                    let theta = ((out_t - t) / h).clamp(0.0, 1.0);
+                    for j in 0..n {
+                        let (y0, y1) = (y[j], y5[j]);
+                        let (f0, f1) = (k[0][j], k[6][j]);
+                        interp[j] = (1.0 - theta) * y0
+                            + theta * y1
+                            + theta
+                                * (theta - 1.0)
+                                * ((1.0 - 2.0 * theta) * (y1 - y0)
+                                    + (theta - 1.0) * h * f0
+                                    + theta * h * f1);
+                    }
+                    record(out_t, &interp, &mut env, &mut derivatives_scratch)?;
+                    last_out_t = out_t;
+                    out_i += 1;
+                }
+                t += h;
+                y.copy_from_slice(&y5);
+                k.swap(0, 6);
+            }
+
+            let factor = if !err_norm.is_finite() {
+                0.2
+            } else if err_norm == 0.0 {
+                5.0
+            } else {
+                (0.9 * err_norm.powf(-0.2)).clamp(0.2, 5.0)
+            };
+            h *= factor;
+            if h < stop * 1e-14 || h < 1e-300 {
+                return err(format!(
+                    "step size underflow at t = {t:.6}: probable singularity"
+                ));
+            }
+        }
+        if last_out_t < stop - 1e-12 {
+            record(stop, &y, &mut env, &mut derivatives_scratch)?;
+        }
+        Ok(SimResult { columns, rows })
+    }
+
+    /// Classic fixed-step RK4 integration over `[0, stop_time]`.
+    pub fn simulate_rk4(&self) -> Result<SimResult, SimError> {
         let n = self.states.len();
         let steps = (self.stop_time / self.step).ceil() as usize;
         let mut y = self.initial.clone();
@@ -541,7 +778,7 @@ mod tests {
     fn decay_matches_analytic() {
         let result = run("model D parameter Real a = 1.0; Real x(start = 1.0); \
              equation der(x) = -a*x; \
-             annotation(experiment(StopTime=5.0, Interval=0.001)); end D;");
+             annotation(experiment(StopTime=5.0, Interval=0.001, Tolerance=1e-12)); end D;");
         let last = result.rows.last().unwrap();
         let t = last[0];
         let x = last[1];
@@ -557,7 +794,7 @@ mod tests {
         let result = run("model P parameter Real g = 9.81; parameter Real L = 1.0; \
              Real phi(start = 0.7); Real w(start = 0.0); \
              equation der(phi) = w; der(w) = -(g/L)*sin(phi); \
-             annotation(experiment(StopTime=10.0, Interval=0.001)); end P;");
+             annotation(experiment(StopTime=10.0, Interval=0.001, Tolerance=1e-12)); end P;");
         let energy = |row: &Vec<f64>| {
             let (phi, w) = (row[1], row[2]);
             0.5 * w * w + 9.81 * (1.0 - phi.cos())
@@ -769,7 +1006,7 @@ mod tests {
         // and subtraction.
         let result = run("model M Real x; Real y; equation \
              -x - 1 = der(x); 2 + time = y; \
-             annotation(experiment(StopTime=1.0, Interval=0.001)); end M;");
+             annotation(experiment(StopTime=1.0, Interval=0.001, Tolerance=1e-12)); end M;");
         let first = &result.rows[0];
         assert_eq!(first[1], 0.0); // x(0) = 0 by default
         assert!((first[2] - 2.0).abs() < 1e-12); // y(0) = 2
@@ -795,6 +1032,54 @@ mod tests {
         let y_idx = result.columns.iter().position(|n| n == "y").unwrap();
         assert_eq!(result.rows[0][r_idx], 1.0); // only >= holds
         assert_eq!(result.rows[0][y_idx], 0.0); // all false branches
+    }
+
+    #[test]
+    fn adaptive_respects_tolerance() {
+        let source = |tol: &str| {
+            format!(
+                "model D Real x(start = 1.0); equation der(x) = -x; \
+                 annotation(experiment(StopTime=5.0, Interval=0.1, Tolerance={tol})); end D;"
+            )
+        };
+        let error_at = |tol: &str| {
+            let result = run(&source(tol));
+            (result.rows.last().unwrap()[1] - (-5.0f64).exp()).abs()
+        };
+        let loose = error_at("1e-3");
+        let tight = error_at("1e-10");
+        assert!(tight < loose, "tight={tight}, loose={loose}");
+        assert!(tight < 1e-8, "tight={tight}");
+    }
+
+    #[test]
+    fn singularity_reports_step_underflow() {
+        // x' = -1/x reaches x = 0 at t = 0.5: a genuine singularity.
+        let model = parse_model(
+            "model S Real x(start = 1.0); equation der(x) = -1/x; \
+             annotation(experiment(StopTime=1.0, Interval=0.01)); end S;",
+        )
+        .unwrap();
+        let error = compile(&model).unwrap().simulate().unwrap_err();
+        assert!(
+            error.0.contains("step size underflow") || error.0.contains("budget"),
+            "{}",
+            error.0
+        );
+    }
+
+    #[test]
+    fn rk4_method_is_still_available() {
+        let model = parse_model(
+            "model D Real x(start = 1.0); equation der(x) = -x; \
+             annotation(experiment(StopTime=1.0, Interval=0.001)); end D;",
+        )
+        .unwrap();
+        let mut compiled = compile(&model).unwrap();
+        compiled.method = SolverMethod::Rk4;
+        let result = compiled.simulate().unwrap();
+        let x = result.rows.last().unwrap()[1];
+        assert!((x - (-1.0f64).exp()).abs() < 1e-9, "x(1)={x}");
     }
 
     #[test]
