@@ -31,7 +31,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 | **M5. Arrays & functions** (done) | Arrays, for-equations, functions, records                      | Discretized heat conduction                                    |
 | **M6. MSL core** (partial)        | Blocks, Electrical.Analog, Mechanics.Rotational                | A library in MSL layout ships; MSL syntax parses               |
 | **M7. GUI** (done)                | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                      |
-| **M8. 3D**                        | MultiBody visualization, animation                             | Double pendulum spins in 3D                                    |
+| **M8. 3D** (done)                 | MultiBody visualization, animation                             | Double pendulum spins in 3D                                    |
 
 **The IDE track runs in parallel with the language track from the start** (decision of 2026-08-15): v0 — a Bevy window with a code editor, a run button, and plots (shipped with M0); then incrementally — background simulation, syntax highlighting, the diagram editor (M7) and the 3D scene (M8) in the same app. The language track advances at its own pace: M1, M2, M3…
 

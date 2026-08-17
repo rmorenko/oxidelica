@@ -1,7 +1,13 @@
 //! The 3D trajectory view: a real Bevy scene rendered to an offscreen
 //! texture and embedded into an egui panel.
 //!
-//! Bodies are detected from result columns by naming convention:
+//! A model can declare what to draw by instantiating
+//! `Oxidelica.Visualizers.Shape` components: the viewer reads their
+//! kind, size and colour parameters and follows their x/y/z/phi
+//! variables, so bodies appear with the right orientation.
+//!
+//! Without declared shapes, bodies fall back to being detected from
+//! result columns by naming convention:
 //! `x`/`y`[/`z`] with a shared suffix form one body (`x1`,`y1` ->
 //! body "1"; plain `x`,`y` -> a single body). Each body is a sphere;
 //! trails and the pendulum rod are drawn with gizmos. The camera
@@ -28,6 +34,83 @@ const BODY_COLORS: [Color; 5] = [
     Color::srgb(0.26, 0.67, 0.72), // cyan
 ];
 
+/// A shape the model asked the viewer to draw.
+pub struct ShapeSpec {
+    /// Instance path, used as the identity of the shape.
+    pub prefix: String,
+    /// 0 = box, 1 = sphere, 2 = cylinder.
+    pub kind: u8,
+    /// Extents: length along the shape axis, width, height.
+    pub size: Vec3,
+    /// Surface colour.
+    pub color: Color,
+    /// Result columns holding x, y, z and the rotation about z.
+    pub columns: [usize; 4],
+}
+
+/// Find the `Visualizers.Shape` instances of a result: a component is
+/// one when it has the parameters of a shape and the four columns a
+/// shape drives. The model therefore declares what to draw, instead of
+/// the viewer guessing from variable names.
+pub fn detect_shapes(data: &SimData) -> Vec<ShapeSpec> {
+    let parameter = |name: &str| {
+        data.parameters
+            .iter()
+            .find(|(candidate, _)| candidate == name)
+            .map(|(_, value)| *value)
+    };
+    let column = |name: &str| data.columns.iter().position(|candidate| candidate == name);
+
+    let mut shapes = Vec::new();
+    for (name, _) in &data.parameters {
+        let Some(prefix) = name.strip_suffix(".kind") else {
+            continue;
+        };
+        let (Some(kind), Some(length), Some(width), Some(height)) = (
+            parameter(name),
+            parameter(&format!("{prefix}.length")),
+            parameter(&format!("{prefix}.width")),
+            parameter(&format!("{prefix}.height")),
+        ) else {
+            continue;
+        };
+        let (Some(x), Some(y), Some(z), Some(phi)) = (
+            column(&format!("{prefix}.x")),
+            column(&format!("{prefix}.y")),
+            column(&format!("{prefix}.z")),
+            column(&format!("{prefix}.phi")),
+        ) else {
+            continue;
+        };
+        shapes.push(ShapeSpec {
+            prefix: prefix.to_string(),
+            kind: kind.max(0.0) as u8,
+            size: Vec3::new(length as f32, width as f32, height as f32),
+            color: Color::srgb(
+                parameter(&format!("{prefix}.red")).unwrap_or(0.2) as f32,
+                parameter(&format!("{prefix}.green")).unwrap_or(0.45) as f32,
+                parameter(&format!("{prefix}.blue")).unwrap_or(0.94) as f32,
+            ),
+            columns: [x, y, z, phi],
+        });
+    }
+    shapes.sort_by(|a, b| a.prefix.cmp(&b.prefix));
+    shapes
+}
+
+/// Marker for a spawned shape entity, carrying its index.
+#[derive(Component)]
+pub struct ShapeEntity(pub usize);
+
+/// The shape entities of the scene, excluding the camera and the
+/// fallback bodies so their transforms stay disjoint.
+type ShapeQuery<'w, 's> = Query<
+    'w,
+    's,
+    (Entity, &'static ShapeEntity, &'static mut Transform),
+    (Without<SceneCamera>, Without<Body3d>),
+>;
+
 /// State of the embedded 3D scene.
 #[derive(Resource)]
 pub struct Scene3d {
@@ -45,6 +128,9 @@ pub struct Scene3d {
     sphere: Option<Handle<Mesh>>,
     /// Number of body entities currently spawned.
     spawned: usize,
+    /// Identity of the shape set currently spawned, so the scene is
+    /// rebuilt only when the model changes.
+    shape_signature: String,
 }
 
 /// Marker for body entities; the payload is the body index.
@@ -139,6 +225,7 @@ pub fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         dist: 2.6,
         sphere: None,
         spawned: 0,
+        shape_signature: String::new(),
     });
 }
 
@@ -182,6 +269,7 @@ pub fn sync_scene(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut bodies: Query<(&Body3d, &mut Transform, &mut Visibility), Without<SceneCamera>>,
+    mut shape_entities: ShapeQuery,
     mut camera: Query<(&mut Transform, &mut Camera), With<SceneCamera>>,
     mut gizmos: Gizmos,
 ) {
@@ -199,6 +287,30 @@ pub fn sync_scene(
         }
         return;
     };
+
+    // A model that declares shapes has them drawn with position and
+    // orientation; anything else falls back to a sphere per coordinate
+    // pair.
+    let shapes = detect_shapes(data);
+    if !shapes.is_empty() {
+        for (_, _, mut visibility) in &mut bodies {
+            *visibility = Visibility::Hidden;
+        }
+        sync_shapes(
+            &ide,
+            data,
+            &shapes,
+            &mut scene,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut shape_entities,
+            &mut cam_transform,
+            &mut gizmos,
+        );
+        return;
+    }
+
     let groups = detect_bodies(&data.columns);
     if groups.is_empty() {
         for (_, _, mut visibility) in &mut bodies {
@@ -340,7 +452,197 @@ pub fn sync_scene(
     }
 }
 
+/// Draw the declared shapes: spawn one entity per shape when the set
+/// changes, then follow the animation clock with position and rotation.
+#[allow(clippy::too_many_arguments)]
+fn sync_shapes(
+    ide: &Ide,
+    data: &SimData,
+    shapes: &[ShapeSpec],
+    scene: &mut Scene3d,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    entities: &mut ShapeQuery,
+    camera: &mut Transform,
+    gizmos: &mut Gizmos,
+) {
+    // Rebuild only when the model's shape set changes: sizes and colours
+    // are baked into the meshes and materials.
+    let signature: String = shapes
+        .iter()
+        .map(|shape| {
+            format!(
+                "{}:{}:{:.4}:{:.4}:{:.4};",
+                shape.prefix, shape.kind, shape.size.x, shape.size.y, shape.size.z
+            )
+        })
+        .collect();
+    if signature != scene.shape_signature {
+        for (entity, _, _) in entities.iter() {
+            commands.entity(entity).despawn();
+        }
+        for (index, shape) in shapes.iter().enumerate() {
+            let mesh = match shape.kind {
+                1 => meshes.add(Sphere::new(shape.size.x.max(1e-4) * 0.5)),
+                2 => meshes.add(Cylinder::new(
+                    shape.size.y.max(1e-4) * 0.5,
+                    shape.size.x.max(1e-4),
+                )),
+                _ => meshes.add(Cuboid::new(
+                    shape.size.x.max(1e-4),
+                    shape.size.y.max(1e-4),
+                    shape.size.z.max(1e-4),
+                )),
+            };
+            commands.spawn((
+                Mesh3d(mesh),
+                MeshMaterial3d(materials.add(StandardMaterial {
+                    base_color: shape.color,
+                    perceptual_roughness: 0.4,
+                    ..default()
+                })),
+                Transform::default(),
+                ShapeEntity(index),
+            ));
+        }
+        scene.shape_signature = signature;
+    }
+
+    // Scene extent from every shape position, so the camera frames the
+    // whole mechanism.
+    let mut extent = 0.0f64;
+    for row in &data.rows {
+        for shape in shapes {
+            for axis in 0..3 {
+                extent = extent.max(row[shape.columns[axis]].abs());
+            }
+        }
+    }
+    let extent = (extent.max(1e-6) as f32)
+        + shapes
+            .iter()
+            .map(|shape| shape.size.max_element())
+            .fold(0.0f32, f32::max);
+
+    let distance = scene.dist * extent;
+    let (yaw, pitch) = (scene.yaw, scene.pitch);
+    *camera = Transform::from_translation(Vec3::new(
+        distance * pitch.cos() * yaw.sin(),
+        distance * pitch.sin(),
+        distance * pitch.cos() * yaw.cos(),
+    ))
+    .looking_at(Vec3::ZERO, Vec3::Y);
+
+    let sample = data
+        .rows
+        .partition_point(|row| row[0] < ide.anim.time)
+        .min(data.rows.len() - 1);
+    let row = &data.rows[sample];
+
+    for (_, marker, mut transform) in entities.iter_mut() {
+        let Some(shape) = shapes.get(marker.0) else {
+            continue;
+        };
+        let position = Vec3::new(
+            row[shape.columns[0]] as f32,
+            row[shape.columns[1]] as f32,
+            row[shape.columns[2]] as f32,
+        );
+        let phi = row[shape.columns[3]] as f32;
+        // A cylinder's axis is Y in Bevy, so it is turned onto the local
+        // X axis first; boxes already extend along X.
+        let extra = if shape.kind == 2 {
+            Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2)
+        } else {
+            Quat::IDENTITY
+        };
+        *transform = Transform {
+            translation: position,
+            rotation: Quat::from_rotation_z(phi) * extra,
+            scale: Vec3::ONE,
+        };
+    }
+
+    // Trails behind the round shapes, and a floor grid for scale.
+    if ide.view == ViewMode::ThreeD {
+        let step = (sample / 2000).max(1);
+        for shape in shapes.iter().filter(|shape| shape.kind == 1) {
+            gizmos.linestrip(
+                data.rows[..=sample].iter().step_by(step).map(|row| {
+                    Vec3::new(
+                        row[shape.columns[0]] as f32,
+                        row[shape.columns[1]] as f32,
+                        row[shape.columns[2]] as f32,
+                    )
+                }),
+                shape.color.with_alpha(0.55),
+            );
+        }
+        gizmos.grid(
+            Isometry3d::from_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            UVec2::splat(10),
+            Vec2::splat(extent * 0.3),
+            Color::srgba(0.5, 0.5, 0.55, 0.15),
+        );
+    }
+}
+
 /// Whether the 3D tab has anything to show for this result.
 pub fn has_bodies(data: &SimData) -> bool {
-    !detect_bodies(&data.columns).is_empty()
+    !detect_shapes(data).is_empty() || !detect_bodies(&data.columns).is_empty()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Simulate the double pendulum example the way the IDE does.
+    fn double_pendulum() -> SimData {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
+        let source = std::fs::read_to_string(root.join("examples/double_pendulum.mo")).unwrap();
+        let model = oxidelica_parser::parse_model_with_libraries(&[library], &source).unwrap();
+        let mut compiled = oxidelica_sim::compile(&model).unwrap();
+        compiled.stop_time = 2.0;
+        let result = compiled.simulate().unwrap();
+        SimData {
+            visible: vec![true; result.columns.len().saturating_sub(1)],
+            columns: result.columns,
+            rows: result.rows,
+            parameters: result.parameters,
+        }
+    }
+
+    #[test]
+    fn declared_shapes_are_found_with_their_sizes_and_colours() {
+        let data = double_pendulum();
+        let shapes = detect_shapes(&data);
+        let names: Vec<&str> = shapes.iter().map(|s| s.prefix.as_str()).collect();
+        assert_eq!(names, vec!["elbow", "link1", "link2", "tip"]);
+
+        let link1 = shapes.iter().find(|s| s.prefix == "link1").unwrap();
+        assert_eq!(link1.kind, 0, "a rod is drawn as a box");
+        assert!((link1.size.x - 0.6).abs() < 1e-9, "length from the model");
+        let tip = shapes.iter().find(|s| s.prefix == "tip").unwrap();
+        assert_eq!(tip.kind, 1, "a mass is drawn as a sphere");
+
+        // The columns really point at the shape's own variables.
+        let row = &data.rows[data.rows.len() / 2];
+        let x1 = data.columns.iter().position(|c| c == "x1").unwrap();
+        assert!(
+            (row[link1.columns[0]] - 0.5 * row[x1]).abs() < 1e-9,
+            "the rod sits at the midpoint of its link"
+        );
+    }
+
+    #[test]
+    fn shapes_take_precedence_over_the_naming_convention() {
+        let data = double_pendulum();
+        // The model also has x1/y1 and x2/y2, which the fallback would
+        // pick up; declared shapes win.
+        assert!(!detect_bodies(&data.columns).is_empty());
+        assert!(has_bodies(&data));
+        assert!(!detect_shapes(&data).is_empty());
+    }
 }

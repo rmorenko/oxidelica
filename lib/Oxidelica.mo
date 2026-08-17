@@ -204,6 +204,25 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
     end Analog;
   end Electrical;
 
+  package Visualizers "Shapes the 3D view draws"
+    model Shape "A body drawn in the 3D scene"
+      // The 3D view finds these components by class and reads the
+      // variables below at every output point, so a model says what to
+      // draw instead of the viewer guessing from variable names.
+      parameter Integer kind = 0 "0 = box, 1 = sphere, 2 = cylinder";
+      parameter Real length = 1.0 "extent along the shape axis";
+      parameter Real width = 0.1 "extent across the axis";
+      parameter Real height = 0.1 "extent along z";
+      parameter Real red = 0.21 "colour, 0..1";
+      parameter Real green = 0.45;
+      parameter Real blue = 0.94;
+      Real x "origin x";
+      Real y "origin y";
+      Real z "origin z";
+      Real phi "rotation about the z axis, measured from +x";
+    end Shape;
+  end Visualizers;
+
   package Mechanics "Mechanical components"
     package Rotational "One-dimensional rotational mechanics"
 

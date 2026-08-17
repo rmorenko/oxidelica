@@ -1472,6 +1472,9 @@ pub struct SimResult {
     pub columns: Vec<String>,
     /// One row per output point.
     pub rows: Vec<Vec<f64>>,
+    /// Parameter values of the run, so consumers (the 3D view) can read
+    /// sizes and colours that never vary in time.
+    pub parameters: Vec<(String, f64)>,
     /// Set when a `when ... then terminate(...)` clause fired; contains
     /// a human-readable "terminated at t = ...: message" line.
     pub terminated: Option<String>,
@@ -1748,6 +1751,7 @@ impl CompiledModel {
             return Ok(SimResult {
                 columns,
                 rows,
+                parameters: self.parameters.clone(),
                 terminated: Some(message),
             });
         }
@@ -1776,6 +1780,7 @@ impl CompiledModel {
             return Ok(SimResult {
                 columns,
                 rows,
+                parameters: self.parameters.clone(),
                 terminated,
             });
         }
@@ -1980,6 +1985,7 @@ impl CompiledModel {
         Ok(SimResult {
             columns,
             rows,
+            parameters: self.parameters.clone(),
             terminated,
         })
     }
@@ -2066,6 +2072,7 @@ impl CompiledModel {
             return Ok(SimResult {
                 columns,
                 rows,
+                parameters: self.parameters.clone(),
                 terminated: Some(message),
             });
         }
@@ -2095,6 +2102,7 @@ impl CompiledModel {
             return Ok(SimResult {
                 columns,
                 rows,
+                parameters: self.parameters.clone(),
                 terminated,
             });
         }
@@ -2368,6 +2376,7 @@ impl CompiledModel {
         Ok(SimResult {
             columns,
             rows,
+            parameters: self.parameters.clone(),
             terminated,
         })
     }
@@ -2443,6 +2452,7 @@ impl CompiledModel {
         Ok(SimResult {
             columns,
             rows,
+            parameters: self.parameters.clone(),
             terminated,
         })
     }
@@ -3480,6 +3490,22 @@ mod tests {
             last[index("e")]
         );
         assert!((last[index("y")] - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn results_carry_the_parameter_values() {
+        // Consumers such as the 3D view read sizes and colours from
+        // here, since those never appear as columns.
+        let result = run(
+            "model P parameter Real k = 2.5; parameter Real m = 4; Real y; \
+             equation y = k * m * time; \
+             annotation(experiment(StopTime=1.0, Interval=0.5)); end P;",
+        );
+        assert_eq!(
+            result.parameters,
+            vec![("k".to_string(), 2.5), ("m".to_string(), 4.0)]
+        );
+        assert!((result.rows.last().unwrap()[1] - 10.0).abs() < 1e-12);
     }
 
     #[test]

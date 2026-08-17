@@ -321,8 +321,9 @@ fn instantiate(
 
     // Equations: subscripts resolved, function calls inlined.
     let resolve_here = |expr: &Expr| -> Result<Expr, String> {
+        let expr = substitute_class_constants(expr, registry, scope, &class.imports);
         resolve(
-            &prefix_expr(expr, prefix),
+            &prefix_expr(&expr, prefix),
             &HashMap::new(),
             &local_consts,
             registry,
@@ -407,7 +408,10 @@ fn unroll(
             match item {
                 ForBody::Equation(equation) => acc.equations.push(EquationItem {
                     lhs: resolve(
-                        &prefix_expr(&equation.lhs, prefix),
+                        &prefix_expr(
+                            &substitute_class_constants(&equation.lhs, registry, scope, imports),
+                            prefix,
+                        ),
                         &loop_vars,
                         consts,
                         registry,
@@ -416,7 +420,10 @@ fn unroll(
                         0,
                     )?,
                     rhs: resolve(
-                        &prefix_expr(&equation.rhs, prefix),
+                        &prefix_expr(
+                            &substitute_class_constants(&equation.rhs, registry, scope, imports),
+                            prefix,
+                        ),
                         &loop_vars,
                         consts,
                         registry,
@@ -458,6 +465,7 @@ fn instantiate_one(
             flat.start = flat
                 .start
                 .map(|e| {
+                    let e = substitute_class_constants(&e, registry, scope, imports);
                     resolve(
                         &prefix_expr(&e, prefix),
                         &HashMap::new(),
@@ -472,6 +480,7 @@ fn instantiate_one(
             flat.binding = flat
                 .binding
                 .map(|e| {
+                    let e = substitute_class_constants(&e, registry, scope, imports);
                     resolve(
                         &prefix_expr(&e, prefix),
                         &HashMap::new(),
@@ -641,6 +650,86 @@ fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
         Expr::Member(base, path) => {
             Expr::Member(Box::new(substitute_refs(base, map)), path.clone())
         }
+    }
+}
+
+/// Value of a constant declared inside a class: `Constants.pi`.
+///
+/// Package constants are compile-time values, so a reference to one is
+/// replaced by its number before any prefixing happens - otherwise the
+/// dotted name would be mistaken for a component of the instance.
+fn class_constant(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<f64> {
+    let (class_path, member) = name.rsplit_once('.')?;
+    let class = lookup(registry, class_path, scope, imports)?;
+    if !class.components.iter().any(|c| {
+        c.name == member
+            && matches!(
+                c.variability,
+                Variability::Constant | Variability::Parameter
+            )
+    }) {
+        return None;
+    }
+    // Constants of one package may build on each other, so resolve the
+    // whole set to a fixpoint before reading the one asked for.
+    let mut values: HashMap<String, f64> = HashMap::new();
+    loop {
+        let mut progress = false;
+        for component in &class.components {
+            if !matches!(
+                component.variability,
+                Variability::Constant | Variability::Parameter
+            ) || values.contains_key(&component.name)
+            {
+                continue;
+            }
+            let binding = component.binding.as_ref().or(component.start.as_ref());
+            if let Some(value) = binding.and_then(|expr| const_eval(expr, &values)) {
+                values.insert(component.name.clone(), value);
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+    values.get(member).copied()
+}
+
+/// Replace every reference to a class constant with its value.
+fn substitute_class_constants(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    let recur = |e: &Expr| substitute_class_constants(e, registry, scope, imports);
+    match expr {
+        Expr::Ref(name) if name.contains('.') => {
+            match class_constant(registry, name, scope, imports) {
+                Some(value) => Expr::Number(value),
+                None => expr.clone(),
+            }
+        }
+        Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Index(base, subscripts) => Expr::Index(
+            Box::new(recur(base)),
+            subscripts.iter().map(recur).collect(),
+        ),
+        Expr::Member(base, path) => Expr::Member(Box::new(recur(base)), path.clone()),
     }
 }
 
@@ -1232,6 +1321,37 @@ mod tests {
         // Connectors themselves are not instantiable as components.
         assert!(!class_info(&classes, "Lib.Pin").unwrap().instantiable);
         assert!(class_info(&classes, "Lib.Missing").is_none());
+    }
+
+    #[test]
+    fn package_constants_are_substituted_by_value() {
+        // A constant of a package, reached from a model and from inside
+        // a library class - the latter is what makes a sine source work.
+        let m = parse_model(
+            "package Lib \
+               constant Real two = 2; \
+               constant Real four = 2 * two; \
+               model Doubler Real y; equation y = Lib.four * time; end Doubler; \
+             end Lib; \
+             model M Lib.Doubler d; Real z; equation z = Lib.two * time; end M;",
+        )
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        // Both references became numbers, and the constant built on
+        // another constant resolved too.
+        assert!(text.contains("Number(4.0)"), "{text}");
+        assert!(text.contains("Number(2.0)"), "{text}");
+        assert!(!text.contains("Lib.two"), "a reference survived: {text}");
+
+        // Dotted names that are not class constants keep their meaning:
+        // this one is a connector variable of a component.
+        let circuit = parse_model(
+            "connector Pin Real v; flow Real i; end Pin; \
+             model Probe Pin p; Real reading; equation reading = p.v; p.i = 0; end Probe; \
+             model M Probe probe; equation probe.p.v = time; end M;",
+        )
+        .unwrap();
+        assert!(format!("{:?}", circuit.equations).contains("probe.p.v"));
     }
 
     #[test]

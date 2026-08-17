@@ -27,6 +27,8 @@ const DEFAULT_MODEL: &str = "model Demo \"Damped oscillator\"\n  parameter Real 
 struct SimData {
     columns: Vec<String>,
     rows: Vec<Vec<f64>>,
+    /// Parameter values of the run: shape sizes and colours live here.
+    parameters: Vec<(String, f64)>,
     /// Curve visibility, one flag per column except time.
     visible: Vec<bool>,
 }
@@ -42,6 +44,29 @@ enum ViewMode {
     ThreeD,
     /// Diagram editor: components wired together with the mouse.
     Diagram,
+}
+
+impl ViewMode {
+    /// Identifier stored in the settings file.
+    fn code(self) -> &'static str {
+        match self {
+            ViewMode::Plots => "plots",
+            ViewMode::Animation => "animation",
+            ViewMode::ThreeD => "3d",
+            ViewMode::Diagram => "diagram",
+        }
+    }
+
+    /// Parse an identifier from the settings file.
+    fn from_code(code: &str) -> Option<ViewMode> {
+        match code {
+            "plots" => Some(ViewMode::Plots),
+            "animation" => Some(ViewMode::Animation),
+            "3d" => Some(ViewMode::ThreeD),
+            "diagram" => Some(ViewMode::Diagram),
+            _ => None,
+        }
+    }
 }
 
 /// Trajectory animation state.
@@ -214,13 +239,25 @@ struct SimJob {
 fn main() {
     let settings = settings::load();
     let examples = list_examples();
-    let (source, file) = match examples.first() {
-        Some(path) => match std::fs::read_to_string(path) {
-            Ok(text) => (text, Some(path.clone())),
+    // Reopen where the last session left off, falling back to the first
+    // example.
+    let remembered = settings
+        .last_file
+        .as_ref()
+        .map(PathBuf::from)
+        .filter(|path| path.is_file());
+    let (source, file) = match remembered.or_else(|| examples.first().cloned()) {
+        Some(path) => match std::fs::read_to_string(&path) {
+            Ok(text) => (text, Some(path)),
             Err(_) => (DEFAULT_MODEL.to_string(), None),
         },
         None => (DEFAULT_MODEL.to_string(), None),
     };
+    let view = settings
+        .last_view
+        .as_deref()
+        .and_then(ViewMode::from_code)
+        .unwrap_or(ViewMode::Plots);
 
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
@@ -245,7 +282,7 @@ fn main() {
             applied_theme: None,
             fonts_installed: false,
             show_about: false,
-            view: ViewMode::Plots,
+            view,
             anim: Anim::default(),
             tuner: Tuner::default(),
             sim_job: None,
@@ -312,6 +349,8 @@ fn load_example(ide: &mut Ide, path: PathBuf) {
             ide.result = None;
             ide.log = s.file_loaded.into();
             ide.log_ok = true;
+            refresh_tuner(ide);
+            run_simulation(ide);
         }
         Err(e) => {
             ide.log = format!("{} {}: {e}", s.open_error, path.display());
@@ -380,12 +419,15 @@ fn ui_system(
         ide.applied_theme = Some(ide.settings.theme);
     }
 
-    let settings_before = ide.settings;
+    let settings_before = ide.settings.clone();
     let s = ide.settings.lang.strings();
     let p = style::palette(ide.settings.theme);
 
     if !ide.tuner.initialized {
         refresh_tuner(ide);
+        // Show something as soon as the window opens: the run happens on
+        // a worker thread, so a heavy model does not hold up the UI.
+        run_simulation(ide);
     }
 
     // Collect a finished background simulation.
@@ -814,8 +856,14 @@ fn ui_system(
             });
     }
 
+    // Remember where the user is, so the next session opens there.
+    ide.settings.last_view = Some(ide.view.code().to_string());
+    ide.settings.last_file = ide
+        .file
+        .as_ref()
+        .map(|path| path.to_string_lossy().into_owned());
     if settings_before != ide.settings {
-        settings::save(ide.settings);
+        settings::save(&ide.settings);
     }
 }
 
@@ -1179,6 +1227,7 @@ fn apply_sim_outcome(
                 visible,
                 columns: result.columns,
                 rows: result.rows,
+                parameters: result.parameters,
             });
         }
         Err(e) => {

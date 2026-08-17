@@ -35,12 +35,16 @@ impl Theme {
 }
 
 /// Persisted user preferences.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Settings {
     /// Interface language.
     pub lang: Lang,
     /// Color theme.
     pub theme: Theme,
+    /// File open when the IDE was last closed.
+    pub last_file: Option<String>,
+    /// Tab that was active, by its identifier.
+    pub last_view: Option<String>,
 }
 
 fn config_path() -> Option<PathBuf> {
@@ -77,6 +81,8 @@ pub fn load() -> Settings {
                     settings.theme = theme;
                 }
             }
+            "file" => settings.last_file = Some(value.trim().to_string()),
+            "view" => settings.last_view = Some(value.trim().to_string()),
             _ => {}
         }
     }
@@ -84,15 +90,21 @@ pub fn load() -> Settings {
 }
 
 /// Persist settings to disk (best effort — errors are ignored).
-pub fn save(settings: Settings) {
+pub fn save(settings: &Settings) {
     let Some(path) = config_path() else { return };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    let text = format!(
+    let mut text = format!(
         "lang={}\ntheme={}\n",
         settings.lang.code(),
         settings.theme.code()
     );
+    if let Some(file) = &settings.last_file {
+        text.push_str(&format!("file={file}\n"));
+    }
+    if let Some(view) = &settings.last_view {
+        text.push_str(&format!("view={view}\n"));
+    }
     let _ = std::fs::write(path, text);
 }
