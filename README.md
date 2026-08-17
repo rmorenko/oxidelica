@@ -1,6 +1,6 @@
 # Oxidelica
 
-A modern cross-platform physical modeling environment in Rust, compatible with the Modelica language. The goal is the full language specification, a modern GUI and 3D visualization on Bevy. Details: [docs/CONCEPT.md](docs/CONCEPT.md) ([Russian](docs/CONCEPT.ru.md)).
+A modern cross-platform physical modeling environment in Rust, compatible with the Modelica language. The goal is the full language specification, a modern GUI and 3D visualization on Bevy. Details: [docs/CONCEPT.md](docs/CONCEPT.md) ([Russian](docs/CONCEPT.ru.md)); what is and is not covered of the specification: [docs/COMPLIANCE.md](docs/COMPLIANCE.md).
 
 Russian version of this file: [README.ru.md](README.ru.md).
 
