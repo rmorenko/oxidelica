@@ -151,6 +151,8 @@ define_strings!(
     diagram_import,
     diagram_hint,
     diagram_palette,
+    diagram_layout,
+    diagram_delete,
 );
 
 #[cfg(test)]

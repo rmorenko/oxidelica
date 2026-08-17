@@ -884,6 +884,23 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
             }
         }
         ui.separator();
+        if ui
+            .button(format!("{} {}", icons::GRID_FOUR, s.diagram_layout))
+            .clicked()
+        {
+            ide.diagram.auto_layout();
+        }
+        let can_delete = ide.diagram.selected().is_some();
+        if ui
+            .add_enabled(
+                can_delete,
+                egui::Button::new(format!("{} {}", icons::TRASH, s.diagram_delete)),
+            )
+            .clicked()
+        {
+            ide.diagram.delete_selected();
+        }
+        ui.separator();
         ui.label("StopTime");
         ui.add(
             egui::DragValue::new(&mut ide.diagram.stop_time)
@@ -900,25 +917,45 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
     ui.label(egui::RichText::new(s.diagram_hint).weak().small());
     ui.separator();
 
+    // Delete also works from the keyboard, as long as no text field has
+    // the focus.
+    let typing = ui.memory(|memory| memory.focused().is_some());
+    if !typing
+        && ui.input(|input| {
+            input.key_pressed(egui::Key::Delete) || input.key_pressed(egui::Key::Backspace)
+        })
+    {
+        ide.diagram.delete_selected();
+    }
+
+    // Palette and inspector take fixed columns; the canvas keeps the
+    // rest and scrolls, so a large diagram is never clipped.
     let available = ui.available_size();
+    let side = 170.0f32.min(available.x * 0.25);
+    let inspector = 190.0f32.min(available.x * 0.28);
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
-            ui.set_width(170.0);
+            ui.set_width(side);
             ui.set_height(available.y);
             ui.strong(s.diagram_palette);
             if let Some(class) = ide.diagram.palette_ui(ui, &mut ide.palette_filter) {
-                ide.diagram.add(&class, egui::pos2(260.0, 160.0));
+                let slot = ide.diagram.free_slot();
+                ide.diagram.add(&class, slot);
             }
         });
         ui.separator();
         ui.vertical(|ui| {
-            ui.set_width(available.x - 400.0);
+            ui.set_width((available.x - side - inspector - 40.0).max(120.0));
             ui.set_height(available.y);
-            ide.diagram.canvas_ui(ui, p.accent);
+            egui::ScrollArea::both()
+                .auto_shrink([false, false])
+                .show(ui, |ui| {
+                    ide.diagram.canvas_ui(ui, p.accent);
+                });
         });
         ui.separator();
         ui.vertical(|ui| {
-            ui.set_width(190.0);
+            ui.set_width(inspector);
             ide.diagram.inspector_ui(ui);
         });
     });

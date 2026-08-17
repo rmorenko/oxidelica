@@ -53,7 +53,165 @@ pub struct Diagram {
 }
 
 /// Size of a component box on the canvas.
-const BOX_SIZE: egui::Vec2 = egui::vec2(120.0, 64.0);
+const BOX_SIZE: egui::Vec2 = egui::vec2(120.0, 72.0);
+
+/// The scrollable canvas is larger than the viewport, so components
+/// never have to overlap and nothing is clipped away.
+const CANVAS_SIZE: egui::Vec2 = egui::vec2(2400.0, 1600.0);
+
+/// Grid step used when placing a new component in a free slot.
+const GRID: egui::Vec2 = egui::vec2(170.0, 120.0);
+
+/// Draw a schematic symbol for a class inside `area`.
+///
+/// The symbols are recognizable rather than standard-compliant: enough
+/// to tell a resistor from a capacitor at a glance. Anything unknown
+/// falls back to a plain block.
+fn draw_symbol(painter: &egui::Painter, area: egui::Rect, class: &str, color: egui::Color32) {
+    let stroke = egui::Stroke::new(1.8, color);
+    let (left, right) = (
+        egui::pos2(area.left(), area.center().y),
+        egui::pos2(area.right(), area.center().y),
+    );
+    let leads = |from: f32, to: f32| {
+        painter.line_segment([left, egui::pos2(from, area.center().y)], stroke);
+        painter.line_segment([egui::pos2(to, area.center().y), right], stroke);
+    };
+    let short = class.rsplit('.').next().unwrap_or(class);
+    let (w, h) = (area.width(), area.height());
+    let centre = area.center();
+
+    match short {
+        "Resistor" => {
+            let body = egui::Rect::from_center_size(centre, egui::vec2(w * 0.5, h * 0.5));
+            leads(body.left(), body.right());
+            painter.rect_stroke(body, 1.0, stroke, egui::StrokeKind::Inside);
+        }
+        "Capacitor" => {
+            let gap = w * 0.07;
+            leads(centre.x - gap, centre.x + gap);
+            for x in [centre.x - gap, centre.x + gap] {
+                painter.line_segment(
+                    [
+                        egui::pos2(x, centre.y - h * 0.32),
+                        egui::pos2(x, centre.y + h * 0.32),
+                    ],
+                    stroke,
+                );
+            }
+        }
+        "Inductor" => {
+            let body = egui::Rect::from_center_size(centre, egui::vec2(w * 0.5, h * 0.4));
+            leads(body.left(), body.right());
+            for i in 0..3 {
+                let cx = body.left() + body.width() * (0.17 + 0.33 * i as f32);
+                painter.circle_stroke(egui::pos2(cx, body.center().y), body.width() * 0.16, stroke);
+            }
+        }
+        "Ground" => {
+            painter.line_segment(
+                [
+                    egui::pos2(centre.x, area.top()),
+                    egui::pos2(centre.x, centre.y),
+                ],
+                stroke,
+            );
+            for (i, width) in [0.34f32, 0.22, 0.10].into_iter().enumerate() {
+                let y = centre.y + i as f32 * h * 0.16;
+                painter.line_segment(
+                    [
+                        egui::pos2(centre.x - w * width, y),
+                        egui::pos2(centre.x + w * width, y),
+                    ],
+                    stroke,
+                );
+            }
+        }
+        "ConstantVoltage" | "StepVoltage" | "SineVoltage" => {
+            let radius = h * 0.38;
+            leads(centre.x - radius, centre.x + radius);
+            painter.circle_stroke(centre, radius, stroke);
+            let mark = match short {
+                "SineVoltage" => "~",
+                "StepVoltage" => "\u{2514}\u{2500}",
+                _ => "\u{2013}\u{2013}",
+            };
+            painter.text(
+                centre,
+                egui::Align2::CENTER_CENTER,
+                mark,
+                egui::FontId::proportional(13.0),
+                color,
+            );
+        }
+        "EMF" => {
+            let radius = h * 0.38;
+            leads(centre.x - radius, centre.x + radius);
+            painter.circle_stroke(centre, radius, stroke);
+            painter.text(
+                centre,
+                egui::Align2::CENTER_CENTER,
+                "M",
+                egui::FontId::proportional(13.0),
+                color,
+            );
+        }
+        "Inertia" => {
+            let body = egui::Rect::from_center_size(centre, egui::vec2(w * 0.42, h * 0.66));
+            leads(body.left(), body.right());
+            painter.rect_filled(body, 2.0, color.gamma_multiply(0.35));
+            painter.rect_stroke(body, 2.0, stroke, egui::StrokeKind::Inside);
+        }
+        "Spring" => {
+            let (x0, x1) = (centre.x - w * 0.25, centre.x + w * 0.25);
+            leads(x0, x1);
+            let mut points = vec![egui::pos2(x0, centre.y)];
+            for i in 0..6 {
+                let x = x0 + (x1 - x0) * (i as f32 + 0.5) / 6.0;
+                let y = centre.y + if i % 2 == 0 { -h * 0.28 } else { h * 0.28 };
+                points.push(egui::pos2(x, y));
+            }
+            points.push(egui::pos2(x1, centre.y));
+            painter.add(egui::Shape::line(points, stroke));
+        }
+        "Damper" | "ViscousFriction" => {
+            let body = egui::Rect::from_center_size(centre, egui::vec2(w * 0.4, h * 0.5));
+            leads(body.left(), body.right());
+            painter.rect_stroke(body, 1.0, stroke, egui::StrokeKind::Inside);
+            painter.line_segment(
+                [
+                    egui::pos2(body.center().x, body.top()),
+                    egui::pos2(body.center().x, body.bottom()),
+                ],
+                egui::Stroke::new(3.0, color),
+            );
+        }
+        "Fixed" => {
+            painter.line_segment(
+                [
+                    egui::pos2(centre.x, centre.y - h * 0.4),
+                    egui::pos2(centre.x, centre.y + h * 0.4),
+                ],
+                stroke,
+            );
+            for i in 0..4 {
+                let y = centre.y - h * 0.3 + i as f32 * h * 0.2;
+                painter.line_segment(
+                    [
+                        egui::pos2(centre.x, y),
+                        egui::pos2(centre.x - w * 0.16, y + h * 0.12),
+                    ],
+                    stroke,
+                );
+            }
+            painter.line_segment([egui::pos2(centre.x, centre.y), right], stroke);
+        }
+        _ => {
+            let body = egui::Rect::from_center_size(centre, egui::vec2(w * 0.62, h * 0.6));
+            painter.rect_stroke(body, 3.0, stroke, egui::StrokeKind::Inside);
+        }
+    }
+}
 
 impl Diagram {
     /// Build the palette from the library classes.
@@ -135,6 +293,60 @@ impl Diagram {
             candidate = format!("{stem}{counter}");
         }
         candidate
+    }
+
+    /// The first grid slot far enough from every placed component, so
+    /// repeated additions spread out instead of piling up.
+    pub fn free_slot(&self) -> egui::Pos2 {
+        let columns = (CANVAS_SIZE.x / GRID.x) as i32;
+        for index in 0.. {
+            let candidate = egui::pos2(
+                90.0 + (index % columns) as f32 * GRID.x,
+                80.0 + (index / columns) as f32 * GRID.y,
+            );
+            let taken = self
+                .components
+                .iter()
+                .any(|placed| (placed.position - candidate).abs().max_elem() < GRID.x * 0.5);
+            if !taken {
+                return candidate;
+            }
+        }
+        egui::pos2(90.0, 80.0)
+    }
+
+    /// Lay every component out on a fresh grid.
+    pub fn auto_layout(&mut self) {
+        let columns = 4;
+        for (index, placed) in self.components.iter_mut().enumerate() {
+            placed.position = egui::pos2(
+                110.0 + (index % columns) as f32 * GRID.x * 1.1,
+                90.0 + (index / columns) as f32 * GRID.y * 1.15,
+            );
+        }
+    }
+
+    /// The component currently selected, if any.
+    pub fn selected(&self) -> Option<usize> {
+        self.selected
+    }
+
+    /// Select a component by index.
+    pub fn select(&mut self, index: usize) {
+        if index < self.components.len() {
+            self.selected = Some(index);
+        }
+    }
+
+    /// Delete the selected component and its wires.
+    pub fn delete_selected(&mut self) -> bool {
+        match self.selected {
+            Some(index) if index < self.components.len() => {
+                self.remove(index);
+                true
+            }
+            _ => false,
+        }
     }
 
     /// Add a component of the given class at a canvas position.
@@ -324,10 +536,34 @@ impl Diagram {
     /// diagram changed and the generated code is stale.
     pub fn canvas_ui(&mut self, ui: &mut egui::Ui, accent: egui::Color32) -> bool {
         let mut changed = false;
-        let (response, painter) =
-            ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
+        let (response, painter) = ui.allocate_painter(CANVAS_SIZE, egui::Sense::click_and_drag());
         let origin = response.rect.min.to_vec2();
         let visuals = ui.visuals().clone();
+
+        // A faint grid gives the canvas a sense of place while scrolling.
+        let grid_stroke = egui::Stroke::new(1.0, visuals.weak_text_color().gamma_multiply(0.25));
+        let mut x = 0.0;
+        while x <= CANVAS_SIZE.x {
+            painter.line_segment(
+                [
+                    egui::pos2(x, 0.0) + origin,
+                    egui::pos2(x, CANVAS_SIZE.y) + origin,
+                ],
+                grid_stroke,
+            );
+            x += GRID.x;
+        }
+        let mut y = 0.0;
+        while y <= CANVAS_SIZE.y {
+            painter.line_segment(
+                [
+                    egui::pos2(0.0, y) + origin,
+                    egui::pos2(CANVAS_SIZE.x, y) + origin,
+                ],
+                grid_stroke,
+            );
+            y += GRID.y;
+        }
 
         // Wires first, so boxes draw over them.
         for wire in &self.wires {
@@ -366,12 +602,15 @@ impl Diagram {
             let box_response = ui.interact(rect, id, egui::Sense::click_and_drag());
 
             if box_response.dragged() {
-                let delta = box_response.drag_delta();
-                self.components[index].position += delta;
+                let moved = self.components[index].position + box_response.drag_delta();
+                self.components[index].position = egui::pos2(
+                    moved.x.clamp(BOX_SIZE.x, CANVAS_SIZE.x - BOX_SIZE.x),
+                    moved.y.clamp(BOX_SIZE.y, CANVAS_SIZE.y - BOX_SIZE.y),
+                );
                 changed = true;
             }
             if box_response.clicked() {
-                self.selected = Some(index);
+                self.select(index);
             }
             if box_response.secondary_clicked() {
                 to_remove = Some(index);
@@ -391,18 +630,29 @@ impl Diagram {
                 egui::StrokeKind::Inside,
             );
             let short = placed.class.rsplit('.').next().unwrap_or(&placed.class);
-            painter.text(
-                rect.center() - egui::vec2(0.0, 8.0),
-                egui::Align2::CENTER_CENTER,
-                &placed.name,
-                egui::FontId::proportional(14.0),
+            // The symbol occupies the middle of the box; the instance
+            // name sits above it and the class below.
+            draw_symbol(
+                &painter,
+                egui::Rect::from_center_size(
+                    rect.center() + egui::vec2(0.0, 2.0),
+                    egui::vec2(BOX_SIZE.x * 0.62, BOX_SIZE.y * 0.44),
+                ),
+                &placed.class,
                 visuals.text_color(),
             );
             painter.text(
-                rect.center() + egui::vec2(0.0, 10.0),
+                egui::pos2(rect.center().x, rect.top() + 11.0),
+                egui::Align2::CENTER_CENTER,
+                &placed.name,
+                egui::FontId::proportional(13.0),
+                visuals.text_color(),
+            );
+            painter.text(
+                egui::pos2(rect.center().x, rect.bottom() - 9.0),
                 egui::Align2::CENTER_CENTER,
                 short,
-                egui::FontId::proportional(11.0),
+                egui::FontId::proportional(10.0),
                 visuals.weak_text_color(),
             );
 
@@ -483,6 +733,22 @@ impl Diagram {
         });
         ui.label(egui::RichText::new(&placed.class).weak().small());
         ui.separator();
+        let mut delete = false;
+        if ui
+            .button(
+                egui::RichText::new("\u{1F5D1} delete").color(egui::Color32::from_rgb(219, 92, 92)),
+            )
+            .clicked()
+        {
+            delete = true;
+        }
+        if delete {
+            self.remove(index);
+            return true;
+        }
+        let Some(placed) = self.components.get_mut(index) else {
+            return false;
+        };
         for (name, value) in &mut placed.parameters {
             ui.horizontal(|ui| {
                 ui.label(name.as_str());
@@ -613,6 +879,77 @@ mod tests {
             (last - analytic).abs() < 1e-6,
             "capacitor at {last}, analytic {analytic}"
         );
+    }
+
+    #[test]
+    fn repeated_additions_spread_across_the_grid() {
+        let mut diagram = Diagram::with_catalog(&library());
+        let class = "Oxidelica.Electrical.Analog.Basic.Resistor";
+        for _ in 0..6 {
+            let slot = diagram.free_slot();
+            diagram.add(class, slot);
+        }
+        // Every component landed somewhere of its own.
+        for (i, a) in diagram.components.iter().enumerate() {
+            for b in &diagram.components[i + 1..] {
+                assert!(
+                    (a.position - b.position).abs().max_elem() >= GRID.x * 0.5,
+                    "components overlap at {:?}",
+                    a.position
+                );
+            }
+            // ... and inside the canvas.
+            assert!(a.position.x < CANVAS_SIZE.x && a.position.y < CANVAS_SIZE.y);
+            // Names are unique, so the generated code compiles.
+            assert_eq!(
+                diagram
+                    .components
+                    .iter()
+                    .filter(|other| other.name == a.name)
+                    .count(),
+                1
+            );
+        }
+        // Arranging keeps them apart too.
+        diagram.auto_layout();
+        for (i, a) in diagram.components.iter().enumerate() {
+            for b in &diagram.components[i + 1..] {
+                assert!((a.position - b.position).abs().max_elem() > 20.0);
+            }
+        }
+    }
+
+    #[test]
+    fn deleting_a_component_drops_its_wires_and_reindexes() {
+        let mut diagram = Diagram::with_catalog(&library());
+        for class in [
+            "Oxidelica.Electrical.Analog.Sources.ConstantVoltage",
+            "Oxidelica.Electrical.Analog.Basic.Resistor",
+            "Oxidelica.Electrical.Analog.Basic.Ground",
+        ] {
+            let slot = diagram.free_slot();
+            diagram.add(class, slot);
+        }
+        diagram.wires.push(Wire {
+            from: (0, "p".into()),
+            to: (1, "p".into()),
+        });
+        diagram.wires.push(Wire {
+            from: (1, "n".into()),
+            to: (2, "p".into()),
+        });
+
+        // Nothing selected yet, so there is nothing to delete.
+        assert!(!diagram.delete_selected());
+
+        diagram.select(1);
+        assert!(diagram.delete_selected());
+        assert_eq!(diagram.components.len(), 2);
+        // Both wires touched the resistor, so both are gone.
+        assert!(diagram.wires.is_empty());
+        // The ground moved down one index and the generated code follows.
+        assert!(diagram.components[1].class.ends_with("Ground"));
+        assert!(diagram.selected().is_none());
     }
 
     #[test]
