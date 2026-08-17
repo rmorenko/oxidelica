@@ -40,6 +40,28 @@ pub struct Redeclare {
     pub type_name: String,
     /// Modifiers applied to the new type.
     pub modifiers: Vec<(String, Expr)>,
+    /// Whether this replaces a class alias rather than a component:
+    /// `redeclare package Medium = Oil` swaps what the name `Medium`
+    /// stands for inside the class that declared it replaceable.
+    pub class_level: bool,
+}
+
+/// A short class definition: `package Medium = Media.Water;` gives the
+/// enclosing class a local name for another class. Marked `replaceable`
+/// it is the hook the Fluid-style libraries hang their media on.
+#[derive(Debug, Clone)]
+pub struct ClassAlias {
+    /// The local name.
+    pub name: String,
+    /// The class it stands for, as written; resolved where declared.
+    pub target: String,
+    /// Whether a redeclaration may replace the target.
+    pub replaceable: bool,
+    /// `redeclare package Medium = X;` in a class body: replaces the
+    /// alias of a base class instead of introducing one.
+    pub redeclaration: bool,
+    /// The interface a replacement must extend, when given.
+    pub constrained_by: Option<String>,
 }
 
 /// A component (variable) declaration.
@@ -171,6 +193,8 @@ pub struct ClassDef {
     pub enumeration: Vec<String>,
     /// Classes declared inside a package, by qualified name.
     pub nested: Vec<ClassDef>,
+    /// Short class definitions: local names for other classes.
+    pub class_aliases: Vec<ClassAlias>,
     /// `import` clauses: (local name, qualified target).
     pub imports: Vec<(String, String)>,
     /// Optional description string.

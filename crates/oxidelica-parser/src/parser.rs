@@ -63,7 +63,18 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
             parser.expect(&Token::Semi, "semicolon after within")?;
             continue;
         }
-        let class = parser.class_def()?;
+        let class = match parser.class_def()? {
+            ClassItem::Class(class) => *class,
+            ClassItem::Alias(alias) => {
+                return Err(ParseError {
+                    message: format!(
+                        "`{}` is a class alias; the top level of a file needs a full definition",
+                        alias.name
+                    ),
+                    line: 1,
+                })
+            }
+        };
         // A package contributes its members to the registry under
         // qualified names, alongside the package itself.
         flatten_packages(class, &mut classes);
@@ -135,6 +146,15 @@ struct Parser {
 /// dotted) name, plus the redeclarations found among them.
 type Modifications = (Vec<(String, Expr)>, Vec<Redeclare>);
 
+/// One item of a class body that introduces a class: a full definition
+/// or a short alias.
+enum ClassItem {
+    /// An ordinary class definition, boxed to keep the enum small.
+    Class(Box<ClassDef>),
+    /// A short one: `package Medium = Media.Water;`.
+    Alias(ClassAlias),
+}
+
 /// The contents of one branch of an `if` equation.
 type BranchBody = (Vec<EquationItem>, Vec<(Expr, Expr)>);
 
@@ -201,14 +221,19 @@ impl Parser {
         }
     }
 
-    fn class_def(&mut self) -> Result<ClassDef, ParseError> {
-        // `replaceable`/`redeclare` on a nested class: the prefixes carry
-        // no meaning for a class that is never replaced, so they are
-        // consumed and the definition parsed as usual.
-        while matches!(
-            self.peek(),
-            Token::Replaceable | Token::Redeclare | Token::Final
-        ) {
+    fn class_def(&mut self) -> Result<ClassItem, ParseError> {
+        // The prefixes matter for a short class definition, which may be
+        // replaced from outside; on a full nested class they are noted
+        // and otherwise carry no meaning here.
+        let mut replaceable = false;
+        let mut redeclaration = false;
+        loop {
+            match self.peek() {
+                Token::Replaceable => replaceable = true,
+                Token::Redeclare => redeclaration = true,
+                Token::Final => {}
+                _ => break,
+            }
             self.bump();
         }
         let partial = if self.peek() == &Token::Partial {
@@ -227,6 +252,39 @@ impl Parser {
             other => return Err(self.err(format!("expected a class definition, found `{other}`"))),
         };
         let name = self.ident("class name")?;
+
+        // `package Medium = Media.Water constrainedby PartialMedium;` -
+        // a short class definition: the enclosing class gets a local
+        // name for another class, replaceable when marked so.
+        if kind != ClassKind::Type && self.peek() == &Token::Assign {
+            self.bump();
+            let target = self.dotted_name("aliased class")?;
+            if self.peek() == &Token::LParen {
+                // Modifiers on the target are parsed and set aside: the
+                // alias itself carries no component to modify.
+                self.modifier_list()?;
+            }
+            let mut constrained_by = None;
+            if self.peek() == &Token::ConstrainedBy {
+                self.bump();
+                constrained_by = Some(self.dotted_name("constraining class")?);
+                if self.peek() == &Token::LParen {
+                    self.modifier_list()?;
+                }
+            }
+            self.opt_string();
+            if self.peek() == &Token::Annotation {
+                self.annotation_body(&mut Experiment::default())?;
+            }
+            self.expect(&Token::Semi, "semicolon after the class alias")?;
+            return Ok(ClassItem::Alias(ClassAlias {
+                name,
+                target,
+                replaceable,
+                redeclaration,
+                constrained_by,
+            }));
+        }
 
         // `type Voltage = Real(start = 0);` or
         // `type Init = enumeration(NoInit, SteadyState);`
@@ -250,7 +308,7 @@ impl Parser {
                 self.annotation_body(&mut Experiment::default())?;
             }
             self.expect(&Token::Semi, "semicolon after the type alias")?;
-            return Ok(ClassDef {
+            return Ok(ClassItem::Class(Box::new(ClassDef {
                 kind,
                 name,
                 partial,
@@ -269,12 +327,14 @@ impl Parser {
                 connects: Vec::new(),
                 when_clauses: Vec::new(),
                 experiment: Experiment::default(),
-            });
+                class_aliases: Vec::new(),
+            })));
         }
 
         let description = self.opt_string();
 
         let mut nested = Vec::new();
+        let mut class_aliases = Vec::new();
         let mut imports = Vec::new();
         let mut components = Vec::new();
         let mut extends = Vec::new();
@@ -354,9 +414,10 @@ impl Parser {
                 | Token::Function
                 | Token::Package
                 | Token::Type
-                | Token::Partial => {
-                    nested.push(self.class_def()?);
-                }
+                | Token::Partial => match self.class_def()? {
+                    ClassItem::Class(class) => nested.push(*class),
+                    ClassItem::Alias(alias) => class_aliases.push(alias),
+                },
                 // `replaceable`/`redeclare` introduce either a nested
                 // class or a component; the next token decides.
                 Token::Replaceable | Token::Redeclare
@@ -371,7 +432,10 @@ impl Parser {
                             | Token::Partial
                     ) =>
                 {
-                    nested.push(self.class_def()?);
+                    match self.class_def()? {
+                        ClassItem::Class(class) => nested.push(*class),
+                        ClassItem::Alias(alias) => class_aliases.push(alias),
+                    }
                 }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
                 // `assert(condition, "message")` is a runtime check;
@@ -402,7 +466,7 @@ impl Parser {
             }
         }
 
-        Ok(ClassDef {
+        Ok(ClassItem::Class(Box::new(ClassDef {
             kind,
             name,
             partial,
@@ -421,7 +485,8 @@ impl Parser {
             connects,
             when_clauses,
             experiment,
-        })
+            class_aliases,
+        })))
     }
 
     /// `import A.B.C;` or `import D = A.B.C;`
@@ -878,6 +943,33 @@ impl Parser {
         while matches!(self.peek(), Token::Replaceable | Token::Final | Token::Each) {
             self.bump();
         }
+        // `redeclare package Medium = Oil` swaps a class alias.
+        if matches!(
+            self.peek(),
+            Token::Package | Token::Model | Token::Function | Token::Record | Token::Connector
+        ) {
+            self.bump();
+            let name = self.ident("redeclared class name")?;
+            self.expect(&Token::Assign, "`=` in a class redeclaration")?;
+            let target = self.dotted_name("replacement class")?;
+            if self.peek() == &Token::LParen {
+                self.modifier_list()?;
+            }
+            if self.peek() == &Token::ConstrainedBy {
+                self.bump();
+                self.dotted_name("constraining class")?;
+                if self.peek() == &Token::LParen {
+                    self.modifier_list()?;
+                }
+            }
+            self.opt_string();
+            return Ok(Redeclare {
+                name,
+                type_name: target,
+                modifiers: Vec::new(),
+                class_level: true,
+            });
+        }
         let type_name = self.dotted_name("redeclared type")?;
         let name = self.ident("redeclared component name")?;
         let modifiers = if self.peek() == &Token::LParen {
@@ -897,6 +989,7 @@ impl Parser {
             name,
             type_name,
             modifiers,
+            class_level: false,
         })
     }
 

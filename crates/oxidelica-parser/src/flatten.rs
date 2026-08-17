@@ -269,6 +269,7 @@ fn instantiate(
                 name: component.name.clone(),
                 type_name: component.type_name.clone(),
                 modifiers: component.modifiers.clone(),
+                class_level: false,
             },
             registry,
             class,
@@ -278,15 +279,38 @@ fn instantiate(
     }
     redeclares.extend(env.redeclares.iter().cloned());
 
+    // Body-level class redeclarations replace aliases of the bases.
+    for alias in class.class_aliases.iter().filter(|a| a.redeclaration) {
+        let target = lookup(registry, &alias.target, scope, &class.imports)
+            .ok_or_else(|| {
+                format!(
+                    "unknown class `{}` in the redeclaration of `{}`",
+                    alias.target, alias.name
+                )
+            })?
+            .name
+            .clone();
+        redeclares.push(Redeclare {
+            name: alias.name.clone(),
+            type_name: target,
+            modifiers: Vec::new(),
+            class_level: true,
+        });
+    }
+
+    // The class's own aliases join its imports, with any redeclarations
+    // from outside already applied.
+    let imports = effective_imports(registry, class, scope, &redeclares)?;
+
     // Bases first, with their modifiers (already parent-scoped).
     for extend in &class.extends {
-        let base = lookup(registry, &extend.base, scope, &class.imports)
+        let base = lookup(registry, &extend.base, scope, &imports)
             .ok_or_else(|| format!("unknown base class `{}`", extend.base))?;
         let mods: Vec<(String, Expr)> = extend
             .modifiers
             .iter()
             .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &class.imports);
+                let e = substitute_class_constants(e, registry, scope, &imports);
                 (n.clone(), prefix_expr(&e, prefix, &outers))
             })
             .chain(env.overrides.iter().cloned())
@@ -331,7 +355,7 @@ fn instantiate(
                         .as_ref()
                         .or(component.start.as_ref())
                         .map(|e| {
-                            let e = substitute_class_constants(e, registry, scope, &class.imports);
+                            let e = substitute_class_constants(e, registry, scope, &imports);
                             prefix_expr(&e, prefix, &outers)
                         })
                 });
@@ -438,7 +462,7 @@ fn instantiate(
         // A `type` alias stands for a primitive plus attribute defaults,
         // and an enumeration for an `Integer`; substitute before
         // instantiating.
-        resolve_type(registry, &mut component, scope, &class.imports);
+        resolve_type(registry, &mut component, scope, &imports);
 
         let level = Level {
             prefix,
@@ -446,7 +470,7 @@ fn instantiate(
             inners: &inners,
             overrides,
             consts: &local_consts,
-            imports: &class.imports,
+            imports: &imports,
             scope,
         };
         // An array bound - or started - as a whole hands each element
@@ -457,13 +481,13 @@ fn instantiate(
                 loop_vars: &HashMap::new(),
                 consts: &local_consts,
             };
-            let expr = substitute_class_constants(expr, registry, scope, &class.imports);
+            let expr = substitute_class_constants(expr, registry, scope, &imports);
             let value = expand(
                 &prefix_expr(&expr, prefix, &outers),
                 &shapes,
                 registry,
                 scope,
-                &class.imports,
+                &imports,
                 0,
             )?;
             let mut items = Vec::new();
@@ -508,26 +532,26 @@ fn instantiate(
 
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let resolve_here = |expr: &Expr| -> Result<Expr, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &class.imports);
+        let expr = substitute_class_constants(expr, registry, scope, &imports);
         resolve(
             &prefix_expr(&expr, prefix, &outers),
             &HashMap::new(),
             &local_consts,
             registry,
             scope,
-            &class.imports,
+            &imports,
             0,
         )
     };
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &class.imports);
+        let expr = substitute_class_constants(expr, registry, scope, &imports);
         let expr = prefix_expr(&expr, prefix, &outers);
         let shapes = Shapes {
             sizes: &sizes_here,
             loop_vars,
             consts: &local_consts,
         };
-        expand(&expr, &shapes, registry, scope, &class.imports, 0)
+        expand(&expr, &shapes, registry, scope, &imports, 0)
     };
     let no_loop_vars = HashMap::new();
     for equation in &class.equations {
@@ -566,7 +590,7 @@ fn instantiate(
             &sizes,
             registry,
             scope,
-            &class.imports,
+            &imports,
             depth,
         )?;
         for name in assigned {
@@ -594,7 +618,7 @@ fn instantiate(
             &sizes_here,
             registry,
             scope,
-            &class.imports,
+            &imports,
             acc,
         )?;
     }
@@ -641,15 +665,7 @@ fn instantiate(
                 consts: &local_consts,
             };
             push_connects(
-                a,
-                b,
-                &shapes,
-                prefix,
-                &outers,
-                registry,
-                scope,
-                &class.imports,
-                acc,
+                a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
             )?;
         }
     }
@@ -689,18 +705,75 @@ fn instantiate(
             consts: &local_consts,
         };
         push_connects(
-            a,
-            b,
-            &shapes,
-            prefix,
-            &outers,
-            registry,
-            scope,
-            &class.imports,
-            acc,
+            a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
         )?;
     }
     Ok(())
+}
+
+/// The imports a class resolves names through, with its class aliases
+/// folded in as further entries.
+///
+/// `package Medium = Media.Water` makes `Medium.density` mean
+/// `Media.Water.density` exactly the way `import Medium = Media.Water`
+/// would, so an alias becomes an import entry. A redeclaration from the
+/// environment swaps the target before that - checked against the
+/// alias's `constrainedby` interface, since a replacement medium has to
+/// honour the interface the component was written against.
+fn effective_imports(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    scope: &str,
+    redeclares: &[Redeclare],
+) -> Result<Vec<(String, String)>, String> {
+    let mut imports = class.imports.clone();
+    for alias in &class.class_aliases {
+        // A body-level `redeclare package X = ...` replaces an alias of
+        // a base class; it is routed through the environment instead.
+        if alias.redeclaration {
+            continue;
+        }
+        let replacement = redeclares
+            .iter()
+            .find(|r| r.class_level && r.name == alias.name);
+        let target = match replacement {
+            Some(redeclare) => {
+                if !alias.replaceable {
+                    return Err(format!(
+                        "class `{}` of `{}` is redeclared but not declared replaceable",
+                        alias.name, class.name
+                    ));
+                }
+                // Qualified already, at the site that wrote it.
+                redeclare.type_name.clone()
+            }
+            None => lookup(registry, &alias.target, scope, &imports)
+                .ok_or_else(|| {
+                    format!(
+                        "unknown class `{}` behind the alias `{}`",
+                        alias.target, alias.name
+                    )
+                })?
+                .name
+                .clone(),
+        };
+        if let (Some(constraint), Some(_)) = (&alias.constrained_by, replacement) {
+            let constraint = lookup(registry, constraint, scope, &imports).ok_or_else(|| {
+                format!(
+                    "unknown constraining class `{constraint}` of `{}`",
+                    alias.name
+                )
+            })?;
+            if !extends_class(registry, &target, &constraint.name, 0) {
+                return Err(format!(
+                    "`{target}` cannot replace `{}`: it does not extend `{}`",
+                    alias.name, constraint.name
+                ));
+            }
+        }
+        imports.push((alias.name.clone(), target));
+    }
+    Ok(imports)
 }
 
 /// Collect the `inner` declarations of a class and of its bases.
@@ -811,6 +884,7 @@ fn qualify_redeclare(
     Ok(Redeclare {
         name: redeclare.name.clone(),
         type_name: target.name.clone(),
+        class_level: redeclare.class_level,
         modifiers: redeclare
             .modifiers
             .iter()
@@ -2905,6 +2979,58 @@ mod tests {
             .name
             .clone();
         super::flatten(&classes, &top)
+    }
+
+    #[test]
+    fn a_replaceable_package_swaps_constants_and_functions() {
+        let media = "package Media              partial package PartialMedium constant Real rho = 0;                function f input Real x; output Real y; algorithm y := 0; end f;              end PartialMedium;              package Water extends PartialMedium; constant Real rho = 1000;                function f input Real x; output Real y; algorithm y := 2 * x; end f;              end Water;              package Oil extends PartialMedium; constant Real rho = 900;                function f input Real x; output Real y; algorithm y := 3 * x; end f;              end Oil;              package Rogue constant Real rho = 1; end Rogue;            end Media;            model Tank              replaceable package Medium = Media.Water constrainedby Media.PartialMedium;              Real a; Real b; equation a = Medium.rho; b = Medium.f(4); end Tank; ";
+
+        // The default alias: water's constant and water's function.
+        let plain = parse_model(&format!("{media} model M Tank tank; end M;")).unwrap();
+        let text = format!("{:?}", plain.equations);
+        assert!(text.contains("Number(1000.0)"), "{text}");
+        // The function inlined with its own factor; folding constants
+        // is the simulator's business, not the flattener's.
+        assert!(text.contains("Number(2.0)"), "{text}");
+
+        // Redeclared in an extends modifier: everything becomes oil.
+        let swapped = parse_model(&format!(
+            "{media} model OilTank extends Tank(redeclare package Medium = Media.Oil); end OilTank;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", swapped.equations);
+        assert!(text.contains("Number(900.0)"), "{text}");
+        assert!(text.contains("Number(3.0)"), "{text}");
+
+        // Redeclared in a component's modifier list.
+        let component = parse_model(&format!(
+            "{media} model M Tank tank(redeclare package Medium = Media.Oil); end M;"
+        ))
+        .unwrap();
+        assert!(format!("{:?}", component.equations).contains("Number(900.0)"));
+
+        // Redeclared in the body of a derived class.
+        let body = parse_model(&format!(
+            "{media} model OilTank extends Tank; redeclare package Medium = Media.Oil; end OilTank;"
+        ))
+        .unwrap();
+        assert!(format!("{:?}", body.equations).contains("Number(900.0)"));
+
+        // A replacement outside the constraining interface is refused.
+        let error = parse_model(&format!(
+            "{media} model Bad extends Tank(redeclare package Medium = Media.Rogue); end Bad;"
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("does not extend"), "{error}");
+
+        // And so is replacing an alias never marked replaceable.
+        let error = parse_model(&format!(
+            "{media} model Fixed package Medium = Media.Water; Real a;              equation a = Medium.rho; end Fixed;              model Bad extends Fixed(redeclare package Medium = Media.Oil); end Bad;"
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("not declared replaceable"), "{error}");
     }
 
     #[test]

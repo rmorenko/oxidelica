@@ -6175,6 +6175,53 @@ mod tests {
     }
 
     #[test]
+    fn a_replaceable_medium_changes_what_the_tank_holds() {
+        // The example file ends with the oil variant, so that is the
+        // entry point: heating follows oil's density and heat capacity.
+        let oil = compile(&with_library("replaceable_medium.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index =
+            |result: &SimResult, name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let temperature = index(&oil, "T");
+        let last = oil.rows.last().unwrap();
+        let expected_oil = 20.0 + 600.0 * 50000.0 / (0.2 * 900.0 * 1900.0);
+        assert!(
+            (last[temperature] - expected_oil).abs() < 1e-6,
+            "oil: {} vs {expected_oil}",
+            last[temperature]
+        );
+        // And the viscosity comes from oil's own function.
+        let viscosity = index(&oil, "mu");
+        let expected_mu = 0.1 * (-0.05f64 * (expected_oil - 20.0)).exp();
+        assert!((last[viscosity] - expected_mu).abs() < 1e-6);
+
+        // The same tank with its default medium heats like water.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let source = std::fs::read_to_string(root.join("examples/replaceable_medium.mo")).unwrap();
+        let water_only = source
+            .replace("model OilTank", "partial model OilTank")
+            .replace(
+                "end OilTank;",
+                "end OilTank; model WaterTank extends HeatedTank; \
+                 annotation(experiment(StopTime = 600.0, Interval = 1.0)); end WaterTank;",
+            );
+        let water = compile(&oxidelica_parser::parse_model(&water_only).unwrap())
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let temperature = index(&water, "T");
+        let expected_water = 20.0 + 600.0 * 50000.0 / (0.2 * 1000.0 * 4186.0);
+        let last = water.rows.last().unwrap();
+        assert!(
+            (last[temperature] - expected_water).abs() < 1e-6,
+            "water: {} vs {expected_water}",
+            last[temperature]
+        );
+    }
+
+    #[test]
     fn results_carry_the_parameter_values() {
         // Consumers such as the 3D view read sizes and colours from
         // here, since those never appear as columns.
