@@ -17,7 +17,8 @@ fn main() -> ExitCode {
 const USAGE: &str = "Oxidelica M0 - a Modelica subset simulator
 
 Usage:
-  oxidelica simulate <file.mo> [--stop T] [--dt H] [-o result.csv]
+  oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [-o result.csv]
+                            solvers: dopri45 (default), bdf (stiff), rk4
   oxidelica parse <file.mo>";
 
 /// Dispatch the command line to a subcommand.
@@ -60,6 +61,10 @@ fn parse(args: &[String]) -> Result<(), String> {
     for name in &compiled.algebraics {
         println!("    {name}");
     }
+    println!("  evaluation plan:");
+    for line in compiled.plan_summary() {
+        println!("    {line}");
+    }
     println!(
         "  experiment: stop = {}, step = {}",
         compiled.stop_time, compiled.step
@@ -73,6 +78,7 @@ fn simulate(args: &[String]) -> Result<(), String> {
     let mut stop: Option<f64> = None;
     let mut dt: Option<f64> = None;
     let mut out: Option<String> = None;
+    let mut solver: Option<oxidelica_sim::SolverMethod> = None;
 
     let mut i = 1;
     while i < args.len() {
@@ -97,6 +103,13 @@ fn simulate(args: &[String]) -> Result<(), String> {
                         .map_err(|e| format!("--dt: {e}"))?,
                 )
             }
+            "--solver" => {
+                let name = take_value(&mut i)?;
+                solver = Some(
+                    oxidelica_sim::SolverMethod::from_name(&name)
+                        .ok_or_else(|| format!("unknown solver `{name}`"))?,
+                );
+            }
             "-o" | "--out" => out = Some(take_value(&mut i)?),
             other => return Err(format!("unknown flag `{other}`\n\n{USAGE}")),
         }
@@ -111,6 +124,9 @@ fn simulate(args: &[String]) -> Result<(), String> {
     if let Some(h) = dt {
         compiled.step = h;
     }
+    if let Some(method) = solver {
+        compiled.method = method;
+    }
 
     let started = std::time::Instant::now();
     let result = compiled.simulate().map_err(|e| e.to_string())?;
@@ -121,10 +137,11 @@ fn simulate(args: &[String]) -> Result<(), String> {
             std::fs::write(&file, result.to_csv())
                 .map_err(|e| format!("cannot write {file}: {e}"))?;
             println!(
-                "{}: {} steps in {:.1?} -> {}",
+                "{}: {} steps in {:.1?} ({}) -> {}",
                 compiled.name,
                 result.rows.len() - 1,
                 elapsed,
+                compiled.method.name(),
                 file
             );
         }

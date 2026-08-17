@@ -37,6 +37,29 @@ pub enum SolverMethod {
     Dopri45,
     /// Classic fixed-step RK4.
     Rk4,
+    /// Variable-order variable-step BDF: implicit, for stiff systems.
+    Bdf,
+}
+
+impl SolverMethod {
+    /// Parse a method name (CLI and IDE selectors).
+    pub fn from_name(name: &str) -> Option<SolverMethod> {
+        match name {
+            "dopri" | "dopri45" => Some(SolverMethod::Dopri45),
+            "rk4" => Some(SolverMethod::Rk4),
+            "bdf" => Some(SolverMethod::Bdf),
+            _ => None,
+        }
+    }
+
+    /// Short name of the method.
+    pub fn name(self) -> &'static str {
+        match self {
+            SolverMethod::Dopri45 => "dopri45",
+            SolverMethod::Rk4 => "rk4",
+            SolverMethod::Bdf => "bdf",
+        }
+    }
 }
 
 /// One step of the algebraic evaluation plan.
@@ -49,12 +72,17 @@ enum AlgStage {
         /// The assigned expression.
         expr: Expr,
     },
-    /// A simultaneous block solved by Newton iteration; residuals are
-    /// `lhs - rhs` of the member equations.
+    /// A simultaneous block. Newton iterates only on the torn
+    /// unknowns; the rest are recovered by explicit assignments in
+    /// dependency order, which keeps the Jacobian small.
     Implicit {
-        /// Indices of the block unknowns in `algebraics`.
+        /// All unknowns of the block (indices into `algebraics`).
         vars: Vec<usize>,
-        /// The member equations as (lhs, rhs) pairs.
+        /// Torn unknowns Newton actually iterates on.
+        torn: Vec<usize>,
+        /// Inner explicit assignments in evaluation order.
+        inner: Vec<(usize, Expr)>,
+        /// Residual equations matched to the torn unknowns.
         residuals: Vec<(Expr, Expr)>,
     },
 }
@@ -88,6 +116,80 @@ pub struct CompiledModel {
     pub method: SolverMethod,
     /// Termination clauses checked at every output point.
     pub terminations: Vec<Termination>,
+}
+
+impl CompiledModel {
+    /// Evaluate the plan once at the initial point, verifying that every
+    /// implicit block is regular there. Catches models that are
+    /// structurally fine but numerically underdetermined.
+    fn check_block_regularity(&self) -> Result<(), SimError> {
+        if !self
+            .stages
+            .iter()
+            .any(|s| matches!(s, AlgStage::Implicit { .. }))
+        {
+            return Ok(());
+        }
+        let mut env: HashMap<String, f64> = self.parameters.iter().cloned().collect();
+        for (name, value) in self.states.iter().zip(&self.initial) {
+            env.insert(name.clone(), *value);
+        }
+        let mut alg_guess = self.algebraic_start.clone();
+        for stage in &self.stages {
+            match stage {
+                AlgStage::Explicit { var, expr } => {
+                    let ctx = EvalCtx {
+                        vars: &env,
+                        time: 0.0,
+                    };
+                    let Ok(value) = eval(expr, &ctx) else {
+                        return Ok(()); // Not evaluable at t = 0; leave it to runtime.
+                    };
+                    env.insert(self.algebraics[*var].clone(), value);
+                }
+                AlgStage::Implicit {
+                    torn,
+                    inner,
+                    residuals,
+                    ..
+                } => {
+                    self.solve_implicit_block(
+                        0.0,
+                        &mut env,
+                        torn,
+                        inner,
+                        residuals,
+                        &mut alg_guess,
+                        true,
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Human-readable summary of the algebraic evaluation plan:
+    /// one line per stage (explicit assignment or implicit block).
+    pub fn plan_summary(&self) -> Vec<String> {
+        self.stages
+            .iter()
+            .map(|stage| match stage {
+                AlgStage::Explicit { var, .. } => {
+                    format!("explicit: {}", self.algebraics[*var])
+                }
+                AlgStage::Implicit { vars, torn, .. } => {
+                    let names: Vec<&str> =
+                        vars.iter().map(|&i| self.algebraics[i].as_str()).collect();
+                    format!(
+                        "implicit block of {} (iterating on {}): {}",
+                        vars.len(),
+                        torn.len(),
+                        names.join(", ")
+                    )
+                }
+            })
+            .collect()
+    }
 }
 
 /// Compile a parsed flat model into an executable form.
@@ -305,7 +407,13 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             Box::new(lhs.clone()),
             Box::new(rhs.clone()),
         );
-        let derivative = match differentiate(&residual, &state_rhs, &params) {
+        let derivative = match differentiate(
+            &residual,
+            &DiffTarget::Time {
+                state_rhs: &state_rhs,
+                params: &params,
+            },
+        ) {
             Ok(d) => d,
             Err(reason) => {
                 return err(format!(
@@ -327,7 +435,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 Box::new(residual),
             )),
         );
-        algebraic_eqs[eq] = (stabilized, Expr::Number(0.0));
+        algebraic_eqs[eq] = (simplify(&stabilized), Expr::Number(0.0));
         diff_count[eq] += 1;
     };
     let mut matched_var: Vec<usize> = vec![0; n_alg];
@@ -413,26 +521,129 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 var: index,
                 expr: lhs.clone(),
             }
+        } else if let Some(expr) = solve_linear_for(lhs, rhs, &var_name) {
+            // Linear in its unknown: solved symbolically, no iteration.
+            AlgStage::Explicit { var: index, expr }
         } else {
             AlgStage::Implicit {
                 vars: vec![index],
+                torn: vec![index],
+                inner: Vec::new(),
                 residuals: vec![(lhs.clone(), rhs.clone())],
             }
         };
         ordered_algs.push(var_name);
         stages.push(stage);
     }
+
+    // The cyclic remainder becomes one torn block: equations that can
+    // be solved explicitly for their unknown are evaluated in
+    // dependency order, and Newton iterates only on the tearing
+    // variables needed to break the remaining cycles.
     let remainder: Vec<usize> = (0..n_alg).filter(|&e| !done[e]).collect();
     if !remainder.is_empty() {
         let base = ordered_algs.len();
-        let mut vars = Vec::new();
-        let mut residuals = Vec::new();
+        let mut index_of: HashMap<usize, usize> = HashMap::new();
         for (offset, &eq) in remainder.iter().enumerate() {
-            ordered_algs.push(unknowns[matched_var[eq]].clone());
-            vars.push(base + offset);
-            residuals.push(algebraic_eqs[eq].clone());
+            let var = matched_var[eq];
+            index_of.insert(var, base + offset);
+            ordered_algs.push(unknowns[var].clone());
         }
-        stages.push(AlgStage::Implicit { vars, residuals });
+        let vars: Vec<usize> = (base..ordered_algs.len()).collect();
+
+        // Which equations can be solved explicitly for their unknown?
+        let solvable: HashMap<usize, Expr> = remainder
+            .iter()
+            .filter_map(|&eq| {
+                let name = &unknowns[matched_var[eq]];
+                let (lhs, rhs) = &algebraic_eqs[eq];
+                if matches!(lhs, Expr::Ref(n) if n == name) && !mentions(rhs, name) {
+                    Some((eq, rhs.clone()))
+                } else if matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs, name) {
+                    Some((eq, lhs.clone()))
+                } else {
+                    solve_linear_for(lhs, rhs, name).map(|expr| (eq, expr))
+                }
+            })
+            .collect();
+
+        // Equations that resist explicit solution force their unknown
+        // into the tearing set; then tear greedily until the rest sorts
+        // topologically, preferring the most-referenced unknowns.
+        let mut torn_eqs: Vec<usize> = remainder
+            .iter()
+            .copied()
+            .filter(|eq| !solvable.contains_key(eq))
+            .collect();
+        let uses: HashMap<usize, usize> = {
+            let mut counts: HashMap<usize, usize> = HashMap::new();
+            for &eq in &remainder {
+                for &v in &eq_vars[eq] {
+                    if index_of.contains_key(&v) {
+                        *counts.entry(v).or_default() += 1;
+                    }
+                }
+            }
+            counts
+        };
+        let inner_order = loop {
+            let torn_vars: Vec<usize> = torn_eqs.iter().map(|&eq| matched_var[eq]).collect();
+            let pending: Vec<usize> = remainder
+                .iter()
+                .copied()
+                .filter(|eq| !torn_eqs.contains(eq))
+                .collect();
+            // Topological pass over the untorn equations.
+            let mut placed: Vec<usize> = Vec::new();
+            let mut available = torn_vars.clone();
+            let mut left = pending.clone();
+            loop {
+                let before = left.len();
+                left.retain(|&eq| {
+                    let ready = eq_vars[eq].iter().all(|v| {
+                        !index_of.contains_key(v) || *v == matched_var[eq] || available.contains(v)
+                    });
+                    if ready {
+                        placed.push(eq);
+                        available.push(matched_var[eq]);
+                        false
+                    } else {
+                        true
+                    }
+                });
+                if left.is_empty() || left.len() == before {
+                    break;
+                }
+            }
+            if left.is_empty() {
+                break placed;
+            }
+            // Still cyclic: tear the most-referenced unknown left.
+            let victim = *left
+                .iter()
+                .max_by_key(|&&eq| uses.get(&matched_var[eq]).copied().unwrap_or(0))
+                .expect("non-empty cycle");
+            torn_eqs.push(victim);
+        };
+
+        let inner: Vec<(usize, Expr)> = inner_order
+            .iter()
+            .map(|eq| (index_of[&matched_var[*eq]], solvable[eq].clone()))
+            .collect();
+        let torn: Vec<usize> = torn_eqs
+            .iter()
+            .map(|&eq| index_of[&matched_var[eq]])
+            .collect();
+        let residuals: Vec<(Expr, Expr)> = torn_eqs
+            .iter()
+            .map(|&eq| algebraic_eqs[eq].clone())
+            .collect();
+        stages.push(AlgStage::Implicit {
+            vars,
+            torn,
+            inner,
+            residuals,
+        });
     }
 
     let ctx = ctx0;
@@ -453,7 +664,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
 
-    Ok(CompiledModel {
+    let compiled = CompiledModel {
         name: model.name.clone(),
         parameters,
         states,
@@ -467,7 +678,9 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
         terminations: model.terminations.clone(),
-    })
+    };
+    compiled.check_block_regularity()?;
+    Ok(compiled)
 }
 
 /// Symbolic time-differentiation of an expression.
@@ -477,11 +690,134 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
 /// Differentiating through an algebraic unknown or a non-smooth
 /// function is reported as an error (dummy derivatives arrive with the
 /// full M3).
-fn differentiate(
-    expr: &Expr,
-    state_rhs: &HashMap<String, Expr>,
-    params: &HashMap<String, f64>,
-) -> Result<Expr, String> {
+/// Constant folding and algebraic identities.
+///
+/// Symbolic derivatives are built structurally and carry a lot of dead
+/// weight (`y * 0`, `x + 0`, `1 * u`). Folding it away matters twice
+/// over: linearity detection asks whether a derivative still mentions
+/// its variable, and differentiated constraints are evaluated at every
+/// step.
+fn simplify(expr: &Expr) -> Expr {
+    use oxidelica_parser::BinOp::*;
+    match expr {
+        Expr::Neg(inner) => match simplify(inner) {
+            Expr::Number(n) => Expr::Number(-n),
+            other => Expr::Neg(Box::new(other)),
+        },
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(simplify).collect()),
+        Expr::Bin(op, l, r) => {
+            let (l, r) = (simplify(l), simplify(r));
+            if let (Expr::Number(a), Expr::Number(b)) = (&l, &r) {
+                return Expr::Number(match op {
+                    Add => a + b,
+                    Sub => a - b,
+                    Mul => a * b,
+                    Div => a / b,
+                    Pow => a.powf(*b),
+                });
+            }
+            let is = |e: &Expr, v: f64| matches!(e, Expr::Number(n) if *n == v);
+            match op {
+                Add if is(&l, 0.0) => r,
+                Add if is(&r, 0.0) => l,
+                Sub if is(&r, 0.0) => l,
+                Sub if is(&l, 0.0) => Expr::Neg(Box::new(r)),
+                Mul if is(&l, 0.0) || is(&r, 0.0) => Expr::Number(0.0),
+                Mul if is(&l, 1.0) => r,
+                Mul if is(&r, 1.0) => l,
+                Div if is(&l, 0.0) => Expr::Number(0.0),
+                Div if is(&r, 1.0) => l,
+                Pow if is(&r, 1.0) => l,
+                Pow if is(&r, 0.0) => Expr::Number(1.0),
+                _ => Expr::Bin(*op, Box::new(l), Box::new(r)),
+            }
+        }
+        Expr::If(c, a, b) => Expr::If(
+            Box::new(simplify(c)),
+            Box::new(simplify(a)),
+            Box::new(simplify(b)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(simplify(l)), Box::new(simplify(r))),
+        Expr::And(l, r) => Expr::And(Box::new(simplify(l)), Box::new(simplify(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(simplify(l)), Box::new(simplify(r))),
+        Expr::Not(inner) => Expr::Not(Box::new(simplify(inner))),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Ref(_) | Expr::Time => expr.clone(),
+    }
+}
+
+/// Replace every reference to `var` with `value`.
+fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
+    match expr {
+        Expr::Ref(name) if name == var => Expr::Number(value),
+        Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Call(name, args) => Expr::Call(
+            name.clone(),
+            args.iter().map(|a| substitute(a, var, value)).collect(),
+        ),
+        Expr::Neg(inner) => Expr::Neg(Box::new(substitute(inner, var, value))),
+        Expr::Not(inner) => Expr::Not(Box::new(substitute(inner, var, value))),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            Box::new(substitute(l, var, value)),
+            Box::new(substitute(r, var, value)),
+        ),
+        Expr::Rel(op, l, r) => Expr::Rel(
+            *op,
+            Box::new(substitute(l, var, value)),
+            Box::new(substitute(r, var, value)),
+        ),
+        Expr::And(l, r) => Expr::And(
+            Box::new(substitute(l, var, value)),
+            Box::new(substitute(r, var, value)),
+        ),
+        Expr::Or(l, r) => Expr::Or(
+            Box::new(substitute(l, var, value)),
+            Box::new(substitute(r, var, value)),
+        ),
+        Expr::If(c, a, b) => Expr::If(
+            Box::new(substitute(c, var, value)),
+            Box::new(substitute(a, var, value)),
+            Box::new(substitute(b, var, value)),
+        ),
+    }
+}
+
+/// Solve `lhs = rhs` symbolically for `var` when the equation is linear
+/// in it: with residual `r = a*var + b`, the solution is `-b/a`, where
+/// `a` is the (var-free) derivative and `b` is `r` at `var = 0`.
+fn solve_linear_for(lhs: &Expr, rhs: &Expr, var: &str) -> Option<Expr> {
+    let residual = Expr::Bin(
+        oxidelica_parser::BinOp::Sub,
+        Box::new(lhs.clone()),
+        Box::new(rhs.clone()),
+    );
+    let slope = simplify(&differentiate(&residual, &DiffTarget::Variable(var)).ok()?);
+    let mut refs = Vec::new();
+    slope.collect_refs(&mut refs);
+    if refs.contains(&var) {
+        return None;
+    }
+    let intercept = simplify(&substitute(&residual, var, 0.0));
+    Some(simplify(&Expr::Bin(
+        oxidelica_parser::BinOp::Div,
+        Box::new(Expr::Neg(Box::new(intercept))),
+        Box::new(slope),
+    )))
+}
+
+enum DiffTarget<'a> {
+    /// Differentiate with respect to time.
+    Time {
+        /// Defining right-hand sides of the states.
+        state_rhs: &'a HashMap<String, Expr>,
+        /// Known parameters (constant in time).
+        params: &'a HashMap<String, f64>,
+    },
+    /// Differentiate with respect to one variable, all else constant.
+    Variable(&'a str),
+}
+
+fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
     use oxidelica_parser::BinOp::*;
     fn bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
         Expr::Bin(op, Box::new(a), Box::new(b))
@@ -489,21 +825,33 @@ fn differentiate(
     fn call(name: &str, arg: Expr) -> Expr {
         Expr::Call(name.to_string(), vec![arg])
     }
-    let d = |e: &Expr| differentiate(e, state_rhs, params);
+    let d = |e: &Expr| differentiate(e, target);
     Ok(match expr {
         Expr::Number(_) | Expr::Bool(_) => Expr::Number(0.0),
-        Expr::Time => Expr::Number(1.0),
-        Expr::Ref(name) => {
-            if let Some(rhs) = state_rhs.get(name) {
-                rhs.clone()
-            } else if params.contains_key(name) {
-                Expr::Number(0.0)
-            } else {
-                return Err(format!(
-                    "cannot differentiate through algebraic variable `{name}`"
-                ));
+        Expr::Time => match target {
+            DiffTarget::Time { .. } => Expr::Number(1.0),
+            DiffTarget::Variable(_) => Expr::Number(0.0),
+        },
+        Expr::Ref(name) => match target {
+            DiffTarget::Time { state_rhs, params } => {
+                if let Some(rhs) = state_rhs.get(name) {
+                    rhs.clone()
+                } else if params.contains_key(name) {
+                    Expr::Number(0.0)
+                } else {
+                    return Err(format!(
+                        "cannot differentiate through algebraic variable `{name}`"
+                    ));
+                }
             }
-        }
+            DiffTarget::Variable(var) => {
+                if name == var {
+                    Expr::Number(1.0)
+                } else {
+                    Expr::Number(0.0)
+                }
+            }
+        },
         Expr::Neg(inner) => Expr::Neg(Box::new(d(inner)?)),
         Expr::Bin(Add, a, b) => bin(Add, d(a)?, d(b)?),
         Expr::Bin(Sub, a, b) => bin(Sub, d(a)?, d(b)?),
@@ -775,6 +1123,56 @@ impl CompiledModel {
     }
 }
 
+/// Derivatives of the Lagrange basis polynomials at the first node.
+///
+/// For nodes `[t0, t1, ...]` the result `c` satisfies
+/// `P'(t0) = sum_j c[j] * y_j` for the interpolant `P` through them —
+/// exactly the coefficients of a non-uniform BDF formula.
+fn lagrange_derivative_coefficients(nodes: &[f64]) -> Vec<f64> {
+    let count = nodes.len();
+    let mut coefficients = vec![0.0; count];
+    // j = 0: sum of reciprocal distances to the other nodes.
+    coefficients[0] = nodes[1..].iter().map(|t| 1.0 / (nodes[0] - t)).sum();
+    for j in 1..count {
+        let mut numerator = 1.0;
+        for (m, node) in nodes.iter().enumerate() {
+            if m != j && m != 0 {
+                numerator *= nodes[0] - node;
+            }
+        }
+        let mut denominator = 1.0;
+        for (m, node) in nodes.iter().enumerate() {
+            if m != j {
+                denominator *= nodes[j] - node;
+            }
+        }
+        coefficients[j] = numerator / denominator;
+    }
+    coefficients
+}
+
+/// Value at `at` of the Lagrange interpolant through `nodes` for
+/// component `i` of the stored vectors.
+fn lagrange_value(nodes: &[f64], values: &[&[f64]], i: usize, at: f64) -> f64 {
+    let mut sum = 0.0;
+    for (j, &node) in nodes.iter().enumerate() {
+        let mut basis = 1.0;
+        for (m, &other) in nodes.iter().enumerate() {
+            if m != j {
+                basis *= (at - other) / (node - other);
+            }
+        }
+        sum += basis * values[j][i];
+    }
+    sum
+}
+
+/// Extrapolate the history polynomial (component `i`) to `at`.
+fn lagrange_extrapolate(nodes: &[f64], values: &[Vec<f64>], i: usize, at: f64) -> f64 {
+    let borrowed: Vec<&[f64]> = values.iter().map(|v| v.as_slice()).collect();
+    lagrange_value(nodes, &borrowed, i, at)
+}
+
 /// Solve `a * x = b` in place by Gaussian elimination with partial
 /// pivoting; `None` on a (numerically) singular matrix.
 fn solve_linear(a: &mut [Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
@@ -863,8 +1261,13 @@ impl CompiledModel {
                     let value = eval(expr, &EvalCtx { vars: env, time: t })?;
                     env.insert(self.algebraics[*var].clone(), value);
                 }
-                AlgStage::Implicit { vars, residuals } => {
-                    self.solve_implicit_block(t, env, vars, residuals, alg_guess)?;
+                AlgStage::Implicit {
+                    torn,
+                    inner,
+                    residuals,
+                    ..
+                } => {
+                    self.solve_implicit_block(t, env, torn, inner, residuals, alg_guess, false)?;
                 }
             }
         }
@@ -884,8 +1287,10 @@ impl CompiledModel {
         t: f64,
         env: &mut HashMap<String, f64>,
         block: &[usize],
+        inner: &[(usize, Expr)],
         residuals: &[(Expr, Expr)],
         alg_guess: &mut [f64],
+        validate: bool,
     ) -> Result<(), SimError> {
         let n = block.len();
         let mut v: Vec<f64> = block.iter().map(|&i| alg_guess[i]).collect();
@@ -893,6 +1298,11 @@ impl CompiledModel {
         let residual = |env: &mut HashMap<String, f64>, v: &[f64]| -> Result<Vec<f64>, SimError> {
             for (j, &index) in block.iter().enumerate() {
                 env.insert(self.algebraics[index].clone(), v[j]);
+            }
+            // Torn values fixed: the inner unknowns follow explicitly.
+            for (var, expr) in inner {
+                let value = eval(expr, &EvalCtx { vars: env, time: t })?;
+                env.insert(self.algebraics[*var].clone(), value);
             }
             let mut f = Vec::with_capacity(n);
             for (lhs, rhs) in residuals {
@@ -914,6 +1324,29 @@ impl CompiledModel {
             if converged {
                 for (j, &index) in block.iter().enumerate() {
                     alg_guess[index] = v[j];
+                }
+                if validate {
+                    // A converged block still has to be *determined*:
+                    // a singular Jacobian means the loop admits a whole
+                    // family of solutions, and the one we landed on is
+                    // an artifact of the initial guess.
+                    let mut jac = vec![vec![0.0f64; n]; n];
+                    for j in 0..n {
+                        let h = 1e-8 * (1.0 + v[j].abs());
+                        let mut perturbed = v.clone();
+                        perturbed[j] += h;
+                        let fp = residual(env, &perturbed)?;
+                        for (i, row) in jac.iter_mut().enumerate() {
+                            row[j] = (fp[i] - f[i]) / h;
+                        }
+                    }
+                    let probe = vec![1.0; n];
+                    if solve_linear(&mut jac, &probe).is_none() {
+                        return err(format!(
+                            "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
+                            block_names()
+                        ));
+                    }
                 }
                 return Ok(());
             }
@@ -952,6 +1385,7 @@ impl CompiledModel {
         match self.method {
             SolverMethod::Dopri45 => self.simulate_adaptive(),
             SolverMethod::Rk4 => self.simulate_rk4(),
+            SolverMethod::Bdf => self.simulate_bdf(),
         }
     }
 
@@ -1204,6 +1638,337 @@ impl CompiledModel {
         })
     }
 
+    /// Finite-difference Jacobian `df/dy` of the state right-hand side
+    /// at `(t, y)`. Algebraic warm starts are kept on a scratch copy so
+    /// probing does not disturb the accepted solution.
+    fn jacobian(
+        &self,
+        t: f64,
+        y: &[f64],
+        f0: &[f64],
+        env: &mut HashMap<String, f64>,
+        alg_guess: &[f64],
+    ) -> Result<Vec<Vec<f64>>, SimError> {
+        let n = y.len();
+        let mut jac = vec![vec![0.0; n]; n];
+        let mut probe = y.to_vec();
+        let mut scratch = alg_guess.to_vec();
+        let mut f = Vec::with_capacity(n);
+        for j in 0..n {
+            let delta = 1e-7 * (1.0 + y[j].abs());
+            probe[j] = y[j] + delta;
+            self.eval_point(t, &probe, env, &mut f, &mut scratch)?;
+            probe[j] = y[j];
+            for (i, row) in jac.iter_mut().enumerate() {
+                row[j] = (f[i] - f0[i]) / delta;
+            }
+        }
+        Ok(jac)
+    }
+
+    /// Variable-order (1..5), variable-step BDF with Newton iteration
+    /// and a reused finite-difference Jacobian.
+    ///
+    /// Implicit and stable for stiff systems, where explicit methods
+    /// are limited by stability rather than accuracy. Coefficients come
+    /// from differentiating the Lagrange interpolant over the actual
+    /// (non-uniform) step history, so no restart is needed after a step
+    /// size change. Dense output on the `Interval` grid uses the same
+    /// interpolant.
+    pub fn simulate_bdf(&self) -> Result<SimResult, SimError> {
+        const MAX_ORDER: usize = 5;
+        const NEWTON_MAX: usize = 12;
+
+        let n = self.states.len();
+        let stop = self.stop_time;
+        let out_step = self.step.max(1e-12);
+        let rtol = self.tolerance;
+        let atol = self.tolerance * 1e-3;
+
+        let mut env = HashMap::new();
+        let mut columns = vec!["time".to_string()];
+        columns.extend(self.states.iter().cloned());
+        columns.extend(self.algebraics.iter().cloned());
+        let mut rows: Vec<Vec<f64>> = Vec::new();
+        let mut alg_guess = self.algebraic_start.clone();
+        let mut f_scratch = Vec::new();
+
+        let mut record = |t: f64,
+                          y: &[f64],
+                          env: &mut HashMap<String, f64>,
+                          k: &mut Vec<f64>,
+                          alg_guess: &mut [f64]|
+         -> Result<(), SimError> {
+            self.eval_point(t, y, env, k, alg_guess)?;
+            let mut row = Vec::with_capacity(1 + n + self.algebraics.len());
+            row.push(t);
+            row.extend_from_slice(y);
+            for name in &self.algebraics {
+                row.push(env[name]);
+            }
+            rows.push(row);
+            Ok(())
+        };
+
+        let mut y = self.initial.clone();
+        let mut terminated: Option<String> = None;
+        record(0.0, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+        if let Some(message) = self.check_terminations(0.0, &env)? {
+            return Ok(SimResult {
+                columns,
+                rows,
+                terminated: Some(message),
+            });
+        }
+
+        // Pure-algebraic models: nothing to integrate, walk the grid.
+        let mut out_i = 1usize;
+        let mut last_out_t = 0.0f64;
+        if n == 0 {
+            loop {
+                let t = out_i as f64 * out_step;
+                if t > stop + 1e-12 {
+                    break;
+                }
+                record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                last_out_t = t;
+                out_i += 1;
+                terminated = self.check_terminations(t, &env)?;
+                if terminated.is_some() {
+                    break;
+                }
+            }
+            if terminated.is_none() && last_out_t < stop - 1e-12 {
+                record(stop, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+            }
+            return Ok(SimResult {
+                columns,
+                rows,
+                terminated,
+            });
+        }
+
+        // History, newest first.
+        let mut t_hist: Vec<f64> = vec![0.0];
+        let mut y_hist: Vec<Vec<f64>> = vec![y.clone()];
+        let mut order = 1usize;
+        let mut t = 0.0f64;
+        let mut h = out_step.min(stop).max(1e-12);
+        let mut jac: Option<Vec<Vec<f64>>> = None;
+        let mut jac_c0 = f64::NAN;
+        let mut consecutive_ok = 0usize;
+        let mut steps: u64 = 0;
+
+        let mut f_new = vec![0.0; n];
+        let mut y_new = vec![0.0; n];
+        let mut y_pred = vec![0.0; n];
+        let mut f_last = Vec::new();
+        self.eval_point(0.0, &y, &mut env, &mut f_last, &mut alg_guess)?;
+
+        while t < stop - 1e-12 {
+            h = h.min(stop - t);
+            let k = order.min(t_hist.len());
+            let t_new = t + h;
+
+            // Lagrange nodes: the new point first, then the history.
+            let mut nodes = Vec::with_capacity(k + 1);
+            nodes.push(t_new);
+            nodes.extend(t_hist.iter().take(k).copied());
+            let coeffs = lagrange_derivative_coefficients(&nodes);
+
+            // Predictor of the same order as the corrector: the
+            // polynomial through the last k+1 points. Early on there is
+            // no such history, so a derivative-based linear predictor
+            // (y_n + h*f_n) stands in — otherwise the predictor-corrector
+            // difference would measure the solution change, not the error.
+            let predictor_points = (k + 1).min(t_hist.len());
+            if predictor_points >= 2 {
+                for (i, slot) in y_pred.iter_mut().enumerate() {
+                    *slot = lagrange_extrapolate(
+                        &t_hist[..predictor_points],
+                        &y_hist[..predictor_points],
+                        i,
+                        t_new,
+                    );
+                }
+            } else {
+                for (i, slot) in y_pred.iter_mut().enumerate() {
+                    *slot = y_hist[0][i] + h * f_last[i];
+                }
+            }
+            y_new.copy_from_slice(&y_pred);
+
+            // Constant part of the BDF residual.
+            let mut hist_sum = vec![0.0; n];
+            for (j, coeff) in coeffs.iter().enumerate().skip(1) {
+                for (i, slot) in hist_sum.iter_mut().enumerate() {
+                    *slot += coeff * y_hist[j - 1][i];
+                }
+            }
+            let c0 = coeffs[0];
+
+            // Newton iteration on c0*y + hist - f(t_new, y) = 0.
+            let mut converged = false;
+            let mut newton_failed = false;
+            for iteration in 0..NEWTON_MAX {
+                self.eval_point(t_new, &y_new, &mut env, &mut f_new, &mut alg_guess)?;
+                steps += 1;
+                if steps > 20_000_000 {
+                    return err(format!(
+                        "solver exceeded the evaluation budget at t = {t:.6}"
+                    ));
+                }
+                let residual: Vec<f64> = (0..n)
+                    .map(|i| c0 * y_new[i] + hist_sum[i] - f_new[i])
+                    .collect();
+                if residual.iter().any(|r| !r.is_finite()) {
+                    newton_failed = true;
+                    break;
+                }
+
+                if jac.is_none() || (jac_c0 - c0).abs() > 0.3 * c0.abs() || iteration == 3 {
+                    jac = Some(self.jacobian(t_new, &y_new, &f_new, &mut env, &alg_guess)?);
+                    jac_c0 = c0;
+                }
+                let mut matrix: Vec<Vec<f64>> = jac
+                    .as_ref()
+                    .expect("jacobian present")
+                    .iter()
+                    .enumerate()
+                    .map(|(i, row)| {
+                        row.iter()
+                            .enumerate()
+                            .map(|(j, value)| if i == j { c0 - value } else { -value })
+                            .collect()
+                    })
+                    .collect();
+                let Some(delta) = solve_linear(&mut matrix, &residual) else {
+                    newton_failed = true;
+                    break;
+                };
+                let mut scaled = 0.0f64;
+                for i in 0..n {
+                    y_new[i] -= delta[i];
+                    let scale = atol + rtol * y_new[i].abs().max(1.0);
+                    scaled = scaled.max((delta[i] / scale).abs());
+                }
+                if !y_new.iter().all(|v| v.is_finite()) {
+                    newton_failed = true;
+                    break;
+                }
+                if scaled < 0.1 {
+                    converged = true;
+                    break;
+                }
+            }
+
+            if newton_failed || !converged {
+                // Shrink the step, drop to first order and refresh the
+                // Jacobian: the linear model is clearly stale.
+                h *= 0.25;
+                order = 1;
+                jac = None;
+                if h < stop * 1e-14 || h < 1e-300 {
+                    return err(format!(
+                        "step size underflow at t = {t:.6}: Newton iteration does not converge"
+                    ));
+                }
+                continue;
+            }
+
+            // Predictor-corrector difference estimates the local error.
+            let mut err_norm = 0.0f64;
+            for i in 0..n {
+                let scale = atol + rtol * y_new[i].abs().max(y[i].abs());
+                let e = (y_new[i] - y_pred[i]) / scale;
+                err_norm += e * e;
+            }
+            err_norm = (err_norm / n as f64).sqrt();
+
+            if err_norm.is_finite() && err_norm <= 1.0 {
+                // Dense output on the grid via the step interpolant.
+                let mut interp_nodes = Vec::with_capacity(k + 1);
+                interp_nodes.push(t_new);
+                interp_nodes.extend(t_hist.iter().take(k).copied());
+                let mut interp_values: Vec<&[f64]> = Vec::with_capacity(k + 1);
+                interp_values.push(&y_new);
+                for slot in y_hist.iter().take(k) {
+                    interp_values.push(slot);
+                }
+                let mut interp = vec![0.0; n];
+                loop {
+                    let out_t = out_i as f64 * out_step;
+                    if out_t > t_new + 1e-12 || out_t > stop + 1e-12 {
+                        break;
+                    }
+                    for (i, slot) in interp.iter_mut().enumerate() {
+                        *slot = lagrange_value(&interp_nodes, &interp_values, i, out_t);
+                    }
+                    record(out_t, &interp, &mut env, &mut f_scratch, &mut alg_guess)?;
+                    last_out_t = out_t;
+                    out_i += 1;
+                    terminated = self.check_terminations(out_t, &env)?;
+                    if terminated.is_some() {
+                        break;
+                    }
+                }
+                if terminated.is_some() {
+                    break;
+                }
+
+                t = t_new;
+                y.copy_from_slice(&y_new);
+                f_last.copy_from_slice(&f_new);
+                t_hist.insert(0, t_new);
+                y_hist.insert(0, y_new.clone());
+                if t_hist.len() > MAX_ORDER + 1 {
+                    t_hist.pop();
+                    y_hist.pop();
+                }
+                consecutive_ok += 1;
+                // Raise the order once the history supports it. The
+                // step controller keeps the error near its target, so
+                // waiting for a *small* error would pin the order at 1;
+                // a premature raise simply costs one rejected step.
+                if consecutive_ok > order && order < MAX_ORDER && t_hist.len() > order {
+                    order += 1;
+                    consecutive_ok = 0;
+                }
+            } else {
+                consecutive_ok = 0;
+                if order > 1 {
+                    order -= 1;
+                }
+            }
+
+            let factor = if !err_norm.is_finite() || err_norm == 0.0 {
+                if err_norm == 0.0 {
+                    2.0
+                } else {
+                    0.25
+                }
+            } else {
+                (0.9 * err_norm.powf(-1.0 / (k as f64 + 1.0))).clamp(0.2, 4.0)
+            };
+            h *= factor;
+            if h < stop * 1e-14 || h < 1e-300 {
+                return err(format!(
+                    "step size underflow at t = {t:.6}: probable singularity"
+                ));
+            }
+        }
+
+        if terminated.is_none() && last_out_t < stop - 1e-12 {
+            record(stop, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+            terminated = self.check_terminations(stop, &env)?;
+        }
+        Ok(SimResult {
+            columns,
+            rows,
+            terminated,
+        })
+    }
+
     /// Classic fixed-step RK4 integration over `[0, stop_time]`.
     pub fn simulate_rk4(&self) -> Result<SimResult, SimError> {
         let n = self.states.len();
@@ -1364,13 +2129,14 @@ mod tests {
     }
 
     #[test]
-    fn degenerate_algebraic_cycle_reports_singular_jacobian() {
-        // x = y + 1 and y = x - 1 are the same equation twice: the
-        // loop compiles but its Jacobian is singular.
+    fn degenerate_algebraic_cycle_is_rejected_at_compile_time() {
+        // x = y + 1 and y = x - 1 are the same equation twice: the loop
+        // is structurally sound but has a whole family of solutions, so
+        // the regularity check rejects it before any stepping happens.
         let model =
             parse_model("model C Real x; Real y; equation x = y + 1; y = x - 1; end C;").unwrap();
-        let error = compile(&model).unwrap().simulate().unwrap_err();
-        assert!(error.0.contains("singular Jacobian"), "{}", error.0);
+        let error = compile(&model).unwrap_err();
+        assert!(error.0.contains("underdetermined"), "{}", error.0);
     }
 
     #[test]
@@ -1778,6 +2544,68 @@ mod tests {
             error.contains("structurally singular") && error.contains("cannot differentiate"),
             "{error}"
         );
+    }
+
+    #[test]
+    fn bdf_handles_a_stiff_system_that_starves_explicit_methods() {
+        // der(x) = -1e6 * (x - cos t): the explicit method is limited by
+        // stability, the implicit one by accuracy only.
+        let source = "model S Real x(start = 0.0); \
+             equation der(x) = -1000000.0 * (x - cos(time)); \
+             annotation(experiment(StopTime=5.0, Interval=0.01, Tolerance=1e-6)); end S;";
+        let mut compiled = compile(&parse_model(source).unwrap()).unwrap();
+        compiled.method = SolverMethod::Bdf;
+        let result = compiled.simulate().unwrap();
+        let x = result.rows.last().unwrap()[1];
+        // After the transient the solution tracks the quasi-steady cos t.
+        assert!(
+            (x - 5.0f64.cos()).abs() < 1e-5,
+            "x(5) = {x}, expected ~{}",
+            5.0f64.cos()
+        );
+    }
+
+    #[test]
+    fn bdf_and_dopri_agree_on_a_non_stiff_model() {
+        let source = "model P parameter Real g = 9.81; Real phi(start = 0.7); Real w(start = 0); \
+             equation der(phi) = w; der(w) = -g * sin(phi); \
+             annotation(experiment(StopTime=2.0, Interval=0.01, Tolerance=1e-10)); end P;";
+        let model = parse_model(source).unwrap();
+        let dopri = compile(&model).unwrap().simulate().unwrap();
+        let mut stiff_solver = compile(&model).unwrap();
+        stiff_solver.method = SolverMethod::Bdf;
+        let bdf = stiff_solver.simulate().unwrap();
+        let (a, b) = (dopri.rows.last().unwrap(), bdf.rows.last().unwrap());
+        assert!((a[1] - b[1]).abs() < 1e-6, "phi: {} vs {}", a[1], b[1]);
+        assert!((a[2] - b[2]).abs() < 1e-6, "w: {} vs {}", a[2], b[2]);
+    }
+
+    #[test]
+    fn tearing_shrinks_the_newton_system() {
+        // A two-variable algebraic loop: one variable is torn, the other
+        // follows from an explicit assignment.
+        let model =
+            parse_model("model L Real x; Real y; equation x = y / 2 + 1; y = x / 2 + 1; end L;")
+                .unwrap();
+        let compiled = compile(&model).unwrap();
+        let plan = compiled.plan_summary();
+        let block = plan
+            .iter()
+            .find(|line| line.contains("implicit block of 2"))
+            .expect("a two-variable block");
+        assert!(block.contains("iterating on 1"), "{block}");
+        // And it still gets the right answer: x = y = 2.
+        let result = compiled.simulate().unwrap();
+        assert!((result.rows[0][1] - 2.0).abs() < 1e-9);
+        assert!((result.rows[0][2] - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn solver_names_round_trip() {
+        for method in [SolverMethod::Dopri45, SolverMethod::Rk4, SolverMethod::Bdf] {
+            assert_eq!(SolverMethod::from_name(method.name()), Some(method));
+        }
+        assert_eq!(SolverMethod::from_name("nope"), None);
     }
 
     #[test]
