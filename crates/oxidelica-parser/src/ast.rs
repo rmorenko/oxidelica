@@ -117,8 +117,9 @@ pub struct StatementBranch {
 /// One statement of an algorithm section.
 #[derive(Debug, Clone)]
 pub enum Statement {
-    /// `target := value;`
-    Assign(String, Expr),
+    /// `target := value;` — the subscripts are empty for a plain
+    /// target, and hold the indices of `c[i] := value;`.
+    Assign(String, Vec<Expr>, Expr),
     /// `if c then … elseif … else … end if;`
     If(Vec<StatementBranch>),
     /// `for i in lo:hi loop … end for;`

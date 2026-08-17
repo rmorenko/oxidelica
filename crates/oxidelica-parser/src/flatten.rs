@@ -563,6 +563,7 @@ fn instantiate(
             &mut bindings,
             &mut assigned,
             &local_consts,
+            &sizes,
             registry,
             scope,
             &class.imports,
@@ -572,10 +573,13 @@ fn instantiate(
             let value = bindings
                 .get(&name)
                 .ok_or_else(|| format!("`{name}` is assigned by the algorithm but has no value"))?;
-            acc.equations.push(EquationItem {
-                lhs: Expr::Ref(flat_name(&name, prefix, &outers)),
-                rhs: resolve_here(value)?,
-            });
+            // Both sides may be arrays: `w := v .* k` assigns a whole
+            // one, and comes out as one equation per element.
+            push_equations(
+                &expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?,
+                &expand_here(value, &no_loop_vars)?,
+                acc,
+            )?;
         }
     }
 
@@ -1577,6 +1581,7 @@ fn execute(
     bindings: &mut HashMap<String, Expr>,
     assigned: &mut Vec<String>,
     consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
@@ -1587,21 +1592,46 @@ fn execute(
     }
     for statement in statements {
         match statement {
-            Statement::Assign(target, value) => {
+            Statement::Assign(target, subscripts, value) => {
                 let value = substitute_refs(value, bindings);
-                let value = resolve(
-                    &value,
-                    &HashMap::new(),
+                // Through the array layer, so `c := a .* b` binds a whole
+                // array and a scalar stays a scalar.
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
+                    sizes,
+                    loop_vars: &no_loop_vars,
                     consts,
-                    registry,
-                    scope,
-                    imports,
-                    depth + 1,
-                )?;
-                if !assigned.contains(target) {
+                };
+                let value =
+                    expand(&value, &shapes, registry, scope, imports, depth + 1)?.into_expr();
+                // Expansion turns `p[i - 1]` into the element's own name,
+                // which may itself be bound by an earlier statement - so
+                // the bindings are applied once more.
+                let value = substitute_refs(&value, bindings);
+                // `c[i] := ...` lands on the element's own name.
+                let target = if subscripts.is_empty() {
+                    target.clone()
+                } else {
+                    let indices = subscripts
+                        .iter()
+                        .map(|subscript| {
+                            let subscript = substitute_refs(subscript, bindings);
+                            const_eval(&subscript, consts)
+                                .filter(|v| v.fract() == 0.0 && *v >= 1.0)
+                                .map(|v| v as i64)
+                                .ok_or_else(|| {
+                                    format!(
+                                        "the subscript of `{target}` must be a whole number the compiler can see"
+                                    )
+                                })
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    element_name(target, &indices)
+                };
+                if !assigned.contains(&target) {
                     assigned.push(target.clone());
                 }
-                bindings.insert(target.clone(), value);
+                bindings.insert(target, value);
             }
             Statement::If(branches) => {
                 let before = bindings.clone();
@@ -1613,6 +1643,7 @@ fn execute(
                         &mut local,
                         assigned,
                         consts,
+                        sizes,
                         registry,
                         scope,
                         imports,
@@ -1698,6 +1729,7 @@ fn execute(
                         bindings,
                         assigned,
                         consts,
+                        sizes,
                         registry,
                         scope,
                         imports,
@@ -1862,6 +1894,16 @@ impl Value {
         }
     }
 
+    /// The expression form of the value: a scalar as itself, an array
+    /// as a literal - which is how one travels through the bindings of
+    /// an algorithm.
+    fn into_expr(self) -> Expr {
+        match self {
+            Value::Scalar(expr) => expr,
+            Value::Array(items) => Expr::Array(items.into_iter().map(Value::into_expr).collect()),
+        }
+    }
+
     /// Its shape, as the length of each dimension.
     fn shape(&self) -> Vec<usize> {
         match self {
@@ -1942,6 +1984,38 @@ fn expand(
             })?
         }
         Expr::Call(name, args) => expand_call(name, args, shapes, registry, scope, imports, depth)?,
+        // Indexing something that expands to an array picks the element:
+        // this is how `a[i]` works inside a function whose `a` was bound
+        // to an array literal.
+        Expr::Index(base, subscripts) => {
+            let base_value = recur(base)?;
+            match base_value {
+                Value::Array(_) => {
+                    let mut env = shapes.consts.clone();
+                    env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    let mut current = base_value;
+                    for subscript in subscripts {
+                        let index = recur(subscript)?.scalar()?;
+                        let index = const_eval(&index, &env).ok_or_else(|| {
+                            "a subscript into an array value must be a compile-time constant"
+                                .to_string()
+                        })?;
+                        let Value::Array(items) = current else {
+                            return Err("more subscripts than dimensions".to_string());
+                        };
+                        if index.fract() != 0.0 || index < 1.0 || index as usize > items.len() {
+                            return Err(format!(
+                                "subscript {index} is outside an array of {}",
+                                items.len()
+                            ));
+                        }
+                        current = items[index as usize - 1].clone();
+                    }
+                    current
+                }
+                _ => scalar(expr)?,
+            }
+        }
         other => scalar(other)?,
     })
 }
@@ -2188,6 +2262,25 @@ fn expand_call(
             ))
         }
         _ => {
+            // A user function that takes or returns an array is inlined
+            // with the arrays intact - vectorizing it element by element
+            // would compute something else entirely.
+            if let Some(class) = lookup(registry, name, scope, imports) {
+                if class.kind == ClassKind::Function
+                    && class
+                        .components
+                        .iter()
+                        .any(|c| c.causality != Causality::None && !c.dimensions.is_empty())
+                {
+                    let arguments = args
+                        .iter()
+                        .map(|arg| Ok(recur(arg)?.into_expr()))
+                        .collect::<Result<Vec<_>, String>>()?;
+                    let result =
+                        inline_function(class, &arguments, shapes.consts, registry, depth + 1)?;
+                    return expand(&result, shapes, registry, scope, imports, depth + 1);
+                }
+            }
             // Anything else: an ordinary call, applied to every element
             // when an argument turns out to be an array.
             let values = args
@@ -2309,22 +2402,44 @@ fn inline_function(
         }
     }
     let mut assigned = Vec::new();
+    let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
+    collect_shapes(registry, class, consts, &mut sizes, 0);
     execute(
         &class.algorithm,
         &mut bindings,
         &mut assigned,
         consts,
+        &sizes,
         registry,
         scope_of(&class.name),
         &class.imports,
         depth + 1,
     )?;
-    bindings.get(&outputs[0].name).cloned().ok_or_else(|| {
-        format!(
-            "function `{}` never assigns its output `{}`",
-            class.name, outputs[0].name
-        )
-    })
+    let output = &outputs[0].name;
+    // A whole-array assignment bound the name itself; per-element
+    // assignments bound `c[1]`, `c[2]`, ... - gather them in order.
+    if let Some(expr) = bindings.get(output) {
+        return Ok(expr.clone());
+    }
+    if let Some(dimensions) = sizes.get(output) {
+        let items = index_tuples(dimensions)
+            .into_iter()
+            .map(|indices| {
+                let element = element_name(output, &indices);
+                bindings.get(&element).cloned().ok_or_else(|| {
+                    format!(
+                        "function `{}` never assigns `{element}` of its output",
+                        class.name
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        return Ok(Expr::Array(items));
+    }
+    Err(format!(
+        "function `{}` never assigns its output `{output}`",
+        class.name
+    ))
 }
 
 #[cfg(test)]
@@ -2487,12 +2602,12 @@ mod tests {
         // A subscript that cannot be folded.
         assert!(
             err("model M Real v[2]; Real k; equation k = 1; v[1] = 0; v[2] = v[k]; end M;")
-                .contains("not constant")
+                .contains("compile-time constant")
         );
-        // A subscript out of the whole-number domain.
+        // A subscript out of range names the bound it broke.
         assert!(
             err("model M Real v[2]; equation v[1] = 0; v[2] = v[0]; end M;")
-                .contains("positive whole number")
+                .contains("outside an array of 2")
         );
         // A loop bound that is not constant.
         assert!(
@@ -3277,6 +3392,46 @@ mod tests {
         assert!(
             err("model M Real v[2]; Real q; equation q = 1; v = fill(1.0, q); end M;")
                 .contains("compiler can see")
+        );
+    }
+
+    #[test]
+    fn functions_take_and_return_arrays() {
+        // Reversal per element, a whole-array body, calls by qualified
+        // name, and the result flowing on into a scalar product.
+        let m = parse_model(
+            "package Lib                function reverse input Real a[3]; output Real b[3];                algorithm for i in 1:3 loop b[i] := a[4 - i]; end for; end reverse;                function axpy input Real a; input Real x[3]; input Real y[3];                output Real z[3]; algorithm z := a * x .+ y; end axpy;              end Lib;              model M Real v[3]; Real r[3]; Real w[3]; Real check;              equation v = {1, 2, 3}; r = Lib.reverse(v);              w = Lib.axpy(10, v, r); check = w * {1, 1, 1}; end M;",
+        )
+        .unwrap();
+        // Everything inlined: no calls survive into the flat model.
+        let text = format!("{:?}", m.equations);
+        assert!(!text.contains("Call"), "{text}");
+        // r[1] is the last element of v: the function body reversed the
+        // references, and v stays a variable rather than being folded.
+        let r1 = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == "Ref(\"r[1]\")")
+            .unwrap();
+        assert_eq!(r1.rhs, Expr::Ref("v[3]".to_string()));
+
+        // An output never fully assigned is named element by element.
+        let error = parse_model(
+            "package Lib function half input Real a[2]; output Real b[2];              algorithm b[1] := a[1]; end half; end Lib;              model M Real v[2]; Real w[2];              equation v = {1, 2}; w = Lib.half(v); end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("b[2]"), "{error}");
+
+        // A subscripted target with a subscript nothing can fold.
+        let error = parse_model(
+            "package Lib function bad input Real a; output Real b[2];              algorithm b[a] := 1; b[1] := 1; end bad; end Lib;              model M Real q; Real w[2]; equation q = 1; w = Lib.bad(q); end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(
+            error.contains("whole number the compiler can see"),
+            "{error}"
         );
     }
 

@@ -593,6 +593,23 @@ impl Parser {
             match self.peek() {
                 Token::Ident(_) => {
                     let target = self.component_ref()?;
+                    // `c[i] := ...` assigns one element of an array.
+                    let mut subscripts = Vec::new();
+                    if self.peek() == &Token::LBracket {
+                        self.bump();
+                        loop {
+                            subscripts.push(self.expr()?);
+                            match self.bump() {
+                                Token::Comma => continue,
+                                Token::RBracket => break,
+                                other => {
+                                    return Err(self.err(format!(
+                                        "expected `,` or `]` in a subscript, found `{other}`"
+                                    )))
+                                }
+                            }
+                        }
+                    }
                     self.expect(&Token::Becomes, "`:=` in assignment")?;
                     let value = self.expr()?;
                     self.opt_string();
@@ -600,7 +617,7 @@ impl Parser {
                         self.annotation_body(&mut Experiment::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assignment")?;
-                    out.push(Statement::Assign(target, value));
+                    out.push(Statement::Assign(target, subscripts, value));
                 }
                 Token::If => out.push(self.if_statement()?),
                 Token::For => out.push(self.for_statement()?),
@@ -1433,7 +1450,9 @@ impl Parser {
                     }
                     return Ok(indexed);
                 }
-                if !name.contains('.') && self.peek() == &Token::LParen {
+                // A call may be qualified: `Lib.reverse(v)` names a
+                // function the way everything else is named.
+                if self.peek() == &Token::LParen {
                     self.bump();
                     let mut args = Vec::new();
                     if self.peek() != &Token::RParen {
