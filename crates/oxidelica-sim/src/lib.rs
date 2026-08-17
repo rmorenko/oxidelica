@@ -9,7 +9,7 @@
 #![deny(missing_docs)]
 
 use oxidelica_parser::{
-    EquationItem, Expr, Model, RelOp, Variability, WhenAction, WhenBranch, WhenClause,
+    BinOp, EquationItem, Expr, Model, RelOp, Variability, WhenAction, WhenBranch, WhenClause,
 };
 use std::collections::HashMap;
 use std::fmt;
@@ -69,9 +69,10 @@ impl SolverMethod {
     }
 }
 
-/// One step of the algebraic evaluation plan.
+/// One step of the algebraic evaluation plan, in the form the compiler
+/// builds it: expressions with names.
 #[derive(Debug)]
-enum AlgStage {
+enum PlanStage {
     /// An explicit assignment: `algebraics[var] := expr`.
     Explicit {
         /// Index of the assigned variable in `algebraics`.
@@ -94,6 +95,57 @@ enum AlgStage {
     },
 }
 
+/// One step of the plan as a run executes it: the same shape with the
+/// names resolved to slots and the expressions compiled.
+#[derive(Debug)]
+enum AlgStage {
+    /// An explicit assignment into a slot.
+    Explicit {
+        /// Index of the assigned variable in `algebraics`.
+        var: usize,
+        /// What to evaluate.
+        code: Code,
+    },
+    /// A simultaneous block, iterated on the torn unknowns.
+    Implicit {
+        /// All unknowns of the block (indices into `algebraics`).
+        vars: Vec<usize>,
+        /// Torn unknowns Newton iterates on.
+        torn: Vec<usize>,
+        /// Inner explicit assignments in evaluation order.
+        inner: Vec<(usize, Code)>,
+        /// Residuals matched to the torn unknowns.
+        residuals: Vec<(Code, Code)>,
+    },
+}
+
+/// A `when` clause with its conditions and targets resolved.
+#[derive(Debug)]
+struct CompiledWhen {
+    /// Branches in source order; `elsewhen` gives them priority.
+    branches: Vec<CompiledBranch>,
+}
+
+/// One branch of a compiled `when`.
+#[derive(Debug)]
+struct CompiledBranch {
+    /// Fires on the false-to-true edge of this.
+    condition: Code,
+    /// What it does when it fires.
+    actions: Vec<CompiledAction>,
+}
+
+/// What a branch does, with names already turned into positions.
+#[derive(Debug)]
+enum CompiledAction {
+    /// End the run with a message.
+    Terminate(String),
+    /// Restart a state, by index, from a new value.
+    Reinit(usize, Code),
+    /// Give a discrete variable, by index, a new value.
+    Assign(usize, Code),
+}
+
 /// A model reduced to "states plus ordered algebraic assignments".
 #[derive(Debug)]
 pub struct CompiledModel {
@@ -105,15 +157,31 @@ pub struct CompiledModel {
     pub states: Vec<String>,
     /// Initial state values.
     pub initial: Vec<f64>,
-    /// Right-hand side expression for each state.
-    derivatives: Vec<Expr>,
+    /// Right-hand side of each state, compiled.
+    derivatives: Vec<Code>,
+    /// The value array as a run starts it: parameters in place, the
+    /// rest zero.
+    values_template: Vec<f64>,
+    /// Slot of each state, algebraic and discrete variable, in the order
+    /// of the lists that name them.
+    state_slots: Vec<Slot>,
+    /// See [`CompiledModel::state_slots`].
+    algebraic_slots: Vec<Slot>,
+    /// See [`CompiledModel::state_slots`].
+    discrete_slots: Vec<Slot>,
+    /// Slot holding the previous value of each discrete variable.
+    pre_slots: Vec<Slot>,
+    /// Slot of the flag raised during the initial event.
+    initial_slot: Slot,
+    /// Slot of the flag raised by each `sample(...)` source.
+    sample_slots: Vec<Slot>,
     /// Algebraic variables in evaluation order.
     pub algebraics: Vec<String>,
     /// Initial Newton guesses for algebraic variables (start attributes).
     algebraic_start: Vec<f64>,
     /// Algebraic variables declared `fixed = true`: their start value is
     /// an initial condition, not a guess, so the solution must match it.
-    fixed_starts: Vec<(String, f64)>,
+    fixed_starts: Vec<(String, usize, f64)>,
     /// Evaluation plan: explicit assignments and implicit Newton blocks.
     stages: Vec<AlgStage>,
     /// Simulation end time.
@@ -135,18 +203,17 @@ pub struct CompiledModel {
     /// continuous part sees them as knowns and only a `when` clause
     /// changes them.
     pub discretes: Vec<String>,
-    /// Initial value of every discrete variable.
-    discrete_start: Vec<f64>,
     /// `(start, interval)` of every `sample(...)` in the model. The
     /// solver steps exactly onto each occurrence and raises the matching
     /// `$sample` flag there.
     samples: Vec<(f64, f64)>,
-    /// `when` clauses; their actions fire on a false-to-true edge.
-    when_clauses: Vec<WhenClause>,
+    /// `when` clauses, compiled: conditions and the values they assign,
+    /// with every target already resolved to its place.
+    when_clauses: Vec<CompiledWhen>,
     /// Event indicators: expressions whose sign change marks an event.
     /// Built from every relation in the model, so switching branches of
     /// an `if` expression are located exactly, not stepped over.
-    indicators: Vec<Expr>,
+    indicators: Vec<Code>,
 }
 
 impl CompiledModel {
@@ -162,41 +229,30 @@ impl CompiledModel {
         {
             return Ok(());
         }
-        let mut env: HashMap<String, f64> = self.parameters.iter().cloned().collect();
-        for (name, value) in self.discretes.iter().zip(&self.discrete_start) {
-            env.insert(name.clone(), *value);
-        }
-        for (name, value) in self.states.iter().zip(&self.initial) {
-            env.insert(name.clone(), *value);
+        let mut values = self.values_template.clone();
+        for (&slot, value) in self.state_slots.iter().zip(&self.initial) {
+            values[slot] = *value;
         }
         let mut alg_guess = self.algebraic_start.clone();
         for stage in &self.stages {
             match stage {
-                AlgStage::Explicit { var, expr } => {
-                    let ctx = EvalCtx {
-                        vars: &env,
-                        time: 0.0,
-                    };
-                    let Ok(value) = eval(expr, &ctx) else {
-                        return Ok(()); // Not evaluable at t = 0; leave it to runtime.
-                    };
-                    env.insert(self.algebraics[*var].clone(), value);
+                AlgStage::Explicit { var, code } => {
+                    values[self.algebraic_slots[*var]] = code.run(&values, 0.0);
                 }
                 stage @ AlgStage::Implicit { .. } => {
-                    self.solve_implicit_block(0.0, &mut env, stage, &mut alg_guess, true)?;
+                    self.solve_implicit_block(0.0, &mut values, stage, &mut alg_guess, true)?;
                 }
             }
         }
         // A variable demoted by index reduction is solved from the
         // constraints; if it was declared `fixed = true`, that solution
         // has to agree with the declared initial condition.
-        for (name, expected) in &self.fixed_starts {
-            if let Some(actual) = env.get(name) {
-                if (actual - expected).abs() > 1e-6 {
-                    return err(format!(
-                        "initial value of `{name}` is fixed at {expected} but the constraints require {actual}"
-                    ));
-                }
+        for (name, index, expected) in &self.fixed_starts {
+            let actual = values[self.algebraic_slots[*index]];
+            if (actual - expected).abs() > 1e-6 {
+                return err(format!(
+                    "initial value of `{name}` is fixed at {expected} but the constraints require {actual}"
+                ));
             }
         }
         Ok(())
@@ -214,6 +270,8 @@ impl CompiledModel {
         &mut self,
         initial_equations: &[EquationItem],
         fixed: &[bool],
+        derivative_exprs: &[Expr],
+        table: &SlotTable,
     ) -> Result<(), SimError> {
         if initial_equations.is_empty() {
             return Ok(());
@@ -229,36 +287,30 @@ impl CompiledModel {
 
         // `der(x)` in an initial equation is the right-hand side the
         // model gives that state, so a steady start reads `der(x) = 0`.
-        let substituted: Vec<(Expr, Expr)> = initial_equations
+        let substituted: Vec<(Code, Code)> = initial_equations
             .iter()
             .map(|equation| {
-                Ok((
-                    self.substitute_derivatives(&equation.lhs)?,
-                    self.substitute_derivatives(&equation.rhs)?,
-                ))
+                let lhs = substitute_derivatives(&equation.lhs, &self.states, derivative_exprs)?;
+                let rhs = substitute_derivatives(&equation.rhs, &self.states, derivative_exprs)?;
+                Ok((table.compile(&lhs)?, table.compile(&rhs)?))
             })
             .collect::<Result<Vec<_>, SimError>>()?;
 
         let guess = self.initial.clone();
-        let discrete = self.event_state().values;
-        let mut env = HashMap::new();
+        let mut values = self.values_template.clone();
         let mut derivatives = Vec::new();
         let mut alg_guess = self.algebraic_start.clone();
         let mut y = guess.clone();
 
         let residual = |y: &[f64],
-                        env: &mut HashMap<String, f64>,
+                        values: &mut Vec<f64>,
                         derivatives: &mut Vec<f64>,
                         alg_guess: &mut Vec<f64>|
          -> Result<Vec<f64>, SimError> {
-            self.eval_point(0.0, y, env, derivatives, alg_guess, &discrete)?;
-            let ctx = EvalCtx {
-                vars: env,
-                time: 0.0,
-            };
+            self.eval_point(0.0, y, values, derivatives, alg_guess)?;
             let mut out = Vec::with_capacity(n);
             for (lhs, rhs) in &substituted {
-                out.push(eval(lhs, &ctx)? - eval(rhs, &ctx)?);
+                out.push(lhs.run(values, 0.0) - rhs.run(values, 0.0));
             }
             for (index, pinned) in fixed.iter().enumerate() {
                 if *pinned {
@@ -269,14 +321,14 @@ impl CompiledModel {
         };
 
         for _ in 0..50 {
-            let f = residual(&y, &mut env, &mut derivatives, &mut alg_guess)?;
+            let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
             let solved = f.iter().all(|r| r.abs() < 1e-10);
             let mut jac = vec![vec![0.0; n]; n];
             for j in 0..n {
                 let h = 1e-7 * (1.0 + y[j].abs());
                 let mut probe = y.clone();
                 probe[j] += h;
-                let fp = residual(&probe, &mut env, &mut derivatives, &mut alg_guess)?;
+                let fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess)?;
                 for (i, row) in jac.iter_mut().enumerate() {
                     row[j] = (fp[i] - f[i]) / h;
                 }
@@ -310,40 +362,46 @@ impl CompiledModel {
         }
         err("initialization did not converge in 50 Newton iterations".to_string())
     }
+}
 
-    /// Replace every `der(x)` with the right-hand side of that state.
-    fn substitute_derivatives(&self, expr: &Expr) -> Result<Expr, SimError> {
-        if let Some(state) = expr.as_der_of() {
-            let Some(index) = self.states.iter().position(|s| s == state) else {
-                return err(format!(
-                    "der({state}): `{state}` is not a state of the model"
-                ));
-            };
-            return Ok(self.derivatives[index].clone());
-        }
-        let recur = |e: &Expr| self.substitute_derivatives(e);
-        Ok(match expr {
-            Expr::Call(name, args) => Expr::Call(
-                name.clone(),
-                args.iter()
-                    .map(recur)
-                    .collect::<Result<Vec<_>, SimError>>()?,
-            ),
-            Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
-            Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-            Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-            Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
-            Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
-            Expr::If(c, a, b) => Expr::If(
-                Box::new(recur(c)?),
-                Box::new(recur(a)?),
-                Box::new(recur(b)?),
-            ),
-            other => other.clone(),
-        })
+/// Replace every `der(x)` with the right-hand side of that state.
+fn substitute_derivatives(
+    expr: &Expr,
+    states: &[String],
+    derivatives: &[Expr],
+) -> Result<Expr, SimError> {
+    if let Some(state) = expr.as_der_of() {
+        let Some(index) = states.iter().position(|s| s == state) else {
+            return err(format!(
+                "der({state}): `{state}` is not a state of the model"
+            ));
+        };
+        return Ok(derivatives[index].clone());
     }
+    let recur = |e: &Expr| substitute_derivatives(e, states, derivatives);
+    Ok(match expr {
+        Expr::Call(name, args) => Expr::Call(
+            name.clone(),
+            args.iter()
+                .map(recur)
+                .collect::<Result<Vec<_>, SimError>>()?,
+        ),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::If(c, a, b) => Expr::If(
+            Box::new(recur(c)?),
+            Box::new(recur(a)?),
+            Box::new(recur(b)?),
+        ),
+        other => other.clone(),
+    })
+}
 
+impl CompiledModel {
     /// How many evaluations one Jacobian costs: the number of column
     /// groups, which for a banded structure is far below the number of
     /// states. Reported by the CLI, and what the colouring is for.
@@ -392,7 +450,7 @@ fn jacobian_structure(
     states: &[String],
     algebraics: &[String],
     derivatives: &[Expr],
-    stages: &[AlgStage],
+    stages: &[PlanStage],
 ) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
     let index_of_state: HashMap<&str, usize> = states.iter().map(|s| s.as_str()).zip(0..).collect();
     let index_of_algebraic: HashMap<&str, usize> =
@@ -424,12 +482,12 @@ fn jacobian_structure(
 
     for stage in stages {
         match stage {
-            AlgStage::Explicit { var, expr } => {
+            PlanStage::Explicit { var, expr } => {
                 let mut row = vec![false; states.len()];
                 depends_on(expr, &mut row, &through_algebraic);
                 through_algebraic[*var] = Some(row);
             }
-            AlgStage::Implicit {
+            PlanStage::Implicit {
                 vars,
                 inner,
                 residuals,
@@ -500,16 +558,9 @@ enum AdaptiveOutcome {
     Stiff,
 }
 
-/// Values that change only at events, by name: every discrete variable,
-/// its value before the current event under a `$pre.` key, and the flags
-/// the solver raises for the time and initial events.
-type Discretes = HashMap<String, f64>;
-
 /// What the event machinery carries between events.
 #[derive(Clone, Debug)]
 struct EventState {
-    /// Discrete values, their `pre` entries and the event flags.
-    values: Discretes,
     /// Truth of every `when` branch as of the previous event.
     when_prev: Vec<Vec<bool>>,
     /// Next occurrence of each `sample(...)` source.
@@ -523,24 +574,19 @@ impl EventState {
     }
 
     /// Raise the flag of every `sample(...)` occurring at `t` and move
-    /// its schedule on. Returns whether any of them fired.
-    fn raise_samples(&mut self, t: f64, samples: &[(f64, f64)]) -> bool {
-        let mut fired = false;
+    /// its schedule on.
+    fn raise_samples(
+        &mut self,
+        t: f64,
+        samples: &[(f64, f64)],
+        flags: &[Slot],
+        values: &mut [f64],
+    ) {
         for (index, (_, interval)) in samples.iter().enumerate() {
             if self.next_sample[index] <= t + 1e-9 {
-                self.values.insert(format!("$sample{index}"), 1.0);
+                values[flags[index]] = 1.0;
                 self.next_sample[index] += interval.max(1e-12);
-                fired = true;
             }
-        }
-        fired
-    }
-
-    /// Lower the one-shot flags after an event has been handled.
-    fn clear_flags(&mut self, samples: usize) {
-        self.values.insert("$initial".to_string(), 0.0);
-        for index in 0..samples {
-            self.values.insert(format!("$sample{index}"), 0.0);
         }
     }
 }
@@ -1179,26 +1225,26 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         refs.contains(&name)
     };
     let mut ordered_algs: Vec<String> = Vec::new();
-    let mut stages: Vec<AlgStage> = Vec::new();
+    let mut stages: Vec<PlanStage> = Vec::new();
     for &eq in &emitted {
         let var_name = unknowns[matched_var[eq]].clone();
         let index = ordered_algs.len();
         let (lhs, rhs) = &algebraic_eqs[eq];
         let stage = if matches!(lhs, Expr::Ref(n) if n == &var_name) && !mentions(rhs, &var_name) {
-            AlgStage::Explicit {
+            PlanStage::Explicit {
                 var: index,
                 expr: rhs.clone(),
             }
         } else if matches!(rhs, Expr::Ref(n) if n == &var_name) && !mentions(lhs, &var_name) {
-            AlgStage::Explicit {
+            PlanStage::Explicit {
                 var: index,
                 expr: lhs.clone(),
             }
         } else if let Some(expr) = solve_linear_for(lhs, rhs, &var_name) {
             // Linear in its unknown: solved symbolically, no iteration.
-            AlgStage::Explicit { var: index, expr }
+            PlanStage::Explicit { var: index, expr }
         } else {
-            AlgStage::Implicit {
+            PlanStage::Implicit {
                 vars: vec![index],
                 torn: vec![index],
                 inner: Vec::new(),
@@ -1311,7 +1357,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             .iter()
             .map(|&eq| algebraic_eqs[eq].clone())
             .collect();
-        stages.push(AlgStage::Implicit {
+        stages.push(PlanStage::Implicit {
             vars,
             torn,
             inner,
@@ -1353,15 +1399,16 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         out
     };
 
-    let fixed_starts: Vec<(String, f64)> = ordered_algs
+    let fixed_starts: Vec<(String, usize, f64)> = ordered_algs
         .iter()
-        .filter_map(|name| {
+        .enumerate()
+        .filter_map(|(index, name)| {
             let component = model.components.iter().find(|c| &c.name == name)?;
             if component.fixed != Some(true) {
                 return None;
             }
             let value = eval(component.start.as_ref()?, &ctx).ok()?;
-            Some((name.clone(), value))
+            Some((name.clone(), index, value))
         })
         .collect();
 
@@ -1371,16 +1418,117 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
 
+    // Everything a run reads gets a place in one array, and every
+    // expression is resolved against it: after this point the solvers
+    // never look a variable up by name.
+    let mut table = SlotTable::new();
+    for (name, value) in &parameters {
+        table.constant(name, *value);
+    }
+    let state_slots: Vec<Slot> = states.iter().map(|name| table.slot(name)).collect();
+    let algebraic_slots: Vec<Slot> = ordered_algs.iter().map(|name| table.slot(name)).collect();
+    let discrete_slots: Vec<Slot> = discretes.iter().map(|name| table.slot(name)).collect();
+    let pre_slots: Vec<Slot> = discretes
+        .iter()
+        .map(|name| table.slot(&format!("$pre.{name}")))
+        .collect();
+    let initial_slot = table.slot("$initial");
+    let sample_slots: Vec<Slot> = (0..samples.len())
+        .map(|index| table.slot(&format!("$sample{index}")))
+        .collect();
+    for (name, value) in discretes.iter().zip(&discrete_start) {
+        let slot = table.slot(name);
+        table.template[slot] = *value;
+        let pre = table.slot(&format!("$pre.{name}"));
+        table.template[pre] = *value;
+    }
+
+    let compiled_stages: Vec<AlgStage> = stages
+        .iter()
+        .map(|stage| match stage {
+            PlanStage::Explicit { var, expr } => Ok(AlgStage::Explicit {
+                var: *var,
+                code: table.compile(expr)?,
+            }),
+            PlanStage::Implicit {
+                vars,
+                torn,
+                inner,
+                residuals,
+            } => Ok(AlgStage::Implicit {
+                vars: vars.clone(),
+                torn: torn.clone(),
+                inner: inner
+                    .iter()
+                    .map(|(var, expr)| Ok((*var, table.compile(expr)?)))
+                    .collect::<Result<Vec<_>, SimError>>()?,
+                residuals: residuals
+                    .iter()
+                    .map(|(lhs, rhs)| Ok((table.compile(lhs)?, table.compile(rhs)?)))
+                    .collect::<Result<Vec<_>, SimError>>()?,
+            }),
+        })
+        .collect::<Result<Vec<_>, SimError>>()?;
+
+    let compiled_derivatives: Vec<Code> = derivatives
+        .iter()
+        .map(|expr| table.compile(expr))
+        .collect::<Result<Vec<_>, SimError>>()?;
+    let compiled_indicators: Vec<Code> = indicators
+        .iter()
+        .map(|expr| table.compile(expr))
+        .collect::<Result<Vec<_>, SimError>>()?;
+
+    let mut compiled_whens: Vec<CompiledWhen> = Vec::new();
+    for clause in &when_clauses {
+        let mut branches = Vec::new();
+        for branch in &clause.branches {
+            let mut actions = Vec::new();
+            for action in &branch.actions {
+                actions.push(match action {
+                    WhenAction::Terminate(message) => CompiledAction::Terminate(message.clone()),
+                    WhenAction::Reinit(name, value) => {
+                        let Some(index) = states.iter().position(|state| state == name) else {
+                            return err(format!(
+                                "reinit({name}, ...): `{name}` is not a state of the flattened model"
+                            ));
+                        };
+                        CompiledAction::Reinit(index, table.compile(value)?)
+                    }
+                    WhenAction::Assign(name, value) => {
+                        let index = discretes
+                            .iter()
+                            .position(|discrete| discrete == name)
+                            .expect("when targets were collected from these");
+                        CompiledAction::Assign(index, table.compile(value)?)
+                    }
+                });
+            }
+            branches.push(CompiledBranch {
+                condition: table.compile(&branch.condition)?,
+                actions,
+            });
+        }
+        compiled_whens.push(CompiledWhen { branches });
+    }
+
     let mut compiled = CompiledModel {
         name: model.name.clone(),
         parameters,
         states,
         initial,
-        derivatives,
+        derivatives: compiled_derivatives,
+        values_template: table.template.clone(),
+        state_slots,
+        algebraic_slots,
+        discrete_slots,
+        pre_slots,
+        initial_slot,
+        sample_slots,
         algebraics: ordered_algs,
         algebraic_start,
         fixed_starts,
-        stages,
+        stages: compiled_stages,
         stop_time: model.experiment.stop_time.unwrap_or(1.0),
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
@@ -1388,10 +1536,9 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         jacobian_groups,
         jacobian_rows,
         discretes,
-        discrete_start,
         samples,
-        when_clauses,
-        indicators,
+        when_clauses: compiled_whens,
+        indicators: compiled_indicators,
     };
     // States the model pins down itself: `fixed = true` says the start
     // value is an initial condition, not a guess Newton may move.
@@ -1407,7 +1554,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 .unwrap_or(false)
         })
         .collect();
-    compiled.solve_initialization(&initial_equations, &fixed_states)?;
+    compiled.solve_initialization(&initial_equations, &fixed_states, &derivatives, &table)?;
     compiled.check_block_regularity()?;
     Ok(compiled)
 }
@@ -1733,6 +1880,275 @@ struct EvalCtx<'a> {
     time: f64,
 }
 
+/// Where a variable sits in the value array a run carries.
+type Slot = usize;
+
+/// The unary functions a model may call, resolved while compiling so
+/// that evaluating one is a jump rather than a string comparison.
+#[derive(Debug, Clone, Copy)]
+enum Unary {
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Sinh,
+    Cosh,
+    Tanh,
+    Exp,
+    Log,
+    Log10,
+    Sqrt,
+    Abs,
+    Sign,
+}
+
+/// The two-argument ones.
+#[derive(Debug, Clone, Copy)]
+enum Binary {
+    Atan2,
+    Min,
+    Max,
+}
+
+/// An expression whose variables are already resolved to slots.
+///
+/// The same shape as [`Expr`] with the names taken out: evaluating it
+/// indexes an array instead of hashing a string at every leaf, and the
+/// function of a call is decided once instead of at every evaluation.
+/// This is what the solvers run, thousands of times per second; `Expr`
+/// stays the form the compiler reasons about.
+#[derive(Debug, Clone)]
+enum Code {
+    /// A literal.
+    Const(f64),
+    /// The value in a slot.
+    Slot(Slot),
+    /// The independent variable.
+    Time,
+    /// Unary minus.
+    Neg(Box<Code>),
+    /// Logical negation.
+    Not(Box<Code>),
+    /// Arithmetic.
+    Bin(BinOp, Box<Code>, Box<Code>),
+    /// Comparison, giving 1.0 or 0.0.
+    Rel(RelOp, Box<Code>, Box<Code>),
+    /// Conjunction and disjunction, both short-circuiting.
+    And(Box<Code>, Box<Code>),
+    /// See [`Code::And`].
+    Or(Box<Code>, Box<Code>),
+    /// Conditional; only the branch taken is evaluated.
+    If(Box<Code>, Box<Code>, Box<Code>),
+    /// A one-argument built-in.
+    Unary(Unary, Box<Code>),
+    /// A two-argument built-in.
+    Binary(Binary, Box<Code>, Box<Code>),
+}
+
+impl Code {
+    /// Evaluate against the value array of a run. Nothing here can
+    /// fail: unknown names and unknown functions were rejected while
+    /// compiling, which is why this returns a number rather than a
+    /// result.
+    fn run(&self, values: &[f64], time: f64) -> f64 {
+        match self {
+            Code::Const(value) => *value,
+            Code::Slot(slot) => values[*slot],
+            Code::Time => time,
+            Code::Neg(inner) => -inner.run(values, time),
+            Code::Not(inner) => truth(inner.run(values, time) == 0.0),
+            Code::Bin(op, l, r) => {
+                let (a, b) = (l.run(values, time), r.run(values, time));
+                match op {
+                    BinOp::Add => a + b,
+                    BinOp::Sub => a - b,
+                    BinOp::Mul => a * b,
+                    BinOp::Div => a / b,
+                    BinOp::Pow => a.powf(b),
+                }
+            }
+            Code::Rel(op, l, r) => {
+                let (a, b) = (l.run(values, time), r.run(values, time));
+                truth(match op {
+                    RelOp::Lt => a < b,
+                    RelOp::Le => a <= b,
+                    RelOp::Gt => a > b,
+                    RelOp::Ge => a >= b,
+                    RelOp::Eq => a == b,
+                    RelOp::Ne => a != b,
+                })
+            }
+            Code::And(l, r) => truth(l.run(values, time) != 0.0 && r.run(values, time) != 0.0),
+            Code::Or(l, r) => truth(l.run(values, time) != 0.0 || r.run(values, time) != 0.0),
+            Code::If(condition, then, otherwise) => {
+                if condition.run(values, time) != 0.0 {
+                    then.run(values, time)
+                } else {
+                    otherwise.run(values, time)
+                }
+            }
+            Code::Unary(function, argument) => {
+                let x = argument.run(values, time);
+                match function {
+                    Unary::Sin => x.sin(),
+                    Unary::Cos => x.cos(),
+                    Unary::Tan => x.tan(),
+                    Unary::Asin => x.asin(),
+                    Unary::Acos => x.acos(),
+                    Unary::Atan => x.atan(),
+                    Unary::Sinh => x.sinh(),
+                    Unary::Cosh => x.cosh(),
+                    Unary::Tanh => x.tanh(),
+                    Unary::Exp => x.exp(),
+                    Unary::Log => x.ln(),
+                    Unary::Log10 => x.log10(),
+                    Unary::Sqrt => x.sqrt(),
+                    Unary::Abs => x.abs(),
+                    Unary::Sign => x.signum(),
+                }
+            }
+            Code::Binary(function, l, r) => {
+                let (a, b) = (l.run(values, time), r.run(values, time));
+                match function {
+                    Binary::Atan2 => a.atan2(b),
+                    Binary::Min => a.min(b),
+                    Binary::Max => a.max(b),
+                }
+            }
+        }
+    }
+}
+
+/// Booleans are carried as 1.0 and 0.0, like everywhere else here.
+fn truth(yes: bool) -> f64 {
+    if yes {
+        1.0
+    } else {
+        0.0
+    }
+}
+
+/// Names of the variables of a model, each with the slot it occupies.
+struct SlotTable {
+    /// Slot of every known name.
+    index: HashMap<String, Slot>,
+    /// The value array as a run starts it: parameters already in place,
+    /// everything else zero.
+    template: Vec<f64>,
+}
+
+impl SlotTable {
+    /// An empty table.
+    fn new() -> SlotTable {
+        SlotTable {
+            index: HashMap::new(),
+            template: Vec::new(),
+        }
+    }
+
+    /// Give a name a slot, or return the one it already has.
+    fn slot(&mut self, name: &str) -> Slot {
+        if let Some(slot) = self.index.get(name) {
+            return *slot;
+        }
+        let slot = self.template.len();
+        self.template.push(0.0);
+        self.index.insert(name.to_string(), slot);
+        slot
+    }
+
+    /// Give a name a slot holding a value that never changes.
+    fn constant(&mut self, name: &str, value: f64) -> Slot {
+        let slot = self.slot(name);
+        self.template[slot] = value;
+        slot
+    }
+
+    /// Resolve an expression into code, refusing anything that names a
+    /// variable or a function the model does not have.
+    fn compile(&self, expr: &Expr) -> Result<Code, SimError> {
+        Ok(match expr {
+            Expr::Number(value) => Code::Const(*value),
+            Expr::Bool(value) => Code::Const(truth(*value)),
+            Expr::Time => Code::Time,
+            Expr::Ref(name) => match self.index.get(name) {
+                Some(slot) => Code::Slot(*slot),
+                None => return err(format!("unknown variable `{name}`")),
+            },
+            Expr::Neg(inner) => Code::Neg(Box::new(self.compile(inner)?)),
+            Expr::Not(inner) => Code::Not(Box::new(self.compile(inner)?)),
+            Expr::Bin(op, l, r) => {
+                Code::Bin(*op, Box::new(self.compile(l)?), Box::new(self.compile(r)?))
+            }
+            Expr::Rel(op, l, r) => {
+                Code::Rel(*op, Box::new(self.compile(l)?), Box::new(self.compile(r)?))
+            }
+            Expr::And(l, r) => Code::And(Box::new(self.compile(l)?), Box::new(self.compile(r)?)),
+            Expr::Or(l, r) => Code::Or(Box::new(self.compile(l)?), Box::new(self.compile(r)?)),
+            Expr::If(condition, then, otherwise) => Code::If(
+                Box::new(self.compile(condition)?),
+                Box::new(self.compile(then)?),
+                Box::new(self.compile(otherwise)?),
+            ),
+            Expr::Call(name, args) => self.compile_call(name, args)?,
+            Expr::Index(_, _) | Expr::Member(_, _) => {
+                return err("subscripts survive flattening only as scalar names".to_string())
+            }
+        })
+    }
+
+    /// The built-in behind a call, with its arity checked here rather
+    /// than on every evaluation.
+    fn compile_call(&self, name: &str, args: &[Expr]) -> Result<Code, SimError> {
+        let unary = match name {
+            "sin" => Some(Unary::Sin),
+            "cos" => Some(Unary::Cos),
+            "tan" => Some(Unary::Tan),
+            "asin" => Some(Unary::Asin),
+            "acos" => Some(Unary::Acos),
+            "atan" => Some(Unary::Atan),
+            "sinh" => Some(Unary::Sinh),
+            "cosh" => Some(Unary::Cosh),
+            "tanh" => Some(Unary::Tanh),
+            "exp" => Some(Unary::Exp),
+            "log" => Some(Unary::Log),
+            "log10" => Some(Unary::Log10),
+            "sqrt" => Some(Unary::Sqrt),
+            "abs" => Some(Unary::Abs),
+            "sign" => Some(Unary::Sign),
+            _ => None,
+        };
+        if let Some(function) = unary {
+            if args.len() != 1 {
+                return err(format!("{name}: expects 1 argument, got {}", args.len()));
+            }
+            return Ok(Code::Unary(function, Box::new(self.compile(&args[0])?)));
+        }
+        let binary = match name {
+            "atan2" => Some(Binary::Atan2),
+            "min" => Some(Binary::Min),
+            "max" => Some(Binary::Max),
+            _ => None,
+        };
+        if let Some(function) = binary {
+            if args.len() != 2 {
+                return err(format!("{name}: expects 2 arguments, got {}", args.len()));
+            }
+            return Ok(Code::Binary(
+                function,
+                Box::new(self.compile(&args[0])?),
+                Box::new(self.compile(&args[1])?),
+            ));
+        }
+        if name == "der" {
+            return err("der() outside a state equation is not supported".to_string());
+        }
+        err(format!("unknown function `{name}`"))
+    }
+}
+
 /// Booleans are represented as 1.0 / 0.0 (proper typing is an M1+ task).
 fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     use oxidelica_parser::BinOp::*;
@@ -1918,50 +2334,33 @@ struct EventOutcome {
 }
 
 impl CompiledModel {
-    /// Values of the event indicators at a point already evaluated into
-    /// `env`.
-    fn indicator_values(&self, t: f64, env: &HashMap<String, f64>) -> Result<Vec<f64>, SimError> {
+    /// Values of the event indicators at a point already evaluated.
+    fn indicator_values(&self, t: f64, values: &[f64]) -> Vec<f64> {
         self.indicators
             .iter()
-            .map(|expr| eval(expr, &EvalCtx { vars: env, time: t }))
+            .map(|code| code.run(values, t))
             .collect()
     }
 
     /// Truth of every `when` branch, clause by clause.
-    fn when_conditions(
-        &self,
-        t: f64,
-        env: &HashMap<String, f64>,
-    ) -> Result<Vec<Vec<bool>>, SimError> {
+    fn when_conditions(&self, t: f64, values: &[f64]) -> Vec<Vec<bool>> {
         self.when_clauses
             .iter()
             .map(|clause| {
                 clause
                     .branches
                     .iter()
-                    .map(|branch| {
-                        Ok(eval(&branch.condition, &EvalCtx { vars: env, time: t })? != 0.0)
-                    })
+                    .map(|branch| branch.condition.run(values, t) != 0.0)
                     .collect()
             })
             .collect()
     }
 
-    /// The state every run starts from: declared initial values for the
-    /// discrete variables, the initial-event flag raised, and every
-    /// `sample(...)` scheduled at its start.
+    /// The state every run starts from: the initial-event flag raised
+    /// and every `sample(...)` scheduled at its start. Discrete values
+    /// live in the value array, already carrying their declared starts.
     fn event_state(&self) -> EventState {
-        let mut values: Discretes = HashMap::new();
-        for (name, value) in self.discretes.iter().zip(&self.discrete_start) {
-            values.insert(name.clone(), *value);
-            values.insert(format!("$pre.{name}"), *value);
-        }
-        values.insert("$initial".to_string(), 1.0);
-        for index in 0..self.samples.len() {
-            values.insert(format!("$sample{index}"), 0.0);
-        }
         EventState {
-            values,
             // Modelica treats every condition as false before the start,
             // so one that already holds at t = 0 fires immediately.
             when_prev: self
@@ -1983,14 +2382,13 @@ impl CompiledModel {
         &self,
         t: f64,
         y: &mut [f64],
-        env: &mut HashMap<String, f64>,
+        values: &mut [f64],
         alg_guess: &mut [f64],
         state: &mut EventState,
     ) -> Result<EventOutcome, SimError> {
         let mut outcome = EventOutcome::default();
-        for name in &self.discretes {
-            let current = state.values[name];
-            state.values.insert(format!("$pre.{name}"), current);
+        for (&slot, &pre) in self.discrete_slots.iter().zip(&self.pre_slots) {
+            values[pre] = values[slot];
         }
         let before_event = state.when_prev.clone();
         // A `reinit` is collected rather than applied: the event
@@ -2014,8 +2412,8 @@ impl CompiledModel {
         for _ in 0..rounds {
             // The algebraic part follows the discrete values, so it is
             // re-evaluated before the conditions are tested again.
-            self.eval_point(t, y, env, &mut scratch, alg_guess, &state.values)?;
-            let now = self.when_conditions(t, env)?;
+            self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+            let now = self.when_conditions(t, values);
             let mut acted = false;
             for (index, clause) in self.when_clauses.iter().enumerate() {
                 // `elsewhen` is a priority list: the first branch that
@@ -2029,30 +2427,25 @@ impl CompiledModel {
                 acted = true;
                 for action in &clause.branches[branch].actions {
                     match action {
-                        WhenAction::Terminate(message) => {
+                        CompiledAction::Terminate(message) => {
                             outcome.terminated =
                                 Some(format!("terminated at t = {t:.6}: {message}"));
                         }
-                        WhenAction::Reinit(name, value) => {
-                            let Some(slot) = self.states.iter().position(|s| s == name) else {
-                                return err(format!(
-                                    "reinit({name}, ...): `{name}` is not a state of the flattened model"
-                                ));
-                            };
-                            let new = eval(value, &EvalCtx { vars: env, time: t })?;
-                            pending_reinit.push((slot, new));
+                        CompiledAction::Reinit(state_index, code) => {
+                            pending_reinit.push((*state_index, code.run(values, t)));
                             outcome.reinitialized = true;
                             outcome.changed = true;
                         }
-                        WhenAction::Assign(name, value) => {
-                            let new = eval(value, &EvalCtx { vars: env, time: t })?;
-                            if state.values.insert(name.clone(), new) != Some(new) {
+                        CompiledAction::Assign(discrete_index, code) => {
+                            let new = code.run(values, t);
+                            let slot = self.discrete_slots[*discrete_index];
+                            if values[slot] != new {
                                 outcome.changed = true;
                             }
                             // Later equations of the same branch see the
                             // new value, the way a simultaneous solution
                             // of a triangular system would.
-                            env.insert(name.clone(), new);
+                            values[slot] = new;
                         }
                     }
                 }
@@ -2064,11 +2457,14 @@ impl CompiledModel {
         // The one-shot flags go down with the event, so the conditions
         // remembered for the next one do not see them still raised - a
         // `sample(...)` must be a fresh edge every period.
-        state.clear_flags(self.samples.len());
-        self.eval_point(t, y, env, &mut scratch, alg_guess, &state.values)?;
-        state.when_prev = self.when_conditions(t, env)?;
-        for (slot, value) in pending_reinit {
-            y[slot] = value;
+        values[self.initial_slot] = 0.0;
+        for &slot in &self.sample_slots {
+            values[slot] = 0.0;
+        }
+        self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+        state.when_prev = self.when_conditions(t, values);
+        for (index, value) in pending_reinit {
+            y[index] = value;
         }
         Ok(outcome)
     }
@@ -2216,37 +2612,29 @@ impl CompiledModel {
         &self,
         t: f64,
         y: &[f64],
-        env: &mut HashMap<String, f64>,
+        values: &mut [f64],
         derivatives_out: &mut Vec<f64>,
         alg_guess: &mut [f64],
-        discrete: &Discretes,
     ) -> Result<(), SimError> {
-        env.clear();
-        for (name, value) in &self.parameters {
-            env.insert(name.clone(), *value);
-        }
-        // Discrete values, their `pre` entries and the event flags are
-        // known between events, exactly like parameters.
-        for (name, value) in discrete {
-            env.insert(name.clone(), *value);
-        }
-        for (name, value) in self.states.iter().zip(y) {
-            env.insert(name.clone(), *value);
+        // Parameters sit in the array from the start and discrete values
+        // are written there by the event machinery, so a point only has
+        // to place the states and run the plan.
+        for (&slot, value) in self.state_slots.iter().zip(y) {
+            values[slot] = *value;
         }
         for stage in &self.stages {
             match stage {
-                AlgStage::Explicit { var, expr } => {
-                    let value = eval(expr, &EvalCtx { vars: env, time: t })?;
-                    env.insert(self.algebraics[*var].clone(), value);
+                AlgStage::Explicit { var, code } => {
+                    values[self.algebraic_slots[*var]] = code.run(values, t);
                 }
                 stage @ AlgStage::Implicit { .. } => {
-                    self.solve_implicit_block(t, env, stage, alg_guess, false)?;
+                    self.solve_implicit_block(t, values, stage, alg_guess, false)?;
                 }
             }
         }
         derivatives_out.clear();
-        for expr in &self.derivatives {
-            derivatives_out.push(eval(expr, &EvalCtx { vars: env, time: t })?);
+        for code in &self.derivatives {
+            derivatives_out.push(code.run(values, t));
         }
         Ok(())
     }
@@ -2258,7 +2646,7 @@ impl CompiledModel {
     fn solve_implicit_block(
         &self,
         t: f64,
-        env: &mut HashMap<String, f64>,
+        values: &mut [f64],
         stage: &AlgStage,
         alg_guess: &mut [f64],
         validate: bool,
@@ -2275,28 +2663,24 @@ impl CompiledModel {
         let n = block.len();
         let mut v: Vec<f64> = block.iter().map(|&i| alg_guess[i]).collect();
 
-        let residual = |env: &mut HashMap<String, f64>, v: &[f64]| -> Result<Vec<f64>, SimError> {
+        let residual = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
             for (j, &index) in block.iter().enumerate() {
-                env.insert(self.algebraics[index].clone(), v[j]);
+                values[self.algebraic_slots[index]] = v[j];
             }
             // Torn values fixed: the inner unknowns follow explicitly.
-            for (var, expr) in inner {
-                let value = eval(expr, &EvalCtx { vars: env, time: t })?;
-                env.insert(self.algebraics[*var].clone(), value);
+            for (var, code) in inner {
+                values[self.algebraic_slots[*var]] = code.run(values, t);
             }
-            let mut f = Vec::with_capacity(n);
-            for (lhs, rhs) in residuals {
-                let l = eval(lhs, &EvalCtx { vars: env, time: t })?;
-                let r = eval(rhs, &EvalCtx { vars: env, time: t })?;
-                f.push(l - r);
-            }
-            Ok(f)
+            residuals
+                .iter()
+                .map(|(lhs, rhs)| lhs.run(values, t) - rhs.run(values, t))
+                .collect()
         };
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
 
         for _ in 0..50 {
-            let f = residual(env, &v)?;
+            let f = residual(values, &v);
             let converged = f
                 .iter()
                 .zip(&v)
@@ -2315,7 +2699,7 @@ impl CompiledModel {
                         let h = 1e-8 * (1.0 + v[j].abs());
                         let mut perturbed = v.clone();
                         perturbed[j] += h;
-                        let fp = residual(env, &perturbed)?;
+                        let fp = residual(values, &perturbed);
                         for (i, row) in jac.iter_mut().enumerate() {
                             row[j] = (fp[i] - f[i]) / h;
                         }
@@ -2336,7 +2720,7 @@ impl CompiledModel {
                 let h = 1e-8 * (1.0 + v[j].abs());
                 let mut perturbed = v.clone();
                 perturbed[j] += h;
-                let fp = residual(env, &perturbed)?;
+                let fp = residual(values, &perturbed);
                 for (i, row) in jac.iter_mut().enumerate() {
                     row[j] = (fp[i] - f[i]) / h;
                 }
@@ -2463,7 +2847,7 @@ impl CompiledModel {
         let rtol = self.tolerance;
         let atol = self.tolerance * 1e-3;
 
-        let mut env = HashMap::new();
+        let mut values = self.values_template.clone();
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
         columns.extend(self.algebraics.iter().cloned());
@@ -2473,20 +2857,19 @@ impl CompiledModel {
 
         let mut record = |t: f64,
                           y: &[f64],
-                          env: &mut HashMap<String, f64>,
+                          values: &mut [f64],
                           k: &mut Vec<f64>,
-                          alg_guess: &mut [f64],
-                          discrete: &Discretes|
+                          alg_guess: &mut [f64]|
          -> Result<(), SimError> {
-            self.eval_point(t, y, env, k, alg_guess, discrete)?;
+            self.eval_point(t, y, values, k, alg_guess)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
-            for name in &self.algebraics {
-                row.push(env[name]);
+            for &slot in &self.algebraic_slots {
+                row.push(values[slot]);
             }
-            for name in &self.discretes {
-                row.push(discrete[name]);
+            for &slot in &self.discrete_slots {
+                row.push(values[slot]);
             }
             rows.push(row);
             Ok(())
@@ -2499,19 +2882,20 @@ impl CompiledModel {
         // Modelica treats `when` conditions as false before the start,
         // so one that already holds at t = 0 fires immediately.
         let mut state = self.event_state();
+        values[self.initial_slot] = 1.0;
         // The initial event comes before the first output point: a
         // `when initial()` or a `sample(0, …)` has already fired by then.
-        state.raise_samples(0.0, &self.samples);
-        let start_event = self.handle_event(0.0, &mut y, &mut env, &mut alg_guess, &mut state)?;
+        state.raise_samples(0.0, &self.samples, &self.sample_slots, &mut values);
+        let start_event =
+            self.handle_event(0.0, &mut y, &mut values, &mut alg_guess, &mut state)?;
         record(
             0.0,
             &y,
-            &mut env,
+            &mut values,
             &mut derivatives_scratch,
             &mut alg_guess,
-            &state.values,
         )?;
-        let mut indicators_prev = self.indicator_values(0.0, &env)?;
+        let mut indicators_prev = self.indicator_values(0.0, &values);
         if let Some(message) = start_event.terminated {
             return Ok(AdaptiveOutcome::Finished(SimResult {
                 columns,
@@ -2536,29 +2920,16 @@ impl CompiledModel {
                 if t > stop + 1e-12 {
                     break;
                 }
-                record(
-                    t,
-                    &y,
-                    &mut env,
-                    &mut derivatives_scratch,
-                    &mut alg_guess,
-                    &state.values,
-                )?;
+                record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
                 if (t - grid).abs() < 1e-12 {
                     last_out_t = t;
                     out_i += 1;
                 }
-                state.raise_samples(t, &self.samples);
-                let outcome = self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
+                let outcome =
+                    self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
                 if outcome.changed {
-                    record(
-                        t,
-                        &y,
-                        &mut env,
-                        &mut derivatives_scratch,
-                        &mut alg_guess,
-                        &state.values,
-                    )?;
+                    record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
                 }
                 terminated = outcome.terminated;
                 if terminated.is_some() {
@@ -2569,10 +2940,9 @@ impl CompiledModel {
                 record(
                     stop,
                     &y,
-                    &mut env,
+                    &mut values,
                     &mut derivatives_scratch,
                     &mut alg_guess,
-                    &state.values,
                 )?;
             }
             return Ok(AdaptiveOutcome::Finished(SimResult {
@@ -2599,7 +2969,7 @@ impl CompiledModel {
         let mut out_i = 1usize;
         let mut evals: u64 = 0;
 
-        self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess, &state.values)?;
+        self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
@@ -2631,10 +3001,9 @@ impl CompiledModel {
                 self.eval_point(
                     t + C[s] * h,
                     &stage,
-                    &mut env,
+                    &mut values,
                     &mut tail[0],
                     &mut alg_guess,
-                    &state.values,
                 )?;
             }
             evals += 6;
@@ -2665,14 +3034,7 @@ impl CompiledModel {
             let accepted = err_norm.is_finite() && err_norm <= 1.0;
             if accepted {
                 // FSAL: the derivative at t+h.
-                self.eval_point(
-                    t + h,
-                    &y5,
-                    &mut env,
-                    &mut k[6],
-                    &mut alg_guess,
-                    &state.values,
-                )?;
+                self.eval_point(t + h, &y5, &mut values, &mut k[6], &mut alg_guess)?;
                 evals += 1;
 
                 if watch_stiffness {
@@ -2724,7 +3086,7 @@ impl CompiledModel {
                 // Did any event indicator change sign across the step?
                 // An indicator sitting on zero (we just handled an event
                 // there) is re-baselined instead of firing again.
-                let indicators_new = self.indicator_values(t + h, &env)?;
+                let indicators_new = self.indicator_values(t + h, &values);
                 let mut event_theta: Option<f64> = None;
                 for (index, (&before, &after)) in
                     indicators_prev.iter().zip(&indicators_new).enumerate()
@@ -2739,12 +3101,11 @@ impl CompiledModel {
                         self.eval_point(
                             t + mid * h,
                             &interp,
-                            &mut env,
+                            &mut values,
                             &mut derivatives_scratch,
                             &mut alg_guess,
-                            &state.values,
                         )?;
-                        if before * self.indicator_values(t + mid * h, &env)?[index] <= 0.0 {
+                        if before * self.indicator_values(t + mid * h, &values)[index] <= 0.0 {
                             hi = mid;
                         } else {
                             lo = mid;
@@ -2769,10 +3130,9 @@ impl CompiledModel {
                         record(
                             out_t,
                             &interp,
-                            &mut env,
+                            &mut values,
                             &mut derivatives_scratch,
                             &mut alg_guess,
-                            &state.values,
                         )?;
                         last_out_t = out_t;
                         out_i += 1;
@@ -2782,39 +3142,29 @@ impl CompiledModel {
                     self.eval_point(
                         t_event,
                         &y,
-                        &mut env,
+                        &mut values,
                         &mut derivatives_scratch,
                         &mut alg_guess,
-                        &state.values,
                     )?;
-                    let outcome =
-                        self.handle_event(t_event, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                    let outcome = self.handle_event(
+                        t_event,
+                        &mut y,
+                        &mut values,
+                        &mut alg_guess,
+                        &mut state,
+                    )?;
                     t = t_event;
-                    self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess, &state.values)?;
-                    indicators_prev = self.indicator_values(t, &env)?;
+                    self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
+                    indicators_prev = self.indicator_values(t, &values);
                     if let Some(message) = outcome.terminated {
-                        record(
-                            t,
-                            &y,
-                            &mut env,
-                            &mut derivatives_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
+                        record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
                         terminated = Some(message);
                         break;
                     }
                     // A state event that changed something is recorded at
                     // the instant it happened, so the jump is visible.
                     if outcome.changed {
-                        record(
-                            t,
-                            &y,
-                            &mut env,
-                            &mut derivatives_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
+                        record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
                     }
                     h = (h * theta.max(0.1)).max(1e-12);
                     continue;
@@ -2831,10 +3181,9 @@ impl CompiledModel {
                     record(
                         out_t,
                         &interp,
-                        &mut env,
+                        &mut values,
                         &mut derivatives_scratch,
                         &mut alg_guess,
-                        &state.values,
                     )?;
                     last_out_t = out_t;
                     out_i += 1;
@@ -2847,30 +3196,16 @@ impl CompiledModel {
                 // of the `sample(...)` sources due here and let the
                 // `when` clauses read them.
                 if state.next_time_event().is_some_and(|next| next <= t + 1e-9) {
-                    self.eval_point(
-                        t,
-                        &y,
-                        &mut env,
-                        &mut derivatives_scratch,
-                        &mut alg_guess,
-                        &state.values,
-                    )?;
-                    state.raise_samples(t, &self.samples);
+                    self.eval_point(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
+                    state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
                     let outcome =
-                        self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
-                    self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess, &state.values)?;
-                    indicators_prev = self.indicator_values(t, &env)?;
+                        self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
+                    self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
+                    indicators_prev = self.indicator_values(t, &values);
                     if outcome.changed {
                         // The discrete values jumped here, so the point
                         // is recorded twice: before and after the event.
-                        record(
-                            t,
-                            &y,
-                            &mut env,
-                            &mut derivatives_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
+                        record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
                     }
                     if let Some(message) = outcome.terminated {
                         terminated = Some(message);
@@ -2897,13 +3232,12 @@ impl CompiledModel {
             record(
                 stop,
                 &y,
-                &mut env,
+                &mut values,
                 &mut derivatives_scratch,
                 &mut alg_guess,
-                &state.values,
             )?;
             terminated = self
-                .handle_event(stop, &mut y, &mut env, &mut alg_guess, &mut state)?
+                .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
                 .terminated;
         }
         Ok(AdaptiveOutcome::Finished(SimResult {
@@ -2923,9 +3257,8 @@ impl CompiledModel {
         t: f64,
         y: &[f64],
         f0: &[f64],
-        env: &mut HashMap<String, f64>,
+        values: &mut [f64],
         alg_guess: &[f64],
-        discrete: &Discretes,
     ) -> Result<Vec<Vec<f64>>, SimError> {
         let n = y.len();
         let mut jac = vec![vec![0.0; n]; n];
@@ -2940,7 +3273,7 @@ impl CompiledModel {
                 deltas[j] = 1e-7 * (1.0 + y[j].abs());
                 probe[j] = y[j] + deltas[j];
             }
-            self.eval_point(t, &probe, env, &mut f, &mut scratch, discrete)?;
+            self.eval_point(t, &probe, values, &mut f, &mut scratch)?;
             for &j in group {
                 probe[j] = y[j];
                 for &i in &self.jacobian_rows[j] {
@@ -2970,7 +3303,7 @@ impl CompiledModel {
         let rtol = self.tolerance;
         let atol = self.tolerance * 1e-3;
 
-        let mut env = HashMap::new();
+        let mut values = self.values_template.clone();
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
         columns.extend(self.algebraics.iter().cloned());
@@ -2981,20 +3314,19 @@ impl CompiledModel {
 
         let mut record = |t: f64,
                           y: &[f64],
-                          env: &mut HashMap<String, f64>,
+                          values: &mut [f64],
                           k: &mut Vec<f64>,
-                          alg_guess: &mut [f64],
-                          discrete: &Discretes|
+                          alg_guess: &mut [f64]|
          -> Result<(), SimError> {
-            self.eval_point(t, y, env, k, alg_guess, discrete)?;
+            self.eval_point(t, y, values, k, alg_guess)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
-            for name in &self.algebraics {
-                row.push(env[name]);
+            for &slot in &self.algebraic_slots {
+                row.push(values[slot]);
             }
-            for name in &self.discretes {
-                row.push(discrete[name]);
+            for &slot in &self.discrete_slots {
+                row.push(values[slot]);
             }
             rows.push(row);
             Ok(())
@@ -3003,19 +3335,14 @@ impl CompiledModel {
         let mut y = self.initial.clone();
         let mut terminated: Option<String> = None;
         let mut state = self.event_state();
+        values[self.initial_slot] = 1.0;
         // The initial event comes before the first output point: a
         // `when initial()` or a `sample(0, …)` has already fired by then.
-        state.raise_samples(0.0, &self.samples);
-        let start_event = self.handle_event(0.0, &mut y, &mut env, &mut alg_guess, &mut state)?;
-        record(
-            0.0,
-            &y,
-            &mut env,
-            &mut f_scratch,
-            &mut alg_guess,
-            &state.values,
-        )?;
-        let mut indicators_prev = self.indicator_values(0.0, &env)?;
+        state.raise_samples(0.0, &self.samples, &self.sample_slots, &mut values);
+        let start_event =
+            self.handle_event(0.0, &mut y, &mut values, &mut alg_guess, &mut state)?;
+        record(0.0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+        let mut indicators_prev = self.indicator_values(0.0, &values);
         if let Some(message) = start_event.terminated {
             return Ok(SimResult {
                 columns,
@@ -3041,29 +3368,16 @@ impl CompiledModel {
                 if t > stop + 1e-12 {
                     break;
                 }
-                record(
-                    t,
-                    &y,
-                    &mut env,
-                    &mut f_scratch,
-                    &mut alg_guess,
-                    &state.values,
-                )?;
+                record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
                 if (t - grid).abs() < 1e-12 {
                     last_out_t = t;
                     out_i += 1;
                 }
-                state.raise_samples(t, &self.samples);
-                let outcome = self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
+                let outcome =
+                    self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
                 if outcome.changed {
-                    record(
-                        t,
-                        &y,
-                        &mut env,
-                        &mut f_scratch,
-                        &mut alg_guess,
-                        &state.values,
-                    )?;
+                    record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
                 }
                 terminated = outcome.terminated;
                 if terminated.is_some() {
@@ -3071,14 +3385,7 @@ impl CompiledModel {
                 }
             }
             if terminated.is_none() && last_out_t < stop - 1e-12 {
-                record(
-                    stop,
-                    &y,
-                    &mut env,
-                    &mut f_scratch,
-                    &mut alg_guess,
-                    &state.values,
-                )?;
+                record(stop, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
             }
             return Ok(SimResult {
                 columns,
@@ -3103,14 +3410,7 @@ impl CompiledModel {
         let mut y_new = vec![0.0; n];
         let mut y_pred = vec![0.0; n];
         let mut f_last = Vec::new();
-        self.eval_point(
-            0.0,
-            &y,
-            &mut env,
-            &mut f_last,
-            &mut alg_guess,
-            &state.values,
-        )?;
+        self.eval_point(0.0, &y, &mut values, &mut f_last, &mut alg_guess)?;
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
@@ -3165,14 +3465,7 @@ impl CompiledModel {
             let mut converged = false;
             let mut newton_failed = false;
             for iteration in 0..NEWTON_MAX {
-                self.eval_point(
-                    t_new,
-                    &y_new,
-                    &mut env,
-                    &mut f_new,
-                    &mut alg_guess,
-                    &state.values,
-                )?;
+                self.eval_point(t_new, &y_new, &mut values, &mut f_new, &mut alg_guess)?;
                 steps += 1;
                 if steps > 20_000_000 {
                     return err(format!(
@@ -3188,14 +3481,7 @@ impl CompiledModel {
                 }
 
                 if jac.is_none() || iteration == 4 {
-                    jac = Some(self.jacobian(
-                        t_new,
-                        &y_new,
-                        &f_new,
-                        &mut env,
-                        &alg_guess,
-                        &state.values,
-                    )?);
+                    jac = Some(self.jacobian(t_new, &y_new, &f_new, &mut values, &alg_guess)?);
                 }
                 // The iteration matrix only moves when the Jacobian is
                 // refreshed or the step coefficient changes, so it is
@@ -3274,15 +3560,8 @@ impl CompiledModel {
                 };
 
                 // Locate the earliest event indicator crossing, if any.
-                self.eval_point(
-                    t_new,
-                    &y_new,
-                    &mut env,
-                    &mut f_scratch,
-                    &mut alg_guess,
-                    &state.values,
-                )?;
-                let indicators_new = self.indicator_values(t_new, &env)?;
+                self.eval_point(t_new, &y_new, &mut values, &mut f_scratch, &mut alg_guess)?;
+                let indicators_new = self.indicator_values(t_new, &values);
                 let mut event_t: Option<f64> = None;
                 for (index, (&before, &after)) in
                     indicators_prev.iter().zip(&indicators_new).enumerate()
@@ -3294,15 +3573,8 @@ impl CompiledModel {
                     for _ in 0..40 {
                         let mid = 0.5 * (lo + hi);
                         sample(mid, &mut interp);
-                        self.eval_point(
-                            mid,
-                            &interp,
-                            &mut env,
-                            &mut f_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
-                        if before * self.indicator_values(mid, &env)?[index] <= 0.0 {
+                        self.eval_point(mid, &interp, &mut values, &mut f_scratch, &mut alg_guess)?;
+                        if before * self.indicator_values(mid, &values)[index] <= 0.0 {
                             hi = mid;
                         } else {
                             lo = mid;
@@ -3319,14 +3591,7 @@ impl CompiledModel {
                         break;
                     }
                     sample(out_t, &mut interp);
-                    record(
-                        out_t,
-                        &interp,
-                        &mut env,
-                        &mut f_scratch,
-                        &mut alg_guess,
-                        &state.values,
-                    )?;
+                    record(out_t, &interp, &mut values, &mut f_scratch, &mut alg_guess)?;
                     last_out_t = out_t;
                     out_i += 1;
                 }
@@ -3334,16 +3599,14 @@ impl CompiledModel {
                 if let Some(t_event) = event_t {
                     sample(t_event, &mut interp);
                     y.copy_from_slice(&interp);
-                    self.eval_point(
+                    self.eval_point(t_event, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                    let outcome = self.handle_event(
                         t_event,
-                        &y,
-                        &mut env,
-                        &mut f_scratch,
+                        &mut y,
+                        &mut values,
                         &mut alg_guess,
-                        &state.values,
+                        &mut state,
                     )?;
-                    let outcome =
-                        self.handle_event(t_event, &mut y, &mut env, &mut alg_guess, &mut state)?;
                     t = t_event;
                     // The history is meaningless across a discontinuity.
                     t_hist.clear();
@@ -3353,31 +3616,17 @@ impl CompiledModel {
                     order = 1;
                     consecutive_ok = 0;
                     jac = None;
-                    self.eval_point(t, &y, &mut env, &mut f_last, &mut alg_guess, &state.values)?;
-                    indicators_prev = self.indicator_values(t, &env)?;
+                    self.eval_point(t, &y, &mut values, &mut f_last, &mut alg_guess)?;
+                    indicators_prev = self.indicator_values(t, &values);
                     if let Some(message) = outcome.terminated {
-                        record(
-                            t,
-                            &y,
-                            &mut env,
-                            &mut f_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
+                        record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
                         terminated = Some(message);
                         break;
                     }
                     // A state event that changed something is recorded at
                     // the instant it happened, so the jump is visible.
                     if outcome.changed {
-                        record(
-                            t,
-                            &y,
-                            &mut env,
-                            &mut f_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
+                        record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
                     }
                     h = (h * 0.25).max(1e-12);
                     continue;
@@ -3406,30 +3655,16 @@ impl CompiledModel {
                 // The step ended on a scheduled instant: the sources due
                 // here raise their flags and the `when` clauses read them.
                 if state.next_time_event().is_some_and(|next| next <= t + 1e-9) {
-                    self.eval_point(
-                        t,
-                        &y,
-                        &mut env,
-                        &mut f_scratch,
-                        &mut alg_guess,
-                        &state.values,
-                    )?;
-                    state.raise_samples(t, &self.samples);
+                    self.eval_point(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                    state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
                     let outcome =
-                        self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
-                    self.eval_point(t, &y, &mut env, &mut f_last, &mut alg_guess, &state.values)?;
-                    indicators_prev = self.indicator_values(t, &env)?;
+                        self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
+                    self.eval_point(t, &y, &mut values, &mut f_last, &mut alg_guess)?;
+                    indicators_prev = self.indicator_values(t, &values);
                     if outcome.changed {
                         // A jump the history cannot represent: restart
                         // from order one, and record both sides of it.
-                        record(
-                            t,
-                            &y,
-                            &mut env,
-                            &mut f_scratch,
-                            &mut alg_guess,
-                            &state.values,
-                        )?;
+                        record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
                         y_hist[0].copy_from_slice(&y);
                         t_hist.truncate(1);
                         y_hist.truncate(1);
@@ -3466,16 +3701,9 @@ impl CompiledModel {
         }
 
         if terminated.is_none() && last_out_t < stop - 1e-12 {
-            record(
-                stop,
-                &y,
-                &mut env,
-                &mut f_scratch,
-                &mut alg_guess,
-                &state.values,
-            )?;
+            record(stop, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
             terminated = self
-                .handle_event(stop, &mut y, &mut env, &mut alg_guess, &mut state)?
+                .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
                 .terminated;
         }
         Ok(SimResult {
@@ -3493,7 +3721,7 @@ impl CompiledModel {
         let steps = (self.stop_time / self.step).ceil() as usize;
         let mut y = self.initial.clone();
         let mut alg_guess = self.algebraic_start.clone();
-        let mut env = HashMap::new();
+        let mut values = self.values_template.clone();
         let (mut k1, mut k2, mut k3, mut k4) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut scratch = vec![0.0; n];
 
@@ -3505,21 +3733,20 @@ impl CompiledModel {
 
         let mut record = |t: f64,
                           y: &[f64],
-                          env: &mut HashMap<String, f64>,
+                          values: &mut [f64],
                           k: &mut Vec<f64>,
                           this: &CompiledModel,
-                          alg_guess: &mut [f64],
-                          discrete: &Discretes|
+                          alg_guess: &mut [f64]|
          -> Result<(), SimError> {
-            this.eval_point(t, y, env, k, alg_guess, discrete)?;
+            this.eval_point(t, y, values, k, alg_guess)?;
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
             row.extend_from_slice(y);
-            for name in &this.algebraics {
-                row.push(env[name]);
+            for &slot in &this.algebraic_slots {
+                row.push(values[slot]);
             }
-            for name in &this.discretes {
-                row.push(discrete[name]);
+            for &slot in &this.discrete_slots {
+                row.push(values[slot]);
             }
             rows.push(row);
             Ok(())
@@ -3533,17 +3760,10 @@ impl CompiledModel {
             );
         }
         let mut state = self.event_state();
-        record(
-            0.0,
-            &y,
-            &mut env,
-            &mut k1,
-            self,
-            &mut alg_guess,
-            &state.values,
-        )?;
+        values[self.initial_slot] = 1.0;
+        record(0.0, &y, &mut values, &mut k1, self, &mut alg_guess)?;
         let mut terminated = self
-            .handle_event(0.0, &mut y, &mut env, &mut alg_guess, &mut state)?
+            .handle_event(0.0, &mut y, &mut values, &mut alg_guess, &mut state)?
             .terminated;
 
         for i in 0..steps {
@@ -3553,54 +3773,25 @@ impl CompiledModel {
             let t = i as f64 * self.step;
             let h = (self.stop_time - t).min(self.step);
 
-            self.eval_point(t, &y, &mut env, &mut k1, &mut alg_guess, &state.values)?;
+            self.eval_point(t, &y, &mut values, &mut k1, &mut alg_guess)?;
             for j in 0..n {
                 scratch[j] = y[j] + 0.5 * h * k1[j];
             }
-            self.eval_point(
-                t + 0.5 * h,
-                &scratch,
-                &mut env,
-                &mut k2,
-                &mut alg_guess,
-                &state.values,
-            )?;
+            self.eval_point(t + 0.5 * h, &scratch, &mut values, &mut k2, &mut alg_guess)?;
             for j in 0..n {
                 scratch[j] = y[j] + 0.5 * h * k2[j];
             }
-            self.eval_point(
-                t + 0.5 * h,
-                &scratch,
-                &mut env,
-                &mut k3,
-                &mut alg_guess,
-                &state.values,
-            )?;
+            self.eval_point(t + 0.5 * h, &scratch, &mut values, &mut k3, &mut alg_guess)?;
             for j in 0..n {
                 scratch[j] = y[j] + h * k3[j];
             }
-            self.eval_point(
-                t + h,
-                &scratch,
-                &mut env,
-                &mut k4,
-                &mut alg_guess,
-                &state.values,
-            )?;
+            self.eval_point(t + h, &scratch, &mut values, &mut k4, &mut alg_guess)?;
             for j in 0..n {
                 y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
             }
-            record(
-                t + h,
-                &y,
-                &mut env,
-                &mut k1,
-                self,
-                &mut alg_guess,
-                &state.values,
-            )?;
+            record(t + h, &y, &mut values, &mut k1, self, &mut alg_guess)?;
             terminated = self
-                .handle_event(t + h, &mut y, &mut env, &mut alg_guess, &mut state)?
+                .handle_event(t + h, &mut y, &mut values, &mut alg_guess, &mut state)?
                 .terminated;
         }
 
@@ -3766,14 +3957,6 @@ mod tests {
             .to_string()
     }
 
-    fn simulate_err(source: &str) -> String {
-        compile(&parse_model(source).unwrap())
-            .unwrap()
-            .simulate()
-            .unwrap_err()
-            .to_string()
-    }
-
     #[test]
     fn evaluates_every_builtin_function() {
         let result = run("model F Real y; equation \
@@ -3869,18 +4052,16 @@ mod tests {
     }
 
     #[test]
-    fn runtime_error_paths() {
-        // An unknown variable is now a compile-time error.
+    fn expressions_are_checked_before_anything_runs() {
+        // Names and functions are resolved while compiling, so none of
+        // these can reach a solver: an unknown variable, an unknown
+        // function, and a built-in given the wrong number of arguments.
         assert!(
             compile_err("model M Real y; equation y = z + 1; end M;").contains("unknown variable")
         );
-        // Unknown function.
-        assert!(simulate_err("model M Real y; equation y = frob(1); end M;")
+        assert!(compile_err("model M Real y; equation y = frob(1); end M;")
             .contains("unknown function"));
-        // Wrong arity.
-        assert!(
-            simulate_err("model M Real y; equation y = sin(1, 2); end M;").contains("argument")
-        );
+        assert!(compile_err("model M Real y; equation y = sin(1, 2); end M;").contains("argument"));
     }
 
     #[test]
@@ -4555,7 +4736,10 @@ mod tests {
              annotation(experiment(StopTime=1.0, Interval=0.01)); end R;",
         )
         .unwrap();
-        let error = compile(&model).unwrap().simulate().unwrap_err();
+        // Caught while compiling: the target of a reinit is resolved to a
+        // place in the state vector, so a name that is not one cannot
+        // wait until the run to be noticed.
+        let error = compile(&model).unwrap_err();
         assert!(error.0.contains("is not a state"), "{}", error.0);
     }
 
