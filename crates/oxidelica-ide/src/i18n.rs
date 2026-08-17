@@ -141,6 +141,9 @@ define_strings!(
     anim_no_data,
     tab_3d,
     anim_no_bodies,
+    params_title,
+    inits_title,
+    reset_all,
 );
 
 #[cfg(test)]

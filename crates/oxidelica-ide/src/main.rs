@@ -68,6 +68,80 @@ impl Default for Anim {
     }
 }
 
+/// One tunable value: a parameter or a state initial value.
+struct TunerEntry {
+    /// Variable name in the model.
+    name: String,
+    /// Current (possibly user-modified) value.
+    value: f64,
+    /// Model default, used by the reset buttons.
+    default: f64,
+}
+
+/// The live parameter/initial-value tuner panel state.
+#[derive(Default)]
+struct Tuner {
+    params: Vec<TunerEntry>,
+    inits: Vec<TunerEntry>,
+    /// A value changed and a re-simulation is pending.
+    dirty: bool,
+    /// When the last change happened (for debouncing).
+    last_change: Option<Instant>,
+    /// Whether the tuner has been populated at least once.
+    initialized: bool,
+}
+
+impl Tuner {
+    /// Rebuild entries from a freshly compiled model, preserving the
+    /// values the user has already modified (matched by name).
+    fn refresh(&mut self, compiled: &oxidelica_sim::CompiledModel) {
+        let carry = |old: &[TunerEntry], name: &str, default: f64| -> f64 {
+            old.iter()
+                .find(|e| e.name == name && e.value != e.default)
+                .map(|e| e.value)
+                .unwrap_or(default)
+        };
+        self.params = compiled
+            .parameters
+            .iter()
+            .map(|(name, value)| TunerEntry {
+                value: carry(&self.params, name, *value),
+                default: *value,
+                name: name.clone(),
+            })
+            .collect();
+        self.inits = compiled
+            .states
+            .iter()
+            .zip(&compiled.initial)
+            .map(|(name, value)| TunerEntry {
+                value: carry(&self.inits, name, *value),
+                default: *value,
+                name: name.clone(),
+            })
+            .collect();
+        self.initialized = true;
+    }
+
+    /// Apply user overrides onto a compiled model before simulation.
+    fn apply(&self, compiled: &mut oxidelica_sim::CompiledModel) {
+        for entry in &self.params {
+            if let Some(slot) = compiled
+                .parameters
+                .iter_mut()
+                .find(|(n, _)| n == &entry.name)
+            {
+                slot.1 = entry.value;
+            }
+        }
+        for entry in &self.inits {
+            if let Some(index) = compiled.states.iter().position(|n| n == &entry.name) {
+                compiled.initial[index] = entry.value;
+            }
+        }
+    }
+}
+
 /// The whole IDE state, stored as a Bevy resource.
 #[derive(Resource)]
 struct Ide {
@@ -88,6 +162,8 @@ struct Ide {
     view: ViewMode,
     /// Trajectory animation state.
     anim: Anim,
+    /// Live parameter/initial-value tuner.
+    tuner: Tuner,
 }
 
 fn main() {
@@ -126,6 +202,7 @@ fn main() {
             show_about: false,
             view: ViewMode::Plots,
             anim: Anim::default(),
+            tuner: Tuner::default(),
         })
         .add_systems(Startup, view3d::setup)
         .add_systems(Update, (ui_system, view3d::sync_scene).chain())
@@ -191,6 +268,16 @@ fn save_current(ide: &mut Ide) {
     }
 }
 
+/// Re-parse the editor buffer and refresh the tuner entries
+/// (silently: editor errors are reported on the next explicit run).
+fn refresh_tuner(ide: &mut Ide) {
+    if let Ok(model) = oxidelica_parser::parse_model(&ide.source) {
+        if let Ok(compiled) = oxidelica_sim::compile(&model) {
+            ide.tuner.refresh(&compiled);
+        }
+    }
+}
+
 /// The single per-frame UI system: menus, panels, plots, dialogs.
 fn ui_system(
     mut contexts: EguiContexts,
@@ -222,6 +309,10 @@ fn ui_system(
     let settings_before = ide.settings;
     let s = ide.settings.lang.strings();
     let p = style::palette(ide.settings.theme);
+
+    if !ide.tuner.initialized {
+        refresh_tuner(ide);
+    }
 
     // --- menu bar ---
     egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
@@ -378,6 +469,7 @@ fn ui_system(
     });
 
     // --- editor with Modelica syntax highlighting ---
+    let mut source_edited = false;
     let editor_theme = ide.settings.theme;
     let mut layouter = |ui: &egui::Ui, text: &str, wrap_width: f32| {
         let font = egui::TextStyle::Monospace.resolve(ui.style());
@@ -390,7 +482,7 @@ fn ui_system(
         .default_width(600.0)
         .show(ctx, |ui| {
             egui::ScrollArea::vertical().show(ui, |ui| {
-                ui.add(
+                let response = ui.add(
                     egui::TextEdit::multiline(&mut ide.source)
                         .font(egui::TextStyle::Monospace)
                         .code_editor()
@@ -398,8 +490,100 @@ fn ui_system(
                         .desired_width(f32::INFINITY)
                         .layouter(&mut layouter),
                 );
+                if response.changed() {
+                    source_edited = true;
+                }
             });
         });
+    if source_edited {
+        refresh_tuner(ide);
+    }
+
+    // --- tuner: parameters and initial values ---
+    if !ide.tuner.params.is_empty() || !ide.tuner.inits.is_empty() {
+        egui::SidePanel::right("tuner")
+            .resizable(true)
+            .default_width(220.0)
+            .show(ctx, |ui| {
+                let tuner = &mut ide.tuner;
+                let mut changed = false;
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for (title, entries) in [
+                        (s.params_title, &mut tuner.params),
+                        (s.inits_title, &mut tuner.inits),
+                    ] {
+                        if entries.is_empty() {
+                            continue;
+                        }
+                        ui.add_space(4.0);
+                        ui.strong(title);
+                        ui.separator();
+                        for entry in entries.iter_mut() {
+                            ui.horizontal(|ui| {
+                                ui.label(&entry.name);
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        let modified = entry.value != entry.default;
+                                        if ui
+                                            .add_visible(
+                                                modified,
+                                                egui::Button::new(icons::ARROW_COUNTER_CLOCKWISE)
+                                                    .small(),
+                                            )
+                                            .clicked()
+                                        {
+                                            entry.value = entry.default;
+                                            changed = true;
+                                        }
+                                        let speed = (entry.default.abs() * 0.01).max(0.001);
+                                        if ui
+                                            .add(
+                                                egui::DragValue::new(&mut entry.value)
+                                                    .speed(speed)
+                                                    .max_decimals(6),
+                                            )
+                                            .changed()
+                                        {
+                                            changed = true;
+                                        }
+                                    },
+                                );
+                            });
+                        }
+                    }
+                    ui.add_space(8.0);
+                    if ui
+                        .button(format!(
+                            "{} {}",
+                            icons::ARROW_COUNTER_CLOCKWISE,
+                            s.reset_all
+                        ))
+                        .clicked()
+                    {
+                        for entry in tuner.params.iter_mut().chain(tuner.inits.iter_mut()) {
+                            entry.value = entry.default;
+                        }
+                        changed = true;
+                    }
+                });
+                if changed {
+                    tuner.dirty = true;
+                    tuner.last_change = Some(Instant::now());
+                }
+            });
+    }
+
+    // Debounced live re-simulation after tuner changes.
+    if ide.tuner.dirty
+        && ide
+            .tuner
+            .last_change
+            .is_some_and(|at| at.elapsed().as_millis() > 300)
+    {
+        ide.tuner.dirty = false;
+        run_simulation(ide);
+    }
 
     // Advance the shared animation clock for both animated views.
     if let Some(data) = &ide.result {
@@ -626,13 +810,15 @@ fn run_simulation(ide: &mut Ide) {
             return;
         }
     };
-    let compiled = match oxidelica_sim::compile(&model) {
+    let mut compiled = match oxidelica_sim::compile(&model) {
         Ok(compiled) => compiled,
         Err(e) => {
             ide.log = format!("{}: {e}", s.compile_error);
             return;
         }
     };
+    ide.tuner.refresh(&compiled);
+    ide.tuner.apply(&mut compiled);
     match compiled.simulate() {
         Ok(result) => {
             ide.log = format!(
@@ -645,21 +831,33 @@ fn run_simulation(ide: &mut Ide) {
                 result.columns[1..].join(", ")
             );
             ide.log_ok = true;
-            // Animation defaults: literal x/y columns turn on pendulum
-            // mode (rod from the origin, equal aspect).
-            let find = |name: &str| result.columns.iter().position(|c| c == name);
-            let (x_col, y_col) = match (find("x"), find("y")) {
-                (Some(x), Some(y)) => (x, y),
-                _ => (0, 1.min(result.columns.len() - 1)),
+            // Preserve playback and curve choices when the variable set
+            // is unchanged (live parameter tuning); reset otherwise.
+            let same_columns = ide
+                .result
+                .as_ref()
+                .is_some_and(|old| old.columns == result.columns);
+            let visible = match ide.result.take() {
+                Some(old) if same_columns => old.visible,
+                _ => vec![true; result.columns.len().saturating_sub(1)],
             };
-            ide.anim = Anim {
-                rod: find("x").is_some() && find("y").is_some(),
-                x_col,
-                y_col,
-                ..Anim::default()
-            };
+            if !same_columns {
+                // Animation defaults: literal x/y columns turn on
+                // pendulum mode (rod from the origin, equal aspect).
+                let find = |name: &str| result.columns.iter().position(|c| c == name);
+                let (x_col, y_col) = match (find("x"), find("y")) {
+                    (Some(x), Some(y)) => (x, y),
+                    _ => (0, 1.min(result.columns.len() - 1)),
+                };
+                ide.anim = Anim {
+                    rod: find("x").is_some() && find("y").is_some(),
+                    x_col,
+                    y_col,
+                    ..Anim::default()
+                };
+            }
             ide.result = Some(SimData {
-                visible: vec![true; result.columns.len().saturating_sub(1)],
+                visible,
                 columns: result.columns,
                 rows: result.rows,
             });
