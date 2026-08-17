@@ -69,7 +69,8 @@ symbolically, which is also what rules recursion out.
 and clocked discrete blocks in the ordinary sense do work — and state
 machines (17).
 
-**Structure**: no `block`, `expandable connector`, `operator` classes;
+**Structure**: no `expandable connector` or `operator` classes
+(`block` parses as a model, causality unchecked);
 `protected` is accepted but not enforced; `final` and `each` are parsed
 and ignored (array modifiers distribute regardless); package `extends`
 does not merge members through an alias; selective model extension
@@ -80,8 +81,8 @@ directory layout — libraries are flat `.mo` files in `lib/`.
 compile-time conditions (the spec also allows run-time ones with
 balanced branches); `when` inside algorithms is not supported; vector
 `when` conditions are not supported; no `delay`, `terminal`,
-`homotopy`, `semiLinear`, `spatialDistribution`, `getInstanceName`; no
-`div`/`mod`/`rem`/`ceil`/`floor`/`integer`; overconstrained connection
+`homotopy`, `semiLinear`, `spatialDistribution`, `getInstanceName`;
+overconstrained connection
 graphs (`Connections.root` and friends) are not implemented; subtype
 compatibility (ch. 6) is approximated by the `extends` chain rather
 than structural plug-compatibility.
