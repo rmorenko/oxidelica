@@ -2,6 +2,7 @@
 //! simulation, plots. EN/RU localization, dark/light themes, a
 //! JetBrains-inspired look with icons and brand gradient strips.
 
+mod diagram;
 mod highlight;
 mod i18n;
 mod settings;
@@ -39,6 +40,8 @@ enum ViewMode {
     Animation,
     /// Embedded Bevy 3D scene with bodies and trails.
     ThreeD,
+    /// Diagram editor: components wired together with the mouse.
+    Diagram,
 }
 
 /// Trajectory animation state.
@@ -189,6 +192,10 @@ struct Ide {
     tuner: Tuner,
     /// The in-flight background simulation, if any.
     sim_job: Option<SimJob>,
+    /// Diagram editor state.
+    diagram: diagram::Diagram,
+    /// Palette filter text.
+    palette_filter: String,
 }
 
 /// A background simulation running on a worker thread.
@@ -242,6 +249,8 @@ fn main() {
             anim: Anim::default(),
             tuner: Tuner::default(),
             sim_job: None,
+            diagram: diagram::Diagram::with_catalog(&library_classes()),
+            palette_filter: String::new(),
         })
         .add_systems(Startup, view3d::setup)
         .add_systems(Update, (ui_system, view3d::sync_scene).chain())
@@ -261,6 +270,15 @@ fn load_libraries() -> Vec<String> {
     paths
         .iter()
         .filter_map(|path| std::fs::read_to_string(path).ok())
+        .collect()
+}
+
+/// Class definitions of every library, for the diagram palette.
+fn library_classes() -> Vec<oxidelica_parser::ClassDef> {
+    load_libraries()
+        .iter()
+        .filter_map(|source| oxidelica_parser::parse_file(source).ok())
+        .flatten()
         .collect()
 }
 
@@ -725,8 +743,20 @@ fn ui_system(
                 ViewMode::ThreeD,
                 format!("{} {}", icons::CUBE, s.tab_3d),
             );
+            ui.selectable_value(
+                &mut ide.view,
+                ViewMode::Diagram,
+                format!("{} {}", icons::TREE_STRUCTURE, s.tab_diagram),
+            );
         });
         ui.separator();
+
+        // The diagram editor stands apart: it works before there is any
+        // result to show.
+        if ide.view == ViewMode::Diagram {
+            diagram_ui(ui, ide, s, &p);
+            return;
+        }
 
         let Ide {
             result, anim, view, ..
@@ -765,6 +795,8 @@ fn ui_system(
                     playback_controls(ui, data, anim, s);
                     view3d::tab_ui(ui, &mut scene, view3d::has_bodies(data), s.anim_no_bodies);
                 }
+                // Handled before this match, which needs a result.
+                ViewMode::Diagram => {}
             },
         }
     });
@@ -789,6 +821,107 @@ fn ui_system(
     if settings_before != ide.settings {
         settings::save(ide.settings);
     }
+}
+
+/// The diagram editor tab: palette, canvas, inspector and the buttons
+/// that move between diagram and code.
+fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Palette) {
+    ui.horizontal(|ui| {
+        if ui
+            .button(format!("{} {}", icons::CODE, s.diagram_generate))
+            .clicked()
+        {
+            let name = ide
+                .file
+                .as_ref()
+                .and_then(|path| path.file_stem())
+                .map(|stem| {
+                    let raw = stem.to_string_lossy();
+                    let mut chars = raw.chars().filter(|c| c.is_alphanumeric());
+                    match chars.next() {
+                        Some(first) => first.to_uppercase().chain(chars).collect::<String>(),
+                        None => "Diagram".to_string(),
+                    }
+                })
+                .unwrap_or_else(|| "Diagram".to_string());
+            ide.source = ide.diagram.to_source(&name);
+            ide.log = format!("{}: {}", s.diagram_generate, name);
+            ide.log_ok = true;
+            refresh_tuner(ide);
+        }
+        if ui
+            .button(format!("{} {}", icons::DOWNLOAD_SIMPLE, s.diagram_import))
+            .clicked()
+        {
+            let mut sources = load_libraries();
+            sources.push(ide.source.clone());
+            let classes: Vec<oxidelica_parser::ClassDef> = sources
+                .iter()
+                .filter_map(|source| oxidelica_parser::parse_file(source).ok())
+                .flatten()
+                .collect();
+            let top = oxidelica_parser::parse_file(&ide.source)
+                .ok()
+                .and_then(|own| {
+                    own.iter()
+                        .rev()
+                        .find(|c| c.kind == oxidelica_parser::ClassKind::Model && !c.partial)
+                        .map(|c| c.name.clone())
+                });
+            match top.map(|name| ide.diagram.import(&classes, &name)) {
+                Some(Ok(count)) => {
+                    ide.log = format!("{}: {count}", s.diagram_import);
+                    ide.log_ok = true;
+                }
+                Some(Err(message)) => {
+                    ide.log = message;
+                    ide.log_ok = false;
+                }
+                None => {
+                    ide.log = s.parse_error.into();
+                    ide.log_ok = false;
+                }
+            }
+        }
+        ui.separator();
+        ui.label("StopTime");
+        ui.add(
+            egui::DragValue::new(&mut ide.diagram.stop_time)
+                .speed(0.1)
+                .range(1e-6..=f64::MAX),
+        );
+        ui.label("Interval");
+        ui.add(
+            egui::DragValue::new(&mut ide.diagram.interval)
+                .speed(0.0005)
+                .range(1e-9..=f64::MAX),
+        );
+    });
+    ui.label(egui::RichText::new(s.diagram_hint).weak().small());
+    ui.separator();
+
+    let available = ui.available_size();
+    ui.horizontal(|ui| {
+        ui.vertical(|ui| {
+            ui.set_width(170.0);
+            ui.set_height(available.y);
+            ui.strong(s.diagram_palette);
+            if let Some(class) = ide.diagram.palette_ui(ui, &mut ide.palette_filter) {
+                ide.diagram.add(&class, egui::pos2(260.0, 160.0));
+            }
+        });
+        ui.separator();
+        ui.vertical(|ui| {
+            ui.set_width(available.x - 400.0);
+            ui.set_height(available.y);
+            ide.diagram.canvas_ui(ui, p.accent);
+        });
+        ui.separator();
+        ui.vertical(|ui| {
+            ui.set_width(190.0);
+            ide.diagram.inspector_ui(ui);
+        });
+    });
 }
 
 /// Shared playback controls: play/pause, the time slider and speed.

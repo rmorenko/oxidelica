@@ -146,6 +146,11 @@ define_strings!(
     reset_all,
     simulating,
     solver_label,
+    tab_diagram,
+    diagram_generate,
+    diagram_import,
+    diagram_hint,
+    diagram_palette,
 );
 
 #[cfg(test)]

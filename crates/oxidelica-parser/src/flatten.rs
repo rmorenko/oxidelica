@@ -17,6 +17,65 @@ use std::collections::HashMap;
 /// Maximum instantiation depth (guards against recursive classes).
 const MAX_DEPTH: usize = 32;
 
+/// What tooling needs to know about a class to draw it: its connector
+/// ports and its parameters, inherited members included.
+#[derive(Debug, Clone, Default)]
+pub struct ClassInfo {
+    /// Names of the connector components, in declaration order.
+    pub ports: Vec<String>,
+    /// Parameters with their default expressions, where declared.
+    pub parameters: Vec<(String, Option<Expr>)>,
+    /// The class description string.
+    pub description: Option<String>,
+    /// Whether the class can be instantiated as a component.
+    pub instantiable: bool,
+}
+
+/// Summarize a class for tooling (the diagram editor).
+pub fn class_info(classes: &[ClassDef], name: &str) -> Option<ClassInfo> {
+    let registry: HashMap<&str, &ClassDef> = classes.iter().map(|c| (c.name.as_str(), c)).collect();
+    let class = registry.get(name)?;
+    let mut info = ClassInfo {
+        description: class.description.clone(),
+        instantiable: !class.partial && matches!(class.kind, ClassKind::Model | ClassKind::Record),
+        ..ClassInfo::default()
+    };
+    collect_members(&registry, class, &mut info, 0);
+    Some(info)
+}
+
+/// Walk a class and its bases, gathering ports and parameters.
+fn collect_members(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    info: &mut ClassInfo,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    let scope = scope_of(&class.name);
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+            collect_members(registry, base, info, depth + 1);
+        }
+    }
+    for component in &class.components {
+        match component.variability {
+            Variability::Parameter | Variability::Constant => info
+                .parameters
+                .push((component.name.clone(), component.binding.clone())),
+            Variability::Continuous => {
+                let is_connector = lookup(registry, &component.type_name, scope, &class.imports)
+                    .is_some_and(|c| c.kind == ClassKind::Connector);
+                if is_connector {
+                    info.ports.push(component.name.clone());
+                }
+            }
+        }
+    }
+}
+
 /// Flatten the class named `top` into a flat model.
 pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     let registry: HashMap<&str, &ClassDef> = classes.iter().map(|c| (c.name.as_str(), c)).collect();
@@ -1135,6 +1194,44 @@ mod tests {
         // noEvent and smooth collapse to their value argument.
         assert!(!format!("{:?}", m.equations).contains("noEvent"));
         assert!(!format!("{:?}", m.equations).contains("smooth"));
+    }
+
+    #[test]
+    fn class_info_reports_ports_and_parameters_including_inherited() {
+        use super::class_info;
+        let classes = crate::parser::parse_file(
+            "package Lib \
+               connector Pin Real v; flow Real i; end Pin; \
+               partial model OnePort Pin p; Pin n; Real v; Real i; \
+               equation v = p.v - n.v; p.i = i; n.i = -i; end OnePort; \
+               model Resistor extends OnePort; parameter Real R = 1; \
+               equation v = R * i; end Resistor; \
+               model Gain parameter Real k = 1; Real u; Real y; \
+               equation y = k * u; end Gain; \
+             end Lib;",
+        )
+        .unwrap();
+
+        // Ports and parameters come from the base as well as the class.
+        let resistor = class_info(&classes, "Lib.Resistor").unwrap();
+        assert_eq!(resistor.ports, vec!["p", "n"]);
+        assert_eq!(resistor.parameters.len(), 1);
+        assert_eq!(resistor.parameters[0].0, "R");
+        assert!(resistor.instantiable);
+
+        // A partial base is described but not instantiable.
+        let base = class_info(&classes, "Lib.OnePort").unwrap();
+        assert_eq!(base.ports, vec!["p", "n"]);
+        assert!(!base.instantiable);
+
+        // A class without connectors has no ports.
+        let gain = class_info(&classes, "Lib.Gain").unwrap();
+        assert!(gain.ports.is_empty());
+        assert!(gain.instantiable);
+
+        // Connectors themselves are not instantiable as components.
+        assert!(!class_info(&classes, "Lib.Pin").unwrap().instantiable);
+        assert!(class_info(&classes, "Lib.Missing").is_none());
     }
 
     #[test]
