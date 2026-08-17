@@ -2,6 +2,7 @@
 //! simulation, plots. EN/RU localization, dark/light themes, a
 //! JetBrains-inspired look with icons and brand gradient strips.
 
+mod highlight;
 mod i18n;
 mod settings;
 mod style;
@@ -320,7 +321,14 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
         ui.add_space(2.0);
     });
 
-    // --- editor ---
+    // --- editor with Modelica syntax highlighting ---
+    let editor_theme = ide.settings.theme;
+    let mut layouter = |ui: &egui::Ui, text: &str, wrap_width: f32| {
+        let font = egui::TextStyle::Monospace.resolve(ui.style());
+        let mut job = highlight::highlight(text, editor_theme, font);
+        job.wrap.max_width = wrap_width;
+        ui.fonts(|fonts| fonts.layout_job(job))
+    };
     egui::SidePanel::left("editor")
         .resizable(true)
         .default_width(600.0)
@@ -331,7 +339,8 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
                         .font(egui::TextStyle::Monospace)
                         .code_editor()
                         .desired_rows(40)
-                        .desired_width(f32::INFINITY),
+                        .desired_width(f32::INFINITY)
+                        .layouter(&mut layouter),
                 );
             });
         });

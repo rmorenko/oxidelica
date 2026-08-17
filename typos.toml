@@ -1,3 +1,7 @@
 # typos - a fast source-code spell checker (Latin script only)
 [files]
 extend-exclude = ["target/", "Cargo.lock"]
+
+[default.extend-words]
+# The JetBrains theme really is named Darcula (a deliberate pun).
+Darcula = "Darcula"
