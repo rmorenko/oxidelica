@@ -391,11 +391,6 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
         end ViscousFriction;
 
         model Damper "Linear rotational damper between two flanges"
-          // Note: connecting this damper directly to `Fixed` makes the
-          // relative angle redundant with the shaft angle, an index-2
-          // system whose reduction needs derivative unknowns for
-          // algebraic variables - not yet supported. Use
-          // ViscousFriction for damping against the housing.
           extends Interfaces.TwoFlanges;
           parameter Real d = 1 "damping constant";
           Units.Angle phi_rel(start = 0) "relative angle";

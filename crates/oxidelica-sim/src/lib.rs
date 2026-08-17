@@ -1210,26 +1210,64 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
 
         // Explicit definitions let differentiation reach through
         // algebraic unknowns.
-        let alg_defs: HashMap<String, Expr> = algebraic_eqs
-            .iter()
-            .enumerate()
-            // The equation under reduction cannot define its own way
-            // out: `u = 3` must be read through `u = 2*x`, not itself.
-            .filter(|(index, _)| *index != eq)
-            .map(|(_, pair)| pair)
-            .filter_map(|(l, r)| match (l, r) {
-                (Expr::Ref(name), other) | (other, Expr::Ref(name)) if unknowns.contains(name) => {
-                    let mut refs = Vec::new();
-                    other.collect_refs(&mut refs);
-                    if refs.contains(&name.as_str()) {
-                        None
-                    } else {
-                        Some((name.clone(), other.clone()))
+        // Definitions to differentiate through, built to a fixpoint so
+        // the graph is acyclic and grounds out in states and parameters.
+        // Explicit forms (`u = 2*x`) come first; an unknown that only
+        // appears inside a linear equation (`phi_rel = b - a` pins `a`)
+        // is defined by solving for it. A definition is accepted only
+        // once everything it references is itself grounded, which is
+        // what keeps `a := b` and `b := a` from chasing each other.
+        let alg_defs: HashMap<String, Expr> = {
+            let mut candidates: Vec<(String, Expr)> = Vec::new();
+            for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
+                // The equation under reduction cannot define its own
+                // way out: `u = 3` must be read through `u = 2*x`.
+                if index == eq {
+                    continue;
+                }
+                if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
+                    if unknowns.contains(name) {
+                        candidates.push((name.clone(), other.clone()));
                     }
                 }
-                _ => None,
-            })
-            .collect();
+                let mut named = Vec::new();
+                l.collect_refs(&mut named);
+                r.collect_refs(&mut named);
+                named.sort_unstable();
+                named.dedup();
+                for name in named {
+                    if !unknowns.iter().any(|u| u == name) {
+                        continue;
+                    }
+                    if let Some(solved) = solve_linear_for(l, r, name) {
+                        candidates.push((name.to_string(), solved));
+                    }
+                }
+            }
+            let mut accepted: HashMap<String, Expr> = HashMap::new();
+            loop {
+                let mut progress = false;
+                for (name, expr) in &candidates {
+                    if accepted.contains_key(name) {
+                        continue;
+                    }
+                    let mut refs = Vec::new();
+                    expr.collect_refs(&mut refs);
+                    let grounded = refs.iter().all(|r| {
+                        *r != name
+                            && (!unknowns.iter().any(|u| u == *r) || accepted.contains_key(*r))
+                    });
+                    if grounded {
+                        accepted.insert(name.clone(), expr.clone());
+                        progress = true;
+                    }
+                }
+                if !progress {
+                    break;
+                }
+            }
+            accepted
+        };
 
         let residual = Expr::Bin(
             oxidelica_parser::BinOp::Sub,
@@ -6078,6 +6116,62 @@ mod tests {
         }
         assert!(checked > 1000, "grids barely overlap: {checked}");
         assert!(worst < 1e-4, "cartesian vs angle form: {worst}");
+    }
+
+    #[test]
+    fn a_damper_straight_onto_a_fixed_flange_works() {
+        // The former known limit: the damper's relative angle is
+        // redundant with the shaft angle, and reducing the index means
+        // differentiating a connection equality through connector
+        // potentials no equation defines explicitly - they are pinned
+        // only linearly. J = 0.5, d = 0.4: the shaft speed must decay
+        // as 5*exp(-0.8 t).
+        let result = compile(&with_library("damper_on_fixed.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (w, phi, phi_rel) = (
+            index("shaft.w"),
+            index("shaft.phi"),
+            index("damper.phi_rel"),
+        );
+        for row in &result.rows {
+            let expected = 5.0 * (-0.8 * row[0]).exp();
+            assert!(
+                (row[w] - expected).abs() < 1e-6,
+                "w at {}: {} vs {expected}",
+                row[0],
+                row[w]
+            );
+            // The relative angle mirrors the shaft, holding the
+            // redundant pair consistent through the whole run.
+            assert!((row[phi_rel] + row[phi]).abs() < 1e-9);
+        }
+    }
+
+    #[test]
+    fn a_start_written_through_a_type_alias_is_kept() {
+        // `Units.AngularVelocity w(start = w0)` parses its parenthesis
+        // as modifiers, not attributes; the initial condition used to
+        // vanish without a sound. Found because the damper test above
+        // started from rest instead of 5 rad/s.
+        let result = run(
+            "package Units type Speed = Real(unit = \"m/s\"); end Units; \
+             model M parameter Real w0 = 5; Units.Speed w(start = w0); \
+             equation der(w) = -w; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end M;",
+        );
+        assert!(
+            (result.rows[0][1] - 5.0).abs() < 1e-12,
+            "{}",
+            result.rows[0][1]
+        );
+        // And the declaration's own start wins over an alias default.
+        let overridden = run("package Units type Speed = Real(start = 7); end Units; \
+             model M Units.Speed w(start = 5); equation der(w) = -w; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end M;");
+        assert!((overridden.rows[0][1] - 5.0).abs() < 1e-12);
     }
 
     #[test]

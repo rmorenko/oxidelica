@@ -865,6 +865,32 @@ fn resolve_type(
     scope: &str,
     imports: &[(String, String)],
 ) {
+    // A declaration typed by an alias writes its attributes the
+    // modifier way - `Units.AngularVelocity w(start = w0)` parses into
+    // modifiers, not into the attribute fields. They mean exactly what
+    // the attribute form means, and they belong to the declaration, so
+    // they take precedence over anything an alias contributes below.
+    if lookup(registry, &component.type_name, scope, imports)
+        .is_some_and(|class| class.alias_of.is_some() || !class.enumeration.is_empty())
+    {
+        component
+            .modifiers
+            .retain(|(name, value)| match name.as_str() {
+                "start" => {
+                    if component.start.is_none() {
+                        component.start = Some(value.clone());
+                    }
+                    false
+                }
+                "fixed" => {
+                    if component.fixed.is_none() {
+                        component.fixed = Some(matches!(value, Expr::Bool(true)));
+                    }
+                    false
+                }
+                _ => true,
+            });
+    }
     let mut scope = scope.to_string();
     let mut imports = imports.to_vec();
     for _ in 0..MAX_DEPTH {
