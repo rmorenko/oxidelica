@@ -208,6 +208,9 @@ pub struct CompiledModel {
     /// Sensitivity of each reduced constraint to its chosen victim and
     /// to the alternatives; see [`CompiledModel::selection_sound`].
     selection_monitor: Vec<(Code, Vec<Code>)>,
+    /// `assert` conditions with their messages: each must hold at every
+    /// recorded point, or the run stops and says which one did not.
+    asserts: Vec<(Code, String)>,
     /// The flat model this was compiled from, kept so a continuation
     /// can compile itself at a new point.
     flat: Model,
@@ -807,7 +810,12 @@ impl EventRewrite<'_> {
             Expr::Index(_, _)
             | Expr::Member(_, _)
             | Expr::Array(_)
-            | Expr::Elementwise(_, _, _) => {
+            | Expr::Elementwise(_, _, _)
+            | Expr::Range(_, _, _)
+            | Expr::Comprehension(_, _, _)
+            | Expr::ColonSubscript
+            | Expr::EndSubscript
+            | Expr::MatrixRows(_) => {
                 return err("subscripts and arrays survive flattening only as scalars".to_string())
             }
             Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
@@ -1811,6 +1819,11 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         resume: resume.is_some(),
         reselectable: !dummies.is_empty(),
         selection_monitor,
+        asserts: model
+            .asserts
+            .iter()
+            .map(|(condition, message)| Ok((table.compile(condition)?, message.clone())))
+            .collect::<Result<Vec<_>, SimError>>()?,
         flat: model.clone(),
         jacobian_groups,
         jacobian_rows,
@@ -1877,6 +1890,11 @@ fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
         | Expr::Member(_, _)
         | Expr::Array(_)
         | Expr::Elementwise(_, _, _)
+        | Expr::Range(_, _, _)
+        | Expr::Comprehension(_, _, _)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::MatrixRows(_)
         | Expr::Number(_)
         | Expr::Bool(_)
         | Expr::Ref(_)
@@ -1944,7 +1962,13 @@ fn simplify(expr: &Expr) -> Expr {
         | Expr::Ref(_)
         | Expr::Time => expr.clone(),
         // Arrays never reach here: flattening expands them.
-        Expr::Array(_) | Expr::Elementwise(_, _, _) => expr.clone(),
+        Expr::Array(_)
+        | Expr::Elementwise(_, _, _)
+        | Expr::Range(_, _, _)
+        | Expr::Comprehension(_, _, _)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::MatrixRows(_) => expr.clone(),
     }
 }
 
@@ -1982,9 +2006,15 @@ fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
             Box::new(substitute(a, var, value)),
             Box::new(substitute(b, var, value)),
         ),
-        Expr::Index(_, _) | Expr::Member(_, _) | Expr::Array(_) | Expr::Elementwise(_, _, _) => {
-            expr.clone()
-        }
+        Expr::Index(_, _)
+        | Expr::Member(_, _)
+        | Expr::Array(_)
+        | Expr::Elementwise(_, _, _)
+        | Expr::Range(_, _, _)
+        | Expr::Comprehension(_, _, _)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::MatrixRows(_) => expr.clone(),
     }
 }
 
@@ -2120,6 +2150,10 @@ fn differentiate_at(expr: &Expr, target: &DiffTarget, depth: usize) -> Result<Ex
             )
         }
         Expr::Call(name, args) if args.len() == 1 => {
+            // The staircase functions are flat almost everywhere.
+            if matches!(name.as_str(), "ceil" | "floor" | "integer" | "sign") {
+                return Ok(Expr::Number(0.0));
+            }
             let u = &args[0];
             let du = d(u)?;
             let outer = match name.as_str() {
@@ -2176,6 +2210,9 @@ type Slot = usize;
 /// that evaluating one is a jump rather than a string comparison.
 #[derive(Debug, Clone, Copy)]
 enum Unary {
+    Ceil,
+    Floor,
+    IntegerPart,
     Sin,
     Cos,
     Tan,
@@ -2199,6 +2236,9 @@ enum Binary {
     Atan2,
     Min,
     Max,
+    Div,
+    Mod,
+    Rem,
 }
 
 /// An expression whose variables are already resolved to slots.
@@ -2281,6 +2321,11 @@ impl Code {
             Code::Unary(function, argument) => {
                 let x = argument.run(values, time);
                 match function {
+                    Unary::Ceil => x.ceil(),
+                    Unary::Floor => x.floor(),
+                    // integer(x) truncates toward negative infinity,
+                    // like floor - the spec defines it that way.
+                    Unary::IntegerPart => x.floor(),
                     Unary::Sin => x.sin(),
                     Unary::Cos => x.cos(),
                     Unary::Tan => x.tan(),
@@ -2304,6 +2349,11 @@ impl Code {
                     Binary::Atan2 => a.atan2(b),
                     Binary::Min => a.min(b),
                     Binary::Max => a.max(b),
+                    // Integer division truncates toward zero; mod and
+                    // rem follow their spec definitions from it.
+                    Binary::Div => (a / b).trunc(),
+                    Binary::Mod => a - (a / b).floor() * b,
+                    Binary::Rem => a - (a / b).trunc() * b,
                 }
             }
         }
@@ -2385,7 +2435,12 @@ impl SlotTable {
             Expr::Index(_, _)
             | Expr::Member(_, _)
             | Expr::Array(_)
-            | Expr::Elementwise(_, _, _) => {
+            | Expr::Elementwise(_, _, _)
+            | Expr::Range(_, _, _)
+            | Expr::Comprehension(_, _, _)
+            | Expr::ColonSubscript
+            | Expr::EndSubscript
+            | Expr::MatrixRows(_) => {
                 return err("subscripts and arrays survive flattening only as scalars".to_string())
             }
         })
@@ -2395,6 +2450,9 @@ impl SlotTable {
     /// than on every evaluation.
     fn compile_call(&self, name: &str, args: &[Expr]) -> Result<Code, SimError> {
         let unary = match name {
+            "ceil" => Some(Unary::Ceil),
+            "floor" => Some(Unary::Floor),
+            "integer" => Some(Unary::IntegerPart),
             "sin" => Some(Unary::Sin),
             "cos" => Some(Unary::Cos),
             "tan" => Some(Unary::Tan),
@@ -2422,6 +2480,9 @@ impl SlotTable {
             "atan2" => Some(Binary::Atan2),
             "min" => Some(Binary::Min),
             "max" => Some(Binary::Max),
+            "div" => Some(Binary::Div),
+            "mod" => Some(Binary::Mod),
+            "rem" => Some(Binary::Rem),
             _ => None,
         };
         if let Some(function) = binary {
@@ -2607,14 +2668,38 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     arity(2)?;
                     vals[0].max(vals[1])
                 }
+                "ceil" => {
+                    arity(1)?;
+                    vals[0].ceil()
+                }
+                "floor" | "integer" => {
+                    arity(1)?;
+                    vals[0].floor()
+                }
+                "div" => {
+                    arity(2)?;
+                    (vals[0] / vals[1]).trunc()
+                }
+                "mod" => {
+                    arity(2)?;
+                    vals[0] - (vals[0] / vals[1]).floor() * vals[1]
+                }
+                "rem" => {
+                    arity(2)?;
+                    vals[0] - (vals[0] / vals[1]).trunc() * vals[1]
+                }
                 other => return err(format!("unknown function `{other}`")),
             }
         }
         // Arrays are expanded into scalars while flattening, so one
         // here would mean the compiler let something through.
-        Expr::Array(_) | Expr::Elementwise(_, _, _) => {
-            return err("an array reached the evaluator".to_string())
-        }
+        Expr::Array(_)
+        | Expr::Elementwise(_, _, _)
+        | Expr::Range(_, _, _)
+        | Expr::Comprehension(_, _, _)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::MatrixRows(_) => return err("an array reached the evaluator".to_string()),
     })
 }
 
@@ -2952,7 +3037,20 @@ impl SimResult {
             self.columns.iter().map(|c| c.len() + 1).sum::<usize>()
                 + self.rows.len() * self.columns.len() * 12,
         );
-        out.push_str(&self.columns.join(","));
+        // A column name may itself hold a comma - `mm[1,2]` - so names
+        // are quoted the way CSV quotes things when they need it.
+        for (index, name) in self.columns.iter().enumerate() {
+            if index > 0 {
+                out.push(',');
+            }
+            if name.contains(',') || name.contains('"') {
+                out.push('"');
+                out.push_str(&name.replace('"', "\"\""));
+                out.push('"');
+            } else {
+                out.push_str(name);
+            }
+        }
         out.push('\n');
         for row in &self.rows {
             for (index, value) in row.iter().enumerate() {
@@ -2970,6 +3068,17 @@ impl SimResult {
 impl CompiledModel {
     /// Evaluate algebraic variables and derivatives at point (t, y).
     /// `env` is reused between calls to avoid per-step allocation.
+    /// Check every `assert` at an evaluated point; a violated one stops
+    /// the run with its own message and the time.
+    fn check_asserts(&self, t: f64, values: &[f64]) -> Result<(), SimError> {
+        for (condition, message) in &self.asserts {
+            if condition.run(values, t) == 0.0 {
+                return err(format!("assertion failed at t = {t:.6}: {message}"));
+            }
+        }
+        Ok(())
+    }
+
     fn eval_point(
         &self,
         t: f64,
@@ -3279,6 +3388,7 @@ impl CompiledModel {
                           alg_guess: &mut [f64]|
          -> Result<(), SimError> {
             self.eval_point(t, y, values, k, alg_guess)?;
+            self.check_asserts(t, values)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
@@ -3849,6 +3959,7 @@ impl CompiledModel {
                           alg_guess: &mut [f64]|
          -> Result<(), SimError> {
             self.eval_point(t, y, values, k, alg_guess)?;
+            self.check_asserts(t, values)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
@@ -4344,6 +4455,7 @@ impl CompiledModel {
                           alg_guess: &mut [f64]|
          -> Result<(), SimError> {
             this.eval_point(t, y, values, k, alg_guess)?;
+            this.check_asserts(t, values)?;
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
             row.extend_from_slice(y);
@@ -6219,6 +6331,133 @@ mod tests {
             "water: {} vs {expected_water}",
             last[temperature]
         );
+    }
+
+    #[test]
+    fn the_numeric_builtins_follow_their_definitions() {
+        // ceil/floor/integer, div/mod/rem - checked at runtime and in
+        // the compile-time path, both against the spec definitions.
+        let result = run(
+            "model N Real u; Real a; Real b; Real c; Real d; Real e; Real f; \
+             equation u = 3 * sin(time); \
+             a = ceil(u); b = floor(u); c = integer(u); \
+             d = div(u, 2.0); e = mod(u, 2.0); f = rem(u, 2.0); \
+             annotation(experiment(StopTime = 3.0, Interval = 0.05)); end N;",
+        );
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        for row in &result.rows {
+            let u = row[index("u")];
+            assert_eq!(row[index("a")], u.ceil());
+            assert_eq!(row[index("b")], u.floor());
+            assert_eq!(row[index("c")], u.floor());
+            assert_eq!(row[index("d")], (u / 2.0).trunc());
+            assert_eq!(row[index("e")], u - (u / 2.0).floor() * 2.0);
+            assert_eq!(row[index("f")], u - (u / 2.0).trunc() * 2.0);
+        }
+        // Their derivatives are flat almost everywhere: a staircase as
+        // a state source integrates without complaint.
+        let stepped = run("model S Real x(start = 0, fixed = true); \
+             equation der(x) = floor(time) - floor(time); \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end S;");
+        assert!(stepped.rows.last().unwrap()[1].abs() < 1e-12);
+    }
+
+    #[test]
+    fn asserts_stop_the_run_with_their_message() {
+        // Holding: the run completes.
+        let fine = run("model A Real u; equation u = sin(time); \
+             assert(u < 2.0, \"cannot happen\"); \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end A;");
+        assert!(fine.terminated.is_none());
+
+        // Violated: the run stops at the crossing and names the check.
+        let model = parse_model(
+            "model B Real u; equation u = 3 * sin(time); \
+             assert(u < 2.0, \"the input left its window\", AssertionLevel.error); \
+             annotation(experiment(StopTime = 3.0, Interval = 0.01)); end B;",
+        )
+        .unwrap();
+        let error = compile(&model).unwrap().simulate().unwrap_err().to_string();
+        assert!(error.contains("the input left its window"), "{error}");
+        assert!(error.contains("assertion failed at t = 0.73"), "{error}");
+
+        // `block` is a class kind now.
+        let block = run("block G Real y; equation y = 2 * time; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.5)); end G;");
+        assert!((block.rows.last().unwrap()[1] - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn matrix_results_survive_the_csv_round_trip() {
+        // A 2-D name holds a comma; the CSV quotes it and the value
+        // reads back intact.
+        let result = run(
+            "model M parameter Real A[2, 2] = [1, 2; 3, 4]; Real mm[2, 2]; \
+             equation mm = A * transpose(A); \
+             annotation(experiment(StopTime = 1.0, Interval = 0.5)); end M;",
+        );
+        let csv = result.to_csv();
+        assert!(csv.contains("\"mm[1,2]\""), "{csv}");
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+        assert_eq!(last[index("mm[1,1]")], 5.0);
+        assert_eq!(last[index("mm[1,2]")], 11.0);
+        assert_eq!(last[index("mm[2,2]")], 25.0);
+    }
+
+    #[test]
+    fn the_compile_time_eval_matches_the_runtime_code() {
+        // The same builtins exist twice: in `eval` for compile-time
+        // folding and in `Code::run` for the solvers. Feeding them
+        // through parameter bindings exercises the eval side; the
+        // equations above covered the code side.
+        let model = parse_model(
+            "model M \
+             parameter Real a = ceil(2.3) + floor(2.7) + integer(-1.5); \
+             parameter Real b = div(-7, 2) + mod(-7, 2) + rem(-7, 2); \
+             parameter Real c = abs(-3) + sign(-2) + sqrt(16) + min(1, 2) + max(1, 2); \
+             parameter Real d = atan2(1, 1) + log10(100) + sinh(0) + cosh(0) + tanh(0); \
+             parameter Real e = asin(1) + acos(1) + atan(0) + tan(0) + exp(0) + log(1); \
+             Real x; equation x = a + b + c + d + e; end M;",
+        )
+        .unwrap();
+        let compiled = compile(&model).unwrap();
+        let value = |name: &str| {
+            compiled
+                .parameters
+                .iter()
+                .find(|(n, _)| n == name)
+                .unwrap()
+                .1
+        };
+        assert_eq!(value("a"), 3.0 + 2.0 + (-2.0));
+        // div truncates toward zero, mod follows the floor, rem the
+        // truncation: -3 + 1 + (-1).
+        assert_eq!(value("b"), -3.0);
+        assert_eq!(value("c"), 3.0 - 1.0 + 4.0 + 1.0 + 2.0);
+        assert!((value("d") - (std::f64::consts::FRAC_PI_4 + 2.0 + 1.0)).abs() < 1e-12);
+        assert!((value("e") - (std::f64::consts::FRAC_PI_2 + 1.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn relations_and_logic_fold_at_compile_time() {
+        // The comparison and boolean arms of the constant folder.
+        let model = parse_model(
+            "model M \
+             parameter Boolean q = 1 < 2 and 2 <= 2 and 3 > 2 and 2 >= 2 \
+               and 1 == 1 and 1 <> 2 or false; \
+             parameter Real k = if q and not false then 7 else 9; \
+             Real x; equation x = k; end M;",
+        )
+        .unwrap();
+        let compiled = compile(&model).unwrap();
+        let k = compiled
+            .parameters
+            .iter()
+            .find(|(n, _)| n == "k")
+            .unwrap()
+            .1;
+        assert_eq!(k, 7.0);
     }
 
     #[test]

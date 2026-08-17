@@ -50,6 +50,8 @@ pub enum Token {
     Discrete,
     /// Keyword `connector`.
     Connector,
+    /// Keyword `block` — a model whose connectors are causal.
+    Block,
     /// Keyword `flow`.
     Flow,
     /// Keyword `extends`.
@@ -187,6 +189,7 @@ impl fmt::Display for Token {
             Token::ElseWhen => write!(f, "elsewhen"),
             Token::Discrete => write!(f, "discrete"),
             Token::Connector => write!(f, "connector"),
+            Token::Block => write!(f, "block"),
             Token::Flow => write!(f, "flow"),
             Token::Extends => write!(f, "extends"),
             Token::Connect => write!(f, "connect"),
@@ -409,6 +412,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "elsewhen" => Token::ElseWhen,
                     "discrete" => Token::Discrete,
                     "connector" => Token::Connector,
+                    "block" => Token::Block,
                     "flow" => Token::Flow,
                     "extends" => Token::Extends,
                     "connect" => Token::Connect,
@@ -661,6 +665,7 @@ mod tests {
             Token::ElseWhen,
             Token::Discrete,
             Token::Connector,
+            Token::Block,
             Token::Flow,
             Token::Extends,
             Token::Connect,

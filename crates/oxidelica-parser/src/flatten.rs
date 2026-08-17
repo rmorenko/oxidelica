@@ -180,6 +180,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         components: acc.components,
         equations: acc.equations,
         initial_equations: acc.initial_equations,
+        asserts: acc.asserts,
         when_clauses: acc.when_clauses,
         experiment: top_class.experiment.clone(),
     })
@@ -193,6 +194,8 @@ struct Flat {
     when_clauses: Vec<WhenClause>,
     /// Equations of the `initial equation` sections, prefixed.
     initial_equations: Vec<EquationItem>,
+    /// Assert conditions with their messages, prefixed.
+    asserts: Vec<(Expr, String)>,
     /// Connector instance path -> connector class name.
     connectors: HashMap<String, String>,
     /// Connect statements with fully prefixed paths.
@@ -558,6 +561,11 @@ fn instantiate(
         let lhs = expand_here(&equation.lhs, &no_loop_vars)?;
         let rhs = expand_here(&equation.rhs, &no_loop_vars)?;
         push_equations(&lhs, &rhs, acc)?;
+    }
+
+    for (condition, message) in &class.asserts {
+        acc.asserts
+            .push((resolve_here(condition)?, message.clone()));
     }
 
     for equation in &class.initial_equations {
@@ -1300,6 +1308,23 @@ fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> E
         Expr::Elementwise(op, l, r) => {
             Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
         }
+        Expr::Range(a, step, b) => Expr::Range(
+            Box::new(recur(a)),
+            step.as_ref().map(|s| Box::new(recur(s))),
+            Box::new(recur(b)),
+        ),
+        // The iterator variable is not a component; a shadowing rename
+        // is not needed because expansion resolves it before prefixing
+        // could see it again.
+        Expr::Comprehension(body, var, range) => {
+            Expr::Comprehension(Box::new(recur(body)), var.clone(), Box::new(recur(range)))
+        }
+        Expr::MatrixRows(rows) => Expr::MatrixRows(
+            rows.iter()
+                .map(|row| row.iter().map(recur).collect())
+                .collect(),
+        ),
+        Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
     }
 }
@@ -1406,6 +1431,27 @@ fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
             Box::new(substitute_refs(l, map)),
             Box::new(substitute_refs(r, map)),
         ),
+        Expr::Range(a, step, b) => Expr::Range(
+            Box::new(substitute_refs(a, map)),
+            step.as_ref().map(|s| Box::new(substitute_refs(s, map))),
+            Box::new(substitute_refs(b, map)),
+        ),
+        Expr::Comprehension(body, var, range) => {
+            // The iterator shadows any outer binding of the same name.
+            let mut inner = map.clone();
+            inner.remove(var);
+            Expr::Comprehension(
+                Box::new(substitute_refs(body, &inner)),
+                var.clone(),
+                Box::new(substitute_refs(range, map)),
+            )
+        }
+        Expr::MatrixRows(rows) => Expr::MatrixRows(
+            rows.iter()
+                .map(|row| row.iter().map(|item| substitute_refs(item, map)).collect())
+                .collect(),
+        ),
+        Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
     }
 }
 
@@ -1494,6 +1540,20 @@ fn substitute_class_constants(
         Expr::Elementwise(op, l, r) => {
             Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
         }
+        Expr::Range(a, step, b) => Expr::Range(
+            Box::new(recur(a)),
+            step.as_ref().map(|s| Box::new(recur(s))),
+            Box::new(recur(b)),
+        ),
+        Expr::Comprehension(body, var, range) => {
+            Expr::Comprehension(Box::new(recur(body)), var.clone(), Box::new(recur(range)))
+        }
+        Expr::MatrixRows(rows) => Expr::MatrixRows(
+            rows.iter()
+                .map(|row| row.iter().map(recur).collect())
+                .collect(),
+        ),
+        Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
     }
 }
 
@@ -1651,8 +1711,15 @@ fn resolve(
             };
             Expr::Ref(format!("{name}.{path}"))
         }
-        Expr::Array(_) | Expr::Elementwise(_, _, _) => {
+        Expr::Array(_)
+        | Expr::Elementwise(_, _, _)
+        | Expr::Range(_, _, _)
+        | Expr::Comprehension(_, _, _)
+        | Expr::MatrixRows(_) => {
             return Err("an array value cannot be used where a scalar is expected".to_string())
+        }
+        Expr::ColonSubscript | Expr::EndSubscript => {
+            return Err("`:` and `end` make sense only inside a subscript".to_string())
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
     })
@@ -2053,6 +2120,11 @@ fn expand(
         )?))
     };
 
+    let constant_here = |e: &Expr| -> Option<f64> {
+        let mut env = shapes.consts.clone();
+        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+        const_eval(e, &env)
+    };
     Ok(match expr {
         Expr::Array(items) => Value::Array(
             items
@@ -2060,6 +2132,78 @@ fn expand(
                 .map(&recur)
                 .collect::<Result<Vec<_>, String>>()?,
         ),
+        // A range is a vector whose bounds the compiler can see.
+        Expr::Range(a, step, b) => {
+            let scalar_of = |e: &Expr| -> Result<f64, String> {
+                let resolved = recur(e)?.scalar()?;
+                constant_here(&resolved)
+                    .ok_or_else(|| "a range needs bounds the compiler can see".to_string())
+            };
+            let (from, to) = (scalar_of(a)?, scalar_of(b)?);
+            let step = match step {
+                Some(step) => scalar_of(step)?,
+                None => 1.0,
+            };
+            if step == 0.0 {
+                return Err("a range cannot step by zero".to_string());
+            }
+            let count = ((to - from) / step + 1e-9).floor() as i64 + 1;
+            Value::Array(
+                (0..count.max(0))
+                    .map(|i| Value::Scalar(Expr::Number(from + i as f64 * step)))
+                    .collect(),
+            )
+        }
+        // `{expr for i in range}` unrolls with the iterator bound.
+        Expr::Comprehension(body, variable, range) => {
+            let Value::Array(items) = recur(range)? else {
+                return Err(format!("`{variable}` needs an array to iterate over"));
+            };
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                let value = constant_here(&item.scalar()?).ok_or_else(|| {
+                    format!("the range of `{variable}` must be constant at compile time")
+                })?;
+                let mut loop_vars = shapes.loop_vars.clone();
+                loop_vars.insert(variable.clone(), value);
+                let inner = Shapes {
+                    sizes: shapes.sizes,
+                    loop_vars: &loop_vars,
+                    consts: shapes.consts,
+                };
+                out.push(expand(body, &inner, registry, scope, imports, depth + 1)?);
+            }
+            Value::Array(out)
+        }
+        // `[a, b; c, d]`: rows concatenated along the first dimension,
+        // the elements of a row along the second. A scalar element is a
+        // 1x1 block; vector elements lie along the row.
+        Expr::MatrixRows(rows) => {
+            let mut out_rows: Vec<Value> = Vec::new();
+            for row in rows {
+                let mut cells: Vec<Value> = Vec::new();
+                for item in row {
+                    match recur(item)? {
+                        Value::Scalar(expr) => cells.push(Value::Scalar(expr)),
+                        Value::Array(items) => cells.extend(items),
+                    }
+                }
+                out_rows.push(Value::Array(cells));
+            }
+            let width = out_rows
+                .first()
+                .map(|row| row.shape().first().copied().unwrap_or(0))
+                .unwrap_or(0);
+            for row in &out_rows {
+                if row.shape().first().copied().unwrap_or(0) != width {
+                    return Err("the rows of a matrix must be equally wide".to_string());
+                }
+            }
+            Value::Array(out_rows)
+        }
+        Expr::ColonSubscript | Expr::EndSubscript => {
+            return Err("`:` and `end` make sense only inside a subscript".to_string())
+        }
         // A name that was declared with dimensions stands for all of its
         // elements at once.
         Expr::Ref(name) if shapes.sizes.contains_key(name) => {
@@ -2087,25 +2231,56 @@ fn expand(
             let base_value = recur(base)?;
             match base_value {
                 Value::Array(_) => {
-                    let mut env = shapes.consts.clone();
-                    env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    // A subscript picks one element; a range, a `:` or a
+                    // vector of indices takes a slice; `end` stands for
+                    // this dimension's length.
                     let mut current = base_value;
                     for subscript in subscripts {
-                        let index = recur(subscript)?.scalar()?;
-                        let index = const_eval(&index, &env).ok_or_else(|| {
-                            "a subscript into an array value must be a compile-time constant"
-                                .to_string()
-                        })?;
                         let Value::Array(items) = current else {
                             return Err("more subscripts than dimensions".to_string());
                         };
-                        if index.fract() != 0.0 || index < 1.0 || index as usize > items.len() {
-                            return Err(format!(
-                                "subscript {index} is outside an array of {}",
-                                items.len()
-                            ));
-                        }
-                        current = items[index as usize - 1].clone();
+                        let length = items.len();
+                        let one = |index: f64| -> Result<Value, String> {
+                            if index.fract() != 0.0 || index < 1.0 || index as usize > length {
+                                return Err(format!(
+                                    "subscript {index} is outside an array of {length}"
+                                ));
+                            }
+                            Ok(items[index as usize - 1].clone())
+                        };
+                        let with_end = substitute_end(subscript, length as f64);
+                        current = match &with_end {
+                            Expr::ColonSubscript => Value::Array(items.clone()),
+                            _ => match expand(
+                                &with_end,
+                                shapes,
+                                registry,
+                                scope,
+                                imports,
+                                depth + 1,
+                            )? {
+                                Value::Scalar(index) => {
+                                    let index = constant_here(&index).ok_or_else(|| {
+                                        "a subscript into an array value must be a                                          compile-time constant"
+                                            .to_string()
+                                    })?;
+                                    one(index)?
+                                }
+                                Value::Array(picks) => {
+                                    // A vector subscript selects a slice.
+                                    let mut out = Vec::with_capacity(picks.len());
+                                    for pick in picks {
+                                        let index =
+                                            constant_here(&pick.scalar()?).ok_or_else(|| {
+                                                "a slicing subscript must be constant at                                                  compile time"
+                                                    .to_string()
+                                            })?;
+                                        out.push(one(index)?);
+                                    }
+                                    Value::Array(out)
+                                }
+                            },
+                        };
                     }
                     current
                 }
@@ -2114,6 +2289,25 @@ fn expand(
         }
         other => scalar(other)?,
     })
+}
+
+/// Replace `end` inside a subscript with the dimension's length.
+fn substitute_end(expr: &Expr, length: f64) -> Expr {
+    match expr {
+        Expr::EndSubscript => Expr::Number(length),
+        Expr::Bin(op, l, r) => Expr::Bin(
+            *op,
+            Box::new(substitute_end(l, length)),
+            Box::new(substitute_end(r, length)),
+        ),
+        Expr::Neg(inner) => Expr::Neg(Box::new(substitute_end(inner, length))),
+        Expr::Range(a, step, b) => Expr::Range(
+            Box::new(substitute_end(a, length)),
+            step.as_ref().map(|s| Box::new(substitute_end(s, length))),
+            Box::new(substitute_end(b, length)),
+        ),
+        other => other.clone(),
+    }
 }
 
 /// The scalar references an array name stands for: `v` of `Real v[3]`
@@ -2219,23 +2413,68 @@ fn combine(op: BinOp, left: &Value, right: &Value, elementwise: bool) -> Result<
     }
     match (op, left, right) {
         (BinOp::Mul, Value::Array(a), Value::Array(b)) => {
-            if a.len() != b.len() {
-                return Err(format!(
-                    "a scalar product needs equal lengths, got {} and {}",
-                    a.len(),
-                    b.len()
-                ));
+            let (left_shape, right_shape) = (left.shape(), right.shape());
+            match (left_shape.len(), right_shape.len()) {
+                // Vector times vector is their scalar product.
+                (1, 1) => {
+                    if a.len() != b.len() {
+                        return Err(format!(
+                            "a scalar product needs equal lengths, got {} and {}",
+                            a.len(),
+                            b.len()
+                        ));
+                    }
+                    let products = zip_values(left, right, &apply)?;
+                    let mut terms = Vec::new();
+                    products.flatten_into(&mut terms);
+                    Ok(Value::Scalar(sum_of(terms)))
+                }
+                // Matrix times vector, vector times matrix, and matrix
+                // times matrix follow the usual row-by-column rule.
+                (2, 1) => a
+                    .iter()
+                    .map(|row| combine(BinOp::Mul, row, right, false))
+                    .collect::<Result<Vec<_>, String>>()
+                    .map(Value::Array),
+                (1, 2) => {
+                    let columns = right_shape[1];
+                    (0..columns)
+                        .map(|column| {
+                            let column = pick_column(b, column)?;
+                            combine(BinOp::Mul, left, &column, false)
+                        })
+                        .collect::<Result<Vec<_>, String>>()
+                        .map(Value::Array)
+                }
+                (2, 2) => a
+                    .iter()
+                    .map(|row| combine(BinOp::Mul, row, right, false))
+                    .collect::<Result<Vec<_>, String>>()
+                    .map(Value::Array),
+                _ => Err("`*` between arrays deeper than matrices".to_string()),
             }
-            let products = zip_values(left, right, &apply)?;
-            let mut terms = Vec::new();
-            products.flatten_into(&mut terms);
-            Ok(Value::Scalar(sum_of(terms)))
         }
         (BinOp::Div, _, Value::Array(_)) => {
             Err("an array cannot be a divisor; use `./` for element by element".to_string())
         }
         _ => zip_values(left, right, &apply),
     }
+}
+
+/// One column of a matrix given by rows, as a vector value.
+fn pick_column(rows: &[Value], column: usize) -> Result<Value, String> {
+    rows.iter()
+        .map(|row| {
+            let Value::Array(cells) = row else {
+                return Err("a matrix row must be an array".to_string());
+            };
+            cells
+                .get(column)
+                .cloned()
+                .ok_or_else(|| "the rows of a matrix must be equally wide".to_string())
+        })
+        .collect::<Result<Vec<_>, String>>()
+        .map(Value::Array)
 }
 
 /// The sum of a list of expressions, or zero when it is empty.
@@ -2328,6 +2567,125 @@ fn expand_call(
             Ok(Value::Array(
                 (0..length).map(|_| Value::Scalar(filler.clone())).collect(),
             ))
+        }
+        ("transpose", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            if shape.len() != 2 {
+                return Err("transpose works on a matrix".to_string());
+            }
+            let Value::Array(rows) = &value else {
+                return Err("transpose works on a matrix".to_string());
+            };
+            (0..shape[1])
+                .map(|column| pick_column(rows, column))
+                .collect::<Result<Vec<_>, String>>()
+                .map(Value::Array)
+        }
+        ("identity", 1) => {
+            let n = constant(&args[0])?;
+            Ok(Value::Array(
+                (1..=n)
+                    .map(|i| {
+                        Value::Array(
+                            (1..=n)
+                                .map(|j| {
+                                    Value::Scalar(Expr::Number(if i == j { 1.0 } else { 0.0 }))
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+        ("diagonal", 1) => {
+            let Value::Array(items) = recur(&args[0])? else {
+                return Err("diagonal takes a vector".to_string());
+            };
+            let n = items.len();
+            Ok(Value::Array(
+                (0..n)
+                    .map(|i| {
+                        Value::Array(
+                            (0..n)
+                                .map(|j| {
+                                    if i == j {
+                                        items[i].clone()
+                                    } else {
+                                        Value::Scalar(Expr::Number(0.0))
+                                    }
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+        ("cross", 2) => {
+            let (a, b) = (recur(&args[0])?, recur(&args[1])?);
+            let (Value::Array(a), Value::Array(b)) = (&a, &b) else {
+                return Err("cross takes two 3-vectors".to_string());
+            };
+            if a.len() != 3 || b.len() != 3 {
+                return Err("cross takes two 3-vectors".to_string());
+            }
+            let term = |i: usize, j: usize| -> Result<Expr, String> {
+                Ok(Expr::Bin(
+                    BinOp::Mul,
+                    Box::new(a[i].clone().scalar()?),
+                    Box::new(b[j].clone().scalar()?),
+                ))
+            };
+            let minus = |p: Expr, q: Expr| Expr::Bin(BinOp::Sub, Box::new(p), Box::new(q));
+            Ok(Value::Array(vec![
+                Value::Scalar(minus(term(1, 2)?, term(2, 1)?)),
+                Value::Scalar(minus(term(2, 0)?, term(0, 2)?)),
+                Value::Scalar(minus(term(0, 1)?, term(1, 0)?)),
+            ]))
+        }
+        // cat(1, ...) stacks along the first dimension; cat(2, ...)
+        // joins along the second.
+        ("cat", n) if n >= 2 => {
+            let along = constant(&args[0])?;
+            let values = args[1..]
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?;
+            match along {
+                1 => {
+                    let mut out = Vec::new();
+                    for value in values {
+                        match value {
+                            Value::Array(items) => out.extend(items),
+                            scalar => out.push(scalar),
+                        }
+                    }
+                    Ok(Value::Array(out))
+                }
+                2 => {
+                    let rows = values
+                        .first()
+                        .map(|value| value.shape().first().copied().unwrap_or(0))
+                        .unwrap_or(0);
+                    (0..rows)
+                        .map(|row| {
+                            let mut cells = Vec::new();
+                            for value in &values {
+                                let Value::Array(these) = value else {
+                                    return Err("cat(2, ...) takes matrices".to_string());
+                                };
+                                let Some(Value::Array(row_cells)) = these.get(row) else {
+                                    return Err("cat(2, ...) needs equal row counts".to_string());
+                                };
+                                cells.extend(row_cells.iter().cloned());
+                            }
+                            Ok(Value::Array(cells))
+                        })
+                        .collect::<Result<Vec<_>, String>>()
+                        .map(Value::Array)
+                }
+                other => Err(format!("cat along dimension {other} is not supported")),
+            }
         }
         ("linspace", 3) => {
             let (from, to) = (recur(&args[0])?.scalar()?, recur(&args[1])?.scalar()?);
@@ -3569,6 +3927,163 @@ mod tests {
             err("model M Real v[2]; Real q; equation q = 1; v = fill(1.0, q); end M;")
                 .contains("compiler can see")
         );
+    }
+
+    #[test]
+    fn the_new_expression_forms_travel_through_every_walker() {
+        // Ranges, comprehensions, matrices and `end` written where each
+        // walker touches them: inside a component's binding (prefixing
+        // and substitution), behind a class constant, and with logical
+        // operators around them.
+        let m = parse_model(
+            "package K constant Real width = 3; end K;              model Inner parameter Real n = 3;              parameter Real edge_case[3] = {i + K.width for i in 1:3};              Real gate;              equation gate = if time > 0.5 and not time > 2.0 or time < -1                then edge_case[end] else edge_case[1]; end Inner;              model M Inner part; end M;",
+        )
+        .unwrap();
+        let binding = m
+            .components
+            .iter()
+            .find(|c| c.name == "part.edge_case[2]")
+            .and_then(|c| c.binding.clone())
+            .unwrap();
+        // 2 + K.width with the constant substituted.
+        assert!(format!("{binding:?}").contains("Number(3.0)"));
+        let gate = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs).contains("gate"))
+            .unwrap();
+        assert!(format!("{:?}", gate.rhs).contains("edge_case[3]"));
+
+        // A class alias at the top level of a file is refused.
+        let error = crate::parser::parse_file("package P = Q;")
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains("full definition"), "{error}");
+
+        // A range with a step, and one in a for loop with a step.
+        let stepped = parse_model("model M Real v[3]; equation v = 1:3:7; end M;").unwrap();
+        let text = format!("{:?}", stepped.equations);
+        assert!(text.contains("Number(7.0)"), "{text}");
+        assert!(
+            parse_model("model M Real x; equation for i in 1:2:9 loop x = i; end for; end M;")
+                .unwrap_err()
+                .to_string()
+                .contains("step is not supported")
+        );
+
+        // `fixed` through an alias-typed declaration's modifier list.
+        let held = parse_model(
+            "package U type V = Real(unit = \"m\"); end U;              model M U.V x(start = 2, fixed = true); equation der(x) = 1; end M;",
+        )
+        .unwrap();
+        assert_eq!(
+            held.components
+                .iter()
+                .find(|c| c.name == "x")
+                .unwrap()
+                .fixed,
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn alias_and_redeclare_spellings_with_all_the_trimmings() {
+        // Modifiers on an alias target, `constrainedby` with its own
+        // modifier list, a class redeclaration carrying both, and a
+        // string description - every optional trailing piece at once.
+        let m = parse_model(
+            "package Media                partial package Base constant Real rho = 0; end Base;                package Water extends Base; constant Real rho = 1000; end Water;                package Oil extends Base; constant Real rho = 900; end Oil;              end Media;              model Tank                replaceable package Medium = Media.Water(rho = 1)                  constrainedby Media.Base(rho = 2);                Real a; equation a = Medium.rho; end Tank;              model M extends Tank(redeclare package Medium =                Media.Oil(rho = 3) constrainedby Media.Base); end M;",
+        )
+        .unwrap();
+        assert!(format!("{:?}", m.equations).contains("Number(900.0)"));
+
+        // `end` outside a subscript is refused with its own words.
+        let error = parse_model("model M Real v[2]; Real x; equation v = 1:2; x = 1 + (v[1]);              x = v[end]; end M;");
+        assert!(error.is_ok(), "end inside a subscript is fine");
+        // Colon outside a subscript context in a scalar position.
+        let error =
+            parse_model("model M Real v[2]; Real x; equation v = 1:2; x = v[:] * {1, 1}; end M;")
+                .unwrap();
+        assert!(format!("{:?}", error.equations).contains("v[2]"));
+    }
+
+    #[test]
+    fn more_matrix_builtins_and_their_error_paths() {
+        let m = parse_model(
+            "model M              parameter Real I3[3, 3] = identity(3);              parameter Real D[3, 3] = diagonal({7, 8, 9});              parameter Real W[2, 4] = cat(2, [1, 2; 3, 4], [5, 6; 7, 8]);              parameter Real S[4, 2] = cat(1, [1, 2; 3, 4], [5, 6; 7, 8]);              Real vm[2];              equation vm = {1.0, 0.0} * [1, 2; 3, 4]; end M;",
+        )
+        .unwrap();
+        let binding_of = |name: &str| {
+            m.components
+                .iter()
+                .find(|c| c.name == name)
+                .and_then(|c| c.binding.clone())
+                .unwrap_or_else(|| panic!("no binding for {name}"))
+        };
+        assert_eq!(binding_of("I3[2,2]"), Expr::Number(1.0));
+        assert_eq!(binding_of("I3[2,3]"), Expr::Number(0.0));
+        assert_eq!(binding_of("D[3,3]"), Expr::Number(9.0));
+        assert_eq!(binding_of("D[1,2]"), Expr::Number(0.0));
+        assert_eq!(binding_of("W[1,3]"), Expr::Number(5.0));
+        assert_eq!(binding_of("S[3,1]"), Expr::Number(5.0));
+        // Vector times matrix picks columns.
+        let vm = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == "Ref(\"vm[2]\")")
+            .unwrap();
+        assert!(format!("{:?}", vm.rhs).contains("Number(2.0)"));
+
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        assert!(err("model M Real x; equation x = transpose({1, 2}); end M;").contains("matrix"));
+        assert!(
+            err("model M Real v[3]; equation v = cross({1, 0}, {0, 1, 0}); end M;")
+                .contains("3-vectors")
+        );
+        assert!(
+            err("model M parameter Real W[2, 4] = cat(3, [1, 2; 3, 4], [5, 6; 7, 8]); end M;")
+                .contains("dimension 3")
+        );
+        assert!(
+            err("model M Real x[2]; equation x = {1, 2} * [1, 2; 3, 4] * {1}; end M;")
+                .contains("equal")
+        );
+    }
+
+    #[test]
+    fn ranges_slices_comprehensions_and_matrices() {
+        let m = parse_model(
+            "model M parameter Integer n = 4;              parameter Real A[2, 2] = [1, 2; 3, 4];              Real v[4]; Real evens[2]; Real tail[2]; Real squares[4];              Real rotated[2]; Real mm[2, 2]; Real crossed[3]; Real total;              equation v = 1:4; evens = v[{2, 4}]; tail = v[end - 1:end];              squares = {i * i for i in 1:n};              rotated = A * {1.0, 0.0}; mm = A * transpose(A);              crossed = cross({1, 0, 0}, {0, 1, 0});              total = sum(i * 2 for i in 1:n); end M;",
+        )
+        .unwrap();
+        let equation_for = |name: &str| {
+            m.equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .unwrap_or_else(|| panic!("no equation for {name}"))
+        };
+        // The range unrolled into literals, the slices picked the right
+        // elements, the comprehension squared its index.
+        assert_eq!(equation_for("v[3]").rhs, Expr::Number(3.0));
+        assert_eq!(equation_for("evens[2]").rhs, Expr::Ref("v[4]".into()));
+        assert_eq!(equation_for("tail[1]").rhs, Expr::Ref("v[3]".into()));
+        // The comprehension bound its index; folding 4*4 is the
+        // simulator's business.
+        let squares = format!("{:?}", equation_for("squares[4]").rhs);
+        assert_eq!(squares, "Bin(Mul, Number(4.0), Number(4.0))");
+        // cross of the first two axes is the third.
+        let text = format!("{:?}", equation_for("crossed[3]").rhs);
+        assert!(text.contains("Mul"), "{text}");
+
+        // Error paths: a subscript outside the array, uneven matrix
+        // rows, a zero-step range.
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        assert!(
+            err("model M Real v[2]; Real x; equation v = 1:2; x = v[3]; end M;")
+                .contains("outside an array")
+        );
+        assert!(err("model M parameter Real A[2, 2] = [1, 2; 3]; end M;").contains("equally wide"));
+        assert!(err("model M Real v[2]; equation v = 1:0:2; end M;").contains("step by zero"));
     }
 
     #[test]

@@ -208,6 +208,8 @@ pub struct ClassDef {
     /// Equations of the `initial equation` section: they hold at the
     /// start and decide the state the simulation begins from.
     pub initial_equations: Vec<EquationItem>,
+    /// `assert(condition, "message")` checks of the equation section.
+    pub asserts: Vec<(Expr, String)>,
     /// `for` equations, unrolled while flattening.
     pub for_equations: Vec<ForEquation>,
     /// `if` equations, resolved while flattening.
@@ -327,6 +329,9 @@ pub struct Model {
     pub equations: Vec<EquationItem>,
     /// Equations that hold only at the start.
     pub initial_equations: Vec<EquationItem>,
+    /// Conditions that must hold at every evaluated point, with the
+    /// message reported when one does not.
+    pub asserts: Vec<(Expr, String)>,
     /// `when` clauses (events).
     pub when_clauses: Vec<WhenClause>,
     /// Experiment settings (defaults when absent).
@@ -405,6 +410,18 @@ pub enum Expr {
     /// An operator written with a dot - `.*`, `./`, `.^` - which works
     /// element by element even where the plain one would not.
     Elementwise(BinOp, Box<Expr>, Box<Expr>),
+    /// A range `a:b` or `a:step:b`, a vector value whose bounds are
+    /// compile-time constants.
+    Range(Box<Expr>, Option<Box<Expr>>, Box<Expr>),
+    /// `{expr for i in range}` - an array built by iterating.
+    Comprehension(Box<Expr>, String, Box<Expr>),
+    /// A bare `:` as a subscript: the whole of that dimension.
+    ColonSubscript,
+    /// `end` inside a subscript: the length of that dimension.
+    EndSubscript,
+    /// `[a, b; c, d]` - rows of a matrix, elements within a row
+    /// concatenated along the second dimension, rows along the first.
+    MatrixRows(Vec<Vec<Expr>>),
 }
 
 impl Expr {
@@ -435,6 +452,14 @@ impl Expr {
             Expr::Member(base, _) => base.contains_der(),
             Expr::Array(items) => items.iter().any(Expr::contains_der),
             Expr::Elementwise(_, l, r) => l.contains_der() || r.contains_der(),
+            Expr::Range(a, step, b) => {
+                a.contains_der()
+                    || step.as_ref().is_some_and(|s| s.contains_der())
+                    || b.contains_der()
+            }
+            Expr::Comprehension(body, _, range) => body.contains_der() || range.contains_der(),
+            Expr::ColonSubscript | Expr::EndSubscript => false,
+            Expr::MatrixRows(rows) => rows.iter().any(|row| row.iter().any(Expr::contains_der)),
             _ => false,
         }
     }
@@ -464,6 +489,21 @@ impl Expr {
                 l.collect_refs(out);
                 r.collect_refs(out);
             }
+            Expr::Range(a, step, b) => {
+                a.collect_refs(out);
+                if let Some(step) = step {
+                    step.collect_refs(out);
+                }
+                b.collect_refs(out);
+            }
+            Expr::Comprehension(body, _, range) => {
+                body.collect_refs(out);
+                range.collect_refs(out);
+            }
+            Expr::ColonSubscript | Expr::EndSubscript => {}
+            Expr::MatrixRows(rows) => rows
+                .iter()
+                .for_each(|row| row.iter().for_each(|item| item.collect_refs(out))),
             _ => {}
         }
     }

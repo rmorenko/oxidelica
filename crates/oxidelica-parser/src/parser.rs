@@ -52,7 +52,11 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
         message: e.message,
         line: e.line,
     })?;
-    let mut parser = Parser { tokens, pos: 0 };
+    let mut parser = Parser {
+        tokens,
+        pos: 0,
+        in_subscript: false,
+    };
     let mut classes = Vec::new();
     while parser.peek() != &Token::Eof {
         if parser.peek() == &Token::Within {
@@ -140,6 +144,9 @@ pub fn parse_model_with_libraries(libraries: &[String], source: &str) -> Result<
 struct Parser {
     tokens: Vec<Spanned>,
     pos: usize,
+    /// Whether a subscript is being parsed: only there does the `end`
+    /// keyword mean "the length of this dimension".
+    in_subscript: bool,
 }
 
 /// What a modifier list contributes: value modifiers by (possibly
@@ -243,7 +250,7 @@ impl Parser {
             false
         };
         let kind = match self.bump() {
-            Token::Model => ClassKind::Model,
+            Token::Model | Token::Block => ClassKind::Model,
             Token::Connector => ClassKind::Connector,
             Token::Record => ClassKind::Record,
             Token::Function => ClassKind::Function,
@@ -328,6 +335,7 @@ impl Parser {
                 when_clauses: Vec::new(),
                 experiment: Experiment::default(),
                 class_aliases: Vec::new(),
+                asserts: Vec::new(),
             })));
         }
 
@@ -343,6 +351,7 @@ impl Parser {
         let mut when_clauses = Vec::new();
         let mut for_equations = Vec::new();
         let mut if_equations = Vec::new();
+        let mut asserts = Vec::new();
         let mut algorithm = Vec::new();
         let mut initial_equations = Vec::new();
         let mut experiment = Experiment::default();
@@ -409,6 +418,7 @@ impl Parser {
                     imports.push(self.import_clause()?);
                 }
                 Token::Model
+                | Token::Block
                 | Token::Connector
                 | Token::Record
                 | Token::Function
@@ -424,6 +434,7 @@ impl Parser {
                     if matches!(
                         self.peek_ahead(1),
                         Token::Model
+                            | Token::Block
                             | Token::Connector
                             | Token::Record
                             | Token::Function
@@ -438,21 +449,31 @@ impl Parser {
                     }
                 }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
-                // `assert(condition, "message")` is a runtime check;
-                // it is accepted and skipped rather than rejected.
+                // `assert(condition, "message")` is a runtime check.
+                // An optional third argument names the assertion level;
+                // it is accepted and not distinguished.
                 Token::Ident(name) if in_equations && name == "assert" => {
                     self.bump();
                     self.expect(&Token::LParen, "parenthesis after assert")?;
-                    let mut depth = 1usize;
-                    while depth > 0 {
-                        match self.bump() {
-                            Token::LParen => depth += 1,
-                            Token::RParen => depth -= 1,
-                            Token::Eof => return Err(self.err("unterminated assert".into())),
-                            _ => {}
+                    let condition = self.expr()?;
+                    self.expect(&Token::Comma, "comma before the assert message")?;
+                    let message = match self.bump() {
+                        Token::Str(message) => message,
+                        other => {
+                            return Err(self
+                                .err(format!("assert expects a string message, found `{other}`")))
                         }
+                    };
+                    if self.peek() == &Token::Comma {
+                        self.bump();
+                        self.dotted_name("assertion level")?;
+                    }
+                    self.expect(&Token::RParen, "closing parenthesis of assert")?;
+                    if self.peek() == &Token::Annotation {
+                        self.annotation_body(&mut Experiment::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assert")?;
+                    asserts.push((condition, message));
                 }
                 _ => {
                     if in_initial {
@@ -486,6 +507,7 @@ impl Parser {
             when_clauses,
             experiment,
             class_aliases,
+            asserts,
         })))
     }
 
@@ -570,9 +592,13 @@ impl Parser {
         self.expect(&Token::For, "for")?;
         let variable = self.ident("loop variable")?;
         self.expect(&Token::In, "in after the loop variable")?;
-        let lower = self.expr()?;
-        self.expect(&Token::Colon, "`:` in the loop range")?;
-        let upper = self.expr()?;
+        let Expr::Range(lower, step, upper) = self.expr()? else {
+            return Err(self.err("a loop needs a range: `for i in 1:n`".into()));
+        };
+        if step.is_some() {
+            return Err(self.err("a loop range with a step is not supported yet".into()));
+        }
+        let (lower, upper) = (*lower, *upper);
         self.expect(&Token::Loop, "loop after the range")?;
         let mut body = Vec::new();
         while self.peek() != &Token::End {
@@ -671,7 +697,7 @@ impl Parser {
                     if self.peek() == &Token::LBracket {
                         self.bump();
                         loop {
-                            subscripts.push(self.expr()?);
+                            subscripts.push(self.subscript()?);
                             match self.bump() {
                                 Token::Comma => continue,
                                 Token::RBracket => break,
@@ -745,9 +771,13 @@ impl Parser {
         self.expect(&Token::For, "for")?;
         let variable = self.ident("loop variable")?;
         self.expect(&Token::In, "in after the loop variable")?;
-        let lower = self.expr()?;
-        self.expect(&Token::Colon, "`:` in the loop range")?;
-        let upper = self.expr()?;
+        let Expr::Range(lower, step, upper) = self.expr()? else {
+            return Err(self.err("a loop needs a range: `for i in 1:n`".into()));
+        };
+        if step.is_some() {
+            return Err(self.err("a loop range with a step is not supported yet".into()));
+        }
+        let (lower, upper) = (*lower, *upper);
         self.expect(&Token::Loop, "loop after the range")?;
         let body = self.statements()?;
         self.expect(&Token::End, "end for")?;
@@ -816,6 +846,22 @@ impl Parser {
         Ok((left, right))
     }
 
+    /// One subscript: an expression, a bare `:` for the whole
+    /// dimension, or `end` for its length.
+    fn subscript(&mut self) -> Result<Expr, ParseError> {
+        if self.peek() == &Token::Colon {
+            self.bump();
+            return Ok(Expr::ColonSubscript);
+        }
+        // `end` may sit inside arithmetic (`end - 1`), so the whole
+        // subscript parses as an expression with the keyword allowed.
+        let outer = self.in_subscript;
+        self.in_subscript = true;
+        let parsed = self.expr();
+        self.in_subscript = outer;
+        parsed
+    }
+
     /// One side of a `connect`: a dotted name, optionally subscripted,
     /// optionally followed by more of the path.
     fn connect_ref(&mut self) -> Result<Expr, ParseError> {
@@ -826,7 +872,7 @@ impl Parser {
         self.bump();
         let mut subscripts = Vec::new();
         loop {
-            subscripts.push(self.expr()?);
+            subscripts.push(self.subscript()?);
             match self.bump() {
                 Token::Comma => continue,
                 Token::RBracket => break,
@@ -946,7 +992,12 @@ impl Parser {
         // `redeclare package Medium = Oil` swaps a class alias.
         if matches!(
             self.peek(),
-            Token::Package | Token::Model | Token::Function | Token::Record | Token::Connector
+            Token::Package
+                | Token::Model
+                | Token::Block
+                | Token::Function
+                | Token::Record
+                | Token::Connector
         ) {
             self.bump();
             let name = self.ident("redeclared class name")?;
@@ -1323,7 +1374,25 @@ impl Parser {
         if self.peek() == &Token::If {
             return self.if_expression();
         }
-        self.logical_or()
+        let first = self.logical_or()?;
+        // `a:b` and `a:step:b` are vector values. The colon does double
+        // duty in the grammar; contexts that need a plain expression
+        // (loop headers) take the range apart themselves.
+        if self.peek() != &Token::Colon {
+            return Ok(first);
+        }
+        self.bump();
+        let second = self.logical_or()?;
+        if self.peek() != &Token::Colon {
+            return Ok(Expr::Range(Box::new(first), None, Box::new(second)));
+        }
+        self.bump();
+        let third = self.logical_or()?;
+        Ok(Expr::Range(
+            Box::new(first),
+            Some(Box::new(second)),
+            Box::new(third),
+        ))
     }
 
     /// `if c then a {elseif c2 then b} else d` — becomes nested `If`s.
@@ -1476,6 +1545,10 @@ impl Parser {
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
+        if self.in_subscript && self.peek() == &Token::End {
+            self.bump();
+            return Ok(Expr::EndSubscript);
+        }
         match self.peek().clone() {
             Token::Number(n) => {
                 self.bump();
@@ -1500,7 +1573,21 @@ impl Parser {
                 let mut items = Vec::new();
                 if self.peek() != &Token::RBrace {
                     loop {
-                        items.push(self.expr()?);
+                        let item = self.expr()?;
+                        // `{expr for i in range}` builds by iterating.
+                        if items.is_empty() && self.peek() == &Token::For {
+                            self.bump();
+                            let variable = self.ident("iterator variable")?;
+                            self.expect(&Token::In, "in after the iterator")?;
+                            let range = self.expr()?;
+                            self.expect(&Token::RBrace, "closing brace of a comprehension")?;
+                            return Ok(Expr::Comprehension(
+                                Box::new(item),
+                                variable,
+                                Box::new(range),
+                            ));
+                        }
+                        items.push(item);
                         match self.peek() {
                             Token::Comma => {
                                 self.bump();
@@ -1511,6 +1598,36 @@ impl Parser {
                 }
                 self.expect(&Token::RBrace, "closing brace of an array")?;
                 Ok(Expr::Array(items))
+            }
+            Token::LBracket => {
+                // `[a, b; c, d]`: a matrix by rows. A single row is a
+                // row matrix; the semicolon starts the next row.
+                self.bump();
+                let mut rows = Vec::new();
+                let mut row = Vec::new();
+                loop {
+                    row.push(self.expr()?);
+                    match self.peek() {
+                        Token::Comma => {
+                            self.bump();
+                        }
+                        Token::Semi => {
+                            self.bump();
+                            rows.push(std::mem::take(&mut row));
+                        }
+                        Token::RBracket => {
+                            self.bump();
+                            rows.push(row);
+                            break;
+                        }
+                        other => {
+                            return Err(self.err(format!(
+                                "expected `,`, `;` or `]` in a matrix, found `{other}`"
+                            )))
+                        }
+                    }
+                }
+                Ok(Expr::MatrixRows(rows))
             }
             Token::Ident(name) => {
                 self.bump();
@@ -1527,7 +1644,7 @@ impl Parser {
                     self.bump();
                     let mut subscripts = Vec::new();
                     loop {
-                        subscripts.push(self.expr()?);
+                        subscripts.push(self.subscript()?);
                         match self.bump() {
                             Token::Comma => continue,
                             Token::RBracket => break,
@@ -1558,7 +1675,22 @@ impl Parser {
                     let mut args = Vec::new();
                     if self.peek() != &Token::RParen {
                         loop {
-                            args.push(self.expr()?);
+                            let arg = self.expr()?;
+                            // `sum(expr for i in range)`: the reduction
+                            // form is the comprehension passed whole.
+                            if args.is_empty() && self.peek() == &Token::For {
+                                self.bump();
+                                let variable = self.ident("iterator variable")?;
+                                self.expect(&Token::In, "in after the iterator")?;
+                                let range = self.expr()?;
+                                args.push(Expr::Comprehension(
+                                    Box::new(arg),
+                                    variable,
+                                    Box::new(range),
+                                ));
+                                break;
+                            }
+                            args.push(arg);
                             match self.peek() {
                                 Token::Comma => {
                                     self.bump();
