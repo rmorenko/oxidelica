@@ -199,6 +199,9 @@ pub struct CompiledModel {
     jacobian_groups: Vec<Vec<usize>>,
     /// Rows each column touches, in the same order as the states.
     jacobian_rows: Vec<Vec<usize>>,
+    /// How far from the diagonal the Jacobian reaches, when that is
+    /// little enough to be worth solving as a band.
+    jacobian_band: Option<usize>,
     /// Discrete variables: they keep their value between events, so the
     /// continuous part sees them as knowns and only a `when` clause
     /// changes them.
@@ -1414,6 +1417,16 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
 
     let (jacobian_groups, jacobian_rows) =
         jacobian_structure(&states, &ordered_algs, &derivatives, &stages);
+    // A discretized field gives a Jacobian that only reaches a step or
+    // two from the diagonal. Eliminating such a matrix as a band costs
+    // n*b^2 instead of n^3, which on a rod of a few hundred nodes is the
+    // difference between seconds and milliseconds.
+    let jacobian_band = jacobian_rows
+        .iter()
+        .enumerate()
+        .flat_map(|(column, rows)| rows.iter().map(move |&row| row.abs_diff(column)))
+        .max()
+        .filter(|band| 4 * (band + 1) < states.len());
 
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
@@ -1535,6 +1548,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         method: SolverMethod::default(),
         jacobian_groups,
         jacobian_rows,
+        jacobian_band,
         discretes,
         samples,
         when_clauses: compiled_whens,
@@ -2522,6 +2536,52 @@ fn lagrange_extrapolate(nodes: &[f64], values: &[Vec<f64>], i: usize, at: f64) -
 
 /// Solve `a * x = b` in place by Gaussian elimination with partial
 /// pivoting; `None` on a (numerically) singular matrix.
+/// Solve a banded system by elimination without pivoting.
+///
+/// `matrix[i][j - i + band]` holds the entry at row `i`, column `j`, so
+/// each row is `2 * band + 1` wide. Skipping the pivot search is what
+/// keeps the band narrow, and it is sound for the matrices this is used
+/// on: `I - h*c*J` of a diffusion-like system has a diagonal that
+/// dominates. A pivot that turns out too small to trust returns `None`
+/// and the caller falls back to the dense path.
+fn solve_banded(matrix: &mut [Vec<f64>], band: usize, rhs: &[f64]) -> Option<Vec<f64>> {
+    let n = rhs.len();
+    let width = 2 * band + 1;
+    let mut x = rhs.to_vec();
+    for i in 0..n {
+        let pivot = matrix[i][band];
+        if pivot.abs() < 1e-12 {
+            return None;
+        }
+        for r in (i + 1)..(i + band + 1).min(n) {
+            let offset = i + band - r;
+            let factor = matrix[r][offset] / pivot;
+            if factor == 0.0 {
+                continue;
+            }
+            for column in i..(i + band + 1).min(n) {
+                let source = matrix[i][column + band - i];
+                let target = column + band - r;
+                if target < width {
+                    matrix[r][target] -= factor * source;
+                }
+            }
+            x[r] -= factor * x[i];
+        }
+    }
+    for i in (0..n).rev() {
+        let mut sum = x[i];
+        for column in (i + 1)..(i + band + 1).min(n) {
+            sum -= matrix[i][column + band - i] * x[column];
+        }
+        x[i] = sum / matrix[i][band];
+    }
+    if x.iter().any(|value| !value.is_finite()) {
+        return None;
+    }
+    Some(x)
+}
+
 fn solve_linear(a: &mut [Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
     let n = b.len();
     let mut x = b.to_vec();
@@ -3487,21 +3547,50 @@ impl CompiledModel {
                 // refreshed or the step coefficient changes, so it is
                 // eliminated once and its factors reused - both between
                 // the iterations of a step and between steps.
-                let mut matrix: Vec<Vec<f64>> = jac
-                    .as_ref()
-                    .expect("jacobian present")
-                    .iter()
-                    .enumerate()
-                    .map(|(i, row)| {
-                        row.iter()
+                let jacobian = jac.as_ref().expect("jacobian present");
+                // A banded structure is eliminated as a band; anything
+                // else, and anything the band cannot pivot through,
+                // goes through the dense path.
+                let banded = self.jacobian_band.and_then(|band| {
+                    let mut matrix: Vec<Vec<f64>> = (0..n)
+                        .map(|i| {
+                            (0..2 * band + 1)
+                                .map(|offset| {
+                                    let column = (i + offset).checked_sub(band)?;
+                                    if column >= n {
+                                        return None;
+                                    }
+                                    Some(if i == column {
+                                        c0 - jacobian[i][column]
+                                    } else {
+                                        -jacobian[i][column]
+                                    })
+                                })
+                                .map(|value| value.unwrap_or(0.0))
+                                .collect()
+                        })
+                        .collect();
+                    solve_banded(&mut matrix, band, &residual)
+                });
+                let delta = match banded {
+                    Some(delta) => delta,
+                    None => {
+                        let mut matrix: Vec<Vec<f64>> = jacobian
+                            .iter()
                             .enumerate()
-                            .map(|(j, value)| if i == j { c0 - value } else { -value })
-                            .collect()
-                    })
-                    .collect();
-                let Some(delta) = solve_linear(&mut matrix, &residual) else {
-                    newton_failed = true;
-                    break;
+                            .map(|(i, row)| {
+                                row.iter()
+                                    .enumerate()
+                                    .map(|(j, value)| if i == j { c0 - value } else { -value })
+                                    .collect()
+                            })
+                            .collect();
+                        let Some(delta) = solve_linear(&mut matrix, &residual) else {
+                            newton_failed = true;
+                            break;
+                        };
+                        delta
+                    }
                 };
                 let mut scaled = 0.0f64;
                 for i in 0..n {
@@ -5344,6 +5433,53 @@ mod tests {
         let mut compiled = compile(&model).unwrap();
         compiled.method = SolverMethod::Bdf;
         assert_eq!(compiled.simulate().unwrap().method, SolverMethod::Bdf);
+    }
+
+    #[test]
+    fn the_banded_solver_agrees_with_the_dense_one() {
+        // A tridiagonal system with a dominant diagonal, the shape a
+        // discretized field gives: both paths must land on the same
+        // answer, and it must satisfy the equations.
+        let n = 12usize;
+        let band = 1usize;
+        let dense: Vec<Vec<f64>> = (0..n)
+            .map(|i| {
+                (0..n)
+                    .map(|j| match i.abs_diff(j) {
+                        0 => 4.0 + i as f64 * 0.1,
+                        1 => -1.0,
+                        _ => 0.0,
+                    })
+                    .collect()
+            })
+            .collect();
+        let rhs: Vec<f64> = (0..n).map(|i| (i as f64 * 0.7).sin()).collect();
+
+        let packed: Vec<Vec<f64>> = (0..n)
+            .map(|i| {
+                (0..2 * band + 1)
+                    .map(|offset| match (i + offset).checked_sub(band) {
+                        Some(column) if column < n => dense[i][column],
+                        _ => 0.0,
+                    })
+                    .collect()
+            })
+            .collect();
+        let banded = solve_banded(&mut packed.clone(), band, &rhs).expect("diagonally dominant");
+        let plain = solve_linear(&mut dense.clone(), &rhs).expect("nonsingular");
+        for (a, b) in banded.iter().zip(&plain) {
+            assert!((a - b).abs() < 1e-12, "{a} vs {b}");
+        }
+        // And the answer really solves the system.
+        for (i, row) in dense.iter().enumerate() {
+            let value: f64 = row.iter().zip(&banded).map(|(a, x)| a * x).sum();
+            assert!((value - rhs[i]).abs() < 1e-12);
+        }
+
+        // Without a diagonal to pivot on it declines instead of dividing
+        // by nothing, and the caller falls back to the dense path.
+        let mut hollow = vec![vec![0.0, 0.0, 1.0], vec![1.0, 0.0, 0.0]];
+        assert!(solve_banded(&mut hollow, 1, &[1.0, 1.0]).is_none());
     }
 
     #[test]
