@@ -1121,7 +1121,7 @@ fn ui_system(
                 ui.add_space(4.0);
                 ui.label(s.about_text);
                 ui.add_space(4.0);
-                ui.hyperlink("https://github.com/romanmorenko/oxidelica");
+                ui.hyperlink("https://github.com/rmorenko/oxidelica");
             });
     }
 

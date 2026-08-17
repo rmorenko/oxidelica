@@ -2,3 +2,4 @@ target/
 *.csv
 .DS_Store
 dist/
+.idea/
