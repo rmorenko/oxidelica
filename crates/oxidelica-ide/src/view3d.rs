@@ -237,7 +237,23 @@ pub fn sync_scene(
         .copied()
         .unwrap_or(1.0)
         .max(1e-6) as f32;
-    let radius = extent * 0.035;
+    // Bodies are point masses, so the sphere size is decorative — except
+    // when the model defines contact physics (kc/dc parameters by
+    // convention): then the rendered radius is dc/2, and spheres touch
+    // exactly when the contact force engages.
+    let tuner_param = |name: &str| {
+        ide.tuner
+            .params
+            .iter()
+            .find(|entry| entry.name == name)
+            .map(|entry| entry.value)
+    };
+    let radius = match (tuner_param("kc"), tuner_param("dc")) {
+        (Some(kc), Some(dc)) if kc > 0.0 && dc > 0.0 => {
+            ((dc / 2.0) as f32).clamp(extent * 0.005, extent * 0.2)
+        }
+        _ => extent * 0.035,
+    };
 
     // Camera orbit.
     let dist = scene.dist * extent;
