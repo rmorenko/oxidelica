@@ -139,6 +139,8 @@ define_strings!(
     anim_speed,
     anim_rod,
     anim_no_data,
+    tab_3d,
+    anim_no_bodies,
 );
 
 #[cfg(test)]

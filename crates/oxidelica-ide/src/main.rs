@@ -6,6 +6,7 @@ mod highlight;
 mod i18n;
 mod settings;
 mod style;
+mod view3d;
 
 use bevy::app::AppExit;
 use bevy::prelude::*;
@@ -35,6 +36,8 @@ enum ViewMode {
     Plots,
     /// Animated trajectory of two selected variables.
     Animation,
+    /// Embedded Bevy 3D scene with bodies and trails.
+    ThreeD,
 }
 
 /// Trajectory animation state.
@@ -124,7 +127,8 @@ fn main() {
             view: ViewMode::Plots,
             anim: Anim::default(),
         })
-        .add_systems(Update, ui_system)
+        .add_systems(Startup, view3d::setup)
+        .add_systems(Update, (ui_system, view3d::sync_scene).chain())
         .run();
 }
 
@@ -188,7 +192,16 @@ fn save_current(ide: &mut Ide) {
 }
 
 /// The single per-frame UI system: menus, panels, plots, dialogs.
-fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWriter<AppExit>) {
+fn ui_system(
+    mut contexts: EguiContexts,
+    mut ide: ResMut<Ide>,
+    mut scene: ResMut<view3d::Scene3d>,
+    mut exit: EventWriter<AppExit>,
+) {
+    // Register the 3D render target with egui once.
+    if scene.texture.is_none() {
+        scene.texture = Some(contexts.add_image(scene.target.clone_weak()));
+    }
     let ctx = contexts.ctx_mut();
     let ide = &mut *ide;
 
@@ -388,7 +401,18 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
             });
         });
 
-    // --- central panel: plots / animation tabs ---
+    // Advance the shared animation clock for both animated views.
+    if let Some(data) = &ide.result {
+        if ide.anim.playing && matches!(ide.view, ViewMode::Animation | ViewMode::ThreeD) {
+            let stop = data.rows.last().map(|row| row[0]).unwrap_or(1.0).max(1e-9);
+            ide.anim.time += ctx.input(|i| i.stable_dt) as f64 * ide.anim.speed;
+            if ide.anim.time > stop {
+                ide.anim.time = 0.0;
+            }
+        }
+    }
+
+    // --- central panel: plots / animation / 3D tabs ---
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.horizontal(|ui| {
             ui.selectable_value(
@@ -400,6 +424,11 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
                 &mut ide.view,
                 ViewMode::Animation,
                 format!("{} {}", icons::PLAY, s.tab_animation),
+            );
+            ui.selectable_value(
+                &mut ide.view,
+                ViewMode::ThreeD,
+                format!("{} {}", icons::CUBE, s.tab_3d),
             );
         });
         ui.separator();
@@ -437,6 +466,10 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
                         });
                 }
                 ViewMode::Animation => animation_ui(ui, data, anim, s, &p),
+                ViewMode::ThreeD => {
+                    playback_controls(ui, data, anim, s);
+                    view3d::tab_ui(ui, &mut scene, view3d::has_bodies(data), s.anim_no_bodies);
+                }
             },
         }
     });
@@ -463,20 +496,9 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
     }
 }
 
-/// The trajectory animation view: playback controls, X/Y variable
-/// selection and the animated plot (marker, optional rod, trail).
-fn animation_ui(
-    ui: &mut egui::Ui,
-    data: &SimData,
-    anim: &mut Anim,
-    s: &i18n::Strings,
-    p: &style::Palette,
-) {
+/// Shared playback controls: play/pause, the time slider and speed.
+fn playback_controls(ui: &mut egui::Ui, data: &SimData, anim: &mut Anim, s: &i18n::Strings) {
     let stop = data.rows.last().map(|row| row[0]).unwrap_or(1.0).max(1e-9);
-    anim.x_col = anim.x_col.min(data.columns.len() - 1);
-    anim.y_col = anim.y_col.min(data.columns.len() - 1);
-
-    // Controls.
     ui.horizontal(|ui| {
         let icon = if anim.playing {
             icons::PAUSE
@@ -499,6 +521,23 @@ fn animation_ui(
                 .logarithmic(true)
                 .show_value(false),
         );
+    });
+}
+
+/// The trajectory animation view: playback controls, X/Y variable
+/// selection and the animated plot (marker, optional rod, trail).
+fn animation_ui(
+    ui: &mut egui::Ui,
+    data: &SimData,
+    anim: &mut Anim,
+    s: &i18n::Strings,
+    p: &style::Palette,
+) {
+    anim.x_col = anim.x_col.min(data.columns.len() - 1);
+    anim.y_col = anim.y_col.min(data.columns.len() - 1);
+
+    playback_controls(ui, data, anim, s);
+    ui.horizontal(|ui| {
         for (label, col) in [("X", &mut anim.x_col), ("Y", &mut anim.y_col)] {
             egui::ComboBox::from_id_salt(label)
                 .selected_text(format!("{label}: {}", data.columns[*col]))
@@ -510,14 +549,6 @@ fn animation_ui(
         }
         ui.checkbox(&mut anim.rod, s.anim_rod);
     });
-
-    // Advance playback.
-    if anim.playing {
-        anim.time += ui.input(|i| i.stable_dt) as f64 * anim.speed;
-        if anim.time > stop {
-            anim.time = 0.0;
-        }
-    }
 
     // Current sample and a decimated trail up to it.
     let idx = data

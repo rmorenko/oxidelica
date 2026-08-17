@@ -1,0 +1,38 @@
+model ThreeBody "Planar three-body problem: the figure-eight choreography (Chenciner-Montgomery)"
+  parameter Real G = 1.0 "gravitational constant";
+  parameter Real m1 = 1.0 "mass of body 1";
+  parameter Real m2 = 1.0 "mass of body 2";
+  parameter Real m3 = 1.0 "mass of body 3";
+  Real x1(start = -0.97000436) "body 1 x";
+  Real y1(start = 0.24308753) "body 1 y";
+  Real x2(start = 0.97000436) "body 2 x";
+  Real y2(start = -0.24308753) "body 2 y";
+  Real x3(start = 0.0) "body 3 x";
+  Real y3(start = 0.0) "body 3 y";
+  Real vx1(start = 0.4662036850);
+  Real vy1(start = 0.4323657300);
+  Real vx2(start = 0.4662036850);
+  Real vy2(start = 0.4323657300);
+  Real vx3(start = -0.9324073700);
+  Real vy3(start = -0.8647314600);
+  Real r12 "cubed distance between bodies 1 and 2";
+  Real r13 "cubed distance between bodies 1 and 3";
+  Real r23 "cubed distance between bodies 2 and 3";
+equation
+  r12 = ((x2 - x1) ^ 2 + (y2 - y1) ^ 2) ^ 1.5;
+  r13 = ((x3 - x1) ^ 2 + (y3 - y1) ^ 2) ^ 1.5;
+  r23 = ((x3 - x2) ^ 2 + (y3 - y2) ^ 2) ^ 1.5;
+  der(x1) = vx1;
+  der(y1) = vy1;
+  der(x2) = vx2;
+  der(y2) = vy2;
+  der(x3) = vx3;
+  der(y3) = vy3;
+  der(vx1) = G * m2 * (x2 - x1) / r12 + G * m3 * (x3 - x1) / r13;
+  der(vy1) = G * m2 * (y2 - y1) / r12 + G * m3 * (y3 - y1) / r13;
+  der(vx2) = G * m1 * (x1 - x2) / r12 + G * m3 * (x3 - x2) / r23;
+  der(vy2) = G * m1 * (y1 - y2) / r12 + G * m3 * (y3 - y2) / r23;
+  der(vx3) = G * m1 * (x1 - x3) / r13 + G * m2 * (x2 - x3) / r23;
+  der(vy3) = G * m1 * (y1 - y3) / r13 + G * m2 * (y2 - y3) / r23;
+  annotation(experiment(StopTime = 12.6518, Interval = 0.001));
+end ThreeBody;
