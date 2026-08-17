@@ -167,6 +167,10 @@ pub struct CompiledModel {
     state_slots: Vec<Slot>,
     /// See [`CompiledModel::state_slots`].
     algebraic_slots: Vec<Slot>,
+    /// The algebraics worth reporting, with their slots: the dummy
+    /// derivatives of demoted states are solver bookkeeping whose very
+    /// names change with the selection, so they stay out of the rows.
+    output_algebraics: Vec<(String, Slot)>,
     /// See [`CompiledModel::state_slots`].
     discrete_slots: Vec<Slot>,
     /// Slot holding the previous value of each discrete variable.
@@ -192,6 +196,21 @@ pub struct CompiledModel {
     pub tolerance: f64,
     /// Selected integration method.
     pub method: SolverMethod,
+    /// Where integration begins. Zero for a fresh run; a continuation
+    /// after a state re-selection starts where the last segment stopped.
+    start_time: f64,
+    /// Whether this is a continuation: the initial event has already
+    /// happened and `when` conditions resume from their current truth.
+    resume: bool,
+    /// Whether index reduction demoted any state. Only then can a
+    /// stalled run be rescued by re-selecting the states.
+    reselectable: bool,
+    /// Sensitivity of each reduced constraint to its chosen victim and
+    /// to the alternatives; see [`CompiledModel::selection_sound`].
+    selection_monitor: Vec<(Code, Vec<Code>)>,
+    /// The flat model this was compiled from, kept so a continuation
+    /// can compile itself at a new point.
+    flat: Model,
     /// Groups of state indices whose Jacobian columns can be probed
     /// together: no two columns of a group touch the same row, so one
     /// evaluation yields all of them. Empty when the structure was not
@@ -559,6 +578,101 @@ enum AdaptiveOutcome {
     Finished(SimResult),
     /// The step size was being held down by stability, not accuracy.
     Stiff,
+    /// The run cannot move past a point, and the model's states were
+    /// chosen by a pivot that may simply no longer fit: the caller may
+    /// re-select and continue from here.
+    Stalled(Stall),
+}
+
+/// Where a run stopped making progress, with everything a continuation
+/// needs.
+struct Stall {
+    /// The rows produced up to the stall, still worth keeping.
+    partial: SimResult,
+    /// The time reached.
+    time: f64,
+    /// The value of every variable there, by name.
+    values: HashMap<String, f64>,
+}
+
+impl CompiledModel {
+    /// Whether the state selection is still the right one at this point.
+    ///
+    /// A constraint must determine its demoted victim, so the victim's
+    /// sensitivity has to stay comparable to the best alternative. Once
+    /// it falls below a fraction of one, the pivot that made the choice
+    /// would choose differently now - and it is asked to, while the
+    /// algebraic layer is still far from singular. The margin is why
+    /// the switch happens in clean territory rather than at the wall.
+    fn selection_sound(&self, values: &[f64], time: f64) -> bool {
+        self.selection_monitor.iter().all(|(own, alternatives)| {
+            let own = own.run(values, time).abs();
+            let best = alternatives
+                .iter()
+                .map(|code| code.run(values, time).abs())
+                .fold(0.0f64, f64::max);
+            own >= 0.15 * best
+        })
+    }
+
+    /// The stall a segment reports: the point it resumes from is the
+    /// last row it *recorded*, never a re-evaluation at the breakdown -
+    /// the algebraic layer is exactly what cannot be trusted there.
+    fn stall_at_last_row(
+        &self,
+        columns: Vec<String>,
+        rows: Vec<Vec<f64>>,
+        method: SolverMethod,
+    ) -> Result<AdaptiveOutcome, SimError> {
+        let Some(last) = rows.last() else {
+            return err("the run stalled before producing a single point".to_string());
+        };
+        let mut values: HashMap<String, f64> = self.parameters.iter().cloned().collect();
+        for (name, value) in columns.iter().zip(last).skip(1) {
+            values.insert(name.clone(), *value);
+        }
+        let time = last[0];
+        Ok(AdaptiveOutcome::Stalled(Stall {
+            partial: SimResult {
+                columns,
+                rows,
+                parameters: self.parameters.clone(),
+                terminated: None,
+                method,
+                reselections: 0,
+            },
+            time,
+            values,
+        }))
+    }
+}
+
+/// Glue a continuation onto the rows already produced.
+///
+/// The variable set is identical between segments but the column order
+/// is not: the states of each selection come first in its own rows, so
+/// a continuation's rows are reordered into the first segment's layout
+/// by name before they are appended.
+fn append_segment(mut merged: SimResult, segment: SimResult) -> SimResult {
+    let mapping: Vec<usize> = merged
+        .columns
+        .iter()
+        .map(|name| {
+            segment
+                .columns
+                .iter()
+                .position(|other| other == name)
+                .expect("both segments name the same variables")
+        })
+        .collect();
+    for row in &segment.rows {
+        merged
+            .rows
+            .push(mapping.iter().map(|&from| row[from]).collect());
+    }
+    merged.terminated = segment.terminated;
+    merged.method = segment.method;
+    merged
 }
 
 /// What the event machinery carries between events.
@@ -703,6 +817,29 @@ impl EventRewrite<'_> {
 
 /// Compile a parsed flat model into an executable form.
 pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
+    compile_at(model, None)
+}
+
+/// A point a continuation starts from: the time reached and the value
+/// of every variable there, by name.
+struct ResumePoint<'a> {
+    /// Where the previous segment stopped.
+    time: f64,
+    /// Values of every variable at that instant.
+    values: &'a HashMap<String, f64>,
+}
+
+/// Compile a model, either from its declared start (`resume` absent) or
+/// as a continuation from mid-run.
+///
+/// A continuation matters for one reason: the choice of which states to
+/// demote during index reduction is a numerical pivot at a point, and a
+/// choice that was right at the start can become singular later - a
+/// pendulum in Cartesian coordinates crossing the horizontal. Compiling
+/// again at the current point re-makes the choice with the sensitivities
+/// of *now*, and everything downstream (matching, tearing, slots) simply
+/// follows.
+fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledModel, SimError> {
     // 1. Parameters and constants: multi-pass dependency evaluation.
     let mut params: HashMap<String, f64> = HashMap::new();
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
@@ -790,18 +927,21 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         .iter()
         .filter(|c| discrete_names.contains(&c.name))
         .map(|c| {
-            c.start
+            resume
                 .as_ref()
-                .or(c.binding.as_ref())
-                .and_then(|expr| {
-                    eval(
-                        expr,
-                        &EvalCtx {
-                            vars: &params,
-                            time: 0.0,
-                        },
-                    )
-                    .ok()
+                .and_then(|point| point.values.get(&c.name))
+                .copied()
+                .or_else(|| {
+                    c.start.as_ref().or(c.binding.as_ref()).and_then(|expr| {
+                        eval(
+                            expr,
+                            &EvalCtx {
+                                vars: &params,
+                                time: 0.0,
+                            },
+                        )
+                        .ok()
+                    })
                 })
                 .unwrap_or(0.0)
         })
@@ -977,25 +1117,31 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
 
     // Start values of every continuous variable: used to pick the
     // demotion victim by numerical pivoting.
+    let resumed = |name: &str| -> Option<f64> {
+        resume
+            .as_ref()
+            .and_then(|point| point.values.get(name))
+            .copied()
+    };
     let start_env: HashMap<String, f64> = {
         let mut env = params.clone();
         for (name, value) in discretes.iter().zip(&discrete_start) {
-            env.insert(name.clone(), *value);
+            env.insert(name.clone(), resumed(name).unwrap_or(*value));
         }
         for component in &model.components {
             if component.variability == Variability::Continuous {
-                let value = component
-                    .start
-                    .as_ref()
-                    .and_then(|expr| {
-                        eval(
-                            expr,
-                            &EvalCtx {
-                                vars: &params,
-                                time: 0.0,
-                            },
-                        )
-                        .ok()
+                let value = resumed(&component.name)
+                    .or_else(|| {
+                        component.start.as_ref().and_then(|expr| {
+                            eval(
+                                expr,
+                                &EvalCtx {
+                                    vars: &params,
+                                    time: 0.0,
+                                },
+                            )
+                            .ok()
+                        })
                     })
                     .unwrap_or(0.0);
                 env.insert(component.name.clone(), value);
@@ -1005,6 +1151,18 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     };
 
     let mut dummies: HashMap<String, String> = HashMap::new();
+    // States named in the right-hand side of an already-demoted state:
+    // when `y` goes, its `der(y) = vy` marks `vy` as the companion the
+    // next differentiation level should demote. Preferring companions
+    // keeps each level of a chain of constraints demoting at its own
+    // level - a velocity constraint takes a velocity, not a position
+    // that happens to be numerically larger at this instant.
+    let mut companions: Vec<String> = Vec::new();
+    // Per reduction: the constraint residual, the demoted victim and
+    // the states that were candidates - the runtime monitor watches the
+    // victim's sensitivity against the alternatives and asks for a
+    // re-selection while the numbers are still healthy.
+    let mut selection_records: Vec<(Expr, String, Vec<String>)> = Vec::new();
     let mut reductions = 0usize;
     let (matched_eq, eq_vars, n_alg) = loop {
         let var_index: HashMap<&str, usize> = unknowns
@@ -1134,7 +1292,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                         &d,
                         &EvalCtx {
                             vars: &start_env,
-                            time: 0.0,
+                            time: resume.as_ref().map_or(0.0, |point| point.time),
                         },
                     )
                     .ok()
@@ -1142,7 +1300,23 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 .map(f64::abs)
                 .unwrap_or(0.0)
         };
-        let Some(victim) = reachable.into_iter().max_by(|a, b| {
+        // Companions of earlier victims first, by sensitivity; anything
+        // else only when no companion is constrained here at all.
+        let favoured: Vec<String> = reachable
+            .iter()
+            .filter(|name| companions.contains(name) && sensitivity(name) > 0.0)
+            .cloned()
+            .collect();
+        let candidates = if favoured.is_empty() {
+            reachable
+        } else {
+            favoured
+        };
+        // The runtime monitor compares the victim against exactly the
+        // set the pivot weighed - alternatives of another derivative
+        // level would make a healthy selection look wrong.
+        let all_candidates = candidates.clone();
+        let Some(victim) = candidates.into_iter().max_by(|a, b| {
             sensitivity(a)
                 .partial_cmp(&sensitivity(b))
                 .unwrap_or(std::cmp::Ordering::Equal)
@@ -1152,10 +1326,21 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             ));
         };
 
+        selection_records.push((residual.clone(), victim.clone(), all_candidates));
         let dummy = format!("der({victim})");
         let victim_rhs = state_rhs
             .remove(&victim)
             .expect("a state has a defining derivative");
+        {
+            let mut named = Vec::new();
+            victim_rhs.collect_refs(&mut named);
+            companions.extend(
+                named
+                    .into_iter()
+                    .filter(|name| states.iter().any(|s| s == name))
+                    .map(str::to_string),
+            );
+        }
         states.retain(|s| s != &victim);
         unknowns.push(victim.clone());
         unknowns.push(dummy.clone());
@@ -1178,6 +1363,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     };
     let mut initial = Vec::new();
     for s in &states {
+        if let Some(value) = resumed(s) {
+            initial.push(value);
+            continue;
+        }
         let comp = model
             .components
             .iter()
@@ -1376,12 +1565,15 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     let algebraic_start: Vec<f64> = ordered_algs
         .iter()
         .map(|name| {
-            model
-                .components
-                .iter()
-                .find(|c| &c.name == name)
-                .and_then(|c| c.start.as_ref())
-                .and_then(|expr| eval(expr, &ctx).ok())
+            resumed(name)
+                .or_else(|| {
+                    model
+                        .components
+                        .iter()
+                        .find(|c| &c.name == name)
+                        .and_then(|c| c.start.as_ref())
+                        .and_then(|expr| eval(expr, &ctx).ok())
+                })
                 .unwrap_or(0.0)
         })
         .collect();
@@ -1528,6 +1720,33 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         compiled_whens.push(CompiledWhen { branches });
     }
 
+    // The selection monitor: for every reduction, the sensitivity of
+    // the constraint to the chosen victim and to each alternative, as
+    // runnable code. Watching their ratio after every accepted step
+    // asks for a re-selection while the current one is still sound.
+    let mut selection_monitor: Vec<(Code, Vec<Code>)> = Vec::new();
+    for (residual, victim, candidates) in &selection_records {
+        let sensitivity_of = |name: &str| -> Result<Code, SimError> {
+            let derivative =
+                differentiate(residual, &DiffTarget::Variable(name)).map_err(SimError)?;
+            table.compile(&simplify(&derivative))
+        };
+        let own = sensitivity_of(victim)?;
+        let alternatives = candidates
+            .iter()
+            .filter(|name| *name != victim)
+            .map(|name| sensitivity_of(name))
+            .collect::<Result<Vec<_>, SimError>>()?;
+        selection_monitor.push((own, alternatives));
+    }
+
+    let output_algebraics: Vec<(String, Slot)> = ordered_algs
+        .iter()
+        .zip(&algebraic_slots)
+        .filter(|(name, _)| !dummies.values().any(|dummy| dummy == *name))
+        .map(|(name, &slot)| (name.clone(), slot))
+        .collect();
+
     let mut compiled = CompiledModel {
         name: model.name.clone(),
         parameters,
@@ -1549,6 +1768,12 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
+        output_algebraics,
+        start_time: resume.as_ref().map_or(0.0, |point| point.time),
+        resume: resume.is_some(),
+        reselectable: !dummies.is_empty(),
+        selection_monitor,
+        flat: model.clone(),
         jacobian_groups,
         jacobian_rows,
         jacobian_band,
@@ -1571,8 +1796,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 .unwrap_or(false)
         })
         .collect();
-    compiled.solve_initialization(&initial_equations, &fixed_states, &derivatives, &table)?;
-    compiled.check_block_regularity()?;
+    if resume.is_none() {
+        compiled.solve_initialization(&initial_equations, &fixed_states, &derivatives, &table)?;
+        compiled.check_block_regularity()?;
+    }
     Ok(compiled)
 }
 
@@ -2394,13 +2621,28 @@ impl CompiledModel {
     fn event_state(&self) -> EventState {
         EventState {
             // Modelica treats every condition as false before the start,
-            // so one that already holds at t = 0 fires immediately.
+            // so one that already holds at t = 0 fires immediately. A
+            // continuation instead resumes from the current truth, which
+            // the solver fills in after its first evaluation.
             when_prev: self
                 .when_clauses
                 .iter()
                 .map(|clause| vec![false; clause.branches.len()])
                 .collect(),
-            next_sample: self.samples.iter().map(|&(start, _)| start).collect(),
+            // On a continuation each clock resumes at its first tick
+            // after the point reached; ticks behind it already fired.
+            next_sample: self
+                .samples
+                .iter()
+                .map(|&(start, interval)| {
+                    if !self.resume || start > self.start_time + 1e-9 {
+                        start
+                    } else {
+                        let periods = ((self.start_time - start) / interval + 1e-9).floor() + 1.0;
+                        start + periods * interval
+                    }
+                })
+                .collect(),
         }
     }
 
@@ -2652,6 +2894,10 @@ pub struct SimResult {
     /// The method that produced these rows. With `Auto` this is the one
     /// the run settled on, never `Auto` itself.
     pub method: SolverMethod,
+    /// How many times the run re-selected its states mid-way. Zero for
+    /// every model whose selection holds; a Cartesian pendulum swinging
+    /// through the horizontal counts one per crossing.
+    pub reselections: usize,
 }
 
 impl SimResult {
@@ -2822,29 +3068,80 @@ impl CompiledModel {
         ))
     }
 
-    /// Integrate over `[0, stop_time]` with the selected method.
+    /// Integrate over `[start_time, stop_time]` with the selected
+    /// method, re-selecting the states and continuing whenever the
+    /// current selection stalls the run.
     pub fn simulate(&self) -> Result<SimResult, SimError> {
-        match self.method {
-            SolverMethod::Auto => self.simulate_auto(),
-            SolverMethod::Dopri45 => self.simulate_adaptive(),
-            SolverMethod::Rk4 => self.simulate_rk4(),
-            SolverMethod::Bdf => self.simulate_bdf(),
+        let mut outcome = self.run_segment()?;
+        let mut merged: Option<SimResult> = None;
+        let mut reselections = 0usize;
+        let mut last_stall = f64::NEG_INFINITY;
+        loop {
+            match outcome {
+                AdaptiveOutcome::Finished(result) => {
+                    let mut result = match merged {
+                        Some(merged) => append_segment(merged, result),
+                        None => result,
+                    };
+                    result.reselections = reselections;
+                    return Ok(result);
+                }
+                AdaptiveOutcome::Stiff => {
+                    unreachable!("run_segment resolves the stiffness switch itself")
+                }
+                AdaptiveOutcome::Stalled(stall) => {
+                    // A stall that made no ground since the last one is
+                    // not a wrong selection but a genuine singularity.
+                    if stall.time <= last_stall + 1e-12 || reselections >= 200 {
+                        return err(format!(
+                            "step size underflow at t = {:.6}: probable singularity                              (state re-selection did not help)",
+                            stall.time
+                        ));
+                    }
+                    last_stall = stall.time;
+                    reselections += 1;
+                    // Compile again at the point reached: the pivot now
+                    // sees the sensitivities of this instant and picks
+                    // the states that fit here.
+                    let mut next = compile_at(
+                        &self.flat,
+                        Some(ResumePoint {
+                            time: stall.time,
+                            values: &stall.values,
+                        }),
+                    )?;
+                    next.method = self.method;
+                    merged = Some(match merged {
+                        Some(merged) => append_segment(merged, stall.partial),
+                        None => stall.partial,
+                    });
+                    outcome = next.run_segment()?;
+                }
+            }
         }
     }
 
-    /// Integrate without being told which method fits.
+    /// One integration attempt with the selected method; a stall comes
+    /// back to `simulate` for a re-selection.
     ///
-    /// The explicit solver goes first and watches the product of the
-    /// step size and the dominant eigenvalue of the Jacobian, which it
-    /// gets for free from two stages it has already evaluated. A step
-    /// size held down by stability rather than by accuracy is what
-    /// "stiff" means, and once that is clear the run starts again with
-    /// the implicit solver - which on a stiff problem is so much faster
-    /// that the abandoned attempt costs nothing worth counting.
-    fn simulate_auto(&self) -> Result<SimResult, SimError> {
-        match self.adaptive(true)? {
-            AdaptiveOutcome::Finished(result) => Ok(result),
-            AdaptiveOutcome::Stiff => self.simulate_bdf(),
+    /// With `Auto` the explicit solver goes first and watches the
+    /// product of the step size and the dominant eigenvalue of the
+    /// Jacobian, which it gets for free from two stages it has already
+    /// evaluated. A step size held down by stability rather than by
+    /// accuracy is what "stiff" means, and once that is clear the run
+    /// starts again with the implicit solver.
+    fn run_segment(&self) -> Result<AdaptiveOutcome, SimError> {
+        match self.method {
+            SolverMethod::Auto => match self.adaptive(true)? {
+                AdaptiveOutcome::Stiff => self.run_bdf(),
+                outcome => Ok(outcome),
+            },
+            SolverMethod::Dopri45 => match self.adaptive(false)? {
+                AdaptiveOutcome::Stiff => err("the stiffness watch fired without being asked"),
+                outcome => Ok(outcome),
+            },
+            SolverMethod::Rk4 => self.simulate_rk4().map(AdaptiveOutcome::Finished),
+            SolverMethod::Bdf => self.run_bdf(),
         }
     }
 
@@ -2853,6 +3150,10 @@ impl CompiledModel {
         match self.adaptive(false)? {
             AdaptiveOutcome::Finished(result) => Ok(result),
             AdaptiveOutcome::Stiff => err("the stiffness watch fired without being asked"),
+            AdaptiveOutcome::Stalled(stall) => err(format!(
+                "step size underflow at t = {:.6}: probable singularity",
+                stall.time
+            )),
         }
     }
 
@@ -2928,7 +3229,7 @@ impl CompiledModel {
         let mut values = self.values_template.clone();
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
-        columns.extend(self.algebraics.iter().cloned());
+        columns.extend(self.output_algebraics.iter().map(|(name, _)| name.clone()));
         columns.extend(self.discretes.iter().cloned());
         let mut rows: Vec<Vec<f64>> = Vec::new();
         let mut derivatives_scratch = Vec::new();
@@ -2943,7 +3244,7 @@ impl CompiledModel {
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
-            for &slot in &self.algebraic_slots {
+            for &(_, slot) in &self.output_algebraics {
                 row.push(values[slot]);
             }
             for &slot in &self.discrete_slots {
@@ -2955,35 +3256,54 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut alg_guess = self.algebraic_start.clone();
-        let mut last_out_t = 0.0f64;
+        let t0 = self.start_time;
+        let mut last_out_t = t0;
         let mut terminated: Option<String> = None;
-        // Modelica treats `when` conditions as false before the start,
-        // so one that already holds at t = 0 fires immediately.
         let mut state = self.event_state();
-        values[self.initial_slot] = 1.0;
-        // The initial event comes before the first output point: a
-        // `when initial()` or a `sample(0, …)` has already fired by then.
-        state.raise_samples(0.0, &self.samples, &self.sample_slots, &mut values);
-        let start_event =
-            self.handle_event(0.0, &mut y, &mut values, &mut alg_guess, &mut state)?;
+        if self.resume {
+            // Mid-run already: no initial event, and the `when`
+            // conditions resume from what is true at this instant.
+            self.eval_point(
+                t0,
+                &y,
+                &mut values,
+                &mut derivatives_scratch,
+                &mut alg_guess,
+            )?;
+            state.when_prev = self.when_conditions(t0, &values);
+        } else {
+            values[self.initial_slot] = 1.0;
+            // The initial event comes before the first output point: a
+            // `when initial()` or a `sample(0, …)` has already fired by then.
+            state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);
+            let start_event =
+                self.handle_event(t0, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if let Some(message) = start_event.terminated {
+                record(
+                    t0,
+                    &y,
+                    &mut values,
+                    &mut derivatives_scratch,
+                    &mut alg_guess,
+                )?;
+                return Ok(AdaptiveOutcome::Finished(SimResult {
+                    columns,
+                    rows,
+                    parameters: self.parameters.clone(),
+                    terminated: Some(message),
+                    method: SolverMethod::Dopri45,
+                    reselections: 0,
+                }));
+            }
+        }
         record(
-            0.0,
+            t0,
             &y,
             &mut values,
             &mut derivatives_scratch,
             &mut alg_guess,
         )?;
-        let mut indicators_prev = self.indicator_values(0.0, &values);
-        if let Some(message) = start_event.terminated {
-            return Ok(AdaptiveOutcome::Finished(SimResult {
-                columns,
-                rows,
-                parameters: self.parameters.clone(),
-                terminated: Some(message),
-                method: SolverMethod::Dopri45,
-            }));
-        }
-
+        let mut indicators_prev = self.indicator_values(t0, &values);
         // Pure-algebraic models: no ODE to integrate, only the grid.
         if n == 0 {
             let mut out_i = 1usize;
@@ -3029,6 +3349,7 @@ impl CompiledModel {
                 parameters: self.parameters.clone(),
                 terminated,
                 method: SolverMethod::Dopri45,
+                reselections: 0,
             }));
         }
 
@@ -3042,12 +3363,28 @@ impl CompiledModel {
         let (mut stiff_steps, mut calm_steps) = (0usize, 0usize);
         let mut y5 = vec![0.0; n];
         let mut interp = vec![0.0; n];
-        let mut t = 0.0f64;
-        let mut h = out_step.min(stop).max(1e-9);
-        let mut out_i = 1usize;
+        let mut t = t0;
+        let mut h = out_step.min(stop - t0).max(1e-9);
+        // The next output-grid index after where this segment starts.
+        let mut out_i = (t0 / out_step + 1e-9).floor() as usize + 1;
         let mut evals: u64 = 0;
 
         self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
+
+        /// On a model whose states were chosen by a pivot, a failing
+        /// evaluation is the choice failing: stop here and let the
+        /// caller choose again. Everything already recorded stays.
+        macro_rules! or_stall {
+            ($attempt:expr) => {
+                match $attempt {
+                    Ok(value) => value,
+                    Err(_) if self.reselectable => {
+                        return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                    }
+                    Err(error) => return Err(error),
+                }
+            };
+        }
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
@@ -3059,6 +3396,7 @@ impl CompiledModel {
                 }
             }
             // Stages 2..7 (stage 1 is FSAL from the previous step).
+            let mut stage_failed = false;
             for s in 1..7 {
                 for j in 0..n {
                     let mut acc = 0.0;
@@ -3076,13 +3414,24 @@ impl CompiledModel {
                 }
                 let (head, tail) = k.split_at_mut(s);
                 let _ = head;
-                self.eval_point(
+                match self.eval_point(
                     t + C[s] * h,
                     &stage,
                     &mut values,
                     &mut tail[0],
                     &mut alg_guess,
-                )?;
+                ) {
+                    Ok(()) => {}
+                    // A dying algebraic loop on a model whose states were
+                    // *chosen* is likely the choice failing, not the
+                    // model: treat the step as rejected and let the step
+                    // size fall toward the stall check below.
+                    Err(_) if self.reselectable => {
+                        stage_failed = true;
+                        break;
+                    }
+                    Err(error) => return Err(error),
+                }
             }
             evals += 6;
             if evals > 20_000_000 {
@@ -3092,7 +3441,7 @@ impl CompiledModel {
             }
 
             // 5th-order solution and the embedded error estimate.
-            let mut err_norm = 0.0f64;
+            let mut err_norm = if stage_failed { f64::INFINITY } else { 0.0f64 };
             for j in 0..n {
                 let mut acc5 = 0.0;
                 let mut acc4 = 0.0;
@@ -3112,7 +3461,20 @@ impl CompiledModel {
             let accepted = err_norm.is_finite() && err_norm <= 1.0;
             if accepted {
                 // FSAL: the derivative at t+h.
-                self.eval_point(t + h, &y5, &mut values, &mut k[6], &mut alg_guess)?;
+                match self.eval_point(t + h, &y5, &mut values, &mut k[6], &mut alg_guess) {
+                    Ok(()) => {}
+                    // The point passed the error estimate but the
+                    // algebraic layer will not hold there: on a chosen
+                    // selection, reject the step and shrink instead.
+                    Err(_) if self.reselectable => {
+                        h *= 0.2;
+                        if h < stop * 5e-14 {
+                            return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                        }
+                        continue;
+                    }
+                    Err(error) => return Err(error),
+                }
                 evals += 1;
 
                 if watch_stiffness {
@@ -3176,13 +3538,13 @@ impl CompiledModel {
                     for _ in 0..40 {
                         let mid = 0.5 * (lo + hi);
                         interpolate(mid, &mut interp, &y, &k);
-                        self.eval_point(
+                        or_stall!(self.eval_point(
                             t + mid * h,
                             &interp,
                             &mut values,
                             &mut derivatives_scratch,
                             &mut alg_guess,
-                        )?;
+                        ));
                         if before * self.indicator_values(t + mid * h, &values)[index] <= 0.0 {
                             hi = mid;
                         } else {
@@ -3205,44 +3567,56 @@ impl CompiledModel {
                             break;
                         }
                         interpolate(((out_t - t) / h).clamp(0.0, 1.0), &mut interp, &y, &k);
-                        record(
+                        or_stall!(record(
                             out_t,
                             &interp,
                             &mut values,
                             &mut derivatives_scratch,
                             &mut alg_guess,
-                        )?;
+                        ));
                         last_out_t = out_t;
                         out_i += 1;
                     }
                     interpolate(theta, &mut interp, &y, &k);
                     y.copy_from_slice(&interp);
-                    self.eval_point(
+                    or_stall!(self.eval_point(
                         t_event,
                         &y,
                         &mut values,
                         &mut derivatives_scratch,
                         &mut alg_guess,
-                    )?;
-                    let outcome = self.handle_event(
+                    ));
+                    let outcome = or_stall!(self.handle_event(
                         t_event,
                         &mut y,
                         &mut values,
                         &mut alg_guess,
                         &mut state,
-                    )?;
+                    ));
                     t = t_event;
-                    self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
+                    or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
                     if let Some(message) = outcome.terminated {
-                        record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
+                        or_stall!(record(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut derivatives_scratch,
+                            &mut alg_guess
+                        ));
                         terminated = Some(message);
                         break;
                     }
                     // A state event that changed something is recorded at
                     // the instant it happened, so the jump is visible.
                     if outcome.changed {
-                        record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
+                        or_stall!(record(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut derivatives_scratch,
+                            &mut alg_guess
+                        ));
                     }
                     h = (h * theta.max(0.1)).max(1e-12);
                     continue;
@@ -3256,13 +3630,13 @@ impl CompiledModel {
                         break;
                     }
                     interpolate(((out_t - t) / h).clamp(0.0, 1.0), &mut interp, &y, &k);
-                    record(
+                    or_stall!(record(
                         out_t,
                         &interp,
                         &mut values,
                         &mut derivatives_scratch,
                         &mut alg_guess,
-                    )?;
+                    ));
                     last_out_t = out_t;
                     out_i += 1;
                 }
@@ -3270,15 +3644,33 @@ impl CompiledModel {
                 y.copy_from_slice(&y5);
                 k.swap(0, 6);
 
+                // The pivot that chose the states would choose otherwise
+                // here: hand the run back for a re-selection while the
+                // algebra is still sound.
+                if self.reselectable && !self.selection_sound(&values, t) {
+                    return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                }
+
                 // The step ended on a scheduled instant: raise the flags
                 // of the `sample(...)` sources due here and let the
                 // `when` clauses read them.
                 if state.next_time_event().is_some_and(|next| next <= t + 1e-9) {
-                    self.eval_point(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
+                    or_stall!(self.eval_point(
+                        t,
+                        &y,
+                        &mut values,
+                        &mut derivatives_scratch,
+                        &mut alg_guess
+                    ));
                     state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
-                    let outcome =
-                        self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
-                    self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
+                    let outcome = or_stall!(self.handle_event(
+                        t,
+                        &mut y,
+                        &mut values,
+                        &mut alg_guess,
+                        &mut state
+                    ));
+                    or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
                     if outcome.changed {
                         // The discrete values jumped here, so the point
@@ -3300,6 +3692,14 @@ impl CompiledModel {
                 (0.9 * err_norm.powf(-0.2)).clamp(0.2, 5.0)
             };
             h *= factor;
+            // On a model whose states were chosen by a pivot, a step
+            // collapse is the cue to choose again - well before the
+            // hard underflow that would end the run.
+            if self.reselectable && h < stop * 5e-14 {
+                // The snapshot comes from the last accepted point; the
+                // evaluation there succeeded when it was accepted.
+                return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+            }
             if h < stop * 1e-14 || h < 1e-300 {
                 return err(format!(
                     "step size underflow at t = {t:.6}: probable singularity"
@@ -3324,6 +3724,7 @@ impl CompiledModel {
             parameters: self.parameters.clone(),
             terminated,
             method: SolverMethod::Dopri45,
+            reselections: 0,
         }))
     }
 
@@ -3372,6 +3773,19 @@ impl CompiledModel {
     /// size change. Dense output on the `Interval` grid uses the same
     /// interpolant.
     pub fn simulate_bdf(&self) -> Result<SimResult, SimError> {
+        match self.run_bdf()? {
+            AdaptiveOutcome::Finished(result) => Ok(result),
+            AdaptiveOutcome::Stalled(stall) => err(format!(
+                "step size underflow at t = {:.6}: probable singularity",
+                stall.time
+            )),
+            AdaptiveOutcome::Stiff => unreachable!("bdf never reports stiffness"),
+        }
+    }
+
+    /// The BDF integration itself; a stall on a reselectable model
+    /// comes back as an outcome instead of an error.
+    fn run_bdf(&self) -> Result<AdaptiveOutcome, SimError> {
         const MAX_ORDER: usize = 5;
         const NEWTON_MAX: usize = 12;
 
@@ -3384,7 +3798,7 @@ impl CompiledModel {
         let mut values = self.values_template.clone();
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
-        columns.extend(self.algebraics.iter().cloned());
+        columns.extend(self.output_algebraics.iter().map(|(name, _)| name.clone()));
         columns.extend(self.discretes.iter().cloned());
         let mut rows: Vec<Vec<f64>> = Vec::new();
         let mut alg_guess = self.algebraic_start.clone();
@@ -3400,7 +3814,7 @@ impl CompiledModel {
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
-            for &slot in &self.algebraic_slots {
+            for &(_, slot) in &self.output_algebraics {
                 row.push(values[slot]);
             }
             for &slot in &self.discrete_slots {
@@ -3412,28 +3826,38 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut terminated: Option<String> = None;
+        let t0 = self.start_time;
         let mut state = self.event_state();
-        values[self.initial_slot] = 1.0;
-        // The initial event comes before the first output point: a
-        // `when initial()` or a `sample(0, …)` has already fired by then.
-        state.raise_samples(0.0, &self.samples, &self.sample_slots, &mut values);
-        let start_event =
-            self.handle_event(0.0, &mut y, &mut values, &mut alg_guess, &mut state)?;
-        record(0.0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-        let mut indicators_prev = self.indicator_values(0.0, &values);
-        if let Some(message) = start_event.terminated {
-            return Ok(SimResult {
-                columns,
-                rows,
-                parameters: self.parameters.clone(),
-                terminated: Some(message),
-                method: SolverMethod::Bdf,
-            });
+        if self.resume {
+            // Mid-run already: no initial event, conditions resume from
+            // their current truth.
+            self.eval_point(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+            state.when_prev = self.when_conditions(t0, &values);
+        } else {
+            values[self.initial_slot] = 1.0;
+            // The initial event comes before the first output point: a
+            // `when initial()` or a `sample(0, …)` has already fired by then.
+            state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);
+            let start_event =
+                self.handle_event(t0, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if let Some(message) = start_event.terminated {
+                record(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                return Ok(AdaptiveOutcome::Finished(SimResult {
+                    columns,
+                    rows,
+                    parameters: self.parameters.clone(),
+                    terminated: Some(message),
+                    method: SolverMethod::Bdf,
+                    reselections: 0,
+                }));
+            }
         }
+        record(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+        let mut indicators_prev = self.indicator_values(t0, &values);
 
         // Pure-algebraic models: nothing to integrate, walk the grid.
-        let mut out_i = 1usize;
-        let mut last_out_t = 0.0f64;
+        let mut out_i = (t0 / out_step + 1e-9).floor() as usize + 1;
+        let mut last_out_t = t0;
         if n == 0 {
             loop {
                 // Walk to whichever comes first: the next output point
@@ -3465,21 +3889,22 @@ impl CompiledModel {
             if terminated.is_none() && last_out_t < stop - 1e-12 {
                 record(stop, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
             }
-            return Ok(SimResult {
+            return Ok(AdaptiveOutcome::Finished(SimResult {
                 columns,
                 rows,
                 parameters: self.parameters.clone(),
                 terminated,
                 method: SolverMethod::Bdf,
-            });
+                reselections: 0,
+            }));
         }
 
         // History, newest first.
-        let mut t_hist: Vec<f64> = vec![0.0];
+        let mut t_hist: Vec<f64> = vec![t0];
         let mut y_hist: Vec<Vec<f64>> = vec![y.clone()];
         let mut order = 1usize;
-        let mut t = 0.0f64;
-        let mut h = out_step.min(stop).max(1e-12);
+        let mut t = t0;
+        let mut h = out_step.min(stop - t0).max(1e-12);
         let mut jac: Option<Vec<Vec<f64>>> = None;
         let mut consecutive_ok = 0usize;
         let mut steps: u64 = 0;
@@ -3488,7 +3913,21 @@ impl CompiledModel {
         let mut y_new = vec![0.0; n];
         let mut y_pred = vec![0.0; n];
         let mut f_last = Vec::new();
-        self.eval_point(0.0, &y, &mut values, &mut f_last, &mut alg_guess)?;
+        self.eval_point(t0, &y, &mut values, &mut f_last, &mut alg_guess)?;
+
+        /// See the macro of the adaptive solver: a failing evaluation on
+        /// a chosen selection stalls the segment instead of ending the run.
+        macro_rules! or_stall {
+            ($attempt:expr) => {
+                match $attempt {
+                    Ok(value) => value,
+                    Err(_) if self.reselectable => {
+                        return self.stall_at_last_row(columns, rows, SolverMethod::Bdf);
+                    }
+                    Err(error) => return Err(error),
+                }
+            };
+        }
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
@@ -3543,7 +3982,17 @@ impl CompiledModel {
             let mut converged = false;
             let mut newton_failed = false;
             for iteration in 0..NEWTON_MAX {
-                self.eval_point(t_new, &y_new, &mut values, &mut f_new, &mut alg_guess)?;
+                match self.eval_point(t_new, &y_new, &mut values, &mut f_new, &mut alg_guess) {
+                    Ok(()) => {}
+                    // The algebraic layer dying on a chosen selection is
+                    // the selection failing: reject the step and let the
+                    // step size fall toward the stall check.
+                    Err(_) if self.reselectable => {
+                        newton_failed = true;
+                        break;
+                    }
+                    Err(error) => return Err(error),
+                }
                 steps += 1;
                 if steps > 20_000_000 {
                     return err(format!(
@@ -3707,13 +4156,13 @@ impl CompiledModel {
                     sample(t_event, &mut interp);
                     y.copy_from_slice(&interp);
                     self.eval_point(t_event, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-                    let outcome = self.handle_event(
+                    let outcome = or_stall!(self.handle_event(
                         t_event,
                         &mut y,
                         &mut values,
                         &mut alg_guess,
                         &mut state,
-                    )?;
+                    ));
                     t = t_event;
                     // The history is meaningless across a discontinuity.
                     t_hist.clear();
@@ -3750,6 +4199,11 @@ impl CompiledModel {
                     y_hist.pop();
                 }
                 consecutive_ok += 1;
+                // See the adaptive solver: a selection that stopped
+                // being the right one is re-made in clean territory.
+                if self.reselectable && !self.selection_sound(&values, t) {
+                    return self.stall_at_last_row(columns, rows, SolverMethod::Bdf);
+                }
                 // Raise the order once the history supports it. The
                 // step controller keeps the error near its target, so
                 // waiting for a *small* error would pin the order at 1;
@@ -3800,6 +4254,11 @@ impl CompiledModel {
                 (0.9 * err_norm.powf(-1.0 / (k as f64 + 1.0))).clamp(0.2, 4.0)
             };
             h *= factor;
+            // A collapsing step on a model whose states were chosen by
+            // a pivot: stall and let the caller choose again.
+            if self.reselectable && h < stop * 5e-14 {
+                return self.stall_at_last_row(columns, rows, SolverMethod::Bdf);
+            }
             if h < stop * 1e-14 || h < 1e-300 {
                 return err(format!(
                     "step size underflow at t = {t:.6}: probable singularity"
@@ -3813,13 +4272,14 @@ impl CompiledModel {
                 .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
                 .terminated;
         }
-        Ok(SimResult {
+        Ok(AdaptiveOutcome::Finished(SimResult {
             columns,
             rows,
             parameters: self.parameters.clone(),
             terminated,
             method: SolverMethod::Bdf,
-        })
+            reselections: 0,
+        }))
     }
 
     /// Classic fixed-step RK4 integration over `[0, stop_time]`.
@@ -3834,7 +4294,7 @@ impl CompiledModel {
 
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
-        columns.extend(self.algebraics.iter().cloned());
+        columns.extend(self.output_algebraics.iter().map(|(name, _)| name.clone()));
         columns.extend(self.discretes.iter().cloned());
         let mut rows = Vec::with_capacity(steps + 1);
 
@@ -3849,7 +4309,7 @@ impl CompiledModel {
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
             row.extend_from_slice(y);
-            for &slot in &this.algebraic_slots {
+            for &(_, slot) in &this.output_algebraics {
                 row.push(values[slot]);
             }
             for &slot in &this.discrete_slots {
@@ -3908,6 +4368,7 @@ impl CompiledModel {
             parameters: self.parameters.clone(),
             terminated,
             method: SolverMethod::Rk4,
+            reselections: 0,
         })
     }
 }
@@ -5552,6 +6013,71 @@ mod tests {
         for i in 2..=5 {
             assert!((last[index(&format!("r[{i}].i"))] - current).abs() < 1e-15);
         }
+    }
+
+    #[test]
+    fn a_pendulum_over_the_top_reselects_its_states() {
+        // The known limit of a static selection, now closed: enough
+        // speed to rotate fully, so the length constraint has to swap
+        // which coordinate it defines every quarter turn.
+        let result = compile(&with_library("spinning_pendulum.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        assert!(
+            result.reselections >= 4,
+            "a full rotation needs several re-selections, saw {}",
+            result.reselections
+        );
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (x, y, vx, vy) = (index("x"), index("y"), index("vx"), index("vy"));
+
+        let first = &result.rows[0];
+        let energy = |row: &Vec<f64>| 0.5 * (row[vx] * row[vx] + row[vy] * row[vy]) + 9.81 * row[y];
+        let e0 = energy(first);
+        let mut revolutions = 0;
+        for pair in result.rows.windows(2) {
+            // The rod length holds exactly through every switch.
+            let constraint = pair[1][x] * pair[1][x] + pair[1][y] * pair[1][y] - 1.0;
+            assert!(constraint.abs() < 1e-6, "constraint {constraint}");
+            // And so does the energy - a wrong branch after a switch
+            // (the bug this test was written against) zeroes it.
+            assert!(
+                (energy(&pair[1]) - e0).abs() < 1e-3,
+                "energy drifted to {} from {e0}",
+                energy(&pair[1])
+            );
+            if pair[0][y] < 0.0 && pair[1][y] >= 0.0 && pair[1][x] > 0.0 {
+                revolutions += 1;
+            }
+        }
+        assert!(revolutions >= 3, "kept rotating, saw {revolutions}");
+
+        // The whole trajectory agrees with the angle form of the same
+        // pendulum - an independent formulation of the same physics.
+        let reference = run(
+            "model SpinAngle Real th(start = 0, fixed = true); Real w(start = 8, fixed = true); \
+             Real x; Real y; equation der(th) = w; der(w) = -9.81 * sin(th); \
+             x = sin(th); y = -cos(th); \
+             annotation(experiment(StopTime = 3.0, Interval = 0.002, Tolerance = 1e-9)); \
+             end SpinAngle;",
+        );
+        let rx = reference.columns.iter().position(|c| c == "x").unwrap();
+        let mut worst = 0.0f64;
+        let mut checked = 0;
+        for row in &result.rows {
+            let Some(matching) = reference
+                .rows
+                .iter()
+                .find(|other| (other[0] - row[0]).abs() < 1e-9)
+            else {
+                continue;
+            };
+            worst = worst.max((row[x] - matching[rx]).abs());
+            checked += 1;
+        }
+        assert!(checked > 1000, "grids barely overlap: {checked}");
+        assert!(worst < 1e-4, "cartesian vs angle form: {worst}");
     }
 
     #[test]
