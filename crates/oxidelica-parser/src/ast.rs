@@ -80,6 +80,10 @@ pub enum ClassKind {
     Record,
     /// `function` — inputs, one output and an algorithm of assignments.
     Function,
+    /// `package` — a namespace of classes.
+    Package,
+    /// `type` — a named alias of a primitive with attribute defaults.
+    Type,
 }
 
 /// An `extends Base(mod = expr, ...);` clause.
@@ -96,8 +100,17 @@ pub struct Extend {
 pub struct ClassDef {
     /// Model or connector.
     pub kind: ClassKind,
-    /// Class name.
+    /// Class name, qualified with its enclosing packages.
     pub name: String,
+    /// `partial` classes are bases only: they cannot be instantiated.
+    pub partial: bool,
+    /// For `type` aliases: the primitive being named, plus attribute
+    /// defaults (`type Voltage = Real(start = 0)`).
+    pub alias_of: Option<(String, Vec<(String, Expr)>)>,
+    /// Classes declared inside a package, by qualified name.
+    pub nested: Vec<ClassDef>,
+    /// `import` clauses: (local name, qualified target).
+    pub imports: Vec<(String, String)>,
     /// Optional description string.
     pub description: Option<String>,
     /// Component declarations.

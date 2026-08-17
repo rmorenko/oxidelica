@@ -141,9 +141,9 @@ fn instantiate(
     }
 
     // Bases first, with their modifiers (already parent-scoped).
+    let scope = scope_of(&class.name);
     for extend in &class.extends {
-        let base = registry
-            .get(extend.base.as_str())
+        let base = lookup(registry, &extend.base, scope, &class.imports)
             .ok_or_else(|| format!("unknown base class `{}`", extend.base))?;
         let mods: Vec<(String, Expr)> = extend
             .modifiers
@@ -221,16 +221,39 @@ fn instantiate(
                 .collect()
         };
 
+        // A `type` alias stands for a primitive plus attribute
+        // defaults; substitute it before instantiating.
+        let mut component = component.clone();
+        if !is_primitive(&component.type_name) {
+            if let Some(alias) = lookup(registry, &component.type_name, scope, &class.imports)
+                .and_then(|c| c.alias_of.clone())
+            {
+                let (base, attributes) = alias;
+                component.type_name = base;
+                for (name, value) in attributes {
+                    match name.as_str() {
+                        "start" if component.start.is_none() => component.start = Some(value),
+                        "fixed" if component.fixed.is_none() => {
+                            component.fixed = Some(matches!(value, Expr::Bool(true)))
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
         for local_name in element_names {
             let flat_name = format!("{prefix}{local_name}");
             instantiate_one(
                 registry,
-                component,
+                &component,
                 &local_name,
                 &flat_name,
                 prefix,
                 overrides,
                 &local_consts,
+                &class.imports,
+                scope,
                 acc,
                 depth,
             )?;
@@ -244,6 +267,8 @@ fn instantiate(
             &HashMap::new(),
             &local_consts,
             registry,
+            scope,
+            &class.imports,
             0,
         )
     };
@@ -262,6 +287,8 @@ fn instantiate(
             &local_consts,
             prefix,
             registry,
+            scope,
+            &class.imports,
             acc,
         )?;
     }
@@ -292,12 +319,15 @@ fn instantiate(
 /// Unroll a `for` equation, recursing into nested loops. The loop
 /// variable is a compile-time constant, so the body is emitted once per
 /// value with every subscript already resolved.
+#[allow(clippy::too_many_arguments)]
 fn unroll(
     loop_eq: &ForEquation,
     outer_vars: &HashMap<String, f64>,
     consts: &HashMap<String, f64>,
     prefix: &str,
     registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
     acc: &mut Flat,
 ) -> Result<(), String> {
     let bound = |expr: &Expr| -> Result<i64, String> {
@@ -322,6 +352,8 @@ fn unroll(
                         &loop_vars,
                         consts,
                         registry,
+                        scope,
+                        imports,
                         0,
                     )?,
                     rhs: resolve(
@@ -329,10 +361,14 @@ fn unroll(
                         &loop_vars,
                         consts,
                         registry,
+                        scope,
+                        imports,
                         0,
                     )?,
                 }),
-                ForBody::Nested(inner) => unroll(inner, &loop_vars, consts, prefix, registry, acc)?,
+                ForBody::Nested(inner) => unroll(
+                    inner, &loop_vars, consts, prefix, registry, scope, imports, acc,
+                )?,
             }
         }
     }
@@ -350,6 +386,8 @@ fn instantiate_one(
     prefix: &str,
     overrides: &[(String, Expr)],
     local_consts: &HashMap<String, f64>,
+    imports: &[(String, String)],
+    scope: &str,
     acc: &mut Flat,
     depth: usize,
 ) -> Result<(), String> {
@@ -366,6 +404,8 @@ fn instantiate_one(
                         &HashMap::new(),
                         local_consts,
                         registry,
+                        scope,
+                        imports,
                         0,
                     )
                 })
@@ -378,6 +418,8 @@ fn instantiate_one(
                         &HashMap::new(),
                         local_consts,
                         registry,
+                        scope,
+                        imports,
                         0,
                     )
                 })
@@ -388,12 +430,30 @@ fn instantiate_one(
             }
             acc.components.push(flat);
         } else {
-            let child = registry.get(component.type_name.as_str()).ok_or_else(|| {
-                format!(
-                    "unknown type `{}` of component `{flat_name}`",
-                    component.type_name
-                )
-            })?;
+            let child =
+                lookup(registry, &component.type_name, scope, imports).ok_or_else(|| {
+                    format!(
+                        "unknown type `{}` of component `{flat_name}`",
+                        component.type_name
+                    )
+                })?;
+            if child.partial {
+                return Err(format!(
+                    "`{}` is partial and cannot be instantiated as `{flat_name}`",
+                    child.name
+                ));
+            }
+            if matches!(child.kind, ClassKind::Package | ClassKind::Function) {
+                return Err(format!(
+                    "`{}` is a {} and cannot be a component type",
+                    child.name,
+                    if child.kind == ClassKind::Package {
+                        "package"
+                    } else {
+                        "function"
+                    }
+                ));
+            }
             if child.kind == ClassKind::Connector {
                 acc.connectors
                     .insert(flat_name.to_string(), child.name.clone());
@@ -525,6 +585,56 @@ fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
     }
 }
 
+/// Resolve a class name the way Modelica scoping does: an import
+/// alias first, then the enclosing packages from the inside out, then
+/// the global name.
+fn lookup<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<&'a ClassDef> {
+    // `import Basic = Electrical.Analog.Basic;` then `Basic.Resistor`.
+    let (head, rest) = match name.split_once('.') {
+        Some((head, rest)) => (head, Some(rest)),
+        None => (name, None),
+    };
+    if let Some((_, target)) = imports.iter().find(|(local, _)| local == head) {
+        let qualified = match rest {
+            Some(rest) => format!("{target}.{rest}"),
+            None => target.clone(),
+        };
+        if let Some(class) = registry.get(qualified.as_str()) {
+            return Some(class);
+        }
+    }
+    // Walk out of the enclosing packages: A.B.C -> A.B -> A -> global.
+    let mut prefix = scope.to_string();
+    loop {
+        let candidate = if prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{prefix}.{name}")
+        };
+        if let Some(class) = registry.get(candidate.as_str()) {
+            return Some(class);
+        }
+        match prefix.rfind('.') {
+            Some(cut) => prefix.truncate(cut),
+            None if prefix.is_empty() => return None,
+            None => prefix.clear(),
+        }
+    }
+}
+
+/// The package path enclosing a class: `A.B.C` lives in `A.B`.
+fn scope_of(qualified_name: &str) -> &str {
+    match qualified_name.rfind('.') {
+        Some(cut) => &qualified_name[..cut],
+        None => "",
+    }
+}
+
 /// Built-in scalar types. `Integer` and `Boolean` are carried as
 /// numbers, like everything else in the flat model.
 fn is_primitive(type_name: &str) -> bool {
@@ -557,17 +667,20 @@ fn index_tuples(dimensions: &[i64]) -> Vec<Vec<i64>> {
 
 /// Resolve subscripts and inline function calls, turning `T[i+1]` into
 /// the scalar reference `T[3]`.
+#[allow(clippy::too_many_arguments)]
 fn resolve(
     expr: &Expr,
     loop_vars: &HashMap<String, f64>,
     consts: &HashMap<String, f64>,
     registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
     depth: usize,
 ) -> Result<Expr, String> {
     if depth > MAX_DEPTH {
         return Err("expression nested deeper than the instantiation limit".to_string());
     }
-    let recur = |e: &Expr| resolve(e, loop_vars, consts, registry, depth + 1);
+    let recur = |e: &Expr| resolve(e, loop_vars, consts, registry, scope, imports, depth + 1);
     Ok(match expr {
         Expr::Index(base, subscripts) => {
             let Expr::Ref(name) = base.as_ref() else {
@@ -602,10 +715,14 @@ fn resolve(
         Expr::Call(name, args) => {
             let args: Result<Vec<Expr>, String> = args.iter().map(&recur).collect();
             let args = args?;
-            match registry.get(name.as_str()) {
+            match lookup(registry, name, scope, imports) {
                 Some(class) if class.kind == ClassKind::Function => {
                     inline_function(class, &args, consts, registry, depth + 1)?
                 }
+                // `noEvent(x)` and `smooth(n, x)` are hints about event
+                // generation and continuity; the value is the argument.
+                _ if name == "noEvent" && args.len() == 1 => args[0].clone(),
+                _ if name == "smooth" && args.len() == 2 => args[1].clone(),
                 _ => Expr::Call(name.clone(), args),
             }
         }
@@ -682,7 +799,15 @@ fn inline_function(
     }
     for assignment in &class.algorithm {
         let value = substitute_refs(&assignment.value, &bindings);
-        let value = resolve(&value, &HashMap::new(), consts, registry, depth + 1)?;
+        let value = resolve(
+            &value,
+            &HashMap::new(),
+            consts,
+            registry,
+            scope_of(&class.name),
+            &class.imports,
+            depth + 1,
+        )?;
         bindings.insert(assignment.target.clone(), value);
     }
     bindings.get(&outputs[0].name).cloned().ok_or_else(|| {
@@ -923,6 +1048,93 @@ mod tests {
         // Built-ins are not shadowed by the registry lookup.
         let builtin = parse_model("model M Real y; equation y = sin(time); end M;").unwrap();
         assert!(format!("{:?}", builtin.equations[0].rhs).contains("Call(\"sin\""));
+    }
+
+    #[test]
+    fn packages_qualify_names_and_scoping_walks_outwards() {
+        let m = parse_model(
+            "package P \
+               constant Real two = 2; \
+               package Inner \
+                 model Gain parameter Real k = two; Real u; Real y; \
+                 equation y = k * u; end Gain; \
+               end Inner; \
+             end P; \
+             model M P.Inner.Gain g; Real s; equation g.u = time; s = g.y; end M;",
+        )
+        .unwrap();
+        // The nested class resolved, and `two` was found by walking out
+        // of the enclosing packages.
+        let k = m.components.iter().find(|c| c.name == "g.k").unwrap();
+        assert!(k.binding.is_some());
+        assert!(m.components.iter().any(|c| c.name == "g.y"));
+    }
+
+    #[test]
+    fn imports_type_aliases_and_partial_classes() {
+        let m = parse_model(
+            "package Lib \
+               type Voltage = Real(unit = \"V\", start = 7); \
+               partial model Base Real x; end Base; \
+               model Source extends Base; Voltage v; \
+               equation x = time; v = 2 * x; end Source; \
+             end Lib; \
+             model M import Lib.Source; Source s; end M;",
+        )
+        .unwrap();
+        // The alias contributed its start attribute; the unit string was
+        // ignored.
+        let v = m.components.iter().find(|c| c.name == "s.v").unwrap();
+        assert_eq!(v.start, Some(crate::ast::Expr::Number(7.0)));
+
+        // A partial class may be extended but not instantiated.
+        let error = parse_model(
+            "partial model Base Real x; end Base; \
+             model M Base b; end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("partial"), "{error}");
+
+        // Packages are not component types either.
+        let error = parse_model(
+            "package P model Q Real x; equation x = 1; end Q; end P; \
+             model M P p; end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("package"), "{error}");
+    }
+
+    #[test]
+    fn msl_style_syntax_is_accepted() {
+        // A component written the way the Modelica Standard Library
+        // writes them: a `within` header, dotted names, an attribute
+        // modifier, assert(), noEvent() and a graphical annotation full
+        // of braces.
+        let m = parse_model(
+            "within Modelica.Electrical.Analog.Basic; \
+             model Resistor \"Ideal linear electrical resistor\" \
+               parameter Real R(start = 1) \"Resistance\"; \
+               Real v; Real i; \
+             equation \
+               assert(R > 0, \"Resistance must be positive\"); \
+               v = noEvent(R * i); \
+               i = smooth(0, time); \
+               annotation (Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}), \
+                 graphics = {Rectangle(extent = {{-70, 30}, {70, -30}})})); \
+             end Resistor;",
+        )
+        .unwrap();
+        assert_eq!(m.name, "Resistor");
+        assert_eq!(
+            m.equations.len(),
+            2,
+            "assert is skipped, two equations remain"
+        );
+        // noEvent and smooth collapse to their value argument.
+        assert!(!format!("{:?}", m.equations).contains("noEvent"));
+        assert!(!format!("{:?}", m.equations).contains("smooth"));
     }
 
     #[test]

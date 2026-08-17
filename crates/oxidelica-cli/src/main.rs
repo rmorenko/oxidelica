@@ -33,10 +33,27 @@ fn run() -> Result<(), String> {
     }
 }
 
-/// Read and parse a model file.
+/// Every `.mo` file in the `lib` directory, loaded as library context.
+pub fn load_libraries() -> Vec<String> {
+    let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir("lib")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|e| e == "mo"))
+        .collect();
+    paths.sort();
+    paths
+        .iter()
+        .filter_map(|path| std::fs::read_to_string(path).ok())
+        .collect()
+}
+
+/// Read and parse a model file in the context of the libraries.
 fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
     let source = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
-    oxidelica_parser::parse_model(&source).map_err(|e| format!("{path}: {e}"))
+    oxidelica_parser::parse_model_with_libraries(&load_libraries(), &source)
+        .map_err(|e| format!("{path}: {e}"))
 }
 
 /// `parse` subcommand: print the compiled model structure.

@@ -11,4 +11,4 @@ pub use ast::{
     BinOp, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, Variability,
     WhenAction, WhenClause,
 };
-pub use parser::{parse_file, parse_model, ParseError};
+pub use parser::{parse_file, parse_model, parse_model_with_libraries, ParseError};

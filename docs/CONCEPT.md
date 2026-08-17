@@ -29,7 +29,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 | **M3. DAE** (done)                | Pantelides, dummy derivatives, tearing, BDF                    | Cartesian pendulum (index-3)                                   |
 | **M4. Events** (done)             | when/if equations, zero-crossing, reinit                       | Bouncing ball, diode                                           |
 | **M5. Arrays & functions** (done) | Arrays, for-equations, functions, records                      | Discretized heat conduction                                    |
-| **M6. MSL core**                  | Blocks, Electrical.Analog, Mechanics.Rotational                | MSL examples run unmodified                                    |
+| **M6. MSL core** (partial)        | Blocks, Electrical.Analog, Mechanics.Rotational                | A library in MSL layout ships; MSL syntax parses               |
 | **M7. GUI**                       | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                      |
 | **M8. 3D**                        | MultiBody visualization, animation                             | Double pendulum spins in 3D                                    |
 
@@ -44,7 +44,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 ## Key risks
 
 1. **DAE index reduction (M3)** — done: Pantelides with dummy derivatives, tearing and an implicit BDF solver. The state selection is static (chosen by numerical pivoting at the initial point); models that need it to change mid-run — a pendulum swinging full circle — are the known limit.
-2. **The long tail of MSL semantics (M6)** — MSL exercises dark corners of the language; mitigate with reference checking from day one.
+2. **The long tail of MSL semantics (M6)** — partially addressed: a standard library in MSL layout ships with the tool, and MSL syntax (packages, dotted names, type aliases, partial classes, imports, `within`, graphical annotations, `assert`, `noEvent`) parses. Real MSL files still need `replaceable`/`redeclare`, `inner`/`outer`, enumerations and conditional components.
 3. **Bevy maturity as a UI framework (M7)** — a diagram editor on ECS is nontrivial; mitigate: all "office" UI in egui, Bevy owns the canvas and 3D.
 
 ## Spike (M0) — definition

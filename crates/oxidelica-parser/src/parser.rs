@@ -55,7 +55,18 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
     let mut parser = Parser { tokens, pos: 0 };
     let mut classes = Vec::new();
     while parser.peek() != &Token::Eof {
-        classes.push(parser.class_def()?);
+        if parser.peek() == &Token::Within {
+            parser.bump();
+            if matches!(parser.peek(), Token::Ident(_)) {
+                parser.dotted_name("within namespace")?;
+            }
+            parser.expect(&Token::Semi, "semicolon after within")?;
+            continue;
+        }
+        let class = parser.class_def()?;
+        // A package contributes its members to the registry under
+        // qualified names, alongside the package itself.
+        flatten_packages(class, &mut classes);
     }
     if classes.is_empty() {
         return Err(ParseError {
@@ -66,20 +77,44 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
     Ok(classes)
 }
 
+/// Collect a class and everything nested inside it, qualifying the
+/// names of package members.
+fn flatten_packages(mut class: ClassDef, out: &mut Vec<ClassDef>) {
+    let nested = std::mem::take(&mut class.nested);
+    let prefix = class.name.clone();
+    out.push(class);
+    for mut inner in nested {
+        inner.name = format!("{prefix}.{}", inner.name);
+        flatten_packages(inner, out);
+    }
+}
+
 /// Parse a source file and flatten its last `model` class into a flat
 /// [`Model`] ready for compilation.
 pub fn parse_model(source: &str) -> Result<Model, ParseError> {
-    let classes = parse_file(source)?;
-    let top = classes
+    parse_model_with_libraries(&[], source)
+}
+
+/// Parse a model in the context of library sources: the libraries only
+/// contribute class definitions, the top-level model comes from
+/// `source`.
+pub fn parse_model_with_libraries(libraries: &[String], source: &str) -> Result<Model, ParseError> {
+    let mut classes = Vec::new();
+    for library in libraries {
+        classes.extend(parse_file(library)?);
+    }
+    let own = parse_file(source)?;
+    let top = own
         .iter()
         .rev()
-        .find(|c| c.kind == ClassKind::Model)
+        .find(|c| c.kind == ClassKind::Model && !c.partial)
         .ok_or_else(|| ParseError {
             message: "no model class in file".into(),
             line: 1,
         })?
         .name
         .clone();
+    classes.extend(own);
     crate::flatten::flatten(&classes, &top).map_err(|message| ParseError { message, line: 0 })
 }
 
@@ -144,20 +179,59 @@ impl Parser {
     }
 
     fn class_def(&mut self) -> Result<ClassDef, ParseError> {
+        let partial = if self.peek() == &Token::Partial {
+            self.bump();
+            true
+        } else {
+            false
+        };
         let kind = match self.bump() {
             Token::Model => ClassKind::Model,
             Token::Connector => ClassKind::Connector,
             Token::Record => ClassKind::Record,
             Token::Function => ClassKind::Function,
-            other => {
-                return Err(self.err(format!(
-                    "expected model, connector, record or function, found `{other}`"
-                )))
-            }
+            Token::Package => ClassKind::Package,
+            Token::Type => ClassKind::Type,
+            other => return Err(self.err(format!("expected a class definition, found `{other}`"))),
         };
         let name = self.ident("class name")?;
+
+        // `type Voltage = Real(start = 0);`
+        let mut alias_of = None;
+        if kind == ClassKind::Type {
+            self.expect(&Token::Assign, "`=` in a type alias")?;
+            let base = self.ident("aliased type")?;
+            let modifiers = if self.peek() == &Token::LParen {
+                self.type_attributes()?
+            } else {
+                Vec::new()
+            };
+            alias_of = Some((base, modifiers));
+            self.opt_string();
+            self.expect(&Token::Semi, "semicolon after the type alias")?;
+            return Ok(ClassDef {
+                kind,
+                name,
+                partial,
+                alias_of,
+                nested: Vec::new(),
+                imports: Vec::new(),
+                description: None,
+                components: Vec::new(),
+                extends: Vec::new(),
+                equations: Vec::new(),
+                for_equations: Vec::new(),
+                algorithm: Vec::new(),
+                connects: Vec::new(),
+                when_clauses: Vec::new(),
+                experiment: Experiment::default(),
+            });
+        }
+
         let description = self.opt_string();
 
+        let mut nested = Vec::new();
+        let mut imports = Vec::new();
         let mut components = Vec::new();
         let mut extends = Vec::new();
         let mut equations = Vec::new();
@@ -204,7 +278,38 @@ impl Parser {
                 Token::Connect => {
                     connects.push(self.connect_clause()?);
                 }
+                Token::Protected => {
+                    self.bump();
+                }
+                Token::Import => {
+                    imports.push(self.import_clause()?);
+                }
+                Token::Model
+                | Token::Connector
+                | Token::Record
+                | Token::Function
+                | Token::Package
+                | Token::Type
+                | Token::Partial => {
+                    nested.push(self.class_def()?);
+                }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
+                // `assert(condition, "message")` is a runtime check;
+                // it is accepted and skipped rather than rejected.
+                Token::Ident(name) if in_equations && name == "assert" => {
+                    self.bump();
+                    self.expect(&Token::LParen, "parenthesis after assert")?;
+                    let mut depth = 1usize;
+                    while depth > 0 {
+                        match self.bump() {
+                            Token::LParen => depth += 1,
+                            Token::RParen => depth -= 1,
+                            Token::Eof => return Err(self.err("unterminated assert".into())),
+                            _ => {}
+                        }
+                    }
+                    self.expect(&Token::Semi, "semicolon after assert")?;
+                }
                 _ => {
                     if in_equations {
                         equations.push(self.equation_item()?);
@@ -218,6 +323,10 @@ impl Parser {
         Ok(ClassDef {
             kind,
             name,
+            partial,
+            alias_of,
+            nested,
+            imports,
             description,
             components,
             extends,
@@ -228,6 +337,82 @@ impl Parser {
             when_clauses,
             experiment,
         })
+    }
+
+    /// `import A.B.C;` or `import D = A.B.C;`
+    fn import_clause(&mut self) -> Result<(String, String), ParseError> {
+        self.expect(&Token::Import, "import")?;
+        let first = self.ident("imported name")?;
+        if self.peek() == &Token::Assign {
+            self.bump();
+            let target = self.dotted_name("import target")?;
+            self.expect(&Token::Semi, "semicolon after import")?;
+            return Ok((first, target));
+        }
+        let mut target = first;
+        while self.peek() == &Token::Dot {
+            self.bump();
+            target.push('.');
+            target.push_str(&self.ident("name after dot")?);
+        }
+        self.expect(&Token::Semi, "semicolon after import")?;
+        let local = target
+            .rsplit('.')
+            .next()
+            .expect("a dotted name has segments")
+            .to_string();
+        Ok((local, target))
+    }
+
+    /// A dotted class name: `Modelica.Electrical.Analog.Basic.Resistor`.
+    fn dotted_name(&mut self, context: &str) -> Result<String, ParseError> {
+        let mut name = self.ident(context)?;
+        while self.peek() == &Token::Dot {
+            self.bump();
+            name.push('.');
+            name.push_str(&self.ident(context)?);
+        }
+        Ok(name)
+    }
+
+    /// Attribute defaults of a `type` alias: `(start = 0, fixed = true)`.
+    fn type_attributes(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
+        self.expect(&Token::LParen, "type attributes")?;
+        let mut out = Vec::new();
+        loop {
+            let name = self.ident("attribute name")?;
+            self.expect(&Token::Assign, "`=` in a type attribute")?;
+            // Unit strings and similar descriptive attributes are kept
+            // as opaque text and ignored by the compiler.
+            let value = match self.peek().clone() {
+                Token::Str(_) => {
+                    self.bump();
+                    Expr::Number(0.0)
+                }
+                Token::True => {
+                    self.bump();
+                    Expr::Bool(true)
+                }
+                Token::False => {
+                    self.bump();
+                    Expr::Bool(false)
+                }
+                _ => self.expr()?,
+            };
+            if !matches!(name.as_str(), "unit" | "quantity" | "displayUnit") {
+                out.push((name, value));
+            }
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RParen => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `)` in type attributes, found `{other}`"
+                    )))
+                }
+            }
+        }
+        Ok(out)
     }
 
     /// `for <var> in <lo>:<hi> loop <equations> end for;`
@@ -276,7 +461,7 @@ impl Parser {
     /// `extends Base(mod = expr, ...);`
     fn extends_clause(&mut self) -> Result<Extend, ParseError> {
         self.expect(&Token::Extends, "extends")?;
-        let base = self.ident("base class name")?;
+        let base = self.dotted_name("base class name")?;
         let modifiers = if self.peek() == &Token::LParen {
             self.modifier_list()?
         } else {
@@ -414,7 +599,7 @@ impl Parser {
             _ => Causality::None,
         };
 
-        let type_name = self.ident("component type")?;
+        let type_name = self.dotted_name("component type")?;
         let name = self.ident("component name")?;
         // `Real T[N, 3]` — dimensions are constant expressions.
         let mut dimensions = Vec::new();
@@ -525,11 +710,11 @@ impl Parser {
         while depth > 0 {
             match self.peek().clone() {
                 Token::Eof => return Err(self.err("unterminated annotation".into())),
-                Token::LParen => {
+                Token::LParen | Token::LBrace | Token::LBracket => {
                     depth += 1;
                     self.bump();
                 }
-                Token::RParen => {
+                Token::RParen | Token::RBrace | Token::RBracket => {
                     depth -= 1;
                     self.bump();
                 }

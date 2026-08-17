@@ -68,6 +68,18 @@ pub enum Token {
     Output,
     /// Keyword `algorithm`.
     Algorithm,
+    /// Keyword `package`.
+    Package,
+    /// Keyword `type`.
+    Type,
+    /// Keyword `partial`.
+    Partial,
+    /// Keyword `import`.
+    Import,
+    /// Keyword `protected`.
+    Protected,
+    /// Keyword `within`.
+    Within,
     /// `(`
     LParen,
     /// `)`
@@ -90,6 +102,10 @@ pub enum Token {
     Caret,
     /// `.`
     Dot,
+    /// `{`
+    LBrace,
+    /// `}`
+    RBrace,
     /// `[`
     LBracket,
     /// `]`
@@ -148,6 +164,12 @@ impl fmt::Display for Token {
             Token::Input => write!(f, "input"),
             Token::Output => write!(f, "output"),
             Token::Algorithm => write!(f, "algorithm"),
+            Token::Package => write!(f, "package"),
+            Token::Type => write!(f, "type"),
+            Token::Partial => write!(f, "partial"),
+            Token::Import => write!(f, "import"),
+            Token::Protected => write!(f, "protected"),
+            Token::Within => write!(f, "within"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
             Token::Semi => write!(f, ";"),
@@ -159,6 +181,8 @@ impl fmt::Display for Token {
             Token::Slash => write!(f, "/"),
             Token::Caret => write!(f, "^"),
             Token::Dot => write!(f, "."),
+            Token::LBrace => write!(f, "{{"),
+            Token::RBrace => write!(f, "}}"),
             Token::LBracket => write!(f, "["),
             Token::RBracket => write!(f, "]"),
             Token::Colon => write!(f, ":"),
@@ -346,6 +370,12 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "input" => Token::Input,
                     "output" => Token::Output,
                     "algorithm" => Token::Algorithm,
+                    "package" => Token::Package,
+                    "type" => Token::Type,
+                    "partial" => Token::Partial,
+                    "import" => Token::Import,
+                    "protected" => Token::Protected,
+                    "within" => Token::Within,
                     _ => Token::Ident(word),
                 };
                 out.push(Spanned { token, line });
@@ -469,6 +499,20 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 });
                 i += 1;
             }
+            '{' => {
+                out.push(Spanned {
+                    token: Token::LBrace,
+                    line,
+                });
+                i += 1;
+            }
+            '}' => {
+                out.push(Spanned {
+                    token: Token::RBrace,
+                    line,
+                });
+                i += 1;
+            }
             '[' => {
                 out.push(Spanned {
                     token: Token::LBracket,
@@ -554,6 +598,13 @@ mod tests {
             Token::Input,
             Token::Output,
             Token::Algorithm,
+            Token::Package,
+            Token::Type,
+            Token::Partial,
+            Token::Import,
+            Token::Protected,
+            Token::LBrace,
+            Token::RBrace,
             Token::LBracket,
             Token::RBracket,
             Token::Colon,

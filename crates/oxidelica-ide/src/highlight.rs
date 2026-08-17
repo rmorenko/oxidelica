@@ -83,6 +83,9 @@ const KEYWORDS: &[&str] = &[
     "algorithm",
     "in",
     "protected",
+    "type",
+    "partial",
+    "constant",
 ];
 
 const TYPES: &[&str] = &["Real", "Integer", "Boolean", "String"];

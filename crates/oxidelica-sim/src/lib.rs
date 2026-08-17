@@ -1000,6 +1000,16 @@ enum DiffTarget<'a> {
 }
 
 fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
+    differentiate_at(expr, target, 0)
+}
+
+/// Guards against cyclic algebraic definitions while differentiating.
+const MAX_DIFF_DEPTH: usize = 32;
+
+fn differentiate_at(expr: &Expr, target: &DiffTarget, depth: usize) -> Result<Expr, String> {
+    if depth > MAX_DIFF_DEPTH {
+        return Err("differentiation recursed through a cyclic definition".to_string());
+    }
     use oxidelica_parser::BinOp::*;
     fn bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
         Expr::Bin(op, Box::new(a), Box::new(b))
@@ -1007,7 +1017,7 @@ fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
     fn call(name: &str, arg: Expr) -> Expr {
         Expr::Call(name.to_string(), vec![arg])
     }
-    let d = |e: &Expr| differentiate(e, target);
+    let d = |e: &Expr| differentiate_at(e, target, depth + 1);
     Ok(match expr {
         Expr::Number(_) | Expr::Bool(_) => Expr::Number(0.0),
         Expr::Time => match target {
@@ -3416,6 +3426,60 @@ mod tests {
         assert!(last[index("midError")].abs() < 1e-2);
         // Cold start: the rod begins uniform.
         assert!((result.rows[0][index("T[1]")] - 20.0).abs() < 1e-12);
+    }
+
+    fn with_library(name: &str) -> oxidelica_parser::Model {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
+        let source = std::fs::read_to_string(root.join("examples").join(name)).unwrap();
+        oxidelica_parser::parse_model_with_libraries(&[library], &source).unwrap()
+    }
+
+    #[test]
+    fn dc_motor_from_library_components_matches_theory() {
+        // Three domains at once: an electrical circuit, the EMF
+        // coupling and a rotational load, all from library packages.
+        let result = compile(&with_library("dc_motor.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+
+        // Steady state: k*i = d*w and V = i*R + k*w.
+        let (v, r, k, d) = (24.0, 0.5, 0.3, 0.02);
+        let speed = v * k / (k * k + d * r);
+        assert!(
+            (last[index("speed")] - speed).abs() < 1e-2,
+            "speed {} vs {speed}",
+            last[index("speed")]
+        );
+        assert!((last[index("current")] - d * speed / k).abs() < 1e-3);
+
+        // The supply steps at t = 0.1, so nothing moves before that.
+        let early = result
+            .rows
+            .iter()
+            .find(|row| row[0] >= 0.05)
+            .expect("a sample before the step");
+        assert!(early[index("speed")].abs() < 1e-9);
+    }
+
+    #[test]
+    fn pi_control_loop_from_library_blocks_settles_on_the_setpoint() {
+        let result = compile(&with_library("control_loop.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+        // Integral action removes the steady-state error.
+        assert!(
+            last[index("e")].abs() < 1e-4,
+            "residual error {}",
+            last[index("e")]
+        );
+        assert!((last[index("y")] - 1.0).abs() < 1e-4);
     }
 
     #[test]

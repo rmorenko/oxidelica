@@ -248,6 +248,22 @@ fn main() {
         .run();
 }
 
+/// Library sources from the `lib` directory, available to every model.
+fn load_libraries() -> Vec<String> {
+    let mut paths: Vec<PathBuf> = std::fs::read_dir("lib")
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|e| e == "mo"))
+        .collect();
+    paths.sort();
+    paths
+        .iter()
+        .filter_map(|path| std::fs::read_to_string(path).ok())
+        .collect()
+}
+
 /// Collect the `.mo` files from the `examples` directory.
 fn list_examples() -> Vec<PathBuf> {
     let mut found: Vec<PathBuf> = std::fs::read_dir("examples")
@@ -310,7 +326,8 @@ fn save_current(ide: &mut Ide) {
 /// Re-parse the editor buffer and refresh the tuner entries
 /// (silently: editor errors are reported on the next explicit run).
 fn refresh_tuner(ide: &mut Ide) {
-    if let Ok(model) = oxidelica_parser::parse_model(&ide.source) {
+    if let Ok(model) = oxidelica_parser::parse_model_with_libraries(&load_libraries(), &ide.source)
+    {
         if let Ok(compiled) = oxidelica_sim::compile(&model) {
             ide.tuner.refresh(&compiled);
         }
@@ -898,7 +915,7 @@ fn animation_ui(
 fn run_simulation(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     ide.log_ok = false;
-    let model = match oxidelica_parser::parse_model(&ide.source) {
+    let model = match oxidelica_parser::parse_model_with_libraries(&load_libraries(), &ide.source) {
         Ok(model) => model,
         Err(e) => {
             ide.log = format!("{}: {e}", s.parse_error);
