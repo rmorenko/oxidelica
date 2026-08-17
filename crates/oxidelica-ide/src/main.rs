@@ -890,7 +890,7 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
         {
             ide.diagram.auto_layout();
         }
-        let can_delete = ide.diagram.selected().is_some();
+        let can_delete = ide.diagram.selection() != diagram::Selection::Nothing;
         if ui
             .add_enabled(
                 can_delete,
@@ -956,7 +956,16 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
         ui.separator();
         ui.vertical(|ui| {
             ui.set_width(inspector);
-            ide.diagram.inspector_ui(ui);
+            ide.diagram.inspector_ui(
+                ui,
+                &diagram::Labels {
+                    wire: s.diagram_wire,
+                    delete: s.diagram_delete,
+                    delete_icon: icons::TRASH,
+                    nothing_selected: s.diagram_select_hint,
+                    danger: p.error_red,
+                },
+            );
         });
     });
 }

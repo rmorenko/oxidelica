@@ -11,6 +11,21 @@ use bevy_egui::egui;
 use oxidelica_parser::{class_info, ClassDef, ClassInfo};
 use std::collections::HashMap;
 
+/// Strings and colors the inspector needs, passed in so this module
+/// stays independent of the localization tables.
+pub struct Labels<'a> {
+    /// Heading shown for a selected wire.
+    pub wire: &'a str,
+    /// Label of the delete button.
+    pub delete: &'a str,
+    /// Icon placed before the delete label.
+    pub delete_icon: &'a str,
+    /// Placeholder shown when nothing is selected.
+    pub nothing_selected: &'a str,
+    /// Color for destructive actions.
+    pub danger: egui::Color32,
+}
+
 /// A component placed on the canvas.
 pub struct Placed {
     /// Instance name used in the generated code.
@@ -31,6 +46,18 @@ pub struct Wire {
     pub to: (usize, String),
 }
 
+/// What the user currently has selected.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Selection {
+    /// Nothing selected.
+    #[default]
+    Nothing,
+    /// A component, by index.
+    Component(usize),
+    /// A wire, by index.
+    Wire(usize),
+}
+
 /// State of the diagram editor.
 #[derive(Default)]
 pub struct Diagram {
@@ -40,8 +67,8 @@ pub struct Diagram {
     pub wires: Vec<Wire>,
     /// Port picked as the start of a wire being drawn.
     pending: Option<(usize, String)>,
-    /// Component whose parameters are being edited.
-    selected: Option<usize>,
+    /// Component or wire currently selected.
+    selection: Selection,
     /// Class summaries, keyed by qualified class name.
     catalog: HashMap<String, ClassInfo>,
     /// Instantiable classes offered in the palette, sorted.
@@ -326,23 +353,36 @@ impl Diagram {
         }
     }
 
-    /// The component currently selected, if any.
-    pub fn selected(&self) -> Option<usize> {
-        self.selected
+    /// What is currently selected.
+    pub fn selection(&self) -> Selection {
+        self.selection
     }
 
     /// Select a component by index.
     pub fn select(&mut self, index: usize) {
         if index < self.components.len() {
-            self.selected = Some(index);
+            self.selection = Selection::Component(index);
         }
     }
 
-    /// Delete the selected component and its wires.
+    /// Select a wire by index.
+    pub fn select_wire(&mut self, index: usize) {
+        if index < self.wires.len() {
+            self.selection = Selection::Wire(index);
+        }
+    }
+
+    /// Delete whatever is selected: a component takes its wires with
+    /// it, a wire goes on its own.
     pub fn delete_selected(&mut self) -> bool {
-        match self.selected {
-            Some(index) if index < self.components.len() => {
+        match self.selection {
+            Selection::Component(index) if index < self.components.len() => {
                 self.remove(index);
+                true
+            }
+            Selection::Wire(index) if index < self.wires.len() => {
+                self.wires.remove(index);
+                self.selection = Selection::Nothing;
                 true
             }
             _ => false,
@@ -381,7 +421,7 @@ impl Diagram {
                 wire.to.0 -= 1;
             }
         }
-        self.selected = None;
+        self.selection = Selection::Nothing;
         self.pending = None;
     }
 
@@ -437,7 +477,7 @@ impl Diagram {
             .ok_or_else(|| format!("model `{model_name}` not found"))?;
         self.components.clear();
         self.wires.clear();
-        self.selected = None;
+        self.selection = Selection::Nothing;
         self.pending = None;
 
         let mut index_of: HashMap<String, usize> = HashMap::new();
@@ -565,18 +605,40 @@ impl Diagram {
             y += GRID.y;
         }
 
-        // Wires first, so boxes draw over them.
-        for wire in &self.wires {
+        // Wires first, so boxes draw over them. A wire is pickable
+        // along its length and shows a handle at its midpoint.
+        let pointer = ui.ctx().pointer_latest_pos();
+        let mut hovered_wire = None;
+        for (index, wire) in self.wires.iter().enumerate() {
             let (Some(a), Some(b)) = (
                 self.port_position(wire.from.0, &wire.from.1),
                 self.port_position(wire.to.0, &wire.to.1),
             ) else {
                 continue;
             };
-            painter.line_segment(
-                [a + origin, b + origin],
-                egui::Stroke::new(2.0, accent.gamma_multiply(0.9)),
-            );
+            let (a, b) = (a + origin, b + origin);
+            if pointer.is_some_and(|p| distance_to_segment(p, a, b) < 6.0) {
+                hovered_wire = Some(index);
+            }
+            let selected = self.selection == Selection::Wire(index);
+            let near = hovered_wire == Some(index);
+            let (width, color) = match (selected, near) {
+                (true, _) => (3.5, egui::Color32::from_rgb(219, 92, 92)),
+                (_, true) => (3.0, accent),
+                _ => (2.0, accent.gamma_multiply(0.9)),
+            };
+            painter.line_segment([a, b], egui::Stroke::new(width, color));
+            if selected || near {
+                let middle = a + (b - a) * 0.5;
+                painter.circle_filled(middle, 5.0, color);
+                painter.text(
+                    middle,
+                    egui::Align2::CENTER_CENTER,
+                    "\u{00D7}",
+                    egui::FontId::proportional(11.0),
+                    visuals.extreme_bg_color,
+                );
+            }
         }
 
         // A wire being drawn follows the pointer.
@@ -617,7 +679,7 @@ impl Diagram {
             }
 
             let placed = &self.components[index];
-            let selected = self.selected == Some(index);
+            let selected = self.selection == Selection::Component(index);
             painter.rect(
                 rect,
                 6.0,
@@ -704,19 +766,64 @@ impl Diagram {
                 None => self.pending = Some((index, port)),
             }
         } else if response.clicked() {
-            // A click on empty canvas cancels a half-drawn wire.
-            self.pending = None;
-            self.selected = None;
+            match hovered_wire {
+                // Clicking a wire selects it; clicking the selected one
+                // again removes it.
+                Some(index) if self.selection == Selection::Wire(index) => {
+                    self.wires.remove(index);
+                    self.selection = Selection::Nothing;
+                    changed = true;
+                }
+                Some(index) => self.select_wire(index),
+                None => {
+                    // A click on empty canvas cancels a half-drawn wire.
+                    self.pending = None;
+                    self.selection = Selection::Nothing;
+                }
+            }
+        }
+        if hovered_wire.is_some() {
+            ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
         }
         changed
     }
 
-    /// Parameter editor for the selected component; returns true on any
-    /// edit.
-    pub fn inspector_ui(&mut self, ui: &mut egui::Ui) -> bool {
-        let Some(index) = self.selected else {
-            ui.label(egui::RichText::new("Select a component").weak());
-            return false;
+    /// Inspector for the current selection: parameters of a component,
+    /// endpoints of a wire. Returns true on any edit.
+    pub fn inspector_ui(&mut self, ui: &mut egui::Ui, labels: &Labels) -> bool {
+        let index = match self.selection {
+            Selection::Component(index) => index,
+            Selection::Wire(index) => {
+                let Some(wire) = self.wires.get(index) else {
+                    return false;
+                };
+                let endpoint = |(component, port): &(usize, String)| {
+                    self.components
+                        .get(*component)
+                        .map(|placed| format!("{}.{port}", placed.name))
+                        .unwrap_or_else(|| port.clone())
+                };
+                ui.strong(labels.wire);
+                ui.label(endpoint(&wire.from));
+                ui.label(endpoint(&wire.to));
+                ui.separator();
+                if ui
+                    .button(
+                        egui::RichText::new(format!("{} {}", labels.delete_icon, labels.delete))
+                            .color(labels.danger),
+                    )
+                    .clicked()
+                {
+                    self.wires.remove(index);
+                    self.selection = Selection::Nothing;
+                    return true;
+                }
+                return false;
+            }
+            Selection::Nothing => {
+                ui.label(egui::RichText::new(labels.nothing_selected).weak());
+                return false;
+            }
         };
         let Some(placed) = self.components.get_mut(index) else {
             return false;
@@ -733,15 +840,12 @@ impl Diagram {
         });
         ui.label(egui::RichText::new(&placed.class).weak().small());
         ui.separator();
-        let mut delete = false;
-        if ui
+        let delete = ui
             .button(
-                egui::RichText::new("\u{1F5D1} delete").color(egui::Color32::from_rgb(219, 92, 92)),
+                egui::RichText::new(format!("{} {}", labels.delete_icon, labels.delete))
+                    .color(labels.danger),
             )
-            .clicked()
-        {
-            delete = true;
-        }
+            .clicked();
         if delete {
             self.remove(index);
             return true;
@@ -766,6 +870,17 @@ impl Diagram {
         }
         changed
     }
+}
+
+/// Distance from a point to a segment, for wire picking.
+fn distance_to_segment(point: egui::Pos2, a: egui::Pos2, b: egui::Pos2) -> f32 {
+    let segment = b - a;
+    let length_squared = segment.length_sq();
+    if length_squared <= f32::EPSILON {
+        return (point - a).length();
+    }
+    let t = ((point - a).dot(segment) / length_squared).clamp(0.0, 1.0);
+    (point - (a + segment * t)).length()
 }
 
 /// Render an expression back to source text for the inspector.
@@ -942,6 +1057,17 @@ mod tests {
         // Nothing selected yet, so there is nothing to delete.
         assert!(!diagram.delete_selected());
 
+        // A wire can be removed on its own, leaving the components.
+        diagram.select_wire(1);
+        assert!(diagram.delete_selected());
+        assert_eq!(diagram.wires.len(), 1);
+        assert_eq!(diagram.components.len(), 3);
+        assert_eq!(diagram.selection(), Selection::Nothing);
+        diagram.wires.push(Wire {
+            from: (1, "n".into()),
+            to: (2, "p".into()),
+        });
+
         diagram.select(1);
         assert!(diagram.delete_selected());
         assert_eq!(diagram.components.len(), 2);
@@ -949,7 +1075,7 @@ mod tests {
         assert!(diagram.wires.is_empty());
         // The ground moved down one index and the generated code follows.
         assert!(diagram.components[1].class.ends_with("Ground"));
-        assert!(diagram.selected().is_none());
+        assert_eq!(diagram.selection(), Selection::Nothing);
     }
 
     #[test]

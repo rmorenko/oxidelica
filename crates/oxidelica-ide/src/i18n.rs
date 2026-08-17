@@ -153,6 +153,8 @@ define_strings!(
     diagram_palette,
     diagram_layout,
     diagram_delete,
+    diagram_wire,
+    diagram_select_hint,
 );
 
 #[cfg(test)]
