@@ -1,9 +1,10 @@
-//! oxidelica-sim — compiles a flat M0 model into an explicit ODE system
-//! and integrates it with a fixed-step RK4 solver.
+//! oxidelica-sim — compiles a flat model into an executable form and
+//! integrates it (adaptive Dormand-Prince by default, RK4 optional).
 //!
-//! M0 limitations (lifted in M1+): state equations must be explicit
-//! (`der(x) = f(...)` or mirrored), algebraic equations must be
-//! assignments (`y = g(...)`) without cyclic dependencies.
+//! State equations must isolate `der(x)` on one side; algebraic
+//! equations are general — a bipartite matcher pairs them with
+//! unknowns, explicit assignments evaluate directly and simultaneous
+//! blocks are solved by Newton iteration.
 
 #![deny(missing_docs)]
 
@@ -41,11 +42,21 @@ pub enum SolverMethod {
 /// One step of the algebraic evaluation plan.
 #[derive(Debug)]
 enum AlgStage {
-    /// A single explicit assignment (index into `algebraics`).
-    Explicit(usize),
-    /// A block of mutually dependent variables solved by Newton
-    /// iteration (indices into `algebraics`).
-    Implicit(Vec<usize>),
+    /// An explicit assignment: `algebraics[var] := expr`.
+    Explicit {
+        /// Index of the assigned variable in `algebraics`.
+        var: usize,
+        /// The assigned expression.
+        expr: Expr,
+    },
+    /// A simultaneous block solved by Newton iteration; residuals are
+    /// `lhs - rhs` of the member equations.
+    Implicit {
+        /// Indices of the block unknowns in `algebraics`.
+        vars: Vec<usize>,
+        /// The member equations as (lhs, rhs) pairs.
+        residuals: Vec<(Expr, Expr)>,
+    },
 }
 
 /// A model reduced to "states plus ordered algebraic assignments".
@@ -63,7 +74,6 @@ pub struct CompiledModel {
     derivatives: Vec<Expr>,
     /// Algebraic variables in evaluation order.
     pub algebraics: Vec<String>,
-    algebraic_exprs: Vec<Expr>,
     /// Initial Newton guesses for algebraic variables (start attributes).
     algebraic_start: Vec<f64>,
     /// Evaluation plan: explicit assignments and implicit Newton blocks.
@@ -125,7 +135,8 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         }
     }
 
-    // 2. Equation classification: states vs algebraic assignments.
+    // 2. Split equations: explicit state derivatives vs general
+    // algebraic equations (which need not be in assignment form).
     let continuous: Vec<&str> = model
         .components
         .iter()
@@ -134,7 +145,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         .collect();
 
     let mut state_rhs: HashMap<String, Expr> = HashMap::new();
-    let mut alg_rhs: HashMap<String, Expr> = HashMap::new();
+    let mut algebraic_eqs: Vec<(Expr, Expr)> = Vec::new();
 
     for EquationItem { lhs, rhs } in &model.equations {
         // der(v) = expr  |  expr = der(v)
@@ -145,7 +156,6 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         } else {
             (None, rhs)
         };
-
         if let Some(state) = target {
             if !continuous.contains(&state) {
                 return err(format!(
@@ -153,60 +163,193 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
                 ));
             }
             if value.contains_der() {
-                return err("M0: der() must appear alone on one side of an equation".to_string());
+                return err("der() must appear alone on one side of an equation".to_string());
             }
             if state_rhs.insert(state.to_string(), value.clone()).is_some() {
                 return err(format!("two equations for der({state})"));
             }
             continue;
         }
-
-        // Algebraic: v = expr | expr = v
-        let (var, expr) = match (lhs, rhs) {
-            (Expr::Ref(v), e) => (v, e),
-            (e, Expr::Ref(v)) => (v, e),
-            _ => {
-                return err(format!(
-                    "M0 requires explicit equations (v = ... or der(v) = ...): {lhs:?} = {rhs:?}"
-                ))
-            }
-        };
-        if expr.contains_der() {
-            return err("M0: der() in an algebraic equation is not supported".to_string());
+        if lhs.contains_der() || rhs.contains_der() {
+            return err("der() must appear alone on one side of an equation".to_string());
         }
-        if alg_rhs.insert(var.clone(), expr.clone()).is_some() {
-            return err(format!("two equations for {var}"));
-        }
+        algebraic_eqs.push((lhs.clone(), rhs.clone()));
     }
 
-    // 3. Every continuous variable must be determined in exactly one way.
-    let mut states: Vec<String> = Vec::new();
-    let mut algebraic_names: Vec<String> = Vec::new();
-    for name in &continuous {
-        let is_state = state_rhs.contains_key(*name);
-        let is_alg = alg_rhs.contains_key(*name);
-        match (is_state, is_alg) {
-            (true, true) => return err(format!("{name}: both a state and an algebraic variable")),
-            (true, false) => states.push((*name).to_string()),
-            (false, true) => algebraic_names.push((*name).to_string()),
-            (false, false) => return err(format!("no equation for variable {name}")),
-        }
-    }
-    let unknown_eq: Vec<&String> = state_rhs
-        .keys()
-        .chain(alg_rhs.keys())
-        .filter(|k| !continuous.contains(&k.as_str()))
+    // 3. Unknowns and reference validation.
+    let states: Vec<String> = continuous
+        .iter()
+        .filter(|n| state_rhs.contains_key(**n))
+        .map(|n| n.to_string())
         .collect();
-    if !unknown_eq.is_empty() {
+    let unknowns: Vec<String> = continuous
+        .iter()
+        .filter(|n| !state_rhs.contains_key(**n))
+        .map(|n| n.to_string())
+        .collect();
+
+    {
+        let mut refs = Vec::new();
+        for expr in state_rhs.values() {
+            expr.collect_refs(&mut refs);
+        }
+        for (lhs, rhs) in &algebraic_eqs {
+            lhs.collect_refs(&mut refs);
+            rhs.collect_refs(&mut refs);
+        }
+        if let Some(bad) = refs
+            .iter()
+            .find(|r| !continuous.contains(r) && !params.contains_key(**r))
+        {
+            return err(format!("unknown variable `{bad}` in equation"));
+        }
+    }
+
+    if algebraic_eqs.len() != unknowns.len() {
         return err(format!(
-            "equations for undeclared variables: {unknown_eq:?}"
+            "unbalanced model: {} algebraic equation(s) for {} unknown(s) {:?}",
+            algebraic_eqs.len(),
+            unknowns.len(),
+            unknowns
         ));
     }
 
-    // 4. Evaluation plan: explicit assignments in dependency order,
-    // the mutually dependent remainder as one implicit Newton block
-    // (per-loop tearing arrives with M3).
-    let (ordered_algs, stages) = build_stages(&algebraic_names, &alg_rhs);
+    // 4. Bipartite matching of equations to unknowns, then a
+    // topological evaluation plan; the cyclic remainder becomes one
+    // implicit Newton block (per-loop tearing arrives with M3).
+    let var_index: HashMap<&str, usize> = unknowns
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.as_str(), i))
+        .collect();
+    let eq_vars: Vec<Vec<usize>> = algebraic_eqs
+        .iter()
+        .map(|(lhs, rhs)| {
+            let mut refs = Vec::new();
+            lhs.collect_refs(&mut refs);
+            rhs.collect_refs(&mut refs);
+            let mut vars: Vec<usize> = refs
+                .iter()
+                .filter_map(|r| var_index.get(r).copied())
+                .collect();
+            vars.sort_unstable();
+            vars.dedup();
+            vars
+        })
+        .collect();
+
+    // Augmenting-path maximum matching.
+    fn try_match(
+        eq: usize,
+        eq_vars: &[Vec<usize>],
+        matched_eq: &mut [Option<usize>],
+        visited: &mut [bool],
+    ) -> bool {
+        for &v in &eq_vars[eq] {
+            if !visited[v] {
+                visited[v] = true;
+                if matched_eq[v].is_none()
+                    || try_match(matched_eq[v].unwrap(), eq_vars, matched_eq, visited)
+                {
+                    matched_eq[v] = Some(eq);
+                    return true;
+                }
+            }
+        }
+        false
+    }
+    let n_alg = unknowns.len();
+    let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];
+    for (eq, (lhs, rhs)) in algebraic_eqs.iter().enumerate() {
+        let mut visited = vec![false; n_alg];
+        if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
+            return err(format!(
+                "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown"
+            ));
+        }
+    }
+    let mut matched_var: Vec<usize> = vec![0; n_alg];
+    for (v, eq) in matched_eq.iter().enumerate() {
+        matched_var[eq.unwrap()] = v;
+    }
+
+    // Kahn topological order over equations.
+    let producer: Vec<usize> = {
+        let mut p = vec![0; n_alg];
+        for (eq, &v) in matched_var.iter().enumerate() {
+            p[v] = eq;
+        }
+        p
+    };
+    let mut indegree = vec![0usize; n_alg];
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); n_alg];
+    for eq in 0..n_alg {
+        for &v in &eq_vars[eq] {
+            if v != matched_var[eq] {
+                dependents[producer[v]].push(eq);
+                indegree[eq] += 1;
+            }
+        }
+    }
+    let mut queue: Vec<usize> = (0..n_alg).filter(|&e| indegree[e] == 0).collect();
+    let mut emitted = Vec::new();
+    let mut done = vec![false; n_alg];
+    while let Some(eq) = queue.pop() {
+        if done[eq] {
+            continue;
+        }
+        done[eq] = true;
+        emitted.push(eq);
+        for &dep in &dependents[eq] {
+            indegree[dep] = indegree[dep].saturating_sub(1);
+            if indegree[dep] == 0 && !done[dep] {
+                queue.push(dep);
+            }
+        }
+    }
+
+    let mentions = |expr: &Expr, name: &str| -> bool {
+        let mut refs = Vec::new();
+        expr.collect_refs(&mut refs);
+        refs.contains(&name)
+    };
+    let mut ordered_algs: Vec<String> = Vec::new();
+    let mut stages: Vec<AlgStage> = Vec::new();
+    for &eq in &emitted {
+        let var_name = unknowns[matched_var[eq]].clone();
+        let index = ordered_algs.len();
+        let (lhs, rhs) = &algebraic_eqs[eq];
+        let stage = if matches!(lhs, Expr::Ref(n) if n == &var_name) && !mentions(rhs, &var_name) {
+            AlgStage::Explicit {
+                var: index,
+                expr: rhs.clone(),
+            }
+        } else if matches!(rhs, Expr::Ref(n) if n == &var_name) && !mentions(lhs, &var_name) {
+            AlgStage::Explicit {
+                var: index,
+                expr: lhs.clone(),
+            }
+        } else {
+            AlgStage::Implicit {
+                vars: vec![index],
+                residuals: vec![(lhs.clone(), rhs.clone())],
+            }
+        };
+        ordered_algs.push(var_name);
+        stages.push(stage);
+    }
+    let remainder: Vec<usize> = (0..n_alg).filter(|&e| !done[e]).collect();
+    if !remainder.is_empty() {
+        let base = ordered_algs.len();
+        let mut vars = Vec::new();
+        let mut residuals = Vec::new();
+        for (offset, &eq) in remainder.iter().enumerate() {
+            ordered_algs.push(unknowns[matched_var[eq]].clone());
+            vars.push(base + offset);
+            residuals.push(algebraic_eqs[eq].clone());
+        }
+        stages.push(AlgStage::Implicit { vars, residuals });
+    }
 
     // 5. Initial state values.
     let ctx = EvalCtx {
@@ -224,7 +367,6 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     }
 
     let derivatives = states.iter().map(|s| state_rhs[s].clone()).collect();
-    let algebraic_exprs: Vec<Expr> = ordered_algs.iter().map(|a| alg_rhs[a].clone()).collect();
     let algebraic_start: Vec<f64> = ordered_algs
         .iter()
         .map(|name| {
@@ -248,7 +390,6 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         initial,
         derivatives,
         algebraics: ordered_algs,
-        algebraic_exprs,
         algebraic_start,
         stages,
         stop_time: model.experiment.stop_time.unwrap_or(1.0),
@@ -257,44 +398,6 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         method: SolverMethod::default(),
         terminations: model.terminations.clone(),
     })
-}
-
-/// Order algebraic assignments; anything cyclic becomes a single
-/// implicit block appended after the explicit prefix.
-fn build_stages(names: &[String], exprs: &HashMap<String, Expr>) -> (Vec<String>, Vec<AlgStage>) {
-    let mut ordered = Vec::new();
-    let mut stages = Vec::new();
-    let mut done: Vec<&str> = Vec::new();
-    let mut remaining: Vec<&String> = names.iter().collect();
-    while !remaining.is_empty() {
-        let before = remaining.len();
-        remaining.retain(|name| {
-            let mut refs = Vec::new();
-            exprs[*name].collect_refs(&mut refs);
-            let ready = refs
-                .iter()
-                .all(|r| done.contains(r) || !names.iter().any(|n| n == r));
-            if ready {
-                stages.push(AlgStage::Explicit(ordered.len()));
-                ordered.push((*name).clone());
-                done.push(name.as_str());
-                false
-            } else {
-                true
-            }
-        });
-        if remaining.len() == before {
-            // The rest is one implicit block.
-            let base = ordered.len();
-            let block: Vec<usize> = (0..remaining.len()).map(|i| base + i).collect();
-            for name in &remaining {
-                ordered.push((*name).clone());
-            }
-            stages.push(AlgStage::Implicit(block));
-            break;
-        }
-    }
-    (ordered, stages)
 }
 
 // --- expression evaluation ---
@@ -578,15 +681,12 @@ impl CompiledModel {
         }
         for stage in &self.stages {
             match stage {
-                AlgStage::Explicit(index) => {
-                    let value = eval(
-                        &self.algebraic_exprs[*index],
-                        &EvalCtx { vars: env, time: t },
-                    )?;
-                    env.insert(self.algebraics[*index].clone(), value);
+                AlgStage::Explicit { var, expr } => {
+                    let value = eval(expr, &EvalCtx { vars: env, time: t })?;
+                    env.insert(self.algebraics[*var].clone(), value);
                 }
-                AlgStage::Implicit(block) => {
-                    self.solve_implicit_block(t, env, block, alg_guess)?;
+                AlgStage::Implicit { vars, residuals } => {
+                    self.solve_implicit_block(t, env, vars, residuals, alg_guess)?;
                 }
             }
         }
@@ -606,6 +706,7 @@ impl CompiledModel {
         t: f64,
         env: &mut HashMap<String, f64>,
         block: &[usize],
+        residuals: &[(Expr, Expr)],
         alg_guess: &mut [f64],
     ) -> Result<(), SimError> {
         let n = block.len();
@@ -616,12 +717,10 @@ impl CompiledModel {
                 env.insert(self.algebraics[index].clone(), v[j]);
             }
             let mut f = Vec::with_capacity(n);
-            for (j, &index) in block.iter().enumerate() {
-                let value = eval(
-                    &self.algebraic_exprs[index],
-                    &EvalCtx { vars: env, time: t },
-                )?;
-                f.push(value - v[j]);
+            for (lhs, rhs) in residuals {
+                let l = eval(lhs, &EvalCtx { vars: env, time: t })?;
+                let r = eval(rhs, &EvalCtx { vars: env, time: t })?;
+                f.push(l - r);
             }
             Ok(f)
         };
@@ -1058,7 +1157,19 @@ mod tests {
     fn reports_missing_equation() {
         let model = parse_model("model B Real x; Real y; equation x = 1; end B;").unwrap();
         let error = compile(&model).unwrap_err();
-        assert!(error.0.contains("no equation"), "{}", error.0);
+        assert!(error.0.contains("unbalanced"), "{}", error.0);
+    }
+
+    #[test]
+    fn solves_implicit_linear_system() {
+        // x + y = 2 and x - y = 0 are not assignments - the matcher
+        // pairs them with x and y and Newton solves the block.
+        let result = run("model I Real x; Real y; equation x + y = 2; x - y = 0; \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end I;");
+        let x_idx = result.columns.iter().position(|c| c == "x").unwrap();
+        let y_idx = result.columns.iter().position(|c| c == "y").unwrap();
+        assert!((result.rows[0][x_idx] - 1.0).abs() < 1e-9);
+        assert!((result.rows[0][y_idx] - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -1216,27 +1327,22 @@ mod tests {
             compile_err("model M Real x; equation der(x) = 1; der(x) = 2; end M;")
                 .contains("two equations")
         );
-        // Two equations for an algebraic variable.
-        assert!(
-            compile_err("model M Real y; equation y = 1; y = 2; end M;").contains("two equations")
-        );
-        // Both a state and an algebraic variable.
+        // Two equations for one algebraic unknown: unbalanced.
+        assert!(compile_err("model M Real y; equation y = 1; y = 2; end M;").contains("unbalanced"));
+        // A state with an extra algebraic equation: unbalanced.
         assert!(
             compile_err("model M Real x; equation der(x) = 1; x = 2; end M;")
-                .contains("both a state and an algebraic")
+                .contains("unbalanced")
         );
-        // Implicit equation.
-        assert!(
-            compile_err("model M Real x; Real y; equation x + y = 2; y = 1; end M;")
-                .contains("explicit equations")
-        );
+
         // der inside an algebraic expression.
         assert!(
             compile_err("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
-                .contains("algebraic")
+                .contains("appear alone")
         );
-        // Equation for an undeclared variable.
-        assert!(compile_err("model M Real x; equation x = 1; q = 2; end M;").contains("undeclared"));
+        // Reference to an undeclared variable.
+        assert!(compile_err("model M Real x; equation x = 1; q = 2; end M;")
+            .contains("unknown variable"));
         // Error in a start expression.
         assert!(
             compile_err("model M Real x(start = q); equation der(x) = 1; end M;")
@@ -1246,9 +1352,9 @@ mod tests {
 
     #[test]
     fn runtime_error_paths() {
-        // Unknown variable in an expression.
+        // An unknown variable is now a compile-time error.
         assert!(
-            simulate_err("model M Real y; equation y = z + 1; end M;").contains("unknown variable")
+            compile_err("model M Real y; equation y = z + 1; end M;").contains("unknown variable")
         );
         // Unknown function.
         assert!(simulate_err("model M Real y; equation y = frob(1); end M;")
@@ -1395,6 +1501,28 @@ mod tests {
              annotation(experiment(StopTime=1.0, Interval=0.1)); end N;");
         assert!(result.terminated.is_none());
         assert!((result.rows.last().unwrap()[0] - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn rc_circuit_from_components_matches_analytic() {
+        // The full M2 pipeline: connectors, extends, connect, flattening,
+        // matching. c.v(t) = V * (1 - e^(-t / (R*C))).
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/rc_circuit.mo"),
+        )
+        .unwrap();
+        let result = compile(&parse_model(&source).unwrap())
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let cv = result.columns.iter().position(|c| c == "c.v").unwrap();
+        let last = result.rows.last().unwrap();
+        let analytic = 1.0 - (-last[0] / (100.0 * 0.001)).exp();
+        assert!(
+            (last[cv] - analytic).abs() < 1e-9,
+            "c.v = {}, analytic = {analytic}",
+            last[cv]
+        );
     }
 
     #[test]

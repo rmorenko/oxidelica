@@ -69,6 +69,7 @@ const KEYWORDS: &[&str] = &[
     "record",
     "block",
     "connector",
+    "connect",
     "package",
     "extends",
     "import",

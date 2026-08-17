@@ -3,8 +3,11 @@
 #![deny(missing_docs)]
 
 pub mod ast;
+pub mod flatten;
 pub mod lexer;
 pub mod parser;
 
-pub use ast::{BinOp, Component, EquationItem, Experiment, Expr, Model, Variability};
-pub use parser::{parse_model, ParseError};
+pub use ast::{
+    BinOp, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, Variability,
+};
+pub use parser::{parse_file, parse_model, ParseError};

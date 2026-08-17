@@ -46,13 +46,41 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
-/// Parse a single flat model from Modelica source text.
-pub fn parse_model(source: &str) -> Result<Model, ParseError> {
+/// Parse all class definitions from a Modelica source file.
+pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
     let tokens = lex(source).map_err(|e| ParseError {
         message: e.message,
         line: e.line,
     })?;
-    Parser { tokens, pos: 0 }.model()
+    let mut parser = Parser { tokens, pos: 0 };
+    let mut classes = Vec::new();
+    while parser.peek() != &Token::Eof {
+        classes.push(parser.class_def()?);
+    }
+    if classes.is_empty() {
+        return Err(ParseError {
+            message: "no class definitions in file".into(),
+            line: 1,
+        });
+    }
+    Ok(classes)
+}
+
+/// Parse a source file and flatten its last `model` class into a flat
+/// [`Model`] ready for compilation.
+pub fn parse_model(source: &str) -> Result<Model, ParseError> {
+    let classes = parse_file(source)?;
+    let top = classes
+        .iter()
+        .rev()
+        .find(|c| c.kind == ClassKind::Model)
+        .ok_or_else(|| ParseError {
+            message: "no model class in file".into(),
+            line: 1,
+        })?
+        .name
+        .clone();
+    crate::flatten::flatten(&classes, &top).map_err(|message| ParseError { message, line: 0 })
 }
 
 struct Parser {
@@ -115,13 +143,19 @@ impl Parser {
         }
     }
 
-    fn model(&mut self) -> Result<Model, ParseError> {
-        self.expect(&Token::Model, "model keyword")?;
-        let name = self.ident("model name")?;
+    fn class_def(&mut self) -> Result<ClassDef, ParseError> {
+        let kind = match self.bump() {
+            Token::Model => ClassKind::Model,
+            Token::Connector => ClassKind::Connector,
+            other => return Err(self.err(format!("expected model or connector, found `{other}`"))),
+        };
+        let name = self.ident("class name")?;
         let description = self.opt_string();
 
         let mut components = Vec::new();
+        let mut extends = Vec::new();
         let mut equations = Vec::new();
+        let mut connects = Vec::new();
         let mut terminations = Vec::new();
         let mut experiment = Experiment::default();
         let mut in_equations = false;
@@ -133,7 +167,7 @@ impl Parser {
                     let end_name = self.ident("name after end")?;
                     if end_name != name {
                         return Err(
-                            self.err(format!("end {end_name}; does not match model name {name}"))
+                            self.err(format!("end {end_name}; does not match class name {name}"))
                         );
                     }
                     self.expect(&Token::Semi, "semicolon after end")?;
@@ -149,6 +183,12 @@ impl Parser {
                 Token::When => {
                     terminations.push(self.when_termination()?);
                 }
+                Token::Extends => {
+                    extends.push(self.extends_clause()?);
+                }
+                Token::Connect => {
+                    connects.push(self.connect_clause()?);
+                }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
                 _ => {
                     if in_equations {
@@ -160,14 +200,75 @@ impl Parser {
             }
         }
 
-        Ok(Model {
+        Ok(ClassDef {
+            kind,
             name,
             description,
             components,
+            extends,
             equations,
+            connects,
             terminations,
             experiment,
         })
+    }
+
+    /// `extends Base(mod = expr, ...);`
+    fn extends_clause(&mut self) -> Result<Extend, ParseError> {
+        self.expect(&Token::Extends, "extends")?;
+        let base = self.ident("base class name")?;
+        let modifiers = if self.peek() == &Token::LParen {
+            self.modifier_list()?
+        } else {
+            Vec::new()
+        };
+        self.expect(&Token::Semi, "semicolon after extends")?;
+        Ok(Extend { base, modifiers })
+    }
+
+    /// `connect(a.b, c.d);`
+    fn connect_clause(&mut self) -> Result<(String, String), ParseError> {
+        self.expect(&Token::Connect, "connect")?;
+        self.expect(&Token::LParen, "parenthesis after connect")?;
+        let left = self.component_ref()?;
+        self.expect(&Token::Comma, "comma in connect")?;
+        let right = self.component_ref()?;
+        self.expect(&Token::RParen, "closing parenthesis of connect")?;
+        self.expect(&Token::Semi, "semicolon after connect")?;
+        Ok((left, right))
+    }
+
+    /// A dotted component reference: `a.b.c`.
+    fn component_ref(&mut self) -> Result<String, ParseError> {
+        let mut name = self.ident("component reference")?;
+        while self.peek() == &Token::Dot {
+            self.bump();
+            name.push('.');
+            name.push_str(&self.ident("name after dot")?);
+        }
+        Ok(name)
+    }
+
+    /// `( name = expr, ... )` — user-type component/extends modifiers.
+    fn modifier_list(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
+        self.expect(&Token::LParen, "modifier list")?;
+        let mut modifiers = Vec::new();
+        loop {
+            let name = self.ident("modifier name")?;
+            self.expect(&Token::Assign, "`=` in modifier")?;
+            let value = self.expr()?;
+            modifiers.push((name, value));
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RParen => break,
+                other => {
+                    return Err(
+                        self.err(format!("expected `,` or `)` in modifiers, found `{other}`"))
+                    )
+                }
+            }
+        }
+        Ok(modifiers)
     }
 
     /// `when <cond> then terminate("<msg>"); end when;` — the M4 slice:
@@ -211,53 +312,60 @@ impl Parser {
             }
             _ => Variability::Continuous,
         };
+        let flow = if self.peek() == &Token::Flow {
+            self.bump();
+            true
+        } else {
+            false
+        };
 
         let type_name = self.ident("component type")?;
-        if type_name != "Real" {
-            return Err(self.err(format!("M0 supports only type Real, found `{type_name}`")));
-        }
         let name = self.ident("component name")?;
 
         let mut start = None;
         let mut fixed = None;
+        let mut modifiers = Vec::new();
         if self.peek() == &Token::LParen {
-            self.bump();
-            loop {
-                let attr = self.ident("attribute name")?;
-                self.expect(&Token::Assign, "`=` in attribute")?;
-                match attr.as_str() {
-                    "start" => start = Some(self.expr()?),
-                    "fixed" => {
-                        fixed = Some(match self.bump() {
-                            Token::True => true,
-                            Token::False => false,
-                            other => {
-                                return Err(
-                                    self.err(format!("fixed expects true/false, found `{other}`"))
-                                )
-                            }
-                        });
+            if type_name == "Real" {
+                self.bump();
+                loop {
+                    let attr = self.ident("attribute name")?;
+                    self.expect(&Token::Assign, "`=` in attribute")?;
+                    match attr.as_str() {
+                        "start" => start = Some(self.expr()?),
+                        "fixed" => {
+                            fixed = Some(match self.bump() {
+                                Token::True => true,
+                                Token::False => false,
+                                other => {
+                                    return Err(self
+                                        .err(format!("fixed expects true/false, found `{other}`")))
+                                }
+                            });
+                        }
+                        other => {
+                            return Err(
+                                self.err(format!("unknown attribute `{other}` (M2: start, fixed)"))
+                            );
+                        }
                     }
-                    other => {
-                        return Err(
-                            self.err(format!("unknown attribute `{other}` (M0: start, fixed)"))
-                        );
+                    match self.peek() {
+                        Token::Comma => {
+                            self.bump();
+                        }
+                        Token::RParen => {
+                            self.bump();
+                            break;
+                        }
+                        other => {
+                            return Err(self.err(format!(
+                                "expected `,` or `)` in attributes, found `{other}`"
+                            )))
+                        }
                     }
                 }
-                match self.peek() {
-                    Token::Comma => {
-                        self.bump();
-                    }
-                    Token::RParen => {
-                        self.bump();
-                        break;
-                    }
-                    other => {
-                        return Err(self.err(format!(
-                            "expected `,` or `)` in attributes, found `{other}`"
-                        )))
-                    }
-                }
+            } else {
+                modifiers = self.modifier_list()?;
             }
         }
 
@@ -273,6 +381,9 @@ impl Parser {
 
         Ok(Component {
             name,
+            type_name,
+            flow,
+            modifiers,
             variability,
             start,
             fixed,
@@ -520,7 +631,13 @@ impl Parser {
                 if name == "time" {
                     return Ok(Expr::Time);
                 }
-                if self.peek() == &Token::LParen {
+                let mut name = name;
+                while self.peek() == &Token::Dot {
+                    self.bump();
+                    name.push('.');
+                    name.push_str(&self.ident("name after dot")?);
+                }
+                if !name.contains('.') && self.peek() == &Token::LParen {
                     self.bump();
                     let mut args = Vec::new();
                     if self.peek() != &Token::RParen {
@@ -600,8 +717,8 @@ mod tests {
     fn error_paths_are_reported() {
         // End of file without `end`.
         assert!(err_of("model M Real x;").contains("end of file"));
-        // Not Real.
-        assert!(err_of("model M Integer x; end M;").contains("only type Real"));
+        // Unknown type at flattening.
+        assert!(err_of("model M Integer x; end M;").contains("unknown type"));
         // Unknown attribute.
         assert!(err_of("model M Real x(min=0); end M;").contains("unknown attribute"));
         // Non-boolean fixed.

@@ -172,7 +172,7 @@ fn compile_error_is_reported() {
     let bad = TempFile::new("nocov.mo", "model M Real x; Real y; equation x = 1; end M;");
     let out = bin().args(["simulate", bad.path()]).output().unwrap();
     assert!(!out.status.success());
-    assert!(stderr(&out).contains("no equation"));
+    assert!(stderr(&out).contains("unbalanced"));
 }
 
 #[test]

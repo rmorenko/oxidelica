@@ -44,6 +44,14 @@ pub enum Token {
     Not,
     /// Keyword `when`.
     When,
+    /// Keyword `connector`.
+    Connector,
+    /// Keyword `flow`.
+    Flow,
+    /// Keyword `extends`.
+    Extends,
+    /// Keyword `connect`.
+    Connect,
     /// `(`
     LParen,
     /// `)`
@@ -104,6 +112,10 @@ impl fmt::Display for Token {
             Token::Or => write!(f, "or"),
             Token::Not => write!(f, "not"),
             Token::When => write!(f, "when"),
+            Token::Connector => write!(f, "connector"),
+            Token::Flow => write!(f, "flow"),
+            Token::Extends => write!(f, "extends"),
+            Token::Connect => write!(f, "connect"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
             Token::Semi => write!(f, ";"),
@@ -286,6 +298,10 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "or" => Token::Or,
                     "not" => Token::Not,
                     "when" => Token::When,
+                    "connector" => Token::Connector,
+                    "flow" => Token::Flow,
+                    "extends" => Token::Extends,
+                    "connect" => Token::Connect,
                     _ => Token::Ident(word),
                 };
                 out.push(Spanned { token, line });
@@ -454,6 +470,10 @@ mod tests {
             Token::Or,
             Token::Not,
             Token::When,
+            Token::Connector,
+            Token::Flow,
+            Token::Extends,
+            Token::Connect,
             Token::LParen,
             Token::RParen,
             Token::Semi,

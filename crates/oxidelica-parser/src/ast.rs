@@ -16,6 +16,12 @@ pub enum Variability {
 pub struct Component {
     /// Component name.
     pub name: String,
+    /// Type name: `Real` or a user class (model/connector).
+    pub type_name: String,
+    /// Whether the component carries the `flow` prefix (connectors).
+    pub flow: bool,
+    /// Modifiers for user-type components: `Resistor r(R = 100)`.
+    pub modifiers: Vec<(String, Expr)>,
     /// Variability class of the component.
     pub variability: Variability,
     /// The `start` attribute from the modifier: `Real x(start = 1.0)`.
@@ -35,6 +41,47 @@ pub struct EquationItem {
     pub lhs: Expr,
     /// Right-hand side expression.
     pub rhs: Expr,
+}
+
+/// The kind of a class definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClassKind {
+    /// `model` — a component or the top-level system.
+    Model,
+    /// `connector` — an interface with potential and flow variables.
+    Connector,
+}
+
+/// An `extends Base(mod = expr, ...);` clause.
+#[derive(Debug, Clone)]
+pub struct Extend {
+    /// Name of the base class.
+    pub base: String,
+    /// Modifier overrides applied to the base.
+    pub modifiers: Vec<(String, Expr)>,
+}
+
+/// One class definition in a file.
+#[derive(Debug, Clone)]
+pub struct ClassDef {
+    /// Model or connector.
+    pub kind: ClassKind,
+    /// Class name.
+    pub name: String,
+    /// Optional description string.
+    pub description: Option<String>,
+    /// Component declarations.
+    pub components: Vec<Component>,
+    /// `extends` clauses.
+    pub extends: Vec<Extend>,
+    /// Ordinary equations.
+    pub equations: Vec<EquationItem>,
+    /// `connect(a, b);` statements (component reference paths).
+    pub connects: Vec<(String, String)>,
+    /// Termination clauses.
+    pub terminations: Vec<Termination>,
+    /// Experiment settings.
+    pub experiment: Experiment,
 }
 
 /// A `when <condition> then terminate("<message>"); end when;` clause.
