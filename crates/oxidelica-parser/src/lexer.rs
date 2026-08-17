@@ -122,6 +122,16 @@ pub enum Token {
     Slash,
     /// `^`
     Caret,
+    /// `.+` — element by element.
+    DotPlus,
+    /// `.-`
+    DotMinus,
+    /// `.*`
+    DotStar,
+    /// `./`
+    DotSlash,
+    /// `.^`
+    DotCaret,
     /// `.`
     Dot,
     /// `{`
@@ -213,6 +223,11 @@ impl fmt::Display for Token {
             Token::Star => write!(f, "*"),
             Token::Slash => write!(f, "/"),
             Token::Caret => write!(f, "^"),
+            Token::DotPlus => write!(f, ".+"),
+            Token::DotMinus => write!(f, ".-"),
+            Token::DotStar => write!(f, ".*"),
+            Token::DotSlash => write!(f, "./"),
+            Token::DotCaret => write!(f, ".^"),
             Token::Dot => write!(f, "."),
             Token::LBrace => write!(f, "{{"),
             Token::RBrace => write!(f, "}}"),
@@ -536,6 +551,19 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 });
                 i += 1;
             }
+            // `.+`, `.*` and friends work element by element; a lone
+            // dot is still the separator of a qualified name.
+            '.' if matches!(bytes.get(i + 1), Some('+' | '-' | '*' | '/' | '^')) => {
+                let token = match bytes[i + 1] {
+                    '+' => Token::DotPlus,
+                    '-' => Token::DotMinus,
+                    '*' => Token::DotStar,
+                    '/' => Token::DotSlash,
+                    _ => Token::DotCaret,
+                };
+                out.push(Spanned { token, line });
+                i += 2;
+            }
             '.' => {
                 out.push(Spanned {
                     token: Token::Dot,
@@ -675,6 +703,11 @@ mod tests {
             Token::Star,
             Token::Slash,
             Token::Caret,
+            Token::DotPlus,
+            Token::DotMinus,
+            Token::DotStar,
+            Token::DotSlash,
+            Token::DotCaret,
             Token::Dot,
             Token::Lt,
             Token::Le,

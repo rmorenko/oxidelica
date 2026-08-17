@@ -1262,14 +1262,20 @@ impl Parser {
             lhs = Expr::Neg(Box::new(lhs));
         }
         loop {
-            let op = match self.peek() {
-                Token::Plus => BinOp::Add,
-                Token::Minus => BinOp::Sub,
+            let (op, elementwise) = match self.peek() {
+                Token::Plus => (BinOp::Add, false),
+                Token::Minus => (BinOp::Sub, false),
+                Token::DotPlus => (BinOp::Add, true),
+                Token::DotMinus => (BinOp::Sub, true),
                 _ => break,
             };
             self.bump();
             let rhs = self.term()?;
-            lhs = Expr::Bin(op, Box::new(lhs), Box::new(rhs));
+            lhs = if elementwise {
+                Expr::Elementwise(op, Box::new(lhs), Box::new(rhs))
+            } else {
+                Expr::Bin(op, Box::new(lhs), Box::new(rhs))
+            };
         }
         Ok(lhs)
     }
@@ -1277,26 +1283,43 @@ impl Parser {
     fn term(&mut self) -> Result<Expr, ParseError> {
         let mut lhs = self.factor()?;
         loop {
-            let op = match self.peek() {
-                Token::Star => BinOp::Mul,
-                Token::Slash => BinOp::Div,
+            let (op, elementwise) = match self.peek() {
+                Token::Star => (BinOp::Mul, false),
+                Token::Slash => (BinOp::Div, false),
+                Token::DotStar => (BinOp::Mul, true),
+                Token::DotSlash => (BinOp::Div, true),
                 _ => break,
             };
             self.bump();
             let rhs = self.factor()?;
-            lhs = Expr::Bin(op, Box::new(lhs), Box::new(rhs));
+            lhs = if elementwise {
+                Expr::Elementwise(op, Box::new(lhs), Box::new(rhs))
+            } else {
+                Expr::Bin(op, Box::new(lhs), Box::new(rhs))
+            };
         }
         Ok(lhs)
     }
 
     fn factor(&mut self) -> Result<Expr, ParseError> {
         let base = self.primary()?;
-        if self.peek() == &Token::Caret {
-            self.bump();
-            let exponent = self.primary()?;
-            return Ok(Expr::Bin(BinOp::Pow, Box::new(base), Box::new(exponent)));
+        match self.peek() {
+            Token::Caret => {
+                self.bump();
+                let exponent = self.primary()?;
+                Ok(Expr::Bin(BinOp::Pow, Box::new(base), Box::new(exponent)))
+            }
+            Token::DotCaret => {
+                self.bump();
+                let exponent = self.primary()?;
+                Ok(Expr::Elementwise(
+                    BinOp::Pow,
+                    Box::new(base),
+                    Box::new(exponent),
+                ))
+            }
+            _ => Ok(base),
         }
-        Ok(base)
     }
 
     fn primary(&mut self) -> Result<Expr, ParseError> {
@@ -1318,6 +1341,23 @@ impl Parser {
                 let inner = self.expr()?;
                 self.expect(&Token::RParen, "closing parenthesis")?;
                 Ok(inner)
+            }
+            Token::LBrace => {
+                self.bump();
+                let mut items = Vec::new();
+                if self.peek() != &Token::RBrace {
+                    loop {
+                        items.push(self.expr()?);
+                        match self.peek() {
+                            Token::Comma => {
+                                self.bump();
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+                self.expect(&Token::RBrace, "closing brace of an array")?;
+                Ok(Expr::Array(items))
             }
             Token::Ident(name) => {
                 self.bump();
@@ -1761,6 +1801,47 @@ mod tests {
         )
         .unwrap();
         assert_eq!(mixed.when_clauses[0].branches[0].actions.len(), 3);
+    }
+
+    #[test]
+    fn parses_the_rarer_spellings() {
+        // A renaming import, `.^`, a redeclare with constrainedby in a
+        // modifier list, and error paths of lists that end wrongly.
+        let m = parse_model(
+            "package Lib model G parameter Real k = 1; Real u; Real y;              equation y = k * u; end G; end Lib;              model M import L = Lib; L.G g(k = 2); Real v[2]; Real w[2];              equation g.u = time; v = {2, 3}; w = v .^ 2; end M;",
+        )
+        .unwrap();
+        assert!(m.components.iter().any(|c| c.name == "g.y"));
+        assert_eq!(
+            m.equations
+                .iter()
+                .filter(|e| format!("{:?}", e.rhs).contains("Pow"))
+                .count(),
+            2
+        );
+
+        let redeclared = parse_file(
+            "package P partial model B Real y; end B;              model G extends B; parameter Real k = 1; equation y = k; end G;              model H replaceable G inner_block constrainedby B; end H;              model T H h(redeclare G inner_block(k = 2) constrainedby B(y = 0)); end T;              end P;",
+        )
+        .unwrap();
+        let t = redeclared.iter().find(|c| c.name == "P.T").unwrap();
+        assert_eq!(t.components[0].redeclares[0].name, "inner_block");
+
+        // Ends that are neither comma nor the closing bracket.
+        assert!(err_of("model M Real v[2 3]; end M;").contains("`,` or `]`"));
+        assert!(
+            err_of("model M Real v[2]; Real x; equation x = v[1 2]; end M;").contains("`,` or `]`")
+        );
+        assert!(err_of(
+            "package P type K = Real(start = 1 min = 0); end P; model M Real x; end M;"
+        )
+        .contains("`,` or `)`"));
+        // A subscripted member path: `points[1].x.y`.
+        let member = parse_model(
+            "record Q record R Real y; end R; end Q;              record P Real x; end P;              model M P points[2]; Real s;              equation points[1].x = 1; points[2].x = 2; s = points[1].x; end M;",
+        )
+        .unwrap();
+        assert!(member.components.iter().any(|c| c.name == "points[2].x"));
     }
 
     #[test]

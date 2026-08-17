@@ -352,6 +352,12 @@ fn instantiate(
         }
     }
 
+    // What each array component of this class - and of its bases - is
+    // shaped like, so a value may name one as a whole.
+    let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
+    collect_shapes(registry, class, &local_consts, &mut sizes, 0);
+    let sizes_here = prefixed_sizes(&sizes, prefix);
+
     for component in &class.components {
         let flat_name = format!("{prefix}{}", component.name);
 
@@ -443,20 +449,64 @@ fn instantiate(
             imports: &class.imports,
             scope,
         };
-        for local_name in element_names {
+        // An array bound - or started - as a whole hands each element
+        // its own value.
+        let spread = |expr: &Expr, what: &str| -> Result<Vec<Expr>, String> {
+            let shapes = Shapes {
+                sizes: &sizes_here,
+                loop_vars: &HashMap::new(),
+                consts: &local_consts,
+            };
+            let expr = substitute_class_constants(expr, registry, scope, &class.imports);
+            let value = expand(
+                &prefix_expr(&expr, prefix, &outers),
+                &shapes,
+                registry,
+                scope,
+                &class.imports,
+                0,
+            )?;
+            let mut items = Vec::new();
+            value.flatten_into(&mut items);
+            // A scalar start spreads over the whole array.
+            if items.len() == 1 && element_names.len() > 1 {
+                return Ok(vec![items[0].clone(); element_names.len()]);
+            }
+            if items.len() != element_names.len() {
+                return Err(format!(
+                    "`{}` has {} element(s) but its {what} has {}",
+                    component.name,
+                    element_names.len(),
+                    items.len()
+                ));
+            }
+            Ok(items)
+        };
+        let element_bindings: Option<Vec<Expr>> = match (&component.binding, sizes.is_empty()) {
+            (Some(binding), false) => Some(spread(binding, "value")?),
+            _ => None,
+        };
+        let element_starts: Option<Vec<Expr>> = match (&component.start, sizes.is_empty()) {
+            (Some(start), false) => Some(spread(start, "start")?),
+            _ => None,
+        };
+
+        for (position, local_name) in element_names.iter().enumerate() {
             let flat_name = format!("{prefix}{local_name}");
             let site = Site {
                 component: &component,
-                local_name: &local_name,
+                local_name,
                 flat_name: &flat_name,
                 extra_modifiers: &extra_modifiers,
                 redeclares: &child_redeclares,
+                binding: element_bindings.as_ref().map(|items| &items[position]),
+                start: element_starts.as_ref().map(|items| &items[position]),
             };
             instantiate_one(registry, &site, &level, acc, depth)?;
         }
     }
 
-    // Equations: subscripts resolved, function calls inlined.
+    // Equations: arrays expanded, subscripts resolved, calls inlined.
     let resolve_here = |expr: &Expr| -> Result<Expr, String> {
         let expr = substitute_class_constants(expr, registry, scope, &class.imports);
         resolve(
@@ -469,18 +519,37 @@ fn instantiate(
             0,
         )
     };
+    let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
+        let expr = substitute_class_constants(expr, registry, scope, &class.imports);
+        let expr = prefix_expr(&expr, prefix, &outers);
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars,
+            consts: &local_consts,
+        };
+        expand(&expr, &shapes, registry, scope, &class.imports, 0)
+    };
+    let no_loop_vars = HashMap::new();
     for equation in &class.equations {
-        acc.equations.push(EquationItem {
-            lhs: resolve_here(&equation.lhs)?,
-            rhs: resolve_here(&equation.rhs)?,
-        });
+        let lhs = expand_here(&equation.lhs, &no_loop_vars)?;
+        let rhs = expand_here(&equation.rhs, &no_loop_vars)?;
+        push_equations(&lhs, &rhs, acc)?;
     }
 
     for equation in &class.initial_equations {
-        acc.initial_equations.push(EquationItem {
-            lhs: resolve_here(&equation.lhs)?,
-            rhs: resolve_here(&equation.rhs)?,
-        });
+        let (lhs, rhs) = (
+            expand_here(&equation.lhs, &no_loop_vars)?,
+            expand_here(&equation.rhs, &no_loop_vars)?,
+        );
+        let (mut left, mut right) = (Vec::new(), Vec::new());
+        lhs.flatten_into(&mut left);
+        rhs.flatten_into(&mut right);
+        if left.len() != right.len() {
+            return Err("an initial equation between shapes that do not match".to_string());
+        }
+        for (lhs, rhs) in left.into_iter().zip(right) {
+            acc.initial_equations.push(EquationItem { lhs, rhs });
+        }
     }
 
     // An `algorithm` section of a model is executed symbolically: what
@@ -518,6 +587,7 @@ fn instantiate(
             &local_consts,
             prefix,
             &outers,
+            &sizes_here,
             registry,
             scope,
             &class.imports,
@@ -554,10 +624,11 @@ fn instantiate(
         }
         let Some(branch) = chosen else { continue };
         for equation in &branch.equations {
-            acc.equations.push(EquationItem {
-                lhs: resolve_here(&equation.lhs)?,
-                rhs: resolve_here(&equation.rhs)?,
-            });
+            push_equations(
+                &expand_here(&equation.lhs, &no_loop_vars)?,
+                &expand_here(&equation.rhs, &no_loop_vars)?,
+                acc,
+            )?;
         }
         for (a, b) in &branch.connects {
             let (a, b) = (flat_name(a, prefix, &outers), flat_name(b, prefix, &outers));
@@ -810,6 +881,7 @@ fn unroll(
     consts: &HashMap<String, f64>,
     prefix: &str,
     outers: &HashMap<String, String>,
+    sizes: &HashMap<String, Vec<i64>>,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
@@ -818,6 +890,22 @@ fn unroll(
     let bound = |expr: &Expr| -> Result<i64, String> {
         let mut env = consts.clone();
         env.extend(outer_vars.iter().map(|(k, v)| (k.clone(), *v)));
+        // A bound may ask an array how long it is, so it goes through
+        // the same expansion as everything else before being folded.
+        let shapes = Shapes {
+            sizes,
+            loop_vars: outer_vars,
+            consts,
+        };
+        let expr = &expand(
+            &prefix_expr(expr, prefix, outers),
+            &shapes,
+            registry,
+            scope,
+            imports,
+            0,
+        )?
+        .scalar()?;
         let value = const_eval(expr, &env)
             .ok_or_else(|| format!("loop bound is not a compile-time constant: {expr:?}"))?;
         if value.fract() != 0.0 {
@@ -831,36 +919,27 @@ fn unroll(
         loop_vars.insert(loop_eq.variable.clone(), index as f64);
         for item in &loop_eq.body {
             match item {
-                ForBody::Equation(equation) => acc.equations.push(EquationItem {
-                    lhs: resolve(
-                        &prefix_expr(
-                            &substitute_class_constants(&equation.lhs, registry, scope, imports),
-                            prefix,
-                            outers,
-                        ),
-                        &loop_vars,
+                ForBody::Equation(equation) => {
+                    let shapes = Shapes {
+                        sizes,
+                        loop_vars: &loop_vars,
                         consts,
-                        registry,
-                        scope,
-                        imports,
-                        0,
-                    )?,
-                    rhs: resolve(
-                        &prefix_expr(
-                            &substitute_class_constants(&equation.rhs, registry, scope, imports),
-                            prefix,
-                            outers,
-                        ),
-                        &loop_vars,
-                        consts,
-                        registry,
-                        scope,
-                        imports,
-                        0,
-                    )?,
-                }),
+                    };
+                    let side = |expr: &Expr| -> Result<Value, String> {
+                        let expr = substitute_class_constants(expr, registry, scope, imports);
+                        expand(
+                            &prefix_expr(&expr, prefix, outers),
+                            &shapes,
+                            registry,
+                            scope,
+                            imports,
+                            0,
+                        )
+                    };
+                    push_equations(&side(&equation.lhs)?, &side(&equation.rhs)?, acc)?;
+                }
                 ForBody::Nested(inner) => unroll(
-                    inner, &loop_vars, consts, prefix, outers, registry, scope, imports, acc,
+                    inner, &loop_vars, consts, prefix, outers, sizes, registry, scope, imports, acc,
                 )?,
             }
         }
@@ -881,6 +960,11 @@ struct Site<'a> {
     extra_modifiers: &'a [(String, Expr)],
     /// Redeclarations aimed at this component's own members.
     redeclares: &'a [Redeclare],
+    /// The binding of this element, when the declaration bound the whole
+    /// array at once: `parameter Real k[3] = {2, 4, 6}`.
+    binding: Option<&'a Expr>,
+    /// The start of this element, from an array-valued start attribute.
+    start: Option<&'a Expr>,
 }
 
 /// The class-level context a component is instantiated in.
@@ -916,6 +1000,8 @@ fn instantiate_one(
         flat_name,
         extra_modifiers,
         redeclares,
+        binding: _,
+        start: _,
     } = *site;
     let Level {
         prefix,
@@ -943,8 +1029,15 @@ fn instantiate_one(
                     0,
                 )
             };
-            flat.start = flat.start.as_ref().map(&resolve_value).transpose()?;
-            flat.binding = flat.binding.as_ref().map(&resolve_value).transpose()?;
+            flat.start = match site.start {
+                Some(expr) => Some(expr.clone()),
+                None => flat.start.as_ref().map(&resolve_value).transpose()?,
+            };
+            flat.binding = match site.binding {
+                // Already expanded from the array the declaration bound.
+                Some(expr) => Some(expr.clone()),
+                None => flat.binding.as_ref().map(&resolve_value).transpose()?,
+            };
             // A parent modifier `name = expr` overrides the binding, and
             // a nested one - `phi(start = 1)` - the attribute.
             let modifier = |target: &str| {
@@ -1069,6 +1162,10 @@ fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> E
             subscripts.iter().map(recur).collect(),
         ),
         Expr::Member(base, path) => Expr::Member(Box::new(recur(base)), path.clone()),
+        Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
+        Expr::Elementwise(op, l, r) => {
+            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
+        }
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
     }
 }
@@ -1164,6 +1261,17 @@ fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
         Expr::Member(base, path) => {
             Expr::Member(Box::new(substitute_refs(base, map)), path.clone())
         }
+        Expr::Array(items) => Expr::Array(
+            items
+                .iter()
+                .map(|item| substitute_refs(item, map))
+                .collect(),
+        ),
+        Expr::Elementwise(op, l, r) => Expr::Elementwise(
+            *op,
+            Box::new(substitute_refs(l, map)),
+            Box::new(substitute_refs(r, map)),
+        ),
     }
 }
 
@@ -1248,6 +1356,10 @@ fn substitute_class_constants(
             subscripts.iter().map(recur).collect(),
         ),
         Expr::Member(base, path) => Expr::Member(Box::new(recur(base)), path.clone()),
+        Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
+        Expr::Elementwise(op, l, r) => {
+            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
+        }
     }
 }
 
@@ -1409,6 +1521,9 @@ fn resolve(
             };
             Expr::Ref(format!("{name}.{path}"))
         }
+        Expr::Array(_) | Expr::Elementwise(_, _, _) => {
+            return Err("an array value cannot be used where a scalar is expected".to_string())
+        }
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
     })
 }
@@ -1565,6 +1680,496 @@ fn execute(
         }
     }
     Ok(())
+}
+
+/// Dimensions of every array component of a class and of its bases.
+fn collect_shapes(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    consts: &HashMap<String, f64>,
+    out: &mut HashMap<String, Vec<i64>>,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    let scope = scope_of(&class.name);
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+            collect_shapes(registry, base, consts, out, depth + 1);
+        }
+    }
+    for component in &class.components {
+        if component.dimensions.is_empty() {
+            continue;
+        }
+        let sizes: Option<Vec<i64>> = component
+            .dimensions
+            .iter()
+            .map(|dimension| {
+                const_eval(dimension, consts).and_then(|value| {
+                    (value.fract() == 0.0 && value >= 1.0).then_some(value as i64)
+                })
+            })
+            .collect();
+        if let Some(sizes) = sizes {
+            out.insert(component.name.clone(), sizes);
+        }
+    }
+}
+
+/// The same shapes under the instance path, since equations are
+/// prefixed before they are expanded.
+fn prefixed_sizes(sizes: &HashMap<String, Vec<i64>>, prefix: &str) -> HashMap<String, Vec<i64>> {
+    sizes
+        .iter()
+        .map(|(name, dimensions)| (format!("{prefix}{name}"), dimensions.clone()))
+        .collect()
+}
+
+/// Emit one equation per element, refusing sides that do not match.
+fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result<(), String> {
+    let (left_shape, right_shape) = (lhs.shape(), rhs.shape());
+    if left_shape != right_shape {
+        return Err(format!(
+            "an equation between shapes {left_shape:?} and {right_shape:?}"
+        ));
+    }
+    let (mut left, mut right) = (Vec::new(), Vec::new());
+    lhs.flatten_into(&mut left);
+    rhs.flatten_into(&mut right);
+    for (lhs, rhs) in left.into_iter().zip(right) {
+        acc.equations.push(EquationItem { lhs, rhs });
+    }
+    Ok(())
+}
+
+/// What an expression is worth once the shapes are known: one scalar,
+/// or an array of them.
+///
+/// Arrays live only at compile time here. A model may say `v` where `v`
+/// was declared `Real v[3]`, add two arrays, take their sum - and what
+/// reaches the solver is scalars, because the dimensions are constants
+/// the compiler can see.
+#[derive(Debug, Clone)]
+enum Value {
+    /// A single expression.
+    Scalar(Expr),
+    /// An array, given by its elements; nested for more dimensions.
+    Array(Vec<Value>),
+}
+
+impl Value {
+    /// The scalar inside, or an error naming what went wrong.
+    fn scalar(self) -> Result<Expr, String> {
+        match self {
+            Value::Scalar(expr) => Ok(expr),
+            Value::Array(_) => Err("an array is used where a scalar is expected".to_string()),
+        }
+    }
+
+    /// Every scalar of the value, in row-major order.
+    fn flatten_into(&self, out: &mut Vec<Expr>) {
+        match self {
+            Value::Scalar(expr) => out.push(expr.clone()),
+            Value::Array(items) => items.iter().for_each(|item| item.flatten_into(out)),
+        }
+    }
+
+    /// Its shape, as the length of each dimension.
+    fn shape(&self) -> Vec<usize> {
+        match self {
+            Value::Scalar(_) => Vec::new(),
+            Value::Array(items) => {
+                let mut shape = vec![items.len()];
+                if let Some(first) = items.first() {
+                    shape.extend(first.shape());
+                }
+                shape
+            }
+        }
+    }
+}
+
+/// Everything the array layer needs to know about the class it is
+/// working in.
+struct Shapes<'a> {
+    /// Dimensions of every array component visible here, by name.
+    sizes: &'a HashMap<String, Vec<i64>>,
+    /// Values of the loop variables in scope.
+    loop_vars: &'a HashMap<String, f64>,
+    /// Parameter values, for subscripts and lengths.
+    consts: &'a HashMap<String, f64>,
+}
+
+/// Expand an expression into scalars, keeping the array structure while
+/// it is needed and dropping to the scalar path for everything else.
+#[allow(clippy::too_many_arguments)]
+fn expand(
+    expr: &Expr,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    if depth > MAX_DEPTH {
+        return Err("expression nested deeper than the instantiation limit".to_string());
+    }
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let scalar = |e: &Expr| -> Result<Value, String> {
+        Ok(Value::Scalar(resolve(
+            e,
+            shapes.loop_vars,
+            shapes.consts,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+        )?))
+    };
+
+    Ok(match expr {
+        Expr::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+        // A name that was declared with dimensions stands for all of its
+        // elements at once.
+        Expr::Ref(name) if shapes.sizes.contains_key(name) => {
+            elements_of(name, &shapes.sizes[name])
+        }
+        Expr::Neg(inner) => map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e))),
+        Expr::Bin(op, l, r) => combine(*op, &recur(l)?, &recur(r)?, false)?,
+        Expr::Elementwise(op, l, r) => combine(*op, &recur(l)?, &recur(r)?, true)?,
+        Expr::If(condition, then, otherwise) => {
+            let condition = recur(condition)?.scalar()?;
+            let (then, otherwise) = (recur(then)?, recur(otherwise)?);
+            zip_values(&then, &otherwise, &|a, b| {
+                Expr::If(
+                    Box::new(condition.clone()),
+                    Box::new(a.clone()),
+                    Box::new(b.clone()),
+                )
+            })?
+        }
+        Expr::Call(name, args) => expand_call(name, args, shapes, registry, scope, imports, depth)?,
+        other => scalar(other)?,
+    })
+}
+
+/// The scalar references an array name stands for: `v` of `Real v[3]`
+/// is `{v[1], v[2], v[3]}`.
+fn elements_of(name: &str, sizes: &[i64]) -> Value {
+    match sizes.split_first() {
+        None => Value::Scalar(Expr::Ref(name.to_string())),
+        Some((&length, rest)) => Value::Array(
+            (1..=length)
+                .map(|index| {
+                    if rest.is_empty() {
+                        Value::Scalar(Expr::Ref(element_name(name, &[index])))
+                    } else {
+                        // Deeper dimensions keep the subscripts together,
+                        // which is how the flat names are written.
+                        let inner = elements_of(name, rest);
+                        prefix_subscript(&inner, name, index)
+                    }
+                })
+                .collect(),
+        ),
+    }
+}
+
+/// Put an outer subscript in front of the ones a nested value carries.
+fn prefix_subscript(value: &Value, name: &str, index: i64) -> Value {
+    match value {
+        Value::Scalar(Expr::Ref(inner)) => {
+            let subscripts = inner
+                .strip_prefix(name)
+                .and_then(|rest| rest.strip_prefix('['))
+                .and_then(|rest| rest.strip_suffix(']'))
+                .unwrap_or_default();
+            Value::Scalar(Expr::Ref(format!("{name}[{index},{subscripts}]")))
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| prefix_subscript(item, name, index))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// Apply a scalar operation to every element of a value.
+fn map_value(value: &Value, f: &dyn Fn(Expr) -> Expr) -> Value {
+    match value {
+        Value::Scalar(expr) => Value::Scalar(f(expr.clone())),
+        Value::Array(items) => Value::Array(items.iter().map(|item| map_value(item, f)).collect()),
+    }
+}
+
+/// Pair two values element by element, broadcasting a scalar over an
+/// array. Arrays of different shapes are an error, not a guess.
+fn zip_values(
+    left: &Value,
+    right: &Value,
+    f: &dyn Fn(&Expr, &Expr) -> Expr,
+) -> Result<Value, String> {
+    Ok(match (left, right) {
+        (Value::Scalar(a), Value::Scalar(b)) => Value::Scalar(f(a, b)),
+        (Value::Array(items), Value::Scalar(b)) => Value::Array(
+            items
+                .iter()
+                .map(|item| zip_values(item, &Value::Scalar(b.clone()), f))
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+        (Value::Scalar(a), Value::Array(items)) => Value::Array(
+            items
+                .iter()
+                .map(|item| zip_values(&Value::Scalar(a.clone()), item, f))
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+        (Value::Array(a), Value::Array(b)) => {
+            if a.len() != b.len() {
+                return Err(format!(
+                    "arrays of {} and {} elements do not fit together",
+                    a.len(),
+                    b.len()
+                ));
+            }
+            Value::Array(
+                a.iter()
+                    .zip(b)
+                    .map(|(x, y)| zip_values(x, y, f))
+                    .collect::<Result<Vec<_>, String>>()?,
+            )
+        }
+    })
+}
+
+/// Combine two values with an arithmetic operator.
+///
+/// Written with a dot the operator always works element by element.
+/// Written plainly, `+` and `-` do too, while `*` between two vectors is
+/// their scalar product and `/` only divides by a scalar - which is what
+/// the language means by them.
+fn combine(op: BinOp, left: &Value, right: &Value, elementwise: bool) -> Result<Value, String> {
+    let apply = |a: &Expr, b: &Expr| Expr::Bin(op, Box::new(a.clone()), Box::new(b.clone()));
+    if elementwise || matches!(op, BinOp::Add | BinOp::Sub) {
+        return zip_values(left, right, &apply);
+    }
+    match (op, left, right) {
+        (BinOp::Mul, Value::Array(a), Value::Array(b)) => {
+            if a.len() != b.len() {
+                return Err(format!(
+                    "a scalar product needs equal lengths, got {} and {}",
+                    a.len(),
+                    b.len()
+                ));
+            }
+            let products = zip_values(left, right, &apply)?;
+            let mut terms = Vec::new();
+            products.flatten_into(&mut terms);
+            Ok(Value::Scalar(sum_of(terms)))
+        }
+        (BinOp::Div, _, Value::Array(_)) => {
+            Err("an array cannot be a divisor; use `./` for element by element".to_string())
+        }
+        _ => zip_values(left, right, &apply),
+    }
+}
+
+/// The sum of a list of expressions, or zero when it is empty.
+fn sum_of(terms: Vec<Expr>) -> Expr {
+    terms
+        .into_iter()
+        .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+        .unwrap_or(Expr::Number(0.0))
+}
+
+/// The array built-ins, and the ordinary ones applied to every element.
+#[allow(clippy::too_many_arguments)]
+fn expand_call(
+    name: &str,
+    args: &[Expr],
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let constant = |e: &Expr| -> Result<i64, String> {
+        let value = recur(e)?.scalar()?;
+        let mut env = shapes.consts.clone();
+        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+        let value = const_eval(&value, &env)
+            .ok_or_else(|| format!("`{name}` needs a length the compiler can see"))?;
+        if value.fract() != 0.0 || value < 0.0 {
+            return Err(format!(
+                "`{name}`: a length must be a whole number, got {value}"
+            ));
+        }
+        Ok(value as i64)
+    };
+
+    match (name, args.len()) {
+        // How long an array is, which is a compile-time number.
+        ("size", 1) => {
+            let shape = recur(&args[0])?.shape();
+            Ok(Value::Array(
+                shape
+                    .into_iter()
+                    .map(|length| Value::Scalar(Expr::Number(length as f64)))
+                    .collect(),
+            ))
+        }
+        ("size", 2) => {
+            let shape = recur(&args[0])?.shape();
+            let dimension = constant(&args[1])?;
+            let length = shape
+                .get((dimension - 1).max(0) as usize)
+                .ok_or_else(|| format!("size(..., {dimension}): there is no such dimension"))?;
+            Ok(Value::Scalar(Expr::Number(*length as f64)))
+        }
+        // Reductions.
+        ("sum", 1) | ("product", 1) => {
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            Ok(Value::Scalar(match name {
+                "sum" => sum_of(terms),
+                _ => terms
+                    .into_iter()
+                    .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+                    .unwrap_or(Expr::Number(1.0)),
+            }))
+        }
+        ("min", 1) | ("max", 1) => {
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            let reduced = terms
+                .into_iter()
+                .reduce(|a, b| Expr::Call(name.to_string(), vec![a, b]))
+                .ok_or_else(|| format!("`{name}` of an empty array"))?;
+            Ok(Value::Scalar(reduced))
+        }
+        // Constructors.
+        ("zeros", 1) | ("ones", 1) => {
+            let length = constant(&args[0])?;
+            let value = if name == "ones" { 1.0 } else { 0.0 };
+            Ok(Value::Array(
+                (0..length)
+                    .map(|_| Value::Scalar(Expr::Number(value)))
+                    .collect(),
+            ))
+        }
+        ("fill", 2) => {
+            let filler = recur(&args[0])?.scalar()?;
+            let length = constant(&args[1])?;
+            Ok(Value::Array(
+                (0..length).map(|_| Value::Scalar(filler.clone())).collect(),
+            ))
+        }
+        ("linspace", 3) => {
+            let (from, to) = (recur(&args[0])?.scalar()?, recur(&args[1])?.scalar()?);
+            let length = constant(&args[2])?;
+            if length < 2 {
+                return Err("linspace needs at least two points".to_string());
+            }
+            Ok(Value::Array(
+                (0..length)
+                    .map(|index| {
+                        let fraction = index as f64 / (length - 1) as f64;
+                        // from + (to - from) * fraction
+                        Value::Scalar(Expr::Bin(
+                            BinOp::Add,
+                            Box::new(from.clone()),
+                            Box::new(Expr::Bin(
+                                BinOp::Mul,
+                                Box::new(Expr::Bin(
+                                    BinOp::Sub,
+                                    Box::new(to.clone()),
+                                    Box::new(from.clone()),
+                                )),
+                                Box::new(Expr::Number(fraction)),
+                            )),
+                        ))
+                    })
+                    .collect(),
+            ))
+        }
+        _ => {
+            // Anything else: an ordinary call, applied to every element
+            // when an argument turns out to be an array.
+            let values = args
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?;
+            let arrayed = values.iter().any(|value| matches!(value, Value::Array(_)));
+            if !arrayed {
+                let scalars = values
+                    .into_iter()
+                    .map(Value::scalar)
+                    .collect::<Result<Vec<_>, String>>()?;
+                return resolve(
+                    &Expr::Call(name.to_string(), scalars),
+                    shapes.loop_vars,
+                    shapes.consts,
+                    registry,
+                    scope,
+                    imports,
+                    depth + 1,
+                )
+                .map(Value::Scalar);
+            }
+            // The call spreads over the elements, a scalar argument
+            // travelling unchanged to every one - the vectorization the
+            // language gives every scalar function.
+            let length = values
+                .iter()
+                .filter_map(|value| match value {
+                    Value::Array(items) => Some(items.len()),
+                    Value::Scalar(_) => None,
+                })
+                .max()
+                .expect("at least one argument is an array");
+            if values
+                .iter()
+                .any(|value| matches!(value, Value::Array(items) if items.len() != length))
+            {
+                return Err(format!(
+                    "`{name}`: its array arguments must have one length"
+                ));
+            }
+            let elements = (0..length)
+                .map(|index| {
+                    let args = values
+                        .iter()
+                        .map(|value| match value {
+                            Value::Array(items) => items[index].clone().scalar(),
+                            Value::Scalar(expr) => Ok(expr.clone()),
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    // Through `resolve`, so a user function still
+                    // inlines per element instead of surviving as a call.
+                    resolve(
+                        &Expr::Call(name.to_string(), args),
+                        shapes.loop_vars,
+                        shapes.consts,
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                    )
+                    .map(Value::Scalar)
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Array(elements))
+        }
+    }
 }
 
 /// Inline a function call: arguments are bound to the inputs, the
@@ -2433,6 +3038,159 @@ mod tests {
         // An empty loop body.
         assert!(
             err("model M Real y; algorithm for i in 1:2 loop end for; end M;").contains("no body")
+        );
+    }
+
+    #[test]
+    fn arrays_are_values() {
+        // A whole-array equation, a literal, the elementwise operators,
+        // reductions, sizes and constructors - each expanded into the
+        // scalars underneath at compile time.
+        let m = parse_model(
+            "model A parameter Real k[3] = {2, 4, 6}; Real v[3]; Real w[3];              Real total; Real dot;              equation v = {1, 2, 3}; w = 2 * v .* k;              total = sum(v) + size(v, 1) + max(k); dot = v * k; end A;",
+        )
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        // Three scalar equations came out of `w = 2 * v .* k`.
+        assert_eq!(
+            m.equations
+                .iter()
+                .filter(|e| format!("{:?}", e.lhs).contains("w["))
+                .count(),
+            3
+        );
+        // The scalar product is a sum of products, not a vector.
+        assert!(text.contains("dot"), "{text}");
+
+        // Constructors: fill, zeros, linspace; and an array start.
+        let chain = parse_model(
+            "model C parameter Integer n = 4;              parameter Real k[n] = fill(7.0, n);              parameter Real grid[n] = linspace(0.0, 3.0, n);              Real x[n](start = grid);              equation der(x) = zeros(n) .+ k; end C;",
+        )
+        .unwrap();
+        let k2 = chain.components.iter().find(|c| c.name == "k[2]").unwrap();
+        assert_eq!(k2.binding, Some(Expr::Number(7.0)));
+        // Each element starts from its own element of the grid; the
+        // number itself is the simulator's to look up.
+        let x3 = chain.components.iter().find(|c| c.name == "x[3]").unwrap();
+        assert_eq!(x3.start, Some(Expr::Ref("grid[3]".to_string())));
+    }
+
+    #[test]
+    fn matrices_conditionals_and_the_remaining_array_corners() {
+        // A matrix: a two-dimensional literal against a declared shape,
+        // sized in both dimensions, summed and taken apart.
+        let m = parse_model(
+            "model M Real a[2, 3]; Real s; Real rows;              equation a = {{1, 2, 3}, {4, 5, 6}};              s = sum(a) + product({1, 2, 3}); rows = size(a, 1); end M;",
+        )
+        .unwrap();
+        let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"a[2,3]"), "{names:?}");
+        assert_eq!(m.equations.len(), 8, "six elements plus two scalars");
+
+        // An if-expression over whole arrays, with a scalar condition.
+        let picked = parse_model(
+            "model P parameter Boolean top = true; Real v[2];              equation v = if top then {1, 2} else {3, 4}; end P;",
+        )
+        .unwrap();
+        assert_eq!(picked.equations.len(), 2);
+
+        // An elementwise op inside a function argument spreads the call.
+        let spread = parse_model(
+            "model S Real v[2]; Real w[2];              equation v = {0.1, 0.2}; w = sin(v ./ {2, 4}); end S;",
+        )
+        .unwrap();
+        let text = format!("{:?}", spread.equations);
+        assert_eq!(text.matches("Call(\"sin\"").count(), 2, "{text}");
+
+        // `sum` folds the full array expression, `.+` broadcasts, and a
+        // whole-array equation may live inside a for body.
+        let looped = parse_model(
+            "model L parameter Integer n = 2; Real g[n]; Real acc[n];              equation g = fill(3.0, n);              for i in 1:1 loop acc = g .+ 1; end for; end L;",
+        )
+        .unwrap();
+        assert_eq!(looped.equations.len(), 4);
+    }
+
+    #[test]
+    fn the_expression_walkers_cover_the_long_tail() {
+        // One model that drives the rarely-taken arms: logic and
+        // conditionals inside class-constant substitution, subscripted
+        // references under prefixing, `size(v)` without a dimension,
+        // and a boolean fold inside const_eval.
+        let m = parse_model(
+            "package P constant Real lim = 2; end P;              model W parameter Boolean wide = true;              parameter Real q = if wide and not (P.lim > 3) then 1 else 0;              Real v[2]; Real n[1]; Real s;              equation v = {if wide then P.lim else 0, P.lim};              n = size(v) .+ 0; s = v[1] + q; end W;",
+        )
+        .unwrap();
+        let q = m.components.iter().find(|c| c.name == "q").unwrap();
+        // The condition folded: wide and the package constant are known.
+        assert!(format!("{:?}", q.binding).contains("If"), "{:?}", q.binding);
+        assert_eq!(m.equations.len(), 4);
+
+        // Functions with array-aware bodies still inline per element,
+        // and substitution reaches through every operator on the way.
+        let inlined = parse_model(
+            "function pick input Real a; input Real b; output Real c;              algorithm c := if a > b or a < -b then a else -b; end pick;             model F Real v[2]; Real w[2];              equation v = {1, -3}; w = pick(v .* {1, 1}, fill(2.0, 2)); end F;",
+        )
+        .unwrap();
+        assert!(
+            !format!("{:?}", inlined.equations).contains("Call(\"pick\""),
+            "the call must inline"
+        );
+    }
+
+    #[test]
+    fn arrays_refuse_what_does_not_fit() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // Shapes that do not match.
+        assert!(
+            err("model M Real v[3]; Real w[2]; equation v = {1, 2, 3}; w = v; end M;")
+                .contains("shapes")
+        );
+        // An array where a scalar belongs.
+        assert!(
+            err("model M Real v[2]; Real s; equation v = {1, 2}; s = sin(v) + 1; end M;")
+                .contains("scalar")
+                || err("model M Real v[2]; Real s; equation v = {1, 2}; s = sin(v) + 1; end M;")
+                    .contains("shapes")
+        );
+        // Dividing by an array.
+        assert!(
+            err("model M Real v[2]; Real w[2]; equation v = {1, 2}; w = 1 / v; end M;")
+                .contains("divisor")
+        );
+        // A binding of the wrong length.
+        assert!(
+            err("model M parameter Real k[3] = {1, 2}; Real x; equation x = k[1]; end M;")
+                .contains("element")
+        );
+        // size of a missing dimension.
+        assert!(
+            err("model M Real v[2]; Real s; equation v = {1, 2}; s = size(v, 3); end M;")
+                .contains("no such dimension")
+        );
+        // Elementwise between lengths that differ.
+        assert!(err(
+            "model M Real v[3]; Real w[3]; equation v = {1, 2, 3}; w = v .* {1, 2}; end M;"
+        )
+        .contains("do not fit together"));
+        // A scalar product between different lengths.
+        assert!(
+            err("model M Real v[3]; Real s; equation v = {1, 2, 3}; s = v * {1, 2}; end M;")
+                .contains("equal lengths")
+        );
+        // A start attribute of the wrong length.
+        assert!(
+            err("model M Real x[3](start = {1, 2}); equation der(x) = zeros(3); end M;")
+                .contains("start has 2")
+        );
+        // linspace without enough points, a bad fill length.
+        assert!(
+            err("model M Real v[1]; equation v = linspace(0, 1, 1); end M;")
+                .contains("at least two")
+        );
+        assert!(
+            err("model M Real v[2]; Real q; equation q = 1; v = fill(1.0, q); end M;")
+                .contains("compiler can see")
         );
     }
 

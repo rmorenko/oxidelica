@@ -368,6 +368,13 @@ pub enum Expr {
     Index(Box<Expr>, Vec<Expr>),
     /// Member of a subscripted component: `points[i].x`.
     Member(Box<Expr>, String),
+    /// An array written out: `{1, 2, 3}`, or `{{1, 2}, {3, 4}}` for a
+    /// matrix. Arrays are a compile-time shape here: flattening turns
+    /// them into the scalars underneath.
+    Array(Vec<Expr>),
+    /// An operator written with a dot - `.*`, `./`, `.^` - which works
+    /// element by element even where the plain one would not.
+    Elementwise(BinOp, Box<Expr>, Box<Expr>),
 }
 
 impl Expr {
@@ -396,6 +403,8 @@ impl Expr {
                 base.contains_der() || subscripts.iter().any(Expr::contains_der)
             }
             Expr::Member(base, _) => base.contains_der(),
+            Expr::Array(items) => items.iter().any(Expr::contains_der),
+            Expr::Elementwise(_, l, r) => l.contains_der() || r.contains_der(),
             _ => false,
         }
     }
@@ -420,6 +429,11 @@ impl Expr {
                 subscripts.iter().for_each(|s| s.collect_refs(out));
             }
             Expr::Member(base, _) => base.collect_refs(out),
+            Expr::Array(items) => items.iter().for_each(|item| item.collect_refs(out)),
+            Expr::Elementwise(_, l, r) => {
+                l.collect_refs(out);
+                r.collect_refs(out);
+            }
             _ => {}
         }
     }

@@ -690,8 +690,11 @@ impl EventRewrite<'_> {
                 Box::new(self.expr(a)?),
                 Box::new(self.expr(b)?),
             ),
-            Expr::Index(_, _) | Expr::Member(_, _) => {
-                return err("subscripts survive flattening only as scalar names".to_string())
+            Expr::Index(_, _)
+            | Expr::Member(_, _)
+            | Expr::Array(_)
+            | Expr::Elementwise(_, _, _) => {
+                return err("subscripts and arrays survive flattening only as scalars".to_string())
             }
             Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
         })
@@ -1604,8 +1607,11 @@ fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
             collect_relations(b, out);
         }
         Expr::Call(_, args) => args.iter().for_each(|a| collect_relations(a, out)),
+        // Arrays are expanded into scalars before any of this runs.
         Expr::Index(_, _)
         | Expr::Member(_, _)
+        | Expr::Array(_)
+        | Expr::Elementwise(_, _, _)
         | Expr::Number(_)
         | Expr::Bool(_)
         | Expr::Ref(_)
@@ -1672,6 +1678,8 @@ fn simplify(expr: &Expr) -> Expr {
         | Expr::Bool(_)
         | Expr::Ref(_)
         | Expr::Time => expr.clone(),
+        // Arrays never reach here: flattening expands them.
+        Expr::Array(_) | Expr::Elementwise(_, _, _) => expr.clone(),
     }
 }
 
@@ -1709,7 +1717,9 @@ fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
             Box::new(substitute(a, var, value)),
             Box::new(substitute(b, var, value)),
         ),
-        Expr::Index(_, _) | Expr::Member(_, _) => expr.clone(),
+        Expr::Index(_, _) | Expr::Member(_, _) | Expr::Array(_) | Expr::Elementwise(_, _, _) => {
+            expr.clone()
+        }
     }
 }
 
@@ -2107,8 +2117,11 @@ impl SlotTable {
                 Box::new(self.compile(otherwise)?),
             ),
             Expr::Call(name, args) => self.compile_call(name, args)?,
-            Expr::Index(_, _) | Expr::Member(_, _) => {
-                return err("subscripts survive flattening only as scalar names".to_string())
+            Expr::Index(_, _)
+            | Expr::Member(_, _)
+            | Expr::Array(_)
+            | Expr::Elementwise(_, _, _) => {
+                return err("subscripts and arrays survive flattening only as scalars".to_string())
             }
         })
     }
@@ -2331,6 +2344,11 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                 }
                 other => return err(format!("unknown function `{other}`")),
             }
+        }
+        // Arrays are expanded into scalars while flattening, so one
+        // here would mean the compiler let something through.
+        Expr::Array(_) | Expr::Elementwise(_, _, _) => {
+            return err("an array reached the evaluator".to_string())
         }
     })
 }
@@ -5480,6 +5498,33 @@ mod tests {
         // by nothing, and the caller falls back to the dense path.
         let mut hollow = vec![vec![0.0, 0.0, 1.0], vec![1.0, 0.0, 0.0]];
         assert!(solve_banded(&mut hollow, 1, &[1.0, 1.0]).is_none());
+    }
+
+    #[test]
+    fn a_chain_of_masses_written_with_arrays_conserves_energy() {
+        // Five bodies between two walls, everything about them arrays:
+        // literals, fill, linspace, an array start, whole-array
+        // equations and reductions. The check is physical, not textual:
+        // the first body is pushed and the energy must stay put.
+        let result = compile(&with_library("spring_chain.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let energy = index("energy");
+        let first = result.rows[0][energy];
+        // 0.5 * m[1] * push^2 with m[1] = 1 and push = 2.
+        assert!((first - 2.0).abs() < 1e-9, "{first}");
+        for row in &result.rows {
+            assert!(
+                (row[energy] - first).abs() < 1e-6,
+                "drift at t = {}",
+                row[0]
+            );
+        }
+        // The bodies start on the linspace grid.
+        assert!((result.rows[0][index("x[1]")] - 0.5).abs() < 1e-12);
+        assert!((result.rows[0][index("x[5]")] - 2.5).abs() < 1e-12);
     }
 
     #[test]
