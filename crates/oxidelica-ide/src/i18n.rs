@@ -144,6 +144,7 @@ define_strings!(
     params_title,
     inits_title,
     reset_all,
+    simulating,
 );
 
 #[cfg(test)]

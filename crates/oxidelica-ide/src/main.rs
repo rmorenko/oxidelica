@@ -16,6 +16,7 @@ use egui_plot::{Legend, Line, Plot, PlotPoints};
 use i18n::Lang;
 use settings::{Settings, Theme};
 use std::path::PathBuf;
+use std::sync::{mpsc, Mutex};
 use std::time::Instant;
 
 /// Model shown when no example files are found.
@@ -184,6 +185,21 @@ struct Ide {
     anim: Anim,
     /// Live parameter/initial-value tuner.
     tuner: Tuner,
+    /// The in-flight background simulation, if any.
+    sim_job: Option<SimJob>,
+}
+
+/// A background simulation running on a worker thread.
+struct SimJob {
+    /// Wrapped in a Mutex because Bevy resources must be `Sync`.
+    #[allow(clippy::type_complexity)]
+    receiver: Mutex<
+        mpsc::Receiver<(
+            String,
+            Result<oxidelica_sim::SimResult, oxidelica_sim::SimError>,
+        )>,
+    >,
+    started: Instant,
 }
 
 fn main() {
@@ -223,6 +239,7 @@ fn main() {
             view: ViewMode::Plots,
             anim: Anim::default(),
             tuner: Tuner::default(),
+            sim_job: None,
         })
         .add_systems(Startup, view3d::setup)
         .add_systems(Update, (ui_system, view3d::sync_scene).chain())
@@ -332,6 +349,24 @@ fn ui_system(
 
     if !ide.tuner.initialized {
         refresh_tuner(ide);
+    }
+
+    // Collect a finished background simulation.
+    if let Some(job) = &ide.sim_job {
+        let received = job.receiver.lock().map(|rx| rx.try_recv());
+        match received.unwrap_or(Err(mpsc::TryRecvError::Disconnected)) {
+            Ok((name, outcome)) => {
+                let elapsed = job.started.elapsed();
+                ide.sim_job = None;
+                apply_sim_outcome(ide, name, outcome, elapsed);
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                ide.sim_job = None;
+                ide.log = s.sim_error.into();
+                ide.log_ok = false;
+            }
+        }
     }
 
     // --- menu bar ---
@@ -477,13 +512,24 @@ fn ui_system(
     egui::TopBottomPanel::bottom("log").show(ctx, |ui| {
         ui.add_space(2.0);
         ui.horizontal(|ui| {
-            let (icon, color) = if ide.log_ok {
-                (icons::CHECK_CIRCLE, p.ok_green)
+            if let Some(job) = &ide.sim_job {
+                let spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+                let index = (job.started.elapsed().as_millis() / 90) as usize % spinner.len();
+                ui.label(
+                    egui::RichText::new(spinner[index])
+                        .color(p.accent)
+                        .size(15.0),
+                );
+                ui.monospace(format!("{}… {:.1?}", s.simulating, job.started.elapsed()));
             } else {
-                (icons::X_CIRCLE, p.error_red)
-            };
-            ui.label(egui::RichText::new(icon).color(color).size(15.0));
-            ui.monospace(&ide.log);
+                let (icon, color) = if ide.log_ok {
+                    (icons::CHECK_CIRCLE, p.ok_green)
+                } else {
+                    (icons::X_CIRCLE, p.error_red)
+                };
+                ui.label(egui::RichText::new(icon).color(color).size(15.0));
+                ui.monospace(&ide.log);
+            }
         });
         ui.add_space(2.0);
     });
@@ -602,6 +648,7 @@ fn ui_system(
 
     // Debounced live re-simulation after tuner changes.
     if ide.tuner.dirty
+        && ide.sim_job.is_none()
         && ide
             .tuner
             .last_change
@@ -824,10 +871,11 @@ fn animation_ui(
     });
 }
 
-/// Parse, compile and simulate the editor buffer; report to the log line.
+/// Parse and compile the editor buffer, then launch the simulation on
+/// a worker thread; the UI stays responsive and the result is picked
+/// up by `ui_system` on a later frame.
 fn run_simulation(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
-    let started = Instant::now();
     ide.log_ok = false;
     let model = match oxidelica_parser::parse_model(&ide.source) {
         Ok(model) => model,
@@ -845,16 +893,35 @@ fn run_simulation(ide: &mut Ide) {
     };
     ide.tuner.refresh(&compiled);
     ide.tuner.apply(&mut compiled);
-    match compiled.simulate() {
+
+    let (sender, receiver) = mpsc::channel();
+    std::thread::spawn(move || {
+        let outcome = compiled.simulate();
+        let _ = sender.send((compiled.name.clone(), outcome));
+    });
+    ide.sim_job = Some(SimJob {
+        receiver: Mutex::new(receiver),
+        started: Instant::now(),
+    });
+}
+
+/// Apply a finished background simulation to the IDE state.
+fn apply_sim_outcome(
+    ide: &mut Ide,
+    name: String,
+    outcome: Result<oxidelica_sim::SimResult, oxidelica_sim::SimError>,
+    elapsed: std::time::Duration,
+) {
+    let s = ide.settings.lang.strings();
+    match outcome {
         Ok(result) => {
             ide.log = match &result.terminated {
-                Some(message) => format!("{}: {message}", compiled.name),
+                Some(message) => format!("{name}: {message}"),
                 None => format!(
-                    "{}: {} {} {:.1?}; {}: {}",
-                    compiled.name,
+                    "{name}: {} {} {:.1?}; {}: {}",
                     result.rows.len().saturating_sub(1),
                     s.steps_in,
-                    started.elapsed(),
+                    elapsed,
                     s.variables,
                     result.columns[1..].join(", ")
                 ),
@@ -891,6 +958,9 @@ fn run_simulation(ide: &mut Ide) {
                 rows: result.rows,
             });
         }
-        Err(e) => ide.log = format!("{}: {e}", s.sim_error),
+        Err(e) => {
+            ide.log = format!("{}: {e}", s.sim_error);
+            ide.log_ok = false;
+        }
     }
 }

@@ -38,6 +38,16 @@ pub enum SolverMethod {
     Rk4,
 }
 
+/// One step of the algebraic evaluation plan.
+#[derive(Debug)]
+enum AlgStage {
+    /// A single explicit assignment (index into `algebraics`).
+    Explicit(usize),
+    /// A block of mutually dependent variables solved by Newton
+    /// iteration (indices into `algebraics`).
+    Implicit(Vec<usize>),
+}
+
 /// A model reduced to "states plus ordered algebraic assignments".
 #[derive(Debug)]
 pub struct CompiledModel {
@@ -54,6 +64,10 @@ pub struct CompiledModel {
     /// Algebraic variables in evaluation order.
     pub algebraics: Vec<String>,
     algebraic_exprs: Vec<Expr>,
+    /// Initial Newton guesses for algebraic variables (start attributes).
+    algebraic_start: Vec<f64>,
+    /// Evaluation plan: explicit assignments and implicit Newton blocks.
+    stages: Vec<AlgStage>,
     /// Simulation end time.
     pub stop_time: f64,
     /// Integration step (fixed step for RK4, output grid for Dopri45).
@@ -189,8 +203,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         ));
     }
 
-    // 4. Topological sort of algebraic assignments.
-    let ordered_algs = topo_sort(&algebraic_names, &alg_rhs)?;
+    // 4. Evaluation plan: explicit assignments in dependency order,
+    // the mutually dependent remainder as one implicit Newton block
+    // (per-loop tearing arrives with M3).
+    let (ordered_algs, stages) = build_stages(&algebraic_names, &alg_rhs);
 
     // 5. Initial state values.
     let ctx = EvalCtx {
@@ -208,7 +224,19 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     }
 
     let derivatives = states.iter().map(|s| state_rhs[s].clone()).collect();
-    let algebraic_exprs = ordered_algs.iter().map(|a| alg_rhs[a].clone()).collect();
+    let algebraic_exprs: Vec<Expr> = ordered_algs.iter().map(|a| alg_rhs[a].clone()).collect();
+    let algebraic_start: Vec<f64> = ordered_algs
+        .iter()
+        .map(|name| {
+            model
+                .components
+                .iter()
+                .find(|c| &c.name == name)
+                .and_then(|c| c.start.as_ref())
+                .and_then(|expr| eval(expr, &ctx).ok())
+                .unwrap_or(0.0)
+        })
+        .collect();
 
     let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
@@ -221,6 +249,8 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         derivatives,
         algebraics: ordered_algs,
         algebraic_exprs,
+        algebraic_start,
+        stages,
         stop_time: model.experiment.stop_time.unwrap_or(1.0),
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
@@ -229,8 +259,11 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     })
 }
 
-fn topo_sort(names: &[String], exprs: &HashMap<String, Expr>) -> Result<Vec<String>, SimError> {
+/// Order algebraic assignments; anything cyclic becomes a single
+/// implicit block appended after the explicit prefix.
+fn build_stages(names: &[String], exprs: &HashMap<String, Expr>) -> (Vec<String>, Vec<AlgStage>) {
     let mut ordered = Vec::new();
+    let mut stages = Vec::new();
     let mut done: Vec<&str> = Vec::new();
     let mut remaining: Vec<&String> = names.iter().collect();
     while !remaining.is_empty() {
@@ -242,6 +275,7 @@ fn topo_sort(names: &[String], exprs: &HashMap<String, Expr>) -> Result<Vec<Stri
                 .iter()
                 .all(|r| done.contains(r) || !names.iter().any(|n| n == r));
             if ready {
+                stages.push(AlgStage::Explicit(ordered.len()));
                 ordered.push((*name).clone());
                 done.push(name.as_str());
                 false
@@ -250,13 +284,17 @@ fn topo_sort(names: &[String], exprs: &HashMap<String, Expr>) -> Result<Vec<Stri
             }
         });
         if remaining.len() == before {
-            let cycle: Vec<_> = remaining.iter().map(|s| s.as_str()).collect();
-            return Err(SimError(format!(
-                "cyclic dependency among algebraic variables {cycle:?} (M1: implicit systems)"
-            )));
+            // The rest is one implicit block.
+            let base = ordered.len();
+            let block: Vec<usize> = (0..remaining.len()).map(|i| base + i).collect();
+            for name in &remaining {
+                ordered.push((*name).clone());
+            }
+            stages.push(AlgStage::Implicit(block));
+            break;
         }
     }
-    Ok(ordered)
+    (ordered, stages)
 }
 
 // --- expression evaluation ---
@@ -456,6 +494,42 @@ impl CompiledModel {
     }
 }
 
+/// Solve `a * x = b` in place by Gaussian elimination with partial
+/// pivoting; `None` on a (numerically) singular matrix.
+fn solve_linear(a: &mut [Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
+    let n = b.len();
+    let mut x = b.to_vec();
+    for col in 0..n {
+        let pivot_row = (col..n).max_by(|&r1, &r2| {
+            a[r1][col]
+                .abs()
+                .partial_cmp(&a[r2][col].abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+        if a[pivot_row][col].abs() < 1e-14 {
+            return None;
+        }
+        a.swap(col, pivot_row);
+        x.swap(col, pivot_row);
+        for row in (col + 1)..n {
+            let factor = a[row][col] / a[col][col];
+            let (upper, lower) = a.split_at_mut(row);
+            for (k, value) in lower[0].iter_mut().enumerate().take(n).skip(col) {
+                *value -= factor * upper[col][k];
+            }
+            x[row] -= factor * x[col];
+        }
+    }
+    for col in (0..n).rev() {
+        for k in (col + 1)..n {
+            let prev = x[k];
+            x[col] -= a[col][k] * prev;
+        }
+        x[col] /= a[col][col];
+    }
+    Some(x)
+}
+
 // --- integration ---
 
 /// Simulation output: a table of time, states and algebraic variables.
@@ -493,6 +567,7 @@ impl CompiledModel {
         y: &[f64],
         env: &mut HashMap<String, f64>,
         derivatives_out: &mut Vec<f64>,
+        alg_guess: &mut [f64],
     ) -> Result<(), SimError> {
         env.clear();
         for (name, value) in &self.parameters {
@@ -501,15 +576,98 @@ impl CompiledModel {
         for (name, value) in self.states.iter().zip(y) {
             env.insert(name.clone(), *value);
         }
-        for (name, expr) in self.algebraics.iter().zip(&self.algebraic_exprs) {
-            let value = eval(expr, &EvalCtx { vars: env, time: t })?;
-            env.insert(name.clone(), value);
+        for stage in &self.stages {
+            match stage {
+                AlgStage::Explicit(index) => {
+                    let value = eval(
+                        &self.algebraic_exprs[*index],
+                        &EvalCtx { vars: env, time: t },
+                    )?;
+                    env.insert(self.algebraics[*index].clone(), value);
+                }
+                AlgStage::Implicit(block) => {
+                    self.solve_implicit_block(t, env, block, alg_guess)?;
+                }
+            }
         }
         derivatives_out.clear();
         for expr in &self.derivatives {
             derivatives_out.push(eval(expr, &EvalCtx { vars: env, time: t })?);
         }
         Ok(())
+    }
+
+    /// Solve one implicit algebraic block by damped-free Newton
+    /// iteration with a finite-difference Jacobian. `alg_guess` supplies
+    /// warm starts (the previous evaluation point) and receives the
+    /// solution.
+    fn solve_implicit_block(
+        &self,
+        t: f64,
+        env: &mut HashMap<String, f64>,
+        block: &[usize],
+        alg_guess: &mut [f64],
+    ) -> Result<(), SimError> {
+        let n = block.len();
+        let mut v: Vec<f64> = block.iter().map(|&i| alg_guess[i]).collect();
+
+        let residual = |env: &mut HashMap<String, f64>, v: &[f64]| -> Result<Vec<f64>, SimError> {
+            for (j, &index) in block.iter().enumerate() {
+                env.insert(self.algebraics[index].clone(), v[j]);
+            }
+            let mut f = Vec::with_capacity(n);
+            for (j, &index) in block.iter().enumerate() {
+                let value = eval(
+                    &self.algebraic_exprs[index],
+                    &EvalCtx { vars: env, time: t },
+                )?;
+                f.push(value - v[j]);
+            }
+            Ok(f)
+        };
+        let block_names =
+            || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
+
+        for _ in 0..50 {
+            let f = residual(env, &v)?;
+            let converged = f
+                .iter()
+                .zip(&v)
+                .all(|(fi, vi)| fi.abs() <= 1e-10 * (1.0 + vi.abs()));
+            if converged {
+                for (j, &index) in block.iter().enumerate() {
+                    alg_guess[index] = v[j];
+                }
+                return Ok(());
+            }
+            // Finite-difference Jacobian of the residual.
+            let mut jac = vec![vec![0.0f64; n]; n];
+            for j in 0..n {
+                let h = 1e-8 * (1.0 + v[j].abs());
+                let mut perturbed = v.clone();
+                perturbed[j] += h;
+                let fp = residual(env, &perturbed)?;
+                for (i, row) in jac.iter_mut().enumerate() {
+                    row[j] = (fp[i] - f[i]) / h;
+                }
+            }
+            let Some(dv) = solve_linear(&mut jac, &f) else {
+                return err(format!(
+                    "singular Jacobian in algebraic loop {:?}",
+                    block_names()
+                ));
+            };
+            for j in 0..n {
+                v[j] -= dv[j];
+            }
+            if v.iter().any(|value| !value.is_finite()) {
+                return err(format!("algebraic loop diverged: {:?}", block_names()));
+            }
+        }
+        err(format!(
+            "algebraic loop did not converge in 50 Newton iterations: {:?}",
+            block_names()
+        ))
     }
 
     /// Integrate over `[0, stop_time]` with the selected method.
@@ -595,9 +753,10 @@ impl CompiledModel {
         let mut record = |t: f64,
                           y: &[f64],
                           env: &mut HashMap<String, f64>,
-                          k: &mut Vec<f64>|
+                          k: &mut Vec<f64>,
+                          alg_guess: &mut [f64]|
          -> Result<(), SimError> {
-            self.eval_point(t, y, env, k)?;
+            self.eval_point(t, y, env, k, alg_guess)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len());
             row.push(t);
             row.extend_from_slice(y);
@@ -609,9 +768,10 @@ impl CompiledModel {
         };
 
         let mut y = self.initial.clone();
+        let mut alg_guess = self.algebraic_start.clone();
         let mut last_out_t = 0.0f64;
         let mut terminated: Option<String> = None;
-        record(0.0, &y, &mut env, &mut derivatives_scratch)?;
+        record(0.0, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
         if let Some(message) = self.check_terminations(0.0, &env)? {
             return Ok(SimResult {
                 columns,
@@ -628,7 +788,7 @@ impl CompiledModel {
                 if t > stop + 1e-12 {
                     break;
                 }
-                record(t, &y, &mut env, &mut derivatives_scratch)?;
+                record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
                 last_out_t = t;
                 out_i += 1;
                 terminated = self.check_terminations(t, &env)?;
@@ -637,7 +797,7 @@ impl CompiledModel {
                 }
             }
             if terminated.is_none() && last_out_t < stop - 1e-12 {
-                record(stop, &y, &mut env, &mut derivatives_scratch)?;
+                record(stop, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
             }
             return Ok(SimResult {
                 columns,
@@ -655,7 +815,7 @@ impl CompiledModel {
         let mut out_i = 1usize;
         let mut evals: u64 = 0;
 
-        self.eval_point(t, &y, &mut env, &mut k[0])?;
+        self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess)?;
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
@@ -670,7 +830,7 @@ impl CompiledModel {
                 }
                 let (head, tail) = k.split_at_mut(s);
                 let _ = head;
-                self.eval_point(t + C[s] * h, &stage, &mut env, &mut tail[0])?;
+                self.eval_point(t + C[s] * h, &stage, &mut env, &mut tail[0], &mut alg_guess)?;
             }
             evals += 6;
             if evals > 20_000_000 {
@@ -700,7 +860,7 @@ impl CompiledModel {
             let accepted = err_norm.is_finite() && err_norm <= 1.0;
             if accepted {
                 // FSAL: the derivative at t+h.
-                self.eval_point(t + h, &y5, &mut env, &mut k[6])?;
+                self.eval_point(t + h, &y5, &mut env, &mut k[6], &mut alg_guess)?;
                 evals += 1;
                 // Dense output on the grid via cubic Hermite interpolation.
                 loop {
@@ -720,7 +880,13 @@ impl CompiledModel {
                                     + (theta - 1.0) * h * f0
                                     + theta * h * f1);
                     }
-                    record(out_t, &interp, &mut env, &mut derivatives_scratch)?;
+                    record(
+                        out_t,
+                        &interp,
+                        &mut env,
+                        &mut derivatives_scratch,
+                        &mut alg_guess,
+                    )?;
                     last_out_t = out_t;
                     out_i += 1;
                     terminated = self.check_terminations(out_t, &env)?;
@@ -751,7 +917,7 @@ impl CompiledModel {
             }
         }
         if terminated.is_none() && last_out_t < stop - 1e-12 {
-            record(stop, &y, &mut env, &mut derivatives_scratch)?;
+            record(stop, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
             terminated = self.check_terminations(stop, &env)?;
         }
         Ok(SimResult {
@@ -766,6 +932,7 @@ impl CompiledModel {
         let n = self.states.len();
         let steps = (self.stop_time / self.step).ceil() as usize;
         let mut y = self.initial.clone();
+        let mut alg_guess = self.algebraic_start.clone();
         let mut env = HashMap::new();
         let (mut k1, mut k2, mut k3, mut k4) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut scratch = vec![0.0; n];
@@ -779,9 +946,10 @@ impl CompiledModel {
                           y: &[f64],
                           env: &mut HashMap<String, f64>,
                           k: &mut Vec<f64>,
-                          this: &CompiledModel|
+                          this: &CompiledModel,
+                          alg_guess: &mut [f64]|
          -> Result<(), SimError> {
-            this.eval_point(t, y, env, k)?;
+            this.eval_point(t, y, env, k, alg_guess)?;
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
             row.extend_from_slice(y);
@@ -792,7 +960,7 @@ impl CompiledModel {
             Ok(())
         };
 
-        record(0.0, &y, &mut env, &mut k1, self)?;
+        record(0.0, &y, &mut env, &mut k1, self, &mut alg_guess)?;
         let mut terminated = self.check_terminations(0.0, &env)?;
 
         for i in 0..steps {
@@ -802,23 +970,23 @@ impl CompiledModel {
             let t = i as f64 * self.step;
             let h = (self.stop_time - t).min(self.step);
 
-            self.eval_point(t, &y, &mut env, &mut k1)?;
+            self.eval_point(t, &y, &mut env, &mut k1, &mut alg_guess)?;
             for j in 0..n {
                 scratch[j] = y[j] + 0.5 * h * k1[j];
             }
-            self.eval_point(t + 0.5 * h, &scratch, &mut env, &mut k2)?;
+            self.eval_point(t + 0.5 * h, &scratch, &mut env, &mut k2, &mut alg_guess)?;
             for j in 0..n {
                 scratch[j] = y[j] + 0.5 * h * k2[j];
             }
-            self.eval_point(t + 0.5 * h, &scratch, &mut env, &mut k3)?;
+            self.eval_point(t + 0.5 * h, &scratch, &mut env, &mut k3, &mut alg_guess)?;
             for j in 0..n {
                 scratch[j] = y[j] + h * k3[j];
             }
-            self.eval_point(t + h, &scratch, &mut env, &mut k4)?;
+            self.eval_point(t + h, &scratch, &mut env, &mut k4, &mut alg_guess)?;
             for j in 0..n {
                 y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
             }
-            record(t + h, &y, &mut env, &mut k1, self)?;
+            record(t + h, &y, &mut env, &mut k1, self, &mut alg_guess)?;
             terminated = self.check_terminations(t + h, &env)?;
         }
 
@@ -907,11 +1075,60 @@ mod tests {
     }
 
     #[test]
-    fn reports_algebraic_cycle() {
+    fn degenerate_algebraic_cycle_reports_singular_jacobian() {
+        // x = y + 1 and y = x - 1 are the same equation twice: the
+        // loop compiles but its Jacobian is singular.
         let model =
             parse_model("model C Real x; Real y; equation x = y + 1; y = x - 1; end C;").unwrap();
-        let error = compile(&model).unwrap_err();
-        assert!(error.0.contains("cyclic"), "{}", error.0);
+        let error = compile(&model).unwrap().simulate().unwrap_err();
+        assert!(error.0.contains("singular Jacobian"), "{}", error.0);
+    }
+
+    #[test]
+    fn solves_linear_algebraic_loop() {
+        // x = y/2 + 1, y = x/2 + 1  ->  x = y = 2.
+        let result = run(
+            "model L Real x; Real y; equation x = y / 2 + 1; y = x / 2 + 1; \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end L;",
+        );
+        let x_idx = result.columns.iter().position(|c| c == "x").unwrap();
+        let y_idx = result.columns.iter().position(|c| c == "y").unwrap();
+        assert!((result.rows[0][x_idx] - 2.0).abs() < 1e-9);
+        assert!((result.rows[0][y_idx] - 2.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn solves_nonlinear_self_reference() {
+        // x = cos(x): the Dottie number 0.739085...
+        let result = run("model D Real x(start = 1); equation x = cos(x); \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end D;");
+        assert!(
+            (result.rows[0][1] - 0.739_085_133_2).abs() < 1e-8,
+            "{}",
+            result.rows[0][1]
+        );
+    }
+
+    #[test]
+    fn algebraic_loop_follows_a_state() {
+        // The loop depends on a state: x = y/2 + s, y = x/2, so
+        // x = (2/3) s ... wait: x = y/2 + s and y = x/2 -> x = x/4 + s
+        // -> x = (4/3) s, y = (2/3) s.
+        let result = run("model F Real s(start = 3.0); Real x; Real y; equation \
+             der(s) = 0; x = y / 2 + s; y = x / 2; \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end F;");
+        let x_idx = result.columns.iter().position(|c| c == "x").unwrap();
+        let y_idx = result.columns.iter().position(|c| c == "y").unwrap();
+        assert!(
+            (result.rows[0][x_idx] - 4.0).abs() < 1e-9,
+            "{}",
+            result.rows[0][x_idx]
+        );
+        assert!(
+            (result.rows[0][y_idx] - 2.0).abs() < 1e-9,
+            "{}",
+            result.rows[0][y_idx]
+        );
     }
 
     fn compile_err(source: &str) -> String {
