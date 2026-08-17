@@ -158,18 +158,51 @@ fn draw_symbol(painter: &egui::Painter, area: egui::Rect, class: &str, color: eg
             let radius = h * 0.38;
             leads(centre.x - radius, centre.x + radius);
             painter.circle_stroke(centre, radius, stroke);
-            let mark = match short {
-                "SineVoltage" => "~",
-                "StepVoltage" => "\u{2514}\u{2500}",
-                _ => "\u{2013}\u{2013}",
-            };
-            painter.text(
-                centre,
-                egui::Align2::CENTER_CENTER,
-                mark,
-                egui::FontId::proportional(13.0),
-                color,
-            );
+            // The mark inside the circle is drawn, not typed: a font
+            // without the glyph would otherwise show a stray symbol.
+            let r = radius * 0.55;
+            match short {
+                "SineVoltage" => {
+                    let points: Vec<egui::Pos2> = (0..=12)
+                        .map(|i| {
+                            let phase = i as f32 / 12.0;
+                            egui::pos2(
+                                centre.x - r + 2.0 * r * phase,
+                                centre.y - r * 0.7 * (phase * std::f32::consts::TAU).sin(),
+                            )
+                        })
+                        .collect();
+                    painter.add(egui::Shape::line(points, stroke));
+                }
+                "StepVoltage" => {
+                    painter.add(egui::Shape::line(
+                        vec![
+                            egui::pos2(centre.x - r, centre.y + r * 0.6),
+                            egui::pos2(centre.x, centre.y + r * 0.6),
+                            egui::pos2(centre.x, centre.y - r * 0.6),
+                            egui::pos2(centre.x + r, centre.y - r * 0.6),
+                        ],
+                        stroke,
+                    ));
+                }
+                _ => {
+                    // Battery symbol: a long plate and a short one.
+                    painter.line_segment(
+                        [
+                            egui::pos2(centre.x - r * 0.4, centre.y - r),
+                            egui::pos2(centre.x - r * 0.4, centre.y + r),
+                        ],
+                        stroke,
+                    );
+                    painter.line_segment(
+                        [
+                            egui::pos2(centre.x + r * 0.4, centre.y - r * 0.5),
+                            egui::pos2(centre.x + r * 0.4, centre.y + r * 0.5),
+                        ],
+                        stroke,
+                    );
+                }
+            }
         }
         "EMF" => {
             let radius = h * 0.38;
@@ -540,7 +573,7 @@ impl Diagram {
     pub fn palette_ui(&self, ui: &mut egui::Ui, filter: &mut String) -> Option<String> {
         let mut chosen = None;
         ui.horizontal(|ui| {
-            ui.label("\u{1F50D}");
+            ui.label(egui_phosphor::regular::MAGNIFYING_GLASS);
             ui.add(
                 egui::TextEdit::singleline(filter)
                     .desired_width(f32::INFINITY)
@@ -630,13 +663,22 @@ impl Diagram {
             painter.line_segment([a, b], egui::Stroke::new(width, color));
             if selected || near {
                 let middle = a + (b - a) * 0.5;
-                painter.circle_filled(middle, 5.0, color);
-                painter.text(
-                    middle,
-                    egui::Align2::CENTER_CENTER,
-                    "\u{00D7}",
-                    egui::FontId::proportional(11.0),
-                    visuals.extreme_bg_color,
+                painter.circle_filled(middle, 5.5, color);
+                let arm = 2.6;
+                let cross = egui::Stroke::new(1.6, visuals.extreme_bg_color);
+                painter.line_segment(
+                    [
+                        middle + egui::vec2(-arm, -arm),
+                        middle + egui::vec2(arm, arm),
+                    ],
+                    cross,
+                );
+                painter.line_segment(
+                    [
+                        middle + egui::vec2(-arm, arm),
+                        middle + egui::vec2(arm, -arm),
+                    ],
+                    cross,
                 );
             }
         }

@@ -550,14 +550,8 @@ fn ui_system(
         ui.add_space(2.0);
         ui.horizontal(|ui| {
             if let Some(job) = &ide.sim_job {
-                let spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-                let index = (job.started.elapsed().as_millis() / 90) as usize % spinner.len();
-                ui.label(
-                    egui::RichText::new(spinner[index])
-                        .color(p.accent)
-                        .size(15.0),
-                );
-                ui.monospace(format!("{}… {:.1?}", s.simulating, job.started.elapsed()));
+                ui.add(egui::Spinner::new().size(14.0).color(p.accent));
+                ui.monospace(format!("{}... {:.1?}", s.simulating, job.started.elapsed()));
             } else {
                 let (icon, color) = if ide.log_ok {
                     (icons::CHECK_CIRCLE, p.ok_green)
