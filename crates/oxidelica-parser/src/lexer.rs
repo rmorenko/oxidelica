@@ -44,6 +44,10 @@ pub enum Token {
     Not,
     /// Keyword `when`.
     When,
+    /// Keyword `elsewhen`.
+    ElseWhen,
+    /// Keyword `discrete` — a variable that changes only at events.
+    Discrete,
     /// Keyword `connector`.
     Connector,
     /// Keyword `flow`.
@@ -168,6 +172,8 @@ impl fmt::Display for Token {
             Token::Or => write!(f, "or"),
             Token::Not => write!(f, "not"),
             Token::When => write!(f, "when"),
+            Token::ElseWhen => write!(f, "elsewhen"),
+            Token::Discrete => write!(f, "discrete"),
             Token::Connector => write!(f, "connector"),
             Token::Flow => write!(f, "flow"),
             Token::Extends => write!(f, "extends"),
@@ -382,6 +388,8 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "or" => Token::Or,
                     "not" => Token::Not,
                     "when" => Token::When,
+                    "elsewhen" => Token::ElseWhen,
+                    "discrete" => Token::Discrete,
                     "connector" => Token::Connector,
                     "flow" => Token::Flow,
                     "extends" => Token::Extends,
@@ -618,6 +626,8 @@ mod tests {
             Token::Or,
             Token::Not,
             Token::When,
+            Token::ElseWhen,
+            Token::Discrete,
             Token::Connector,
             Token::Flow,
             Token::Extends,

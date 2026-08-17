@@ -9,6 +9,9 @@ pub enum Variability {
     Parameter,
     /// `constant`.
     Constant,
+    /// `discrete` — a variable that keeps its value between events and
+    /// changes only where a `when` clause assigns it.
+    Discrete,
 }
 
 /// Where a component sits in the instance hierarchy.
@@ -188,6 +191,18 @@ pub enum WhenAction {
     Reinit(String, Expr),
     /// `terminate("message")` — end the simulation.
     Terminate(String),
+    /// `x = expr` — the new value of a discrete variable. It holds that
+    /// value until another event assigns it.
+    Assign(String, Expr),
+}
+
+/// One branch of a `when` clause: `when c1 then … elsewhen c2 then …`.
+#[derive(Debug, Clone)]
+pub struct WhenBranch {
+    /// The condition; the branch fires on its false-to-true edge.
+    pub condition: Expr,
+    /// Actions performed when it fires.
+    pub actions: Vec<WhenAction>,
 }
 
 /// One item of a `for` loop body.
@@ -233,13 +248,14 @@ pub struct IfEquation {
     pub branches: Vec<IfBranch>,
 }
 
-/// A `when <condition> then <actions> end when;` clause.
+/// A `when <condition> then <actions> [elsewhen …] end when;` clause.
+///
+/// At an event the first branch whose condition just became true fires,
+/// and the others stay silent — the priority `elsewhen` gives.
 #[derive(Debug, Clone)]
 pub struct WhenClause {
-    /// The condition; actions fire on its false-to-true edge.
-    pub condition: Expr,
-    /// Actions performed at the event.
-    pub actions: Vec<WhenAction>,
+    /// Branches in source order.
+    pub branches: Vec<WhenBranch>,
 }
 
 /// Simulation settings from `annotation(experiment(...))`.

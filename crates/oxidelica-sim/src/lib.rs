@@ -8,8 +8,9 @@
 
 #![deny(missing_docs)]
 
-use oxidelica_parser::ast::{WhenAction, WhenClause};
-use oxidelica_parser::{EquationItem, Expr, Model, Variability};
+use oxidelica_parser::{
+    EquationItem, Expr, Model, RelOp, Variability, WhenAction, WhenBranch, WhenClause,
+};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -117,6 +118,16 @@ pub struct CompiledModel {
     pub tolerance: f64,
     /// Selected integration method.
     pub method: SolverMethod,
+    /// Discrete variables: they keep their value between events, so the
+    /// continuous part sees them as knowns and only a `when` clause
+    /// changes them.
+    pub discretes: Vec<String>,
+    /// Initial value of every discrete variable.
+    discrete_start: Vec<f64>,
+    /// `(start, interval)` of every `sample(...)` in the model. The
+    /// solver steps exactly onto each occurrence and raises the matching
+    /// `$sample` flag there.
+    samples: Vec<(f64, f64)>,
     /// `when` clauses; their actions fire on a false-to-true edge.
     when_clauses: Vec<WhenClause>,
     /// Event indicators: expressions whose sign change marks an event.
@@ -139,6 +150,9 @@ impl CompiledModel {
             return Ok(());
         }
         let mut env: HashMap<String, f64> = self.parameters.iter().cloned().collect();
+        for (name, value) in self.discretes.iter().zip(&self.discrete_start) {
+            env.insert(name.clone(), *value);
+        }
         for (name, value) in self.states.iter().zip(&self.initial) {
             env.insert(name.clone(), *value);
         }
@@ -199,6 +213,155 @@ impl CompiledModel {
     }
 }
 
+/// Values that change only at events, by name: every discrete variable,
+/// its value before the current event under a `$pre.` key, and the flags
+/// the solver raises for the time and initial events.
+type Discretes = HashMap<String, f64>;
+
+/// What the event machinery carries between events.
+#[derive(Clone, Debug)]
+struct EventState {
+    /// Discrete values, their `pre` entries and the event flags.
+    values: Discretes,
+    /// Truth of every `when` branch as of the previous event.
+    when_prev: Vec<Vec<bool>>,
+    /// Next occurrence of each `sample(...)` source.
+    next_sample: Vec<f64>,
+}
+
+impl EventState {
+    /// The next scheduled time event, if the model has any.
+    fn next_time_event(&self) -> Option<f64> {
+        self.next_sample.iter().copied().reduce(f64::min)
+    }
+
+    /// Raise the flag of every `sample(...)` occurring at `t` and move
+    /// its schedule on. Returns whether any of them fired.
+    fn raise_samples(&mut self, t: f64, samples: &[(f64, f64)]) -> bool {
+        let mut fired = false;
+        for (index, (_, interval)) in samples.iter().enumerate() {
+            if self.next_sample[index] <= t + 1e-9 {
+                self.values.insert(format!("$sample{index}"), 1.0);
+                self.next_sample[index] += interval.max(1e-12);
+                fired = true;
+            }
+        }
+        fired
+    }
+
+    /// Lower the one-shot flags after an event has been handled.
+    fn clear_flags(&mut self, samples: usize) {
+        self.values.insert("$initial".to_string(), 0.0);
+        for index in 0..samples {
+            self.values.insert(format!("$sample{index}"), 0.0);
+        }
+    }
+}
+
+/// Rewrites the event built-ins into plain references the evaluator can
+/// look up, collecting the `sample(...)` schedules on the way:
+/// `pre(x)` becomes `$pre.x`, `initial()` the flag of the initial event,
+/// `sample(s, i)` the flag of a scheduled one, and `edge`/`change` their
+/// definitions in terms of `pre`.
+struct EventRewrite<'a> {
+    /// Names of the discrete variables, the only ones `pre` accepts.
+    discretes: &'a [String],
+    /// Parameter values: the arguments of `sample` must be constant.
+    params: &'a HashMap<String, f64>,
+    /// Schedules found so far, in flag order.
+    samples: Vec<(f64, f64)>,
+}
+
+impl EventRewrite<'_> {
+    /// The `$pre.` reference of a discrete variable.
+    fn pre_of(&self, arg: &Expr, builtin: &str) -> Result<Expr, SimError> {
+        let Expr::Ref(name) = arg else {
+            return err(format!("{builtin}() takes a variable, not an expression"));
+        };
+        if !self.discretes.iter().any(|d| d == name) {
+            return err(format!(
+                "{builtin}({name}): `{name}` is not discrete, so it has no value from before the event"
+            ));
+        }
+        Ok(Expr::Ref(format!("$pre.{name}")))
+    }
+
+    /// Rewrite one expression.
+    fn expr(&mut self, expr: &Expr) -> Result<Expr, SimError> {
+        Ok(match expr {
+            Expr::Call(name, args) => match (name.as_str(), args.len()) {
+                ("pre", 1) => self.pre_of(&args[0], "pre")?,
+                // edge(b) is "b just became true", change(v) is "v just
+                // took a different value".
+                ("edge", 1) => Expr::And(
+                    Box::new(Expr::Rel(
+                        RelOp::Gt,
+                        Box::new(args[0].clone()),
+                        Box::new(Expr::Number(0.5)),
+                    )),
+                    Box::new(Expr::Rel(
+                        RelOp::Lt,
+                        Box::new(self.pre_of(&args[0], "edge")?),
+                        Box::new(Expr::Number(0.5)),
+                    )),
+                ),
+                ("change", 1) => Expr::Rel(
+                    RelOp::Ne,
+                    Box::new(args[0].clone()),
+                    Box::new(self.pre_of(&args[0], "change")?),
+                ),
+                ("initial", 0) => Expr::Ref("$initial".to_string()),
+                ("sample", 2) => {
+                    let ctx = EvalCtx {
+                        vars: self.params,
+                        time: 0.0,
+                    };
+                    let start = eval(&args[0], &ctx)?;
+                    let interval = eval(&args[1], &ctx)?;
+                    if interval <= 0.0 || interval.is_nan() {
+                        return err(format!(
+                            "sample(..., {interval}): the interval must be positive"
+                        ));
+                    }
+                    let index = match self
+                        .samples
+                        .iter()
+                        .position(|&(s, i)| s == start && i == interval)
+                    {
+                        Some(index) => index,
+                        None => {
+                            self.samples.push((start, interval));
+                            self.samples.len() - 1
+                        }
+                    };
+                    Expr::Ref(format!("$sample{index}"))
+                }
+                _ => Expr::Call(
+                    name.clone(),
+                    args.iter()
+                        .map(|a| self.expr(a))
+                        .collect::<Result<Vec<_>, SimError>>()?,
+                ),
+            },
+            Expr::Neg(inner) => Expr::Neg(Box::new(self.expr(inner)?)),
+            Expr::Not(inner) => Expr::Not(Box::new(self.expr(inner)?)),
+            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::And(l, r) => Expr::And(Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::Or(l, r) => Expr::Or(Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::If(c, a, b) => Expr::If(
+                Box::new(self.expr(c)?),
+                Box::new(self.expr(a)?),
+                Box::new(self.expr(b)?),
+            ),
+            Expr::Index(_, _) | Expr::Member(_, _) => {
+                return err("subscripts survive flattening only as scalar names".to_string())
+            }
+            Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        })
+    }
+}
+
 /// Compile a parsed flat model into an executable form.
 pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     // 1. Parameters and constants: multi-pass dependency evaluation.
@@ -244,19 +407,121 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         }
     }
 
+    // 1b. The discrete layer. A variable is discrete when it says so or
+    // when a `when` clause assigns it: either way it keeps its value
+    // between events, so the continuous part treats it as known.
+    let mut discrete_names: Vec<String> = Vec::new();
+    for clause in &model.when_clauses {
+        for branch in &clause.branches {
+            for action in &branch.actions {
+                if let WhenAction::Assign(target, _) = action {
+                    if !discrete_names.contains(target) {
+                        discrete_names.push(target.clone());
+                    }
+                }
+            }
+        }
+    }
+    for name in &discrete_names {
+        if !model.components.iter().any(|c| &c.name == name) {
+            return err(format!(
+                "`{name}` is assigned by a when clause but never declared"
+            ));
+        }
+    }
+    for component in &model.components {
+        if component.variability == Variability::Discrete
+            && !discrete_names.contains(&component.name)
+        {
+            return err(format!(
+                "discrete variable `{}` is never assigned by a when clause",
+                component.name
+            ));
+        }
+    }
+    // Declaration order, so the result columns are stable.
+    let discretes: Vec<String> = model
+        .components
+        .iter()
+        .filter(|c| discrete_names.contains(&c.name))
+        .map(|c| c.name.clone())
+        .collect();
+    let discrete_start: Vec<f64> = model
+        .components
+        .iter()
+        .filter(|c| discrete_names.contains(&c.name))
+        .map(|c| {
+            c.start
+                .as_ref()
+                .or(c.binding.as_ref())
+                .and_then(|expr| {
+                    eval(
+                        expr,
+                        &EvalCtx {
+                            vars: &params,
+                            time: 0.0,
+                        },
+                    )
+                    .ok()
+                })
+                .unwrap_or(0.0)
+        })
+        .collect();
+
+    // The event built-ins become references the evaluator can look up.
+    let mut rewrite = EventRewrite {
+        discretes: &discretes,
+        params: &params,
+        samples: Vec::new(),
+    };
+    let equations: Vec<EquationItem> = model
+        .equations
+        .iter()
+        .map(|equation| {
+            Ok(EquationItem {
+                lhs: rewrite.expr(&equation.lhs)?,
+                rhs: rewrite.expr(&equation.rhs)?,
+            })
+        })
+        .collect::<Result<Vec<_>, SimError>>()?;
+    let mut when_clauses: Vec<WhenClause> = Vec::new();
+    for clause in &model.when_clauses {
+        let mut branches = Vec::new();
+        for branch in &clause.branches {
+            let mut actions = Vec::new();
+            for action in &branch.actions {
+                actions.push(match action {
+                    WhenAction::Assign(target, value) => {
+                        WhenAction::Assign(target.clone(), rewrite.expr(value)?)
+                    }
+                    WhenAction::Reinit(state, value) => {
+                        WhenAction::Reinit(state.clone(), rewrite.expr(value)?)
+                    }
+                    WhenAction::Terminate(message) => WhenAction::Terminate(message.clone()),
+                });
+            }
+            branches.push(WhenBranch {
+                condition: rewrite.expr(&branch.condition)?,
+                actions,
+            });
+        }
+        when_clauses.push(WhenClause { branches });
+    }
+    let samples = rewrite.samples;
+
     // 2. Split equations: explicit state derivatives vs general
     // algebraic equations (which need not be in assignment form).
     let continuous: Vec<&str> = model
         .components
         .iter()
-        .filter(|c| c.variability == Variability::Continuous)
+        .filter(|c| c.variability == Variability::Continuous && !discretes.contains(&c.name))
         .map(|c| c.name.as_str())
         .collect();
 
     let mut state_rhs: HashMap<String, Expr> = HashMap::new();
     let mut algebraic_eqs: Vec<(Expr, Expr)> = Vec::new();
 
-    for EquationItem { lhs, rhs } in &model.equations {
+    for EquationItem { lhs, rhs } in &equations {
         // der(v) = expr  |  expr = der(v)
         let (target, value) = if let Some(v) = lhs.as_der_of() {
             (Some(v), rhs)
@@ -306,10 +571,14 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
             lhs.collect_refs(&mut refs);
             rhs.collect_refs(&mut refs);
         }
-        if let Some(bad) = refs
-            .iter()
-            .find(|r| !continuous.contains(r) && !params.contains_key(**r))
-        {
+        if let Some(bad) = refs.iter().find(|r| {
+            !continuous.contains(r)
+                && !params.contains_key(**r)
+                && !discretes.iter().any(|d| d == **r)
+                // `$pre.x`, `$initial` and `$sampleN` are supplied by the
+                // event machinery, not by the equations.
+                && !r.starts_with('$')
+        }) {
             return err(format!("unknown variable `{bad}` in equation"));
         }
     }
@@ -361,6 +630,9 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     // demotion victim by numerical pivoting.
     let start_env: HashMap<String, f64> = {
         let mut env = params.clone();
+        for (name, value) in discretes.iter().zip(&discrete_start) {
+            env.insert(name.clone(), *value);
+        }
         for component in &model.components {
             if component.variability == Variability::Continuous {
                 let value = component
@@ -776,8 +1048,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         for expr in state_rhs.values() {
             collect(expr);
         }
-        for clause in &model.when_clauses {
-            collect(&clause.condition);
+        for clause in &when_clauses {
+            for branch in &clause.branches {
+                collect(&branch.condition);
+            }
         }
         out
     };
@@ -811,7 +1085,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
-        when_clauses: model.when_clauses.clone(),
+        discretes,
+        discrete_start,
+        samples,
+        when_clauses,
         indicators,
     };
     compiled.check_block_regularity()?;
@@ -1141,7 +1418,6 @@ struct EvalCtx<'a> {
 
 /// Booleans are represented as 1.0 / 0.0 (proper typing is an M1+ task).
 fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
-    use oxidelica_parser::ast::RelOp;
     use oxidelica_parser::BinOp::*;
     Ok(match expr {
         Expr::Number(n) => *n,
@@ -1319,6 +1595,9 @@ struct EventOutcome {
     terminated: Option<String>,
     /// Whether any state was reinitialized (the integrator restarts).
     reinitialized: bool,
+    /// Whether the event changed anything at all: a state through
+    /// `reinit`, or the value of a discrete variable.
+    changed: bool,
 }
 
 impl CompiledModel {
@@ -1331,48 +1610,149 @@ impl CompiledModel {
             .collect()
     }
 
-    /// Current truth value of every `when` condition.
-    fn when_conditions(&self, t: f64, env: &HashMap<String, f64>) -> Result<Vec<bool>, SimError> {
-        self.when_clauses
-            .iter()
-            .map(|clause| Ok(eval(&clause.condition, &EvalCtx { vars: env, time: t })? != 0.0))
-            .collect()
-    }
-
-    /// Fire the `when` clauses whose condition just became true,
-    /// applying their actions to the state vector.
-    fn handle_event(
+    /// Truth of every `when` branch, clause by clause.
+    fn when_conditions(
         &self,
         t: f64,
         env: &HashMap<String, f64>,
+    ) -> Result<Vec<Vec<bool>>, SimError> {
+        self.when_clauses
+            .iter()
+            .map(|clause| {
+                clause
+                    .branches
+                    .iter()
+                    .map(|branch| {
+                        Ok(eval(&branch.condition, &EvalCtx { vars: env, time: t })? != 0.0)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// The state every run starts from: declared initial values for the
+    /// discrete variables, the initial-event flag raised, and every
+    /// `sample(...)` scheduled at its start.
+    fn event_state(&self) -> EventState {
+        let mut values: Discretes = HashMap::new();
+        for (name, value) in self.discretes.iter().zip(&self.discrete_start) {
+            values.insert(name.clone(), *value);
+            values.insert(format!("$pre.{name}"), *value);
+        }
+        values.insert("$initial".to_string(), 1.0);
+        for index in 0..self.samples.len() {
+            values.insert(format!("$sample{index}"), 0.0);
+        }
+        EventState {
+            values,
+            // Modelica treats every condition as false before the start,
+            // so one that already holds at t = 0 fires immediately.
+            when_prev: self
+                .when_clauses
+                .iter()
+                .map(|clause| vec![false; clause.branches.len()])
+                .collect(),
+            next_sample: self.samples.iter().map(|&(start, _)| start).collect(),
+        }
+    }
+
+    /// Handle an event at `t`: fire the `when` branches whose condition
+    /// just became true, and keep firing while their assignments make
+    /// further conditions true — the event iteration of the language.
+    ///
+    /// `pre(x)` keeps the value each discrete variable had when the event
+    /// began, however many rounds the iteration takes.
+    fn handle_event(
+        &self,
+        t: f64,
         y: &mut [f64],
-        previous: &mut Vec<bool>,
+        env: &mut HashMap<String, f64>,
+        alg_guess: &mut [f64],
+        state: &mut EventState,
     ) -> Result<EventOutcome, SimError> {
-        let now = self.when_conditions(t, env)?;
         let mut outcome = EventOutcome::default();
-        for (index, clause) in self.when_clauses.iter().enumerate() {
-            let was = previous.get(index).copied().unwrap_or(false);
-            if !now[index] || was {
-                continue;
-            }
-            for action in &clause.actions {
-                match action {
-                    WhenAction::Terminate(message) => {
-                        outcome.terminated = Some(format!("terminated at t = {t:.6}: {message}"));
-                    }
-                    WhenAction::Reinit(name, value) => {
-                        let Some(slot) = self.states.iter().position(|s| s == name) else {
-                            return err(format!(
-                                "reinit({name}, ...): `{name}` is not a state of the flattened model"
-                            ));
-                        };
-                        y[slot] = eval(value, &EvalCtx { vars: env, time: t })?;
-                        outcome.reinitialized = true;
+        for name in &self.discretes {
+            let current = state.values[name];
+            state.values.insert(format!("$pre.{name}"), current);
+        }
+        let before_event = state.when_prev.clone();
+        // A `reinit` is collected rather than applied: the event
+        // iteration works on the discrete variables, and the new value
+        // of a state is what the integration resumes from afterwards.
+        let mut pending_reinit: Vec<(usize, f64)> = Vec::new();
+        let mut fired: Vec<Vec<bool>> = before_event
+            .iter()
+            .map(|branches| vec![false; branches.len()])
+            .collect();
+        let mut scratch = Vec::new();
+
+        // Every branch fires at most once per event, so one round per
+        // branch plus a final quiet one is all the iteration can need.
+        let rounds = self
+            .when_clauses
+            .iter()
+            .map(|clause| clause.branches.len())
+            .sum::<usize>()
+            + 1;
+        for _ in 0..rounds {
+            // The algebraic part follows the discrete values, so it is
+            // re-evaluated before the conditions are tested again.
+            self.eval_point(t, y, env, &mut scratch, alg_guess, &state.values)?;
+            let now = self.when_conditions(t, env)?;
+            let mut acted = false;
+            for (index, clause) in self.when_clauses.iter().enumerate() {
+                // `elsewhen` is a priority list: the first branch that
+                // just became true is the one that fires.
+                let Some(branch) = (0..clause.branches.len())
+                    .find(|&b| now[index][b] && !before_event[index][b] && !fired[index][b])
+                else {
+                    continue;
+                };
+                fired[index][branch] = true;
+                acted = true;
+                for action in &clause.branches[branch].actions {
+                    match action {
+                        WhenAction::Terminate(message) => {
+                            outcome.terminated =
+                                Some(format!("terminated at t = {t:.6}: {message}"));
+                        }
+                        WhenAction::Reinit(name, value) => {
+                            let Some(slot) = self.states.iter().position(|s| s == name) else {
+                                return err(format!(
+                                    "reinit({name}, ...): `{name}` is not a state of the flattened model"
+                                ));
+                            };
+                            let new = eval(value, &EvalCtx { vars: env, time: t })?;
+                            pending_reinit.push((slot, new));
+                            outcome.reinitialized = true;
+                            outcome.changed = true;
+                        }
+                        WhenAction::Assign(name, value) => {
+                            let new = eval(value, &EvalCtx { vars: env, time: t })?;
+                            if state.values.insert(name.clone(), new) != Some(new) {
+                                outcome.changed = true;
+                            }
+                            // Later equations of the same branch see the
+                            // new value, the way a simultaneous solution
+                            // of a triangular system would.
+                            env.insert(name.clone(), new);
+                        }
                     }
                 }
             }
+            if !acted {
+                break;
+            }
         }
-        *previous = now;
+        // The one-shot flags go down with the event, so the conditions
+        // remembered for the next one do not see them still raised - a
+        // `sample(...)` must be a fresh edge every period.
+        state.clear_flags(self.samples.len());
+        self.eval_point(t, y, env, &mut scratch, alg_guess, &state.values)?;
+        state.when_prev = self.when_conditions(t, env)?;
+        for (slot, value) in pending_reinit {
+            y[slot] = value;
+        }
         Ok(outcome)
     }
 }
@@ -1504,9 +1884,15 @@ impl CompiledModel {
         env: &mut HashMap<String, f64>,
         derivatives_out: &mut Vec<f64>,
         alg_guess: &mut [f64],
+        discrete: &Discretes,
     ) -> Result<(), SimError> {
         env.clear();
         for (name, value) in &self.parameters {
+            env.insert(name.clone(), *value);
+        }
+        // Discrete values, their `pre` entries and the event flags are
+        // known between events, exactly like parameters.
+        for (name, value) in discrete {
             env.insert(name.clone(), *value);
         }
         for (name, value) in self.states.iter().zip(y) {
@@ -1717,6 +2103,7 @@ impl CompiledModel {
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
         columns.extend(self.algebraics.iter().cloned());
+        columns.extend(self.discretes.iter().cloned());
         let mut rows: Vec<Vec<f64>> = Vec::new();
         let mut derivatives_scratch = Vec::new();
 
@@ -1724,14 +2111,18 @@ impl CompiledModel {
                           y: &[f64],
                           env: &mut HashMap<String, f64>,
                           k: &mut Vec<f64>,
-                          alg_guess: &mut [f64]|
+                          alg_guess: &mut [f64],
+                          discrete: &Discretes|
          -> Result<(), SimError> {
-            self.eval_point(t, y, env, k, alg_guess)?;
-            let mut row = Vec::with_capacity(1 + n + self.algebraics.len());
+            self.eval_point(t, y, env, k, alg_guess, discrete)?;
+            let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
             for name in &self.algebraics {
                 row.push(env[name]);
+            }
+            for name in &self.discretes {
+                row.push(discrete[name]);
             }
             rows.push(row);
             Ok(())
@@ -1743,9 +2134,19 @@ impl CompiledModel {
         let mut terminated: Option<String> = None;
         // Modelica treats `when` conditions as false before the start,
         // so one that already holds at t = 0 fires immediately.
-        let mut when_prev = vec![false; self.when_clauses.len()];
-        record(0.0, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
-        let start_event = self.handle_event(0.0, &env, &mut y, &mut when_prev)?;
+        let mut state = self.event_state();
+        // The initial event comes before the first output point: a
+        // `when initial()` or a `sample(0, …)` has already fired by then.
+        state.raise_samples(0.0, &self.samples);
+        let start_event = self.handle_event(0.0, &mut y, &mut env, &mut alg_guess, &mut state)?;
+        record(
+            0.0,
+            &y,
+            &mut env,
+            &mut derivatives_scratch,
+            &mut alg_guess,
+            &state.values,
+        )?;
         let mut indicators_prev = self.indicator_values(0.0, &env)?;
         if let Some(message) = start_event.terminated {
             return Ok(SimResult {
@@ -1760,22 +2161,54 @@ impl CompiledModel {
         if n == 0 {
             let mut out_i = 1usize;
             loop {
-                let t = out_i as f64 * out_step;
+                // Walk to whichever comes first: the next output point
+                // or the next scheduled time event.
+                let grid = out_i as f64 * out_step;
+                let t = match state.next_time_event() {
+                    Some(next) if next < grid - 1e-12 => next,
+                    _ => grid,
+                };
                 if t > stop + 1e-12 {
                     break;
                 }
-                record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
-                last_out_t = t;
-                out_i += 1;
-                terminated = self
-                    .handle_event(t, &env, &mut y, &mut when_prev)?
-                    .terminated;
+                record(
+                    t,
+                    &y,
+                    &mut env,
+                    &mut derivatives_scratch,
+                    &mut alg_guess,
+                    &state.values,
+                )?;
+                if (t - grid).abs() < 1e-12 {
+                    last_out_t = t;
+                    out_i += 1;
+                }
+                state.raise_samples(t, &self.samples);
+                let outcome = self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                if outcome.changed {
+                    record(
+                        t,
+                        &y,
+                        &mut env,
+                        &mut derivatives_scratch,
+                        &mut alg_guess,
+                        &state.values,
+                    )?;
+                }
+                terminated = outcome.terminated;
                 if terminated.is_some() {
                     break;
                 }
             }
             if terminated.is_none() && last_out_t < stop - 1e-12 {
-                record(stop, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
+                record(
+                    stop,
+                    &y,
+                    &mut env,
+                    &mut derivatives_scratch,
+                    &mut alg_guess,
+                    &state.values,
+                )?;
             }
             return Ok(SimResult {
                 columns,
@@ -1794,10 +2227,17 @@ impl CompiledModel {
         let mut out_i = 1usize;
         let mut evals: u64 = 0;
 
-        self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess)?;
+        self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess, &state.values)?;
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
+            // A scheduled time event is not something to step over: the
+            // step ends exactly on it.
+            if let Some(next) = state.next_time_event() {
+                if next > t + 1e-12 && next <= stop + 1e-12 {
+                    h = h.min(next - t);
+                }
+            }
             // Stages 2..7 (stage 1 is FSAL from the previous step).
             for s in 1..7 {
                 for j in 0..n {
@@ -1809,7 +2249,14 @@ impl CompiledModel {
                 }
                 let (head, tail) = k.split_at_mut(s);
                 let _ = head;
-                self.eval_point(t + C[s] * h, &stage, &mut env, &mut tail[0], &mut alg_guess)?;
+                self.eval_point(
+                    t + C[s] * h,
+                    &stage,
+                    &mut env,
+                    &mut tail[0],
+                    &mut alg_guess,
+                    &state.values,
+                )?;
             }
             evals += 6;
             if evals > 20_000_000 {
@@ -1839,7 +2286,14 @@ impl CompiledModel {
             let accepted = err_norm.is_finite() && err_norm <= 1.0;
             if accepted {
                 // FSAL: the derivative at t+h.
-                self.eval_point(t + h, &y5, &mut env, &mut k[6], &mut alg_guess)?;
+                self.eval_point(
+                    t + h,
+                    &y5,
+                    &mut env,
+                    &mut k[6],
+                    &mut alg_guess,
+                    &state.values,
+                )?;
                 evals += 1;
 
                 // Cubic Hermite interpolation across the accepted step.
@@ -1881,6 +2335,7 @@ impl CompiledModel {
                             &mut env,
                             &mut derivatives_scratch,
                             &mut alg_guess,
+                            &state.values,
                         )?;
                         if before * self.indicator_values(t + mid * h, &env)?[index] <= 0.0 {
                             hi = mid;
@@ -1910,6 +2365,7 @@ impl CompiledModel {
                             &mut env,
                             &mut derivatives_scratch,
                             &mut alg_guess,
+                            &state.values,
                         )?;
                         last_out_t = out_t;
                         out_i += 1;
@@ -1922,18 +2378,36 @@ impl CompiledModel {
                         &mut env,
                         &mut derivatives_scratch,
                         &mut alg_guess,
+                        &state.values,
                     )?;
-                    let outcome = self.handle_event(t_event, &env, &mut y, &mut when_prev)?;
+                    let outcome =
+                        self.handle_event(t_event, &mut y, &mut env, &mut alg_guess, &mut state)?;
                     t = t_event;
-                    self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess)?;
+                    self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess, &state.values)?;
                     indicators_prev = self.indicator_values(t, &env)?;
                     if let Some(message) = outcome.terminated {
-                        record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
+                        record(
+                            t,
+                            &y,
+                            &mut env,
+                            &mut derivatives_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
                         terminated = Some(message);
                         break;
                     }
-                    if outcome.reinitialized {
-                        record(t, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
+                    // A state event that changed something is recorded at
+                    // the instant it happened, so the jump is visible.
+                    if outcome.changed {
+                        record(
+                            t,
+                            &y,
+                            &mut env,
+                            &mut derivatives_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
                     }
                     h = (h * theta.max(0.1)).max(1e-12);
                     continue;
@@ -1953,6 +2427,7 @@ impl CompiledModel {
                         &mut env,
                         &mut derivatives_scratch,
                         &mut alg_guess,
+                        &state.values,
                     )?;
                     last_out_t = out_t;
                     out_i += 1;
@@ -1960,6 +2435,41 @@ impl CompiledModel {
                 t += h;
                 y.copy_from_slice(&y5);
                 k.swap(0, 6);
+
+                // The step ended on a scheduled instant: raise the flags
+                // of the `sample(...)` sources due here and let the
+                // `when` clauses read them.
+                if state.next_time_event().is_some_and(|next| next <= t + 1e-9) {
+                    self.eval_point(
+                        t,
+                        &y,
+                        &mut env,
+                        &mut derivatives_scratch,
+                        &mut alg_guess,
+                        &state.values,
+                    )?;
+                    state.raise_samples(t, &self.samples);
+                    let outcome =
+                        self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                    self.eval_point(t, &y, &mut env, &mut k[0], &mut alg_guess, &state.values)?;
+                    indicators_prev = self.indicator_values(t, &env)?;
+                    if outcome.changed {
+                        // The discrete values jumped here, so the point
+                        // is recorded twice: before and after the event.
+                        record(
+                            t,
+                            &y,
+                            &mut env,
+                            &mut derivatives_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
+                    }
+                    if let Some(message) = outcome.terminated {
+                        terminated = Some(message);
+                        break;
+                    }
+                }
             }
 
             let factor = if !err_norm.is_finite() {
@@ -1977,9 +2487,16 @@ impl CompiledModel {
             }
         }
         if terminated.is_none() && last_out_t < stop - 1e-12 {
-            record(stop, &y, &mut env, &mut derivatives_scratch, &mut alg_guess)?;
+            record(
+                stop,
+                &y,
+                &mut env,
+                &mut derivatives_scratch,
+                &mut alg_guess,
+                &state.values,
+            )?;
             terminated = self
-                .handle_event(stop, &env, &mut y, &mut when_prev)?
+                .handle_event(stop, &mut y, &mut env, &mut alg_guess, &mut state)?
                 .terminated;
         }
         Ok(SimResult {
@@ -2000,6 +2517,7 @@ impl CompiledModel {
         f0: &[f64],
         env: &mut HashMap<String, f64>,
         alg_guess: &[f64],
+        discrete: &Discretes,
     ) -> Result<Vec<Vec<f64>>, SimError> {
         let n = y.len();
         let mut jac = vec![vec![0.0; n]; n];
@@ -2009,7 +2527,7 @@ impl CompiledModel {
         for j in 0..n {
             let delta = 1e-7 * (1.0 + y[j].abs());
             probe[j] = y[j] + delta;
-            self.eval_point(t, &probe, env, &mut f, &mut scratch)?;
+            self.eval_point(t, &probe, env, &mut f, &mut scratch, discrete)?;
             probe[j] = y[j];
             for (i, row) in jac.iter_mut().enumerate() {
                 row[j] = (f[i] - f0[i]) / delta;
@@ -2041,6 +2559,7 @@ impl CompiledModel {
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
         columns.extend(self.algebraics.iter().cloned());
+        columns.extend(self.discretes.iter().cloned());
         let mut rows: Vec<Vec<f64>> = Vec::new();
         let mut alg_guess = self.algebraic_start.clone();
         let mut f_scratch = Vec::new();
@@ -2049,14 +2568,18 @@ impl CompiledModel {
                           y: &[f64],
                           env: &mut HashMap<String, f64>,
                           k: &mut Vec<f64>,
-                          alg_guess: &mut [f64]|
+                          alg_guess: &mut [f64],
+                          discrete: &Discretes|
          -> Result<(), SimError> {
-            self.eval_point(t, y, env, k, alg_guess)?;
-            let mut row = Vec::with_capacity(1 + n + self.algebraics.len());
+            self.eval_point(t, y, env, k, alg_guess, discrete)?;
+            let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
             row.extend_from_slice(y);
             for name in &self.algebraics {
                 row.push(env[name]);
+            }
+            for name in &self.discretes {
+                row.push(discrete[name]);
             }
             rows.push(row);
             Ok(())
@@ -2064,9 +2587,19 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut terminated: Option<String> = None;
-        let mut when_prev = vec![false; self.when_clauses.len()];
-        record(0.0, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
-        let start_event = self.handle_event(0.0, &env, &mut y, &mut when_prev)?;
+        let mut state = self.event_state();
+        // The initial event comes before the first output point: a
+        // `when initial()` or a `sample(0, …)` has already fired by then.
+        state.raise_samples(0.0, &self.samples);
+        let start_event = self.handle_event(0.0, &mut y, &mut env, &mut alg_guess, &mut state)?;
+        record(
+            0.0,
+            &y,
+            &mut env,
+            &mut f_scratch,
+            &mut alg_guess,
+            &state.values,
+        )?;
         let mut indicators_prev = self.indicator_values(0.0, &env)?;
         if let Some(message) = start_event.terminated {
             return Ok(SimResult {
@@ -2082,22 +2615,54 @@ impl CompiledModel {
         let mut last_out_t = 0.0f64;
         if n == 0 {
             loop {
-                let t = out_i as f64 * out_step;
+                // Walk to whichever comes first: the next output point
+                // or the next scheduled time event.
+                let grid = out_i as f64 * out_step;
+                let t = match state.next_time_event() {
+                    Some(next) if next < grid - 1e-12 => next,
+                    _ => grid,
+                };
                 if t > stop + 1e-12 {
                     break;
                 }
-                record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
-                last_out_t = t;
-                out_i += 1;
-                terminated = self
-                    .handle_event(t, &env, &mut y, &mut when_prev)?
-                    .terminated;
+                record(
+                    t,
+                    &y,
+                    &mut env,
+                    &mut f_scratch,
+                    &mut alg_guess,
+                    &state.values,
+                )?;
+                if (t - grid).abs() < 1e-12 {
+                    last_out_t = t;
+                    out_i += 1;
+                }
+                state.raise_samples(t, &self.samples);
+                let outcome = self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                if outcome.changed {
+                    record(
+                        t,
+                        &y,
+                        &mut env,
+                        &mut f_scratch,
+                        &mut alg_guess,
+                        &state.values,
+                    )?;
+                }
+                terminated = outcome.terminated;
                 if terminated.is_some() {
                     break;
                 }
             }
             if terminated.is_none() && last_out_t < stop - 1e-12 {
-                record(stop, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                record(
+                    stop,
+                    &y,
+                    &mut env,
+                    &mut f_scratch,
+                    &mut alg_guess,
+                    &state.values,
+                )?;
             }
             return Ok(SimResult {
                 columns,
@@ -2121,10 +2686,24 @@ impl CompiledModel {
         let mut y_new = vec![0.0; n];
         let mut y_pred = vec![0.0; n];
         let mut f_last = Vec::new();
-        self.eval_point(0.0, &y, &mut env, &mut f_last, &mut alg_guess)?;
+        self.eval_point(
+            0.0,
+            &y,
+            &mut env,
+            &mut f_last,
+            &mut alg_guess,
+            &state.values,
+        )?;
 
         while t < stop - 1e-12 {
             h = h.min(stop - t);
+            // A scheduled time event is not something to step over: the
+            // step ends exactly on it.
+            if let Some(next) = state.next_time_event() {
+                if next > t + 1e-12 && next <= stop + 1e-12 {
+                    h = h.min(next - t);
+                }
+            }
             let k = order.min(t_hist.len());
             let t_new = t + h;
 
@@ -2169,7 +2748,14 @@ impl CompiledModel {
             let mut converged = false;
             let mut newton_failed = false;
             for iteration in 0..NEWTON_MAX {
-                self.eval_point(t_new, &y_new, &mut env, &mut f_new, &mut alg_guess)?;
+                self.eval_point(
+                    t_new,
+                    &y_new,
+                    &mut env,
+                    &mut f_new,
+                    &mut alg_guess,
+                    &state.values,
+                )?;
                 steps += 1;
                 if steps > 20_000_000 {
                     return err(format!(
@@ -2185,7 +2771,14 @@ impl CompiledModel {
                 }
 
                 if jac.is_none() || iteration == 4 {
-                    jac = Some(self.jacobian(t_new, &y_new, &f_new, &mut env, &alg_guess)?);
+                    jac = Some(self.jacobian(
+                        t_new,
+                        &y_new,
+                        &f_new,
+                        &mut env,
+                        &alg_guess,
+                        &state.values,
+                    )?);
                 }
                 let mut matrix: Vec<Vec<f64>> = jac
                     .as_ref()
@@ -2260,7 +2853,14 @@ impl CompiledModel {
                 };
 
                 // Locate the earliest event indicator crossing, if any.
-                self.eval_point(t_new, &y_new, &mut env, &mut f_scratch, &mut alg_guess)?;
+                self.eval_point(
+                    t_new,
+                    &y_new,
+                    &mut env,
+                    &mut f_scratch,
+                    &mut alg_guess,
+                    &state.values,
+                )?;
                 let indicators_new = self.indicator_values(t_new, &env)?;
                 let mut event_t: Option<f64> = None;
                 for (index, (&before, &after)) in
@@ -2273,7 +2873,14 @@ impl CompiledModel {
                     for _ in 0..40 {
                         let mid = 0.5 * (lo + hi);
                         sample(mid, &mut interp);
-                        self.eval_point(mid, &interp, &mut env, &mut f_scratch, &mut alg_guess)?;
+                        self.eval_point(
+                            mid,
+                            &interp,
+                            &mut env,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
                         if before * self.indicator_values(mid, &env)?[index] <= 0.0 {
                             hi = mid;
                         } else {
@@ -2291,7 +2898,14 @@ impl CompiledModel {
                         break;
                     }
                     sample(out_t, &mut interp);
-                    record(out_t, &interp, &mut env, &mut f_scratch, &mut alg_guess)?;
+                    record(
+                        out_t,
+                        &interp,
+                        &mut env,
+                        &mut f_scratch,
+                        &mut alg_guess,
+                        &state.values,
+                    )?;
                     last_out_t = out_t;
                     out_i += 1;
                 }
@@ -2299,8 +2913,16 @@ impl CompiledModel {
                 if let Some(t_event) = event_t {
                     sample(t_event, &mut interp);
                     y.copy_from_slice(&interp);
-                    self.eval_point(t_event, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
-                    let outcome = self.handle_event(t_event, &env, &mut y, &mut when_prev)?;
+                    self.eval_point(
+                        t_event,
+                        &y,
+                        &mut env,
+                        &mut f_scratch,
+                        &mut alg_guess,
+                        &state.values,
+                    )?;
+                    let outcome =
+                        self.handle_event(t_event, &mut y, &mut env, &mut alg_guess, &mut state)?;
                     t = t_event;
                     // The history is meaningless across a discontinuity.
                     t_hist.clear();
@@ -2310,15 +2932,31 @@ impl CompiledModel {
                     order = 1;
                     consecutive_ok = 0;
                     jac = None;
-                    self.eval_point(t, &y, &mut env, &mut f_last, &mut alg_guess)?;
+                    self.eval_point(t, &y, &mut env, &mut f_last, &mut alg_guess, &state.values)?;
                     indicators_prev = self.indicator_values(t, &env)?;
                     if let Some(message) = outcome.terminated {
-                        record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                        record(
+                            t,
+                            &y,
+                            &mut env,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
                         terminated = Some(message);
                         break;
                     }
-                    if outcome.reinitialized {
-                        record(t, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+                    // A state event that changed something is recorded at
+                    // the instant it happened, so the jump is visible.
+                    if outcome.changed {
+                        record(
+                            t,
+                            &y,
+                            &mut env,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
                     }
                     h = (h * 0.25).max(1e-12);
                     continue;
@@ -2342,6 +2980,45 @@ impl CompiledModel {
                 if consecutive_ok > order && order < MAX_ORDER && t_hist.len() > order {
                     order += 1;
                     consecutive_ok = 0;
+                }
+
+                // The step ended on a scheduled instant: the sources due
+                // here raise their flags and the `when` clauses read them.
+                if state.next_time_event().is_some_and(|next| next <= t + 1e-9) {
+                    self.eval_point(
+                        t,
+                        &y,
+                        &mut env,
+                        &mut f_scratch,
+                        &mut alg_guess,
+                        &state.values,
+                    )?;
+                    state.raise_samples(t, &self.samples);
+                    let outcome =
+                        self.handle_event(t, &mut y, &mut env, &mut alg_guess, &mut state)?;
+                    self.eval_point(t, &y, &mut env, &mut f_last, &mut alg_guess, &state.values)?;
+                    indicators_prev = self.indicator_values(t, &env)?;
+                    if outcome.changed {
+                        // A jump the history cannot represent: restart
+                        // from order one, and record both sides of it.
+                        record(
+                            t,
+                            &y,
+                            &mut env,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &state.values,
+                        )?;
+                        y_hist[0].copy_from_slice(&y);
+                        t_hist.truncate(1);
+                        y_hist.truncate(1);
+                        order = 1;
+                        consecutive_ok = 0;
+                    }
+                    if let Some(message) = outcome.terminated {
+                        terminated = Some(message);
+                        break;
+                    }
                 }
             } else {
                 consecutive_ok = 0;
@@ -2368,9 +3045,16 @@ impl CompiledModel {
         }
 
         if terminated.is_none() && last_out_t < stop - 1e-12 {
-            record(stop, &y, &mut env, &mut f_scratch, &mut alg_guess)?;
+            record(
+                stop,
+                &y,
+                &mut env,
+                &mut f_scratch,
+                &mut alg_guess,
+                &state.values,
+            )?;
             terminated = self
-                .handle_event(stop, &env, &mut y, &mut when_prev)?
+                .handle_event(stop, &mut y, &mut env, &mut alg_guess, &mut state)?
                 .terminated;
         }
         Ok(SimResult {
@@ -2394,6 +3078,7 @@ impl CompiledModel {
         let mut columns = vec!["time".to_string()];
         columns.extend(self.states.iter().cloned());
         columns.extend(self.algebraics.iter().cloned());
+        columns.extend(self.discretes.iter().cloned());
         let mut rows = Vec::with_capacity(steps + 1);
 
         let mut record = |t: f64,
@@ -2401,23 +3086,42 @@ impl CompiledModel {
                           env: &mut HashMap<String, f64>,
                           k: &mut Vec<f64>,
                           this: &CompiledModel,
-                          alg_guess: &mut [f64]|
+                          alg_guess: &mut [f64],
+                          discrete: &Discretes|
          -> Result<(), SimError> {
-            this.eval_point(t, y, env, k, alg_guess)?;
+            this.eval_point(t, y, env, k, alg_guess, discrete)?;
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
             row.extend_from_slice(y);
             for name in &this.algebraics {
                 row.push(env[name]);
             }
+            for name in &this.discretes {
+                row.push(discrete[name]);
+            }
             rows.push(row);
             Ok(())
         };
 
-        record(0.0, &y, &mut env, &mut k1, self, &mut alg_guess)?;
-        let mut when_prev = vec![false; self.when_clauses.len()];
+        // A model with time events needs a solver that can step onto
+        // them; the fixed grid of RK4 cannot.
+        if !self.samples.is_empty() {
+            return err(
+                "sample() needs a solver that steps onto the event: use dopri45 or bdf".to_string(),
+            );
+        }
+        let mut state = self.event_state();
+        record(
+            0.0,
+            &y,
+            &mut env,
+            &mut k1,
+            self,
+            &mut alg_guess,
+            &state.values,
+        )?;
         let mut terminated = self
-            .handle_event(0.0, &env, &mut y, &mut when_prev)?
+            .handle_event(0.0, &mut y, &mut env, &mut alg_guess, &mut state)?
             .terminated;
 
         for i in 0..steps {
@@ -2427,25 +3131,54 @@ impl CompiledModel {
             let t = i as f64 * self.step;
             let h = (self.stop_time - t).min(self.step);
 
-            self.eval_point(t, &y, &mut env, &mut k1, &mut alg_guess)?;
+            self.eval_point(t, &y, &mut env, &mut k1, &mut alg_guess, &state.values)?;
             for j in 0..n {
                 scratch[j] = y[j] + 0.5 * h * k1[j];
             }
-            self.eval_point(t + 0.5 * h, &scratch, &mut env, &mut k2, &mut alg_guess)?;
+            self.eval_point(
+                t + 0.5 * h,
+                &scratch,
+                &mut env,
+                &mut k2,
+                &mut alg_guess,
+                &state.values,
+            )?;
             for j in 0..n {
                 scratch[j] = y[j] + 0.5 * h * k2[j];
             }
-            self.eval_point(t + 0.5 * h, &scratch, &mut env, &mut k3, &mut alg_guess)?;
+            self.eval_point(
+                t + 0.5 * h,
+                &scratch,
+                &mut env,
+                &mut k3,
+                &mut alg_guess,
+                &state.values,
+            )?;
             for j in 0..n {
                 scratch[j] = y[j] + h * k3[j];
             }
-            self.eval_point(t + h, &scratch, &mut env, &mut k4, &mut alg_guess)?;
+            self.eval_point(
+                t + h,
+                &scratch,
+                &mut env,
+                &mut k4,
+                &mut alg_guess,
+                &state.values,
+            )?;
             for j in 0..n {
                 y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
             }
-            record(t + h, &y, &mut env, &mut k1, self, &mut alg_guess)?;
+            record(
+                t + h,
+                &y,
+                &mut env,
+                &mut k1,
+                self,
+                &mut alg_guess,
+                &state.values,
+            )?;
             terminated = self
-                .handle_event(t + h, &env, &mut y, &mut when_prev)?
+                .handle_event(t + h, &mut y, &mut env, &mut alg_guess, &mut state)?
                 .terminated;
         }
 
@@ -3606,6 +4339,247 @@ mod tests {
                 2.0 * (std::f64::consts::PI * row[0]).sin().asin() / std::f64::consts::PI;
             assert!((row[u] - expected).abs() < 1e-12);
         }
+    }
+
+    #[test]
+    fn a_sampled_controller_holds_its_output_between_ticks() {
+        let result = compile(&with_library("sampled_control.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (u, y) = (index("u"), index("y"));
+        let (period, plant_time) = (0.1f64, 0.5f64);
+
+        // The control signal changes only on the clock, and the ticks
+        // land on the period exactly rather than on the output grid.
+        let mut ticks = Vec::new();
+        for pair in result.rows.windows(2) {
+            if pair[0][u] != pair[1][u] {
+                ticks.push(pair[1][0]);
+            }
+        }
+        assert_eq!(ticks.len(), 50, "one tick per period over five seconds");
+        for t in &ticks {
+            let off = t / period - (t / period).round();
+            assert!(off.abs() < 1e-9, "tick off the clock at t = {t}");
+        }
+
+        // Between two ticks the plant is a first-order lag relaxing
+        // toward the held value, which has a closed form.
+        let mut worst = 0.0f64;
+        for pair in result.rows.windows(2) {
+            let (t0, t1) = (pair[0][0], pair[1][0]);
+            if t1 <= t0 || pair[0][u] != pair[1][u] {
+                continue;
+            }
+            let held = pair[1][u];
+            let expected = held + (pair[0][y] - held) * (-(t1 - t0) / plant_time).exp();
+            worst = worst.max((pair[1][y] - expected).abs());
+        }
+        assert!(worst < 1e-8, "hold response off by {worst}");
+
+        // Integral action still lands on the setpoint.
+        assert!((result.rows.last().unwrap()[y] - 1.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn hysteresis_switches_exactly_on_its_band() {
+        let result = compile(&with_library("thermostat.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (temperature, heating, switches) = (index("T"), index("heating"), index("switches"));
+
+        let mut switch_on = Vec::new();
+        let mut switch_off = Vec::new();
+        for pair in result.rows.windows(2) {
+            if pair[0][heating] == pair[1][heating] {
+                continue;
+            }
+            if pair[1][heating] > 0.5 {
+                switch_on.push((pair[1][0], pair[1][temperature]));
+            } else {
+                switch_off.push((pair[1][0], pair[1][temperature]));
+            }
+        }
+        // The heater switches on the band edges, located to the same
+        // tolerance as any other event.
+        for (_, t) in &switch_off {
+            assert!((t - 21.0).abs() < 1e-6, "switched off at {t}");
+        }
+        for (_, t) in &switch_on {
+            assert!((t - 19.0).abs() < 1e-6, "switched on at {t}");
+        }
+
+        // Heating from 19 to 21 and cooling back is a closed form: the
+        // room chases 29 with the heater on and 5 with it off, both with
+        // the time constant C / G = 200 s.
+        let expected = 200.0 * (10.0f64 / 8.0).ln() + 200.0 * (16.0f64 / 14.0).ln();
+        for pair in switch_on.windows(2) {
+            let period = pair[1].0 - pair[0].0;
+            assert!(
+                (period - expected).abs() < 1e-3,
+                "cycle {period} vs {expected}"
+            );
+        }
+        // The counter counted the switch-ons, and only those.
+        assert_eq!(
+            result.rows.last().unwrap()[switches] as i64,
+            switch_on.len() as i64 + 1,
+            "the heater starts on, so the count leads the switch-ons by one"
+        );
+    }
+
+    #[test]
+    fn the_discrete_library_blocks_run_on_the_clock() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
+        let run_top = |source: &str| {
+            let model = oxidelica_parser::parse_model_with_libraries(
+                std::slice::from_ref(&library),
+                source,
+            )
+            .unwrap();
+            compile(&model).unwrap().simulate().unwrap()
+        };
+
+        // A unit delay carries the previous tick's value, so against a
+        // ramp its output trails the input by exactly one period.
+        let delayed = run_top(
+            "model D Oxidelica.Blocks.Discrete.UnitDelay delay(samplePeriod = 0.25); \
+             Real ramp; equation ramp = time; delay.u = ramp; \
+             annotation(experiment(StopTime = 2.0, Interval = 0.05)); end D;",
+        );
+        let index =
+            |result: &SimResult, name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (y, held) = (index(&delayed, "delay.y"), index(&delayed, "delay.held"));
+        for row in &delayed.rows {
+            let t = row[0];
+            // A tick instant carries two rows, before and after the
+            // event; the value between ticks is the one to check.
+            if t < 0.5 || (t / 0.25 - (t / 0.25).round()).abs() < 1e-9 {
+                continue;
+            }
+            // At time t the output is the input from one tick earlier.
+            let tick = (t / 0.25).floor() * 0.25;
+            let expected = (tick - 0.25).max(0.0);
+            assert!(
+                (row[y] - expected).abs() < 1e-9,
+                "t = {t}: delayed {} vs {expected}",
+                row[y]
+            );
+            assert!((row[held] - tick).abs() < 1e-9);
+        }
+
+        // The library controller reproduces the hand-written one of the
+        // example, tick for tick.
+        let library_pi = run_top(
+            "model L Oxidelica.Blocks.Discrete.PI controller(samplePeriod = 0.1, k = 2.0, Ti = 0.5); \
+             Real y(start = 0, fixed = true); equation controller.u = 1.0 - y; \
+             der(y) = (controller.y - y) / 0.5; \
+             annotation(experiment(StopTime = 5.0, Interval = 0.002, Tolerance = 1e-9)); end L;",
+        );
+        let by_hand = compile(&with_library("sampled_control.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let (a, b) = (index(&library_pi, "y"), index(&by_hand, "y"));
+        assert_eq!(library_pi.rows.len(), by_hand.rows.len());
+        for (left, right) in library_pi.rows.iter().zip(&by_hand.rows) {
+            assert!((left[a] - right[b]).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn event_iteration_chains_the_clauses_of_one_event() {
+        // `initial()` fires before the first output point; the edge of a
+        // discrete variable and the change of a counter are seen inside
+        // the same event that produced them.
+        let result = run(
+            "model M Real x(start = 0, fixed = true); Boolean started(start = false); \
+             Boolean on(start = false); Integer rises(start = 0); Integer changes(start = 0); \
+             equation der(x) = 1; \
+             when initial() then started = true; end when; \
+             when x > 0.5 then on = true; end when; \
+             when edge(on) then rises = pre(rises) + 1; end when; \
+             when change(rises) then changes = pre(changes) + 1; end when; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.05)); end M;",
+        );
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let first = &result.rows[0];
+        assert_eq!(first[index("started")], 1.0, "initial() fires at t = 0");
+        assert_eq!(first[index("rises")], 0.0);
+
+        let last = result.rows.last().unwrap();
+        assert_eq!(last[index("on")], 1.0);
+        assert_eq!(last[index("rises")], 1.0);
+        assert_eq!(last[index("changes")], 1.0);
+        // Everything happened in the single event at x = 0.5.
+        let switch = result
+            .rows
+            .iter()
+            .find(|row| row[index("rises")] > 0.5)
+            .expect("the chain fires");
+        assert!((switch[index("x")] - 0.5).abs() < 1e-6);
+        assert_eq!(switch[index("changes")], 1.0);
+    }
+
+    #[test]
+    fn the_discrete_layer_reports_its_error_paths() {
+        let error = |source: &str| {
+            let model = parse_model(source).unwrap();
+            compile(&model).unwrap_err().to_string()
+        };
+        // `pre` needs a variable that has a value from before the event.
+        assert!(error(
+            "model M Real x(start = 0, fixed = true); Real y; equation der(x) = 1; y = pre(x); end M;"
+        )
+        .contains("not discrete"));
+        // A clock with no period.
+        assert!(error(
+            "model M Real x(start = 0, fixed = true); Real u; equation der(x) = 1; \
+             when sample(0, 0) then u = x; end when; end M;"
+        )
+        .contains("interval must be positive"));
+        // A `when` assigning something that was never declared.
+        assert!(error(
+            "model M Real x(start = 0, fixed = true); equation der(x) = 1; \
+             when x > 0.5 then u = 1; end when; end M;"
+        )
+        .contains("never declared"));
+        // A discrete variable nothing ever assigns.
+        assert!(error(
+            "model M discrete Real u; Real x(start = 0, fixed = true); equation der(x) = 1; end M;"
+        )
+        .contains("never assigned"));
+        // `pre` of an expression rather than a variable.
+        assert!(error(
+            "model M Real x(start = 0, fixed = true); Real u; equation der(x) = 1; \
+             when x > 0.5 then u = pre(x + 1); end when; end M;"
+        )
+        .contains("takes a variable"));
+
+        // The fixed grid of RK4 cannot step onto a time event.
+        let model = parse_model(
+            "model M Real x(start = 0, fixed = true); Real u; equation der(x) = 1; \
+             when sample(0, 0.1) then u = x; end when; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.05)); end M;",
+        )
+        .unwrap();
+        let mut compiled = compile(&model).unwrap();
+        compiled.method = SolverMethod::Rk4;
+        assert!(compiled
+            .simulate()
+            .unwrap_err()
+            .to_string()
+            .contains("dopri45 or bdf"));
+        // The stiff solver steps onto them like the adaptive one does.
+        compiled.method = SolverMethod::Bdf;
+        let stiff = compiled.simulate().unwrap();
+        let u = stiff.columns.iter().position(|c| c == "u").unwrap();
+        assert!((stiff.rows.last().unwrap()[u] - 1.0).abs() < 1e-6);
     }
 
     #[test]

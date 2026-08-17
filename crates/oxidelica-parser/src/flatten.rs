@@ -76,7 +76,7 @@ fn collect_members(
             Variability::Parameter | Variability::Constant => info
                 .parameters
                 .push((component.name.clone(), component.binding.clone())),
-            Variability::Continuous => {
+            Variability::Continuous | Variability::Discrete => {
                 let is_connector = lookup(registry, &component.type_name, scope, &class.imports)
                     .is_some_and(|c| c.kind == ClassKind::Connector);
                 if is_connector {
@@ -532,9 +532,9 @@ fn instantiate(
     }
 
     for clause in &class.when_clauses {
-        acc.when_clauses.push(WhenClause {
-            condition: resolve_here(&clause.condition)?,
-            actions: clause
+        let mut branches = Vec::new();
+        for branch in &clause.branches {
+            let actions = branch
                 .actions
                 .iter()
                 .map(|action| match action {
@@ -542,10 +542,19 @@ fn instantiate(
                         flat_name(state, prefix, &outers),
                         resolve_here(value)?,
                     )),
+                    WhenAction::Assign(target, value) => Ok(WhenAction::Assign(
+                        flat_name(target, prefix, &outers),
+                        resolve_here(value)?,
+                    )),
                     WhenAction::Terminate(message) => Ok(WhenAction::Terminate(message.clone())),
                 })
-                .collect::<Result<Vec<_>, String>>()?,
-        });
+                .collect::<Result<Vec<_>, String>>()?;
+            branches.push(WhenBranch {
+                condition: resolve_here(&branch.condition)?,
+                actions,
+            });
+        }
+        acc.when_clauses.push(WhenClause { branches });
     }
     for (a, b) in &class.connects {
         let (a, b) = (flat_name(a, prefix, &outers), flat_name(b, prefix, &outers));

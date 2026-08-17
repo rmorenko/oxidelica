@@ -32,6 +32,7 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 | **M6. MSL core** (done)           | Blocks, Electrical.Analog, Mechanics.Rotational                | A library in MSL layout ships; MSL structure parses and flattens |
 | **M7. GUI** (done)                | Bevy: diagram editor, plotting                                 | Build and simulate a model with the mouse                        |
 | **M8. 3D** (done)                 | MultiBody visualization, animation                             | Double pendulum spins in 3D                                      |
+| **M9. Discrete layer** (partial)  | Discrete variables, `when` equations, `pre`, `sample`          | A sampled controller and a hysteresis thermostat run             |
 
 **The IDE track runs in parallel with the language track from the start** (decision of 2026-08-15): v0 — a Bevy window with a code editor, a run button, and plots (shipped with M0); then incrementally — background simulation, syntax highlighting, the diagram editor (M7) and the 3D scene (M8) in the same app. The language track advances at its own pace: M1, M2, M3…
 
@@ -45,7 +46,8 @@ OpenModelica is powerful but operationally heavy: no native macOS build, GUI req
 
 1. **DAE index reduction (M3)** — done: Pantelides with dummy derivatives, tearing and an implicit BDF solver. The state selection is static (chosen by numerical pivoting at the initial point); models that need it to change mid-run — a pendulum swinging full circle — are the known limit.
 2. **The long tail of MSL semantics (M6)** — closed for the packages the milestone covers. A standard library in MSL layout ships with the tool, and the structure real MSL files are built on works: `replaceable`/`redeclare` checked against `constrainedby`, `inner`/`outer` instances, enumerations, conditional components with the connections to them removed, `if` equations chosen by a structural parameter, declaration equations, nested modifiers reaching a child's attribute, chained type aliases, and the annotations MSL puts on declarations, equations and connections. Still out of scope: class-level redeclaration (`replaceable package Medium = …`), connections between arrays of components, and the descriptive attributes (`unit`, `min`, `max`, `nominal`, `stateSelect`), which are parsed and ignored.
-3. **Bevy maturity as a UI framework (M7)** — a diagram editor on ECS is nontrivial; mitigate: all "office" UI in egui, Bevy owns the canvas and 3D.
+3. **The discrete layer (M9)** — the event side is done: variables that change only at events, `when` equations with `elsewhen`, `pre`/`edge`/`change`/`initial()`, the clock of `sample(start, interval)` with the solver stepping exactly onto it, and event iteration so that one event can chain several clauses. What is still missing: `algorithm` sections in models (they work in functions only) and `initial equation`, which needs an initialization system of its own.
+4. **Bevy maturity as a UI framework (M7)** — a diagram editor on ECS is nontrivial; mitigate: all "office" UI in egui, Bevy owns the canvas and 3D.
 
 ## Spike (M0) — definition
 

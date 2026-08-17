@@ -749,35 +749,56 @@ impl Parser {
         })
     }
 
-    /// `when <cond> then <action>; ... end when;`
+    /// `when <cond> then <action>; … [elsewhen <cond> then …] end when;`
     ///
-    /// Supported actions are `reinit(state, expr)` and
-    /// `terminate("message")`.
+    /// A branch holds equations for discrete variables (`x = expr`),
+    /// `reinit(state, expr)` and `terminate("message")`.
     fn when_clause(&mut self) -> Result<WhenClause, ParseError> {
         self.expect(&Token::When, "when")?;
-        let condition = self.expr()?;
-        self.expect(&Token::Then, "then after when condition")?;
+        let mut branches = Vec::new();
+        loop {
+            let condition = self.expr()?;
+            self.expect(&Token::Then, "then after when condition")?;
+            let actions = self.when_actions()?;
+            if actions.is_empty() {
+                return Err(self.err("when branch has no actions".into()));
+            }
+            branches.push(WhenBranch { condition, actions });
+            if self.peek() == &Token::ElseWhen {
+                self.bump();
+                continue;
+            }
+            break;
+        }
+        self.expect(&Token::End, "end when")?;
+        self.expect(&Token::When, "when after end")?;
+        self.expect(&Token::Semi, "semicolon after end when")?;
+        Ok(WhenClause { branches })
+    }
+
+    /// The body of one `when` branch, up to `elsewhen` or `end`.
+    fn when_actions(&mut self) -> Result<Vec<WhenAction>, ParseError> {
         let mut actions = Vec::new();
-        while self.peek() != &Token::End {
-            if self.peek() == &Token::Eof {
-                return Err(self.err("unterminated when clause".into()));
+        loop {
+            match self.peek() {
+                Token::End | Token::ElseWhen => break,
+                Token::Eof => return Err(self.err("unterminated when clause".into())),
+                _ => {}
             }
-            let callee = self.ident("call inside when")?;
-            if callee != "reinit" && callee != "terminate" {
-                return Err(self.err(format!(
-                    "only reinit() and terminate() are supported inside when, found `{callee}`"
-                )));
-            }
-            self.expect(&Token::LParen, "parenthesis after the call")?;
-            match callee.as_str() {
-                "reinit" => {
+            let target = self.component_ref()?;
+            match (target.as_str(), self.peek()) {
+                // `reinit(state, expr)` and `terminate("message")` act on
+                // the solver rather than on a variable.
+                ("reinit", Token::LParen) => {
+                    self.bump();
                     let state = self.component_ref()?;
                     self.expect(&Token::Comma, "comma in reinit")?;
                     let value = self.expr()?;
                     self.expect(&Token::RParen, "closing parenthesis of reinit")?;
                     actions.push(WhenAction::Reinit(state, value));
                 }
-                "terminate" => {
+                ("terminate", Token::LParen) => {
+                    self.bump();
                     let message = match self.bump() {
                         Token::Str(message) => message,
                         other => {
@@ -789,17 +810,20 @@ impl Parser {
                     self.expect(&Token::RParen, "closing parenthesis of terminate")?;
                     actions.push(WhenAction::Terminate(message));
                 }
-                _ => unreachable!("the action name was validated above"),
+                // Anything else is an equation for a discrete variable.
+                (_, _) => {
+                    self.expect(&Token::Assign, "`=` in an equation inside when")?;
+                    let value = self.expr()?;
+                    actions.push(WhenAction::Assign(target, value));
+                }
+            }
+            self.opt_string();
+            if self.peek() == &Token::Annotation {
+                self.annotation_body(&mut Experiment::default())?;
             }
             self.expect(&Token::Semi, "semicolon after the action")?;
         }
-        self.expect(&Token::End, "end when")?;
-        self.expect(&Token::When, "when after end")?;
-        self.expect(&Token::Semi, "semicolon after end when")?;
-        if actions.is_empty() {
-            return Err(self.err("when clause has no actions".into()));
-        }
-        Ok(WhenClause { condition, actions })
+        Ok(actions)
     }
 
     fn declaration(&mut self) -> Result<Component, ParseError> {
@@ -815,6 +839,7 @@ impl Parser {
             match self.peek() {
                 Token::Parameter => variability = Variability::Parameter,
                 Token::Constant => variability = Variability::Constant,
+                Token::Discrete => variability = Variability::Discrete,
                 Token::Flow => flow = true,
                 Token::Input => causality = Causality::Input,
                 Token::Output => causality = Causality::Output,
@@ -1442,7 +1467,7 @@ mod tests {
         .unwrap();
         assert_eq!(m.when_clauses.len(), 1);
         assert!(matches!(
-            m.when_clauses[0].actions.as_slice(),
+            m.when_clauses[0].branches[0].actions.as_slice(),
             [WhenAction::Terminate(message)] if message == "done"
         ));
         // reinit is the other supported action, and clauses may hold
@@ -1452,17 +1477,13 @@ mod tests {
              when x < 0 then reinit(x, 1); terminate(\"bounced\"); end when; end M;",
         )
         .unwrap();
-        assert_eq!(with_reinit.when_clauses[0].actions.len(), 2);
+        assert_eq!(with_reinit.when_clauses[0].branches[0].actions.len(), 2);
         assert!(matches!(
-            with_reinit.when_clauses[0].actions[0],
+            with_reinit.when_clauses[0].branches[0].actions[0],
             WhenAction::Reinit(ref name, _) if name == "x"
         ));
         // Errors: an unsupported action, an empty body, an unterminated
         // clause and a non-string message.
-        assert!(
-            err_of("model M Real x; equation x = 1; when x > 1 then x = 2; end when; end M;")
-                .contains("only reinit() and terminate()")
-        );
         assert!(
             err_of("model M Real x; equation x = 1; when x > 1 then end when; end M;")
                 .contains("no actions")
@@ -1608,6 +1629,47 @@ mod tests {
         assert_eq!(world.scope, Scope::Inner);
         let top = classes.iter().find(|c| c.name == "Lib.Top").unwrap();
         assert_eq!(top.components[0].redeclares[0].name, "block1");
+    }
+
+    #[test]
+    fn parses_the_discrete_layer() {
+        let m = parse_model(
+            "model M \
+               discrete Real held; \
+               Boolean on(start = false); \
+               Integer count(start = 0); \
+               Real x(start = 0, fixed = true); \
+             equation \
+               der(x) = 1; \
+               when x > 1 then \
+                 on = true; \
+                 held = pre(held) + 1 \"one more\"; \
+                 count = pre(count) + 1 annotation (Dialog()); \
+               elsewhen x > 2 then \
+                 on = false; \
+                 held = pre(held); \
+                 count = pre(count); \
+               end when; \
+             end M;",
+        )
+        .unwrap();
+        let held = m.components.iter().find(|c| c.name == "held").unwrap();
+        assert_eq!(held.variability, Variability::Discrete);
+        let clause = &m.when_clauses[0];
+        assert_eq!(clause.branches.len(), 2, "elsewhen is a second branch");
+        assert_eq!(clause.branches[0].actions.len(), 3);
+        assert!(matches!(
+            clause.branches[1].actions[0],
+            WhenAction::Assign(ref name, Expr::Bool(false)) if name == "on"
+        ));
+
+        // reinit and terminate still parse alongside the equations.
+        let mixed = parse_model(
+            "model M Real x(start = 1); Real state; equation der(x) = -1; \
+             when x < 0 then reinit(x, 1); state = 1; terminate(\"done\"); end when; end M;",
+        )
+        .unwrap();
+        assert_eq!(mixed.when_clauses[0].branches[0].actions.len(), 3);
     }
 
     #[test]

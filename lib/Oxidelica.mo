@@ -155,6 +155,49 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
         y = k * (u + x);
       end PI;
     end Continuous;
+
+    package Discrete "Blocks that run on a clock"
+      // Every output here is assigned inside a `when`, which makes it a
+      // discrete variable: it holds its value between ticks, so the
+      // continuous part downstream sees a staircase.
+
+      partial model SampledSISO "Block clocked by a sample period"
+        extends Interfaces.SISO;
+        parameter Real samplePeriod = 0.1 "time between two ticks";
+        parameter Real startTime = 0 "instant of the first tick";
+      end SampledSISO;
+
+      model Sampler "Samples its input and holds it until the next tick"
+        extends SampledSISO;
+      equation
+        when sample(startTime, samplePeriod) then
+          y = u;
+        end when;
+      end Sampler;
+
+      model UnitDelay "Output is the input of the previous tick"
+        extends SampledSISO(y(start = y_start));
+        parameter Real y_start = 0 "output before the first tick";
+        Real held(start = y_start) "value carried between ticks";
+      equation
+        when sample(startTime, samplePeriod) then
+          y = pre(held);
+          held = u;
+        end when;
+      end UnitDelay;
+
+      model PI "Proportional-integral controller on a clock"
+        extends SampledSISO;
+        parameter Real k = 1 "proportional gain";
+        parameter Real Ti = 1 "integral time";
+        Real integral(start = 0) "integrator state, updated at every tick";
+      equation
+        when sample(startTime, samplePeriod) then
+          integral = pre(integral) + samplePeriod * u / Ti;
+          y = k * (u + integral);
+        end when;
+      end PI;
+    end Discrete;
   end Blocks;
 
   package Electrical "Electrical components"
