@@ -1,10 +1,11 @@
-//! Oxidelica IDE v0 — примитивная среда: редактор кода модели,
-//! кнопка «Симулировать», графики результатов, локализация (EN/RU)
-//! и две темы (тёмная/светлая) с сохранением выбора в конфиг.
+//! Oxidelica IDE — среда моделирования: меню, редактор кода,
+//! симуляция, графики. Локализация EN/RU, тёмная/светлая темы.
 
 mod i18n;
 mod settings;
+mod style;
 
+use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use egui_plot::{Legend, Line, Plot, PlotPoints};
@@ -32,6 +33,7 @@ struct Ide {
     settings: Settings,
     /// Какая тема сейчас реально применена к egui (None — ещё ни одна).
     applied_theme: Option<Theme>,
+    show_about: bool,
 }
 
 fn main() {
@@ -65,6 +67,7 @@ fn main() {
             result: None,
             settings,
             applied_theme: None,
+            show_about: false,
         })
         .add_systems(Update, ui_system)
         .run();
@@ -82,43 +85,128 @@ fn list_examples() -> Vec<PathBuf> {
     found
 }
 
-fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
+fn file_label(path: &std::path::Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn load_example(ide: &mut Ide, path: PathBuf) {
+    let s = ide.settings.lang.strings();
+    match std::fs::read_to_string(&path) {
+        Ok(text) => {
+            ide.source = text;
+            ide.file = Some(path);
+            ide.result = None;
+            ide.log = s.file_loaded.into();
+        }
+        Err(e) => ide.log = format!("{} {}: {e}", s.open_error, path.display()),
+    }
+}
+
+fn save_current(ide: &mut Ide) {
+    let s = ide.settings.lang.strings();
+    match &ide.file {
+        Some(path) => match std::fs::write(path, &ide.source) {
+            Ok(()) => ide.log = format!("{}: {}", s.saved, path.display()),
+            Err(e) => ide.log = format!("{}: {e}", s.write_error),
+        },
+        None => ide.log = s.no_file_to_save.into(),
+    }
+}
+
+fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWriter<AppExit>) {
     let ctx = contexts.ctx_mut();
     let ide = &mut *ide;
 
     // применяем тему при первом кадре и при каждой смене
     if ide.applied_theme != Some(ide.settings.theme) {
-        ctx.set_visuals(match ide.settings.theme {
-            Theme::Dark => egui::Visuals::dark(),
-            Theme::Light => egui::Visuals::light(),
-        });
+        style::apply(ctx, ide.settings.theme);
         ide.applied_theme = Some(ide.settings.theme);
     }
 
+    let settings_before = ide.settings;
     let s = ide.settings.lang.strings();
+    let accent = style::accent(ide.settings.theme);
 
+    // --- строка меню ---
+    egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
+        egui::menu::bar(ui, |ui| {
+            ui.menu_button(s.menu_file, |ui| {
+                ui.menu_button(s.menu_open_example, |ui| {
+                    let examples = ide.examples.clone();
+                    for path in examples {
+                        if ui.button(file_label(&path)).clicked() {
+                            load_example(ide, path);
+                            ui.close_menu();
+                        }
+                    }
+                });
+                if ui.button(s.save).clicked() {
+                    save_current(ide);
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button(s.menu_quit).clicked() {
+                    exit.write(AppExit::Success);
+                }
+            });
+
+            ui.menu_button(s.menu_simulation, |ui| {
+                if ui.button(s.menu_run).clicked() {
+                    run_simulation(ide);
+                    ui.close_menu();
+                }
+            });
+
+            ui.menu_button(s.menu_view, |ui| {
+                ui.menu_button(s.menu_theme, |ui| {
+                    if ui
+                        .radio_value(&mut ide.settings.theme, Theme::Dark, s.theme_dark)
+                        .clicked()
+                        | ui.radio_value(&mut ide.settings.theme, Theme::Light, s.theme_light)
+                            .clicked()
+                    {
+                        ui.close_menu();
+                    }
+                });
+                ui.menu_button(s.menu_language, |ui| {
+                    if ui
+                        .radio_value(&mut ide.settings.lang, Lang::En, Lang::En.label())
+                        .clicked()
+                        | ui.radio_value(&mut ide.settings.lang, Lang::Ru, Lang::Ru.label())
+                            .clicked()
+                    {
+                        ui.close_menu();
+                    }
+                });
+            });
+
+            ui.menu_button(s.menu_help, |ui| {
+                if ui.button(s.menu_about).clicked() {
+                    ide.show_about = true;
+                    ui.close_menu();
+                }
+            });
+        });
+    });
+
+    // --- тулбар: быстрый доступ ---
     egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
+        ui.add_space(4.0);
         ui.horizontal(|ui| {
-            ui.heading("Oxidelica");
-            ui.separator();
-
             let current = ide
                 .file
                 .as_ref()
-                .and_then(|p| p.file_name())
-                .map(|n| n.to_string_lossy().into_owned())
+                .map(|p| file_label(p))
                 .unwrap_or_else(|| s.no_file.into());
             let mut selected: Option<PathBuf> = None;
             egui::ComboBox::from_id_salt("examples-combo")
                 .selected_text(&current)
                 .show_ui(ui, |ui| {
                     for path in &ide.examples {
-                        let name = path
-                            .file_name()
-                            .map(|n| n.to_string_lossy().into_owned())
-                            .unwrap_or_default();
                         if ui
-                            .selectable_label(Some(path) == ide.file.as_ref(), name)
+                            .selectable_label(Some(path) == ide.file.as_ref(), file_label(path))
                             .clicked()
                         {
                             selected = Some(path.clone());
@@ -126,71 +214,27 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
                     }
                 });
             if let Some(path) = selected {
-                match std::fs::read_to_string(&path) {
-                    Ok(text) => {
-                        ide.source = text;
-                        ide.file = Some(path);
-                        ide.result = None;
-                        ide.log = s.file_loaded.into();
-                    }
-                    Err(e) => ide.log = format!("{} {}: {e}", s.open_error, path.display()),
-                }
+                load_example(ide, path);
             }
 
-            if ui.button(s.save).clicked() {
-                match &ide.file {
-                    Some(path) => match std::fs::write(path, &ide.source) {
-                        Ok(()) => ide.log = format!("{}: {}", s.saved, path.display()),
-                        Err(e) => ide.log = format!("{}: {e}", s.write_error),
-                    },
-                    None => ide.log = s.no_file_to_save.into(),
-                }
-            }
-
-            if ui.button(s.simulate).clicked() {
+            let run =
+                egui::Button::new(egui::RichText::new(s.simulate).color(egui::Color32::WHITE))
+                    .fill(accent);
+            if ui.add(run).clicked() {
                 run_simulation(ide);
             }
-
-            // правый край: тема и язык
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let theme_icon = match ide.settings.theme {
-                    Theme::Dark => "☀",
-                    Theme::Light => "🌙",
-                };
-                if ui
-                    .button(theme_icon)
-                    .on_hover_text(s.theme_tooltip)
-                    .clicked()
-                {
-                    ide.settings.theme = match ide.settings.theme {
-                        Theme::Dark => Theme::Light,
-                        Theme::Light => Theme::Dark,
-                    };
-                    settings::save(ide.settings);
-                }
-
-                let mut lang = ide.settings.lang;
-                egui::ComboBox::from_id_salt("lang-combo")
-                    .selected_text(lang.label())
-                    .show_ui(ui, |ui| {
-                        for candidate in Lang::ALL {
-                            ui.selectable_value(&mut lang, candidate, candidate.label());
-                        }
-                    })
-                    .response
-                    .on_hover_text(s.language_tooltip);
-                if lang != ide.settings.lang {
-                    ide.settings.lang = lang;
-                    settings::save(ide.settings);
-                }
-            });
         });
+        ui.add_space(4.0);
     });
 
+    // --- статусная строка ---
     egui::TopBottomPanel::bottom("log").show(ctx, |ui| {
+        ui.add_space(2.0);
         ui.monospace(&ide.log);
+        ui.add_space(2.0);
     });
 
+    // --- редактор ---
     egui::SidePanel::left("editor")
         .resizable(true)
         .default_width(600.0)
@@ -206,10 +250,11 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
             });
         });
 
+    // --- графики ---
     egui::CentralPanel::default().show(ctx, |ui| match &mut ide.result {
         None => {
             ui.centered_and_justified(|ui| {
-                ui.label(s.press_simulate);
+                ui.label(egui::RichText::new(s.press_simulate).weak());
             });
         }
         Some(data) => {
@@ -232,6 +277,26 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>) {
                 });
         }
     });
+
+    // --- о программе ---
+    if ide.show_about {
+        egui::Window::new(s.menu_about)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .open(&mut ide.show_about)
+            .show(ctx, |ui| {
+                ui.heading(format!("Oxidelica {}", env!("CARGO_PKG_VERSION")));
+                ui.add_space(4.0);
+                ui.label(s.about_text);
+                ui.add_space(4.0);
+                ui.hyperlink("https://github.com/romanmorenko/oxidelica");
+            });
+    }
+
+    if settings_before != ide.settings {
+        settings::save(ide.settings);
+    }
 }
 
 fn run_simulation(ide: &mut Ide) {

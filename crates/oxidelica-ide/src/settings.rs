@@ -28,7 +28,7 @@ impl Theme {
     }
 }
 
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Settings {
     pub lang: Lang,
     pub theme: Theme,
