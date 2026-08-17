@@ -1,0 +1,16 @@
+[package]
+name = "oxidelica-ide"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "oxidelica-ide"
+path = "src/main.rs"
+
+[dependencies]
+oxidelica-parser = { path = "../oxidelica-parser" }
+oxidelica-sim = { path = "../oxidelica-sim" }
+bevy = "0.16"
+bevy_egui = "0.34"
+egui_plot = "0.31"

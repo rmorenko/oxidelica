@@ -1,0 +1,13 @@
+[package]
+name = "oxidelica-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "oxidelica"
+path = "src/main.rs"
+
+[dependencies]
+oxidelica-parser = { path = "../oxidelica-parser" }
+oxidelica-sim = { path = "../oxidelica-sim" }

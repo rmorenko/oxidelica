@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/oxidelica-parser",
+    "crates/oxidelica-sim",
+    "crates/oxidelica-cli",
+    "crates/oxidelica-ide",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/romanmorenko/oxidelica"
+
+# Bevy в debug-сборке невыносим без оптимизации зависимостей
+[profile.dev.package."*"]
+opt-level = 2
