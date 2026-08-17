@@ -14,3 +14,4 @@ oxidelica-sim = { path = "../oxidelica-sim" }
 bevy = "0.16"
 bevy_egui = "0.34"
 egui_plot = "0.31"
+egui-phosphor = "0.9"

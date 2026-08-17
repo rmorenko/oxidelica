@@ -1,5 +1,6 @@
 //! Oxidelica IDE — the modeling environment: menu, code editor,
-//! simulation, plots. EN/RU localization, dark/light themes.
+//! simulation, plots. EN/RU localization, dark/light themes, a
+//! JetBrains-inspired look with icons and brand gradient strips.
 
 mod i18n;
 mod settings;
@@ -8,6 +9,7 @@ mod style;
 use bevy::app::AppExit;
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
+use egui_phosphor::regular as icons;
 use egui_plot::{Legend, Line, Plot, PlotPoints};
 use i18n::Lang;
 use settings::{Settings, Theme};
@@ -32,10 +34,14 @@ struct Ide {
     file: Option<PathBuf>,
     examples: Vec<PathBuf>,
     log: String,
+    /// Whether the last logged action succeeded (drives the status icon).
+    log_ok: bool,
     result: Option<SimData>,
     settings: Settings,
     /// The theme currently applied to egui (None — none yet).
     applied_theme: Option<Theme>,
+    /// Whether the icon font has been installed into the egui context.
+    fonts_installed: bool,
     show_about: bool,
 }
 
@@ -67,9 +73,11 @@ fn main() {
             file,
             examples,
             log: settings.lang.strings().ready.into(),
+            log_ok: true,
             result: None,
             settings,
             applied_theme: None,
+            fonts_installed: false,
             show_about: false,
         })
         .add_systems(Update, ui_system)
@@ -105,8 +113,12 @@ fn load_example(ide: &mut Ide, path: PathBuf) {
             ide.file = Some(path);
             ide.result = None;
             ide.log = s.file_loaded.into();
+            ide.log_ok = true;
         }
-        Err(e) => ide.log = format!("{} {}: {e}", s.open_error, path.display()),
+        Err(e) => {
+            ide.log = format!("{} {}: {e}", s.open_error, path.display());
+            ide.log_ok = false;
+        }
     }
 }
 
@@ -115,10 +127,19 @@ fn save_current(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     match &ide.file {
         Some(path) => match std::fs::write(path, &ide.source) {
-            Ok(()) => ide.log = format!("{}: {}", s.saved, path.display()),
-            Err(e) => ide.log = format!("{}: {e}", s.write_error),
+            Ok(()) => {
+                ide.log = format!("{}: {}", s.saved, path.display());
+                ide.log_ok = true;
+            }
+            Err(e) => {
+                ide.log = format!("{}: {e}", s.write_error);
+                ide.log_ok = false;
+            }
         },
-        None => ide.log = s.no_file_to_save.into(),
+        None => {
+            ide.log = s.no_file_to_save.into();
+            ide.log_ok = false;
+        }
     }
 }
 
@@ -126,6 +147,14 @@ fn save_current(ide: &mut Ide) {
 fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWriter<AppExit>) {
     let ctx = contexts.ctx_mut();
     let ide = &mut *ide;
+
+    // Install the Phosphor icon font once.
+    if !ide.fonts_installed {
+        let mut fonts = egui::FontDefinitions::default();
+        egui_phosphor::add_to_fonts(&mut fonts, egui_phosphor::Variant::Regular);
+        ctx.set_fonts(fonts);
+        ide.fonts_installed = true;
+    }
 
     // Apply the theme on the first frame and on every change.
     if ide.applied_theme != Some(ide.settings.theme) {
@@ -135,40 +164,55 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
 
     let settings_before = ide.settings;
     let s = ide.settings.lang.strings();
-    let accent = style::accent(ide.settings.theme);
+    let p = style::palette(ide.settings.theme);
 
     // --- menu bar ---
     egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
         egui::menu::bar(ui, |ui| {
             ui.menu_button(s.menu_file, |ui| {
-                ui.menu_button(s.menu_open_example, |ui| {
-                    let examples = ide.examples.clone();
-                    for path in examples {
-                        if ui.button(file_label(&path)).clicked() {
-                            load_example(ide, path);
-                            ui.close_menu();
+                ui.menu_button(
+                    format!("{} {}", icons::FOLDER_OPEN, s.menu_open_example),
+                    |ui| {
+                        let examples = ide.examples.clone();
+                        for path in examples {
+                            if ui
+                                .button(format!("{} {}", icons::FILE_CODE, file_label(&path)))
+                                .clicked()
+                            {
+                                load_example(ide, path);
+                                ui.close_menu();
+                            }
                         }
-                    }
-                });
-                if ui.button(s.save).clicked() {
+                    },
+                );
+                if ui
+                    .button(format!("{} {}", icons::FLOPPY_DISK, s.save))
+                    .clicked()
+                {
                     save_current(ide);
                     ui.close_menu();
                 }
                 ui.separator();
-                if ui.button(s.menu_quit).clicked() {
+                if ui
+                    .button(format!("{} {}", icons::SIGN_OUT, s.menu_quit))
+                    .clicked()
+                {
                     exit.write(AppExit::Success);
                 }
             });
 
             ui.menu_button(s.menu_simulation, |ui| {
-                if ui.button(s.menu_run).clicked() {
+                if ui
+                    .button(format!("{} {}", icons::PLAY, s.menu_run))
+                    .clicked()
+                {
                     run_simulation(ide);
                     ui.close_menu();
                 }
             });
 
             ui.menu_button(s.menu_view, |ui| {
-                ui.menu_button(s.menu_theme, |ui| {
+                ui.menu_button(format!("{} {}", icons::PAINT_BRUSH, s.menu_theme), |ui| {
                     if ui
                         .radio_value(&mut ide.settings.theme, Theme::Dark, s.theme_dark)
                         .clicked()
@@ -178,7 +222,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
                         ui.close_menu();
                     }
                 });
-                ui.menu_button(s.menu_language, |ui| {
+                ui.menu_button(format!("{} {}", icons::TRANSLATE, s.menu_language), |ui| {
                     if ui
                         .radio_value(&mut ide.settings.lang, Lang::En, Lang::En.label())
                         .clicked()
@@ -191,7 +235,10 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
             });
 
             ui.menu_button(s.menu_help, |ui| {
-                if ui.button(s.menu_about).clicked() {
+                if ui
+                    .button(format!("{} {}", icons::INFO, s.menu_about))
+                    .clicked()
+                {
                     ide.show_about = true;
                     ui.close_menu();
                 }
@@ -201,8 +248,9 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
 
     // --- toolbar: quick access ---
     egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
-        ui.add_space(4.0);
+        ui.add_space(5.0);
         ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(icons::TREE_STRUCTURE).color(p.accent));
             let current = ide
                 .file
                 .as_ref()
@@ -225,20 +273,50 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
                 load_example(ide, path);
             }
 
-            let run_label = format!("\u{25B6} {}", s.simulate);
-            let run = egui::Button::new(egui::RichText::new(run_label).color(egui::Color32::WHITE))
-                .fill(accent);
+            if ui
+                .button(egui::RichText::new(icons::FLOPPY_DISK).size(16.0))
+                .on_hover_text(s.save)
+                .clicked()
+            {
+                save_current(ide);
+            }
+
+            ui.separator();
+
+            let run_label = format!("{} {}", icons::PLAY_CIRCLE, s.simulate);
+            let run = egui::Button::new(
+                egui::RichText::new(run_label)
+                    .color(egui::Color32::WHITE)
+                    .strong(),
+            )
+            .fill(p.run_green);
             if ui.add(run).clicked() {
                 run_simulation(ide);
             }
         });
-        ui.add_space(4.0);
+        ui.add_space(5.0);
     });
+
+    // --- brand gradient strip under the toolbar ---
+    egui::TopBottomPanel::top("gradient")
+        .frame(egui::Frame::NONE)
+        .exact_height(3.0)
+        .show(ctx, |ui| {
+            style::gradient_strip(ui, 3.0);
+        });
 
     // --- status line ---
     egui::TopBottomPanel::bottom("log").show(ctx, |ui| {
         ui.add_space(2.0);
-        ui.monospace(&ide.log);
+        ui.horizontal(|ui| {
+            let (icon, color) = if ide.log_ok {
+                (icons::CHECK_CIRCLE, p.ok_green)
+            } else {
+                (icons::X_CIRCLE, p.error_red)
+            };
+            ui.label(egui::RichText::new(icon).color(color).size(15.0));
+            ui.monospace(&ide.log);
+        });
         ui.add_space(2.0);
     });
 
@@ -262,7 +340,10 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
     egui::CentralPanel::default().show(ctx, |ui| match &mut ide.result {
         None => {
             ui.centered_and_justified(|ui| {
-                ui.label(egui::RichText::new(s.press_simulate).weak());
+                ui.label(
+                    egui::RichText::new(format!("{}  {}", icons::CHART_LINE, s.press_simulate))
+                        .weak(),
+                );
             });
         }
         Some(data) => {
@@ -295,6 +376,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
             .open(&mut ide.show_about)
             .show(ctx, |ui| {
                 ui.heading(format!("Oxidelica {}", env!("CARGO_PKG_VERSION")));
+                style::gradient_strip(ui, 3.0);
                 ui.add_space(4.0);
                 ui.label(s.about_text);
                 ui.add_space(4.0);
@@ -311,6 +393,7 @@ fn ui_system(mut contexts: EguiContexts, mut ide: ResMut<Ide>, mut exit: EventWr
 fn run_simulation(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     let started = Instant::now();
+    ide.log_ok = false;
     let model = match oxidelica_parser::parse_model(&ide.source) {
         Ok(model) => model,
         Err(e) => {
@@ -336,6 +419,7 @@ fn run_simulation(ide: &mut Ide) {
                 s.variables,
                 result.columns[1..].join(", ")
             );
+            ide.log_ok = true;
             ide.result = Some(SimData {
                 visible: vec![true; result.columns.len().saturating_sub(1)],
                 columns: result.columns,
