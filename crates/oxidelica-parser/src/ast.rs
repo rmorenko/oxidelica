@@ -129,3 +129,54 @@ impl Expr {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn r(name: &str) -> Expr {
+        Expr::Ref(name.into())
+    }
+
+    fn der(name: &str) -> Expr {
+        Expr::Call("der".into(), vec![r(name)])
+    }
+
+    #[test]
+    fn as_der_of_only_matches_exact_shape() {
+        assert_eq!(der("x").as_der_of(), Some("x"));
+        // der с двумя аргументами, der от выражения, не-der — не совпадают
+        assert_eq!(Expr::Call("der".into(), vec![r("x"), r("y")]).as_der_of(), None);
+        assert_eq!(Expr::Call("der".into(), vec![Expr::Number(1.0)]).as_der_of(), None);
+        assert_eq!(Expr::Call("sin".into(), vec![r("x")]).as_der_of(), None);
+        assert_eq!(r("x").as_der_of(), None);
+    }
+
+    #[test]
+    fn contains_der_walks_every_variant() {
+        let deep = Expr::If(
+            Box::new(Expr::Rel(RelOp::Lt, Box::new(r("a")), Box::new(Expr::Number(0.0)))),
+            Box::new(Expr::And(Box::new(Expr::Bool(true)), Box::new(Expr::Not(Box::new(r("b")))))),
+            Box::new(Expr::Or(Box::new(Expr::Neg(Box::new(der("x")))), Box::new(Expr::Time))),
+        );
+        assert!(deep.contains_der());
+        assert!(!r("x").contains_der());
+        assert!(!Expr::Time.contains_der());
+    }
+
+    #[test]
+    fn collect_refs_walks_every_variant() {
+        let deep = Expr::If(
+            Box::new(Expr::Rel(RelOp::Ge, Box::new(r("a")), Box::new(Expr::Number(1.0)))),
+            Box::new(Expr::Bin(
+                BinOp::Add,
+                Box::new(Expr::Not(Box::new(r("b")))),
+                Box::new(Expr::Call("sin".into(), vec![r("c")])),
+            )),
+            Box::new(Expr::Neg(Box::new(Expr::Bool(false)))),
+        );
+        let mut refs = Vec::new();
+        deep.collect_refs(&mut refs);
+        assert_eq!(refs, vec!["a", "b", "c"]);
+    }
+}

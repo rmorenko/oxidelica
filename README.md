@@ -12,6 +12,15 @@ cargo run -p oxidelica-cli -- parse examples/decay.mo
 cargo test
 ```
 
+## Тесты и покрытие
+
+Порог проекта — **95% строк** по ядру (parser, sim, cli; GUI-крейт исключён — event loop Bevy юнит-тестами не покрывается):
+
+```bash
+cargo test
+./scripts/coverage.sh --summary-only
+```
+
 ## Структура
 
 - `crates/oxidelica-parser` — лексер, AST, рекурсивный спуск по срезу Modelica

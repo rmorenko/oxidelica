@@ -486,15 +486,14 @@ mod tests {
         // -a*b^2 == -((a)*(b^2))
         let m = parse_model("model M Real a; Real b; Real c; equation c = -a*b^2; end M;").unwrap();
         let rhs = &m.equations[0].rhs;
-        match rhs {
-            Expr::Neg(inner) => match inner.as_ref() {
-                Expr::Bin(BinOp::Mul, _, r) => {
-                    assert!(matches!(r.as_ref(), Expr::Bin(BinOp::Pow, _, _)));
-                }
-                other => panic!("ожидалось умножение, получено {other:?}"),
-            },
-            other => panic!("ожидался унарный минус, получено {other:?}"),
-        }
+        let Expr::Neg(inner) = rhs else { panic!("ожидался унарный минус: {rhs:?}") };
+        let Expr::Bin(BinOp::Mul, _, r) = inner.as_ref() else {
+            panic!("ожидалось умножение: {inner:?}")
+        };
+        assert!(matches!(r.as_ref(), Expr::Bin(BinOp::Pow, _, _)));
+        // унарный плюс — прозрачен
+        let m2 = parse_model("model M Real c; equation c = +5; end M;").unwrap();
+        assert_eq!(m2.equations[0].rhs, Expr::Number(5.0));
     }
 
     #[test]
@@ -522,12 +521,108 @@ mod tests {
         )
         .unwrap();
         // elseif развернулся во вложенный If в ветке else
-        match &m.equations[0].rhs {
-            Expr::If(_, _, else_branch) => {
-                assert!(matches!(else_branch.as_ref(), Expr::If(_, _, _)));
-            }
-            other => panic!("ожидался If, получено {other:?}"),
-        }
+        let Expr::If(_, _, else_branch) = &m.equations[0].rhs else {
+            panic!("ожидался If: {:?}", m.equations[0].rhs)
+        };
+        assert!(matches!(else_branch.as_ref(), Expr::If(_, _, _)));
+        // fixed=false тоже разбирается
+        let m2 = parse_model("model M Real x(start=0, fixed=false); equation der(x)=1; end M;").unwrap();
+        assert_eq!(m2.components[0].fixed, Some(false));
+    }
+
+    fn err_of(source: &str) -> String {
+        parse_model(source).unwrap_err().to_string()
+    }
+
+    #[test]
+    fn error_paths_are_reported() {
+        // конец файла без end
+        assert!(err_of("model M Real x;").contains("конец файла"));
+        // не Real
+        assert!(err_of("model M Integer x; end M;").contains("только тип Real"));
+        // неизвестный атрибут
+        assert!(err_of("model M Real x(min=0); end M;").contains("неизвестный атрибут"));
+        // fixed не булев
+        assert!(err_of("model M Real x(fixed=1); end M;").contains("true/false"));
+        // пропущена запятая в атрибутах
+        assert!(err_of("model M Real x(start=1 fixed=true); end M;").contains(", или )"));
+        // нет точки с запятой после уравнения
+        assert!(err_of("model M Real x; equation x = 1 end M;").contains("точка с запятой"));
+        // if без else
+        assert!(err_of("model M Real y; equation y = if 1 > 0 then 1; end M;")
+            .contains("else"));
+        // мусор в выражении
+        assert!(err_of("model M Real x; equation x = ;; end M;").contains("неожиданный токен"));
+        // незакрытая скобка
+        assert!(err_of("model M Real x; equation x = (1 + 2; end M;").contains("закрывающая"));
+        // имя модели не идентификатор
+        assert!(err_of("model 1 end 1;").contains("идентификатор"));
+    }
+
+    #[test]
+    fn annotation_error_paths() {
+        // незакрытая annotation (обрыв на балансе скобок вне experiment)
+        assert!(err_of("model M Real x; equation x = 1; annotation(uses(").contains("незакрытая annotation"));
+        // обрыв внутри experiment — своя диагностика
+        assert!(err_of("model M Real x; equation x = 1; annotation(experiment(")
+            .contains("параметр experiment"));
+        // StartTime != 0 не поддержан
+        assert!(
+            err_of("model M Real x; equation x = 1; annotation(experiment(StartTime=2)); end M;")
+                .contains("StartTime")
+        );
+        // не число в experiment
+        assert!(
+            err_of("model M Real x; equation x = 1; annotation(experiment(StopTime=abc)); end M;")
+                .contains("ожидалось число")
+        );
+        // мусор вместо , или )
+        assert!(
+            err_of("model M Real x; equation x = 1; annotation(experiment(StopTime=1 abc)); end M;")
+                .contains(", или ) в experiment")
+        );
+    }
+
+    #[test]
+    fn annotation_accepts_start_time_zero_and_negatives() {
+        let m = parse_model(
+            "model M Real x; equation x = 1; \
+             annotation(experiment(StartTime=0, StopTime=2, Tolerance=1e-6, Whatever=3)); end M;",
+        )
+        .unwrap();
+        assert_eq!(m.experiment.stop_time, Some(2.0));
+        assert_eq!(m.experiment.tolerance, Some(1e-6));
+        // отрицательный литерал проходит через number_literal
+        let m2 = parse_model(
+            "model M Real x; equation x = 1; annotation(experiment(StopTime=-1)); end M;",
+        )
+        .unwrap();
+        assert_eq!(m2.experiment.stop_time, Some(-1.0));
+    }
+
+    #[test]
+    fn parses_descriptions_and_der_on_rhs() {
+        let m = parse_model(
+            "model M \"модель\" Real x \"переменная\"; equation -x = der(x) \"уравнение\"; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.description.as_deref(), Some("модель"));
+        assert_eq!(m.components[0].description.as_deref(), Some("переменная"));
+        assert_eq!(m.equations[0].rhs.as_der_of(), Some("x"));
+    }
+
+    #[test]
+    fn parses_calls_booleans_and_constants() {
+        let m = parse_model(
+            "model M constant Real c = 2; parameter Real p = c + 1; Real y; \
+             equation y = max(sin(time), 0) + (if true then p else 0); end M;",
+        )
+        .unwrap();
+        assert_eq!(m.components[0].variability, Variability::Constant);
+        assert_eq!(m.components[1].variability, Variability::Parameter);
+        let mut refs = Vec::new();
+        m.equations[0].rhs.collect_refs(&mut refs);
+        assert_eq!(refs, vec!["p"]);
     }
 
     #[test]
@@ -538,12 +633,12 @@ mod tests {
              y = if a > 0 or b > 0 and not c > 0 then 1 else 0; end M;",
         )
         .unwrap();
-        match &m.equations[0].rhs {
-            Expr::If(cond, _, _) => match cond.as_ref() {
-                Expr::Or(_, rhs) => assert!(matches!(rhs.as_ref(), Expr::And(_, _))),
-                other => panic!("ожидался Or на верхнем уровне, получено {other:?}"),
-            },
-            other => panic!("ожидался If, получено {other:?}"),
-        }
+        let Expr::If(cond, _, _) = &m.equations[0].rhs else {
+            panic!("ожидался If: {:?}", m.equations[0].rhs)
+        };
+        let Expr::Or(_, or_rhs) = cond.as_ref() else {
+            panic!("ожидался Or на верхнем уровне: {cond:?}")
+        };
+        assert!(matches!(or_rhs.as_ref(), Expr::And(_, _)));
     }
 }

@@ -340,6 +340,7 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
 
 // --- интегрирование ---
 
+#[derive(Debug)]
 pub struct SimResult {
     /// Заголовок: time, состояния, алгебраические.
     pub columns: Vec<String>,
@@ -531,5 +532,169 @@ mod tests {
         .unwrap();
         let error = compile(&model).unwrap_err();
         assert!(error.0.contains("цикл"), "{}", error.0);
+    }
+
+    fn compile_err(source: &str) -> String {
+        compile(&parse_model(source).unwrap()).unwrap_err().to_string()
+    }
+
+    fn simulate_err(source: &str) -> String {
+        compile(&parse_model(source).unwrap())
+            .unwrap()
+            .simulate()
+            .unwrap_err()
+            .to_string()
+    }
+
+    #[test]
+    fn evaluates_every_builtin_function() {
+        let result = run(
+            "model F Real y; equation \
+             y = sin(1) + cos(1) + tan(1) + asin(0.5) + acos(0.5) + atan(1) \
+               + atan2(1, 2) + sinh(1) + cosh(1) + tanh(1) + exp(1) + log(2) \
+               + log10(100) + sqrt(4) + abs(-3) + sign(-2) + min(1, 2) + max(1, 5) + 2 ^ 10; \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end F;",
+        );
+        let expected = 1f64.sin() + 1f64.cos() + 1f64.tan() + 0.5f64.asin() + 0.5f64.acos()
+            + 1f64.atan() + 1f64.atan2(2.0) + 1f64.sinh() + 1f64.cosh() + 1f64.tanh()
+            + 1f64.exp() + 2f64.ln() + 100f64.log10() + 2.0 + 3.0 + (-1.0) + 1.0 + 5.0 + 1024.0;
+        assert!((result.rows[0][1] - expected).abs() < 1e-12);
+    }
+
+    #[test]
+    fn evaluates_booleans_and_relations() {
+        let result = run(
+            "model B Real y; Real r; equation \
+             y = if true and not false or false then 1 else 0; \
+             r = (if 1 < 2 then 1 else 0) + (if 2 <= 2 then 1 else 0) \
+               + (if 3 > 2 then 1 else 0) + (if 2 >= 3 then 0 else 1) \
+               + (if 1 == 1 then 1 else 0) + (if 1 <> 2 then 1 else 0); \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end B;",
+        );
+        let names = &result.columns;
+        let y_idx = names.iter().position(|n| n == "y").unwrap();
+        let r_idx = names.iter().position(|n| n == "r").unwrap();
+        assert_eq!(result.rows[0][y_idx], 1.0);
+        assert_eq!(result.rows[0][r_idx], 6.0);
+    }
+
+    #[test]
+    fn compile_error_paths() {
+        // параметр без значения
+        assert!(compile_err("model M parameter Real p; Real x; equation x = 1; end M;")
+            .contains("без значения"));
+        // цикл параметров
+        assert!(compile_err(
+            "model M parameter Real a = b; parameter Real b = a; Real x; equation x = 1; end M;"
+        )
+        .contains("цикл"));
+        // der от параметра
+        assert!(compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")
+            .contains("непрерывной"));
+        // der с обеих сторон
+        assert!(compile_err("model M Real x; Real y; equation der(x) = der(y); y = 1; end M;")
+            .contains("der() допустим только отдельно"));
+        // два уравнения для одного состояния
+        assert!(compile_err("model M Real x; equation der(x) = 1; der(x) = 2; end M;")
+            .contains("два уравнения"));
+        // два уравнения для алгебраической
+        assert!(compile_err("model M Real y; equation y = 1; y = 2; end M;")
+            .contains("два уравнения"));
+        // и состояние, и алгебраическая
+        assert!(compile_err("model M Real x; equation der(x) = 1; x = 2; end M;")
+            .contains("и состояние, и алгебраическая"));
+        // неявное уравнение
+        assert!(compile_err("model M Real x; Real y; equation x + y = 2; y = 1; end M;")
+            .contains("явных уравнений"));
+        // der внутри алгебраического выражения
+        assert!(compile_err("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
+            .contains("алгебраическом"));
+        // уравнение для необъявленной переменной
+        assert!(compile_err("model M Real x; equation x = 1; q = 2; end M;")
+            .contains("необъявленных"));
+        // ошибка в start-выражении
+        assert!(compile_err("model M Real x(start = q); equation der(x) = 1; end M;")
+            .contains("start у x"));
+    }
+
+    #[test]
+    fn runtime_error_paths() {
+        // неизвестная переменная в выражении
+        assert!(simulate_err("model M Real y; equation y = z + 1; end M;")
+            .contains("неизвестная переменная"));
+        // неизвестная функция
+        assert!(simulate_err("model M Real y; equation y = frob(1); end M;")
+            .contains("неизвестная функция"));
+        // неверная арность
+        assert!(simulate_err("model M Real y; equation y = sin(1, 2); end M;")
+            .contains("аргумент"));
+    }
+
+    #[test]
+    fn csv_output_and_defaults() {
+        let model = parse_model("model M Real x(start=1); equation der(x) = -x; end M;").unwrap();
+        let compiled = compile(&model).unwrap();
+        // без annotation — умолчания
+        assert_eq!(compiled.stop_time, 1.0);
+        assert_eq!(compiled.step, 1e-3);
+        let result = compiled.simulate().unwrap();
+        let csv = result.to_csv();
+        let mut lines = csv.lines();
+        assert_eq!(lines.next().unwrap(), "time,x");
+        assert!(lines.next().unwrap().starts_with("0.000000000,1.000000000"));
+        assert_eq!(csv.lines().count(), result.rows.len() + 1);
+    }
+
+    #[test]
+    fn parameter_uses_start_as_fallback_value() {
+        let model = parse_model(
+            "model M parameter Real p(start = 3); Real x; equation x = p; end M;",
+        )
+        .unwrap();
+        let compiled = compile(&model).unwrap();
+        assert_eq!(compiled.parameters, vec![("p".to_string(), 3.0)]);
+    }
+
+    #[test]
+    fn mirrored_equation_forms_and_default_start() {
+        // expr = der(v), expr = v, состояние без start (иниц. нулём), вычитание
+        let result = run(
+            "model M Real x; Real y; equation \
+             -x - 1 = der(x); 2 + time = y; \
+             annotation(experiment(StopTime=1.0, Interval=0.001)); end M;",
+        );
+        let first = &result.rows[0];
+        assert_eq!(first[1], 0.0); // x(0) = 0 по умолчанию
+        assert!((first[2] - 2.0).abs() < 1e-12); // y(0) = 2
+        // der(x) = -x - 1, x(0)=0 → x(t) = e^{-t} - 1
+        let last = result.rows.last().unwrap();
+        assert!((last[1] - ((-1.0f64).exp() - 1.0)).abs() < 1e-9, "x(1)={}", last[1]);
+    }
+
+    #[test]
+    fn false_branches_of_relations_and_logic() {
+        let result = run(
+            "model B Real r; Real y; equation \
+             r = (if 2 < 1 then 1 else 0) + (if 3 <= 2 then 1 else 0) \
+               + (if 2 > 3 then 1 else 0) + (if 3 >= 2 then 1 else 0) \
+               + (if 1 == 2 then 1 else 0) + (if 1 <> 1 then 1 else 0); \
+             y = (if false or false then 1 else 0) + (if false and true then 1 else 0) \
+               + (if not true then 1 else 0) + (if false then 1 else 0); \
+             annotation(experiment(StopTime=0.01, Interval=0.01)); end B;",
+        );
+        let r_idx = result.columns.iter().position(|n| n == "r").unwrap();
+        let y_idx = result.columns.iter().position(|n| n == "y").unwrap();
+        assert_eq!(result.rows[0][r_idx], 1.0); // только >= истинно
+        assert_eq!(result.rows[0][y_idx], 0.0); // все ложные ветви
+    }
+
+    #[test]
+    fn time_is_available_in_equations() {
+        let result = run(
+            "model T Real y; equation y = 2 * time; \
+             annotation(experiment(StopTime=1.0, Interval=0.5)); end T;",
+        );
+        let last = result.rows.last().unwrap();
+        assert!((last[1] - 2.0).abs() < 1e-12);
     }
 }

@@ -262,3 +262,144 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
     out.push(Spanned { token: Token::Eof, line });
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn tokens(source: &str) -> Vec<Token> {
+        lex(source).unwrap().into_iter().map(|s| s.token).collect()
+    }
+
+    #[test]
+    fn display_covers_every_token() {
+        let all = [
+            Token::Ident("x".into()),
+            Token::Number(1.5),
+            Token::Str("s".into()),
+            Token::Model,
+            Token::End,
+            Token::Equation,
+            Token::Parameter,
+            Token::Constant,
+            Token::True,
+            Token::False,
+            Token::Annotation,
+            Token::If,
+            Token::Then,
+            Token::ElseIf,
+            Token::Else,
+            Token::And,
+            Token::Or,
+            Token::Not,
+            Token::LParen,
+            Token::RParen,
+            Token::Semi,
+            Token::Comma,
+            Token::Assign,
+            Token::Plus,
+            Token::Minus,
+            Token::Star,
+            Token::Slash,
+            Token::Caret,
+            Token::Dot,
+            Token::Lt,
+            Token::Le,
+            Token::Gt,
+            Token::Ge,
+            Token::EqEq,
+            Token::Ne,
+            Token::Eof,
+        ];
+        let rendered: Vec<String> = all.iter().map(|t| t.to_string()).collect();
+        assert!(rendered.iter().all(|s| !s.is_empty()));
+        assert_eq!(rendered[rendered.len() - 1], "<eof>");
+    }
+
+    #[test]
+    fn lexes_operators_and_keywords() {
+        assert_eq!(
+            tokens("== <= >= <> < > = if then elseif else and or not true false"),
+            vec![
+                Token::EqEq,
+                Token::Le,
+                Token::Ge,
+                Token::Ne,
+                Token::Lt,
+                Token::Gt,
+                Token::Assign,
+                Token::If,
+                Token::Then,
+                Token::ElseIf,
+                Token::Else,
+                Token::And,
+                Token::Or,
+                Token::Not,
+                Token::True,
+                Token::False,
+                Token::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn lexes_numbers_with_exponents() {
+        assert_eq!(
+            tokens("1e3 2.5E-2 1e+10 7 0.5"),
+            vec![
+                Token::Number(1e3),
+                Token::Number(2.5e-2),
+                Token::Number(1e10),
+                Token::Number(7.0),
+                Token::Number(0.5),
+                Token::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn dot_after_number_is_separate_token() {
+        // "1.x" — это Number(1), Dot, Ident: точка не съедается числом
+        assert_eq!(
+            tokens("1.x"),
+            vec![Token::Number(1.0), Token::Dot, Token::Ident("x".into()), Token::Eof]
+        );
+    }
+
+    #[test]
+    fn rejects_double_dot_number() {
+        let e = lex("1.2.3").unwrap_err();
+        assert!(e.message.contains("некорректное число"), "{}", e.message);
+    }
+
+    #[test]
+    fn lexes_strings_with_escapes_and_newlines() {
+        assert_eq!(
+            tokens(r#""a\"b" "line1
+line2""#),
+            vec![Token::Str("a\"b".into()), Token::Str("line1\nline2".into()), Token::Eof]
+        );
+    }
+
+    #[test]
+    fn skips_comments_and_counts_lines() {
+        let spanned = lex("// комментарий\n/* блок\nещё */ x").unwrap();
+        assert_eq!(spanned[0].token, Token::Ident("x".into()));
+        assert_eq!(spanned[0].line, 3);
+    }
+
+    #[test]
+    fn error_reports_line_number() {
+        let e = lex("x\ny\n#").unwrap_err();
+        assert_eq!(e.line, 3);
+        assert!(e.to_string().contains("строка 3"));
+        assert!(e.message.contains("неожиданный символ"));
+    }
+
+    #[test]
+    fn rejects_unclosed_constructs() {
+        assert!(lex("/* без конца").unwrap_err().message.contains("незакрытый комментарий"));
+        assert!(lex("\"без конца").unwrap_err().message.contains("незакрытая строка"));
+        assert!(lex("\"хвост\\").unwrap_err().message.contains("незакрытая строка"));
+    }
+}
