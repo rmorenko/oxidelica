@@ -83,6 +83,8 @@ struct TunerEntry {
 struct Tuner {
     params: Vec<TunerEntry>,
     inits: Vec<TunerEntry>,
+    /// Experiment settings (StopTime, Interval) as tunable entries.
+    exp: Vec<TunerEntry>,
     /// A value changed and a re-simulation is pending.
     dirty: bool,
     /// When the last change happened (for debouncing).
@@ -120,6 +122,17 @@ impl Tuner {
                 name: name.clone(),
             })
             .collect();
+        self.exp = [
+            ("StopTime", compiled.stop_time),
+            ("Interval", compiled.step),
+        ]
+        .into_iter()
+        .map(|(name, value)| TunerEntry {
+            value: carry(&self.exp, name, value),
+            default: value,
+            name: name.to_string(),
+        })
+        .collect();
         self.initialized = true;
     }
 
@@ -137,6 +150,13 @@ impl Tuner {
         for entry in &self.inits {
             if let Some(index) = compiled.states.iter().position(|n| n == &entry.name) {
                 compiled.initial[index] = entry.value;
+            }
+        }
+        for entry in &self.exp {
+            match entry.name.as_str() {
+                "StopTime" => compiled.stop_time = entry.value.max(1e-6),
+                "Interval" => compiled.step = entry.value.max(1e-9),
+                _ => {}
             }
         }
     }
@@ -500,7 +520,7 @@ fn ui_system(
     }
 
     // --- tuner: parameters and initial values ---
-    if !ide.tuner.params.is_empty() || !ide.tuner.inits.is_empty() {
+    if ide.tuner.initialized {
         egui::SidePanel::right("tuner")
             .resizable(true)
             .default_width(220.0)
@@ -511,6 +531,7 @@ fn ui_system(
                     for (title, entries) in [
                         (s.params_title, &mut tuner.params),
                         (s.inits_title, &mut tuner.inits),
+                        (s.menu_simulation, &mut tuner.exp),
                     ] {
                         if entries.is_empty() {
                             continue;
@@ -561,7 +582,12 @@ fn ui_system(
                         ))
                         .clicked()
                     {
-                        for entry in tuner.params.iter_mut().chain(tuner.inits.iter_mut()) {
+                        let all = tuner
+                            .params
+                            .iter_mut()
+                            .chain(tuner.inits.iter_mut())
+                            .chain(tuner.exp.iter_mut());
+                        for entry in all {
                             entry.value = entry.default;
                         }
                         changed = true;
