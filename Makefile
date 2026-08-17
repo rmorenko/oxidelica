@@ -101,10 +101,12 @@ linux-check: ## build and test the core on Linux in Docker
 	  cargo test -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli
 
 .PHONY: windows-check
-windows-check: ## cross-build and lint the whole workspace for Windows
+windows-check: ## cross-build, lint and run the test suite for Windows under Wine
 	cargo build --target x86_64-pc-windows-gnu --workspace
 	cargo clippy --workspace --all-targets --target x86_64-pc-windows-gnu -- -D warnings
-	@echo "note: needs the mingw-w64 toolchain (brew install mingw-w64)"
+	CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUNNER=wine \
+	  cargo test --workspace --target x86_64-pc-windows-gnu
+	@echo "note: needs mingw-w64 and wine (brew install mingw-w64; brew install --cask wine-stable)"
 
 .PHONY: linux-check-ide
 linux-check-ide: ## build the GUI on Linux in Docker (pulls Bevy's system libraries)

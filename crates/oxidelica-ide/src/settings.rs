@@ -117,3 +117,28 @@ pub fn save(settings: &Settings) {
     }
     let _ = std::fs::write(path, text);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_settings_file_lands_where_the_desktop_keeps_such_things() {
+        let path = config_path().expect("every desktop has a home for it");
+        assert!(path.ends_with("oxidelica/ide.conf"), "{path:?}");
+        if cfg!(windows) {
+            // Windows does not set HOME, so a per-user file belongs
+            // under APPDATA - this is what the check is really for.
+            let base = std::env::var_os("APPDATA")
+                .or_else(|| std::env::var_os("USERPROFILE"))
+                .expect("APPDATA or USERPROFILE");
+            assert!(path.starts_with(base), "{path:?}");
+        } else {
+            let home = std::env::var_os("HOME").expect("HOME");
+            assert!(path.starts_with(home), "{path:?}");
+            assert!(path
+                .parent()
+                .is_some_and(|dir| dir.parent().is_some_and(|dir| dir.ends_with(".config"))));
+        }
+    }
+}

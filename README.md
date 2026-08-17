@@ -23,13 +23,15 @@ every commit is built and tested on macOS, Linux and Windows by
 archives for the three targets. What has been verified locally so far:
 macOS natively; Linux in Docker, where the core passes its tests and the
 whole workspace is clippy-clean; and Windows by cross-compiling the whole
-workspace, GUI included, into real `.exe` files. Running the Windows
-binaries and their tests is what the CI job on a Windows runner is for —
-that part cannot be done from a Mac without Wine.
+workspace, GUI included, into real `.exe` files and running the entire
+test suite on them under Wine. The results agree across platforms to
+1e-9, which is the event-location tolerance rather than a difference in
+the answers.
 
 Linux needs the libraries Bevy links against — on Debian and Ubuntu
 `pkg-config libasound2-dev libudev-dev`; the Windows cross-build needs
-`mingw-w64`. Both checks run from a Mac without leaving the repository:
+`mingw-w64`, and running its binaries needs `wine`. Both checks run from
+a Mac without leaving the repository:
 
 ```bash
 make linux-check
