@@ -123,9 +123,24 @@ struct Parser {
     pos: usize,
 }
 
+/// What a modifier list contributes: value modifiers by (possibly
+/// dotted) name, plus the redeclarations found among them.
+type Modifications = (Vec<(String, Expr)>, Vec<Redeclare>);
+
+/// The contents of one branch of an `if` equation.
+type BranchBody = (Vec<EquationItem>, Vec<(String, String)>);
+
 impl Parser {
     fn peek(&self) -> &Token {
         &self.tokens[self.pos].token
+    }
+
+    /// The token `ahead` positions past the current one, clamped to the
+    /// end-of-file marker. Used where a prefix keyword alone does not
+    /// say whether a class or a component follows.
+    fn peek_ahead(&self, ahead: usize) -> &Token {
+        let index = (self.pos + ahead).min(self.tokens.len() - 1);
+        &self.tokens[index].token
     }
 
     fn line(&self) -> u32 {
@@ -179,6 +194,15 @@ impl Parser {
     }
 
     fn class_def(&mut self) -> Result<ClassDef, ParseError> {
+        // `replaceable`/`redeclare` on a nested class: the prefixes carry
+        // no meaning for a class that is never replaced, so they are
+        // consumed and the definition parsed as usual.
+        while matches!(
+            self.peek(),
+            Token::Replaceable | Token::Redeclare | Token::Final
+        ) {
+            self.bump();
+        }
         let partial = if self.peek() == &Token::Partial {
             self.bump();
             true
@@ -196,24 +220,34 @@ impl Parser {
         };
         let name = self.ident("class name")?;
 
-        // `type Voltage = Real(start = 0);`
+        // `type Voltage = Real(start = 0);` or
+        // `type Init = enumeration(NoInit, SteadyState);`
         let mut alias_of = None;
+        let mut enumeration = Vec::new();
         if kind == ClassKind::Type {
             self.expect(&Token::Assign, "`=` in a type alias")?;
-            let base = self.ident("aliased type")?;
-            let modifiers = if self.peek() == &Token::LParen {
-                self.type_attributes()?
+            if self.peek() == &Token::Enumeration {
+                enumeration = self.enumeration_literals()?;
             } else {
-                Vec::new()
-            };
-            alias_of = Some((base, modifiers));
+                let base = self.dotted_name("aliased type")?;
+                let modifiers = if self.peek() == &Token::LParen {
+                    self.type_attributes()?
+                } else {
+                    Vec::new()
+                };
+                alias_of = Some((base, modifiers));
+            }
             self.opt_string();
+            if self.peek() == &Token::Annotation {
+                self.annotation_body(&mut Experiment::default())?;
+            }
             self.expect(&Token::Semi, "semicolon after the type alias")?;
             return Ok(ClassDef {
                 kind,
                 name,
                 partial,
                 alias_of,
+                enumeration,
                 nested: Vec::new(),
                 imports: Vec::new(),
                 description: None,
@@ -221,6 +255,7 @@ impl Parser {
                 extends: Vec::new(),
                 equations: Vec::new(),
                 for_equations: Vec::new(),
+                if_equations: Vec::new(),
                 algorithm: Vec::new(),
                 connects: Vec::new(),
                 when_clauses: Vec::new(),
@@ -238,6 +273,7 @@ impl Parser {
         let mut connects = Vec::new();
         let mut when_clauses = Vec::new();
         let mut for_equations = Vec::new();
+        let mut if_equations = Vec::new();
         let mut algorithm = Vec::new();
         let mut experiment = Experiment::default();
         let mut in_equations = false;
@@ -266,6 +302,9 @@ impl Parser {
                 Token::For => {
                     for_equations.push(self.for_equation()?);
                 }
+                Token::If if in_equations => {
+                    if_equations.push(self.if_equation()?);
+                }
                 Token::Annotation => {
                     self.parse_annotation(&mut experiment)?;
                 }
@@ -291,6 +330,22 @@ impl Parser {
                 | Token::Package
                 | Token::Type
                 | Token::Partial => {
+                    nested.push(self.class_def()?);
+                }
+                // `replaceable`/`redeclare` introduce either a nested
+                // class or a component; the next token decides.
+                Token::Replaceable | Token::Redeclare
+                    if matches!(
+                        self.peek_ahead(1),
+                        Token::Model
+                            | Token::Connector
+                            | Token::Record
+                            | Token::Function
+                            | Token::Package
+                            | Token::Type
+                            | Token::Partial
+                    ) =>
+                {
                     nested.push(self.class_def()?);
                 }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
@@ -325,6 +380,7 @@ impl Parser {
             name,
             partial,
             alias_of,
+            enumeration,
             nested,
             imports,
             description,
@@ -332,6 +388,7 @@ impl Parser {
             extends,
             equations,
             for_equations,
+            if_equations,
             algorithm,
             connects,
             when_clauses,
@@ -445,6 +502,65 @@ impl Parser {
         })
     }
 
+    /// `if <cond> then <equations> [elseif …] [else …] end if;` in an
+    /// equation section.
+    fn if_equation(&mut self) -> Result<IfEquation, ParseError> {
+        self.expect(&Token::If, "if")?;
+        let mut branches = Vec::new();
+        loop {
+            let condition = self.expr()?;
+            self.expect(&Token::Then, "then after the condition of an if equation")?;
+            let (equations, connects) = self.branch_body()?;
+            branches.push(IfBranch {
+                condition: Some(condition),
+                equations,
+                connects,
+            });
+            match self.peek() {
+                Token::ElseIf => {
+                    self.bump();
+                }
+                Token::Else => {
+                    self.bump();
+                    let (equations, connects) = self.branch_body()?;
+                    branches.push(IfBranch {
+                        condition: None,
+                        equations,
+                        connects,
+                    });
+                    break;
+                }
+                _ => break,
+            }
+        }
+        self.expect(&Token::End, "end if")?;
+        self.expect(&Token::If, "if after end")?;
+        self.expect(&Token::Semi, "semicolon after end if")?;
+        if branches
+            .iter()
+            .all(|b| b.equations.is_empty() && b.connects.is_empty())
+        {
+            return Err(self.err("if equation has no equations".into()));
+        }
+        Ok(IfEquation { branches })
+    }
+
+    /// Equations and `connect` statements of one branch, up to the next
+    /// `elseif`, `else` or `end`.
+    fn branch_body(&mut self) -> Result<BranchBody, ParseError> {
+        let mut equations = Vec::new();
+        let mut connects = Vec::new();
+        loop {
+            match self.peek() {
+                Token::ElseIf | Token::Else | Token::End => break,
+                Token::Eof => return Err(self.err("unterminated if equation".into())),
+                Token::Connect => connects.push(self.connect_clause()?),
+                _ => equations.push(self.equation_item()?),
+            }
+        }
+        Ok((equations, connects))
+    }
+
     /// A function body: a sequence of `target := expression;`.
     fn assignments(&mut self) -> Result<Vec<Assignment>, ParseError> {
         let mut out = Vec::new();
@@ -458,20 +574,48 @@ impl Parser {
         Ok(out)
     }
 
-    /// `extends Base(mod = expr, ...);`
+    /// `enumeration(NoInit, SteadyState "start at steady state")`.
+    fn enumeration_literals(&mut self) -> Result<Vec<String>, ParseError> {
+        self.expect(&Token::Enumeration, "enumeration")?;
+        self.expect(&Token::LParen, "parenthesis after enumeration")?;
+        let mut literals = Vec::new();
+        loop {
+            literals.push(self.ident("enumeration literal")?);
+            self.opt_string();
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RParen => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `)` in an enumeration, found `{other}`"
+                    )))
+                }
+            }
+        }
+        Ok(literals)
+    }
+
+    /// `extends Base(mod = expr, redeclare Type name, ...);`
     fn extends_clause(&mut self) -> Result<Extend, ParseError> {
         self.expect(&Token::Extends, "extends")?;
         let base = self.dotted_name("base class name")?;
-        let modifiers = if self.peek() == &Token::LParen {
+        let (modifiers, redeclares) = if self.peek() == &Token::LParen {
             self.modifier_list()?
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Experiment::default())?;
+        }
         self.expect(&Token::Semi, "semicolon after extends")?;
-        Ok(Extend { base, modifiers })
+        Ok(Extend {
+            base,
+            modifiers,
+            redeclares,
+        })
     }
 
-    /// `connect(a.b, c.d);`
+    /// `connect(a.b, c.d) annotation(...);`
     fn connect_clause(&mut self) -> Result<(String, String), ParseError> {
         self.expect(&Token::Connect, "connect")?;
         self.expect(&Token::LParen, "parenthesis after connect")?;
@@ -479,6 +623,9 @@ impl Parser {
         self.expect(&Token::Comma, "comma in connect")?;
         let right = self.component_ref()?;
         self.expect(&Token::RParen, "closing parenthesis of connect")?;
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Experiment::default())?;
+        }
         self.expect(&Token::Semi, "semicolon after connect")?;
         Ok((left, right))
     }
@@ -494,15 +641,57 @@ impl Parser {
         Ok(name)
     }
 
-    /// `( name = expr, ... )` — user-type component/extends modifiers.
-    fn modifier_list(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
+    /// `( name = expr, sub(name = expr), redeclare Type name, ... )` —
+    /// component and `extends` modifiers.
+    ///
+    /// Nested modifiers are flattened into dotted names, so
+    /// `inertia(J = 2, phi(start = 1))` yields `inertia.J` and
+    /// `inertia.phi.start`; instantiation routes a dotted name to the
+    /// child component or, for a primitive, to its attribute. Values
+    /// that are strings (units, descriptive text) carry no meaning for
+    /// the compiler and are dropped.
+    fn modifier_list(&mut self) -> Result<Modifications, ParseError> {
         self.expect(&Token::LParen, "modifier list")?;
         let mut modifiers = Vec::new();
+        let mut redeclares = Vec::new();
+        // An empty list, `Interface()`, modifies nothing.
+        if self.peek() == &Token::RParen {
+            self.bump();
+            return Ok((modifiers, redeclares));
+        }
         loop {
-            let name = self.ident("modifier name")?;
-            self.expect(&Token::Assign, "`=` in modifier")?;
-            let value = self.expr()?;
-            modifiers.push((name, value));
+            while matches!(self.peek(), Token::Final | Token::Each) {
+                self.bump();
+            }
+            if self.peek() == &Token::Redeclare {
+                redeclares.push(self.redeclaration()?);
+            } else {
+                let name = self.component_ref()?;
+                if self.peek() == &Token::LParen {
+                    let (nested, nested_redeclares) = self.modifier_list()?;
+                    modifiers.extend(
+                        nested
+                            .into_iter()
+                            .map(|(sub, value)| (format!("{name}.{sub}"), value)),
+                    );
+                    redeclares.extend(nested_redeclares.into_iter().map(|mut r| {
+                        r.name = format!("{name}.{}", r.name);
+                        r
+                    }));
+                }
+                // A binding may follow a nested list: `x(unit = "m") = 3`.
+                if self.peek() == &Token::Assign {
+                    self.bump();
+                    if let Some(value) = self.modifier_value()? {
+                        modifiers.push((name, value));
+                    }
+                } else if !self.at_modifier_end() {
+                    return Err(self.err(format!(
+                        "expected `=` or a nested modifier list after `{name}`, found `{}`",
+                        self.peek()
+                    )));
+                }
+            }
             match self.bump() {
                 Token::Comma => continue,
                 Token::RParen => break,
@@ -513,7 +702,51 @@ impl Parser {
                 }
             }
         }
-        Ok(modifiers)
+        Ok((modifiers, redeclares))
+    }
+
+    /// Whether the current token closes a modifier or the whole list.
+    fn at_modifier_end(&self) -> bool {
+        matches!(self.peek(), Token::Comma | Token::RParen)
+    }
+
+    /// The value of one modifier. `None` means the value was a string:
+    /// the compiler has no use for it, so the modifier is dropped.
+    fn modifier_value(&mut self) -> Result<Option<Expr>, ParseError> {
+        if matches!(self.peek(), Token::Str(_)) {
+            self.bump();
+            return Ok(None);
+        }
+        Ok(Some(self.expr()?))
+    }
+
+    /// `redeclare [replaceable] Type name(modifiers) [constrainedby C]`
+    /// inside a modifier list.
+    fn redeclaration(&mut self) -> Result<Redeclare, ParseError> {
+        self.expect(&Token::Redeclare, "redeclare")?;
+        while matches!(self.peek(), Token::Replaceable | Token::Final | Token::Each) {
+            self.bump();
+        }
+        let type_name = self.dotted_name("redeclared type")?;
+        let name = self.ident("redeclared component name")?;
+        let modifiers = if self.peek() == &Token::LParen {
+            self.modifier_list()?.0
+        } else {
+            Vec::new()
+        };
+        if self.peek() == &Token::ConstrainedBy {
+            self.bump();
+            self.dotted_name("constraining type")?;
+            if self.peek() == &Token::LParen {
+                self.modifier_list()?;
+            }
+        }
+        self.opt_string();
+        Ok(Redeclare {
+            name,
+            type_name,
+            modifiers,
+        })
     }
 
     /// `when <cond> then <action>; ... end when;`
@@ -570,34 +803,33 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Component, ParseError> {
-        let variability = match self.peek() {
-            Token::Parameter => {
-                self.bump();
-                Variability::Parameter
+        // Declaration prefixes may come in any order the specification
+        // allows: `inner replaceable parameter Real k`.
+        let mut variability = Variability::Continuous;
+        let mut flow = false;
+        let mut causality = Causality::None;
+        let mut scope = Scope::Local;
+        let mut replaceable = false;
+        let mut redeclaration = false;
+        loop {
+            match self.peek() {
+                Token::Parameter => variability = Variability::Parameter,
+                Token::Constant => variability = Variability::Constant,
+                Token::Flow => flow = true,
+                Token::Input => causality = Causality::Input,
+                Token::Output => causality = Causality::Output,
+                Token::Inner => scope = Scope::Inner,
+                // `inner outer x` owns the instance and refers to the
+                // enclosing one; owning is what creates the variables.
+                Token::Outer if scope != Scope::Inner => scope = Scope::Outer,
+                Token::Outer => {}
+                Token::Replaceable => replaceable = true,
+                Token::Redeclare => redeclaration = true,
+                Token::Final | Token::Each => {}
+                _ => break,
             }
-            Token::Constant => {
-                self.bump();
-                Variability::Constant
-            }
-            _ => Variability::Continuous,
-        };
-        let flow = if self.peek() == &Token::Flow {
             self.bump();
-            true
-        } else {
-            false
-        };
-        let causality = match self.peek() {
-            Token::Input => {
-                self.bump();
-                Causality::Input
-            }
-            Token::Output => {
-                self.bump();
-                Causality::Output
-            }
-            _ => Causality::None,
-        };
+        }
 
         let type_name = self.dotted_name("component type")?;
         let name = self.ident("component name")?;
@@ -622,10 +854,14 @@ impl Parser {
         let mut start = None;
         let mut fixed = None;
         let mut modifiers = Vec::new();
+        let mut redeclares = Vec::new();
         if self.peek() == &Token::LParen {
             if matches!(type_name.as_str(), "Real" | "Integer" | "Boolean") {
                 self.bump();
                 loop {
+                    while matches!(self.peek(), Token::Final | Token::Each) {
+                        self.bump();
+                    }
                     let attr = self.ident("attribute name")?;
                     self.expect(&Token::Assign, "`=` in attribute")?;
                     match attr.as_str() {
@@ -640,10 +876,11 @@ impl Parser {
                                 }
                             });
                         }
-                        other => {
-                            return Err(
-                                self.err(format!("unknown attribute `{other}` (M2: start, fixed)"))
-                            );
+                        // The remaining attributes (unit, min, max,
+                        // nominal, stateSelect, …) describe the variable
+                        // rather than the equations: parsed and dropped.
+                        _ => {
+                            self.modifier_value()?;
                         }
                     }
                     match self.peek() {
@@ -662,7 +899,7 @@ impl Parser {
                     }
                 }
             } else {
-                modifiers = self.modifier_list()?;
+                (modifiers, redeclares) = self.modifier_list()?;
             }
         }
 
@@ -673,7 +910,31 @@ impl Parser {
             None
         };
 
+        // `constrainedby Interface(...)` and the condition `if expr` may
+        // follow the declaration, in either order.
+        let mut constrained_by = None;
+        let mut condition = None;
+        loop {
+            match self.peek() {
+                Token::ConstrainedBy => {
+                    self.bump();
+                    constrained_by = Some(self.dotted_name("constraining type")?);
+                    if self.peek() == &Token::LParen {
+                        self.modifier_list()?;
+                    }
+                }
+                Token::If => {
+                    self.bump();
+                    condition = Some(self.expr()?);
+                }
+                _ => break,
+            }
+        }
+
         let description = self.opt_string();
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Experiment::default())?;
+        }
         self.expect(&Token::Semi, "semicolon after declaration")?;
 
         Ok(Component {
@@ -688,6 +949,12 @@ impl Parser {
             fixed,
             binding,
             description,
+            scope,
+            replaceable,
+            constrained_by,
+            condition,
+            redeclares,
+            redeclaration,
         })
     }
 
@@ -696,14 +963,26 @@ impl Parser {
         self.expect(&Token::Assign, "`=` in equation")?;
         let rhs = self.expr()?;
         self.opt_string();
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Experiment::default())?;
+        }
         self.expect(&Token::Semi, "semicolon after equation")?;
         Ok(EquationItem { lhs, rhs })
     }
 
-    /// `annotation ( ... ) ;` — parsed tolerantly: only
+    /// A class-level `annotation ( ... ) ;`.
+    fn parse_annotation(&mut self, experiment: &mut Experiment) -> Result<(), ParseError> {
+        self.annotation_body(experiment)?;
+        self.expect(&Token::Semi, "semicolon after annotation")?;
+        Ok(())
+    }
+
+    /// `annotation ( ... )` without its terminator — declarations,
+    /// equations and `connect` statements carry one before the
+    /// semicolon. Parsed tolerantly: only
     /// `experiment(StopTime=…, Interval=…, Tolerance=…)` is extracted,
     /// everything else is skipped by balancing parentheses.
-    fn parse_annotation(&mut self, experiment: &mut Experiment) -> Result<(), ParseError> {
+    fn annotation_body(&mut self, experiment: &mut Experiment) -> Result<(), ParseError> {
         self.expect(&Token::Annotation, "annotation")?;
         self.expect(&Token::LParen, "parenthesis after annotation")?;
         let mut depth = 1usize;
@@ -751,7 +1030,6 @@ impl Parser {
                 }
             }
         }
-        self.expect(&Token::Semi, "semicolon after annotation")?;
         Ok(())
     }
 
@@ -1046,8 +1324,12 @@ mod tests {
         assert!(err_of("model M Real x;").contains("end of file"));
         // Unknown component type at flattening.
         assert!(err_of("model M Widget x; end M;").contains("unknown type"));
-        // Unknown attribute.
-        assert!(err_of("model M Real x(min=0); end M;").contains("unknown attribute"));
+        // An attribute the compiler has no use for is dropped, not
+        // rejected: the standard library sets these on most variables.
+        let tolerated =
+            parse_model("model M Real x(min = 0, max = 1, unit = \"m\", start = 2); end M;")
+                .unwrap();
+        assert_eq!(tolerated.components[0].start, Some(Expr::Number(2.0)));
         // Non-boolean fixed.
         assert!(err_of("model M Real x(fixed=1); end M;").contains("true/false"));
         // Missing comma between attributes.
@@ -1193,6 +1475,139 @@ mod tests {
             "model M Real x; equation x = 1; when x > 1 then terminate(42); end when; end M;"
         )
         .contains("string message"));
+    }
+
+    #[test]
+    fn parses_declarations_the_way_the_standard_library_writes_them() {
+        // Prefixes in any order, an attribute list full of things the
+        // compiler ignores, a graphical annotation on the declaration
+        // itself, and `final`/`each` inside a modifier.
+        let classes = parse_file(
+            "package Lib \
+               connector Pin Real v; flow Real i; end Pin; \
+               partial model OnePort Pin p; Pin n; end OnePort; \
+               model Resistor \"Ideal resistor\" \
+                 extends OnePort; \
+                 inner replaceable parameter Real R(final unit = \"Ohm\", min = 0, \
+                   nominal = 100, start = 1) = 1 \"Resistance\" \
+                   annotation (Dialog(group = \"Electrical\")); \
+                 Real v(stateSelect = StateSelect.never) \
+                   annotation (Placement(transformation(extent = {{-10, -10}, {10, 10}}))); \
+               equation \
+                 v = R * p.i annotation (Documentation(info = \"<html></html>\")); \
+                 connect(p, n) annotation (Line(points = {{-90, 0}, {90, 0}})); \
+               end Resistor; \
+             end Lib;",
+        )
+        .unwrap();
+        let resistor = classes.iter().find(|c| c.name == "Lib.Resistor").unwrap();
+        let r = resistor.components.iter().find(|c| c.name == "R").unwrap();
+        assert_eq!(r.variability, Variability::Parameter);
+        assert_eq!(r.scope, Scope::Inner);
+        assert!(r.replaceable);
+        assert_eq!(r.start, Some(Expr::Number(1.0)));
+        assert_eq!(resistor.equations.len(), 1);
+        assert_eq!(resistor.connects.len(), 1);
+    }
+
+    #[test]
+    fn parses_redeclarations_and_conditions() {
+        let classes = parse_file(
+            "package Lib \
+               partial model SISO Real u; Real y; end SISO; \
+               model Gain extends SISO; parameter Real k = 1; equation y = k * u; end Gain; \
+               model Line \
+                 parameter Boolean useLimiter = false; \
+                 replaceable Gain block1(k = 2) constrainedby SISO \"the block\"; \
+                 Gain limiter if useLimiter; \
+               end Line; \
+               model Tuned extends Line(redeclare replaceable Gain block1(final k = 4), \
+                 useLimiter = true); \
+               end Tuned; \
+             end Lib;",
+        )
+        .unwrap();
+        let line = classes.iter().find(|c| c.name == "Lib.Line").unwrap();
+        let block = line.components.iter().find(|c| c.name == "block1").unwrap();
+        assert!(block.replaceable);
+        assert_eq!(block.constrained_by.as_deref(), Some("SISO"));
+        let limiter = line
+            .components
+            .iter()
+            .find(|c| c.name == "limiter")
+            .unwrap();
+        assert!(limiter.condition.is_some());
+
+        let tuned = classes.iter().find(|c| c.name == "Lib.Tuned").unwrap();
+        let redeclare = &tuned.extends[0].redeclares[0];
+        assert_eq!(redeclare.name, "block1");
+        assert_eq!(redeclare.type_name, "Gain");
+        assert_eq!(
+            redeclare.modifiers,
+            vec![("k".to_string(), Expr::Number(4.0))]
+        );
+        assert_eq!(
+            tuned.extends[0].modifiers,
+            vec![("useLimiter".to_string(), Expr::Bool(true))]
+        );
+    }
+
+    #[test]
+    fn parses_enumerations_and_structural_errors() {
+        let classes = parse_file(
+            "package Types type Init = enumeration(NoInit \"as declared\", SteadyState) \
+             \"how a block starts\"; end Types;",
+        )
+        .unwrap();
+        let init = classes.iter().find(|c| c.name == "Types.Init").unwrap();
+        assert_eq!(init.enumeration, vec!["NoInit", "SteadyState"]);
+
+        // Error paths of the new syntax.
+        assert!(
+            err_of("model M Real x; equation if x > 0 then end if; end M;")
+                .contains("no equations")
+        );
+        assert!(err_of("model M Real x; equation if x > 0 then x = 1;").contains("unterminated if"));
+        assert!(
+            err_of("package P type K = enumeration(A B); end P; model M Real x; end M;")
+                .contains("`,` or `)` in an enumeration")
+        );
+        assert!(err_of(
+            "model M Real x; Real y; equation y = 1; end M; \
+             model N M m(x 2); end N;"
+        )
+        .contains("expected `=` or a nested modifier list"));
+    }
+
+    #[test]
+    fn parses_the_remaining_standard_library_spellings() {
+        // A type alias with an annotation, a nested class carrying the
+        // `replaceable` prefix, an `extends` with an annotation, an
+        // `inner outer` declaration and a nested redeclaration.
+        let classes = parse_file(
+            "package Lib \
+               type Angle = Real(unit = \"rad\") annotation (Documentation(info = \"\")); \
+               partial model SISO Real u; Real y; end SISO; \
+               replaceable model Gain extends SISO; parameter Real k = 1; \
+                 equation y = k * u; end Gain; \
+               model World parameter Real g = 1; end World; \
+               model Line extends SISO annotation (Icon()); \
+                 inner outer World world; \
+                 replaceable Gain block1 constrainedby SISO(u = 0); \
+               equation y = block1.y; block1.u = u; end Line; \
+               model Top Line line(redeclare Gain block1(k = 2)); end Top; \
+             end Lib;",
+        )
+        .unwrap();
+        let angle = classes.iter().find(|c| c.name == "Lib.Angle").unwrap();
+        assert_eq!(angle.alias_of.as_ref().unwrap().0, "Real");
+        let line = classes.iter().find(|c| c.name == "Lib.Line").unwrap();
+        // `inner outer` owns the instance: it is the `inner` half that
+        // decides whether variables exist.
+        let world = line.components.iter().find(|c| c.name == "world").unwrap();
+        assert_eq!(world.scope, Scope::Inner);
+        let top = classes.iter().find(|c| c.name == "Lib.Top").unwrap();
+        assert_eq!(top.components[0].redeclares[0].name, "block1");
     }
 
     #[test]

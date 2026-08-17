@@ -10,6 +10,12 @@
 //! - `connect(a, b)` joins connector instances into connection sets:
 //!   potential variables become equalities, `flow` variables sum to
 //!   zero; unconnected flow variables are forced to zero.
+//! - `redeclare` replaces the type of a `replaceable` declaration
+//!   further down, checked against its `constrainedby` interface.
+//! - `outer` declarations create no variables: their references point at
+//!   the nearest enclosing `inner` instance of the same name.
+//! - A component with a false `if` condition is left out, and so are the
+//!   `connect` statements that mention it.
 
 use crate::ast::*;
 use std::collections::HashMap;
@@ -61,6 +67,11 @@ fn collect_members(
         }
     }
     for component in &class.components {
+        // `outer` declarations are references to an instance owned
+        // elsewhere: they are neither ports nor parameters of this class.
+        if component.scope == Scope::Outer {
+            continue;
+        }
         match component.variability {
             Variability::Parameter | Variability::Constant => info
                 .parameters
@@ -84,7 +95,12 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         .ok_or_else(|| format!("unknown class `{top}`"))?;
 
     let mut acc = Flat::default();
-    instantiate(&registry, top_class, "", &[], &mut acc, 0)?;
+    let env = Env {
+        overrides: &[],
+        redeclares: &[],
+        inners: &HashMap::new(),
+    };
+    instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
 
     // Connection sets via union-find over connector instance paths.
     let paths: Vec<String> = acc.connectors.keys().cloned().collect();
@@ -181,14 +197,45 @@ struct Flat {
     /// Values of parameters already instantiated, by flat name: array
     /// dimensions and loop bounds are resolved against them.
     const_values: HashMap<String, f64>,
+    /// Instance paths of components a false condition left out.
+    disabled: Vec<String>,
 }
 
-/// Instantiate `class` under `prefix` with modifier overrides.
+impl Flat {
+    /// Whether a path names a component left out by its condition, or
+    /// anything inside one.
+    fn is_disabled(&self, path: &str) -> bool {
+        self.disabled
+            .iter()
+            .any(|left_out| path == left_out || path.starts_with(&format!("{left_out}.")))
+    }
+}
+
+/// An `inner` instance that `outer` declarations bind to.
+#[derive(Clone)]
+struct InnerInstance {
+    /// Flat path of the instance (`world`).
+    path: String,
+    /// Qualified name of its class.
+    class: String,
+}
+
+/// What an instantiation inherits from the level above it.
+struct Env<'a> {
+    /// Modifier overrides; a dotted name targets a member of a child.
+    overrides: &'a [(String, Expr)],
+    /// Redeclarations of `replaceable` declarations below.
+    redeclares: &'a [Redeclare],
+    /// `inner` instances visible here, by declaration name.
+    inners: &'a HashMap<String, InnerInstance>,
+}
+
+/// Instantiate `class` under `prefix` with everything `env` carries.
 fn instantiate(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     prefix: &str,
-    overrides: &[(String, Expr)],
+    env: &Env,
     acc: &mut Flat,
     depth: usize,
 ) -> Result<(), String> {
@@ -199,19 +246,63 @@ fn instantiate(
         ));
     }
 
-    // Bases first, with their modifiers (already parent-scoped).
     let scope = scope_of(&class.name);
+
+    // `inner` declarations of this class and of its bases own the
+    // instances that `outer` declarations inside it refer to. They are
+    // collected before anything is instantiated, so a base class may
+    // refer to an `inner` of the class extending it and the other way
+    // round.
+    let mut inners = env.inners.clone();
+    collect_inners(registry, class, prefix, &mut inners, 0);
+    let outers = bind_outers(registry, class, &inners)?;
+
+    // Redeclarations that reach this class: those written here as
+    // `redeclare Type name;`, then the ones handed down.
+    let mut redeclares = Vec::new();
+    for component in class.components.iter().filter(|c| c.redeclaration) {
+        redeclares.push(qualify_redeclare(
+            &Redeclare {
+                name: component.name.clone(),
+                type_name: component.type_name.clone(),
+                modifiers: component.modifiers.clone(),
+            },
+            registry,
+            class,
+            prefix,
+            &outers,
+        )?);
+    }
+    redeclares.extend(env.redeclares.iter().cloned());
+
+    // Bases first, with their modifiers (already parent-scoped).
     for extend in &class.extends {
         let base = lookup(registry, &extend.base, scope, &class.imports)
             .ok_or_else(|| format!("unknown base class `{}`", extend.base))?;
         let mods: Vec<(String, Expr)> = extend
             .modifiers
             .iter()
-            .map(|(n, e)| (n.clone(), prefix_expr(e, prefix)))
-            .chain(overrides.iter().cloned())
+            .map(|(n, e)| {
+                let e = substitute_class_constants(e, registry, scope, &class.imports);
+                (n.clone(), prefix_expr(&e, prefix, &outers))
+            })
+            .chain(env.overrides.iter().cloned())
             .collect();
-        instantiate(registry, base, prefix, &mods, acc, depth + 1)?;
+        let mut base_redeclares = Vec::new();
+        for redeclare in &extend.redeclares {
+            base_redeclares.push(qualify_redeclare(
+                redeclare, registry, class, prefix, &outers,
+            )?);
+        }
+        base_redeclares.extend(redeclares.iter().cloned());
+        let base_env = Env {
+            overrides: &mods,
+            redeclares: &base_redeclares,
+            inners: &inners,
+        };
+        instantiate(registry, base, prefix, &base_env, acc, depth + 1)?;
     }
+    let overrides = env.overrides;
 
     // Parameter values of this class, resolved to numbers where
     // possible: array dimensions and loop bounds are compile-time
@@ -236,7 +327,10 @@ fn instantiate(
                         .binding
                         .as_ref()
                         .or(component.start.as_ref())
-                        .map(|e| prefix_expr(e, prefix))
+                        .map(|e| {
+                            let e = substitute_class_constants(e, registry, scope, &class.imports);
+                            prefix_expr(&e, prefix, &outers)
+                        })
                 });
             let Some(expr) = binding else { continue };
             let mut env = acc.const_values.clone();
@@ -257,6 +351,27 @@ fn instantiate(
 
     for component in &class.components {
         let flat_name = format!("{prefix}{}", component.name);
+
+        // An `outer` declaration owns nothing: its references were bound
+        // to the enclosing `inner` instance above. A `redeclare` in the
+        // body replaced an inherited declaration instead of adding one.
+        if component.scope == Scope::Outer || component.redeclaration {
+            continue;
+        }
+
+        // `Support support if useSupport;` — a condition that does not
+        // hold removes the component, and later the connections to it.
+        if let Some(condition) = &component.condition {
+            let mut env = acc.const_values.clone();
+            env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+            let value = const_eval(condition, &env).ok_or_else(|| {
+                format!("condition of component `{flat_name}` is not a compile-time constant")
+            })?;
+            if value == 0.0 {
+                acc.disabled.push(flat_name.clone());
+                continue;
+            }
+        }
 
         // Array dimensions expand into scalar elements.
         let mut sizes = Vec::new();
@@ -280,42 +395,61 @@ fn instantiate(
                 .collect()
         };
 
-        // A `type` alias stands for a primitive plus attribute
-        // defaults; substitute it before instantiating.
         let mut component = component.clone();
-        if !is_primitive(&component.type_name) {
-            if let Some(alias) = lookup(registry, &component.type_name, scope, &class.imports)
-                .and_then(|c| c.alias_of.clone())
+
+        // A redeclaration from above replaces the type; its modifiers
+        // come first so they win over the original declaration's.
+        let mut extra_modifiers = Vec::new();
+        let mut child_redeclares = Vec::new();
+        if let Some(redeclare) = redeclares.iter().find(|r| r.name == component.name) {
+            check_redeclare(registry, class, &component, redeclare)?;
+            component.type_name = redeclare.type_name.clone();
+            extra_modifiers.extend(redeclare.modifiers.iter().cloned());
+        }
+        // Redeclarations aimed at a component of this child travel on,
+        // with the child's name stripped off the front.
+        for redeclare in &redeclares {
+            if let Some(rest) = redeclare
+                .name
+                .strip_prefix(&format!("{}.", component.name))
+                .map(str::to_string)
             {
-                let (base, attributes) = alias;
-                component.type_name = base;
-                for (name, value) in attributes {
-                    match name.as_str() {
-                        "start" if component.start.is_none() => component.start = Some(value),
-                        "fixed" if component.fixed.is_none() => {
-                            component.fixed = Some(matches!(value, Expr::Bool(true)))
-                        }
-                        _ => {}
-                    }
-                }
+                child_redeclares.push(Redeclare {
+                    name: rest,
+                    ..redeclare.clone()
+                });
             }
         }
+        for redeclare in &component.redeclares {
+            child_redeclares.push(qualify_redeclare(
+                redeclare, registry, class, prefix, &outers,
+            )?);
+        }
 
+        // A `type` alias stands for a primitive plus attribute defaults,
+        // and an enumeration for an `Integer`; substitute before
+        // instantiating.
+        resolve_type(registry, &mut component, scope, &class.imports);
+
+        let level = Level {
+            prefix,
+            outers: &outers,
+            inners: &inners,
+            overrides,
+            consts: &local_consts,
+            imports: &class.imports,
+            scope,
+        };
         for local_name in element_names {
             let flat_name = format!("{prefix}{local_name}");
-            instantiate_one(
-                registry,
-                &component,
-                &local_name,
-                &flat_name,
-                prefix,
-                overrides,
-                &local_consts,
-                &class.imports,
-                scope,
-                acc,
-                depth,
-            )?;
+            let site = Site {
+                component: &component,
+                local_name: &local_name,
+                flat_name: &flat_name,
+                extra_modifiers: &extra_modifiers,
+                redeclares: &child_redeclares,
+            };
+            instantiate_one(registry, &site, &level, acc, depth)?;
         }
     }
 
@@ -323,7 +457,7 @@ fn instantiate(
     let resolve_here = |expr: &Expr| -> Result<Expr, String> {
         let expr = substitute_class_constants(expr, registry, scope, &class.imports);
         resolve(
-            &prefix_expr(&expr, prefix),
+            &prefix_expr(&expr, prefix, &outers),
             &HashMap::new(),
             &local_consts,
             registry,
@@ -346,11 +480,55 @@ fn instantiate(
             &HashMap::new(),
             &local_consts,
             prefix,
+            &outers,
             registry,
             scope,
             &class.imports,
             acc,
         )?;
+    }
+
+    // `if` equations: the branch that holds contributes its equations,
+    // the others contribute nothing. Conditions are structural, so they
+    // must be constant at compile time.
+    for if_equation in &class.if_equations {
+        let mut env = acc.const_values.clone();
+        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+        let mut chosen = None;
+        for branch in &if_equation.branches {
+            match &branch.condition {
+                None => {
+                    chosen = Some(branch);
+                    break;
+                }
+                Some(condition) => {
+                    let value = const_eval(condition, &env).ok_or_else(|| {
+                        format!(
+                            "condition of an `if` equation in `{}` is not a compile-time constant",
+                            class.name
+                        )
+                    })?;
+                    if value != 0.0 {
+                        chosen = Some(branch);
+                        break;
+                    }
+                }
+            }
+        }
+        let Some(branch) = chosen else { continue };
+        for equation in &branch.equations {
+            acc.equations.push(EquationItem {
+                lhs: resolve_here(&equation.lhs)?,
+                rhs: resolve_here(&equation.rhs)?,
+            });
+        }
+        for (a, b) in &branch.connects {
+            let (a, b) = (flat_name(a, prefix, &outers), flat_name(b, prefix, &outers));
+            if acc.is_disabled(&a) || acc.is_disabled(&b) {
+                continue;
+            }
+            acc.connects.push((a, b));
+        }
     }
 
     for clause in &class.when_clauses {
@@ -361,7 +539,7 @@ fn instantiate(
                 .iter()
                 .map(|action| match action {
                     WhenAction::Reinit(state, value) => Ok(WhenAction::Reinit(
-                        format!("{prefix}{state}"),
+                        flat_name(state, prefix, &outers),
                         resolve_here(value)?,
                     )),
                     WhenAction::Terminate(message) => Ok(WhenAction::Terminate(message.clone())),
@@ -370,10 +548,210 @@ fn instantiate(
         });
     }
     for (a, b) in &class.connects {
-        acc.connects
-            .push((format!("{prefix}{a}"), format!("{prefix}{b}")));
+        let (a, b) = (flat_name(a, prefix, &outers), flat_name(b, prefix, &outers));
+        // A connection to a component that a condition left out goes
+        // with it: this is how the standard library switches a support
+        // flange between an external connector and an internal ground.
+        if acc.is_disabled(&a) || acc.is_disabled(&b) {
+            continue;
+        }
+        acc.connects.push((a, b));
     }
     Ok(())
+}
+
+/// Collect the `inner` declarations of a class and of its bases.
+fn collect_inners(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    out: &mut HashMap<String, InnerInstance>,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    let scope = scope_of(&class.name);
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+            collect_inners(registry, base, prefix, out, depth + 1);
+        }
+    }
+    for component in class.components.iter().filter(|c| c.scope == Scope::Inner) {
+        if let Some(declared) = lookup(registry, &component.type_name, scope, &class.imports) {
+            out.insert(
+                component.name.clone(),
+                InnerInstance {
+                    path: format!("{prefix}{}", component.name),
+                    class: declared.name.clone(),
+                },
+            );
+        }
+    }
+}
+
+/// Bind the `outer` declarations of a class to the visible `inner`
+/// instances, yielding the name-to-path map references go through.
+fn bind_outers(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    inners: &HashMap<String, InnerInstance>,
+) -> Result<HashMap<String, String>, String> {
+    let scope = scope_of(&class.name);
+    let mut outers = HashMap::new();
+    for component in class.components.iter().filter(|c| c.scope == Scope::Outer) {
+        let inner = inners.get(&component.name).ok_or_else(|| {
+            format!(
+                "`outer {} {}` in `{}` has no `inner` declaration above it",
+                component.type_name, component.name, class.name
+            )
+        })?;
+        let declared =
+            lookup(registry, &component.type_name, scope, &class.imports).ok_or_else(|| {
+                format!(
+                    "unknown type `{}` of outer component `{}`",
+                    component.type_name, component.name
+                )
+            })?;
+        if !extends_class(registry, &inner.class, &declared.name, 0) {
+            return Err(format!(
+                "`outer {} {}` does not match the `inner` instance, which is a `{}`",
+                component.type_name, component.name, inner.class
+            ));
+        }
+        outers.insert(component.name.clone(), inner.path.clone());
+    }
+    Ok(outers)
+}
+
+/// Whether `candidate` is `target` or extends it, directly or not.
+fn extends_class(
+    registry: &HashMap<&str, &ClassDef>,
+    candidate: &str,
+    target: &str,
+    depth: usize,
+) -> bool {
+    if candidate == target {
+        return true;
+    }
+    if depth > MAX_DEPTH {
+        return false;
+    }
+    let Some(class) = registry.get(candidate) else {
+        return false;
+    };
+    let scope = scope_of(&class.name);
+    class.extends.iter().any(|extend| {
+        lookup(registry, &extend.base, scope, &class.imports)
+            .is_some_and(|base| extends_class(registry, &base.name, target, depth + 1))
+    })
+}
+
+/// Prepare a redeclaration for use further down: its type is resolved in
+/// the scope where the redeclaration is written, and its modifier
+/// expressions are prefixed with the instance path they belong to.
+fn qualify_redeclare(
+    redeclare: &Redeclare,
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    outers: &HashMap<String, String>,
+) -> Result<Redeclare, String> {
+    let scope = scope_of(&class.name);
+    let target =
+        lookup(registry, &redeclare.type_name, scope, &class.imports).ok_or_else(|| {
+            format!(
+                "unknown type `{}` in the redeclaration of `{}`",
+                redeclare.type_name, redeclare.name
+            )
+        })?;
+    Ok(Redeclare {
+        name: redeclare.name.clone(),
+        type_name: target.name.clone(),
+        modifiers: redeclare
+            .modifiers
+            .iter()
+            .map(|(n, e)| {
+                let e = substitute_class_constants(e, registry, scope, &class.imports);
+                (n.clone(), prefix_expr(&e, prefix, outers))
+            })
+            .collect(),
+    })
+}
+
+/// Check that a declaration may be replaced by a redeclaration: it must
+/// be `replaceable`, and the new type must meet the `constrainedby`
+/// interface where one is given.
+fn check_redeclare(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    component: &Component,
+    redeclare: &Redeclare,
+) -> Result<(), String> {
+    if !component.replaceable {
+        return Err(format!(
+            "`{}` of `{}` is redeclared but not declared replaceable",
+            component.name, class.name
+        ));
+    }
+    let Some(constraint) = &component.constrained_by else {
+        return Ok(());
+    };
+    let scope = scope_of(&class.name);
+    let constraint = lookup(registry, constraint, scope, &class.imports).ok_or_else(|| {
+        format!(
+            "unknown constraining class `{constraint}` of `{}`",
+            component.name
+        )
+    })?;
+    if !extends_class(registry, &redeclare.type_name, &constraint.name, 0) {
+        return Err(format!(
+            "`{}` cannot replace `{}`: it does not extend `{}`",
+            redeclare.type_name, component.name, constraint.name
+        ));
+    }
+    Ok(())
+}
+
+/// Resolve a declared type down to a primitive: `type` aliases chain,
+/// each contributing its attribute defaults, and an enumeration is
+/// carried as an `Integer` holding the position of its literal.
+fn resolve_type(
+    registry: &HashMap<&str, &ClassDef>,
+    component: &mut Component,
+    scope: &str,
+    imports: &[(String, String)],
+) {
+    let mut scope = scope.to_string();
+    let mut imports = imports.to_vec();
+    for _ in 0..MAX_DEPTH {
+        if is_primitive(&component.type_name) {
+            return;
+        }
+        let Some(class) = lookup(registry, &component.type_name, &scope, &imports) else {
+            return;
+        };
+        if !class.enumeration.is_empty() {
+            component.type_name = "Integer".to_string();
+            return;
+        }
+        let Some((base, attributes)) = class.alias_of.clone() else {
+            return;
+        };
+        component.type_name = base;
+        for (name, value) in attributes {
+            match name.as_str() {
+                "start" if component.start.is_none() => component.start = Some(value),
+                "fixed" if component.fixed.is_none() => {
+                    component.fixed = Some(matches!(value, Expr::Bool(true)))
+                }
+                _ => {}
+            }
+        }
+        // The next alias in the chain resolves where it was written.
+        scope = scope_of(&class.name).to_string();
+        imports = class.imports.clone();
+    }
 }
 
 /// Unroll a `for` equation, recursing into nested loops. The loop
@@ -385,6 +763,7 @@ fn unroll(
     outer_vars: &HashMap<String, f64>,
     consts: &HashMap<String, f64>,
     prefix: &str,
+    outers: &HashMap<String, String>,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
@@ -411,6 +790,7 @@ fn unroll(
                         &prefix_expr(
                             &substitute_class_constants(&equation.lhs, registry, scope, imports),
                             prefix,
+                            outers,
                         ),
                         &loop_vars,
                         consts,
@@ -423,6 +803,7 @@ fn unroll(
                         &prefix_expr(
                             &substitute_class_constants(&equation.rhs, registry, scope, imports),
                             prefix,
+                            outers,
                         ),
                         &loop_vars,
                         consts,
@@ -433,7 +814,7 @@ fn unroll(
                     )?,
                 }),
                 ForBody::Nested(inner) => unroll(
-                    inner, &loop_vars, consts, prefix, registry, scope, imports, acc,
+                    inner, &loop_vars, consts, prefix, outers, registry, scope, imports, acc,
                 )?,
             }
         }
@@ -441,60 +822,111 @@ fn unroll(
     Ok(())
 }
 
+/// One component element about to be instantiated: the declaration, the
+/// names it gets and what the level above contributed to it.
+struct Site<'a> {
+    /// The declaration, with its type already resolved.
+    component: &'a Component,
+    /// Name inside the enclosing class (`v[2]` for an array element).
+    local_name: &'a str,
+    /// Full instance path.
+    flat_name: &'a str,
+    /// Modifiers from a redeclaration, already prefixed.
+    extra_modifiers: &'a [(String, Expr)],
+    /// Redeclarations aimed at this component's own members.
+    redeclares: &'a [Redeclare],
+}
+
+/// The class-level context a component is instantiated in.
+struct Level<'a> {
+    /// Instance path prefix of the enclosing class.
+    prefix: &'a str,
+    /// `outer` declaration name -> flat path of the `inner` instance.
+    outers: &'a HashMap<String, String>,
+    /// `inner` instances the components below can bind to.
+    inners: &'a HashMap<String, InnerInstance>,
+    /// Modifier overrides the enclosing class received.
+    overrides: &'a [(String, Expr)],
+    /// Parameter values of the enclosing class, by local name.
+    consts: &'a HashMap<String, f64>,
+    /// Imports of the enclosing class.
+    imports: &'a [(String, String)],
+    /// Package scope of the enclosing class.
+    scope: &'a str,
+}
+
 /// Instantiate one component element (a scalar, or one element of an
-/// array) under `flat_name`.
-#[allow(clippy::too_many_arguments)]
+/// array).
 fn instantiate_one(
     registry: &HashMap<&str, &ClassDef>,
-    component: &Component,
-    local_name: &str,
-    flat_name: &str,
-    prefix: &str,
-    overrides: &[(String, Expr)],
-    local_consts: &HashMap<String, f64>,
-    imports: &[(String, String)],
-    scope: &str,
+    site: &Site,
+    level: &Level,
     acc: &mut Flat,
     depth: usize,
 ) -> Result<(), String> {
+    let Site {
+        component,
+        local_name,
+        flat_name,
+        extra_modifiers,
+        redeclares,
+    } = *site;
+    let Level {
+        prefix,
+        outers,
+        inners,
+        overrides,
+        consts: local_consts,
+        imports,
+        scope,
+    } = *level;
     {
         if is_primitive(&component.type_name) {
             let mut flat = component.clone();
             flat.name = flat_name.to_string();
             flat.dimensions = Vec::new();
-            flat.start = flat
-                .start
-                .map(|e| {
-                    let e = substitute_class_constants(&e, registry, scope, imports);
-                    resolve(
-                        &prefix_expr(&e, prefix),
-                        &HashMap::new(),
-                        local_consts,
-                        registry,
-                        scope,
-                        imports,
-                        0,
-                    )
-                })
-                .transpose()?;
-            flat.binding = flat
-                .binding
-                .map(|e| {
-                    let e = substitute_class_constants(&e, registry, scope, imports);
-                    resolve(
-                        &prefix_expr(&e, prefix),
-                        &HashMap::new(),
-                        local_consts,
-                        registry,
-                        scope,
-                        imports,
-                        0,
-                    )
-                })
-                .transpose()?;
-            // A parent modifier `name = expr` overrides the binding.
-            if let Some((_, value)) = overrides.iter().find(|(n, _)| n == local_name) {
-                flat.binding = Some(value.clone());
+            let resolve_value = |e: &Expr| -> Result<Expr, String> {
+                let e = substitute_class_constants(e, registry, scope, imports);
+                resolve(
+                    &prefix_expr(&e, prefix, outers),
+                    &HashMap::new(),
+                    local_consts,
+                    registry,
+                    scope,
+                    imports,
+                    0,
+                )
+            };
+            flat.start = flat.start.as_ref().map(&resolve_value).transpose()?;
+            flat.binding = flat.binding.as_ref().map(&resolve_value).transpose()?;
+            // A parent modifier `name = expr` overrides the binding, and
+            // a nested one - `phi(start = 1)` - the attribute.
+            let modifier = |target: &str| {
+                extra_modifiers
+                    .iter()
+                    .chain(overrides.iter())
+                    .find(|(n, _)| n == target)
+                    .map(|(_, e)| e.clone())
+            };
+            if let Some(value) = modifier(local_name) {
+                flat.binding = Some(value);
+            }
+            if let Some(value) = modifier(&format!("{}.start", component.name)) {
+                flat.start = Some(value);
+            }
+            if let Some(value) = modifier(&format!("{}.fixed", component.name)) {
+                flat.fixed = Some(!matches!(value, Expr::Bool(false) | Expr::Number(0.0)));
+            }
+            // On a variable rather than a parameter, a binding is a
+            // declaration equation: `Support support(tau = -flange.tau)`
+            // in the standard library ties a connector to its component.
+            if flat.variability == Variability::Continuous {
+                if let Some(value) = flat.binding.take() {
+                    acc.equations.push(EquationItem {
+                        lhs: Expr::Ref(flat.name.clone()),
+                        rhs: value,
+                    });
+                }
             }
             acc.components.push(flat);
         } else {
@@ -526,61 +958,71 @@ fn instantiate_one(
                 acc.connectors
                     .insert(flat_name.to_string(), child.name.clone());
             }
-            // Child modifiers: own modifiers (parent scope) plus
-            // matching dotted overrides from above.
-            let mods: Vec<(String, Expr)> = component
-                .modifiers
-                .iter()
-                .map(|(n, e)| (n.clone(), prefix_expr(e, prefix)))
+            // Child modifiers, outermost first so they win: dotted
+            // overrides handed down, then a redeclaration's, then the
+            // ones written on this declaration.
+            let inherited = overrides.iter().filter_map(|(name, value)| {
+                name.strip_prefix(&format!("{local_name}."))
+                    .map(|rest| (rest.to_string(), value.clone()))
+            });
+            let mods: Vec<(String, Expr)> = inherited
+                .chain(extra_modifiers.iter().cloned())
+                .chain(component.modifiers.iter().map(|(n, e)| {
+                    let e = substitute_class_constants(e, registry, scope, imports);
+                    (n.clone(), prefix_expr(&e, prefix, outers))
+                }))
                 .collect();
             let child_prefix = format!("{flat_name}.");
-            instantiate(registry, child, &child_prefix, &mods, acc, depth + 1)?;
+            let child_env = Env {
+                overrides: &mods,
+                redeclares,
+                inners,
+            };
+            instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
         }
     }
     Ok(())
 }
 
-/// Prefix every component reference in an expression.
-fn prefix_expr(expr: &Expr, prefix: &str) -> Expr {
-    if prefix.is_empty() {
+/// Flat name of a reference written inside a class: an `outer`
+/// declaration points at the enclosing `inner` instance, everything else
+/// gets the instance prefix.
+fn flat_name(name: &str, prefix: &str, outers: &HashMap<String, String>) -> String {
+    let (head, rest) = match name.split_once('.') {
+        Some((head, rest)) => (head, Some(rest)),
+        None => (name, None),
+    };
+    if let Some(path) = outers.get(head) {
+        return match rest {
+            Some(rest) => format!("{path}.{rest}"),
+            None => path.clone(),
+        };
+    }
+    format!("{prefix}{name}")
+}
+
+/// Prefix every component reference in an expression, resolving `outer`
+/// references to the instance that owns them.
+fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> Expr {
+    if prefix.is_empty() && outers.is_empty() {
         return expr.clone();
     }
+    let recur = |e: &Expr| prefix_expr(e, prefix, outers);
     match expr {
-        Expr::Ref(name) => Expr::Ref(format!("{prefix}{name}")),
-        Expr::Call(name, args) => Expr::Call(
-            name.clone(),
-            args.iter().map(|a| prefix_expr(a, prefix)).collect(),
-        ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(prefix_expr(inner, prefix))),
-        Expr::Not(inner) => Expr::Not(Box::new(prefix_expr(inner, prefix))),
-        Expr::Bin(op, l, r) => Expr::Bin(
-            *op,
-            Box::new(prefix_expr(l, prefix)),
-            Box::new(prefix_expr(r, prefix)),
-        ),
-        Expr::Rel(op, l, r) => Expr::Rel(
-            *op,
-            Box::new(prefix_expr(l, prefix)),
-            Box::new(prefix_expr(r, prefix)),
-        ),
-        Expr::And(l, r) => Expr::And(
-            Box::new(prefix_expr(l, prefix)),
-            Box::new(prefix_expr(r, prefix)),
-        ),
-        Expr::Or(l, r) => Expr::Or(
-            Box::new(prefix_expr(l, prefix)),
-            Box::new(prefix_expr(r, prefix)),
-        ),
-        Expr::If(c, a, b) => Expr::If(
-            Box::new(prefix_expr(c, prefix)),
-            Box::new(prefix_expr(a, prefix)),
-            Box::new(prefix_expr(b, prefix)),
-        ),
+        Expr::Ref(name) => Expr::Ref(flat_name(name, prefix, outers)),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
         Expr::Index(base, subscripts) => Expr::Index(
-            Box::new(prefix_expr(base, prefix)),
-            subscripts.iter().map(|s| prefix_expr(s, prefix)).collect(),
+            Box::new(recur(base)),
+            subscripts.iter().map(recur).collect(),
         ),
-        Expr::Member(base, path) => Expr::Member(Box::new(prefix_expr(base, prefix)), path.clone()),
+        Expr::Member(base, path) => Expr::Member(Box::new(recur(base)), path.clone()),
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
     }
 }
@@ -590,10 +1032,36 @@ fn prefix_expr(expr: &Expr, prefix: &str) -> Expr {
 /// supported; anything else means the value is not constant.
 fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64> {
     use crate::ast::BinOp::*;
+    use crate::ast::RelOp;
+    // Truth is carried as 1.0 and 0.0, the way the flat model carries
+    // every Boolean.
+    let truth = |yes: bool| if yes { 1.0 } else { 0.0 };
     Some(match expr {
         Expr::Number(n) => *n,
+        Expr::Bool(b) => truth(*b),
         Expr::Ref(name) => *env.get(name)?,
         Expr::Neg(inner) => -const_eval(inner, env)?,
+        Expr::Not(inner) => truth(const_eval(inner, env)? == 0.0),
+        Expr::And(l, r) => truth(const_eval(l, env)? != 0.0 && const_eval(r, env)? != 0.0),
+        Expr::Or(l, r) => truth(const_eval(l, env)? != 0.0 || const_eval(r, env)? != 0.0),
+        Expr::Rel(op, l, r) => {
+            let (a, b) = (const_eval(l, env)?, const_eval(r, env)?);
+            truth(match op {
+                RelOp::Lt => a < b,
+                RelOp::Le => a <= b,
+                RelOp::Gt => a > b,
+                RelOp::Ge => a >= b,
+                RelOp::Eq => a == b,
+                RelOp::Ne => a != b,
+            })
+        }
+        Expr::If(c, a, b) => {
+            if const_eval(c, env)? != 0.0 {
+                const_eval(a, env)?
+            } else {
+                const_eval(b, env)?
+            }
+        }
         Expr::Bin(op, l, r) => {
             let (a, b) = (const_eval(l, env)?, const_eval(r, env)?);
             match op {
@@ -666,6 +1134,10 @@ fn class_constant(
 ) -> Option<f64> {
     let (class_path, member) = name.rsplit_once('.')?;
     let class = lookup(registry, class_path, scope, imports)?;
+    // An enumeration literal is the position it was declared at.
+    if let Some(index) = class.enumeration.iter().position(|l| l == member) {
+        return Some(index as f64 + 1.0);
+    }
     if !class.components.iter().any(|c| {
         c.name == member
             && matches!(
@@ -968,6 +1440,7 @@ fn inline_function(
 
 #[cfg(test)]
 mod tests {
+    use crate::ast::Expr;
     use crate::parser::parse_model;
 
     #[test]
@@ -1352,6 +1825,355 @@ mod tests {
         )
         .unwrap();
         assert!(format!("{:?}", circuit.equations).contains("probe.p.v"));
+    }
+
+    /// Sources that share the shape of a standard-library package: a
+    /// replaceable component with an interface, a conditional one and a
+    /// world shared through `inner`/`outer`.
+    const LIB: &str = "package Lib \
+           connector Pin Real v; flow Real i; end Pin; \
+           partial model SISO Real u; Real y; end SISO; \
+           model Gain extends SISO; parameter Real k = 1; equation y = k * u; end Gain; \
+           model Doubler extends SISO; equation y = 2 * u; end Doubler; \
+           model Loose Real y; equation y = 0; end Loose; \
+           model World parameter Real g = 9.81; end World; \
+           model Falling outer World world; Real a; equation a = -world.g; end Falling; \
+         end Lib;";
+
+    fn with_lib(source: &str) -> Result<crate::ast::Model, String> {
+        let mut classes = crate::parser::parse_file(LIB).unwrap();
+        classes.extend(crate::parser::parse_file(source).unwrap());
+        let top = classes
+            .iter()
+            .rev()
+            .find(|c| c.kind == crate::ast::ClassKind::Model && !c.partial)
+            .unwrap()
+            .name
+            .clone();
+        super::flatten(&classes, &top)
+    }
+
+    #[test]
+    fn redeclare_replaces_the_type_of_a_replaceable_component() {
+        // The base declares a Gain, the derived model swaps in a Doubler
+        // and the equations follow the new type.
+        let m = with_lib(
+            "model Base replaceable Lib.Gain block1(k = 3) constrainedby Lib.SISO; \
+               Real y; equation block1.u = time; y = block1.y; end Base; \
+             model Derived extends Base(redeclare Lib.Doubler block1); end Derived;",
+        )
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        assert!(text.contains("Number(2.0)"), "{text}");
+        // The Gain's parameter is gone with the Gain.
+        assert!(!m.components.iter().any(|c| c.name == "block1.k"));
+
+        // A redeclaration written in the body of the derived class does
+        // the same thing.
+        let in_body = with_lib(
+            "model Base2 replaceable Lib.Gain block1 constrainedby Lib.SISO; \
+               Real y; equation block1.u = time; y = block1.y; end Base2; \
+             model Derived2 extends Base2; redeclare Lib.Doubler block1; end Derived2;",
+        )
+        .unwrap();
+        assert!(format!("{:?}", in_body.equations).contains("Number(2.0)"));
+    }
+
+    #[test]
+    fn redeclare_error_paths() {
+        // Not replaceable.
+        let error = with_lib(
+            "model Base Lib.Gain block1; Real y; equation block1.u = time; y = block1.y; end Base; \
+             model Derived extends Base(redeclare Lib.Doubler block1); end Derived;",
+        )
+        .unwrap_err();
+        assert!(error.contains("not declared replaceable"), "{error}");
+
+        // The replacement does not meet the constraining interface.
+        let error = with_lib(
+            "model Base replaceable Lib.Gain block1 constrainedby Lib.SISO; \
+               Real y; equation block1.u = time; y = block1.y; end Base; \
+             model Derived extends Base(redeclare Lib.Loose block1); end Derived;",
+        )
+        .unwrap_err();
+        assert!(error.contains("does not extend"), "{error}");
+
+        // An unknown type in the redeclaration.
+        let error = with_lib(
+            "model Base replaceable Lib.Gain block1 constrainedby Lib.SISO; \
+               Real y; equation block1.u = time; y = block1.y; end Base; \
+             model Derived extends Base(redeclare Lib.Missing block1); end Derived;",
+        )
+        .unwrap_err();
+        assert!(error.contains("unknown type"), "{error}");
+    }
+
+    #[test]
+    fn outer_components_reach_the_inner_instance() {
+        let m = with_lib(
+            "model Top inner Lib.World world(g = 2); Lib.Falling ball; \
+             Real a; equation a = ball.a; end Top;",
+        )
+        .unwrap();
+        // `world.g` inside the component resolved to the shared
+        // instance, not to a variable of its own.
+        assert!(format!("{:?}", m.equations).contains("world.g"));
+        assert!(!m.components.iter().any(|c| c.name == "ball.world.g"));
+        let g = m.components.iter().find(|c| c.name == "world.g").unwrap();
+        assert_eq!(g.binding, Some(Expr::Number(2.0)));
+    }
+
+    #[test]
+    fn outer_without_inner_is_refused() {
+        let error = with_lib("model Top Lib.Falling ball; end Top;").unwrap_err();
+        assert!(error.contains("no `inner` declaration"), "{error}");
+
+        // An `outer` of a type the `inner` instance is not.
+        let error =
+            with_lib("model Top inner Lib.Gain world; Lib.Falling ball; end Top;").unwrap_err();
+        assert!(
+            error.contains("does not match the `inner` instance"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn a_false_condition_removes_a_component_and_its_connections() {
+        let source = "connector Pin Real v; flow Real i; end Pin; \
+             model Probe Pin p; Real reading; equation reading = p.v; p.i = 0; end Probe; \
+             model Top parameter Boolean measure = false; \
+               Probe probe if measure; Pin node; \
+             equation node.v = time; connect(probe.p, node); end Top;";
+        let m = crate::parser::parse_model(source).unwrap();
+        assert!(
+            !m.components.iter().any(|c| c.name.starts_with("probe")),
+            "the component survived its condition"
+        );
+        // With the probe gone, the node is the only member of its set and
+        // its flow is forced to zero rather than joined to a missing one.
+        let text = format!("{:?}", m.equations);
+        assert!(!text.contains("probe"), "{text}");
+        assert!(text.contains("node.i"), "{text}");
+
+        // The same model with the condition true keeps both.
+        let kept = crate::parser::parse_model(&source.replace("measure = false", "measure = true"))
+            .unwrap();
+        assert!(kept.components.iter().any(|c| c.name == "probe.reading"));
+        assert!(format!("{:?}", kept.equations).contains("probe.p.v"));
+    }
+
+    #[test]
+    fn a_condition_must_be_constant() {
+        let error = crate::parser::parse_model(
+            "model Inner Real x; equation x = 1; end Inner; \
+             model Top Real gate; Inner part if gate > 0; equation gate = time; end Top;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("not a compile-time constant"), "{error}");
+    }
+
+    #[test]
+    fn enumeration_literals_are_their_position() {
+        let m = crate::parser::parse_model(
+            "package Types type Kind = enumeration(First, Second \"the second one\", Third); \
+             end Types; \
+             model M parameter Types.Kind kind = Types.Kind.Second; Real y; \
+             equation y = if kind == Types.Kind.Third then 30 else 20; end M;",
+        )
+        .unwrap();
+        // The parameter is carried as an Integer holding the position.
+        let kind = m.components.iter().find(|c| c.name == "kind").unwrap();
+        assert_eq!(kind.type_name, "Integer");
+        assert_eq!(kind.binding, Some(Expr::Number(2.0)));
+        assert!(format!("{:?}", m.equations).contains("Number(3.0)"));
+    }
+
+    #[test]
+    fn nested_modifiers_reach_children_and_attributes() {
+        let m = crate::parser::parse_model(
+            "model Leaf parameter Real k = 1; Real x(start = 0); \
+             equation der(x) = k; end Leaf; \
+             model Middle Leaf leaf; end Middle; \
+             model Top Middle mid(leaf(k = 5, x(start = 7))); end Top;",
+        )
+        .unwrap();
+        let k = m
+            .components
+            .iter()
+            .find(|c| c.name == "mid.leaf.k")
+            .unwrap();
+        assert_eq!(k.binding, Some(Expr::Number(5.0)));
+        let x = m
+            .components
+            .iter()
+            .find(|c| c.name == "mid.leaf.x")
+            .unwrap();
+        assert_eq!(x.start, Some(Expr::Number(7.0)));
+
+        // `fixed` travels the same way.
+        let fixed = crate::parser::parse_model(
+            "model Leaf Real x(start = 0); equation der(x) = 1; end Leaf; \
+             model Top Leaf leaf(x(fixed = true)); end Top;",
+        )
+        .unwrap();
+        assert_eq!(
+            fixed
+                .components
+                .iter()
+                .find(|c| c.name == "leaf.x")
+                .unwrap()
+                .fixed,
+            Some(true)
+        );
+    }
+
+    #[test]
+    fn if_equations_pick_a_branch_at_compile_time() {
+        let template = "model M parameter Boolean fast = SETTING; Real y; \
+             equation if fast then y = 2 * time; else y = time / 2; end if; end M;";
+        let fast = crate::parser::parse_model(&template.replace("SETTING", "true")).unwrap();
+        let slow = crate::parser::parse_model(&template.replace("SETTING", "false")).unwrap();
+        // Both models have exactly one equation: the other branch is gone.
+        assert_eq!(fast.equations.len(), 1);
+        assert_eq!(slow.equations.len(), 1);
+        assert!(matches!(
+            fast.equations[0].rhs,
+            Expr::Bin(crate::ast::BinOp::Mul, _, _)
+        ));
+        assert!(matches!(
+            slow.equations[0].rhs,
+            Expr::Bin(crate::ast::BinOp::Div, _, _)
+        ));
+
+        // An elseif chain, and a chain where nothing holds.
+        let chain = "model M parameter Integer mode = SETTING; Real y; equation \
+             if mode == 1 then y = time; elseif mode == 2 then y = 2 * time; end if; \
+             end M;";
+        assert_eq!(
+            crate::parser::parse_model(&chain.replace("SETTING", "2"))
+                .unwrap()
+                .equations
+                .len(),
+            1
+        );
+        assert!(crate::parser::parse_model(&chain.replace("SETTING", "3"))
+            .unwrap()
+            .equations
+            .is_empty());
+
+        // A condition that is not constant cannot select equations.
+        let error = crate::parser::parse_model(
+            "model M Real gate; Real y; equation gate = time; \
+             if gate > 0 then y = 1; else y = 2; end if; end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("not a compile-time constant"), "{error}");
+    }
+
+    #[test]
+    fn if_equations_can_hold_connections() {
+        let source = "connector Pin Real v; flow Real i; end Pin; \
+             model Top parameter Boolean joined = SETTING; Pin a; Pin b; \
+             equation a.v = time; if joined then connect(a, b); end if; end Top;";
+        let joined = crate::parser::parse_model(&source.replace("SETTING", "true")).unwrap();
+        // Joined: one potential equality and one flow sum.
+        let text = format!("{:?}", joined.equations);
+        assert!(text.contains("b.v"), "{text}");
+        let apart = crate::parser::parse_model(&source.replace("SETTING", "false")).unwrap();
+        // Apart: each connector carries its own zero flow.
+        let text = format!("{:?}", apart.equations);
+        assert!(text.contains("a.i") && text.contains("b.i"), "{text}");
+    }
+
+    #[test]
+    fn a_binding_on_a_variable_is_an_equation() {
+        let m =
+            crate::parser::parse_model("model M Real x; Real y = 2 * x; equation x = time; end M;")
+                .unwrap();
+        assert_eq!(m.equations.len(), 2);
+        // The declaration equation survived as an equation, not as a
+        // binding that the solver would ignore.
+        assert!(m
+            .components
+            .iter()
+            .find(|c| c.name == "y")
+            .unwrap()
+            .binding
+            .is_none());
+        assert!(format!("{:?}", m.equations).contains("Ref(\"y\")"));
+    }
+
+    #[test]
+    fn chained_type_aliases_resolve_to_a_primitive() {
+        let m = crate::parser::parse_model(
+            "package SI type Angle = Real(unit = \"rad\", start = 3); end SI; \
+             package Units type Turn = SI.Angle; end Units; \
+             model M Units.Turn phi; equation der(phi) = 1; end M;",
+        )
+        .unwrap();
+        let phi = m.components.iter().find(|c| c.name == "phi").unwrap();
+        assert_eq!(phi.type_name, "Real");
+        assert_eq!(phi.start, Some(Expr::Number(3.0)));
+    }
+
+    #[test]
+    fn redeclarations_reach_through_a_nested_component() {
+        // `mid(redeclare Doubler leaf)` names a component one level down.
+        let m = with_lib(
+            "model Middle replaceable Lib.Gain leaf(k = 3) constrainedby Lib.SISO(); \
+               Real y; equation leaf.u = time; y = leaf.y; end Middle; \
+             model Top Middle mid(redeclare Lib.Doubler leaf); Real z; \
+               equation z = mid.y; end Top;",
+        )
+        .unwrap();
+        assert!(format!("{:?}", m.equations).contains("Number(2.0)"));
+        assert!(!m.components.iter().any(|c| c.name == "mid.leaf.k"));
+    }
+
+    #[test]
+    fn structural_conditions_use_the_whole_boolean_language() {
+        // Comparisons, `and`, `or` and `not` all fold at compile time.
+        let m = crate::parser::parse_model(
+            "model Part Real x; equation x = 1; end Part; \
+             model M parameter Integer n = 3; parameter Boolean on = true; \
+               Part a if n >= 3 and on; \
+               Part b if n < 3 or not on; \
+               Part c if n <> 3; \
+             end M;",
+        )
+        .unwrap();
+        let parts: Vec<&str> = m
+            .components
+            .iter()
+            .map(|c| c.name.as_str())
+            .filter(|name| name.ends_with(".x"))
+            .collect();
+        assert_eq!(parts, vec!["a.x"], "kept the wrong components: {parts:?}");
+    }
+
+    #[test]
+    fn an_unknown_constraining_class_is_reported() {
+        let error = with_lib(
+            "model Base replaceable Lib.Gain block1 constrainedby Lib.Nothing; \
+               Real y; equation block1.u = time; y = block1.y; end Base; \
+             model Derived extends Base(redeclare Lib.Doubler block1); end Derived;",
+        )
+        .unwrap_err();
+        assert!(error.contains("unknown constraining class"), "{error}");
+    }
+
+    #[test]
+    fn an_alias_contributes_its_fixed_attribute() {
+        let m = crate::parser::parse_model(
+            "package Units type Held = Real(start = 2, fixed = true); end Units; \
+             model M Units.Held x; equation der(x) = 1; end M;",
+        )
+        .unwrap();
+        let x = m.components.iter().find(|c| c.name == "x").unwrap();
+        assert_eq!(x.fixed, Some(true));
+        assert_eq!(x.start, Some(Expr::Number(2.0)));
     }
 
     #[test]

@@ -11,6 +11,34 @@ pub enum Variability {
     Constant,
 }
 
+/// Where a component sits in the instance hierarchy.
+///
+/// An `inner` declaration owns a shared instance; an `outer` one is a
+/// reference to the nearest enclosing `inner` of the same name and
+/// creates no variables of its own (the `world` of a mechanical model).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Scope {
+    /// An ordinary declaration, visible in its own class only.
+    #[default]
+    Local,
+    /// `inner` — owns the instance others refer to.
+    Inner,
+    /// `outer` — refers to an enclosing `inner` instance.
+    Outer,
+}
+
+/// A `redeclare <Type> <name>(<modifiers>)` entry of a modifier list:
+/// it replaces the type of a `replaceable` declaration further down.
+#[derive(Debug, Clone)]
+pub struct Redeclare {
+    /// Name of the declaration being replaced.
+    pub name: String,
+    /// New type; qualified in the scope where the redeclaration is written.
+    pub type_name: String,
+    /// Modifiers applied to the new type.
+    pub modifiers: Vec<(String, Expr)>,
+}
+
 /// A component (variable) declaration.
 #[derive(Debug, Clone)]
 pub struct Component {
@@ -37,6 +65,20 @@ pub struct Component {
     pub binding: Option<Expr>,
     /// Optional description string.
     pub description: Option<String>,
+    /// `inner` / `outer` prefix.
+    pub scope: Scope,
+    /// Whether the declaration may be redeclared from above.
+    pub replaceable: bool,
+    /// `constrainedby Interface` — the class a redeclaration must extend.
+    pub constrained_by: Option<String>,
+    /// `if <condition>` — the component exists only when the condition,
+    /// a compile-time constant, holds.
+    pub condition: Option<Expr>,
+    /// Redeclarations written in this component's modifier list.
+    pub redeclares: Vec<Redeclare>,
+    /// `redeclare` prefix: the declaration replaces an inherited
+    /// `replaceable` one instead of adding a component of its own.
+    pub redeclaration: bool,
 }
 
 /// A single equation `lhs = rhs`.
@@ -93,6 +135,8 @@ pub struct Extend {
     pub base: String,
     /// Modifier overrides applied to the base.
     pub modifiers: Vec<(String, Expr)>,
+    /// Redeclarations applied to the base.
+    pub redeclares: Vec<Redeclare>,
 }
 
 /// One class definition in a file.
@@ -107,6 +151,9 @@ pub struct ClassDef {
     /// For `type` aliases: the primitive being named, plus attribute
     /// defaults (`type Voltage = Real(start = 0)`).
     pub alias_of: Option<(String, Vec<(String, Expr)>)>,
+    /// Literals of an enumeration type, in declaration order. A
+    /// reference `Init.SteadyState` is their 1-based position.
+    pub enumeration: Vec<String>,
     /// Classes declared inside a package, by qualified name.
     pub nested: Vec<ClassDef>,
     /// `import` clauses: (local name, qualified target).
@@ -121,6 +168,8 @@ pub struct ClassDef {
     pub equations: Vec<EquationItem>,
     /// `for` equations, unrolled while flattening.
     pub for_equations: Vec<ForEquation>,
+    /// `if` equations, resolved while flattening.
+    pub if_equations: Vec<IfEquation>,
     /// Statements of a `function` body.
     pub algorithm: Vec<Assignment>,
     /// `connect(a, b);` statements (component reference paths).
@@ -159,6 +208,29 @@ pub struct ForEquation {
     pub range: (Expr, Expr),
     /// Equations and nested loops of the body.
     pub body: Vec<ForBody>,
+}
+
+/// One branch of an `if` equation.
+#[derive(Debug, Clone)]
+pub struct IfBranch {
+    /// The condition; `None` marks the `else` branch.
+    pub condition: Option<Expr>,
+    /// Equations the branch contributes.
+    pub equations: Vec<EquationItem>,
+    /// `connect` statements the branch contributes.
+    pub connects: Vec<(String, String)>,
+}
+
+/// An `if <cond> then … elseif … else … end if;` in an equation section.
+///
+/// The conditions are compile-time constants: the first branch that
+/// holds contributes its equations and the others contribute nothing.
+/// This is how the standard library gives a component different
+/// equations depending on a structural parameter.
+#[derive(Debug, Clone)]
+pub struct IfEquation {
+    /// Branches in source order, the `else` one last where present.
+    pub branches: Vec<IfBranch>,
 }
 
 /// A `when <condition> then <actions> end when;` clause.

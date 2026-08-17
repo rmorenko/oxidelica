@@ -18,60 +18,108 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
     type Inertia = Real(unit = "kg.m2");
   end Units;
 
+  package Types "Enumerations the library uses"
+    type WaveformKind = enumeration(
+      Sine "sine wave",
+      Square "square wave between plus and minus the amplitude",
+      Triangle "triangular wave") "Shape of a periodic signal";
+  end Types;
+
+  model World "Settings shared by every component of a model"
+    // Declared `inner` once at the top of a model; components reach it
+    // with `outer World world`, the way the Modelica Standard Library
+    // shares a `world` in MultiBody and a `system` in Fluid.
+    parameter Real g = Constants.g_n "gravity acceleration";
+    parameter Real g_x = 0 "direction of gravity, x component";
+    parameter Real g_y = -1 "direction of gravity, y component";
+  end World;
+
   package Blocks "Input/output blocks"
+
+    package Interfaces "Partial blocks that fix the signal interface"
+      partial model SO "Block with one output signal"
+        output Real y "output signal";
+      end SO;
+
+      partial model SISO "Block with one input and one output signal"
+        input Real u "input signal";
+        output Real y "output signal";
+      end SISO;
+
+      partial model SI2SO "Block with two inputs and one output signal"
+        input Real u1 "first input signal";
+        input Real u2 "second input signal";
+        output Real y "output signal";
+      end SI2SO;
+    end Interfaces;
 
     package Sources "Signal sources"
       model Constant "Constant signal"
+        extends Interfaces.SO;
         parameter Real k = 1 "value of the output";
-        Real y "output";
       equation
         y = k;
       end Constant;
 
       model Step "Step at a given time"
+        extends Interfaces.SO;
         parameter Real height = 1;
         parameter Real offset = 0;
         parameter Real startTime = 0;
-        Real y;
       equation
         y = offset + (if time < startTime then 0 else height);
       end Step;
 
       model Ramp "Ramp with a finite duration"
+        extends Interfaces.SO;
         parameter Real height = 1;
         parameter Real duration = 1;
         parameter Real offset = 0;
         parameter Real startTime = 0;
-        Real y;
       equation
         y = offset + (if time < startTime then 0 elseif time < startTime + duration
           then height * (time - startTime) / duration else height);
       end Ramp;
 
       model Sine "Sine signal"
+        extends Interfaces.SO;
         parameter Real amplitude = 1;
         parameter Real f = 1 "frequency in Hz";
         parameter Real phase = 0;
         parameter Real offset = 0;
-        Real y;
       equation
         y = offset + amplitude * sin(2 * Constants.pi * f * time + phase);
       end Sine;
+
+      model Waveform "Periodic signal whose shape an enumeration selects"
+        extends Interfaces.SO;
+        parameter Types.WaveformKind kind = Types.WaveformKind.Sine "shape of the signal";
+        parameter Real amplitude = 1;
+        parameter Real f = 1 "frequency in Hz";
+        parameter Real offset = 0;
+        Real theta "phase angle in radians";
+        Real shape "the shape, between -1 and 1";
+      equation
+        theta = 2 * Constants.pi * f * time;
+        // The square wave switches on a relation, so the solver stops at
+        // the jump; the triangle is asin of a sine, which has no jumps.
+        shape = if kind == Types.WaveformKind.Sine then sin(theta)
+          elseif kind == Types.WaveformKind.Square then (if sin(theta) >= 0 then 1 else -1)
+          else 2 * asin(sin(theta)) / Constants.pi;
+        y = offset + amplitude * shape;
+      end Waveform;
     end Sources;
 
     package Math "Algebraic blocks"
       model Gain "Output is the input times a factor"
+        extends Interfaces.SISO;
         parameter Real k = 1;
-        Real u;
-        Real y;
       equation
         y = k * u;
       end Gain;
 
       model Feedback "Difference of two signals"
-        Real u1;
-        Real u2;
-        Real y;
+        extends Interfaces.SI2SO;
       equation
         y = u1 - u2;
       end Feedback;
@@ -79,29 +127,28 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
 
     package Continuous "Blocks with state"
       model Integrator "Integrates its input"
+        // The initial value reaches the inherited output through a
+        // modifier on its `start` attribute.
+        extends Interfaces.SISO(y(start = y_start));
         parameter Real k = 1 "gain";
         parameter Real y_start = 0;
-        Real u;
-        Real y(start = y_start);
       equation
         der(y) = k * u;
       end Integrator;
 
       model FirstOrder "First-order lag"
+        extends Interfaces.SISO(y(start = y_start));
         parameter Real k = 1 "gain";
         parameter Real T = 1 "time constant";
         parameter Real y_start = 0;
-        Real u;
-        Real y(start = y_start);
       equation
         der(y) = (k * u - y) / T;
       end FirstOrder;
 
       model PI "Proportional-integral controller"
+        extends Interfaces.SISO;
         parameter Real k = 1 "proportional gain";
         parameter Real T = 1 "integral time constant";
-        Real u;
-        Real y;
         Real x(start = 0) "integrator state";
       equation
         der(x) = u / T;
@@ -236,6 +283,24 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           Flange flange_a;
           Flange flange_b;
         end TwoFlanges;
+
+        partial model OneFlangeAndSupport "Component with one flange and an optional support"
+          // The standard library's way of letting a component either
+          // react against the housing or expose that reaction: with
+          // `useSupport = false` the support flange does not exist at
+          // all, and the equation that would have described it is
+          // replaced by one holding the support angle at zero.
+          parameter Boolean useSupport = false "true: the support flange is exposed";
+          Flange flange "flange of the shaft";
+          Flange support(phi = phi_support, tau = -flange.tau) if useSupport
+            "support flange, present only when used";
+        protected
+          Units.Angle phi_support "angle of the support, zero while it is not exposed";
+        equation
+          if not useSupport then
+            phi_support = 0;
+          end if;
+        end OneFlangeAndSupport;
       end Interfaces;
 
       package Components "Rotational components"
@@ -307,7 +372,40 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
         equation
           flange.tau = -tau_constant;
         end ConstantTorque;
+
+        model Torque "Constant torque, with the reaction on an optional support"
+          extends Interfaces.OneFlangeAndSupport;
+          parameter Units.Torque tau_constant = 1;
+        equation
+          flange.tau = -tau_constant;
+        end Torque;
       end Sources;
     end Rotational;
+
+    package Planar "Point masses moving in a plane"
+      model PointMass "A mass pulled by the gravity of the world"
+        outer World world "settings shared by the model, declared inner above";
+        parameter Real m = 1 "mass";
+        parameter Real x_start = 0;
+        parameter Real y_start = 0;
+        parameter Real vx_start = 0;
+        parameter Real vy_start = 0;
+        Real x(start = x_start) "position, x";
+        Real y(start = y_start) "position, y";
+        Real vx(start = vx_start) "velocity, x";
+        Real vy(start = vy_start) "velocity, y";
+        Real ax "acceleration, x";
+        Real ay "acceleration, y";
+        Real fx "applied force besides gravity, x";
+        Real fy "applied force besides gravity, y";
+      equation
+        der(x) = vx;
+        der(y) = vy;
+        der(vx) = ax;
+        der(vy) = ay;
+        m * ax = fx + m * world.g * world.g_x;
+        m * ay = fy + m * world.g * world.g_y;
+      end PointMass;
+    end Planar;
   end Mechanics;
 end Oxidelica;

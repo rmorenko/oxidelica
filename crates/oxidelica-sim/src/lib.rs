@@ -3493,6 +3493,122 @@ mod tests {
     }
 
     #[test]
+    fn a_world_shared_through_inner_outer_drives_a_projectile() {
+        // The point mass reads gravity from the `inner World` of the top
+        // model; the trajectory is a polynomial the solver integrates
+        // exactly.
+        let result = compile(&with_library("projectile.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (x, y, vy) = (index("ball.x"), index("ball.y"), index("ball.vy"));
+        for row in &result.rows {
+            let t = row[0];
+            assert!((row[x] - 12.0 * t).abs() < 1e-12, "x at {t}: {}", row[x]);
+            let height = 16.0 * t - 0.5 * 9.81 * t * t;
+            assert!((row[y] - height).abs() < 1e-12, "y at {t}: {}", row[y]);
+            assert!((row[vy] - (16.0 - 9.81 * t)).abs() < 1e-12);
+        }
+    }
+
+    #[test]
+    fn a_conditional_support_carries_the_reaction_torque() {
+        // Two identical drives: one reacting on its internal housing,
+        // one on an exposed support flange. The shafts must not be able
+        // to tell the difference.
+        let result = compile(&with_library("torque_support.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+        for row in &result.rows {
+            assert!(row[index("difference")].abs() < 1e-12);
+        }
+        // phi = tau / (2 J) t^2 with tau = 2, J = 0.5, t = 4.
+        assert!((last[index("shaftA.phi")] - 32.0).abs() < 1e-9);
+        // The exposed support takes the reaction; the internal one hides it.
+        assert!((last[index("driveB.support.tau")] - 2.0).abs() < 1e-12);
+        assert!(!result.columns.iter().any(|c| c == "driveA.support.tau"));
+    }
+
+    #[test]
+    fn a_redeclared_controller_changes_the_steady_state() {
+        // The example file ships a proportional drive and a derived model
+        // that redeclares the controller as a PI. Loading the file as a
+        // library reaches both.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
+        let example = std::fs::read_to_string(root.join("examples/pi_drive.mo")).unwrap();
+        let run_top = |source: &str| {
+            let model = oxidelica_parser::parse_model_with_libraries(
+                &[library.clone(), example.clone()],
+                source,
+            )
+            .unwrap();
+            compile(&model).unwrap().simulate().unwrap()
+        };
+
+        // Proportional only: a gain of 5 on a unit-gain plant leaves
+        // 1/(1+5) of the setpoint as a standing error.
+        let plain = run_top(
+            "model Plain ProportionalDrive drive; Real y; equation y = drive.y; \
+             annotation(experiment(StopTime = 6.0, Interval = 0.01, Tolerance = 1e-9)); end Plain;",
+        );
+        let y = plain.columns.iter().position(|c| c == "y").unwrap();
+        assert!((plain.rows.last().unwrap()[y] - 5.0 / 6.0).abs() < 1e-6);
+
+        // With the PI redeclared in, the offset is gone.
+        let tuned = run_top(
+            "model Tuned PIDrive drive; Real y; equation y = drive.y; \
+             annotation(experiment(StopTime = 6.0, Interval = 0.01, Tolerance = 1e-9)); end Tuned;",
+        );
+        let y = tuned.columns.iter().position(|c| c == "y").unwrap();
+        assert!((tuned.rows.last().unwrap()[y] - 1.0).abs() < 1e-4);
+    }
+
+    #[test]
+    fn an_enumeration_selects_the_shape_of_a_waveform() {
+        // Square wave through a first-order lag: on the first half
+        // period the answer is the analytic step response, and the jump
+        // at the half period is an event the solver stops at.
+        let result = compile(&with_library("waveform.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (u, y) = (index("u"), index("y"));
+        for row in &result.rows {
+            let t = row[0];
+            assert!(row[u].abs() == 1.0, "square wave value {} at {t}", row[u]);
+            if t <= 1.0 - 1e-9 {
+                let expected = 1.0 - (-t / 0.3f64).exp();
+                assert!((row[y] - expected).abs() < 1e-6, "y at {t}: {}", row[y]);
+            }
+        }
+
+        // The triangle shape of the same source is asin of a sine.
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
+        let model = oxidelica_parser::parse_model_with_libraries(
+            &[library],
+            "model T Oxidelica.Blocks.Sources.Waveform source(\
+               kind = Oxidelica.Types.WaveformKind.Triangle, f = 0.5); \
+             Real u; equation u = source.y; \
+             annotation(experiment(StopTime = 3.0, Interval = 0.01)); end T;",
+        )
+        .unwrap();
+        let triangle = compile(&model).unwrap().simulate().unwrap();
+        let u = triangle.columns.iter().position(|c| c == "u").unwrap();
+        for row in &triangle.rows {
+            let expected =
+                2.0 * (std::f64::consts::PI * row[0]).sin().asin() / std::f64::consts::PI;
+            assert!((row[u] - expected).abs() < 1e-12);
+        }
+    }
+
+    #[test]
     fn results_carry_the_parameter_values() {
         // Consumers such as the 3D view read sizes and colours from
         // here, since those never appear as columns.

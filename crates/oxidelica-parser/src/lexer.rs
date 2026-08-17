@@ -80,6 +80,22 @@ pub enum Token {
     Protected,
     /// Keyword `within`.
     Within,
+    /// Keyword `replaceable` — a declaration open to redeclaration.
+    Replaceable,
+    /// Keyword `redeclare` — replaces a replaceable declaration.
+    Redeclare,
+    /// Keyword `constrainedby` — the interface a redeclaration must meet.
+    ConstrainedBy,
+    /// Keyword `inner` — the declaration that owns a shared instance.
+    Inner,
+    /// Keyword `outer` — a reference to the enclosing `inner` instance.
+    Outer,
+    /// Keyword `enumeration` — a type of named literals.
+    Enumeration,
+    /// Keyword `final` — forbids further modification (parsed, ignored).
+    Final,
+    /// Keyword `each` — applies a modifier to every array element.
+    Each,
     /// `(`
     LParen,
     /// `)`
@@ -170,6 +186,14 @@ impl fmt::Display for Token {
             Token::Import => write!(f, "import"),
             Token::Protected => write!(f, "protected"),
             Token::Within => write!(f, "within"),
+            Token::Replaceable => write!(f, "replaceable"),
+            Token::Redeclare => write!(f, "redeclare"),
+            Token::ConstrainedBy => write!(f, "constrainedby"),
+            Token::Inner => write!(f, "inner"),
+            Token::Outer => write!(f, "outer"),
+            Token::Enumeration => write!(f, "enumeration"),
+            Token::Final => write!(f, "final"),
+            Token::Each => write!(f, "each"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
             Token::Semi => write!(f, ";"),
@@ -376,6 +400,14 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "import" => Token::Import,
                     "protected" => Token::Protected,
                     "within" => Token::Within,
+                    "replaceable" => Token::Replaceable,
+                    "redeclare" => Token::Redeclare,
+                    "constrainedby" => Token::ConstrainedBy,
+                    "inner" => Token::Inner,
+                    "outer" => Token::Outer,
+                    "enumeration" => Token::Enumeration,
+                    "final" => Token::Final,
+                    "each" => Token::Each,
                     _ => Token::Ident(word),
                 };
                 out.push(Spanned { token, line });
@@ -603,6 +635,15 @@ mod tests {
             Token::Partial,
             Token::Import,
             Token::Protected,
+            Token::Within,
+            Token::Replaceable,
+            Token::Redeclare,
+            Token::ConstrainedBy,
+            Token::Inner,
+            Token::Outer,
+            Token::Enumeration,
+            Token::Final,
+            Token::Each,
             Token::LBrace,
             Token::RBrace,
             Token::LBracket,
@@ -654,6 +695,24 @@ mod tests {
                 Token::Not,
                 Token::True,
                 Token::False,
+                Token::Eof,
+            ]
+        );
+    }
+
+    #[test]
+    fn lexes_the_structural_keywords() {
+        assert_eq!(
+            tokens("replaceable redeclare constrainedby inner outer enumeration final each"),
+            vec![
+                Token::Replaceable,
+                Token::Redeclare,
+                Token::ConstrainedBy,
+                Token::Inner,
+                Token::Outer,
+                Token::Enumeration,
+                Token::Final,
+                Token::Each,
                 Token::Eof,
             ]
         );

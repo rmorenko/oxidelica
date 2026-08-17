@@ -4,7 +4,7 @@ A modern cross-platform physical modeling environment in Rust, compatible with t
 
 Russian version of this file: [README.ru.md](README.ru.md).
 
-**Status: M0 (spike)** — a parser for a Modelica slice + an RK4 simulator + CLI + the IDE v0.
+**Status: the M0…M8 roadmap is complete** — a Modelica compiler (packages, inheritance, connections, DAE index reduction, events, arrays, functions, and the MSL structure: `replaceable`/`redeclare`, `inner`/`outer`, enumerations, conditional components), adaptive and stiff solvers, and an IDE with an editor, plots, a diagram editor and a 3D scene.
 
 ## Quick start
 
@@ -29,8 +29,8 @@ Language rule: no Cyrillic anywhere except Markdown files with a `.ru.md` suffix
 
 ## Layout
 
-- `crates/oxidelica-parser` — lexer, AST, recursive descent over the Modelica slice
-- `crates/oxidelica-sim` — compilation of a flat model into explicit ODEs + RK4
+- `crates/oxidelica-parser` — lexer, AST, recursive descent, instantiation and flattening
+- `crates/oxidelica-sim` — symbolic analysis of a flat model (sorting, index reduction, tearing) and the solvers: Dormand-Prince 5(4), BDF 1-5, RK4, with event location
 - `crates/oxidelica-cli` — the `oxidelica` binary (simulate / parse)
 - `crates/oxidelica-ide` — the Bevy + egui IDE (menu, editor, plots, EN/RU, themes)
 - `docs/` — concept and roadmap (M0…M8)
