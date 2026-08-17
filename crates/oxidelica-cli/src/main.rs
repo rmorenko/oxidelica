@@ -19,7 +19,11 @@ const USAGE: &str = "Oxidelica M0 - a Modelica subset simulator
 Usage:
   oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [-o result.csv]
                             solvers: auto (default), dopri45, bdf (stiff), rk4
-  oxidelica parse <file.mo>";
+  oxidelica parse <file.mo>
+
+The standard library is looked for as `lib` next to the model, next to
+the working directory or next to the binary; OXIDELICA_LIB names it
+outright.";
 
 /// Dispatch the command line to a subcommand.
 fn run() -> Result<(), String> {
@@ -33,26 +37,13 @@ fn run() -> Result<(), String> {
     }
 }
 
-/// Every `.mo` file in the `lib` directory, loaded as library context.
-pub fn load_libraries() -> Vec<String> {
-    let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir("lib")
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|e| e == "mo"))
-        .collect();
-    paths.sort();
-    paths
-        .iter()
-        .filter_map(|path| std::fs::read_to_string(path).ok())
-        .collect()
-}
-
-/// Read and parse a model file in the context of the libraries.
+/// Read and parse a model file in the context of the libraries, which
+/// are looked for near the model itself as well as near the binary - a
+/// model does not have to sit in the project to use them.
 fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
     let source = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
-    oxidelica_parser::parse_model_with_libraries(&load_libraries(), &source)
+    let libraries = oxidelica_parser::library_sources(Some(std::path::Path::new(path)));
+    oxidelica_parser::parse_model_with_libraries(&libraries, &source)
         .map_err(|e| format!("{path}: {e}"))
 }
 

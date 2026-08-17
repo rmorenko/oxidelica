@@ -374,25 +374,16 @@ fn main() {
         .run();
 }
 
-/// Library sources from the `lib` directory, available to every model.
-fn load_libraries() -> Vec<String> {
-    let mut paths: Vec<PathBuf> = std::fs::read_dir("lib")
-        .into_iter()
-        .flatten()
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| path.extension().is_some_and(|e| e == "mo"))
-        .collect();
-    paths.sort();
-    paths
-        .iter()
-        .filter_map(|path| std::fs::read_to_string(path).ok())
-        .collect()
+/// Library sources available to every model. They are looked for near
+/// the open file as well as near the binary, so a model kept outside
+/// the project still finds them.
+fn load_libraries_near(model: Option<&PathBuf>) -> Vec<String> {
+    oxidelica_parser::library_sources(model.map(|path| path.as_path()))
 }
 
 /// Class definitions of every library, for the diagram palette.
 fn library_classes() -> Vec<oxidelica_parser::ClassDef> {
-    load_libraries()
+    load_libraries_near(None)
         .iter()
         .filter_map(|source| oxidelica_parser::parse_file(source).ok())
         .flatten()
@@ -588,8 +579,10 @@ fn save_current(ide: &mut Ide) {
 /// Re-parse the editor buffer and refresh the tuner entries
 /// (silently: editor errors are reported on the next explicit run).
 fn refresh_tuner(ide: &mut Ide) {
-    if let Ok(model) = oxidelica_parser::parse_model_with_libraries(&load_libraries(), &ide.source)
-    {
+    if let Ok(model) = oxidelica_parser::parse_model_with_libraries(
+        &load_libraries_near(ide.file.as_ref()),
+        &ide.source,
+    ) {
         if let Ok(compiled) = oxidelica_sim::compile(&model) {
             ide.tuner.refresh(&compiled);
         }
@@ -1166,7 +1159,7 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
             .button(format!("{} {}", icons::DOWNLOAD_SIMPLE, s.diagram_import))
             .clicked()
         {
-            let mut sources = load_libraries();
+            let mut sources = load_libraries_near(ide.file.as_ref());
             sources.push(ide.source.clone());
             let classes: Vec<oxidelica_parser::ClassDef> = sources
                 .iter()
@@ -1417,7 +1410,10 @@ fn run_simulation(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     ide.log_ok = false;
     ide.error_line = None;
-    let model = match oxidelica_parser::parse_model_with_libraries(&load_libraries(), &ide.source) {
+    let model = match oxidelica_parser::parse_model_with_libraries(
+        &load_libraries_near(ide.file.as_ref()),
+        &ide.source,
+    ) {
         Ok(model) => model,
         Err(e) => {
             // The editor marks the line, so the message does not have to

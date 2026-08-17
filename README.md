@@ -28,6 +28,10 @@ test suite on them under Wine. The results agree across platforms to
 1e-9, which is the event-location tolerance rather than a difference in
 the answers.
 
+A model does not have to live in this folder: the standard library is
+looked for as `lib` next to the model, next to the working directory or
+next to the binary, and `OXIDELICA_LIB` names it outright.
+
 Linux needs the libraries Bevy links against — on Debian and Ubuntu
 `pkg-config libasound2-dev libudev-dev`; the Windows cross-build needs
 `mingw-w64`, and running its binaries needs `wine`. Both checks run from
