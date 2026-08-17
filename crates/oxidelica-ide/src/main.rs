@@ -221,6 +221,84 @@ struct Ide {
     diagram: diagram::Diagram,
     /// Palette filter text.
     palette_filter: String,
+    /// Source line the last error pointed at, marked in the editor.
+    error_line: Option<u32>,
+    /// The open file browser, when one is up.
+    browser: Option<Browser>,
+}
+
+/// What the file browser is being used for.
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum BrowserMode {
+    /// Pick an existing model to open.
+    Open,
+    /// Choose where to write the current one.
+    Save,
+}
+
+/// A small file browser, so that a model does not have to live in the
+/// examples folder to be worked on. It is drawn with the rest of the
+/// interface rather than by the system, which keeps the binary free of
+/// a desktop toolkit on every platform.
+struct Browser {
+    /// Open or save.
+    mode: BrowserMode,
+    /// Directory being shown.
+    directory: PathBuf,
+    /// File name, edited when saving.
+    name: String,
+    /// What went wrong with the last attempt, if anything.
+    error: Option<String>,
+}
+
+impl Browser {
+    /// Start in the directory of the current file, or where the process
+    /// was started.
+    fn new(mode: BrowserMode, current: Option<&PathBuf>) -> Browser {
+        let directory = current
+            .and_then(|path| path.parent().map(PathBuf::from))
+            .filter(|path| path.is_dir())
+            .or_else(|| std::env::current_dir().ok())
+            .unwrap_or_else(|| PathBuf::from("."));
+        Browser {
+            mode,
+            directory,
+            name: current
+                .and_then(|path| path.file_name())
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_else(|| "model.mo".to_string()),
+            error: None,
+        }
+    }
+
+    /// Directories and Modelica files of the current directory, folders
+    /// first and each group in name order.
+    fn entries(&self) -> Vec<PathBuf> {
+        let mut directories = Vec::new();
+        let mut files = Vec::new();
+        for entry in std::fs::read_dir(&self.directory)
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let path = entry.path();
+            let hidden = path
+                .file_name()
+                .is_some_and(|name| name.to_string_lossy().starts_with('.'));
+            if hidden {
+                continue;
+            }
+            if path.is_dir() {
+                directories.push(path);
+            } else if path.extension().is_some_and(|e| e == "mo") {
+                files.push(path);
+            }
+        }
+        directories.sort();
+        files.sort();
+        directories.extend(files);
+        directories
+    }
 }
 
 /// A background simulation running on a worker thread.
@@ -288,6 +366,8 @@ fn main() {
             sim_job: None,
             diagram: diagram::Diagram::with_catalog(&library_classes()),
             palette_filter: String::new(),
+            error_line: None,
+            browser: None,
         })
         .add_systems(Startup, view3d::setup)
         .add_systems(Update, (ui_system, view3d::sync_scene).chain())
@@ -360,6 +440,131 @@ fn load_example(ide: &mut Ide, path: PathBuf) {
 }
 
 /// Save the editor buffer to the current file.
+/// Start a new model from the template, with no file behind it yet.
+fn new_model(ide: &mut Ide) {
+    let s = ide.settings.lang.strings();
+    ide.source = DEFAULT_MODEL.to_string();
+    ide.file = None;
+    ide.result = None;
+    ide.error_line = None;
+    ide.log = s.new_model.into();
+    ide.log_ok = true;
+    refresh_tuner(ide);
+    run_simulation(ide);
+}
+
+/// Open a model from anywhere on disk, not only from the examples.
+fn open_path(ide: &mut Ide, path: PathBuf) {
+    load_example(ide, path);
+}
+
+/// The file browser window: pick a model to open, or a name to save the
+/// current one under.
+fn browser_ui(ide: &mut Ide, ctx: &egui::Context) {
+    let s = ide.settings.lang.strings();
+    let Some(browser) = &mut ide.browser else {
+        return;
+    };
+    let mut open_now: Option<PathBuf> = None;
+    let mut save_now: Option<PathBuf> = None;
+    let mut close = false;
+    let title = match browser.mode {
+        BrowserMode::Open => s.menu_open,
+        BrowserMode::Save => s.menu_save_as,
+    };
+    egui::Window::new(title)
+        .collapsible(false)
+        .resizable(true)
+        .default_width(520.0)
+        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+        .show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                if ui
+                    .button(format!("{} {}", icons::ARROW_UP, s.parent_directory))
+                    .clicked()
+                {
+                    if let Some(parent) = browser.directory.parent() {
+                        browser.directory = parent.to_path_buf();
+                    }
+                }
+                ui.label(browser.directory.display().to_string());
+            });
+            ui.separator();
+            egui::ScrollArea::vertical()
+                .id_salt("browser-list")
+                .max_height(280.0)
+                .show(ui, |ui| {
+                    for entry in browser.entries() {
+                        let name = file_label(&entry);
+                        let (icon, label) = if entry.is_dir() {
+                            (icons::FOLDER_OPEN, format!("{name}/"))
+                        } else {
+                            (icons::FILE_CODE, name.clone())
+                        };
+                        if ui.button(format!("{icon} {label}")).clicked() {
+                            if entry.is_dir() {
+                                browser.directory = entry;
+                            } else if browser.mode == BrowserMode::Open {
+                                open_now = Some(entry);
+                            } else {
+                                browser.name = name;
+                            }
+                        }
+                    }
+                });
+            ui.separator();
+            if browser.mode == BrowserMode::Save {
+                ui.horizontal(|ui| {
+                    ui.label(s.file_name);
+                    ui.text_edit_singleline(&mut browser.name);
+                });
+            }
+            if let Some(error) = &browser.error {
+                ui.colored_label(style::palette(ide.settings.theme).error_red, error);
+            }
+            ui.horizontal(|ui| {
+                if browser.mode == BrowserMode::Save
+                    && ui
+                        .button(format!("{} {}", icons::FLOPPY_DISK, s.save))
+                        .clicked()
+                {
+                    let name = browser.name.trim();
+                    if name.is_empty() {
+                        browser.error = Some(s.file_name.into());
+                    } else {
+                        save_now = Some(browser.directory.join(name));
+                    }
+                }
+                if ui.button(s.cancel).clicked() {
+                    close = true;
+                }
+            });
+        });
+
+    if let Some(path) = open_now {
+        open_path(ide, path);
+        ide.browser = None;
+    } else if let Some(path) = save_now {
+        // A model saved somewhere new keeps working from there on.
+        match std::fs::write(&path, &ide.source) {
+            Ok(()) => {
+                let s = ide.settings.lang.strings();
+                ide.log = format!("{}: {}", s.saved, path.display());
+                ide.log_ok = true;
+                ide.file = Some(path);
+                ide.browser = None;
+            }
+            Err(e) => {
+                if let Some(browser) = &mut ide.browser {
+                    browser.error = Some(e.to_string());
+                }
+            }
+        }
+    } else if close {
+        ide.browser = None;
+    }
+}
+
 fn save_current(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     match &ide.file {
@@ -452,6 +657,20 @@ fn ui_system(
     egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
         egui::menu::bar(ui, |ui| {
             ui.menu_button(s.menu_file, |ui| {
+                if ui
+                    .button(format!("{} {}", icons::FILE_CODE, s.menu_new))
+                    .clicked()
+                {
+                    new_model(ide);
+                    ui.close_menu();
+                }
+                if ui
+                    .button(format!("{} {}", icons::FOLDER_OPEN, s.menu_open))
+                    .clicked()
+                {
+                    ide.browser = Some(Browser::new(BrowserMode::Open, ide.file.as_ref()));
+                    ui.close_menu();
+                }
                 ui.menu_button(
                     format!("{} {}", icons::FOLDER_OPEN, s.menu_open_example),
                     |ui| {
@@ -472,6 +691,13 @@ fn ui_system(
                     .clicked()
                 {
                     save_current(ide);
+                    ui.close_menu();
+                }
+                if ui
+                    .button(format!("{} {}", icons::FLOPPY_DISK, s.menu_save_as))
+                    .clicked()
+                {
+                    ide.browser = Some(Browser::new(BrowserMode::Save, ide.file.as_ref()));
                     ui.close_menu();
                 }
                 ui.separator();
@@ -610,6 +836,9 @@ fn ui_system(
     // --- editor with Modelica syntax highlighting ---
     let mut source_edited = false;
     let editor_theme = ide.settings.theme;
+    let error_line = ide.error_line;
+    let error_bar = style::palette(editor_theme).error_red;
+    let error_tint = error_bar.gamma_multiply(0.3);
     let mut layouter = |ui: &egui::Ui, text: &str, wrap_width: f32| {
         let font = egui::TextStyle::Monospace.resolve(ui.style());
         let mut job = highlight::highlight(text, editor_theme, font);
@@ -623,16 +852,50 @@ fn ui_system(
             egui::ScrollArea::vertical()
                 .id_salt("editor-scroll")
                 .show(ui, |ui| {
-                    let response = ui.add(
-                        egui::TextEdit::multiline(&mut ide.source)
-                            .font(egui::TextStyle::Monospace)
-                            .code_editor()
-                            .desired_rows(40)
-                            .desired_width(f32::INFINITY)
-                            .layouter(&mut layouter),
-                    );
-                    if response.changed() {
+                    let output = egui::TextEdit::multiline(&mut ide.source)
+                        .font(egui::TextStyle::Monospace)
+                        .code_editor()
+                        .desired_rows(40)
+                        .desired_width(f32::INFINITY)
+                        .layouter(&mut layouter)
+                        .show(ui);
+                    if output.response.changed() {
                         source_edited = true;
+                    }
+                    // A parse error marks its line, so the message does
+                    // not have to be read as directions to a place.
+                    if let Some(line) = error_line {
+                        let rows = &output.galley.rows;
+                        let mut source_line = 1u32;
+                        for row in rows {
+                            if source_line == line {
+                                let rect = row
+                                    .rect
+                                    .translate(output.galley_pos.to_vec2())
+                                    .expand2(egui::vec2(0.0, 1.0));
+                                let painter = ui.painter();
+                                let band = egui::Rect::from_min_max(
+                                    egui::pos2(ui.min_rect().left(), rect.top()),
+                                    egui::pos2(ui.min_rect().right(), rect.bottom()),
+                                );
+                                painter.rect_filled(band, 2.0, error_tint);
+                                // A bar at the margin, so the line is
+                                // found at a glance and not only where
+                                // the eye happens to be.
+                                painter.rect_filled(
+                                    egui::Rect::from_min_size(
+                                        band.left_top(),
+                                        egui::vec2(3.0, band.height()),
+                                    ),
+                                    0.0,
+                                    error_bar,
+                                );
+                                break;
+                            }
+                            if row.ends_with_newline {
+                                source_line += 1;
+                            }
+                        }
                     }
                 });
         });
@@ -702,6 +965,7 @@ fn ui_system(
                             .selected_text(tuner.solver.name())
                             .show_ui(ui, |ui| {
                                 for method in [
+                                    oxidelica_sim::SolverMethod::Auto,
                                     oxidelica_sim::SolverMethod::Dopri45,
                                     oxidelica_sim::SolverMethod::Bdf,
                                     oxidelica_sim::SolverMethod::Rk4,
@@ -838,6 +1102,11 @@ fn ui_system(
             },
         }
     });
+
+    // --- file browser ---
+    if ide.browser.is_some() {
+        browser_ui(ide, ctx);
+    }
 
     // --- about dialog ---
     if ide.show_about {
@@ -1147,9 +1416,13 @@ fn animation_ui(
 fn run_simulation(ide: &mut Ide) {
     let s = ide.settings.lang.strings();
     ide.log_ok = false;
+    ide.error_line = None;
     let model = match oxidelica_parser::parse_model_with_libraries(&load_libraries(), &ide.source) {
         Ok(model) => model,
         Err(e) => {
+            // The editor marks the line, so the message does not have to
+            // be read as a set of directions.
+            ide.error_line = (e.line > 0).then_some(e.line);
             ide.log = format!("{}: {e}", s.parse_error);
             return;
         }
@@ -1189,10 +1462,11 @@ fn apply_sim_outcome(
             ide.log = match &result.terminated {
                 Some(message) => format!("{name}: {message}"),
                 None => format!(
-                    "{name}: {} {} {:.1?}; {}: {}",
+                    "{name}: {} {} {:.1?} ({}); {}: {}",
                     result.rows.len().saturating_sub(1),
                     s.steps_in,
                     elapsed,
+                    result.method.name(),
                     s.variables,
                     result.columns[1..].join(", ")
                 ),
@@ -1234,5 +1508,67 @@ fn apply_sim_outcome(
             ide.log = format!("{}: {e}", s.sim_error);
             ide.log_ok = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A directory holding a few entries, removed when the test ends.
+    struct Sandbox(PathBuf);
+
+    impl Sandbox {
+        fn new(name: &str) -> Sandbox {
+            let root =
+                std::env::temp_dir().join(format!("oxidelica-{}-{name}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&root);
+            std::fs::create_dir_all(root.join("nested")).unwrap();
+            std::fs::write(root.join("beta.mo"), "model B end B;").unwrap();
+            std::fs::write(root.join("alpha.mo"), "model A end A;").unwrap();
+            std::fs::write(root.join("notes.txt"), "not a model").unwrap();
+            std::fs::write(root.join(".hidden.mo"), "model H end H;").unwrap();
+            Sandbox(root)
+        }
+    }
+
+    impl Drop for Sandbox {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn the_browser_lists_folders_first_and_only_models() {
+        let sandbox = Sandbox::new("browser");
+        let browser = Browser {
+            mode: BrowserMode::Open,
+            directory: sandbox.0.clone(),
+            name: String::new(),
+            error: None,
+        };
+        let names: Vec<String> = browser
+            .entries()
+            .iter()
+            .map(|path| file_label(path))
+            .collect();
+        // Folders first, each group by name; text files and dot files
+        // are not models to open.
+        assert_eq!(names, vec!["nested", "alpha.mo", "beta.mo"]);
+    }
+
+    #[test]
+    fn the_browser_opens_where_the_current_file_is() {
+        let sandbox = Sandbox::new("start");
+        let current = sandbox.0.join("alpha.mo");
+        let browser = Browser::new(BrowserMode::Save, Some(&current));
+        assert_eq!(browser.directory, sandbox.0);
+        assert_eq!(browser.name, "alpha.mo");
+
+        // With nothing open it falls back to the working directory and
+        // suggests a name rather than an empty field.
+        let fresh = Browser::new(BrowserMode::Save, None);
+        assert_eq!(fresh.directory, std::env::current_dir().unwrap());
+        assert!(fresh.name.ends_with(".mo"));
     }
 }
