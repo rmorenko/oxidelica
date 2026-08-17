@@ -214,28 +214,32 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         ));
     }
 
-    // 4. Bipartite matching of equations to unknowns, then a
-    // topological evaluation plan; the cyclic remainder becomes one
-    // implicit Newton block (per-loop tearing arrives with M3).
+    // 3.5. Initial state values (needed for the constraint check below).
+    let ctx0 = EvalCtx {
+        vars: &params,
+        time: 0.0,
+    };
+    let mut initial = Vec::new();
+    for s in &states {
+        let comp = model.components.iter().find(|c| &c.name == s).unwrap();
+        let value = match &comp.start {
+            Some(expr) => eval(expr, &ctx0).map_err(|e| SimError(format!("start of {s}: {e}")))?,
+            None => 0.0,
+        };
+        initial.push(value);
+    }
+
+    // 4. Bipartite matching of equations to unknowns. A structurally
+    // unmatched equation is a DAE constraint: it is differentiated
+    // symbolically (Pantelides-style) with Baumgarte stabilization
+    // (R -> R' + k*R) until the system becomes regular.
+    const BAUMGARTE: f64 = 10.0;
+    const MAX_DIFFERENTIATIONS: usize = 8;
+
     let var_index: HashMap<&str, usize> = unknowns
         .iter()
         .enumerate()
         .map(|(i, n)| (n.as_str(), i))
-        .collect();
-    let eq_vars: Vec<Vec<usize>> = algebraic_eqs
-        .iter()
-        .map(|(lhs, rhs)| {
-            let mut refs = Vec::new();
-            lhs.collect_refs(&mut refs);
-            rhs.collect_refs(&mut refs);
-            let mut vars: Vec<usize> = refs
-                .iter()
-                .filter_map(|r| var_index.get(r).copied())
-                .collect();
-            vars.sort_unstable();
-            vars.dedup();
-            vars
-        })
         .collect();
 
     // Augmenting-path maximum matching.
@@ -258,19 +262,99 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         }
         false
     }
+
     let n_alg = unknowns.len();
-    let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];
-    for (eq, (lhs, rhs)) in algebraic_eqs.iter().enumerate() {
-        let mut visited = vec![false; n_alg];
-        if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
+    let mut diff_count = vec![0usize; n_alg];
+    let mut original_constraints: Vec<(Expr, Expr)> = Vec::new();
+    let (matched_eq, eq_vars) = loop {
+        let eq_vars: Vec<Vec<usize>> = algebraic_eqs
+            .iter()
+            .map(|(lhs, rhs)| {
+                let mut refs = Vec::new();
+                lhs.collect_refs(&mut refs);
+                rhs.collect_refs(&mut refs);
+                let mut vars: Vec<usize> = refs
+                    .iter()
+                    .filter_map(|r| var_index.get(r).copied())
+                    .collect();
+                vars.sort_unstable();
+                vars.dedup();
+                vars
+            })
+            .collect();
+        let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];
+        let mut failed = None;
+        for eq in 0..n_alg {
+            let mut visited = vec![false; n_alg];
+            if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
+                failed = Some(eq);
+                break;
+            }
+        }
+        let Some(eq) = failed else {
+            break (matched_eq, eq_vars);
+        };
+        let (lhs, rhs) = &algebraic_eqs[eq];
+        if diff_count[eq] >= MAX_DIFFERENTIATIONS {
             return err(format!(
-                "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown"
+                "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched even after differentiation"
             ));
         }
-    }
+        let residual = Expr::Bin(
+            oxidelica_parser::BinOp::Sub,
+            Box::new(lhs.clone()),
+            Box::new(rhs.clone()),
+        );
+        let derivative = match differentiate(&residual, &state_rhs, &params) {
+            Ok(d) => d,
+            Err(reason) => {
+                return err(format!(
+                    "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown ({reason})"
+                ))
+            }
+        };
+        if diff_count[eq] == 0 {
+            original_constraints.push((lhs.clone(), rhs.clone()));
+        }
+        // Baumgarte stabilization keeps the original constraint from
+        // drifting: the replacement is R' + k*R = 0.
+        let stabilized = Expr::Bin(
+            oxidelica_parser::BinOp::Add,
+            Box::new(derivative),
+            Box::new(Expr::Bin(
+                oxidelica_parser::BinOp::Mul,
+                Box::new(Expr::Number(BAUMGARTE)),
+                Box::new(residual),
+            )),
+        );
+        algebraic_eqs[eq] = (stabilized, Expr::Number(0.0));
+        diff_count[eq] += 1;
+    };
     let mut matched_var: Vec<usize> = vec![0; n_alg];
     for (v, eq) in matched_eq.iter().enumerate() {
         matched_var[eq.unwrap()] = v;
+    }
+
+    // Differentiated constraints must hold at the initial point.
+    if !original_constraints.is_empty() {
+        let mut env: HashMap<String, f64> = params.clone();
+        for (name, value) in states.iter().zip(&initial) {
+            env.insert(name.clone(), *value);
+        }
+        for (lhs, rhs) in &original_constraints {
+            let ctx = EvalCtx {
+                vars: &env,
+                time: 0.0,
+            };
+            if let (Ok(l), Ok(r)) = (eval(lhs, &ctx), eval(rhs, &ctx)) {
+                if (l - r).abs() > 1e-4 {
+                    return err(format!(
+                        "initial values violate the constraint {lhs:?} = {rhs:?} (residual {:.6})",
+                        l - r
+                    ));
+                }
+            }
+        }
     }
 
     // Kahn topological order over equations.
@@ -351,21 +435,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         stages.push(AlgStage::Implicit { vars, residuals });
     }
 
-    // 5. Initial state values.
-    let ctx = EvalCtx {
-        vars: &params,
-        time: 0.0,
-    };
-    let mut initial = Vec::new();
-    for s in &states {
-        let comp = model.components.iter().find(|c| &c.name == s).unwrap();
-        let value = match &comp.start {
-            Some(expr) => eval(expr, &ctx).map_err(|e| SimError(format!("start of {s}: {e}")))?,
-            None => 0.0,
-        };
-        initial.push(value);
-    }
-
+    let ctx = ctx0;
     let derivatives = states.iter().map(|s| state_rhs[s].clone()).collect();
     let algebraic_start: Vec<f64> = ordered_algs
         .iter()
@@ -397,6 +467,114 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
         terminations: model.terminations.clone(),
+    })
+}
+
+/// Symbolic time-differentiation of an expression.
+///
+/// `d(state)/dt` substitutes the state's defining right-hand side;
+/// parameters and literals differentiate to zero; `time` to one.
+/// Differentiating through an algebraic unknown or a non-smooth
+/// function is reported as an error (dummy derivatives arrive with the
+/// full M3).
+fn differentiate(
+    expr: &Expr,
+    state_rhs: &HashMap<String, Expr>,
+    params: &HashMap<String, f64>,
+) -> Result<Expr, String> {
+    use oxidelica_parser::BinOp::*;
+    fn bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
+        Expr::Bin(op, Box::new(a), Box::new(b))
+    }
+    fn call(name: &str, arg: Expr) -> Expr {
+        Expr::Call(name.to_string(), vec![arg])
+    }
+    let d = |e: &Expr| differentiate(e, state_rhs, params);
+    Ok(match expr {
+        Expr::Number(_) | Expr::Bool(_) => Expr::Number(0.0),
+        Expr::Time => Expr::Number(1.0),
+        Expr::Ref(name) => {
+            if let Some(rhs) = state_rhs.get(name) {
+                rhs.clone()
+            } else if params.contains_key(name) {
+                Expr::Number(0.0)
+            } else {
+                return Err(format!(
+                    "cannot differentiate through algebraic variable `{name}`"
+                ));
+            }
+        }
+        Expr::Neg(inner) => Expr::Neg(Box::new(d(inner)?)),
+        Expr::Bin(Add, a, b) => bin(Add, d(a)?, d(b)?),
+        Expr::Bin(Sub, a, b) => bin(Sub, d(a)?, d(b)?),
+        Expr::Bin(Mul, a, b) => bin(
+            Add,
+            bin(Mul, d(a)?, (**b).clone()),
+            bin(Mul, (**a).clone(), d(b)?),
+        ),
+        Expr::Bin(Div, a, b) => bin(
+            Div,
+            bin(
+                Sub,
+                bin(Mul, d(a)?, (**b).clone()),
+                bin(Mul, (**a).clone(), d(b)?),
+            ),
+            bin(Pow, (**b).clone(), Expr::Number(2.0)),
+        ),
+        Expr::Bin(Pow, base, exponent) => {
+            let Expr::Number(c) = **exponent else {
+                return Err("cannot differentiate a non-constant exponent".to_string());
+            };
+            bin(
+                Mul,
+                bin(
+                    Mul,
+                    Expr::Number(c),
+                    bin(Pow, (**base).clone(), Expr::Number(c - 1.0)),
+                ),
+                d(base)?,
+            )
+        }
+        Expr::Call(name, args) if args.len() == 1 => {
+            let u = &args[0];
+            let du = d(u)?;
+            let outer = match name.as_str() {
+                "sin" => call("cos", u.clone()),
+                "cos" => Expr::Neg(Box::new(call("sin", u.clone()))),
+                "tan" => bin(
+                    Div,
+                    Expr::Number(1.0),
+                    bin(Pow, call("cos", u.clone()), Expr::Number(2.0)),
+                ),
+                "exp" => call("exp", u.clone()),
+                "log" => bin(Div, Expr::Number(1.0), u.clone()),
+                "sqrt" => bin(Div, Expr::Number(0.5), call("sqrt", u.clone())),
+                "atan" => bin(
+                    Div,
+                    Expr::Number(1.0),
+                    bin(
+                        Add,
+                        Expr::Number(1.0),
+                        bin(Pow, u.clone(), Expr::Number(2.0)),
+                    ),
+                ),
+                "sinh" => call("cosh", u.clone()),
+                "cosh" => call("sinh", u.clone()),
+                "tanh" => bin(
+                    Div,
+                    Expr::Number(1.0),
+                    bin(Pow, call("cosh", u.clone()), Expr::Number(2.0)),
+                ),
+                other => return Err(format!("cannot differentiate function `{other}`")),
+            };
+            bin(Mul, outer, du)
+        }
+        Expr::If(cond, then_branch, else_branch) => Expr::If(
+            cond.clone(),
+            Box::new(d(then_branch)?),
+            Box::new(d(else_branch)?),
+        ),
+        _ => return Err("cannot differentiate this expression".to_string()),
     })
 }
 
@@ -1522,6 +1700,83 @@ mod tests {
             (last[cv] - analytic).abs() < 1e-9,
             "c.v = {}, analytic = {analytic}",
             last[cv]
+        );
+    }
+
+    #[test]
+    fn index2_dae_tracks_the_constraint() {
+        // q = time^2 with der(q) = z: the constraint must be
+        // differentiated once (Pantelides) to expose z; z = 2t follows.
+        let result = run(
+            "model D Real z; Real q(start = 0); equation der(q) = z; q = time ^ 2; \
+             annotation(experiment(StopTime=1.0, Interval=0.01, Tolerance=1e-10)); end D;",
+        );
+        let last = result.rows.last().unwrap();
+        let q_idx = result.columns.iter().position(|c| c == "q").unwrap();
+        let z_idx = result.columns.iter().position(|c| c == "z").unwrap();
+        assert!((last[q_idx] - 1.0).abs() < 1e-6, "q(1) = {}", last[q_idx]);
+        assert!((last[z_idx] - 2.0).abs() < 1e-4, "z(1) = {}", last[z_idx]);
+    }
+
+    #[test]
+    fn index3_cartesian_pendulum_matches_angle_form() {
+        let source = std::fs::read_to_string(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../examples/cartesian_pendulum.mo"),
+        )
+        .unwrap();
+        let cart = compile(&parse_model(&source).unwrap())
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let x_idx = cart.columns.iter().position(|c| c == "x").unwrap();
+        let y_idx = cart.columns.iter().position(|c| c == "y").unwrap();
+        // The length constraint holds throughout.
+        let worst = cart
+            .rows
+            .iter()
+            .map(|r| (r[x_idx] * r[x_idx] + r[y_idx] * r[y_idx] - 1.0).abs())
+            .fold(0.0f64, f64::max);
+        assert!(worst < 1e-6, "constraint violation {worst}");
+        // Cross-check against the angle formulation of the same pendulum.
+        let angle = run("model P parameter Real g = 9.81; parameter Real L = 1.0; \
+             Real phi(start = 0.7); Real w(start = 0.0); Real x; Real y; \
+             equation der(phi) = w; der(w) = -(g/L)*sin(phi); \
+             x = L * sin(phi); y = -L * cos(phi); \
+             annotation(experiment(StopTime=10.0, Interval=0.001, Tolerance=1e-10)); end P;");
+        let ax = angle.columns.iter().position(|c| c == "x").unwrap();
+        let ay = angle.columns.iter().position(|c| c == "y").unwrap();
+        let (cl, al) = (cart.rows.last().unwrap(), angle.rows.last().unwrap());
+        assert!(
+            (cl[x_idx] - al[ax]).abs() < 1e-4 && (cl[y_idx] - al[ay]).abs() < 1e-4,
+            "cartesian ({}, {}) vs angle ({}, {})",
+            cl[x_idx],
+            cl[y_idx],
+            al[ax],
+            al[ay]
+        );
+    }
+
+    #[test]
+    fn inconsistent_initial_values_are_rejected() {
+        // q(0) = 1 contradicts the constraint q = time^2 at t = 0.
+        let model = parse_model(
+            "model D Real z; Real q(start = 1); equation der(q) = z; q = time ^ 2; \
+             annotation(experiment(StopTime=1.0, Interval=0.01)); end D;",
+        )
+        .unwrap();
+        let error = compile(&model).unwrap_err();
+        assert!(error.0.contains("initial values violate"), "{}", error.0);
+    }
+
+    #[test]
+    fn truly_singular_system_is_still_rejected() {
+        // Two equations for `a`, none for `b`; differentiation cannot
+        // help because b never appears.
+        let error = compile_err("model M Real a; Real b; equation a = 1; a = 2; end M;");
+        assert!(
+            error.contains("structurally singular") && error.contains("cannot differentiate"),
+            "{error}"
         );
     }
 
