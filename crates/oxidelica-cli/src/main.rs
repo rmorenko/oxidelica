@@ -131,6 +131,9 @@ fn simulate(args: &[String]) -> Result<(), String> {
         None => print!("{}", result.to_csv()),
     }
 
+    if let Some(message) = &result.terminated {
+        eprintln!("{message}");
+    }
     // A short final-point summary on stderr so it does not mix with CSV
     // on stdout.
     if let Some(last) = result.rows.last() {

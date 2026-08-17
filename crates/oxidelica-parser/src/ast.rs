@@ -37,6 +37,15 @@ pub struct EquationItem {
     pub rhs: Expr,
 }
 
+/// A `when <condition> then terminate("<message>"); end when;` clause.
+#[derive(Debug, Clone)]
+pub struct Termination {
+    /// The boolean condition that ends the simulation when it holds.
+    pub condition: Expr,
+    /// The message reported to the user.
+    pub message: String,
+}
+
 /// Simulation settings from `annotation(experiment(...))`.
 #[derive(Debug, Clone, Default)]
 pub struct Experiment {
@@ -59,6 +68,8 @@ pub struct Model {
     pub components: Vec<Component>,
     /// Equations in source order.
     pub equations: Vec<EquationItem>,
+    /// Termination clauses (`when ... then terminate(...)`).
+    pub terminations: Vec<Termination>,
     /// Experiment settings (defaults when absent).
     pub experiment: Experiment,
 }

@@ -821,15 +821,18 @@ fn run_simulation(ide: &mut Ide) {
     ide.tuner.apply(&mut compiled);
     match compiled.simulate() {
         Ok(result) => {
-            ide.log = format!(
-                "{}: {} {} {:.1?}; {}: {}",
-                compiled.name,
-                result.rows.len().saturating_sub(1),
-                s.steps_in,
-                started.elapsed(),
-                s.variables,
-                result.columns[1..].join(", ")
-            );
+            ide.log = match &result.terminated {
+                Some(message) => format!("{}: {message}", compiled.name),
+                None => format!(
+                    "{}: {} {} {:.1?}; {}: {}",
+                    compiled.name,
+                    result.rows.len().saturating_sub(1),
+                    s.steps_in,
+                    started.elapsed(),
+                    s.variables,
+                    result.columns[1..].join(", ")
+                ),
+            };
             ide.log_ok = true;
             // Preserve playback and curve choices when the variable set
             // is unchanged (live parameter tuning); reset otherwise.

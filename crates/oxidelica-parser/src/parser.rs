@@ -8,6 +8,8 @@
 //!              ["=" expr] [STRING] ";"
 //! attr       : IDENT "=" (expr | "true" | "false")
 //! eq_item    : expr "=" expr [STRING] ";"
+//! when_term  : "when" expr "then" "terminate" "(" STRING ")" ";"
+//!              "end" "when" ";"
 //! expr       : if_expr | logical_or
 //! if_expr    : "if" expr "then" expr {"elseif" expr "then" expr} "else" expr
 //! logical_or : logical_and { "or" logical_and }
@@ -120,6 +122,7 @@ impl Parser {
 
         let mut components = Vec::new();
         let mut equations = Vec::new();
+        let mut terminations = Vec::new();
         let mut experiment = Experiment::default();
         let mut in_equations = false;
 
@@ -143,6 +146,9 @@ impl Parser {
                 Token::Annotation => {
                     self.parse_annotation(&mut experiment)?;
                 }
+                Token::When => {
+                    terminations.push(self.when_termination()?);
+                }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
                 _ => {
                     if in_equations {
@@ -159,8 +165,38 @@ impl Parser {
             description,
             components,
             equations,
+            terminations,
             experiment,
         })
+    }
+
+    /// `when <cond> then terminate("<msg>"); end when;` — the M4 slice:
+    /// only `terminate` is supported inside `when` for now.
+    fn when_termination(&mut self) -> Result<Termination, ParseError> {
+        self.expect(&Token::When, "when")?;
+        let condition = self.expr()?;
+        self.expect(&Token::Then, "then after when condition")?;
+        let callee = self.ident("call inside when")?;
+        if callee != "terminate" {
+            return Err(self.err(format!(
+                "M0 supports only terminate() inside when, found `{callee}`"
+            )));
+        }
+        self.expect(&Token::LParen, "parenthesis after terminate")?;
+        let message = match self.bump() {
+            Token::Str(message) => message,
+            other => {
+                return Err(self.err(format!(
+                    "terminate expects a string message, found `{other}`"
+                )))
+            }
+        };
+        self.expect(&Token::RParen, "closing parenthesis of terminate")?;
+        self.expect(&Token::Semi, "semicolon after terminate")?;
+        self.expect(&Token::End, "end when")?;
+        self.expect(&Token::When, "when after end")?;
+        self.expect(&Token::Semi, "semicolon after end when")?;
+        Ok(Termination { condition, message })
     }
 
     fn declaration(&mut self) -> Result<Component, ParseError> {
@@ -669,6 +705,26 @@ mod tests {
         let m2 =
             parse_model("model M Real x(start=0, fixed=false); equation der(x)=1; end M;").unwrap();
         assert_eq!(m2.components[0].fixed, Some(false));
+    }
+
+    #[test]
+    fn parses_when_terminate() {
+        let m = parse_model(
+            "model M Real x; equation x = time; \
+             when x > 1 and time > 0.5 then terminate(\"done\"); end when; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.terminations.len(), 1);
+        assert_eq!(m.terminations[0].message, "done");
+        // Errors: something other than terminate; a non-string message.
+        assert!(
+            err_of("model M Real x; equation x = 1; when x > 1 then x = 2; end when; end M;")
+                .contains("only terminate")
+        );
+        assert!(err_of(
+            "model M Real x; equation x = 1; when x > 1 then terminate(42); end when; end M;"
+        )
+        .contains("string message"));
     }
 
     #[test]

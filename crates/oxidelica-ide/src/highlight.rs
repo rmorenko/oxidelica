@@ -84,8 +84,26 @@ const KEYWORDS: &[&str] = &[
 const TYPES: &[&str] = &["Real", "Integer", "Boolean", "String"];
 
 const BUILTINS: &[&str] = &[
-    "sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sinh", "cosh", "tanh", "exp", "log",
-    "log10", "sqrt", "abs", "sign", "min", "max", "time",
+    "sin",
+    "cos",
+    "tan",
+    "asin",
+    "acos",
+    "atan",
+    "atan2",
+    "sinh",
+    "cosh",
+    "tanh",
+    "exp",
+    "log",
+    "log10",
+    "sqrt",
+    "abs",
+    "sign",
+    "min",
+    "max",
+    "time",
+    "terminate",
 ];
 
 /// Build a colored layout job for the given Modelica source.

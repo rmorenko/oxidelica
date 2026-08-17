@@ -7,6 +7,7 @@
 
 #![deny(missing_docs)]
 
+use oxidelica_parser::ast::Termination;
 use oxidelica_parser::{EquationItem, Expr, Model, Variability};
 use std::collections::HashMap;
 use std::fmt;
@@ -61,6 +62,8 @@ pub struct CompiledModel {
     pub tolerance: f64,
     /// Selected integration method.
     pub method: SolverMethod,
+    /// Termination clauses checked at every output point.
+    pub terminations: Vec<Termination>,
 }
 
 /// Compile a parsed flat model into an executable form.
@@ -222,6 +225,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
         step: model.experiment.interval.unwrap_or(1e-3),
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
+        terminations: model.terminations.clone(),
     })
 }
 
@@ -430,6 +434,28 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     })
 }
 
+impl CompiledModel {
+    /// Evaluate termination clauses at an output point; the `env` must
+    /// already hold every variable (as after `eval_point`). Returns the
+    /// report line of the first clause that holds.
+    fn check_terminations(
+        &self,
+        t: f64,
+        env: &HashMap<String, f64>,
+    ) -> Result<Option<String>, SimError> {
+        for clause in &self.terminations {
+            let ctx = EvalCtx { vars: env, time: t };
+            if eval(&clause.condition, &ctx)? != 0.0 {
+                return Ok(Some(format!(
+                    "terminated at t = {t:.6}: {}",
+                    clause.message
+                )));
+            }
+        }
+        Ok(None)
+    }
+}
+
 // --- integration ---
 
 /// Simulation output: a table of time, states and algebraic variables.
@@ -439,6 +465,9 @@ pub struct SimResult {
     pub columns: Vec<String>,
     /// One row per output point.
     pub rows: Vec<Vec<f64>>,
+    /// Set when a `when ... then terminate(...)` clause fired; contains
+    /// a human-readable "terminated at t = ...: message" line.
+    pub terminated: Option<String>,
 }
 
 impl SimResult {
@@ -581,7 +610,15 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut last_out_t = 0.0f64;
+        let mut terminated: Option<String> = None;
         record(0.0, &y, &mut env, &mut derivatives_scratch)?;
+        if let Some(message) = self.check_terminations(0.0, &env)? {
+            return Ok(SimResult {
+                columns,
+                rows,
+                terminated: Some(message),
+            });
+        }
 
         // Pure-algebraic models: no ODE to integrate, only the grid.
         if n == 0 {
@@ -594,11 +631,19 @@ impl CompiledModel {
                 record(t, &y, &mut env, &mut derivatives_scratch)?;
                 last_out_t = t;
                 out_i += 1;
+                terminated = self.check_terminations(t, &env)?;
+                if terminated.is_some() {
+                    break;
+                }
             }
-            if last_out_t < stop - 1e-12 {
+            if terminated.is_none() && last_out_t < stop - 1e-12 {
                 record(stop, &y, &mut env, &mut derivatives_scratch)?;
             }
-            return Ok(SimResult { columns, rows });
+            return Ok(SimResult {
+                columns,
+                rows,
+                terminated,
+            });
         }
 
         let mut k: Vec<Vec<f64>> = vec![vec![0.0; n]; 7];
@@ -678,6 +723,13 @@ impl CompiledModel {
                     record(out_t, &interp, &mut env, &mut derivatives_scratch)?;
                     last_out_t = out_t;
                     out_i += 1;
+                    terminated = self.check_terminations(out_t, &env)?;
+                    if terminated.is_some() {
+                        break;
+                    }
+                }
+                if terminated.is_some() {
+                    break;
                 }
                 t += h;
                 y.copy_from_slice(&y5);
@@ -698,10 +750,15 @@ impl CompiledModel {
                 ));
             }
         }
-        if last_out_t < stop - 1e-12 {
+        if terminated.is_none() && last_out_t < stop - 1e-12 {
             record(stop, &y, &mut env, &mut derivatives_scratch)?;
+            terminated = self.check_terminations(stop, &env)?;
         }
-        Ok(SimResult { columns, rows })
+        Ok(SimResult {
+            columns,
+            rows,
+            terminated,
+        })
     }
 
     /// Classic fixed-step RK4 integration over `[0, stop_time]`.
@@ -736,8 +793,12 @@ impl CompiledModel {
         };
 
         record(0.0, &y, &mut env, &mut k1, self)?;
+        let mut terminated = self.check_terminations(0.0, &env)?;
 
         for i in 0..steps {
+            if terminated.is_some() {
+                break;
+            }
             let t = i as f64 * self.step;
             let h = (self.stop_time - t).min(self.step);
 
@@ -758,9 +819,14 @@ impl CompiledModel {
                 y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
             }
             record(t + h, &y, &mut env, &mut k1, self)?;
+            terminated = self.check_terminations(t + h, &env)?;
         }
 
-        Ok(SimResult { columns, rows })
+        Ok(SimResult {
+            columns,
+            rows,
+            terminated,
+        })
     }
 }
 
@@ -1080,6 +1146,38 @@ mod tests {
         let result = compiled.simulate().unwrap();
         let x = result.rows.last().unwrap()[1];
         assert!((x - (-1.0f64).exp()).abs() < 1e-9, "x(1)={x}");
+    }
+
+    #[test]
+    fn when_terminate_stops_simulation() {
+        let result = run("model W Real x(start = 0.0); equation der(x) = 1; \
+             when x > 0.5 then terminate(\"threshold reached\"); end when; \
+             annotation(experiment(StopTime=2.0, Interval=0.01)); end W;");
+        let message = result.terminated.expect("must terminate");
+        assert!(message.contains("threshold reached"), "{message}");
+        let last_t = result.rows.last().unwrap()[0];
+        assert!(
+            (0.5..=0.55).contains(&last_t),
+            "stopped at t = {last_t}, expected just past 0.5"
+        );
+    }
+
+    #[test]
+    fn when_terminate_can_fire_at_start() {
+        let result = run("model W Real x(start = 5.0); equation der(x) = 1; \
+             when x > 1 then terminate(\"already past\"); end when; \
+             annotation(experiment(StopTime=1.0, Interval=0.01)); end W;");
+        assert!(result.terminated.is_some());
+        assert_eq!(result.rows.len(), 1); // only the initial point
+    }
+
+    #[test]
+    fn normal_runs_do_not_terminate() {
+        let result = run("model N Real x(start = 0.0); equation der(x) = 1; \
+             when x > 100 then terminate(\"never\"); end when; \
+             annotation(experiment(StopTime=1.0, Interval=0.1)); end N;");
+        assert!(result.terminated.is_none());
+        assert!((result.rows.last().unwrap()[0] - 1.0).abs() < 1e-9);
     }
 
     #[test]

@@ -42,6 +42,8 @@ pub enum Token {
     Or,
     /// Keyword `not`.
     Not,
+    /// Keyword `when`.
+    When,
     /// `(`
     LParen,
     /// `)`
@@ -101,6 +103,7 @@ impl fmt::Display for Token {
             Token::And => write!(f, "and"),
             Token::Or => write!(f, "or"),
             Token::Not => write!(f, "not"),
+            Token::When => write!(f, "when"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
             Token::Semi => write!(f, ";"),
@@ -282,6 +285,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "and" => Token::And,
                     "or" => Token::Or,
                     "not" => Token::Not,
+                    "when" => Token::When,
                     _ => Token::Ident(word),
                 };
                 out.push(Spanned { token, line });
@@ -449,6 +453,7 @@ mod tests {
             Token::And,
             Token::Or,
             Token::Not,
+            Token::When,
             Token::LParen,
             Token::RParen,
             Token::Semi,
