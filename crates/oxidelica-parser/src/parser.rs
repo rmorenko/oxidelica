@@ -147,7 +147,13 @@ impl Parser {
         let kind = match self.bump() {
             Token::Model => ClassKind::Model,
             Token::Connector => ClassKind::Connector,
-            other => return Err(self.err(format!("expected model or connector, found `{other}`"))),
+            Token::Record => ClassKind::Record,
+            Token::Function => ClassKind::Function,
+            other => {
+                return Err(self.err(format!(
+                    "expected model, connector, record or function, found `{other}`"
+                )))
+            }
         };
         let name = self.ident("class name")?;
         let description = self.opt_string();
@@ -157,6 +163,8 @@ impl Parser {
         let mut equations = Vec::new();
         let mut connects = Vec::new();
         let mut when_clauses = Vec::new();
+        let mut for_equations = Vec::new();
+        let mut algorithm = Vec::new();
         let mut experiment = Experiment::default();
         let mut in_equations = false;
 
@@ -176,6 +184,13 @@ impl Parser {
                 Token::Equation => {
                     self.bump();
                     in_equations = true;
+                }
+                Token::Algorithm => {
+                    self.bump();
+                    algorithm.extend(self.assignments()?);
+                }
+                Token::For => {
+                    for_equations.push(self.for_equation()?);
                 }
                 Token::Annotation => {
                     self.parse_annotation(&mut experiment)?;
@@ -207,10 +222,55 @@ impl Parser {
             components,
             extends,
             equations,
+            for_equations,
+            algorithm,
             connects,
             when_clauses,
             experiment,
         })
+    }
+
+    /// `for <var> in <lo>:<hi> loop <equations> end for;`
+    fn for_equation(&mut self) -> Result<ForEquation, ParseError> {
+        self.expect(&Token::For, "for")?;
+        let variable = self.ident("loop variable")?;
+        self.expect(&Token::In, "in after the loop variable")?;
+        let lower = self.expr()?;
+        self.expect(&Token::Colon, "`:` in the loop range")?;
+        let upper = self.expr()?;
+        self.expect(&Token::Loop, "loop after the range")?;
+        let mut body = Vec::new();
+        while self.peek() != &Token::End {
+            match self.peek() {
+                Token::Eof => return Err(self.err("unterminated for equation".into())),
+                Token::For => body.push(ForBody::Nested(self.for_equation()?)),
+                _ => body.push(ForBody::Equation(self.equation_item()?)),
+            }
+        }
+        self.expect(&Token::End, "end for")?;
+        self.expect(&Token::For, "for after end")?;
+        self.expect(&Token::Semi, "semicolon after end for")?;
+        if body.is_empty() {
+            return Err(self.err("for equation has no body".into()));
+        }
+        Ok(ForEquation {
+            variable,
+            range: (lower, upper),
+            body,
+        })
+    }
+
+    /// A function body: a sequence of `target := expression;`.
+    fn assignments(&mut self) -> Result<Vec<Assignment>, ParseError> {
+        let mut out = Vec::new();
+        while matches!(self.peek(), Token::Ident(_)) {
+            let target = self.ident("assignment target")?;
+            self.expect(&Token::Becomes, "`:=` in assignment")?;
+            let value = self.expr()?;
+            self.expect(&Token::Semi, "semicolon after assignment")?;
+            out.push(Assignment { target, value });
+        }
+        Ok(out)
     }
 
     /// `extends Base(mod = expr, ...);`
@@ -342,15 +402,43 @@ impl Parser {
         } else {
             false
         };
+        let causality = match self.peek() {
+            Token::Input => {
+                self.bump();
+                Causality::Input
+            }
+            Token::Output => {
+                self.bump();
+                Causality::Output
+            }
+            _ => Causality::None,
+        };
 
         let type_name = self.ident("component type")?;
         let name = self.ident("component name")?;
+        // `Real T[N, 3]` — dimensions are constant expressions.
+        let mut dimensions = Vec::new();
+        if self.peek() == &Token::LBracket {
+            self.bump();
+            loop {
+                dimensions.push(self.expr()?);
+                match self.bump() {
+                    Token::Comma => continue,
+                    Token::RBracket => break,
+                    other => {
+                        return Err(self.err(format!(
+                            "expected `,` or `]` in array dimensions, found `{other}`"
+                        )))
+                    }
+                }
+            }
+        }
 
         let mut start = None;
         let mut fixed = None;
         let mut modifiers = Vec::new();
         if self.peek() == &Token::LParen {
-            if type_name == "Real" {
+            if matches!(type_name.as_str(), "Real" | "Integer" | "Boolean") {
                 self.bump();
                 loop {
                     let attr = self.ident("attribute name")?;
@@ -407,6 +495,8 @@ impl Parser {
             name,
             type_name,
             flow,
+            dimensions,
+            causality,
             modifiers,
             variability,
             start,
@@ -661,6 +751,34 @@ impl Parser {
                     name.push('.');
                     name.push_str(&self.ident("name after dot")?);
                 }
+                if self.peek() == &Token::LBracket {
+                    self.bump();
+                    let mut subscripts = Vec::new();
+                    loop {
+                        subscripts.push(self.expr()?);
+                        match self.bump() {
+                            Token::Comma => continue,
+                            Token::RBracket => break,
+                            other => {
+                                return Err(self.err(format!(
+                                    "expected `,` or `]` in a subscript, found `{other}`"
+                                )))
+                            }
+                        }
+                    }
+                    let indexed = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
+                    if self.peek() == &Token::Dot {
+                        self.bump();
+                        let mut path = self.ident("member after `.`")?;
+                        while self.peek() == &Token::Dot {
+                            self.bump();
+                            path.push('.');
+                            path.push_str(&self.ident("member after `.`")?);
+                        }
+                        return Ok(Expr::Member(Box::new(indexed), path));
+                    }
+                    return Ok(indexed);
+                }
                 if !name.contains('.') && self.peek() == &Token::LParen {
                     self.bump();
                     let mut args = Vec::new();
@@ -741,8 +859,8 @@ mod tests {
     fn error_paths_are_reported() {
         // End of file without `end`.
         assert!(err_of("model M Real x;").contains("end of file"));
-        // Unknown type at flattening.
-        assert!(err_of("model M Integer x; end M;").contains("unknown type"));
+        // Unknown component type at flattening.
+        assert!(err_of("model M Widget x; end M;").contains("unknown type"));
         // Unknown attribute.
         assert!(err_of("model M Real x(min=0); end M;").contains("unknown attribute"));
         // Non-boolean fixed.

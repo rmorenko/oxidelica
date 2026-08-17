@@ -849,7 +849,12 @@ fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
             collect_relations(b, out);
         }
         Expr::Call(_, args) => args.iter().for_each(|a| collect_relations(a, out)),
-        Expr::Number(_) | Expr::Bool(_) | Expr::Ref(_) | Expr::Time => {}
+        Expr::Index(_, _)
+        | Expr::Member(_, _)
+        | Expr::Number(_)
+        | Expr::Bool(_)
+        | Expr::Ref(_)
+        | Expr::Time => {}
     }
 }
 
@@ -904,7 +909,14 @@ fn simplify(expr: &Expr) -> Expr {
         Expr::And(l, r) => Expr::And(Box::new(simplify(l)), Box::new(simplify(r))),
         Expr::Or(l, r) => Expr::Or(Box::new(simplify(l)), Box::new(simplify(r))),
         Expr::Not(inner) => Expr::Not(Box::new(simplify(inner))),
-        Expr::Number(_) | Expr::Bool(_) | Expr::Ref(_) | Expr::Time => expr.clone(),
+        // Subscripts are resolved to scalar references while
+        // flattening, so none can reach the compiler.
+        Expr::Index(_, _)
+        | Expr::Member(_, _)
+        | Expr::Number(_)
+        | Expr::Bool(_)
+        | Expr::Ref(_)
+        | Expr::Time => expr.clone(),
     }
 }
 
@@ -942,6 +954,7 @@ fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
             Box::new(substitute(a, var, value)),
             Box::new(substitute(b, var, value)),
         ),
+        Expr::Index(_, _) | Expr::Member(_, _) => expr.clone(),
     }
 }
 
@@ -1190,6 +1203,11 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                 Div => a / b,
                 Pow => a.powf(b),
             }
+        }
+        Expr::Index(base, _) | Expr::Member(base, _) => {
+            return err(format!(
+                "unresolved array subscript on {base:?}: flattening should have expanded it"
+            ))
         }
         Expr::Call(name, args) => {
             let vals: Result<Vec<f64>, SimError> = args.iter().map(|a| eval(a, ctx)).collect();
@@ -2078,7 +2096,6 @@ impl CompiledModel {
         let mut t = 0.0f64;
         let mut h = out_step.min(stop).max(1e-12);
         let mut jac: Option<Vec<Vec<f64>>> = None;
-        let mut jac_c0 = f64::NAN;
         let mut consecutive_ok = 0usize;
         let mut steps: u64 = 0;
 
@@ -2149,9 +2166,8 @@ impl CompiledModel {
                     break;
                 }
 
-                if jac.is_none() || (jac_c0 - c0).abs() > 0.3 * c0.abs() || iteration == 3 {
+                if jac.is_none() || iteration == 4 {
                     jac = Some(self.jacobian(t_new, &y_new, &f_new, &mut env, &alg_guess)?);
-                    jac_c0 = c0;
                 }
                 let mut matrix: Vec<Vec<f64>> = jac
                     .as_ref()
@@ -3372,6 +3388,34 @@ mod tests {
         assert!(message.contains("crossed"), "{message}");
         let last_t = result.rows.last().unwrap()[0];
         assert!((last_t - 0.25).abs() < 1e-6, "stopped at {last_t}");
+    }
+
+    #[test]
+    fn discretized_heat_conduction_reaches_the_analytic_steady_state() {
+        // The M5 pipeline end to end: an array of 40 nodes, a for
+        // equation over the interior, and an inlined function.
+        let compiled = compile(&parse_model(&example("heat_conduction.mo")).unwrap()).unwrap();
+        assert_eq!(compiled.states.len(), 40, "one state per node");
+        assert!(compiled.states.contains(&"T[20]".to_string()));
+
+        let result = compiled.simulate().unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+
+        // Held ends, so the rod relaxes to a straight line between them.
+        for node in 1..=40 {
+            let position = node as f64 / 41.0;
+            let expected = 100.0 + (20.0 - 100.0) * position;
+            let actual = last[index(&format!("T[{node}]"))];
+            assert!(
+                (actual - expected).abs() < 1e-2,
+                "node {node}: {actual} vs {expected}"
+            );
+        }
+        // The inlined steadyState() function measures the same thing.
+        assert!(last[index("midError")].abs() < 1e-2);
+        // Cold start: the rod begins uniform.
+        assert!((result.rows[0][index("T[1]")] - 20.0).abs() < 1e-12);
     }
 
     #[test]

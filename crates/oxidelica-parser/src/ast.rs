@@ -20,6 +20,11 @@ pub struct Component {
     pub type_name: String,
     /// Whether the component carries the `flow` prefix (connectors).
     pub flow: bool,
+    /// Array dimensions: `Real T[N, 3]` gives two of them. Empty for
+    /// scalars; expanded into scalar components while flattening.
+    pub dimensions: Vec<Expr>,
+    /// `input` / `output` prefix (function arguments and results).
+    pub causality: Causality,
     /// Modifiers for user-type components: `Resistor r(R = 100)`.
     pub modifiers: Vec<(String, Expr)>,
     /// Variability class of the component.
@@ -43,6 +48,27 @@ pub struct EquationItem {
     pub rhs: Expr,
 }
 
+/// Direction of a function argument.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Causality {
+    /// An ordinary variable.
+    #[default]
+    None,
+    /// A function argument.
+    Input,
+    /// A function result.
+    Output,
+}
+
+/// One statement of a function body.
+#[derive(Debug, Clone)]
+pub struct Assignment {
+    /// Assigned variable.
+    pub target: String,
+    /// Assigned expression.
+    pub value: Expr,
+}
+
 /// The kind of a class definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ClassKind {
@@ -50,6 +76,10 @@ pub enum ClassKind {
     Model,
     /// `connector` — an interface with potential and flow variables.
     Connector,
+    /// `record` — a plain bundle of variables.
+    Record,
+    /// `function` — inputs, one output and an algorithm of assignments.
+    Function,
 }
 
 /// An `extends Base(mod = expr, ...);` clause.
@@ -76,6 +106,10 @@ pub struct ClassDef {
     pub extends: Vec<Extend>,
     /// Ordinary equations.
     pub equations: Vec<EquationItem>,
+    /// `for` equations, unrolled while flattening.
+    pub for_equations: Vec<ForEquation>,
+    /// Statements of a `function` body.
+    pub algorithm: Vec<Assignment>,
     /// `connect(a, b);` statements (component reference paths).
     pub connects: Vec<(String, String)>,
     /// `when` clauses (events).
@@ -92,6 +126,26 @@ pub enum WhenAction {
     Reinit(String, Expr),
     /// `terminate("message")` — end the simulation.
     Terminate(String),
+}
+
+/// One item of a `for` loop body.
+#[derive(Debug, Clone)]
+pub enum ForBody {
+    /// An ordinary equation.
+    Equation(EquationItem),
+    /// A nested loop.
+    Nested(ForEquation),
+}
+
+/// A `for <var> in <lo>:<hi> loop <body> end for;` clause.
+#[derive(Debug, Clone)]
+pub struct ForEquation {
+    /// The loop variable, visible inside the body.
+    pub variable: String,
+    /// Inclusive range bounds; both must be constant at compile time.
+    pub range: (Expr, Expr),
+    /// Equations and nested loops of the body.
+    pub body: Vec<ForBody>,
 }
 
 /// A `when <condition> then <actions> end when;` clause.
@@ -191,6 +245,11 @@ pub enum Expr {
     Not(Box<Expr>),
     /// `if c then a else b` (`elseif` chains become nested `If`s).
     If(Box<Expr>, Box<Expr>, Box<Expr>),
+    /// Array subscript `name[i, j]`; resolved to a scalar reference
+    /// while flattening.
+    Index(Box<Expr>, Vec<Expr>),
+    /// Member of a subscripted component: `points[i].x`.
+    Member(Box<Expr>, String),
 }
 
 impl Expr {
@@ -215,6 +274,10 @@ impl Expr {
                 l.contains_der() || r.contains_der()
             }
             Expr::If(c, t, e) => c.contains_der() || t.contains_der() || e.contains_der(),
+            Expr::Index(base, subscripts) => {
+                base.contains_der() || subscripts.iter().any(Expr::contains_der)
+            }
+            Expr::Member(base, _) => base.contains_der(),
             _ => false,
         }
     }
@@ -234,6 +297,11 @@ impl Expr {
                 t.collect_refs(out);
                 e.collect_refs(out);
             }
+            Expr::Index(base, subscripts) => {
+                base.collect_refs(out);
+                subscripts.iter().for_each(|s| s.collect_refs(out));
+            }
+            Expr::Member(base, _) => base.collect_refs(out),
             _ => {}
         }
     }

@@ -80,6 +80,9 @@ const KEYWORDS: &[&str] = &[
     "der",
     "initial",
     "within",
+    "algorithm",
+    "in",
+    "protected",
 ];
 
 const TYPES: &[&str] = &["Real", "Integer", "Boolean", "String"];

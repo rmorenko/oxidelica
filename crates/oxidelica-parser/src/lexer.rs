@@ -52,6 +52,22 @@ pub enum Token {
     Extends,
     /// Keyword `connect`.
     Connect,
+    /// Keyword `for`.
+    For,
+    /// Keyword `in`.
+    In,
+    /// Keyword `loop`.
+    Loop,
+    /// Keyword `function`.
+    Function,
+    /// Keyword `record`.
+    Record,
+    /// Keyword `input`.
+    Input,
+    /// Keyword `output`.
+    Output,
+    /// Keyword `algorithm`.
+    Algorithm,
     /// `(`
     LParen,
     /// `)`
@@ -74,6 +90,14 @@ pub enum Token {
     Caret,
     /// `.`
     Dot,
+    /// `[`
+    LBracket,
+    /// `]`
+    RBracket,
+    /// `:`
+    Colon,
+    /// `:=`
+    Becomes,
     /// `<`
     Lt,
     /// `<=`
@@ -116,6 +140,14 @@ impl fmt::Display for Token {
             Token::Flow => write!(f, "flow"),
             Token::Extends => write!(f, "extends"),
             Token::Connect => write!(f, "connect"),
+            Token::For => write!(f, "for"),
+            Token::In => write!(f, "in"),
+            Token::Loop => write!(f, "loop"),
+            Token::Function => write!(f, "function"),
+            Token::Record => write!(f, "record"),
+            Token::Input => write!(f, "input"),
+            Token::Output => write!(f, "output"),
+            Token::Algorithm => write!(f, "algorithm"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
             Token::Semi => write!(f, ";"),
@@ -127,6 +159,10 @@ impl fmt::Display for Token {
             Token::Slash => write!(f, "/"),
             Token::Caret => write!(f, "^"),
             Token::Dot => write!(f, "."),
+            Token::LBracket => write!(f, "["),
+            Token::RBracket => write!(f, "]"),
+            Token::Colon => write!(f, ":"),
+            Token::Becomes => write!(f, ":="),
             Token::Lt => write!(f, "<"),
             Token::Le => write!(f, "<="),
             Token::Gt => write!(f, ">"),
@@ -302,6 +338,14 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "flow" => Token::Flow,
                     "extends" => Token::Extends,
                     "connect" => Token::Connect,
+                    "for" => Token::For,
+                    "in" => Token::In,
+                    "loop" => Token::Loop,
+                    "function" => Token::Function,
+                    "record" => Token::Record,
+                    "input" => Token::Input,
+                    "output" => Token::Output,
+                    "algorithm" => Token::Algorithm,
                     _ => Token::Ident(word),
                 };
                 out.push(Spanned { token, line });
@@ -425,6 +469,34 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 });
                 i += 1;
             }
+            '[' => {
+                out.push(Spanned {
+                    token: Token::LBracket,
+                    line,
+                });
+                i += 1;
+            }
+            ']' => {
+                out.push(Spanned {
+                    token: Token::RBracket,
+                    line,
+                });
+                i += 1;
+            }
+            ':' if bytes.get(i + 1) == Some(&'=') => {
+                out.push(Spanned {
+                    token: Token::Becomes,
+                    line,
+                });
+                i += 2;
+            }
+            ':' => {
+                out.push(Spanned {
+                    token: Token::Colon,
+                    line,
+                });
+                i += 1;
+            }
             other => {
                 return Err(LexError {
                     message: format!("unexpected character `{other}`"),
@@ -474,6 +546,18 @@ mod tests {
             Token::Flow,
             Token::Extends,
             Token::Connect,
+            Token::For,
+            Token::In,
+            Token::Loop,
+            Token::Function,
+            Token::Record,
+            Token::Input,
+            Token::Output,
+            Token::Algorithm,
+            Token::LBracket,
+            Token::RBracket,
+            Token::Colon,
+            Token::Becomes,
             Token::LParen,
             Token::RParen,
             Token::Semi,
