@@ -147,21 +147,8 @@ impl CompiledModel {
                     };
                     env.insert(self.algebraics[*var].clone(), value);
                 }
-                AlgStage::Implicit {
-                    torn,
-                    inner,
-                    residuals,
-                    ..
-                } => {
-                    self.solve_implicit_block(
-                        0.0,
-                        &mut env,
-                        torn,
-                        inner,
-                        residuals,
-                        &mut alg_guess,
-                        true,
-                    )?;
+                stage @ AlgStage::Implicit { .. } => {
+                    self.solve_implicit_block(0.0, &mut env, stage, &mut alg_guess, true)?;
                 }
             }
         }
@@ -1261,13 +1248,8 @@ impl CompiledModel {
                     let value = eval(expr, &EvalCtx { vars: env, time: t })?;
                     env.insert(self.algebraics[*var].clone(), value);
                 }
-                AlgStage::Implicit {
-                    torn,
-                    inner,
-                    residuals,
-                    ..
-                } => {
-                    self.solve_implicit_block(t, env, torn, inner, residuals, alg_guess, false)?;
+                stage @ AlgStage::Implicit { .. } => {
+                    self.solve_implicit_block(t, env, stage, alg_guess, false)?;
                 }
             }
         }
@@ -1286,12 +1268,19 @@ impl CompiledModel {
         &self,
         t: f64,
         env: &mut HashMap<String, f64>,
-        block: &[usize],
-        inner: &[(usize, Expr)],
-        residuals: &[(Expr, Expr)],
+        stage: &AlgStage,
         alg_guess: &mut [f64],
         validate: bool,
     ) -> Result<(), SimError> {
+        let AlgStage::Implicit {
+            torn: block,
+            inner,
+            residuals,
+            ..
+        } = stage
+        else {
+            return Ok(());
+        };
         let n = block.len();
         let mut v: Vec<f64> = block.iter().map(|&i| alg_guess[i]).collect();
 
@@ -2606,6 +2595,212 @@ mod tests {
             assert_eq!(SolverMethod::from_name(method.name()), Some(method));
         }
         assert_eq!(SolverMethod::from_name("nope"), None);
+    }
+
+    fn expr_of(source_expr: &str) -> Expr {
+        let model = parse_model(&format!(
+            "model E Real a; Real b; Real q; equation q = {source_expr}; a = 1; b = 2; end E;"
+        ))
+        .unwrap();
+        model
+            .equations
+            .iter()
+            .find_map(|e| match (&e.lhs, &e.rhs) {
+                (Expr::Ref(n), rhs) if n == "q" => Some(rhs.clone()),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    /// Evaluate an expression with the given variable bindings.
+    fn value_of(expr: &Expr, bindings: &[(&str, f64)]) -> f64 {
+        let vars: HashMap<String, f64> = bindings
+            .iter()
+            .map(|(n, v)| ((*n).to_string(), *v))
+            .collect();
+        eval(
+            expr,
+            &EvalCtx {
+                vars: &vars,
+                time: 0.0,
+            },
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn simplify_folds_constants_and_identities() {
+        let cases = [
+            ("2 * 3 + 1", 7.0),
+            ("a * 0", 0.0),
+            ("0 * a", 0.0),
+            ("a * 1", 1.0),
+            ("1 * a", 1.0),
+            ("a + 0", 1.0),
+            ("0 + a", 1.0),
+            ("a - 0", 1.0),
+            ("0 - a", -1.0),
+            ("a / 1", 1.0),
+            ("0 / a", 0.0),
+            ("a ^ 1", 1.0),
+            ("a ^ 0", 1.0),
+            ("-(2)", -2.0),
+        ];
+        for (source, expected) in cases {
+            let folded = simplify(&expr_of(source));
+            assert_eq!(
+                value_of(&folded, &[("a", 1.0), ("b", 2.0)]),
+                expected,
+                "{source} folded to {folded:?}"
+            );
+        }
+        // Structure-preserving branches still simplify their children.
+        let nested = simplify(&expr_of(
+            "if a > 0 and b > 0 or not a > 0 then a * 1 else b + 0",
+        ));
+        assert_eq!(value_of(&nested, &[("a", 1.0), ("b", 2.0)]), 1.0);
+        assert_eq!(
+            value_of(&simplify(&expr_of("sin(a * 1)")), &[("a", 0.0)]),
+            0.0
+        );
+    }
+
+    #[test]
+    fn substitute_replaces_every_occurrence() {
+        let expr = expr_of("if a > 0 and a < 5 or not a > 9 then sin(a) + (-a) else a / 2 ^ a");
+        let substituted = substitute(&expr, "a", 0.0);
+        let mut refs = Vec::new();
+        substituted.collect_refs(&mut refs);
+        assert!(!refs.contains(&"a"), "a survived: {substituted:?}");
+        assert_eq!(value_of(&substituted, &[]), 0.0);
+    }
+
+    #[test]
+    fn differentiates_every_elementary_function() {
+        // d/da of f(a) at a = 0.7, compared with a central difference.
+        for name in [
+            "sin", "cos", "tan", "exp", "log", "sqrt", "atan", "sinh", "cosh", "tanh",
+        ] {
+            let expr = expr_of(&format!("{name}(a)"));
+            let derivative = simplify(&differentiate(&expr, &DiffTarget::Variable("a")).unwrap());
+            let (point, step) = (0.7f64, 1e-6);
+            let numeric = (value_of(&expr_of(&format!("{name}(a)")), &[("a", point + step)])
+                - value_of(&expr_of(&format!("{name}(a)")), &[("a", point - step)]))
+                / (2.0 * step);
+            let symbolic = value_of(&derivative, &[("a", point)]);
+            assert!(
+                (symbolic - numeric).abs() < 1e-5,
+                "{name}: symbolic {symbolic} vs numeric {numeric}"
+            );
+        }
+        // Products, quotients, powers and if-expressions.
+        let d = |source: &str| {
+            simplify(&differentiate(&expr_of(source), &DiffTarget::Variable("a")).unwrap())
+        };
+        assert_eq!(value_of(&d("a * b"), &[("a", 3.0), ("b", 2.0)]), 2.0);
+        assert_eq!(value_of(&d("a / b"), &[("a", 3.0), ("b", 2.0)]), 0.5);
+        assert_eq!(value_of(&d("a ^ 3"), &[("a", 2.0)]), 12.0);
+        assert_eq!(value_of(&d("-a"), &[("a", 2.0)]), -1.0);
+        assert_eq!(
+            value_of(&d("if b > 0 then a * 2 else a"), &[("a", 1.0), ("b", 1.0)]),
+            2.0
+        );
+        // Refusals: unknown function, non-constant exponent, time target.
+        assert!(differentiate(&expr_of("atan2(a, b)"), &DiffTarget::Variable("a")).is_err());
+        assert!(differentiate(&expr_of("a ^ b"), &DiffTarget::Variable("a")).is_err());
+        assert_eq!(
+            value_of(
+                &differentiate(&expr_of("time"), &DiffTarget::Variable("a")).unwrap(),
+                &[]
+            ),
+            0.0
+        );
+    }
+
+    #[test]
+    fn nonlinear_equations_are_not_solved_symbolically() {
+        // x * x = 4 is not linear in x, so no closed form is offered.
+        let expr = expr_of("a * a");
+        assert!(solve_linear_for(&expr, &Expr::Number(4.0), "a").is_none());
+        // ... but 3 * x - 6 = 0 is.
+        let linear = expr_of("3 * a - 6");
+        let solution = solve_linear_for(&linear, &Expr::Number(0.0), "a").unwrap();
+        assert!((value_of(&solution, &[]) - 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn bdf_covers_termination_and_algebraic_only_models() {
+        // Termination inside the BDF loop.
+        let mut compiled = compile(
+            &parse_model(
+                "model W Real x(start = 0.0); equation der(x) = 1; \
+                 when x > 0.5 then terminate(\"done\"); end when; \
+                 annotation(experiment(StopTime=2.0, Interval=0.01)); end W;",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        compiled.method = SolverMethod::Bdf;
+        assert!(compiled.simulate().unwrap().terminated.is_some());
+
+        // A model without states: the solver just walks the grid.
+        let mut algebraic_only = compile(
+            &parse_model(
+                "model A Real y; equation y = 2 * time; \
+                 annotation(experiment(StopTime=1.0, Interval=0.25)); end A;",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        algebraic_only.method = SolverMethod::Bdf;
+        let result = algebraic_only.simulate().unwrap();
+        assert_eq!(result.rows.len(), 5);
+        assert!((result.rows.last().unwrap()[1] - 2.0).abs() < 1e-12);
+
+        // Terminating at t = 0 short-circuits before any stepping.
+        let mut immediate = compile(
+            &parse_model(
+                "model I Real x(start = 5.0); equation der(x) = 1; \
+                 when x > 1 then terminate(\"already\"); end when; end I;",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        immediate.method = SolverMethod::Bdf;
+        let result = immediate.simulate().unwrap();
+        assert!(result.terminated.is_some());
+        assert_eq!(result.rows.len(), 1);
+    }
+
+    #[test]
+    fn bdf_reports_a_singularity_instead_of_guessing() {
+        // x' = -1/x runs into x = 0 at t = 0.5.
+        let mut compiled = compile(
+            &parse_model(
+                "model S Real x(start = 1.0); equation der(x) = -1/x; \
+                 annotation(experiment(StopTime=1.0, Interval=0.01)); end S;",
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        compiled.method = SolverMethod::Bdf;
+        let error = compiled.simulate().unwrap_err();
+        assert!(
+            error.0.contains("underflow") || error.0.contains("budget"),
+            "{}",
+            error.0
+        );
+    }
+
+    #[test]
+    fn plan_summary_describes_stages() {
+        let compiled = compile(
+            &parse_model("model P Real x; Real y; equation x = 2; y = x + 1; end P;").unwrap(),
+        )
+        .unwrap();
+        let plan = compiled.plan_summary();
+        assert_eq!(plan.len(), 2);
+        assert!(plan.iter().all(|line| line.starts_with("explicit")));
     }
 
     #[test]
