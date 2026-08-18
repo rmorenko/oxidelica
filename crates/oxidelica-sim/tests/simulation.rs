@@ -1564,6 +1564,52 @@ fn a_clock_left_unsaid_runs_like_the_one_written_out() {
 }
 
 #[test]
+fn a_model_with_nothing_to_integrate_still_finds_where_a_relation_turns() {
+    // Nothing is integrated here, so the walk goes from output point to
+    // output point - but a relation does not wait for the grid, and the
+    // event belongs where the relation turns rather than at whichever
+    // point first happens to see it. Both solvers reach the same walk.
+    let turned_at = |condition: &str, method: SolverMethod| {
+        let result = run_on(
+            &format!(
+                "model M discrete Real k(start = 0); Real y; \
+                 equation y = k; \
+                 when {condition} then k = pre(k) + 1; end when; \
+                 annotation(experiment(StopTime = 1, Interval = 0.1)); end M;"
+            ),
+            method,
+        )
+        .expect("runs");
+        let index = result.columns.iter().position(|c| c == "k").unwrap();
+        result
+            .rows
+            .iter()
+            .find(|row| row[index] > 0.5)
+            .map(|row| row[0])
+            .expect("the condition turns inside the run")
+    };
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        // `time^2 > 0.5` turns at the square root of a half, which is
+        // nowhere near the tenths the output grid is made of.
+        let root = 0.5_f64.sqrt();
+        let found = turned_at("time * time > 0.5", method);
+        assert!(
+            (found - root).abs() < 1e-9,
+            "{method:?} found {found}, not {root}"
+        );
+        // And one that turns exactly on an output point, which is the
+        // awkward case: the relation is still false there - `0.3 > 0.3`
+        // is not true - so the event belongs a hair past it and not a
+        // whole grid step later.
+        let found = turned_at("time > 0.3", method);
+        assert!(
+            (found - 0.3).abs() < 1e-9,
+            "{method:?} found {found}, not 0.3"
+        );
+    }
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_walks_its_events() {
     // No `der` anywhere: there is no step to take, so the solver walks
     // from one scheduled instant to the next output point and back,

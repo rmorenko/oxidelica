@@ -132,6 +132,66 @@ impl CompiledModel {
         })))
     }
 
+    /// Where the earliest relation turns between two instants, if one
+    /// does.
+    ///
+    /// This is for the walk that has nothing to integrate. There, every
+    /// value is a function of the time it is asked for, so an instant
+    /// in between can simply be evaluated - where a solver would have
+    /// to interpolate the step it just took. What comes back is the
+    /// first instant at which the sign has changed, so the relation has
+    /// definitely turned by then and the `when` watching it will see it.
+    #[allow(clippy::too_many_arguments)]
+    fn first_crossing(
+        &self,
+        from: f64,
+        to: f64,
+        before: &[f64],
+        y: &[f64],
+        values: &mut [f64],
+        scratch: &mut Vec<f64>,
+        alg_guess: &mut [f64],
+    ) -> Result<Option<f64>, SimError> {
+        if self.indicators.is_empty() || to <= from + 1e-12 {
+            return Ok(None);
+        }
+        // What the relations read a hair past where the walk stands.
+        // This, and not what they read at that instant itself, is the
+        // truth being carried forward: an instant already walked to has
+        // had its events handled, and a relation that turns there turns
+        // for the step ahead rather than the one behind.
+        let hair = from + (to - from) * 1e-9;
+        self.eval_point(hair, y, values, scratch, alg_guess)?;
+        let carried = self.indicator_values(hair, values);
+        if before
+            .iter()
+            .zip(&carried)
+            .any(|(&start, &now)| start * now < 0.0)
+        {
+            return Ok(Some(hair));
+        }
+        self.eval_point(to, y, values, scratch, alg_guess)?;
+        let after = self.indicator_values(to, values);
+        let mut earliest: Option<f64> = None;
+        for (index, (&start, &end)) in carried.iter().zip(&after).enumerate() {
+            if start * end >= 0.0 {
+                continue;
+            }
+            let (mut lo, mut hi) = (hair, to);
+            for _ in 0..40 {
+                let mid = 0.5 * (lo + hi);
+                self.eval_point(mid, y, values, scratch, alg_guess)?;
+                if start * self.indicator_values(mid, values)[index] <= 0.0 {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            earliest = Some(earliest.map_or(hi, |so_far: f64| so_far.min(hi)));
+        }
+        Ok(earliest)
+    }
+
     /// A model with no state to integrate: there is no step to take, so
     /// the run walks from one scheduled instant to the next output
     /// point and lets the discrete layer do the rest.
@@ -148,28 +208,48 @@ impl CompiledModel {
             mut alg_guess,
             mut scratch,
             mut state,
+            mut indicators_prev,
             mut out_i,
             mut last_out_t,
             mut terminated,
             ..
         } = segment;
         let (stop, out_step) = (self.stop_time, self.step.max(1e-12));
+        // The last instant this walk has been to, which is where the
+        // search for a crossing starts from.
+        let mut walked = last_out_t;
         loop {
             // Walk to whichever comes first: the next output point or
             // the next scheduled time event.
             let grid = out_i as f64 * out_step;
-            let t = match state.next_time_event() {
+            let mut t = match state.next_time_event() {
                 Some(next) if next < grid - 1e-12 => next,
                 _ => grid,
             };
             if t > stop + 1e-12 {
                 break;
             }
+            // A relation may turn between the last instant walked to and
+            // this one, and the turn is where the event belongs - not at
+            // whichever grid point first happens to see it. Nothing is
+            // integrated here, so every value is a function of the time
+            // asked for and the crossing is found by asking, rather than
+            // by interpolating a step the way the solvers do.
+            if let Some(crossing) = self.first_crossing(
+                walked,
+                t,
+                &indicators_prev,
+                &y,
+                &mut values,
+                &mut scratch,
+                &mut alg_guess,
+            )? {
+                t = crossing;
+            }
             self.record_row(t, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
-            // Nothing is integrated here, so a mode change is noticed at
-            // the first grid point that sees it. The row just written
-            // used the model on hand; the continuation writes this
-            // instant again with the one that now applies.
+            // The row just written used the model on hand; the
+            // continuation writes this instant again with the one that
+            // now applies.
             if !self.mode_holds(&values, t) {
                 let mut outcome = self.stall_at_last_row(columns, rows, method, true)?;
                 if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
@@ -186,6 +266,8 @@ impl CompiledModel {
             if outcome.changed {
                 self.record_row(t, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
             }
+            indicators_prev = self.indicator_values(t, &values);
+            walked = t;
             terminated = outcome.terminated;
             if terminated.is_some() {
                 break;
