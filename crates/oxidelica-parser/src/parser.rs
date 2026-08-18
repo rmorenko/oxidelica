@@ -152,6 +152,8 @@ struct Parser {
 /// What a modifier list contributes: value modifiers by (possibly
 /// dotted) name, plus the redeclarations found among them.
 type Modifications = (Vec<(String, Expr)>, Vec<Redeclare>);
+/// Attribute defaults of a `type` alias, with the `unit` string apart.
+type AliasAttributes = (Vec<(String, Expr)>, Option<String>);
 
 /// One item of a class body that introduces a class: a full definition
 /// or a short alias.
@@ -296,6 +298,7 @@ impl Parser {
         // `type Voltage = Real(start = 0);` or
         // `type Init = enumeration(NoInit, SteadyState);`
         let mut alias_of = None;
+        let mut alias_unit = None;
         let mut enumeration = Vec::new();
         if kind == ClassKind::Type {
             self.expect(&Token::Assign, "`=` in a type alias")?;
@@ -304,7 +307,9 @@ impl Parser {
             } else {
                 let base = self.dotted_name("aliased type")?;
                 let modifiers = if self.peek() == &Token::LParen {
-                    self.type_attributes()?
+                    let (modifiers, unit) = self.type_attributes()?;
+                    alias_unit = unit;
+                    modifiers
                 } else {
                     Vec::new()
                 };
@@ -320,6 +325,7 @@ impl Parser {
                 name,
                 partial,
                 alias_of,
+                alias_unit,
                 enumeration,
                 nested: Vec::new(),
                 imports: Vec::new(),
@@ -492,6 +498,7 @@ impl Parser {
             name,
             partial,
             alias_of,
+            alias_unit,
             enumeration,
             nested,
             imports,
@@ -547,18 +554,24 @@ impl Parser {
         Ok(name)
     }
 
-    /// Attribute defaults of a `type` alias: `(start = 0, fixed = true)`.
-    fn type_attributes(&mut self) -> Result<Vec<(String, Expr)>, ParseError> {
+    /// Attribute defaults of a `type` alias: `(start = 0, fixed = true)`,
+    /// plus the `unit` string if one is named.
+    fn type_attributes(&mut self) -> Result<AliasAttributes, ParseError> {
         self.expect(&Token::LParen, "type attributes")?;
         let mut out = Vec::new();
+        let mut unit = None;
         loop {
             let name = self.ident("attribute name")?;
             self.expect(&Token::Assign, "`=` in a type attribute")?;
-            // Unit strings and similar descriptive attributes are kept
-            // as opaque text and ignored by the compiler.
+            // The unit string feeds the dimensional check; the other
+            // descriptive attributes are kept as opaque text and
+            // ignored by the compiler.
             let value = match self.peek().clone() {
-                Token::Str(_) => {
+                Token::Str(text) => {
                     self.bump();
+                    if name == "unit" {
+                        unit = Some(text);
+                    }
                     Expr::Number(0.0)
                 }
                 Token::True => {
@@ -584,7 +597,7 @@ impl Parser {
                 }
             }
         }
-        Ok(out)
+        Ok((out, unit))
     }
 
     /// `for <var> in <lo>:<hi> loop <equations> end for;`
@@ -1173,6 +1186,7 @@ impl Parser {
 
         let mut start = None;
         let mut fixed = None;
+        let mut unit = None;
         let mut modifiers = Vec::new();
         let mut redeclares = Vec::new();
         if self.peek() == &Token::LParen {
@@ -1196,9 +1210,17 @@ impl Parser {
                                 }
                             });
                         }
-                        // The remaining attributes (unit, min, max,
-                        // nominal, stateSelect, …) describe the variable
-                        // rather than the equations: parsed and dropped.
+                        "unit" => match self.bump() {
+                            Token::Str(text) => unit = Some(text),
+                            other => {
+                                return Err(
+                                    self.err(format!("unit expects a string, found `{other}`"))
+                                )
+                            }
+                        },
+                        // The remaining attributes (min, max, nominal,
+                        // stateSelect, …) describe the variable rather
+                        // than the equations: parsed and dropped.
                         _ => {
                             self.modifier_value()?;
                         }
@@ -1267,6 +1289,7 @@ impl Parser {
             variability,
             start,
             fixed,
+            unit,
             binding,
             description,
             scope,

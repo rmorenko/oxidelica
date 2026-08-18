@@ -24,7 +24,7 @@ under a chapter works as specified for the subset this project covers.
 | 16  | Synchronous language elements | Absent  |
 | 17  | State machines                | Absent  |
 | 18  | Annotations                   | Partial |
-| 19  | Unit expressions              | Absent  |
+| 19  | Unit expressions              | Partial |
 
 ## What works
 
@@ -37,26 +37,32 @@ enumerations; connectors with `flow`, connections with subscripts,
 inside `for` loops and between whole connector arrays; DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
-`noEvent`, `smooth`), event iteration; `initial equation`; algorithm
+`noEvent`, `smooth`), event iteration; `initial equation`; runtime
+`assert` with its message; algorithm
 sections in models and functions with `:=`, `if`, `for`; arrays as
-values (literals, elementwise operators, scalar product, reductions,
+values (literals, ranges, slicing with `end`, comprehensions,
+elementwise operators, matrix algebra with `transpose`, `identity`,
+`diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
 `size`, `zeros`/`ones`/`fill`/`linspace`, array-valued functions);
-discrete variables and clocked blocks.
+discrete variables and clocked blocks; a static type layer
+(Boolean/Integer/Real) and dimensional unit checking (ch. 19), both
+permissive: an error needs two declared facts to contradict.
 
 ## Known gaps, largest first
 
-**Types are not checked.** Everything is carried as a floating-point
-number: `Integer` and `Boolean` are conventions, `String` exists only as
-literals in descriptions and `terminate`. No unit checking (ch. 19),
-`min`/`max`/`nominal`/`quantity` are parsed and ignored, `assert` is
-parsed and skipped rather than enforced.
+**Typing is shallow.** The type and unit layers only reject
+contradictions between declarations: a variable with no unit, a call
+the checker does not know, or a unit spelled in a symbol outside its
+table all pass unexamined, and everything is still carried as a
+floating-point number at runtime. `String` exists only as literals in
+descriptions and `terminate`; `min`/`max`/`nominal`/`quantity` are
+parsed and ignored; unit scale factors are ignored too (`g` and `kg`
+are the same dimension, `displayUnit` does nothing); numeric literals
+never carry units, so `x = 5` is accepted whatever `x` is declared in.
 
-**Arrays** (ch. 10): no matrix algebra (`transpose`, matrix–matrix and
-matrix–vector products, `identity`, `diagonal`, `cross`, `outerProduct`),
-no concatenation (`cat`, `[ , ]`, `[ ; ]`), no ranges as vector values
-(`1:n` outside `for`), no slicing (`A[1:3]`, `A[:, j]`, `end`), no array
-comprehensions (`{f(i) for i in 1:n}`), no flexible sizes (`:`), no
-empty arrays. Dimensions must be compile-time constants.
+**Arrays** (ch. 10): no flexible sizes (`:`), no empty arrays, no
+`outerProduct`/`symmetric`/`skew`, no Boolean or enumeration
+indexing. Dimensions must be compile-time constants.
 
 **Functions** (ch. 12): exactly one output — no tuple results, no named
 or defaulted call arguments, no recursion, no `while`/`break`/`return`,

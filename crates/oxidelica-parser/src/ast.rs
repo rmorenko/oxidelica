@@ -86,6 +86,9 @@ pub struct Component {
     pub start: Option<Expr>,
     /// The `fixed` attribute.
     pub fixed: Option<bool>,
+    /// The `unit` attribute: `Real v(unit = "V")`, or inherited from a
+    /// type alias. Feeds the dimensional check; `None` is unchecked.
+    pub unit: Option<String>,
     /// Declaration binding: `parameter Real a = 1.0`.
     pub binding: Option<Expr>,
     /// Optional description string.
@@ -188,6 +191,9 @@ pub struct ClassDef {
     /// For `type` aliases: the primitive being named, plus attribute
     /// defaults (`type Voltage = Real(start = 0)`).
     pub alias_of: Option<(String, Vec<(String, Expr)>)>,
+    /// The `unit` attribute of a type alias:
+    /// `type Voltage = Real(unit = "V")`.
+    pub alias_unit: Option<String>,
     /// Literals of an enumeration type, in declaration order. A
     /// reference `Init.SteadyState` is their 1-based position.
     pub enumeration: Vec<String>,

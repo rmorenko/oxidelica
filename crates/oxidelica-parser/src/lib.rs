@@ -3,6 +3,7 @@
 #![deny(missing_docs)]
 
 pub mod ast;
+pub mod check;
 pub mod flatten;
 pub mod lexer;
 pub mod library;

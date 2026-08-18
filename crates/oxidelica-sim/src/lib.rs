@@ -6270,8 +6270,9 @@ mod tests {
         // started from rest instead of 5 rad/s.
         let result = run(
             "package Units type Speed = Real(unit = \"m/s\"); end Units; \
-             model M parameter Real w0 = 5; Units.Speed w(start = w0); \
-             equation der(w) = -w; \
+             model M parameter Real w0 = 5; parameter Real tau(unit = \"s\") = 1; \
+             Units.Speed w(start = w0); \
+             equation der(w) = -w / tau; \
              annotation(experiment(StopTime = 1.0, Interval = 0.1)); end M;",
         );
         assert!(

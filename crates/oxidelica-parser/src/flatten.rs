@@ -174,7 +174,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
     }
 
-    Ok(Model {
+    let model = Model {
         name: top_class.name.clone(),
         description: top_class.description.clone(),
         components: acc.components,
@@ -183,7 +183,9 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         asserts: acc.asserts,
         when_clauses: acc.when_clauses,
         experiment: top_class.experiment.clone(),
-    })
+    };
+    crate::check::verify(&model)?;
+    Ok(model)
 }
 
 /// Accumulated flat model contents.
@@ -990,6 +992,9 @@ fn resolve_type(
             return;
         };
         component.type_name = base;
+        if component.unit.is_none() {
+            component.unit = class.alias_unit.clone();
+        }
         for (name, value) in attributes {
             match name.as_str() {
                 "start" if component.start.is_none() => component.start = Some(value),
