@@ -868,13 +868,16 @@ fn instantiate(
             let value = const_eval(dimension, &local_consts).ok_or_else(|| {
                 format!("dimension of `{flat_name}` is not a compile-time constant")
             })?;
-            if value.fract() != 0.0 || value < 1.0 {
+            if value.fract() != 0.0 || value < 0.0 {
                 return Err(format!(
-                    "dimension of `{flat_name}` must be a positive whole number, got {value}"
+                    "dimension of `{flat_name}` must be a whole number that is not negative, \
+                     got {value}"
                 ));
             }
             sizes.push(value as i64);
         }
+        // A dimension of zero is legal and means there is nothing
+        // there: the declaration contributes no variables at all.
         let element_names: Vec<String> = if sizes.is_empty() {
             vec![component.name.clone()]
         } else {
@@ -883,6 +886,9 @@ fn instantiate(
                 .map(|indices| element_name(&component.name, &indices))
                 .collect()
         };
+        if !sizes.is_empty() && element_names.is_empty() {
+            continue;
+        }
 
         let mut component = component.clone();
 
@@ -1028,12 +1034,20 @@ fn instantiate(
                 loop_vars: &no_loop_vars,
                 consts: &local_consts,
             };
-            let arguments = raw_args
+            let values = raw_args
                 .iter()
-                .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
+                .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
                 .collect::<Result<Vec<_>, String>>()?;
-            let outputs =
-                inline_function_outputs(function, &arguments, &local_consts, registry, 0)?;
+            let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+            let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
+            let outputs = inline_function_outputs(
+                function,
+                &arguments,
+                &argument_shapes,
+                &local_consts,
+                registry,
+                0,
+            )?;
             if targets.len() > outputs.len() {
                 return Err(format!(
                     "`{name}` has {} output(s) for {} target(s)",
@@ -1547,6 +1561,20 @@ fn unroll(
     imports: &[(String, String)],
     acc: &mut Flat,
 ) -> Result<(), String> {
+    // Everything in the loop is prefixed before it is folded, so a
+    // parameter of the class the loop is written in - the `n` of `for i
+    // in 1:n` or of a guard `if i < n` - has to be findable under its
+    // instance path as well as under its plain name.
+    let consts: HashMap<String, f64> = consts
+        .iter()
+        .map(|(name, value)| (name.clone(), *value))
+        .chain(
+            consts
+                .iter()
+                .map(|(name, value)| (format!("{prefix}{name}"), *value)),
+        )
+        .collect();
+    let consts = &consts;
     let bound = |expr: &Expr| -> Result<i64, String> {
         let mut env = consts.clone();
         env.extend(outer_vars.iter().map(|(k, v)| (k.clone(), *v)));
@@ -1577,6 +1605,14 @@ fn unroll(
     for index in lower..=upper {
         let mut loop_vars = outer_vars.clone();
         loop_vars.insert(loop_eq.variable.clone(), index as f64);
+        // The loop variable is a compile-time number, not a component,
+        // and it is folded in before anything is prefixed: prefixing
+        // reaches into subscripts too, and `x[i]` inside a component
+        // would otherwise be asking for `a.i`.
+        let folded: HashMap<String, Expr> = loop_vars
+            .iter()
+            .map(|(name, value)| (name.clone(), Expr::Number(*value)))
+            .collect();
         for item in &loop_eq.body {
             match item {
                 ForBody::Equation(equation) => {
@@ -1586,7 +1622,8 @@ fn unroll(
                         consts,
                     };
                     let side = |expr: &Expr| -> Result<Value, String> {
-                        let expr = substitute_class_constants(expr, registry, scope, imports);
+                        let expr = substitute_refs(expr, &folded);
+                        let expr = substitute_class_constants(&expr, registry, scope, imports);
                         expand(
                             &prefix_expr(&expr, prefix, outers),
                             &shapes,
@@ -1604,7 +1641,10 @@ fn unroll(
                         loop_vars: &loop_vars,
                         consts,
                     };
-                    push_connects(a, b, &shapes, prefix, outers, registry, scope, imports, acc)?;
+                    let (a, b) = (substitute_refs(a, &folded), substitute_refs(b, &folded));
+                    push_connects(
+                        &a, &b, &shapes, prefix, outers, registry, scope, imports, acc,
+                    )?;
                 }
                 ForBody::Nested(inner) => unroll(
                     inner, &loop_vars, consts, prefix, outers, sizes, registry, scope, imports, acc,
@@ -2290,7 +2330,7 @@ fn resolve(
             let args = args?;
             match lookup(registry, name, scope, imports) {
                 Some(class) if class.kind == ClassKind::Function => {
-                    inline_function(class, &args, consts, registry, depth + 1)?
+                    inline_function(class, &args, &[], consts, registry, depth + 1)?
                 }
                 // `noEvent(x)` and `smooth(n, x)` are hints about event
                 // generation and continuity; the value is the argument.
@@ -2481,16 +2521,23 @@ fn execute(
                     loop_vars: &no_loop_vars,
                     consts,
                 };
-                let arguments = raw_args
+                let values = raw_args
                     .iter()
-                    .map(|arg| {
-                        let arg =
-                            expand(arg, &shapes, registry, scope, imports, depth + 1)?.into_expr();
-                        Ok(substitute_refs(&arg, bindings))
-                    })
+                    .map(|arg| expand(arg, &shapes, registry, scope, imports, depth + 1))
                     .collect::<Result<Vec<_>, String>>()?;
-                let outputs =
-                    inline_function_outputs(function, &arguments, consts, registry, depth + 1)?;
+                let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                let arguments: Vec<Expr> = values
+                    .into_iter()
+                    .map(|value| substitute_refs(&value.into_expr(), bindings))
+                    .collect();
+                let outputs = inline_function_outputs(
+                    function,
+                    &arguments,
+                    &argument_shapes,
+                    consts,
+                    registry,
+                    depth + 1,
+                )?;
                 if targets.len() > outputs.len() {
                     return Err(format!(
                         "`{name}` has {} output(s) for {} target(s)",
@@ -2632,7 +2679,25 @@ fn execute(
             Statement::For(variable, (lower, upper), body) => {
                 let bound = |expr: &Expr| -> Result<i64, String> {
                     let expr = substitute_refs(expr, bindings);
-                    let value = const_eval(&expr, consts).ok_or_else(|| {
+                    // Through the array layer first, so a bound written
+                    // `size(v, 1)` is a number by the time it is asked
+                    // to be constant.
+                    let no_loop_vars = HashMap::new();
+                    let measured = expand(
+                        &expr,
+                        &Shapes {
+                            sizes,
+                            loop_vars: &no_loop_vars,
+                            consts,
+                        },
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                    )
+                    .map(Value::into_expr)
+                    .unwrap_or_else(|_| expr.clone());
+                    let value = const_eval(&measured, consts).ok_or_else(|| {
                         format!("loop bound of `{variable}` is not a compile-time constant")
                     })?;
                     if value.fract() != 0.0 {
@@ -2790,19 +2855,53 @@ fn collect_shapes(
         if component.dimensions.is_empty() {
             continue;
         }
+        // Declarations are visited in source order, so a length
+        // written as `size(v, 1)` can look up a `v` already measured -
+        // which is how a function's result takes the shape of its
+        // argument.
         let sizes: Option<Vec<i64>> = component
             .dimensions
             .iter()
-            .map(|dimension| {
-                const_eval(dimension, consts).and_then(|value| {
-                    (value.fract() == 0.0 && value >= 1.0).then_some(value as i64)
-                })
-            })
+            .map(|dimension| dimension_value(dimension, consts, out))
             .collect();
         if let Some(sizes) = sizes {
             out.insert(component.name.clone(), sizes);
         }
     }
+}
+
+/// The shape of a value, as the dimension tables spell it.
+fn shape_i64(value: &Value) -> Vec<i64> {
+    value
+        .shape()
+        .into_iter()
+        .map(|length| length as i64)
+        .collect()
+}
+
+/// One array dimension as a number, or `None` when it cannot be told
+/// here - a colon waiting for a call site, or a length that depends on
+/// something not yet known.
+fn dimension_value(
+    expr: &Expr,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Option<i64> {
+    // `size(v)` and `size(v, k)` of something already measured.
+    if let Expr::Call(name, args) = expr {
+        if name == "size" && !args.is_empty() {
+            if let Expr::Ref(of) = &args[0] {
+                let shape = sizes.get(of)?;
+                let index = match args.get(1) {
+                    None => 0,
+                    Some(dimension) => const_eval(dimension, consts)? as usize - 1,
+                };
+                return shape.get(index).copied();
+            }
+        }
+    }
+    let value = const_eval(expr, consts)?;
+    (value.fract() == 0.0 && value >= 0.0).then_some(value as i64)
 }
 
 /// The same shapes under the instance path, since equations are
@@ -3020,6 +3119,33 @@ fn expand(
         Expr::Elementwise(op, l, r) => combine(*op, &recur(l)?, &recur(r)?, true)?,
         Expr::If(condition, then, otherwise) => {
             let condition = recur(condition)?.scalar()?;
+            // A guard on the loop variable takes its branch and
+            // leaves the other alone: at the first element of a loop
+            // over neighbours, `if i > 1 then x[i - 1] else 0` must
+            // not go looking for `x[0]`. A condition that does not
+            // mention the loop stays as it was written, parameters
+            // included - folding those would nail down a value the
+            // model is meant to be re-run with.
+            // Inside a loop being unrolled, everything the compiler
+            // can decide is part of the structure being built; outside
+            // one it is a value the model may be re-run with.
+            if shapes.loop_vars.is_empty() {
+                let (then, otherwise) = (recur(then)?, recur(otherwise)?);
+                return zip_values(&then, &otherwise, &|a, b| {
+                    Expr::If(
+                        Box::new(condition.clone()),
+                        Box::new(a.clone()),
+                        Box::new(b.clone()),
+                    )
+                });
+            }
+            if let Some(truth) = constant_here(&condition) {
+                return if truth != 0.0 {
+                    recur(then)
+                } else {
+                    recur(otherwise)
+                };
+            }
             let (then, otherwise) = (recur(then)?, recur(otherwise)?);
             zip_values(&then, &otherwise, &|a, b| {
                 Expr::If(
@@ -3532,12 +3658,23 @@ fn expand_call(
                         .iter()
                         .any(|c| c.causality != Causality::None && !c.dimensions.is_empty())
                 {
-                    let arguments = args
+                    let values = args
                         .iter()
-                        .map(|arg| Ok(recur(arg)?.into_expr()))
+                        .map(&recur)
                         .collect::<Result<Vec<_>, String>>()?;
-                    let result =
-                        inline_function(class, &arguments, shapes.consts, registry, depth + 1)?;
+                    // The shape each argument turned out to have is
+                    // what a `[:]` input takes its length from.
+                    let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                    let arguments: Vec<Expr> =
+                        values.into_iter().map(|value| value.into_expr()).collect();
+                    let result = inline_function(
+                        class,
+                        &arguments,
+                        &argument_shapes,
+                        shapes.consts,
+                        registry,
+                        depth + 1,
+                    )?;
                     return expand(&result, shapes, registry, scope, imports, depth + 1);
                 }
             }
@@ -3620,11 +3757,12 @@ fn expand_call(
 fn inline_function(
     class: &ClassDef,
     args: &[Expr],
+    shapes: &[Vec<i64>],
     consts: &HashMap<String, f64>,
     registry: &HashMap<&str, &ClassDef>,
     depth: usize,
 ) -> Result<Expr, String> {
-    let mut outputs = inline_function_outputs(class, args, consts, registry, depth)?;
+    let mut outputs = inline_function_outputs(class, args, shapes, consts, registry, depth)?;
     Ok(outputs.remove(0).1)
 }
 
@@ -3635,6 +3773,7 @@ fn inline_function(
 fn inline_function_outputs(
     class: &ClassDef,
     args: &[Expr],
+    shapes: &[Vec<i64>],
     consts: &HashMap<String, f64>,
     registry: &HashMap<&str, &ClassDef>,
     depth: usize,
@@ -3656,8 +3795,9 @@ fn inline_function_outputs(
         return Err(format!("function `{}` declares no output", class.name));
     }
     let mut bindings: HashMap<String, Expr> = HashMap::new();
+    let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
     let mut position = 0;
-    for arg in args {
+    for (index, arg) in args.iter().enumerate() {
         if let Expr::NamedArg(name, value) = arg {
             if !inputs.iter().any(|input| &input.name == name) {
                 return Err(format!(
@@ -3685,6 +3825,14 @@ fn inline_function_outputs(
                     inputs.len()
                 ));
             };
+            // A `[:]` input is as long as whatever was handed to it.
+            if !input.dimensions.is_empty() {
+                if let Some(shape) = shapes.get(index) {
+                    if !shape.is_empty() {
+                        given_shapes.insert(input.name.clone(), shape.clone());
+                    }
+                }
+            }
             bindings.insert(input.name.clone(), arg.clone());
             position += 1;
         }
@@ -3712,7 +3860,10 @@ fn inline_function_outputs(
         }
     }
     let mut assigned = Vec::new();
-    let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
+    // The lengths the call decided go in first: a declared dimension
+    // that is a colon measures nothing on its own, and a result sized
+    // `size(v, 1)` reads its length back out of here.
+    let mut sizes: HashMap<String, Vec<i64>> = given_shapes;
     collect_shapes(registry, class, consts, &mut sizes, 0);
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
@@ -3930,8 +4081,13 @@ mod tests {
         // A dimension that is not a compile-time constant.
         assert!(err("model M Real x; Real v[x]; equation x = 1; end M;")
             .contains("not a compile-time constant"));
-        // A non-positive dimension.
-        assert!(err("model M Real v[0]; end M;").contains("positive whole number"));
+        // A dimension of zero is an empty array, not a mistake; a
+        // negative one still is.
+        assert!(parse_model("model M Real v[0]; end M;")
+            .unwrap()
+            .components
+            .is_empty());
+        assert!(err("model M Real v[-1]; end M;").contains("not negative"));
         // A subscript that cannot be folded.
         assert!(
             err("model M Real v[2]; Real k; equation k = 1; v[1] = 0; v[2] = v[k]; end M;")
@@ -4151,6 +4307,70 @@ mod tests {
             text.contains("Ref(\"s.k\")"),
             "the argument must prefix: {text}"
         );
+    }
+
+    #[test]
+    fn a_function_measures_the_array_it_is_handed() {
+        const FUNCTIONS: &str = "function total input Real v[:]; output Real s; \
+             algorithm s := 0; for i in 1:size(v, 1) loop s := s + v[i]; end for; end total;\
+             function scaled input Real v[:]; input Real k; output Real w[size(v, 1)]; \
+             algorithm for i in 1:size(v, 1) loop w[i] := k * v[i]; end for; end scaled;";
+
+        // One function, two lengths, in the same model.
+        let m = parse_model(&format!(
+            "{FUNCTIONS} model M parameter Real a[3] = {{1, 2, 3}}; \
+             parameter Real b[5] = {{1, 1, 1, 1, 1}}; Real p; Real q; \
+             equation p = total(a); q = total(b); end M;"
+        ))
+        .unwrap();
+        let rhs = |index: usize| format!("{:?}", m.equations[index].rhs);
+        assert!(
+            rhs(0).contains("Number(6.0)") || rhs(0).contains("a[3]"),
+            "{}",
+            rhs(0)
+        );
+
+        // The result takes the shape of the argument, so a whole-array
+        // equation against it balances.
+        let m = parse_model(&format!(
+            "{FUNCTIONS} model M parameter Real a[3] = {{1, 2, 3}}; Real w[3]; \
+             equation w = scaled(a, 2); end M;"
+        ))
+        .unwrap();
+        assert_eq!(m.equations.len(), 3);
+
+        // An empty array is a value like any other: a declaration of
+        // length zero contributes nothing and its sum is zero.
+        let m = parse_model(
+            "model M parameter Integer n = 0; parameter Real nothing[n] = zeros(n); \
+             Real s; Real t; equation s = sum(nothing); t = sum({}); end M;",
+        )
+        .unwrap();
+        assert!(m.components.iter().all(|c| !c.name.starts_with("nothing[")));
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(0.0)");
+        assert_eq!(format!("{:?}", m.equations[1].rhs), "Number(0.0)");
+    }
+
+    #[test]
+    fn a_loop_inside_a_component_counts_in_its_own_terms() {
+        // Prefixing reaches into subscripts, so the loop variable is
+        // folded to a number before it can be mistaken for a component
+        // of the instance. The bound and the guards read the
+        // component's own parameters, under whatever path it sits at.
+        let m = parse_model(
+            "model Sub parameter Integer n = 3; Real x[n]; \
+             equation for i in 1:n loop \
+             x[i] = (if i > 1 then x[i - 1] else 0) + i; end for; end Sub;\
+             model M Sub a(n = 3); end M;",
+        )
+        .unwrap();
+        let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, vec!["a.n", "a.x[1]", "a.x[2]", "a.x[3]"]);
+        assert_eq!(m.equations.len(), 3);
+        // The guard at the first element left no reference to `x[0]`.
+        let text = format!("{:?}", m.equations);
+        assert!(!text.contains("x[0]"), "{text}");
+        assert!(!text.contains("Ref(\"a.i\")"), "{text}");
     }
 
     #[test]

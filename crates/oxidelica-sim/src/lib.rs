@@ -5714,6 +5714,49 @@ mod tests {
     }
 
     #[test]
+    fn two_chains_of_different_length_share_their_functions() {
+        // `total` and `weighted` are declared once with `[:]` inputs
+        // and called at length three and at length five. Neither chain
+        // is pushed from outside, so the physics has two exact
+        // statements to make: momentum is constant, and the centre of
+        // mass travels in a straight line.
+        let result = compile(&with_library("mass_chains.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        for (chain, mass) in [("3", 6.0f64), ("5", 6.0f64)] {
+            let (momentum, centre) = (
+                index(&format!("momentum{chain}")),
+                index(&format!("centre{chain}")),
+            );
+            let first = &result.rows[0];
+            let speed = first[momentum] / mass;
+            for row in &result.rows {
+                assert!(
+                    (row[momentum] - first[momentum]).abs() < 1e-12,
+                    "chain {chain} at t = {}: momentum {} vs {}",
+                    row[0],
+                    row[momentum],
+                    first[momentum]
+                );
+                let wanted = first[centre] + speed * row[0];
+                assert!(
+                    (row[centre] - wanted).abs() < 1e-12,
+                    "chain {chain} at t = {}: centre {} vs {wanted}",
+                    row[0],
+                    row[centre]
+                );
+            }
+        }
+        // The two chains really did start out differently.
+        assert!(
+            (result.rows[0][index("momentum3")] + 0.5).abs() < 1e-12
+                && result.rows[0][index("momentum5")].abs() < 1e-12
+        );
+    }
+
+    #[test]
     fn the_textbook_ideal_switch_rectifies_exactly() {
         // The switch's branches constrain different unknowns: blocking
         // is an equation on the current, conducting one on the voltage.

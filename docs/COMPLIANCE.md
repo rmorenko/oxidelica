@@ -53,7 +53,9 @@ call arguments (`f(x, precision = 6)`); algorithm
 sections in models and functions with `:=`, `if`, `for`, and `while`
 with `break` and `return` where the compiler can decide the
 conditions; arrays as
-values (literals, ranges, slicing with `end`, comprehensions,
+values (literals, empty ones, flexible sizes on function inputs with
+results shaped by `size(v, 1)`, ranges, slicing with `end`,
+comprehensions,
 elementwise operators, matrix algebra with `transpose`, `identity`,
 `diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
 `size`, `zeros`/`ones`/`fill`/`linspace`, array-valued functions);
@@ -73,9 +75,13 @@ parsed and ignored; unit scale factors are ignored too (`g` and `kg`
 are the same dimension, `displayUnit` does nothing); numeric literals
 never carry units, so `x = 5` is accepted whatever `x` is declared in.
 
-**Arrays** (ch. 10): no flexible sizes (`:`), no empty arrays, no
-`outerProduct`/`symmetric`/`skew`, no Boolean or enumeration
-indexing. Dimensions must be compile-time constants.
+**Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
+or enumeration indexing. A flexible size (`:`) is read from the
+argument at the call site, so it belongs to a function input; a model
+component still needs a dimension the compiler can work out. An array
+modifier written on a declaration that has no binding of its own
+(`parameter Real m[n];` overridden with `m = {1, 2, 3}`) is not
+distributed to the elements.
 
 **Functions** (ch. 12): no recursion, no external C/Fortran, no
 `derivative`/`inverse` annotations, no functions as arguments, no

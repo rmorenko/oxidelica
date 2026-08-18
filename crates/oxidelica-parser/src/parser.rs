@@ -1227,12 +1227,14 @@ impl Parser {
 
         let type_name = self.dotted_name("component type")?;
         let name = self.ident("component name")?;
-        // `Real T[N, 3]` — dimensions are constant expressions.
+        // `Real T[N, 3]` — dimensions are constant expressions, except
+        // for `Real v[:]`, where a colon leaves the length to whatever
+        // the argument at the call site turns out to be.
         let mut dimensions = Vec::new();
         if self.peek() == &Token::LBracket {
             self.bump();
             loop {
-                dimensions.push(self.expr()?);
+                dimensions.push(self.subscript()?);
                 match self.bump() {
                     Token::Comma => continue,
                     Token::RBracket => break,
