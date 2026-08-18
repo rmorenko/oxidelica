@@ -190,12 +190,18 @@ time, so its condition must be decidable there: the trip count cannot
 depend on a simulated variable, and a `break` or `return` behind an
 undecidable `if` is an error.
 
-**Stream connectors** (ch. 15) work in the flat convention: `stream`
-variables, `inStream`/`actualStream`, unconnected and pairwise sets,
-and flow-weighted junction mixes regularised with a floor of 1e-10.
-The inside/outside distinction of 15.2 is not made — connection sets
-that bridge a component's boundary port mix with flat signs — and
-there is no `positiveMax` with nominal-based regularisation.
+**Stream connectors** (ch. 15) are complete: `stream` variables - one
+`flow` beside them, as the chapter requires - `inStream` and
+`actualStream`, unconnected ports, pairwise sets and junctions of any
+size. A junction weighs each port by what it pushes into the node,
+`max(-m, 0)`, so a port pushing nothing has no say in the mix; the
+regularising floor of 1e-10 is in the divisor alone, which is what
+`positiveMax` is for. Which way a port pushes depends on the side of
+its class it sits on: a port of the class the connection is written in
+has its flow entering the node where a component's port has it
+leaving, the sign convention of 9.1.2. The one thing dropped is
+regularisation scaled by `nominal`, which follows the shallow typing
+above - `nominal` is parsed and ignored everywhere.
 
 **Overloaded operators** (ch. 14) are complete: an `operator record`
 may declare `'+'`, `'-'`, `'*'`, `'/'`, `'^'`, the six relational
