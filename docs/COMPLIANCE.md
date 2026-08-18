@@ -21,7 +21,7 @@ under a chapter works as specified for the subset this project covers.
 | 13  | Packages                      | Partial |
 | 14  | Overloaded operators          | Partial |
 | 15  | Stream connectors             | Partial |
-| 16  | Synchronous language elements | Absent  |
+| 16  | Synchronous language elements | Partial |
 | 17  | State machines                | Absent  |
 | 18  | Annotations                   | Partial |
 | 19  | Unit expressions              | Partial |
@@ -64,7 +64,8 @@ comprehensions,
 elementwise operators, matrix algebra with `transpose`, `identity`,
 `diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
 `size`, `zeros`/`ones`/`fill`/`linspace`, array-valued functions);
-discrete variables and clocked blocks; `operator record` classes whose
+discrete variables, clocked blocks and periodic `Clock` partitions with
+`sample`/`hold`/`previous`/`interval`; `operator record` classes whose
 arithmetic operators are dispatched on the record they belong to;
 a static type layer
 (Boolean/Integer/Real) and dimensional unit checking (ch. 19), both
@@ -113,10 +114,18 @@ dispatched, and the record a value belongs to is worked out from the
 expression rather than from a type of its own — an operator whose
 result is a different record than its operands would be misread.
 
-**Whole chapters absent**: synchronous
-clocked constructs (16) — note that `sample()` events and clocked
-discrete blocks in the ordinary sense do work — and state
-machines (17).
+**Synchronous elements** (ch. 16) cover the periodic case: a
+`Clock(interval)` declared with an interval the compiler can work out,
+`sample(u, c)`, `hold(u)`, `previous(x)` and `interval(c)`. Which
+equations belong to a clock is inferred and spreads from a sampled
+value to whatever reads it; what cannot be on a clock — a derivative,
+say — must ask for the held value by name, and says so otherwise.
+What is missing: event clocks (`Clock(condition, …)`), rational
+clocks (`Clock(counter, resolution)`), `subSample`/`superSample`/
+`shiftSample`/`backSample`/`noClock`, `solverMethod` partitions that
+integrate inside a clock, and clocks as arguments or members.
+
+**Whole chapters absent**: state machines (17).
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

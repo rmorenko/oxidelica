@@ -293,6 +293,10 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             model.equations.extend(branch.iter().cloned());
         }
     }
+    // Clocked equations are lifted out before anything is checked:
+    // what they leave behind is a `when` clause per clock, which the
+    // rest of the pipeline already understands.
+    partition_clocks(&mut model)?;
     crate::check::verify(&model)?;
     for conditional in &acc.conditional {
         for branch in &conditional.branches {
@@ -2316,7 +2320,7 @@ fn lookup<'a>(
 /// Built-in scalar types. `Integer` and `Boolean` are carried as
 /// numbers, like everything else in the flat model.
 fn is_primitive(type_name: &str) -> bool {
-    matches!(type_name, "Real" | "Integer" | "Boolean")
+    matches!(type_name, "Real" | "Integer" | "Boolean" | "Clock")
 }
 
 /// Flat scalar name of one array element: `T[2]`, `A[1,3]`.
@@ -3082,6 +3086,424 @@ fn record_input_fields(
         &function.imports,
     )?;
     (of.kind == ClassKind::Record).then(|| record_fields(of))
+}
+
+/// Split a model into its clocked partitions.
+///
+/// A clock is not a value the run carries: `Clock c = Clock(0.1)` says
+/// when things happen, and the equations that happen then are lifted
+/// into a `when` clause firing on that period. Inside one, the clock
+/// conversions say what they always meant - `sample(u, c)` is reading
+/// `u` at the tick, `previous(x)` is the value from the tick before,
+/// `interval(c)` is the period - and the variables they define hold
+/// their values in between, which is what `hold` asks for.
+///
+/// A model with no clocks in it passes through untouched.
+fn partition_clocks(model: &mut Model) -> Result<(), String> {
+    let declared: Vec<String> = model
+        .components
+        .iter()
+        .filter(|component| component.type_name == "Clock")
+        .map(|component| component.name.clone())
+        .collect();
+    if declared.is_empty() {
+        return Ok(());
+    }
+    // A clock says its interval either in its declaration or in an
+    // equation of its own; a binding on a variable becomes the latter.
+    let parameters: HashMap<String, f64> = model
+        .components
+        .iter()
+        .filter_map(|component| {
+            let value = component.binding.as_ref()?;
+            const_eval(value, &HashMap::new()).map(|number| (component.name.clone(), number))
+        })
+        .collect();
+    let interval_of = |name: &str, expr: &Expr| -> Option<f64> {
+        match expr {
+            Expr::Call(called, args) if called == "Clock" && args.len() == 1 => {
+                let _ = name;
+                const_eval(&args[0], &parameters)
+            }
+            _ => None,
+        }
+    };
+    let mut clocks: HashMap<String, f64> = HashMap::new();
+    for component in &model.components {
+        if component.type_name != "Clock" {
+            continue;
+        }
+        if let Some(binding) = &component.binding {
+            if let Some(period) = interval_of(&component.name, binding) {
+                clocks.insert(component.name.clone(), period);
+            }
+        }
+    }
+    model.equations.retain(|equation| {
+        let Expr::Ref(target) = &equation.lhs else {
+            return true;
+        };
+        if !declared.contains(target) {
+            return true;
+        }
+        match interval_of(target, &equation.rhs) {
+            Some(period) => {
+                clocks.insert(target.clone(), period);
+                false
+            }
+            None => true,
+        }
+    });
+    for name in &declared {
+        match clocks.get(name) {
+            None => {
+                return Err(format!(
+                    "`{name}` is a Clock, so it needs an interval the compiler can see: \
+                     `Clock {name} = Clock(0.1);`"
+                ))
+            }
+            Some(period) if *period <= 0.0 => {
+                return Err(format!("the interval of `{name}` must be positive"))
+            }
+            Some(_) => {}
+        }
+    }
+
+    // Which variable belongs to which clock. A `sample(u, c)` puts the
+    // equation it sits in on `c`, and from there it spreads to
+    // whatever those variables define.
+    let mut clock_of: HashMap<String, String> = HashMap::new();
+    for _ in 0..MAX_DEPTH {
+        let mut settled = true;
+        for equation in &model.equations {
+            let Expr::Ref(target) = &equation.lhs else {
+                continue;
+            };
+            if clock_of.contains_key(target) {
+                continue;
+            }
+            if let Some(clock) = clock_touched(&equation.rhs, &clocks, &clock_of) {
+                clock_of.insert(target.clone(), clock);
+                settled = false;
+            }
+        }
+        if settled {
+            break;
+        }
+    }
+
+    // A `previous` with no clock to hang on has nowhere to take its
+    // value from.
+    for equation in &model.equations {
+        if let Expr::Ref(target) = &equation.lhs {
+            if clock_of.contains_key(target) {
+                continue;
+            }
+            if mentions_call(&equation.rhs, "previous") {
+                return Err(format!(
+                    "`{target}` uses `previous`, but nothing says which clock it is on"
+                ));
+            }
+        }
+    }
+
+    // Lift the clocked equations into one `when` per clock, in the
+    // order the clocks were declared so the result is settled.
+    let mut names: Vec<&String> = clocks.keys().collect();
+    names.sort();
+    let mut kept = Vec::new();
+    let mut lifted: HashMap<&String, Vec<(String, Expr)>> = HashMap::new();
+    for equation in model.equations.drain(..) {
+        let clock = match &equation.lhs {
+            Expr::Ref(target) => clock_of.get(target).cloned(),
+            _ => None,
+        };
+        match (clock, &equation.lhs) {
+            (Some(clock), Expr::Ref(target)) => {
+                let name = names
+                    .iter()
+                    .find(|candidate| ***candidate == clock)
+                    .expect("the clock was found by name");
+                lifted
+                    .entry(name)
+                    .or_default()
+                    .push((target.clone(), at_the_tick(&equation.rhs, &clocks)));
+            }
+            _ => kept.push(equation),
+        }
+    }
+    model.equations = kept;
+    for name in &names {
+        let Some(actions) = lifted.remove(name) else {
+            continue;
+        };
+        // The equations of a partition are equations, in no order of
+        // their own; what the tick needs is an order in which each is
+        // ready when its turn comes. `previous` reaches back to the
+        // tick before, so it is not a reason to wait.
+        let actions = in_dependency_order(actions)?;
+        model.when_clauses.push(WhenClause {
+            branches: vec![WhenBranch {
+                condition: Expr::Call(
+                    "sample".to_string(),
+                    vec![Expr::Number(0.0), Expr::Number(clocks[*name])],
+                ),
+                actions,
+            }],
+        });
+    }
+
+    // What is left of the continuous part may only reach a clocked
+    // variable through `hold`, which the rewrite above has already
+    // turned into the variable itself - so anything still naming one
+    // here was written without it.
+    for equation in &model.equations {
+        for side in [&equation.lhs, &equation.rhs] {
+            if let Some(clocked) = clocked_outside_hold(side, &clock_of) {
+                return Err(format!(
+                    "`{clocked}` is a clocked variable, so a continuous equation may only \
+                     read it through `hold({clocked})`"
+                ));
+            }
+        }
+    }
+    // With that settled, `hold` has nothing left to say: a clocked
+    // variable holds its value between ticks by itself.
+    for equation in &mut model.equations {
+        equation.lhs = at_the_tick(&equation.lhs, &clocks);
+        equation.rhs = at_the_tick(&equation.rhs, &clocks);
+    }
+
+    // The clocked variables keep their values between ticks, and the
+    // clocks themselves are not variables at all.
+    for component in &mut model.components {
+        if clock_of.contains_key(&component.name) {
+            component.variability = Variability::Discrete;
+            if component.start.is_none() {
+                component.start = Some(Expr::Number(0.0));
+            }
+        }
+    }
+    model
+        .components
+        .retain(|component| component.type_name != "Clock");
+    Ok(())
+}
+
+/// The clock an expression belongs to, if it names one.
+fn clock_touched(
+    expr: &Expr,
+    clocks: &HashMap<String, f64>,
+    clock_of: &HashMap<String, String>,
+) -> Option<String> {
+    match expr {
+        Expr::Call(name, args) if name == "hold" => {
+            // `hold` is where a clock stops: what comes out of it is
+            // continuous however clocked its argument was.
+            let _ = args;
+            None
+        }
+        // `sample(u, c)` and `interval(c)` name their clock outright;
+        // the value being sampled may carry one of its own.
+        Expr::Call(name, args) if name == "sample" || name == "interval" => {
+            args.iter().find_map(|arg| match arg {
+                Expr::Ref(clock) if clocks.contains_key(clock) => Some(clock.clone()),
+                _ => clock_touched(arg, clocks, clock_of),
+            })
+        }
+        Expr::Ref(name) => clock_of.get(name).cloned(),
+        Expr::Call(_, args) => args
+            .iter()
+            .find_map(|arg| clock_touched(arg, clocks, clock_of)),
+        Expr::Neg(inner) | Expr::Not(inner) => clock_touched(inner, clocks, clock_of),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => {
+            clock_touched(l, clocks, clock_of).or_else(|| clock_touched(r, clocks, clock_of))
+        }
+        Expr::If(c, a, b) => clock_touched(c, clocks, clock_of)
+            .or_else(|| clock_touched(a, clocks, clock_of))
+            .or_else(|| clock_touched(b, clocks, clock_of)),
+        _ => None,
+    }
+}
+
+/// Put the assignments of one tick in an order where each is ready
+/// when its turn comes.
+fn in_dependency_order(actions: Vec<(String, Expr)>) -> Result<Vec<WhenAction>, String> {
+    let targets: Vec<String> = actions.iter().map(|(target, _)| target.clone()).collect();
+    let mut placed = vec![false; actions.len()];
+    let mut order = Vec::new();
+    for _ in 0..actions.len() {
+        let next = (0..actions.len()).find(|&index| {
+            if placed[index] {
+                return false;
+            }
+            // What the value reads, other than through `previous`.
+            let mut named = Vec::new();
+            collect_immediate_refs(&actions[index].1, &mut named);
+            !named.iter().any(|name| {
+                targets
+                    .iter()
+                    .enumerate()
+                    .any(|(other, target)| other != index && !placed[other] && target == name)
+            })
+        });
+        match next {
+            Some(index) => {
+                placed[index] = true;
+                order.push(index);
+            }
+            None => {
+                let stuck: Vec<&str> = (0..actions.len())
+                    .filter(|index| !placed[*index])
+                    .map(|index| targets[index].as_str())
+                    .collect();
+                return Err(format!(
+                    "the equations on one clock depend on each other in a circle: {stuck:?}"
+                ));
+            }
+        }
+    }
+    let mut actions: Vec<Option<(String, Expr)>> = actions.into_iter().map(Some).collect();
+    Ok(order
+        .into_iter()
+        .map(|index| {
+            let (target, value) = actions[index].take().expect("each placed once");
+            WhenAction::Assign(target, value)
+        })
+        .collect())
+}
+
+/// The names an expression reads at this tick: what sits inside
+/// `previous` came from the tick before and does not count.
+fn collect_immediate_refs<'a>(expr: &'a Expr, out: &mut Vec<&'a str>) {
+    match expr {
+        Expr::Call(name, _) if name == "pre" || name == "previous" => {}
+        Expr::Ref(name) => out.push(name),
+        Expr::Call(_, args) => args.iter().for_each(|arg| collect_immediate_refs(arg, out)),
+        Expr::Neg(inner) | Expr::Not(inner) => collect_immediate_refs(inner, out),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => {
+            collect_immediate_refs(l, out);
+            collect_immediate_refs(r, out);
+        }
+        Expr::If(c, a, b) => {
+            collect_immediate_refs(c, out);
+            collect_immediate_refs(a, out);
+            collect_immediate_refs(b, out);
+        }
+        _ => {}
+    }
+}
+
+/// A clocked variable read by a continuous equation without asking for
+/// the value it holds - which is the one thing that is not allowed.
+fn clocked_outside_hold(expr: &Expr, clock_of: &HashMap<String, String>) -> Option<String> {
+    let recur = |e: &Expr| clocked_outside_hold(e, clock_of);
+    match expr {
+        // Inside `hold` is exactly where a clocked variable may be.
+        Expr::Call(name, _) if name == "hold" => None,
+        Expr::Ref(name) => clock_of.contains_key(name).then(|| name.clone()),
+        Expr::Call(_, args) => args.iter().find_map(recur),
+        Expr::Neg(inner) | Expr::Not(inner) => recur(inner),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => recur(l).or_else(|| recur(r)),
+        Expr::If(c, a, b) => recur(c).or_else(|| recur(a)).or_else(|| recur(b)),
+        _ => None,
+    }
+}
+
+/// Whether a call by this name appears anywhere in an expression.
+fn mentions_call(expr: &Expr, wanted: &str) -> bool {
+    let mut found = false;
+    walk_calls(expr, &mut |name| {
+        if name == wanted {
+            found = true;
+        }
+    });
+    found
+}
+
+/// Visit the name of every call in an expression.
+fn walk_calls(expr: &Expr, seen: &mut impl FnMut(&str)) {
+    match expr {
+        Expr::Call(name, args) => {
+            seen(name);
+            for arg in args {
+                walk_calls(arg, seen);
+            }
+        }
+        Expr::Neg(inner) | Expr::Not(inner) => walk_calls(inner, seen),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => {
+            walk_calls(l, seen);
+            walk_calls(r, seen);
+        }
+        Expr::If(c, a, b) => {
+            walk_calls(c, seen);
+            walk_calls(a, seen);
+            walk_calls(b, seen);
+        }
+        _ => {}
+    }
+}
+
+/// Whether an argument is the name of a declared clock.
+fn names_a_clock(expr: &Expr, clocks: &HashMap<String, f64>) -> bool {
+    matches!(expr, Expr::Ref(name) if clocks.contains_key(name))
+}
+
+/// What a clocked expression says once the tick has arrived.
+fn at_the_tick(expr: &Expr, clocks: &HashMap<String, f64>) -> Expr {
+    let recur = |e: &Expr| at_the_tick(e, clocks);
+    match expr {
+        // Sampling is reading, at the instant of the tick.
+        Expr::Call(name, args)
+            if name == "sample" && args.len() == 2 && names_a_clock(&args[1], clocks) =>
+        {
+            recur(&args[0])
+        }
+        // The value from the tick before is the value from before this
+        // event, which is what `pre` has always meant here.
+        Expr::Call(name, args) if name == "previous" && args.len() == 1 => {
+            Expr::Call("pre".to_string(), vec![recur(&args[0])])
+        }
+        Expr::Call(name, args)
+            if name == "interval" && args.len() == 1 && names_a_clock(&args[0], clocks) =>
+        {
+            let Expr::Ref(clock) = &args[0] else {
+                unreachable!("the guard just checked it")
+            };
+            Expr::Number(clocks[clock])
+        }
+        // `hold` asks for the value a clocked variable keeps between
+        // ticks, which is the variable.
+        Expr::Call(name, args) if name == "hold" && args.len() == 1 => recur(&args[0]),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Elementwise(op, l, r) => {
+            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
+        }
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        _ => expr.clone(),
+    }
 }
 
 /// How an operator is spelled where a record declares it.
@@ -5134,6 +5556,146 @@ mod tests {
         let k = m.components.iter().find(|c| c.name == "g.k").unwrap();
         assert!(k.binding.is_some());
         assert!(m.components.iter().any(|c| c.name == "g.y"));
+    }
+
+    #[test]
+    fn a_clock_gathers_the_equations_that_belong_to_it() {
+        let m = parse_model(
+            "model M Clock c = Clock(0.1); Real u; Real s; Real acc; Real out; \
+             equation u = time; s = sample(u, c); \
+             acc = previous(acc) + s * interval(c); out = hold(acc); end M;",
+        )
+        .unwrap();
+
+        // The clock is not a variable of the run.
+        assert!(!m.components.iter().any(|component| component.name == "c"));
+        // What belongs to it changes only at a tick.
+        for name in ["s", "acc"] {
+            let component = m.components.iter().find(|c| c.name == name).unwrap();
+            assert_eq!(
+                component.variability,
+                crate::ast::Variability::Discrete,
+                "{name}"
+            );
+        }
+        // What does not stays continuous.
+        for name in ["u", "out"] {
+            let component = m.components.iter().find(|c| c.name == name).unwrap();
+            assert_eq!(
+                component.variability,
+                crate::ast::Variability::Continuous,
+                "{name}"
+            );
+        }
+
+        // One clause on the clock's period, holding both equations,
+        // with the conversions saying what they mean at a tick.
+        assert_eq!(m.when_clauses.len(), 1);
+        let branch = &m.when_clauses[0].branches[0];
+        assert_eq!(
+            format!("{:?}", branch.condition),
+            "Call(\"sample\", [Number(0.0), Number(0.1)])"
+        );
+        assert_eq!(branch.actions.len(), 2);
+        let text = format!("{:?}", branch.actions);
+        assert!(
+            text.contains("Call(\"pre\""),
+            "previous becomes pre: {text}"
+        );
+        assert!(!text.contains("interval"), "the period is a number: {text}");
+        // `hold` leaves nothing behind but the variable itself.
+        let held = m
+            .equations
+            .iter()
+            .find(|equation| format!("{:?}", equation.lhs) == "Ref(\"out\")")
+            .unwrap();
+        assert_eq!(format!("{:?}", held.rhs), "Ref(\"acc\")");
+    }
+
+    #[test]
+    fn a_clock_reaches_through_every_kind_of_expression() {
+        // One tick's worth of every form the rewrite has to walk, so
+        // the conversions are found wherever they were written.
+        let m = parse_model(
+            "model M parameter Real Ts = 0.1; parameter Clock p = Clock(Ts); \
+             Real u; Boolean flag; Real a; Real b; Real d; Real out; \
+             equation u = time; \
+             flag = sample(u, p) > 0.5 and not (sample(u, p) < 0) or false; \
+             a = if flag then -sample(u, p) else abs(sample(u, p)) + max(1, 2); \
+             b = previous(b) + (if a > 0 then 1 else -1) * interval(p); \
+             d = previous(a) .* 2; \
+             out = hold(a) + hold(b) * 2; end M;",
+        )
+        .unwrap();
+        let branch = &m.when_clauses[0].branches[0];
+        assert_eq!(
+            format!("{:?}", branch.condition),
+            "Call(\"sample\", [Number(0.0), Number(0.1)])"
+        );
+        assert_eq!(branch.actions.len(), 4);
+        let text = format!("{:?}", branch.actions);
+        assert!(!text.contains("\"sample\""), "sampling is reading: {text}");
+        assert!(!text.contains("interval"), "the period is a number: {text}");
+        // `b` reads `a` at this tick, so it comes after it; `d` reads
+        // `a` from the tick before and could have come anywhere.
+        let order: Vec<&str> = branch
+            .actions
+            .iter()
+            .map(|action| match action {
+                crate::ast::WhenAction::Assign(name, _) => name.as_str(),
+                _ => "",
+            })
+            .collect();
+        let at = |name: &str| order.iter().position(|n| *n == name).unwrap();
+        assert!(at("flag") < at("a") && at("a") < at("b"), "{order:?}");
+        // Only the continuous equations are left, with `hold` gone.
+        let kept: Vec<String> = m
+            .equations
+            .iter()
+            .map(|equation| format!("{:?}", equation.lhs))
+            .collect();
+        assert_eq!(kept, vec!["Ref(\"u\")", "Ref(\"out\")"]);
+        assert!(!format!("{:?}", m.equations).contains("hold"));
+    }
+
+    #[test]
+    fn clock_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // A clock with no interval anyone can work out.
+        assert!(err("model M Clock c; Real y; equation y = 1; end M;")
+            .contains("interval the compiler can see"));
+        assert!(
+            err("model M Clock c = Clock(-1); Real y; equation y = 1; end M;")
+                .contains("must be positive")
+        );
+        // `previous` with nothing to say which clock it is on.
+        assert!(err("model M Clock c = Clock(0.1); Real y; \
+             equation y = previous(y) + 1; end M;")
+        .contains("which clock"));
+        // A clock spreads to whatever reads it, so `y = s + 1` is on
+        // the clock too rather than a mistake.
+        let m = parse_model(
+            "model M Clock c = Clock(0.1); Real u; Real s; Real y; \
+             equation u = time; s = sample(u, c); y = s + 1; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.when_clauses[0].branches[0].actions.len(), 2);
+        // What cannot be on a clock, though, must ask for the held
+        // value: a derivative is continuous by its nature.
+        assert!(err(
+            "model M Clock c = Clock(0.1); Real u; Real s; Real x(start = 0); \
+             equation u = time; s = sample(u, c); der(x) = -s + max(1, 2); end M;"
+        )
+        .contains("only read it through `hold(s)`"));
+        assert!(err(
+            "model M Clock c = Clock(0.1); Real u; Real s; Real x(start = 0); \
+             equation u = time; s = sample(u, c); der(x) = s; end M;"
+        )
+        .contains("only read it through `hold(s)`"));
+        // Equations on one clock that need each other in a circle.
+        assert!(err("model M Clock c = Clock(0.1); Real u; Real a; Real b; \
+             equation u = time; a = sample(u, c) + b; b = a + 1; end M;")
+        .contains("in a circle"));
     }
 
     #[test]

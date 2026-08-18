@@ -5714,6 +5714,49 @@ mod tests {
     }
 
     #[test]
+    fn a_clocked_controller_follows_its_own_recurrence() {
+        // The clock is declared and the equations that belong to it are
+        // found rather than marked. What comes out is a sampled-data
+        // loop whose every tick can be written by hand: the control is
+        // constant between ticks, so the plant relaxes towards it, and
+        // the integral advances by one period at a time.
+        let result = compile(&with_library("clocked_control.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (period, plant, kp, ki, setpoint) = (0.05f64, 0.4f64, 1.6f64, 4.0f64, 1.0f64);
+        let decay = (-period / plant).exp();
+
+        let (mut state, mut integral) = (0.0f64, 0.0f64);
+        let mut tick = 0;
+        while tick as f64 * period <= 3.0 + 1e-12 {
+            let at = tick as f64 * period;
+            let error = setpoint - state;
+            integral += error * period;
+            let command = kp * error + ki * integral;
+            // The row a tick leaves behind is the one after the event.
+            let row = result
+                .rows
+                .iter()
+                .rev()
+                .find(|row| (row[0] - at).abs() < 1e-9)
+                .unwrap_or_else(|| panic!("no row at t = {at}"));
+            assert!(
+                (row[index("u")] - command).abs() < 1e-9,
+                "tick {tick}: u = {} vs {command}",
+                row[index("u")]
+            );
+            assert!((row[index("x")] - state).abs() < 1e-9, "tick {tick}");
+            state = command + (state - command) * decay;
+            tick += 1;
+        }
+        assert_eq!(tick, 61);
+        // And it did settle on the setpoint.
+        assert!((result.rows.last().unwrap()[index("x")] - setpoint).abs() < 1e-3);
+    }
+
+    #[test]
     fn a_phasor_written_in_complex_arithmetic_predicts_the_circuit() {
         // The impedance is written `R + j * X` and worked out by the
         // record's own operators; the circuit is then integrated from
