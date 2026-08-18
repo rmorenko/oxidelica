@@ -21,7 +21,7 @@ under a chapter works as specified for the subset this project covers.
 | 13  | Packages                      | Full    |
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
-| 16  | Synchronous language elements | Partial |
+| 16  | Synchronous language elements | Mostly  |
 | 17  | State machines                | Partial |
 | 18  | Annotations                   | Partial |
 | 19  | Unit expressions              | Full    |
@@ -217,23 +217,56 @@ worked out from the expression rather than from a type of its own, so
 an operator whose result is a different record than its operands would
 be misread.
 
-**Synchronous elements** (ch. 16) cover the periodic case: a
-`Clock(interval)` declared with an interval the compiler can work out,
-`sample(u, c)`, `hold(u)`, `previous(x)` and `interval(c)`. Which
+**Synchronous elements** (ch. 16) have all four constructors and all
+the conversions. A clock is `Clock(interval)`, the exact fraction
+`Clock(counter, resolution)`, the event clock `Clock(condition,
+startInterval)`, or one of those carrying a solver method. Which
 equations belong to a clock is inferred and spreads from a sampled
-value to whatever reads it; what cannot be on a clock — a derivative,
-say — must ask for the held value by name, and says so otherwise.
-What is missing: event clocks (`Clock(condition, …)`), rational
-clocks (`Clock(counter, resolution)`), `subSample`/`superSample`/
-`shiftSample`/`backSample`/`noClock`, `solverMethod` partitions that
-integrate inside a clock, and clocks as arguments or members.
+value to whatever reads it; `sample`, `hold`, `previous`, `interval`
+and `firstTick` say what they say, and what cannot be on a clock must
+ask for the held value by name.
+
+A derived clock is kept as its root plus two exact fractions — the rate
+and the shift — so `subSample`, `superSample`, `shiftSample` and
+`backSample` are arithmetic on the fractions rather than on seconds,
+and a round trip lands back on the clock it started from instead of a
+rounding away from it. `noClock` reads a clocked value without
+inferring its clock. Partitions are ordered by what they read, so two
+clocks ticking at the same instant compute in an order where each has
+what it needs; a pair that needs each other within one tick is refused,
+as is a value written on two clocks at once.
+
+An event clock's `interval` is measured — the time now less the time at
+the tick before — and its first tick answers with the start interval
+the constructor was given. It may be sub-sampled, which counts rising
+edges; the other three conversions ask where a tick falls between two
+others, which 16.5 forbids on an event clock and which nothing could
+answer anyway.
+
+`Clock(c, solverMethod)` steps a `der` across the ticks with the
+tableau of the named method: `ExplicitEuler`, `ExplicitMidPoint2` and
+`ExplicitRungeKutta4` are worked, and an event clock takes the
+one-stage method only, the others needing a step known before it is
+taken. `ImplicitEuler`, `ImplicitTrapezoid` and `External` are refused
+by name — an implicit method makes every tick an equation to solve
+where a tick here is a list of assignments, which is the wall ch. 11
+stands behind. The specification asks a tool to spell the methods it
+works the way it spells them, not to work them all.
+
+What is missing is inference of a clock or a factor left unsaid:
+`Clock()` and a `subSample`/`superSample` with no factor are refused
+rather than solved for. That is a constraint system over the partition
+graph, and the cost of getting it wrong is a run that quietly ticks at
+the wrong rate rather than one that stops.
 
 **State machines** (ch. 17) are built on the clock: states are block
 instances, `initialState` and `transition` declare the graph, and
 `activeState`, `ticksInState` and `timeInState` answer from the
-machine's own bookkeeping. A state's equations count only while it is
-in force, the rest hold what they had, and an arrival puts a state's
-variables back to their start values as `reset = true` asks.
+machine's own bookkeeping — `timeInState` counting periods, so a
+machine on an event clock is refused it and keeps `ticksInState`. A
+state's equations count only while it is in force, the rest hold what
+they had, and an arrival puts a state's variables back to their start
+values as `reset = true` asks.
 What is missing, and it matters: a transition is judged on the values
 from the tick before and takes effect at the next tick, so what the
 spec calls `immediate = true` — the default — behaves as
