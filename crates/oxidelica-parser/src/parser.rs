@@ -458,7 +458,7 @@ impl Parser {
                     self.bump();
                 }
                 Token::Import => {
-                    imports.push(self.import_clause()?);
+                    imports.extend(self.import_clause()?);
                 }
                 Token::Model
                 | Token::Block
@@ -559,20 +559,52 @@ impl Parser {
     }
 
     /// `import A.B.C;` or `import D = A.B.C;`
-    fn import_clause(&mut self) -> Result<(String, String), ParseError> {
+    fn import_clause(&mut self) -> Result<Vec<(String, String)>, ParseError> {
         self.expect(&Token::Import, "import")?;
         let first = self.ident("imported name")?;
         if self.peek() == &Token::Assign {
             self.bump();
             let target = self.dotted_name("import target")?;
             self.expect(&Token::Semi, "semicolon after import")?;
-            return Ok((first, target));
+            return Ok(vec![(first, target)]);
         }
         let mut target = first;
-        while self.peek() == &Token::Dot {
+        loop {
+            if self.peek() != &Token::Dot {
+                break;
+            }
+            // `import A.B.{C, D};` names several members at once.
+            if self.peek_at(1) == &Token::LBrace {
+                self.bump();
+                self.bump();
+                let mut named = Vec::new();
+                loop {
+                    let member = self.ident("imported member")?;
+                    named.push((member.clone(), format!("{target}.{member}")));
+                    match self.bump() {
+                        Token::Comma => continue,
+                        Token::RBrace => break,
+                        other => {
+                            return Err(self.err(format!(
+                                "expected `,` or `}}` in an import list, found `{other}`"
+                            )))
+                        }
+                    }
+                }
+                self.expect(&Token::Semi, "semicolon after import")?;
+                return Ok(named);
+            }
             self.bump();
             target.push('.');
             target.push_str(&self.ident("name after dot")?);
+        }
+        // `import A.B.*;` makes the members of `A.B` known by their
+        // own names. The lexer reads `.*` as one token, since that is
+        // also how the elementwise operators are spelled.
+        if self.peek() == &Token::DotStar {
+            self.bump();
+            self.expect(&Token::Semi, "semicolon after import")?;
+            return Ok(vec![(WILDCARD_IMPORT.to_string(), target)]);
         }
         self.expect(&Token::Semi, "semicolon after import")?;
         let local = target
@@ -580,7 +612,7 @@ impl Parser {
             .next()
             .expect("a dotted name has segments")
             .to_string();
-        Ok((local, target))
+        Ok(vec![(local, target)])
     }
 
     /// A dotted class name: `Modelica.Electrical.Analog.Basic.Resistor`.

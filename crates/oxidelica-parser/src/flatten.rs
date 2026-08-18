@@ -2186,7 +2186,16 @@ fn substitute_class_constants(
                 None => expr.clone(),
             }
         }
-        Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        // A constant brought in by name is written without one:
+        // `import Modelica.Constants.pi;` and then `pi`. Only an import
+        // that named it counts - after `import A.*;` a bare name is far
+        // more likely to be a variable of the model.
+        Expr::Ref(name) => imports
+            .iter()
+            .find(|(local, _)| local == name)
+            .and_then(|(_, target)| class_constant(registry, target, scope, imports))
+            .map_or_else(|| expr.clone(), Expr::Number),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
@@ -2246,7 +2255,10 @@ fn lookup<'a>(
         Some((head, rest)) => (head, Some(rest)),
         None => (name, None),
     };
-    if let Some((_, target)) = imports.iter().find(|(local, _)| local == head) {
+    if let Some((_, target)) = imports
+        .iter()
+        .find(|(local, _)| local == head && local != WILDCARD_IMPORT)
+    {
         let qualified = match rest {
             Some(rest) => format!("{target}.{rest}"),
             None => target.clone(),
@@ -2268,10 +2280,18 @@ fn lookup<'a>(
         }
         match prefix.rfind('.') {
             Some(cut) => prefix.truncate(cut),
-            None if prefix.is_empty() => return None,
+            None if prefix.is_empty() => break,
             None => prefix.clear(),
         }
     }
+    // Last of all, the packages opened wholesale: an unqualified
+    // import is outranked by everything with a name of its own, which
+    // is what keeps `import A.*;` from quietly shadowing a class the
+    // enclosing package already had.
+    imports
+        .iter()
+        .filter(|(local, _)| local == WILDCARD_IMPORT)
+        .find_map(|(_, target)| registry.get(format!("{target}.{name}").as_str()).copied())
 }
 
 /// Built-in scalar types. `Integer` and `Boolean` are carried as
@@ -4856,6 +4876,60 @@ mod tests {
         let k = m.components.iter().find(|c| c.name == "g.k").unwrap();
         assert!(k.binding.is_some());
         assert!(m.components.iter().any(|c| c.name == "g.y"));
+    }
+
+    #[test]
+    fn a_package_may_be_opened_wholesale() {
+        const LIB: &str = "package Lib constant Real pi = 3.5; \
+             model Gain parameter Real k = 2; Real y; equation y = k * time; end Gain; \
+             model Lag parameter Real T = 1; Real z(start = 0); \
+             equation der(z) = -z / T; end Lag; end Lib;";
+
+        // `import Lib.*;` puts everything inside within reach by name.
+        let m = parse_model(&format!(
+            "{LIB} model M import Lib.*; Gain g(k = 3); Lag l(T = 2); end M;"
+        ))
+        .unwrap();
+        let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"g.y") && names.contains(&"l.z"),
+            "{names:?}"
+        );
+
+        // A list names several at once.
+        let m = parse_model(&format!(
+            "{LIB} model M import Lib.{{Gain, Lag}}; Gain g; Lag l; end M;"
+        ))
+        .unwrap();
+        assert_eq!(m.components.len(), 4);
+
+        // A constant brought in by name may be written without one; one
+        // reached through a wildcard may not, and says so.
+        let m = parse_model(&format!(
+            "{LIB} model M import Lib.pi; Real y; equation y = pi; end M;"
+        ))
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(3.5)");
+        let m = parse_model(&format!(
+            "{LIB} model M import Lib.*; Real y; equation y = pi; end M;"
+        ))
+        .unwrap();
+        assert_eq!(
+            format!("{:?}", m.equations[0].rhs),
+            "Ref(\"pi\")",
+            "a wildcard does not reach constants; the compiler rejects it"
+        );
+
+        // What has a name of its own outranks a package opened
+        // wholesale: the local `Gain` wins over `Lib.Gain`.
+        let m = parse_model(&format!(
+            "{LIB} model M import Lib.*; \
+             model Gain Real y; equation y = 42; end Gain; \
+             Gain g; end M;"
+        ))
+        .unwrap();
+        assert_eq!(m.components.len(), 1, "{:?}", m.components);
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(42.0)");
     }
 
     #[test]

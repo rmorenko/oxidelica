@@ -1,5 +1,11 @@
 //! AST of the M0 Modelica slice. A flat model: declarations plus equations.
 
+/// The local name an unqualified import is filed under. `import A.B.*;`
+/// gives no name to anything, so it is filed under one no identifier
+/// can spell, and name resolution treats it as a place to look rather
+/// than as a name of its own.
+pub const WILDCARD_IMPORT: &str = "*";
+
 /// How a component's value may change over time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Variability {

@@ -29,7 +29,8 @@ under a chapter works as specified for the subset this project covers.
 ## What works
 
 Flat and hierarchical models; packages with qualified names and imports
-(`import A.B;`, `import C = A.B;`), spread over one file or over a
+(`import A.B;`, `import C = A.B;`, `import A.B.*;`, `import A.{B, C};`),
+spread over one file or over a
 directory tree whose files say with `within` where they sit, found
 through `MODELICAPATH`; inheritance with modifiers, nested
 modifiers down to a child's attribute, including a whole array handed
@@ -116,7 +117,9 @@ does not merge members through an alias; selective model extension
 (3.6's `break`) is not parsed. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
-though it were flat. `import A.B.*;` is not parsed.
+though it were flat. An unqualified import reaches classes but not
+constants: after `import A.*;` a bare `pi` is taken for a variable of
+the model, and `import A.pi;` is the way to write it.
 
 **Semantics**: `der()` only of a plain variable; a condition of a
 run-time `if` equation must be readable from the parameters, the
