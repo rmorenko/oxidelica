@@ -5714,6 +5714,66 @@ mod tests {
     }
 
     #[test]
+    fn a_state_machine_holds_up_a_queue_of_cars() {
+        // The states are blocks, the arrows are declared, and the
+        // machine ticks once a second. Underneath it the queue knows
+        // nothing about any of that: it grows at a steady rate and
+        // drains only while the light is green, so it is a sawtooth
+        // whose corners fall where the machine says they do.
+        let result = compile(&with_library("traffic_light.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+
+        // One colour per second: red for four, green for five, amber
+        // for two, over and over.
+        let mut colours = String::new();
+        for second in 0..=22 {
+            let at = second as f64;
+            let row = result
+                .rows
+                .iter()
+                .rev()
+                .find(|row| (row[0] - at).abs() < 1e-9)
+                .unwrap_or_else(|| panic!("no row at t = {at}"));
+            colours.push(match row[index("lamp")] as i64 {
+                0 => 'r',
+                1 => 'g',
+                _ => 'a',
+            });
+        }
+        assert_eq!(colours, "rrrrgggggaarrrrgggggaar");
+
+        // And the queue is exactly the sawtooth that follows from it.
+        let (arrivals, departures) = (2.0f64, 5.0f64);
+        let (mut queue, mut at, mut green) = (0.0f64, 0.0f64, false);
+        for row in &result.rows {
+            let step = row[0] - at;
+            queue += (arrivals - if green { departures } else { 0.0 }) * step;
+            assert!(
+                (row[index("queue")] - queue).abs() < 1e-9,
+                "t = {}: queue {} vs {queue}",
+                row[0],
+                row[index("queue")]
+            );
+            green = row[index("lamp")] == 1.0;
+            at = row[0];
+        }
+        // Four seconds of red and two of amber at two cars a second.
+        assert!(
+            (result
+                .rows
+                .iter()
+                .map(|row| row[index("queue")])
+                .fold(0.0, f64::max)
+                - 8.0)
+                .abs()
+                < 1e-9
+        );
+    }
+
+    #[test]
     fn a_clocked_controller_follows_its_own_recurrence() {
         // The clock is declared and the equations that belong to it are
         // found rather than marked. What comes out is a sampled-data

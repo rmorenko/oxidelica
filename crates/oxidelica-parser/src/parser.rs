@@ -393,6 +393,8 @@ impl Parser {
                 experiment: Experiment::default(),
                 class_aliases: Vec::new(),
                 asserts: Vec::new(),
+                transitions: Vec::new(),
+                initial_state: None,
             })));
         }
 
@@ -409,6 +411,8 @@ impl Parser {
         let mut for_equations = Vec::new();
         let mut if_equations = Vec::new();
         let mut asserts = Vec::new();
+        let mut transitions = Vec::new();
+        let mut initial_state = None;
         let mut algorithm = Vec::new();
         let mut initial_equations = Vec::new();
         let mut experiment = Experiment::default();
@@ -538,6 +542,24 @@ impl Parser {
                     self.expect(&Token::Semi, "semicolon after assert")?;
                     asserts.push((condition, message));
                 }
+                // `initialState(s);` and
+                // `transition(from, to, condition, ...);` draw a state
+                // machine. They are written as equations and are not
+                // equations at all: nothing is equated.
+                Token::Ident(name) if in_equations && name == "initialState" => {
+                    self.bump();
+                    self.expect(&Token::LParen, "parenthesis after initialState")?;
+                    initial_state = Some(self.dotted_name("the state to start in")?);
+                    self.expect(&Token::RParen, "closing parenthesis of initialState")?;
+                    if self.peek() == &Token::Annotation {
+                        self.annotation_body(&mut Experiment::default())?;
+                    }
+                    self.expect(&Token::Semi, "semicolon after initialState")?;
+                }
+                Token::Ident(name) if in_equations && name == "transition" => {
+                    self.bump();
+                    transitions.push(self.transition_clause()?);
+                }
                 _ => {
                     if in_initial {
                         initial_equations.push(self.equation_item()?);
@@ -573,6 +595,8 @@ impl Parser {
             experiment,
             class_aliases,
             asserts,
+            transitions,
+            initial_state,
         })))
     }
 
@@ -631,6 +655,59 @@ impl Parser {
             .expect("a dotted name has segments")
             .to_string();
         Ok(vec![(local, target)])
+    }
+
+    /// `transition(from, to, condition, immediate = true, reset = true,
+    /// synchronize = false, priority = 1);`
+    fn transition_clause(&mut self) -> Result<Transition, ParseError> {
+        self.expect(&Token::LParen, "parenthesis after transition")?;
+        let from = self.dotted_name("the state a transition leaves")?;
+        self.expect(&Token::Comma, "comma after the state left")?;
+        let to = self.dotted_name("the state a transition arrives at")?;
+        self.expect(&Token::Comma, "comma before the transition condition")?;
+        let condition = self.expr()?;
+        let (mut reset, mut priority) = (true, 1);
+        while self.peek() == &Token::Comma {
+            self.bump();
+            let name = self.ident("the name of a transition setting")?;
+            self.expect(&Token::Assign, "`=` in a transition setting")?;
+            let value = self.expr()?;
+            let truth = |value: &Expr| matches!(value, Expr::Bool(true) | Expr::Number(1.0));
+            match name.as_str() {
+                "reset" => reset = truth(&value),
+                "priority" => match value {
+                    Expr::Number(number) if number.fract() == 0.0 && number >= 1.0 => {
+                        priority = number as i64
+                    }
+                    other => {
+                        return Err(self.err(format!(
+                        "the priority of a transition is a whole number from 1, found `{other:?}`"
+                    )))
+                    }
+                },
+                // An arrow that waits for the next tick, or one that
+                // waits for the other machines, is not supported.
+                "immediate" if truth(&value) => {}
+                "synchronize" if !truth(&value) => {}
+                other => {
+                    return Err(self.err(format!(
+                        "`{other}` is not a transition setting this compiler knows how to honour"
+                    )))
+                }
+            }
+        }
+        self.expect(&Token::RParen, "closing parenthesis of transition")?;
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Experiment::default())?;
+        }
+        self.expect(&Token::Semi, "semicolon after transition")?;
+        Ok(Transition {
+            from,
+            to,
+            condition,
+            reset,
+            priority,
+        })
     }
 
     /// A dotted class name: `Modelica.Electrical.Analog.Basic.Resistor`.

@@ -22,7 +22,7 @@ under a chapter works as specified for the subset this project covers.
 | 14  | Overloaded operators          | Partial |
 | 15  | Stream connectors             | Partial |
 | 16  | Synchronous language elements | Partial |
-| 17  | State machines                | Absent  |
+| 17  | State machines                | Partial |
 | 18  | Annotations                   | Partial |
 | 19  | Unit expressions              | Partial |
 
@@ -65,7 +65,8 @@ elementwise operators, matrix algebra with `transpose`, `identity`,
 `diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
 `size`, `zeros`/`ones`/`fill`/`linspace`, array-valued functions);
 discrete variables, clocked blocks and periodic `Clock` partitions with
-`sample`/`hold`/`previous`/`interval`; `operator record` classes whose
+`sample`/`hold`/`previous`/`interval`; state machines of block states
+with declared transitions; `operator record` classes whose
 arithmetic operators are dispatched on the record they belong to;
 a static type layer
 (Boolean/Integer/Real) and dimensional unit checking (ch. 19), both
@@ -125,7 +126,18 @@ clocks (`Clock(counter, resolution)`), `subSample`/`superSample`/
 `shiftSample`/`backSample`/`noClock`, `solverMethod` partitions that
 integrate inside a clock, and clocks as arguments or members.
 
-**Whole chapters absent**: state machines (17).
+**State machines** (ch. 17) are built on the clock: states are block
+instances, `initialState` and `transition` declare the graph, and
+`activeState`, `ticksInState` and `timeInState` answer from the
+machine's own bookkeeping. A state's equations count only while it is
+in force, the rest hold what they had, and an arrival puts a state's
+variables back to their start values as `reset = true` asks.
+What is missing, and it matters: a transition is judged on the values
+from the tick before and takes effect at the next tick, so what the
+spec calls `immediate = true` — the default — behaves as
+`immediate = false` does. There is one machine to a model, running on
+its one clock; `synchronize` and hierarchical states are not
+supported, and a `reset` is taken per state rather than per arrow.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

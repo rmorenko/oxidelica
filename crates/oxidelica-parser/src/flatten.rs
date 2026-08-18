@@ -284,6 +284,8 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         equations: acc.equations,
         initial_equations: acc.initial_equations,
         asserts: acc.asserts,
+        transitions: acc.transitions,
+        initial_states: acc.initial_states,
         when_clauses: acc.when_clauses,
         conditional: Vec::new(),
         experiment: top_class.experiment.clone(),
@@ -651,6 +653,10 @@ struct Flat {
     initial_equations: Vec<EquationItem>,
     /// Assert conditions with their messages, prefixed.
     asserts: Vec<(Expr, String)>,
+    /// State machine arrows, with the states named by instance path.
+    transitions: Vec<Transition>,
+    /// Where each machine starts.
+    initial_states: Vec<String>,
     /// Connector instance path -> connector class name.
     connectors: HashMap<String, String>,
     /// Connect statements with fully prefixed paths.
@@ -1114,6 +1120,21 @@ fn instantiate(
     for (condition, message) in &class.asserts {
         acc.asserts
             .push((resolve_here(condition)?, message.clone()));
+    }
+
+    // The arrows of a state machine name instances of this class, so
+    // they carry its prefix like everything else.
+    for transition in &class.transitions {
+        acc.transitions.push(Transition {
+            from: flat_name(&transition.from, prefix, &outers),
+            to: flat_name(&transition.to, prefix, &outers),
+            condition: resolve_here(&transition.condition)?,
+            reset: transition.reset,
+            priority: transition.priority,
+        });
+    }
+    if let Some(state) = &class.initial_state {
+        acc.initial_states.push(flat_name(state, prefix, &outers));
     }
 
     for equation in &class.initial_equations {
@@ -3107,7 +3128,9 @@ fn partition_clocks(model: &mut Model) -> Result<(), String> {
         .map(|component| component.name.clone())
         .collect();
     if declared.is_empty() {
-        return Ok(());
+        // A machine with no clock to run on still has to hear about
+        // it, so it is asked before this pass gives up.
+        return build_state_machines(model, &HashMap::new(), &mut HashMap::new());
     }
     // A clock says its interval either in its declaration or in an
     // equation of its own; a binding on a variable becomes the latter.
@@ -3173,6 +3196,10 @@ fn partition_clocks(model: &mut Model) -> Result<(), String> {
     // equation it sits in on `c`, and from there it spreads to
     // whatever those variables define.
     let mut clock_of: HashMap<String, String> = HashMap::new();
+    // A state machine is a clocked thing: it decides where it is at
+    // each tick, and the equations of its states run only while their
+    // state is the one it is in.
+    build_state_machines(model, &clocks, &mut clock_of)?;
     for _ in 0..MAX_DEPTH {
         let mut settled = true;
         for equation in &model.equations {
@@ -3288,6 +3315,333 @@ fn partition_clocks(model: &mut Model) -> Result<(), String> {
         .components
         .retain(|component| component.type_name != "Clock");
     Ok(())
+}
+
+/// Turn the arrows of a state machine into equations on its clock.
+///
+/// A machine keeps one variable of its own, the state it is in. At
+/// each tick it looks at the arrows leaving that state, in priority
+/// order, and takes the first whose condition holds - judged on the
+/// values from the tick before, since this tick's are decided by where
+/// the machine goes. The states' own equations then run guarded: the
+/// one that is in force computes, and the others hold what they had.
+fn build_state_machines(
+    model: &mut Model,
+    clocks: &HashMap<String, f64>,
+    clock_of: &mut HashMap<String, String>,
+) -> Result<(), String> {
+    if model.transitions.is_empty() && model.initial_states.is_empty() {
+        return Ok(());
+    }
+    let (clock, period) = match clocks.len() {
+        1 => {
+            let name = clocks.keys().next().expect("just counted");
+            (name.clone(), clocks[name])
+        }
+        found => {
+            return Err(format!(
+                "a state machine runs on a clock, and this model declares {found} of them"
+            ))
+        }
+    };
+    let Some(start) = model.initial_states.first().cloned() else {
+        return Err("a state machine needs `initialState(...)` to say where it starts".to_string());
+    };
+    if model.initial_states.len() > 1 {
+        return Err("only one state machine to a model, for now".to_string());
+    }
+
+    // The states, numbered: the one it starts in first, the rest in
+    // the order the arrows name them.
+    let mut states = vec![start.clone()];
+    for transition in &model.transitions {
+        for end in [&transition.from, &transition.to] {
+            if !states.contains(end) {
+                states.push(end.clone());
+            }
+        }
+    }
+    let number = |state: &str| {
+        states
+            .iter()
+            .position(|candidate| candidate == state)
+            .map(|index| index as f64)
+    };
+    let index_of = |state: &str| number(state).expect("the states were gathered from the arrows");
+
+    // A state is an instance with equations of its own; a plain
+    // variable cannot be one.
+    for state in &states {
+        let under = format!("{state}.");
+        if !model
+            .components
+            .iter()
+            .any(|component| component.name.starts_with(&under))
+        {
+            return Err(format!(
+                "`{state}` is named as a state but is not a component with anything in it"
+            ));
+        }
+    }
+
+    // Which state each variable of the model belongs to, by the
+    // instance path it was flattened under. A parameter of a state is
+    // not one of these: it does not change, so it has no value from
+    // before to reach back to.
+    let varying: Vec<String> = model
+        .components
+        .iter()
+        .filter(|component| {
+            !matches!(
+                component.variability,
+                Variability::Parameter | Variability::Constant
+            )
+        })
+        .map(|component| component.name.clone())
+        .collect();
+    let owner = |name: &str| -> Option<usize> {
+        if !varying.iter().any(|known| known == name) {
+            return None;
+        }
+        states
+            .iter()
+            .position(|state| name.starts_with(&format!("{state}.")))
+    };
+
+    let active = "$state".to_string();
+    let ticks = "$ticks".to_string();
+    let previous_of = |name: &str| Expr::Call("previous".to_string(), vec![Expr::Ref(name.into())]);
+
+    // Where the machine goes next, arrows in priority order.
+    let mut arrows: Vec<&Transition> = model.transitions.iter().collect();
+    arrows.sort_by_key(|transition| (transition.priority, transition.from.clone()));
+    // Before the first tick the machine is nowhere, so the first tick
+    // is an arrival at the initial state like any other - which is
+    // what makes its variables start from their start values.
+    let mut next = previous_of(&active);
+    for transition in arrows.iter().rev() {
+        let (from, to) = (index_of(&transition.from), index_of(&transition.to));
+        // The condition is judged on the values from the tick before:
+        // this tick's belong to whichever state the machine settles
+        // on, which is what is being decided.
+        let condition = Expr::And(
+            Box::new(Expr::Rel(
+                crate::ast::RelOp::Eq,
+                Box::new(previous_of(&active)),
+                Box::new(Expr::Number(from)),
+            )),
+            Box::new(look_back(&transition.condition, &owner)),
+        );
+        next = Expr::If(
+            Box::new(condition),
+            Box::new(Expr::Number(to)),
+            Box::new(next),
+        );
+    }
+
+    // The machine's own variables, and the arrival counter behind
+    // `ticksInState` and `timeInState`.
+    let nowhere = -1.0;
+    let next = Expr::If(
+        Box::new(Expr::Rel(
+            crate::ast::RelOp::Lt,
+            Box::new(previous_of(&active)),
+            Box::new(Expr::Number(0.0)),
+        )),
+        Box::new(Expr::Number(number(&start).unwrap_or(0.0))),
+        Box::new(next),
+    );
+    let mut machine = vec![
+        (active.clone(), next),
+        (
+            ticks.clone(),
+            Expr::If(
+                Box::new(Expr::Rel(
+                    crate::ast::RelOp::Eq,
+                    Box::new(Expr::Ref(active.clone())),
+                    Box::new(previous_of(&active)),
+                )),
+                Box::new(Expr::Bin(
+                    BinOp::Add,
+                    Box::new(previous_of(&ticks)),
+                    Box::new(Expr::Number(1.0)),
+                )),
+                Box::new(Expr::Number(0.0)),
+            ),
+        ),
+    ];
+    for (name, start) in [(&active, nowhere), (&ticks, 0.0)] {
+        model.components.push(Component {
+            name: name.clone(),
+            type_name: "Real".to_string(),
+            variability: Variability::Discrete,
+            start: Some(Expr::Number(start)),
+            description: Some("state machine bookkeeping".to_string()),
+            ..blank_component()
+        });
+        clock_of.insert(name.clone(), clock.clone());
+    }
+
+    // Which states are entered with their variables put back to their
+    // start values, as `reset = true` asks.
+    let resets: Vec<bool> = states
+        .iter()
+        .map(|state| {
+            model
+                .transitions
+                .iter()
+                .any(|transition| &transition.to == state && transition.reset)
+        })
+        .collect();
+
+    // The states' equations, guarded by the state being in force.
+    let starts: HashMap<String, Expr> = model
+        .components
+        .iter()
+        .filter_map(|component| Some((component.name.clone(), component.start.clone()?)))
+        .collect();
+    let mut kept = Vec::new();
+    for equation in model.equations.drain(..) {
+        let Expr::Ref(target) = &equation.lhs else {
+            kept.push(equation);
+            continue;
+        };
+        let Some(state) = owner(target) else {
+            kept.push(equation);
+            continue;
+        };
+        let in_force = Expr::Rel(
+            crate::ast::RelOp::Eq,
+            Box::new(Expr::Ref(active.clone())),
+            Box::new(Expr::Number(state as f64)),
+        );
+        let holding = previous_of(target);
+        let mut value = Expr::If(
+            Box::new(in_force.clone()),
+            Box::new(equation.rhs),
+            Box::new(holding),
+        );
+        if resets[state] {
+            let entered = Expr::And(
+                Box::new(in_force),
+                Box::new(Expr::Not(Box::new(Expr::Rel(
+                    crate::ast::RelOp::Eq,
+                    Box::new(previous_of(&active)),
+                    Box::new(Expr::Number(state as f64)),
+                )))),
+            );
+            let back_to = starts.get(target).cloned().unwrap_or(Expr::Number(0.0));
+            value = Expr::If(Box::new(entered), Box::new(back_to), Box::new(value));
+        }
+        clock_of.insert(target.clone(), clock.clone());
+        kept.push(EquationItem {
+            lhs: equation.lhs,
+            rhs: value,
+        });
+    }
+    model.equations = kept;
+
+    // `activeState`, `ticksInState` and `timeInState` say what they
+    // mean once the machine has a variable to say it with.
+    for equation in &mut model.equations {
+        equation.rhs = machine_queries(&equation.rhs, &states, &active, &ticks, period);
+    }
+    for (_, value) in &mut machine {
+        *value = machine_queries(value, &states, &active, &ticks, period);
+    }
+    for (target, value) in machine {
+        model.equations.push(EquationItem {
+            lhs: Expr::Ref(target),
+            rhs: value,
+        });
+    }
+    model.transitions.clear();
+    model.initial_states.clear();
+    Ok(())
+}
+
+/// Wrap the state machine's own variables in `previous`, so a
+/// condition is judged on the values from the tick before.
+fn look_back(expr: &Expr, owner: &impl Fn(&str) -> Option<usize>) -> Expr {
+    let recur = |e: &Expr| look_back(e, owner);
+    match expr {
+        Expr::Ref(name) if owner(name).is_some() => {
+            Expr::Call("previous".to_string(), vec![expr.clone()])
+        }
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        _ => expr.clone(),
+    }
+}
+
+/// Answer what a model asks about the machine it declared.
+fn machine_queries(expr: &Expr, states: &[String], active: &str, ticks: &str, period: f64) -> Expr {
+    let recur = |e: &Expr| machine_queries(e, states, active, ticks, period);
+    match expr {
+        Expr::Call(name, args) if name == "activeState" && args.len() == 1 => {
+            let wanted = match &args[0] {
+                Expr::Ref(state) => states.iter().position(|s| s == state),
+                _ => None,
+            };
+            match wanted {
+                Some(index) => Expr::Rel(
+                    crate::ast::RelOp::Eq,
+                    Box::new(Expr::Ref(active.to_string())),
+                    Box::new(Expr::Number(index as f64)),
+                ),
+                None => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            }
+        }
+        Expr::Call(name, args) if name == "ticksInState" && args.is_empty() => {
+            Expr::Ref(ticks.to_string())
+        }
+        Expr::Call(name, args) if name == "timeInState" && args.is_empty() => Expr::Bin(
+            BinOp::Mul,
+            Box::new(Expr::Ref(ticks.to_string())),
+            Box::new(Expr::Number(period)),
+        ),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        _ => expr.clone(),
+    }
+}
+
+/// A component with nothing said about it, for the ones the compiler
+/// makes up for its own bookkeeping.
+fn blank_component() -> Component {
+    Component {
+        name: String::new(),
+        type_name: "Real".to_string(),
+        flow: false,
+        stream: false,
+        dimensions: Vec::new(),
+        causality: Causality::None,
+        modifiers: Vec::new(),
+        variability: Variability::Continuous,
+        start: None,
+        fixed: None,
+        unit: None,
+        binding: None,
+        description: None,
+        scope: Scope::Local,
+        replaceable: false,
+        constrained_by: None,
+        condition: None,
+        redeclares: Vec::new(),
+        redeclaration: false,
+    }
 }
 
 /// The clock an expression belongs to, if it names one.
@@ -5610,6 +5964,86 @@ mod tests {
             .find(|equation| format!("{:?}", equation.lhs) == "Ref(\"out\")")
             .unwrap();
         assert_eq!(format!("{:?}", held.rhs), "Ref(\"acc\")");
+    }
+
+    #[test]
+    fn a_state_machine_becomes_equations_on_its_clock() {
+        const MACHINE: &str = "model M block Step Real n(start = 0); \
+             equation n = previous(n) + 1; end Step; \
+             Clock c = Clock(0.5); Step a; Step b; Real out; \
+             equation initialState(a); \
+             transition(a, b, a.n >= 2); \
+             transition(b, a, b.n >= 1, priority = 2); \
+             out = if activeState(a) then ticksInState() else timeInState(); end M;";
+        let m = parse_model(MACHINE).unwrap();
+
+        // The machine keeps two variables of its own, and they change
+        // only at a tick.
+        for name in ["$state", "$ticks"] {
+            let component = m.components.iter().find(|c| c.name == name).unwrap();
+            assert_eq!(
+                component.variability,
+                crate::ast::Variability::Discrete,
+                "{name}"
+            );
+        }
+        // It starts nowhere, so the first tick is an arrival at the
+        // initial state like any other.
+        let state = m.components.iter().find(|c| c.name == "$state").unwrap();
+        assert_eq!(state.start, Some(Expr::Number(-1.0)));
+
+        // Everything the machine does happens on the clock.
+        assert_eq!(m.when_clauses.len(), 1);
+        let actions = &m.when_clauses[0].branches[0].actions;
+        let assigned: Vec<&str> = actions
+            .iter()
+            .map(|action| match action {
+                crate::ast::WhenAction::Assign(name, _) => name.as_str(),
+                _ => "",
+            })
+            .collect();
+        for wanted in ["$state", "$ticks", "a.n", "b.n"] {
+            assert!(assigned.contains(&wanted), "{wanted} in {assigned:?}");
+        }
+        // `activeState`, `ticksInState` and `timeInState` are gone,
+        // answered by the machine's own variables.
+        let text = format!("{:?} {:?}", m.equations, m.when_clauses);
+        for asked in ["activeState", "ticksInState", "timeInState", "transition"] {
+            assert!(!text.contains(asked), "{asked} survived");
+        }
+        // A second's worth of ticks is two of them, at this period.
+        assert!(text.contains("Number(0.5)"), "the period is in there");
+    }
+
+    #[test]
+    fn state_machine_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // A machine with no clock to run on, or with several.
+        assert!(err(
+            "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+             S a; equation initialState(a); end M;"
+        )
+        .contains("declares 0 of them"));
+        // Arrows with nowhere to start from.
+        assert!(err(
+            "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+             Clock c = Clock(0.5); S a; S b; \
+             equation transition(a, b, a.n >= 1); end M;"
+        )
+        .contains("`initialState(...)`"));
+        // An arrow to a state the machine does not have is caught by
+        // the numbering, which only knows the states it was given.
+        assert!(err("model M Clock c = Clock(0.5); Real y; \
+             equation initialState(y); y = previous(y) + 1; end M;")
+        .contains("is not a component with anything in it"));
+        // A setting this compiler will not pretend to honour.
+        assert!(err(
+            "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+             Clock c = Clock(0.5); S a; S b; \
+             equation initialState(a); \
+             transition(a, b, a.n >= 1, synchronize = true); end M;"
+        )
+        .contains("not a transition setting"));
     }
 
     #[test]

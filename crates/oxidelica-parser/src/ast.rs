@@ -238,6 +238,10 @@ pub struct ClassDef {
     pub initial_equations: Vec<EquationItem>,
     /// `assert(condition, "message")` checks of the equation section.
     pub asserts: Vec<(Expr, String)>,
+    /// The arrows of a state machine declared in this class.
+    pub transitions: Vec<Transition>,
+    /// The state a machine starts in, from `initialState(s)`.
+    pub initial_state: Option<String>,
     /// `for` equations, unrolled while flattening.
     pub for_equations: Vec<ForEquation>,
     /// `if` equations, resolved while flattening.
@@ -311,6 +315,21 @@ pub struct IfBranch {
     pub connects: Vec<(Expr, Expr)>,
 }
 
+/// One arrow of a state machine: `transition(from, to, condition, …)`.
+#[derive(Debug, Clone)]
+pub struct Transition {
+    /// The state it leaves.
+    pub from: String,
+    /// The state it arrives at.
+    pub to: String,
+    /// What has to hold for it to be taken.
+    pub condition: Expr,
+    /// Whether the arrival's variables go back to their start values.
+    pub reset: bool,
+    /// Which arrow wins when several could be taken; lower goes first.
+    pub priority: i64,
+}
+
 /// An `if <cond> then … elseif … else … end if;` in an equation section.
 ///
 /// The conditions are compile-time constants: the first branch that
@@ -381,6 +400,11 @@ pub struct Model {
     /// `if` equations settled while running rather than while
     /// compiling.
     pub conditional: Vec<ConditionalEquations>,
+    /// The arrows of the state machines, with the states named by
+    /// their instance paths.
+    pub transitions: Vec<Transition>,
+    /// Where each machine starts, by instance path.
+    pub initial_states: Vec<String>,
     /// Experiment settings (defaults when absent).
     pub experiment: Experiment,
 }
