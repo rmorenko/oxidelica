@@ -1987,8 +1987,21 @@ fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> E
     if prefix.is_empty() && outers.is_empty() {
         return expr.clone();
     }
-    let recur = |e: &Expr| prefix_expr(e, prefix, outers);
+    prefix_expr_under(expr, prefix, outers, &[])
+}
+
+/// As [`prefix_expr`], with the names an enclosing comprehension binds:
+/// those belong to the iteration, not to the instance, and asking for
+/// them under the instance path would find nothing.
+fn prefix_expr_under(
+    expr: &Expr,
+    prefix: &str,
+    outers: &HashMap<String, String>,
+    bound: &[&str],
+) -> Expr {
+    let recur = |e: &Expr| prefix_expr_under(e, prefix, outers, bound);
     match expr {
+        Expr::Ref(name) if bound.contains(&name.as_str()) => expr.clone(),
         Expr::Ref(name) => Expr::Ref(flat_name(name, prefix, outers)),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
@@ -2012,11 +2025,16 @@ fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> E
             step.as_ref().map(|s| Box::new(recur(s))),
             Box::new(recur(b)),
         ),
-        // The iterator variable is not a component; a shadowing rename
-        // is not needed because expansion resolves it before prefixing
-        // could see it again.
+        // The iterator variable names the iteration, not a component
+        // of the instance, so the body is prefixed with it set aside.
         Expr::Comprehension(body, var, range) => {
-            Expr::Comprehension(Box::new(recur(body)), var.clone(), Box::new(recur(range)))
+            let mut inner: Vec<&str> = bound.to_vec();
+            inner.push(var);
+            Expr::Comprehension(
+                Box::new(prefix_expr_under(body, prefix, outers, &inner)),
+                var.clone(),
+                Box::new(recur(range)),
+            )
         }
         Expr::MatrixRows(rows) => Expr::MatrixRows(
             rows.iter()
@@ -6208,6 +6226,178 @@ mod tests {
             .find(|equation| format!("{:?}", equation.lhs) == "Ref(\"out\")")
             .unwrap();
         assert_eq!(format!("{:?}", held.rhs), "Ref(\"acc\")");
+    }
+
+    #[test]
+    fn the_array_layer_says_what_it_cannot_do() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        assert!(err(
+            "model M Real v[2]; Real k; Real y; equation v = {1, 2}; k = time; y = v[k]; end M;"
+        )
+        .contains("compile-time constant"));
+        assert!(
+            err("model M Real v[2]; Real y; equation v = {1, 2}; y = v[0]; end M;")
+                .contains("outside an array of 2")
+        );
+        assert!(
+            err("model M Real v[2]; Real y; equation v = {1, 2}; y = v[1, 1]; end M;")
+                .contains("more subscripts than dimensions")
+        );
+        assert!(
+            err("model M Real v[3]; Real y; equation v = {1, 2, 3}; y = v; end M;")
+                .contains("an equation between shapes")
+        );
+        assert!(
+            err("model M Real y; equation y = if 1:3 then 1 else 0; end M;")
+                .contains("an array is used where a scalar is expected")
+        );
+        assert!(err("model M Real y; discrete Real d(start = 0); equation y = time; when 1:3 then d = 1; end when; end M;")
+            .contains("an array value cannot be used where a scalar is expected"));
+
+        assert!(err("model M Real v[2]; equation v = zeros({2}); end M;")
+            .contains("an array is used where a scalar is expected"));
+        assert!(err("model M Real y; equation y = {i for i in 3}; end M;")
+            .contains("needs an array to iterate over"));
+        assert!(err(
+            "model M Real u; Real y; equation u = time; y = sum({i for i in 1:u}); end M;"
+        )
+        .contains("a range needs bounds the compiler can see"));
+        assert!(
+            err("model M Real y[2]; Real v[2]; equation v = {1, 2}; y = v[1:v[1]]; end M;")
+                .contains("bounds the compiler can see")
+        );
+        assert!(err(
+            "model M Real m[2, 2]; Real y; equation m = [1, 2; 3, 4]; y = transpose(1); end M;"
+        )
+        .contains("transpose works on a matrix"));
+        assert!(
+            err("model M Real m[2, 2]; equation m = diagonal(3); end M;")
+                .contains("diagonal takes a vector")
+        );
+        assert!(
+            err("model M Real v[3]; equation v = cross({1, 2}, {3, 4}); end M;")
+                .contains("cross takes two 3-vectors")
+        );
+        assert!(
+            err("model M Real m[3, 2]; equation m = cat(2, [1, 2; 3, 4], [5, 6]); end M;")
+                .contains("equal row counts")
+        );
+        assert!(err("model M Real v[2]; equation v = zeros(1.5); end M;")
+            .contains("a length must be a whole number"));
+        assert!(
+            err("model M Real v[2]; equation v = fill(1, 2) .+ fill(1, 3); end M;")
+                .contains("do not fit together")
+        );
+    }
+
+    #[test]
+    fn the_rest_of_the_refusals_are_named_too() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // An initial equation whose sides are different shapes.
+        assert!(err("model M Real v[2](start = {0, 0}); equation der(v[1]) = 0; der(v[2]) = 0; initial equation v = {1, 2, 3}; end M;")
+            .contains("shapes that do not match"));
+        // A `when` in an algorithm that holds something else.
+        assert!(err("model M Real u; discrete Real c(start = 0); equation u = time; algorithm when u > 1 then for i in 1:2 loop c := 1; end for; end when; end M;")
+            .contains("holds assignments"));
+        // Loop bounds that are not whole numbers.
+        assert!(
+            err("model M Real y; equation for i in 1:2.5 loop y = i; end for; end M;")
+                .contains("must be a whole number")
+        );
+        assert!(
+            err("model M Real y; algorithm for i in 1:2.5 loop y := i; end for; end M;")
+                .contains("must be a whole number")
+        );
+        // A tuple filled by something that is not a function.
+        assert!(err("model Sub Real a; end Sub; model M Real p; Real q; Sub s; equation (p, q) = s.a; end M;")
+            .contains("must be a function call"));
+        // A function that calls itself has no bottom.
+        assert!(err("function loops input Real a; output Real b; algorithm b := loops(a); end loops; model M Real y; equation y = loops(1); end M;")
+            .contains("nested deeper than the instantiation limit"));
+    }
+
+    #[test]
+    fn every_kind_of_expression_survives_being_inside_a_component() {
+        // Prefixing, substitution and constant folding all walk the
+        // same shapes, and inside a component they all have work to
+        // do: at the top level the prefix is empty and they pass
+        // straight through.
+        let m = parse_model(
+            "package K constant Real gain = 2; end K; function pick input Real v[3]; input Integer at; output Real y; algorithm y := v[at]; end pick; model Sub parameter Integer n = 3; parameter Real k[3] = {1, 2, 3}; Real v[3]; Real w[3]; Real mm[2, 2]; Real chosen; Real ranged[3]; Real made[3]; Real total; Boolean flag; equation v = k .* K.gain; w = -v .+ {1, 1, 1}; mm = [1, 2; 3, 4]; ranged = 1:3; made = {i * i for i in 1:3}; chosen = pick(v, 2); total = sum(v[1:end]) + max(v[1], v[3]); flag = not (v[1] > 0 and v[2] < 9) or false; end Sub; model M Sub s; Real out; equation out = s.total + s.chosen + s.mm[2, 2] + s.made[3] + s.ranged[2] + (if s.flag then 1 else 0); end M;",
+        )
+        .unwrap();
+        // Everything folded to numbers the compiler could see.
+        // Parameters stay symbolic - the tuner moves them - so they
+        // are handed to the folding here.
+        let mut known = std::collections::HashMap::new();
+        for component in &m.components {
+            if let Some(binding) = &component.binding {
+                if let Some(number) = super::const_eval(binding, &known) {
+                    known.insert(component.name.clone(), number);
+                }
+            }
+        }
+        let value = |name: &str| {
+            let equation = m
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .unwrap_or_else(|| panic!("no equation for {name}"));
+            super::const_eval(&equation.rhs, &known)
+        };
+        // What stands on parameters alone folds to a number.
+        assert_eq!(value("s.v[3]"), Some(6.0));
+        assert_eq!(value("s.mm[2,2]"), Some(4.0));
+        assert_eq!(value("s.ranged[2]"), Some(2.0));
+        assert_eq!(value("s.made[3]"), Some(9.0));
+        // What stands on a variable keeps its shape, prefixed all the
+        // way down.
+        let shape = |name: &str| {
+            let equation = m
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .unwrap_or_else(|| panic!("no equation for {name}"));
+            format!("{:?}", equation.rhs)
+        };
+        assert!(
+            shape("s.w[1]").contains("Ref(\"s.v[1]\")"),
+            "{}",
+            shape("s.w[1]")
+        );
+        assert_eq!(shape("s.chosen"), "Ref(\"s.v[2]\")");
+        assert!(shape("s.total").contains("Ref(\"s.v[3]\")"));
+        assert!(shape("s.flag").contains("Ref(\"s.v[2]\")"));
+    }
+
+    #[test]
+    fn a_clocked_component_reaches_through_every_shape() {
+        // The clock walkers have the same arms to visit, and a state
+        // machine's condition is read through another of them.
+        let m = parse_model(
+            "model Sub Clock c = Clock(0.25); Real u; Real held[2]; Real s; Real acc; Boolean flag; equation u = time; s = sample(u, c); flag = not (s > 1) and (s < 5 or false); acc = previous(acc) + (if flag then s else -s) * interval(c); held = {hold(acc), hold(s)}; end Sub; model M Sub sub; Real out; equation out = sub.held[1] + sub.held[2]; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.when_clauses.len(), 1);
+        let text = format!("{:?}", m.when_clauses[0].branches[0].actions);
+        assert!(text.contains("Call(\"pre\""), "{text}");
+        assert!(!text.contains("interval"), "{text}");
+        // `hold` left nothing of itself behind.
+        assert!(!format!("{:?}", m.equations).contains("hold"));
+    }
+
+    #[test]
+    fn a_state_machine_inside_a_component_still_works() {
+        let m = parse_model(
+            "model Machine block Step parameter Real limit = 2; Real n(start = 0); equation n = previous(n) + 1; end Step; Clock c = Clock(0.5); Step a; Step b; Real lamp; equation initialState(a); transition(a, b, not (a.n < a.limit) and true); transition(b, a, b.n >= 1, reset = false, priority = 2); lamp = if activeState(a) then ticksInState() else timeInState(); end Machine; model M Machine m; Real out; equation out = m.lamp; end M;",
+        )
+        .unwrap();
+        // The machine's own variables were made under the instance.
+        assert!(m.components.iter().any(|c| c.name == "$state"));
+        let text = format!("{:?}", m.when_clauses);
+        for asked in ["activeState", "ticksInState", "timeInState"] {
+            assert!(!text.contains(asked), "{asked} survived");
+        }
     }
 
     #[test]

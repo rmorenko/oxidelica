@@ -357,11 +357,11 @@ impl Parser {
     /// `Connections.root(a);`, `Connections.potentialRoot(a, p);`,
     /// `Connections.branch(a, b);`
     pub(super) fn connections_clause(&mut self) -> Result<GraphClause, ParseError> {
-        let name = self.dotted_name("a Connections clause")?;
-        let which = match name.strip_prefix("Connections.") {
-            Some(which) => which.to_string(),
-            None => return Err(self.err(format!("`{name}` is not a Connections clause"))),
-        };
+        // The caller looked at `Connections`; what follows the dot
+        // says which clause this is.
+        self.bump();
+        self.expect(&Token::Dot, "dot after Connections")?;
+        let which = self.ident("the name of a Connections clause")?;
         self.expect(&Token::LParen, "parenthesis after a Connections clause")?;
         let first = self.dotted_name("the node named")?;
         let clause = match which.as_str() {

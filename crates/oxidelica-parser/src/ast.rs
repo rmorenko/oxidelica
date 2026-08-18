@@ -661,6 +661,46 @@ mod tests {
         assert!(deep.contains_der());
         assert!(!r("x").contains_der());
         assert!(!Expr::Time.contains_der());
+
+        // The array forms carry it too, wherever it hides in them.
+        let hides_in = |expr: Expr| expr.contains_der();
+        assert!(hides_in(Expr::Index(
+            Box::new(r("v")),
+            vec![Expr::Number(1.0), der("i")]
+        )));
+        assert!(hides_in(Expr::Member(Box::new(der("p")), "x".into())));
+        assert!(hides_in(Expr::Array(vec![Expr::Number(0.0), der("x")])));
+        assert!(hides_in(Expr::Elementwise(
+            BinOp::Mul,
+            Box::new(r("a")),
+            Box::new(der("x"))
+        )));
+        assert!(hides_in(Expr::Range(
+            Box::new(Expr::Number(1.0)),
+            Some(Box::new(der("s"))),
+            Box::new(Expr::Number(9.0))
+        )));
+        assert!(hides_in(Expr::Range(
+            Box::new(Expr::Number(1.0)),
+            None,
+            Box::new(der("n"))
+        )));
+        assert!(hides_in(Expr::Comprehension(
+            Box::new(der("x")),
+            "i".into(),
+            Box::new(Expr::Number(3.0))
+        )));
+        assert!(hides_in(Expr::MatrixRows(vec![
+            vec![Expr::Number(1.0)],
+            vec![der("x")]
+        ])));
+        assert!(hides_in(Expr::NamedArg("k".into(), Box::new(der("x")))));
+        assert!(hides_in(Expr::Tuple(vec![None, Some(der("x"))])));
+        // And where it does not hide, they say so.
+        assert!(!Expr::ColonSubscript.contains_der());
+        assert!(!Expr::EndSubscript.contains_der());
+        assert!(!Expr::Array(vec![Expr::Number(1.0)]).contains_der());
+        assert!(!Expr::Tuple(vec![None]).contains_der());
     }
 
     #[test]
@@ -681,5 +721,59 @@ mod tests {
         let mut refs = Vec::new();
         deep.collect_refs(&mut refs);
         assert_eq!(refs, vec!["a", "b", "c"]);
+
+        // Every array form hands its pieces over in turn.
+        let named = |expr: Expr| {
+            let mut refs = Vec::new();
+            expr.collect_refs(&mut refs);
+            refs.join(",")
+        };
+        assert_eq!(
+            named(Expr::Index(
+                Box::new(r("v")),
+                vec![r("i"), Expr::ColonSubscript]
+            )),
+            "v,i"
+        );
+        assert_eq!(named(Expr::Member(Box::new(r("p")), "x".into())), "p");
+        assert_eq!(named(Expr::Array(vec![r("a"), r("b")])), "a,b");
+        assert_eq!(
+            named(Expr::Elementwise(
+                BinOp::Div,
+                Box::new(r("a")),
+                Box::new(r("b"))
+            )),
+            "a,b"
+        );
+        assert_eq!(
+            named(Expr::Range(
+                Box::new(r("lo")),
+                Some(Box::new(r("step"))),
+                Box::new(r("hi"))
+            )),
+            "lo,step,hi"
+        );
+        assert_eq!(
+            named(Expr::Range(Box::new(r("lo")), None, Box::new(r("hi")))),
+            "lo,hi"
+        );
+        assert_eq!(
+            named(Expr::Comprehension(
+                Box::new(r("body")),
+                "i".into(),
+                Box::new(r("range"))
+            )),
+            "body,range"
+        );
+        assert_eq!(
+            named(Expr::MatrixRows(vec![vec![r("a"), r("b")], vec![r("c")]])),
+            "a,b,c"
+        );
+        assert_eq!(named(Expr::NamedArg("k".into(), Box::new(r("v")))), "v");
+        assert_eq!(
+            named(Expr::Tuple(vec![Some(r("p")), None, Some(r("q"))])),
+            "p,q"
+        );
+        assert_eq!(named(Expr::EndSubscript), "");
     }
 }

@@ -271,6 +271,147 @@ impl Parser {
 mod tests {
     use super::*;
 
+    /// Every one of these should be refused, and say why.
+    fn refused(source: &str) -> String {
+        parse_model(source).expect_err("should be refused").message
+    }
+
+    #[test]
+    fn a_file_says_what_is_wrong_with_it() {
+        // The lexer's own complaints carry through with their line.
+        let broken = parse_model("model M Real x @ 1; end M;").unwrap_err();
+        assert!(broken.line >= 1, "{broken:?}");
+        // A file with nothing in it at all.
+        assert!(parse_file("// just a comment\n")
+            .unwrap_err()
+            .message
+            .contains("no class definitions"));
+        assert!(refused("package P end P;").contains("no model class"));
+        assert!(refused("type T = Real;").contains("no model class"));
+    }
+
+    #[test]
+    fn class_headers_are_refused_when_they_do_not_make_sense() {
+        assert!(refused("equation x = 1;").contains("expected a class definition"));
+        assert!(refused("model M Real y; equation assert(y > 0, 1); end M;")
+            .contains("assert expects a string message"));
+        assert!(refused("model M import Lib.{A B}; end M;").contains("in an import list"));
+        // Annotations are accepted, and skipped, wherever they may sit.
+        let m = parse_model(
+            "model M import Lib.A; parameter Real k = 1 annotation(y = 2); Real y; equation y = k annotation(z = 3); assert(y > -1, \"fine\", AssertionLevel.warning) annotation(w = 4); end M;",
+        )
+        .unwrap();
+        assert_eq!(m.equations.len(), 1);
+        // A type alias may say `false` for an attribute.
+        let m = parse_model(
+            "type T = Real(fixed = false, unit = \"m\"); model M T x(start = 1); Real y; equation y = x; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.components[0].fixed, Some(false));
+    }
+
+    #[test]
+    fn declarations_are_refused_when_they_do_not_make_sense() {
+        assert!(refused("model M Real x(unit = 3); end M;").contains("unit expects a string"));
+        assert!(refused("model M Real x(start = 1 fixed = true); end M;")
+            .contains("expected `,` or `)` in attributes"));
+        assert!(
+            refused("model Sub Real k; end Sub; model M Sub s(k = 1 j = 2); end M;")
+                .contains("expected `,` or `)` in modifiers")
+        );
+        // `final` and `each` are accepted and pass without meaning.
+        let m = parse_model(
+            "model Sub parameter Real k[2] = {1, 2}; end Sub; model M final Sub s(each k = 3); end M;",
+        )
+        .unwrap();
+        assert!(m.components.iter().any(|c| c.name == "s.k[2]"));
+        // A modifier with no value at all is allowed and says nothing.
+        let m = parse_model(
+            "model Sub parameter Real k = 1; Real y; equation y = k; end Sub; model M Sub s(k); Real out; equation out = s.y; end M;",
+        )
+        .unwrap();
+        assert!(m.components.iter().any(|c| c.name == "s.k"));
+    }
+
+    #[test]
+    fn equations_are_refused_when_they_do_not_make_sense() {
+        assert!(
+            refused("model M Real y; equation for i loop y = 1; end for; end M;")
+                .contains("in after the loop variable")
+        );
+        assert!(
+            refused("model M Real y; equation for i in 3 loop y = 1; end for; end M;")
+                .contains("a loop needs a range")
+        );
+        assert!(refused("model M Real y; equation for i in 1:2 loop y = 1;")
+            .contains("unterminated for equation"));
+        assert!(
+            refused("model M Real y; equation for i in 1:2 loop end for; y = 1; end M;")
+                .contains("for equation has no body")
+        );
+        assert!(refused("model M Real v[2]; equation v[1 2] = 0; end M;")
+            .contains("expected `,` or `]` in a subscript"));
+        assert!(
+            refused("model M Real y; equation Connections.knot(y); end M;")
+                .contains("is not a clause this compiler knows")
+        );
+        // A subscripted reference may be followed by a member, and a
+        // matrix row must close properly.
+        let m = parse_model(
+            "record P Real x; end P; model M P points[2]; Real y; equation points[1].x = 1; points[2].x = 2; y = points[2].x; end M;",
+        )
+        .unwrap();
+        assert!(m.components.iter().any(|c| c.name == "points[2].x"));
+        assert!(refused("model M Real y; equation y = [1, 2 3]; end M;")
+            .contains("expected `,`, `;` or `]` in a matrix"));
+    }
+
+    #[test]
+    fn statements_are_refused_when_they_do_not_make_sense() {
+        assert!(refused(
+            "model M Real v[2]; Real y; equation v = {1, 2}; algorithm y := v[1 2]; end M;"
+        )
+        .contains("expected `,` or `]` in a subscript"));
+        assert!(
+            refused("model M Real a; Real b; algorithm (a b) := 1; end M;")
+                .contains("expected `,` or `)` in a tuple of targets")
+        );
+        assert!(
+            refused("model M Real y; algorithm for i loop y := 1; end for; end M;")
+                .contains("in after the loop variable")
+        );
+        assert!(
+            refused("model M Real y; algorithm for i in 3 loop y := 1; end for; end M;")
+                .contains("a loop needs a range")
+        );
+        assert!(
+            refused("model M Real y; algorithm for i in 1:2:9 loop y := 1; end for; end M;")
+                .contains("a loop range with a step")
+        );
+        // Annotations may follow an assignment or a tuple assignment.
+        let m = parse_model(
+            "function two output Real a; output Real b; algorithm a := 1; b := 2; end two; model M Real p; Real q; Real r; algorithm r := 3 annotation(x = 1); (p, q) := two() annotation(y = 2); end M;",
+        )
+        .unwrap();
+        assert_eq!(m.equations.len(), 3);
+        // A `when` among the statements may watch several conditions.
+        let m = parse_model(
+            "model M Real u; discrete Real c(start = 0); equation u = time; algorithm when {u > 0.3, u > 0.6} then c := pre(c) + 1; end when; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.when_clauses[0].branches.len(), 2);
+    }
+
+    #[test]
+    fn the_elementwise_operators_all_parse() {
+        let m = parse_model(
+            "model M Real a[2]; Real b[2]; Real s[2]; Real d[2]; Real p[2]; Real q[2]; Real e[2]; equation a = {1, 2}; b = {3, 4}; s = a .+ b; d = a .- b; p = a .* b; q = a ./ b; e = a .^ b; end M;",
+        )
+        .unwrap();
+        // Two elements apiece for seven whole-array equations.
+        assert_eq!(m.equations.len(), 14);
+    }
+
     #[test]
     fn parses_minimal_model() {
         let m = parse_model("model M Real x(start=1); equation der(x) = -x; end M;").unwrap();
