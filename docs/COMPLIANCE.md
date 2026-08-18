@@ -41,7 +41,9 @@ reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `assert` with its message; functions with several outputs
 (`(a, , c) = f(...)` in equations and algorithms), named and defaulted
 call arguments (`f(x, precision = 6)`); algorithm
-sections in models and functions with `:=`, `if`, `for`; arrays as
+sections in models and functions with `:=`, `if`, `for`, and `while`
+with `break` and `return` where the compiler can decide the
+conditions; arrays as
 values (literals, ranges, slicing with `end`, comprehensions,
 elementwise operators, matrix algebra with `transpose`, `identity`,
 `diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
@@ -66,11 +68,14 @@ never carry units, so `x = 5` is accepted whatever `x` is declared in.
 `outerProduct`/`symmetric`/`skew`, no Boolean or enumeration
 indexing. Dimensions must be compile-time constants.
 
-**Functions** (ch. 12): no recursion, no `while`/`break`/`return`, no
-external C/Fortran, no `derivative`/`inverse` annotations, no functions
-as arguments, no record constructors. Functions are inlined
-symbolically, which is also what rules recursion out — and a skipped
-tuple slot still costs the work of computing that output's expression.
+**Functions** (ch. 12): no recursion, no external C/Fortran, no
+`derivative`/`inverse` annotations, no functions as arguments, no
+record constructors. Functions are inlined symbolically, which is also
+what rules recursion out — and a skipped tuple slot still costs the
+work of computing that output's expression. `while` runs at compile
+time, so its condition must be decidable there: the trip count cannot
+depend on a simulated variable, and a `break` or `return` behind an
+undecidable `if` is an error.
 
 **Whole chapters absent**: overloaded operators (14), stream connectors
 (15), synchronous clocked constructs (16) — note that `sample()` events

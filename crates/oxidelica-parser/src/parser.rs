@@ -770,13 +770,25 @@ impl Parser {
                 }
                 Token::If => out.push(self.if_statement()?),
                 Token::For => out.push(self.for_statement()?),
-                // A `while` has no trip count the compiler can see, so
-                // it cannot be executed into equations.
                 Token::While => {
-                    return Err(self.err(
-                        "`while` inside an algorithm is not supported: use a `for` with constant bounds"
-                            .into(),
-                    ))
+                    self.bump();
+                    let condition = self.expr()?;
+                    self.expect(&Token::Loop, "loop after the condition of a while")?;
+                    let body = self.statements()?;
+                    self.expect(&Token::End, "end closing the while")?;
+                    self.expect(&Token::While, "while after end")?;
+                    self.expect(&Token::Semi, "semicolon after end while")?;
+                    out.push(Statement::While(condition, body));
+                }
+                Token::Break => {
+                    self.bump();
+                    self.expect(&Token::Semi, "semicolon after break")?;
+                    out.push(Statement::Break);
+                }
+                Token::Return => {
+                    self.bump();
+                    self.expect(&Token::Semi, "semicolon after return")?;
+                    out.push(Statement::Return);
                 }
                 _ => break,
             }

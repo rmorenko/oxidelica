@@ -5522,6 +5522,52 @@ mod tests {
     }
 
     #[test]
+    fn a_while_loop_computes_the_exact_large_swing_period() {
+        // The function runs an arithmetic-geometric mean to convergence
+        // at compile time; the simulated pendulum must come back to its
+        // amplitude exactly one such period later.
+        let result = compile(&with_library("pendulum_period.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+
+        let (length, gravity, amplitude) = (1.2f64, 9.81f64, 1.0f64);
+        let (mut a, mut b) = (1.0f64, (amplitude / 2.0).cos());
+        while (a - b).abs() > 1e-15 {
+            let mean = 0.5 * (a + b);
+            b = (a * b).sqrt();
+            a = mean;
+        }
+        let period = 2.0 * std::f64::consts::PI * (length / gravity).sqrt() / a;
+        assert!(
+            (result.rows[0][index("period")] - period).abs() < 1e-12,
+            "period {} vs {period}",
+            result.rows[0][index("period")]
+        );
+        // Small-angle theory would say 2.1972 s; the true period at a
+        // 1 rad swing is 2.3430 s, and the trajectory knows it.
+        let row = result
+            .rows
+            .iter()
+            .min_by(|p, q| {
+                let (dp, dq) = ((p[0] - period).abs(), (q[0] - period).abs());
+                dp.partial_cmp(&dq).unwrap()
+            })
+            .unwrap();
+        assert!(
+            (row[index("theta")] - amplitude).abs() < 1e-3,
+            "theta {} after one period",
+            row[index("theta")]
+        );
+        assert!(
+            row[index("w")].abs() < 0.05,
+            "w {} at the turn",
+            row[index("w")]
+        );
+    }
+
+    #[test]
     fn the_flight_plan_and_the_flown_trajectory_agree() {
         // `(planned_range, planned_duration) = flight(v0, angle)` fills
         // both targets from one call, with gravity defaulted inside the

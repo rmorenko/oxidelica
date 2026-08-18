@@ -152,6 +152,13 @@ pub enum Statement {
     If(Vec<StatementBranch>),
     /// `for i in lo:hi loop … end for;`
     For(String, (Expr, Expr), Vec<Statement>),
+    /// `while c loop … end while;` — executed at compile time, so the
+    /// condition must be decidable there, each round.
+    While(Expr, Vec<Statement>),
+    /// `break;` — leave the innermost `for` or `while`.
+    Break,
+    /// `return;` — leave the function, outputs as they stand.
+    Return,
 }
 
 /// The kind of a class definition.

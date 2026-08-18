@@ -633,7 +633,7 @@ fn instantiate(
     if class.kind != ClassKind::Function && !class.algorithm.is_empty() {
         let mut bindings: HashMap<String, Expr> = HashMap::new();
         let mut assigned: Vec<String> = Vec::new();
-        execute(
+        match execute(
             &class.algorithm,
             &mut bindings,
             &mut assigned,
@@ -643,7 +643,14 @@ fn instantiate(
             scope,
             &imports,
             depth,
-        )?;
+            false,
+        )? {
+            Flow::Normal => {}
+            Flow::Break => return Err("`break` outside of a loop".to_string()),
+            Flow::Return => {
+                return Err("`return` belongs in a function, not a model algorithm".to_string())
+            }
+        }
         for name in assigned {
             let value = bindings
                 .get(&name)
@@ -1428,6 +1435,61 @@ fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64> {
                 Pow => a.powf(b),
             }
         }
+        // The numeric builtins fold too: a `while` iterating Newton's
+        // method or an AGM lives on `abs` and `sqrt` in its condition.
+        Expr::Call(name, args) => {
+            let one = || -> Option<f64> { const_eval(args.first()?, env) };
+            let two = || -> Option<(f64, f64)> {
+                Some((
+                    const_eval(args.first()?, env)?,
+                    const_eval(args.get(1)?, env)?,
+                ))
+            };
+            match name.as_str() {
+                "abs" => one()?.abs(),
+                "sqrt" => one()?.sqrt(),
+                "exp" => one()?.exp(),
+                "log" => one()?.ln(),
+                "log10" => one()?.log10(),
+                "sin" => one()?.sin(),
+                "cos" => one()?.cos(),
+                "tan" => one()?.tan(),
+                "asin" => one()?.asin(),
+                "acos" => one()?.acos(),
+                "atan" => one()?.atan(),
+                "sinh" => one()?.sinh(),
+                "cosh" => one()?.cosh(),
+                "tanh" => one()?.tanh(),
+                "floor" => one()?.floor(),
+                "ceil" => one()?.ceil(),
+                "integer" => one()?.floor(),
+                "atan2" => {
+                    let (a, b) = two()?;
+                    a.atan2(b)
+                }
+                "min" => {
+                    let (a, b) = two()?;
+                    a.min(b)
+                }
+                "max" => {
+                    let (a, b) = two()?;
+                    a.max(b)
+                }
+                "div" => {
+                    let (a, b) = two()?;
+                    (a / b).trunc()
+                }
+                "mod" => {
+                    let (a, b) = two()?;
+                    a - (a / b).floor() * b
+                }
+                "rem" => {
+                    let (a, b) = two()?;
+                    a - (a / b).trunc() * b
+                }
+                _ => return None,
+            }
+        }
         _ => return None,
     })
 }
@@ -1804,6 +1866,46 @@ fn resolve(
     })
 }
 
+/// How a statement list finished: fell off the end, hit a `break`, or
+/// hit a `return`. Loops consume `Break`; `Return` rides all the way
+/// out of the function body.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Flow {
+    /// Ran to the end.
+    Normal,
+    /// A `break` is looking for its loop.
+    Break,
+    /// A `return` is looking for its function.
+    Return,
+}
+
+/// Whether flow control could fire at this nesting level: a `break` or
+/// `return` here or in an `if` here, or a `return` inside a loop here -
+/// loops consume their own breaks but a return passes through them.
+fn has_flow_control(statements: &[Statement]) -> bool {
+    statements.iter().any(|statement| match statement {
+        Statement::Break | Statement::Return => true,
+        Statement::If(branches) => branches.iter().any(|b| has_flow_control(&b.body)),
+        Statement::For(_, _, body) | Statement::While(_, body) => has_return(body),
+        _ => false,
+    })
+}
+
+/// Whether a `return` hides anywhere below, loops included.
+fn has_return(statements: &[Statement]) -> bool {
+    statements.iter().any(|statement| match statement {
+        Statement::Return => true,
+        Statement::If(branches) => branches.iter().any(|b| has_return(&b.body)),
+        Statement::For(_, _, body) | Statement::While(_, body) => has_return(body),
+        _ => false,
+    })
+}
+
+/// The most rounds a `while` may take before the compiler assumes it
+/// will never finish. Iterative algorithms converge in tens of rounds;
+/// this is a backstop, not a budget.
+const MAX_WHILE_ROUNDS: usize = 100_000;
+
 /// Symbolically execute an algorithm section.
 ///
 /// `bindings` maps every variable the section has written to the
@@ -1815,8 +1917,13 @@ fn resolve(
 ///
 /// An `if` runs both ways: each branch is executed on its own copy of
 /// the bindings and the results are merged into one `if` expression per
-/// variable, with the value from before the statement as the fallback.
+/// variable, with the value from before the statement as the fallback -
+/// unless a branch holds `break` or `return`, in which case the
+/// conditions must be decidable and only the taken branch runs.
 /// A `for` is unrolled, its variable being a compile-time constant.
+/// A `while` runs for real: its condition must be decidable each round,
+/// and `fold` collapses the loop's assignments to numbers so the
+/// expressions do not grow with the iteration count.
 #[allow(clippy::too_many_arguments)]
 fn execute(
     statements: &[Statement],
@@ -1828,7 +1935,8 @@ fn execute(
     scope: &str,
     imports: &[(String, String)],
     depth: usize,
-) -> Result<(), String> {
+    fold: bool,
+) -> Result<Flow, String> {
     if depth > MAX_DEPTH {
         return Err("algorithm nested deeper than the instantiation limit".to_string());
     }
@@ -1873,6 +1981,13 @@ fn execute(
                 if !assigned.contains(&target) {
                     assigned.push(target.clone());
                 }
+                // Inside a `while`, a value that folds to a number is
+                // stored as one, or the expressions would double in
+                // size with every round.
+                let value = match const_eval(&value, consts) {
+                    Some(number) if fold => Expr::Number(number),
+                    _ => value,
+                };
                 bindings.insert(target, value);
             }
             Statement::TupleAssign(targets, value) => {
@@ -1919,6 +2034,51 @@ fn execute(
                 }
             }
             Statement::If(branches) => {
+                // A branch that may `break` or `return` cannot be
+                // merged symbolically - whether it fires must be known.
+                // The conditions are decided and only the taken branch
+                // runs, its flow passed on.
+                if branches.iter().any(|b| has_flow_control(&b.body)) {
+                    let mut taken = None;
+                    for branch in branches {
+                        match &branch.condition {
+                            None => {
+                                taken = Some(&branch.body);
+                                break;
+                            }
+                            Some(condition) => {
+                                let condition = substitute_refs(condition, bindings);
+                                let value = const_eval(&condition, consts).ok_or_else(|| {
+                                    "a branch holding `break` or `return` needs a condition \
+                                     the compiler can decide"
+                                        .to_string()
+                                })?;
+                                if value != 0.0 {
+                                    taken = Some(&branch.body);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if let Some(body) = taken {
+                        let flow = execute(
+                            body,
+                            bindings,
+                            assigned,
+                            consts,
+                            sizes,
+                            registry,
+                            scope,
+                            imports,
+                            depth + 1,
+                            fold,
+                        )?;
+                        if flow != Flow::Normal {
+                            return Ok(flow);
+                        }
+                    }
+                    continue;
+                }
                 let before = bindings.clone();
                 let mut outcomes: Vec<(Option<Expr>, HashMap<String, Expr>)> = Vec::new();
                 for branch in branches {
@@ -1933,6 +2093,7 @@ fn execute(
                         scope,
                         imports,
                         depth + 1,
+                        fold,
                     )?;
                     let condition = branch
                         .condition
@@ -2009,7 +2170,7 @@ fn execute(
                 let (lower, upper) = (bound(lower)?, bound(upper)?);
                 for index in lower..=upper {
                     bindings.insert(variable.clone(), Expr::Number(index as f64));
-                    execute(
+                    let flow = execute(
                         body,
                         bindings,
                         assigned,
@@ -2019,14 +2180,64 @@ fn execute(
                         scope,
                         imports,
                         depth + 1,
+                        fold,
                     )?;
+                    match flow {
+                        Flow::Normal => {}
+                        Flow::Break => break,
+                        Flow::Return => {
+                            bindings.remove(variable);
+                            assigned.retain(|name| name != variable);
+                            return Ok(Flow::Return);
+                        }
+                    }
                 }
                 bindings.remove(variable);
                 assigned.retain(|name| name != variable);
             }
+            Statement::While(condition, body) => {
+                let mut rounds = 0;
+                loop {
+                    let now = substitute_refs(condition, bindings);
+                    let truth = const_eval(&now, consts).ok_or_else(|| {
+                        "a `while` condition must be decidable at compile time: algorithms \
+                         are executed symbolically, so the trip count cannot depend on a \
+                         simulated variable"
+                            .to_string()
+                    })?;
+                    if truth == 0.0 {
+                        break;
+                    }
+                    rounds += 1;
+                    if rounds > MAX_WHILE_ROUNDS {
+                        return Err(format!(
+                            "a `while` did not finish within {MAX_WHILE_ROUNDS} rounds"
+                        ));
+                    }
+                    let flow = execute(
+                        body,
+                        bindings,
+                        assigned,
+                        consts,
+                        sizes,
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                        true,
+                    )?;
+                    match flow {
+                        Flow::Normal => {}
+                        Flow::Break => break,
+                        Flow::Return => return Ok(Flow::Return),
+                    }
+                }
+            }
+            Statement::Break => return Ok(Flow::Break),
+            Statement::Return => return Ok(Flow::Return),
         }
     }
-    Ok(())
+    Ok(Flow::Normal)
 }
 
 /// Resolve both sides of a `connect` into instance paths and pair them.
@@ -3030,7 +3241,9 @@ fn inline_function_outputs(
     let mut assigned = Vec::new();
     let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
     collect_shapes(registry, class, consts, &mut sizes, 0);
-    execute(
+    // `Return` is simply an early landing here; the outputs are read
+    // out the same way. A `break` with no loop has nowhere to go.
+    if execute(
         &class.algorithm,
         &mut bindings,
         &mut assigned,
@@ -3040,7 +3253,14 @@ fn inline_function_outputs(
         &class.name,
         &class.imports,
         depth + 1,
-    )?;
+        false,
+    )? == Flow::Break
+    {
+        return Err(format!(
+            "`break` outside of a loop in function `{}`",
+            class.name
+        ));
+    }
     outputs
         .iter()
         .map(|output| {
@@ -3358,6 +3578,150 @@ mod tests {
              model M Real p; Real q; equation (p, q) = f(1); end M;"
         )
         .contains("1 output(s) for 2 target(s)"));
+    }
+
+    #[test]
+    fn while_break_and_return_run_at_compile_time() {
+        // Euclid's algorithm: a `while` folding its state each round.
+        let m = parse_model(
+            "function gcd input Real a; input Real b; output Real g; \
+             protected Real x; Real y; Real t; \
+             algorithm x := a; y := b; \
+             while y > 0.5 loop t := y; y := mod(x, y); x := t; end while; \
+             g := x; end gcd;\
+             model M Real r; equation r = gcd(48, 18); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(6.0)");
+
+        // Newton's square root converges onto the analytic one.
+        let m = parse_model(
+            "function newton_sqrt input Real a; output Real r; \
+             algorithm r := a; \
+             while abs(r * r - a) > 1e-12 loop r := 0.5 * (r + a / r); end while; \
+             end newton_sqrt;\
+             model M Real y; equation y = newton_sqrt(2); end M;",
+        )
+        .unwrap();
+        let Expr::Number(value) = &m.equations[0].rhs else {
+            panic!("the loop must fold to a number: {:?}", m.equations[0].rhs);
+        };
+        assert!((value - 2.0f64.sqrt()).abs() < 1e-9, "{value}");
+
+        // `break` ends a search as soon as it succeeds.
+        let m = parse_model(
+            "function first_square_above input Real limit; output Real k; \
+             algorithm k := 0; \
+             for i in 1:100 loop if i * i > limit then k := i; break; end if; end for; \
+             end first_square_above;\
+             model M Real y; equation y = first_square_above(20); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(5.0)");
+
+        // `return` leaves early on one path and not the other.
+        let m = parse_model(
+            "function clipped input Real u; output Real y; \
+             algorithm y := u; if u > 1 then y := 1; return; end if; y := y * 2; \
+             end clipped;\
+             model M Real a; Real b; equation a = clipped(3); b = clipped(0.25); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(1.0)");
+        assert!(format!("{:?}", m.equations[1].rhs).contains("0.25"));
+
+        // `break` inside a `while`, behind a decided `if`.
+        let m = parse_model(
+            "function capped output Real r; protected Real i; \
+             algorithm i := 0; r := 0; \
+             while 1 > 0 loop i := i + 1; \
+             if i > 4.5 then break; end if; r := r + i; end while; \
+             end capped;\
+             model M Real y; equation y = capped(); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(10.0)");
+
+        // `return` rides out of a `for` loop.
+        let m = parse_model(
+            "function findfirst input Real limit; output Real k; \
+             algorithm k := 0; \
+             for i in 1:100 loop if i * i > limit then k := i; return; end if; end for; \
+             end findfirst;\
+             model M Real y; equation y = findfirst(20); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(5.0)");
+
+        // A tuple equation and a named argument inside a component:
+        // both go through the prefixing walker.
+        let m = parse_model(
+            "function two input Real a; output Real b; output Real c; \
+             algorithm b := a + 1; c := a * 2; end two;\
+             model Sub parameter Real k = 3; Real p; Real q; \
+             equation (p, q) = two(a = k); end Sub;\
+             model M Sub s; Real y; equation y = s.p + s.q; end M;",
+        )
+        .unwrap();
+        let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert!(names.contains(&"s.p") && names.contains(&"s.q"));
+        let text = format!("{:?}", m.equations);
+        assert!(
+            text.contains("Ref(\"s.k\")"),
+            "the argument must prefix: {text}"
+        );
+    }
+
+    #[test]
+    fn the_compile_time_folder_knows_the_numeric_builtins() {
+        // One `while` round folds every builtin the folder knows; the
+        // pi-flavoured results sum to exactly pi.
+        let m = parse_model(
+            "function burst output Real y; protected Real go; \
+             algorithm go := 1; \
+             while go > 0 loop \
+             y := abs(-2) + sqrt(4) + exp(0) + log(1) + log10(10) \
+                + sin(0) + cos(0) + tan(0) + asin(1) + acos(1) + atan(1) \
+                + sinh(0) + cosh(0) + tanh(0) \
+                + floor(1.5) + ceil(1.5) + integer(2.7) \
+                + atan2(1, 1) + min(1, 2) + max(1, 2) \
+                + div(7, 2) + mod(7, 4) + rem(7, 4); \
+             go := 0; \
+             end while; end burst;\
+             model M Real y; equation y = burst(); end M;",
+        )
+        .unwrap();
+        let Expr::Number(value) = &m.equations[0].rhs else {
+            panic!("the burst must fold: {:?}", m.equations[0].rhs);
+        };
+        let expected = 25.0 + std::f64::consts::PI;
+        assert!((value - expected).abs() < 1e-12, "{value} vs {expected}");
+    }
+
+    #[test]
+    fn flow_control_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // A loop that can never finish hits the backstop.
+        assert!(err("model M Real y; \
+             algorithm y := 0; while y < 1e9 loop y := y + 1; end while; end M;")
+        .contains("did not finish"));
+        // A `break` guarded by a condition the compiler cannot decide.
+        assert!(
+            err("function f input Real u; output Real y; algorithm y := 0; \
+             for i in 1:3 loop if u > 0 then break; end if; y := y + 1; end for; end f;\
+             model M Real u; Real y; equation u = time; y = f(u); end M;")
+            .contains("compiler can decide")
+        );
+        // `return` is for functions, `break` for loops.
+        assert!(err("model M Real y; algorithm y := 1; return; end M;")
+            .contains("belongs in a function"));
+        assert!(err(
+            "function f input Real a; output Real b; algorithm b := a; break; end f;\
+             model M Real y; equation y = f(1); end M;"
+        )
+        .contains("`break` outside of a loop in function"));
+        assert!(err("model M Real y; algorithm y := 1; break; end M;")
+            .contains("`break` outside of a loop"));
     }
 
     #[test]
@@ -4041,11 +4405,10 @@ mod tests {
         assert!(err("model M Real u; Real y; equation u = time; \
              algorithm y := 0; for i in 1:u loop y := y + i; end for; end M;")
         .contains("not a compile-time constant"));
-        // `while` says so instead of parsing into something wrong.
-        assert!(err(
-            "model M Real y; algorithm y := 0; while y < 1 loop y := y + 1; end while; end M;"
-        )
-        .contains("`while` inside an algorithm"));
+        // A `while` whose trip count depends on a simulated variable.
+        assert!(err("model M Real u; Real y; equation u = time; \
+             algorithm y := 0; while y < u loop y := y + 1; end while; end M;")
+        .contains("decidable at compile time"));
         // An empty loop body.
         assert!(
             err("model M Real y; algorithm for i in 1:2 loop end for; end M;").contains("no body")
