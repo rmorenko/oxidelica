@@ -2523,10 +2523,14 @@ fn a_string_is_refused_where_a_number_belongs() {
     let text = refused("model M String s; Real r; equation r = 1; end M;");
     assert!(text.contains("`s` is a String with no value"), "{text}");
 
-    let text = refused(
-        "model M parameter String a = \"x\"; Real r; equation r = if a < \"y\" then 1 else 0; end M;",
-    );
-    assert!(text.contains("`==` and `<>`"), "{text}");
+    // Every relational operator is defined on strings, as strcmp
+    // against zero, so this one is not a refusal at all.
+    let ordered = parse_model(
+        "model M parameter String a = \"x\"; Real r; equation r = if a < \"y\" then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("`<` orders strings");
+    assert!(format!("{:?}", ordered.equations).contains("Bool(true)"));
 }
 
 #[test]

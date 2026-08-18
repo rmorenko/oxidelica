@@ -1618,3 +1618,18 @@ fn a_bound_broken_only_by_the_run_is_reported_where_it_broke() {
     .expect("stays inside");
     assert!((fine.rows.last().unwrap()[1] - 1.7).abs() < 1e-9);
 }
+
+#[test]
+fn the_nth_root_takes_the_sign_with_it() {
+    // `powf` gives NaN for every negative base, so the odd roots of a
+    // negative number - which do exist - have to be found by taking
+    // the sign out and putting it back.
+    let result = run("model R Real cube; Real odd; Real fourth; \
+         equation cube = nthRoot(8, 3); odd = nthRoot(-8, 3); fourth = nthRoot(16, 4); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end R;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[index("cube")] - 2.0).abs() < 1e-12);
+    assert!((last[index("odd")] + 2.0).abs() < 1e-12);
+    assert!((last[index("fourth")] - 2.0).abs() < 1e-12);
+}

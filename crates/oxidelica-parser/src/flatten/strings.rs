@@ -147,14 +147,17 @@ fn text_of(expr: &Expr, values: &HashMap<String, String>) -> Option<String> {
 fn fold(expr: &Expr, values: &HashMap<String, String>) -> Result<Expr, String> {
     if let Expr::Rel(op, a, b) = expr {
         if let (Some(left), Some(right)) = (text_of(a, values), text_of(b, values)) {
-            return match op {
-                RelOp::Eq => Ok(Expr::Bool(left == right)),
-                RelOp::Ne => Ok(Expr::Bool(left != right)),
-                _ => Err(format!(
-                    "strings may be compared with `==` and `<>`, not `{}`",
-                    op_text(*op)
-                )),
-            };
+            // Every relational operator is defined on strings, and
+            // defined as C's strcmp against zero - which is a
+            // comparison of the bytes, and so is Rust's.
+            return Ok(Expr::Bool(match op {
+                RelOp::Lt => left < right,
+                RelOp::Le => left <= right,
+                RelOp::Gt => left > right,
+                RelOp::Ge => left >= right,
+                RelOp::Eq => left == right,
+                RelOp::Ne => left != right,
+            }));
         }
     }
     if let Some(text) = text_of(expr, values) {
@@ -188,17 +191,6 @@ fn fold(expr: &Expr, values: &HashMap<String, String>) -> Result<Expr, String> {
         // of these can still be a string, so it is handed back whole.
         other => other.clone(),
     })
-}
-
-fn op_text(op: RelOp) -> &'static str {
-    match op {
-        RelOp::Lt => "<",
-        RelOp::Le => "<=",
-        RelOp::Gt => ">",
-        RelOp::Ge => ">=",
-        RelOp::Eq => "==",
-        RelOp::Ne => "<>",
-    }
 }
 
 fn defines_a_string(lhs: &Expr, values: &HashMap<String, String>) -> bool {

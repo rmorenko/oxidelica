@@ -410,6 +410,7 @@ enum Unary {
 #[derive(Debug, Clone, Copy)]
 enum Binary {
     Atan2,
+    NthRoot,
     Min,
     Max,
     Div,

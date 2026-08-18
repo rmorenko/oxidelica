@@ -4,6 +4,17 @@
 use crate::*;
 
 /// Booleans are carried as 1.0 and 0.0, like everywhere else here.
+/// `nthRoot(v, n)`: the n-th root of v. A negative v has one when n is
+/// odd, and `powf` will not find it - it gives NaN for every negative
+/// base - so the sign is taken out and put back.
+pub(crate) fn nth_root(value: f64, n: f64) -> f64 {
+    if value < 0.0 && n.fract() == 0.0 && (n / 2.0).fract() != 0.0 {
+        -(-value).powf(1.0 / n)
+    } else {
+        value.powf(1.0 / n)
+    }
+}
+
 pub(crate) fn truth(yes: bool) -> f64 {
     if yes {
         1.0
@@ -139,6 +150,10 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                 "atan2" => {
                     arity(2)?;
                     vals[0].atan2(vals[1])
+                }
+                "nthRoot" => {
+                    arity(2)?;
+                    nth_root(vals[0], vals[1])
                 }
                 "sinh" => {
                     arity(1)?;
@@ -292,6 +307,7 @@ impl Code {
                 let (a, b) = (l.run(values, time), r.run(values, time));
                 match function {
                     Binary::Atan2 => a.atan2(b),
+                    Binary::NthRoot => nth_root(a, b),
                     Binary::Min => a.min(b),
                     Binary::Max => a.max(b),
                     // Integer division truncates toward zero; mod and
@@ -413,6 +429,7 @@ impl SlotTable {
         }
         let binary = match name {
             "atan2" => Some(Binary::Atan2),
+            "nthRoot" => Some(Binary::NthRoot),
             "min" => Some(Binary::Min),
             "max" => Some(Binary::Max),
             "div" => Some(Binary::Div),

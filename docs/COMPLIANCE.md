@@ -46,7 +46,7 @@ subscripts, inside `for` loops and between whole connector arrays;
 DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
-`noEvent`, `smooth`, `semiLinear`, `delay`), a `when` watching several
+`noEvent`, `smooth`, `semiLinear`, `delay`, `nthRoot`), a `when` watching several
 conditions at once and one standing among the statements of an
 algorithm; event iteration; `if` equations, structural on a
 compile-time condition and balanced-branch on a run-time one — each
@@ -113,6 +113,15 @@ disappears. What is missing: a `String` that only a run could produce
 (`String(x)` of a variable), string variables in results, the string
 functions of ch. 12, and `assert`/`terminate` messages built by
 joining - those still take a literal.
+
+**Operators and expressions** (ch. 3): the precedence and the
+non-associativity of `^` and of the relations are as written, every
+relational operator orders strings the way `strcmp` does, and two
+Reals may not be compared for equality - the specification forbids it,
+and a run gives no reason to expect a stepped quantity to land on a
+value exactly. What is missing from the chapter is four operators:
+`terminal()`, `getInstanceName()`, `cardinality()` and
+`spatialDistribution()`.
 
 **Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
 or enumeration indexing. A flexible size (`:`) is read from the

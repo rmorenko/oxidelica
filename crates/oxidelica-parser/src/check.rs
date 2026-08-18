@@ -30,6 +30,8 @@ pub fn verify(model: &Model) -> Result<(), String> {
     }
     for equation in model.equations.iter().chain(&model.initial_equations) {
         types.equation(&equation.lhs, &equation.rhs)?;
+        types.exact_equality(&equation.lhs)?;
+        types.exact_equality(&equation.rhs)?;
         types.pinned_to_a_fraction(&equation.lhs, &equation.rhs)?;
         pinned_bounds(&declared, &equation.lhs, &equation.rhs)?;
         units.equation(&equation.lhs, &equation.rhs)?;
@@ -37,6 +39,7 @@ pub fn verify(model: &Model) -> Result<(), String> {
     for clause in &model.when_clauses {
         for branch in &clause.branches {
             types.condition(&branch.condition)?;
+            types.exact_equality(&branch.condition)?;
             units.infer(&branch.condition)?;
             for action in &branch.actions {
                 match action {
@@ -244,6 +247,30 @@ impl TypeLayer {
                 "`{name}` is an Integer but `{}` is Real; use `integer()`",
                 describe(value)
             ));
+        }
+        Ok(())
+    }
+
+    /// Two Reals may not be compared for equality. The specification
+    /// says so outright, and the reason is worth keeping in mind: a
+    /// Real is the result of a step, and asking a stepped quantity to
+    /// land on a value exactly is asking the arithmetic for something
+    /// it cannot promise. `abs(a - b) < eps` is the comparison that
+    /// means something.
+    fn exact_equality(&self, expr: &Expr) -> Result<(), String> {
+        if let Expr::Rel(op @ (RelOp::Eq | RelOp::Ne), a, b) = expr {
+            if self.infer(a)? == Ty::Real || self.infer(b)? == Ty::Real {
+                return Err(format!(
+                    "`{} {} {}` compares Reals for equality; \
+                     compare the difference with a tolerance instead",
+                    describe(a),
+                    if matches!(op, RelOp::Eq) { "==" } else { "<>" },
+                    describe(b)
+                ));
+            }
+        }
+        for child in children(expr) {
+            self.exact_equality(child)?;
         }
         Ok(())
     }
@@ -1371,5 +1398,34 @@ mod tests {
         )
         .is_ok());
         assert!(parse_model("model M Real x(min = 0); equation x = time; end M;").is_ok());
+    }
+
+    #[test]
+    fn two_reals_are_not_compared_for_equality() {
+        // A Real is what a step arrived at, and asking a stepped
+        // quantity to land on a value exactly asks the arithmetic for
+        // something it cannot promise. The specification forbids it.
+        let text = error_of(
+            "model M Real a; Real b; Boolean e; equation a = time; b = 2 * time; \
+             e = a == b; end M;",
+        );
+        assert!(text.contains("compares Reals for equality"), "{text}");
+
+        let text = error_of(
+            "model M Real a; discrete Boolean e(start = false); equation a = time; \
+             when a <> 1 then e = true; end when; end M;",
+        );
+        assert!(text.contains("compares Reals for equality"), "{text}");
+
+        // The whole numbers have no such trouble, and neither do the
+        // enumerations that become them.
+        assert!(parse_model(
+            "model M Integer i = 2; Real y; equation y = if i == 2 then 1 else 0; end M;"
+        )
+        .is_ok());
+        assert!(parse_model(
+            "model M Boolean b = true; Real y; equation y = if b == true then 1 else 0; end M;"
+        )
+        .is_ok());
     }
 }
