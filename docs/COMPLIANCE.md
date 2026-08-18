@@ -110,7 +110,7 @@ directory layout — libraries are flat `.mo` files in `lib/`.
 whose condition the run decides keeps all its branches and merges each
 position into one equation choosing its residual — but the matching of
 equations to unknowns is done once, so branches that determine
-*different* unknowns (the textbook ideal switch, `if open then i = 0
+_different_ unknowns (the textbook ideal switch, `if open then i = 0
 else v = 0`) leave the solver with a singular block in one of the
 modes. Mode-dependent matching would be needed; until then such
 switches want the usual auxiliary-variable form, where both branches
