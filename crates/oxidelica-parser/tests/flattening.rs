@@ -1743,7 +1743,7 @@ fn clock_error_paths() {
          Real u; Real out; equation u = previous(u) + interval(odd); \
          out = hold(u); end M;"
     )
-    .contains("whole number between 1 and"));
+    .contains("whole number between 0 and"));
     assert!(err("model M Clock base = Clock(0.1); \
          Clock huge = superSample(superSample(superSample(base, 999999), 999999), 999999); \
          Clock worse = superSample(superSample(huge, 999999), 999999); \
@@ -1755,13 +1755,92 @@ fn clock_error_paths() {
         err("model M Clock c = Clock(1, 0); Real y; equation y = 1; end M;")
             .contains("whole number between 1 and")
     );
-    // A sub-clock conversion this compiler will not guess a factor for.
+    // A factor left for the compiler with nothing to work it out from.
     assert!(err(
         "model M Clock base = Clock(0.1); Real u; Real v; Real out; \
          equation u = previous(u) + interval(base); v = subSample(u); \
          out = hold(v); end M;"
     )
-    .contains("does not infer one"));
+    .contains("nothing says which clock it is on"));
+}
+
+#[test]
+fn a_clock_or_a_factor_left_unsaid_is_worked_out_from_the_equation() {
+    // An equation is on one clock, so where it names a clock that knows
+    // its rate beside one that does not, the second takes the first.
+    // Both of these say the same thing as `Clock(1, 5)` written out and
+    // `subSample(a, 2)` written out - which the run below confirms by
+    // arriving at the same number.
+    let inferred = |slow: &str, sampled: &str| {
+        format!(
+            "model M Clock fast = Clock(1, 10); Clock slow = {slow}; \
+             Real a; Real b; Real out; \
+             equation a = previous(a) + interval(fast); \
+             b = {sampled} + interval(slow); out = hold(b); end M;"
+        )
+    };
+    for (slow, sampled) in [
+        ("Clock(1, 5)", "subSample(a, 2)"),
+        ("Clock()", "subSample(a, 2)"),
+        ("Clock(0, 5)", "subSample(a, 2)"),
+        ("Clock(1, 5)", "subSample(a)"),
+        ("Clock(1, 5)", "subSample(a, 0)"),
+    ] {
+        let m = parse_model(&inferred(slow, sampled)).unwrap();
+        let mut ticks = ticks_of(&m);
+        ticks.sort_by(|a, b| a.partial_cmp(b).expect("no clock ticks on a NaN"));
+        assert_eq!(ticks, vec![(0.0, 0.1), (0.0, 0.2)], "{slow} / {sampled}");
+    }
+    // The same the other way about: a `superSample` with no factor
+    // takes it from the faster clock the equation also names.
+    let m = parse_model(
+        "model M Clock slow = Clock(1, 5); Clock fast = Clock(1, 10); \
+         Real a; Real b; Real out; \
+         equation a = previous(a) + interval(slow); \
+         b = superSample(a) + interval(fast); out = hold(b); end M;",
+    )
+    .unwrap();
+    let mut ticks = ticks_of(&m);
+    ticks.sort_by(|a, b| a.partial_cmp(b).expect("no clock ticks on a NaN"));
+    assert_eq!(ticks, vec![(0.0, 0.1), (0.0, 0.2)]);
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // Nothing to work it out from is refused rather than guessed. It
+    // has to be: an unsettled clock would have nothing lifted onto it,
+    // and the equations meant to tick would quietly stay continuous.
+    for empty in ["Clock()", "Clock(0, 5)"] {
+        assert!(
+            err(&format!(
+                "model M Clock c = {empty}; Real u; Real s; Real out; \
+                 equation u = time; s = sample(u, c); out = hold(s); end M;"
+            ))
+            .contains("nothing in this model says how often `c` ticks"),
+            "{empty}"
+        );
+    }
+    // A rate that no whole factor reaches is refused with both rates
+    // named, since the model has to be told which of the two is wrong.
+    // 0.25 is not a whole number of 0.1s. The message names the factor
+    // it would have taken, which is what says which of the two rates is
+    // the mistaken one.
+    assert!(err(&inferred("Clock(1, 4)", "subSample(a)"))
+        .contains("sampling every 0.1 to tick every 0.25 would take a factor of 2.5"));
+    // `Clock(0, 5)` leaves the numerator to the compiler and keeps the
+    // denominator, so what turns up has to be a whole number of fifths.
+    assert!(err(
+        "model M Clock fast = Clock(1, 8); Clock slow = Clock(0, 5); \
+         Real a; Real b; Real out; equation a = previous(a) + interval(fast); \
+         b = subSample(a, 2) + interval(slow); out = hold(b); end M;"
+    )
+    .contains("counted in parts of one over 5"));
+    // And an event clock gives a factor nothing to count.
+    assert!(err(
+        "model M Real p(start = 0, fixed = true); Clock e = Clock(p > 0.5, 0.2); \
+         Clock other = Clock(0.1); Real a; Real b; Real out; \
+         equation der(p) = 1; a = previous(a) + interval(e); \
+         b = subSample(a) + interval(other); out = hold(b); end M;"
+    )
+    .contains("gives it nothing to count"));
 }
 
 #[test]

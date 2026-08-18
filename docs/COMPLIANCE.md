@@ -21,7 +21,7 @@ under a chapter works as specified for the subset this project covers.
 | 13  | Packages                      | Full    |
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
-| 16  | Synchronous language elements | Mostly  |
+| 16  | Synchronous language elements | Full    |
 | 17  | State machines                | Partial |
 | 18  | Annotations                   | Partial |
 | 19  | Unit expressions              | Full    |
@@ -253,11 +253,20 @@ where a tick here is a list of assignments, which is the wall ch. 11
 stands behind. The specification asks a tool to spell the methods it
 works the way it spells them, not to work them all.
 
-What is missing is inference of a clock or a factor left unsaid:
-`Clock()` and a `subSample`/`superSample` with no factor are refused
-rather than solved for. That is a constraint system over the partition
-graph, and the cost of getting it wrong is a run that quietly ticks at
-the wrong rate rather than one that stops.
+A clock or a factor may be left unsaid. An equation is on one clock, so
+where it names a clock that knows its rate beside one that does not,
+the second takes the first: `Clock()` and `Clock(0, resolution)` become
+the clock they meet, and a `subSample` or `superSample` with no factor —
+or with the zero that means the same — finds it from the two rates. The
+factor is worked back out and checked rather than divided out and
+trusted, so a ratio that merely rounds to a whole number is refused,
+with the factor it would have taken named. `Clock(0, resolution)` keeps
+the denominator it was given, so what turns up for it has to be a whole
+number of those. Nothing left to work a clock out from is refused too:
+an unsettled clock would have nothing lifted onto it, and the equations
+meant to tick would quietly stay continuous.
+
+Chapter 16 is complete.
 
 **State machines** (ch. 17) are built on the clock: states are block
 instances, `initialState` and `transition` declare the graph, and

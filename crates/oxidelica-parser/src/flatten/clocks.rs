@@ -146,6 +146,20 @@ pub(super) enum Root {
     /// number is what `interval` answers at the first tick, there being
     /// no earlier tick to measure back to.
     When(Expr, f64),
+    /// A clock the model has left for the compiler to work out:
+    /// `Clock()`, or a `subSample` with no factor. It is not a clock
+    /// yet - it is a place where one has to turn up.
+    Waiting {
+        /// The clock this one is sampled from, where there is one.
+        /// `Clock()` has none: nothing at all is known about it.
+        base: Option<usize>,
+        /// Whether the missing factor makes it faster or slower.
+        faster: bool,
+        /// What the interval found for it must be a whole number of
+        /// parts of: `Clock(0, 5)` says one over five. `Clock()` says
+        /// nothing about it and leaves this at zero.
+        resolution: i64,
+    },
 }
 
 /// A clock as the compiler keeps it: a root, and this clock's ticks as
@@ -195,7 +209,7 @@ impl ClockSpec {
     fn interval(&self) -> Option<f64> {
         match &self.root {
             Root::Every(period) => Some(period * self.rate.value()),
-            Root::When(..) => None,
+            Root::When(..) | Root::Waiting { .. } => None,
         }
     }
 
@@ -203,7 +217,7 @@ impl ClockSpec {
     fn first(&self) -> Option<f64> {
         match &self.root {
             Root::Every(period) => Some(period * self.shift.value()),
-            Root::When(..) => None,
+            Root::When(..) | Root::Waiting { .. } => None,
         }
     }
 
@@ -215,9 +229,23 @@ impl ClockSpec {
 
     /// How to name this clock in a message.
     fn describe(&self) -> String {
-        match self.interval() {
-            Some(interval) => format!("every {interval}"),
-            None => "on an event".to_string(),
+        match (&self.root, self.interval()) {
+            (_, Some(interval)) => format!("every {interval}"),
+            (Root::Waiting { .. }, _) => "at a rate nothing has said yet".to_string(),
+            _ => "on an event".to_string(),
+        }
+    }
+
+    /// Whether this is a place where a clock has to turn up rather than
+    /// a clock.
+    fn waiting(&self) -> Option<(Option<usize>, bool, i64)> {
+        match self.root {
+            Root::Waiting {
+                base,
+                faster,
+                resolution,
+            } => Some((base, faster, resolution)),
+            _ => None,
         }
     }
 
@@ -245,6 +273,9 @@ impl ClockSpec {
                     && self.rate == other.rate
                     && self.shift == other.shift
             }
+            // A clock still waiting to be worked out is not the same as
+            // anything, itself included: two places where a clock has
+            // to turn up may want different clocks.
             _ => false,
         };
         roots && self.solver == other.solver
@@ -306,6 +337,10 @@ impl ClockSpec {
                 "`{operator}` asks where a tick falls between two others, and an event \
                  clock has no answer - only `subSample`, which counts them, applies to one"
             )),
+            Root::Waiting { .. } => Err(format!(
+                "`{operator}` is asked of a clock that is itself still to be worked out, \
+                 and one unknown cannot be measured against another"
+            )),
         }
     }
 }
@@ -331,6 +366,28 @@ impl Clocks {
                 self.specs.len() - 1
             }
         }
+    }
+
+    /// A place where a clock has to turn up, which is never the same
+    /// place twice - so it goes in without being looked for.
+    fn waiting(&mut self, base: Option<usize>, faster: bool, resolution: i64) -> usize {
+        self.specs.push(ClockSpec {
+            root: Root::Waiting {
+                base,
+                faster,
+                resolution,
+            },
+            rate: Ratio::ONE,
+            shift: Ratio::ZERO,
+            solver: None,
+        });
+        self.specs.len() - 1
+    }
+
+    /// Put a clock where a place waiting for one was, so that everything
+    /// pointing at that place sees the clock at once.
+    fn settle(&mut self, index: usize, spec: ClockSpec) {
+        self.specs[index] = spec;
     }
 
     fn spec(&self, index: usize) -> &ClockSpec {
@@ -465,7 +522,7 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 &parameters,
                 &mut found,
             )?;
-            if let Some(clock) = one_clock(&found, &clocks, &target)? {
+            if let Some(clock) = one_clock(&found, &mut clocks, &target)? {
                 // A derivative joins a clock only where the clock says
                 // how to step it across a tick. On any other it stays
                 // continuous, and reading a clocked value from it is
@@ -479,6 +536,21 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         }
         if settled {
             break;
+        }
+    }
+
+    // A clock left for the compiler to work out has to have met a known
+    // one by now. Letting an unsettled one through would be worse than
+    // refusing it: nothing would be lifted onto it, and the equations
+    // that were meant to tick would quietly stay continuous.
+    for name in &declared {
+        let index = clocks.by_name(name).expect("every one was checked above");
+        if clocks.spec(index).waiting().is_some() {
+            return Err(format!(
+                "nothing in this model says how often `{name}` ticks - a clock written as \
+                 `Clock()` takes its rate from an equation where it meets a clock that has \
+                 one"
+            ));
         }
     }
 
@@ -606,6 +678,16 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 ],
             ),
             Root::When(condition, _) => condition.clone(),
+            Root::Waiting { .. } => {
+                return Err(format!(
+                    "nothing in this model says how often `{}` ticks - a clock left for the \
+                     compiler to work out has to meet a known one somewhere in an equation",
+                    actions
+                        .first()
+                        .map(|(target, _)| target.as_str())
+                        .unwrap_or("it")
+                ))
+            }
         };
         if spec.interval().is_none() && spec.every_nth() > 1 {
             let skipped = format!("$every{clock}");
@@ -725,16 +807,17 @@ fn whole_argument(
     expr: &Expr,
     parameters: &HashMap<String, f64>,
     what: &str,
+    least: i64,
 ) -> Result<i64, String> {
     let Some(value) = const_eval(expr, parameters) else {
         return Err(format!(
             "the {what} of a clock operator has to be a number the compiler can work out"
         ));
     };
-    if value.fract() != 0.0 || value < 1.0 || value > MAX_FACTOR as f64 {
+    if value.fract() != 0.0 || value < least as f64 || value > MAX_FACTOR as f64 {
         return Err(format!(
             "the {what} of a clock operator has to be a whole number \
-             between 1 and {MAX_FACTOR}, not {value}"
+             between {least} and {MAX_FACTOR}, not {value}"
         ));
     }
     Ok(value as i64)
@@ -756,7 +839,13 @@ pub(super) fn clock_expr(
     };
     match (name.as_str(), args.len()) {
         // `Clock(0.1)` says its interval in seconds.
+        // `Clock()` says only that there is a clock here, and leaves
+        // working out which to whatever else the model says.
+        ("Clock", 0) => Ok(Some(clocks.waiting(None, false, 0))),
         ("Clock", 1) => Ok(Some(match const_eval(&args[0], parameters) {
+            // A nought here is the fraction form with the denominator
+            // left out, which is one - not an interval of no time.
+            Some(0.0) => clocks.waiting(None, false, 1),
             Some(interval) => clocks.intern(ClockSpec::every(interval)),
             None => clocks.intern(ClockSpec::when(args[0].clone(), 0.0)),
         })),
@@ -802,11 +891,16 @@ pub(super) fn clock_expr(
         }
         ("Clock", 2) => Ok(Some(match const_eval(&args[0], parameters) {
             // `Clock(1, 10)` says the interval as a fraction, which is
-            // how a model asks for a rate no decimal writes exactly.
+            // how a model asks for a rate no decimal writes exactly -
+            // and `Clock(0, 10)` says the numerator is for the compiler
+            // to find.
             Some(_) => {
-                let counter = whole_argument(&args[0], parameters, "interval counter")?;
-                let resolution = whole_argument(&args[1], parameters, "resolution")?;
-                clocks.intern(ClockSpec::every(counter as f64 / resolution as f64))
+                let counter = whole_argument(&args[0], parameters, "interval counter", 0)?;
+                let resolution = whole_argument(&args[1], parameters, "resolution", 1)?;
+                match counter {
+                    0 => clocks.waiting(None, false, resolution),
+                    _ => clocks.intern(ClockSpec::every(counter as f64 / resolution as f64)),
+                }
             }
             None => {
                 let Some(start) = const_eval(&args[1], parameters) else {
@@ -826,43 +920,51 @@ pub(super) fn clock_expr(
             let Some(base) = clock_expr(&args[0], clocks, parameters)? else {
                 return Ok(None);
             };
-            let spec = clocks.spec(base).clone();
-            Ok(Some(clocks.intern(derive(
-                &spec,
+            Ok(Some(derive(
+                clocks,
+                base,
                 name,
                 &args[1..],
                 takes_resolution,
                 parameters,
-            )?)))
+            )?))
         }
     }
 }
 
 /// One sub-clock conversion applied to a clock.
 fn derive(
-    base: &ClockSpec,
+    clocks: &mut Clocks,
+    base: usize,
     operator: &str,
     args: &[Expr],
     takes_resolution: bool,
     parameters: &HashMap<String, f64>,
-) -> Result<ClockSpec, String> {
-    if args.is_empty() {
-        return Err(format!(
-            "`{operator}` needs its factor spelled out: this compiler does not infer one"
-        ));
-    }
-    let counter = whole_argument(&args[0], parameters, "factor")?;
+) -> Result<usize, String> {
+    let shifting = operator == "shiftSample" || operator == "backSample";
+    // Zero means different things either side of that line, and both
+    // are allowed: no shift at all, or a sampling factor the model is
+    // leaving to the compiler - which is what leaving it out means too.
+    let counter = match args.first() {
+        Some(given) => whole_argument(given, parameters, "factor", 0)?,
+        None => 0,
+    };
     let resolution = match (takes_resolution, args.get(1)) {
-        (true, Some(given)) => whole_argument(given, parameters, "resolution")?,
+        (true, Some(given)) => whole_argument(given, parameters, "resolution", 1)?,
         _ => 1,
     };
-    match operator {
-        "subSample" => base.sub_sampled(counter),
-        "superSample" => base.super_sampled(counter),
-        "shiftSample" => base.shifted(counter, resolution, false),
-        "backSample" => base.shifted(counter, resolution, true),
-        _ => unreachable!("the caller matched the name against the same table"),
+    if !shifting && counter == 0 {
+        return Ok(clocks.waiting(Some(base), operator == "superSample", 1));
     }
+    let spec = clocks.spec(base).clone();
+    let derived = match operator {
+        "subSample" => spec.sub_sampled(counter),
+        "superSample" => spec.super_sampled(counter),
+        "shiftSample" => spec.shifted(counter, resolution, false),
+        "backSample" => spec.shifted(counter, resolution, true),
+        _ => unreachable!("the caller matched the name against the same table"),
+    }?;
+    Ok(clocks.intern(derived))
 }
 
 /// Every clock an expression puts its equation on.
@@ -922,9 +1024,14 @@ pub(super) fn clocks_touched(
                 }
             };
             for base in bases {
-                let spec = clocks.spec(base).clone();
-                let derived = derive(&spec, name, &args[1..], takes_resolution, parameters)?;
-                found.push(clocks.intern(derived));
+                found.push(derive(
+                    clocks,
+                    base,
+                    name,
+                    &args[1..],
+                    takes_resolution,
+                    parameters,
+                )?);
             }
             Ok(())
         }
@@ -961,13 +1068,22 @@ pub(super) fn clocks_touched(
 /// has a meaning for.
 pub(super) fn one_clock(
     found: &[usize],
-    clocks: &Clocks,
+    clocks: &mut Clocks,
     target: &str,
 ) -> Result<Option<usize>, String> {
-    let Some(first) = found.first().copied() else {
+    // A place waiting for a clock takes whichever the equation also
+    // names, which is the whole of the inference: an equation is on one
+    // clock, so where it names a known one beside a place waiting for
+    // one, the known one is the answer.
+    let settled: Vec<usize> = found
+        .iter()
+        .copied()
+        .filter(|clock| clocks.spec(*clock).waiting().is_none())
+        .collect();
+    let Some(first) = settled.first().copied() else {
         return Ok(None);
     };
-    if let Some(other) = found
+    if let Some(other) = settled
         .iter()
         .copied()
         .find(|clock| !clocks.spec(*clock).same(clocks.spec(first)))
@@ -980,7 +1096,86 @@ pub(super) fn one_clock(
             clocks.spec(other).describe()
         ));
     }
+    let pending: Vec<usize> = found
+        .iter()
+        .copied()
+        .filter(|clock| clocks.spec(*clock).waiting().is_some())
+        .collect();
+    for waiting in pending {
+        work_out(waiting, first, clocks, target)?;
+    }
     Ok(Some(first))
+}
+
+/// Put a clock where one was waiting, given what the same equation says
+/// it has to tick along with.
+///
+/// A bare `Clock()` simply becomes that clock. A `subSample` with no
+/// factor has to find the factor: the answer is however many of the
+/// base's ticks make one of the wanted clock's, and it counts only if
+/// sampling by it really does give that clock back.
+fn work_out(
+    waiting: usize,
+    wanted: usize,
+    clocks: &mut Clocks,
+    target: &str,
+) -> Result<(), String> {
+    let (base, faster, resolution) = clocks
+        .spec(waiting)
+        .waiting()
+        .expect("the caller filtered for one");
+    let Some(base) = base else {
+        let found = clocks.spec(wanted).clone();
+        // `Clock(0, 5)` leaves the numerator to the compiler but keeps
+        // the denominator, so whatever turns up has to be a whole
+        // number of fifths. A bare `Clock()` said no denominator and
+        // takes whatever it meets.
+        if let Some(interval) = found.interval() {
+            if resolution > 0 && (interval * resolution as f64).fract() != 0.0 {
+                return Err(format!(
+                    "`{target}` puts a clock ticking every {interval} where the model asked \
+                     for one counted in parts of one over {resolution}"
+                ));
+            }
+        }
+        clocks.settle(waiting, found);
+        return Ok(());
+    };
+    let operator = if faster { "superSample" } else { "subSample" };
+    let from = clocks.spec(base).clone();
+    let goal = clocks.spec(wanted).clone();
+    let (Some(theirs), Some(mine)) = (from.interval(), goal.interval()) else {
+        return Err(format!(
+            "the factor of the `{operator}` in `{target}` is left for the compiler to find, \
+             and a clock ticking on an event gives it nothing to count"
+        ));
+    };
+    let ratio = if faster { theirs / mine } else { mine / theirs };
+    let nowhere = || {
+        format!(
+            "the factor of the `{operator}` in `{target}` is left for the compiler to find, \
+             and no whole number is it: sampling {} to tick {} would take a factor of {ratio}",
+            from.describe(),
+            goal.describe()
+        )
+    };
+    if !(1.0..=MAX_FACTOR as f64).contains(&ratio) {
+        return Err(nowhere());
+    }
+    let rounded = ratio.round();
+    let candidate = if faster {
+        from.super_sampled(rounded as i64)?
+    } else {
+        from.sub_sampled(rounded as i64)?
+    };
+    // Working the answer back out is the test, not the division: the
+    // factor has to give this clock exactly, and a ratio that only
+    // rounds to a whole number gives a different clock.
+    if !candidate.same(&goal) {
+        return Err(nowhere());
+    }
+    clocks.settle(waiting, candidate);
+    Ok(())
 }
 
 /// Put the partitions in an order where one that reads another's

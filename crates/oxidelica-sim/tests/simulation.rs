@@ -1530,6 +1530,40 @@ fn a_clock_carrying_a_solver_steps_its_own_derivative() {
 }
 
 #[test]
+fn a_clock_left_unsaid_runs_like_the_one_written_out() {
+    // The same model four ways: the slow clock and the sampling factor
+    // each written out or left for the compiler. Inference is only
+    // worth having if it lands on the clock the model would have
+    // spelled, so the test is that all four agree to the last bit.
+    let reached = |slow: &str, sampled: &str| {
+        let result = run(&format!(
+            "model M Clock fast = Clock(1, 10); Clock slow = {slow}; \
+             Real a; Real b; Real out; \
+             equation a = previous(a) + interval(fast); \
+             b = {sampled} + interval(slow); out = hold(b); \
+             annotation(experiment(StopTime = 0.6, Interval = 0.6)); end M;"
+        ));
+        let index = result.columns.iter().position(|c| c == "out").unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    // The fast clock ticks seven times by 0.6 and the slow one four, so
+    // `a` reads 0.7 and `b` is that plus one of the slow clock's 0.2s.
+    let written_out = reached("Clock(1, 5)", "subSample(a, 2)");
+    assert!((written_out - 0.9).abs() < 1e-12, "{written_out}");
+    for (slow, sampled) in [
+        ("Clock()", "subSample(a, 2)"),
+        ("Clock(1, 5)", "subSample(a)"),
+        ("Clock()", "subSample(a, 2)"),
+    ] {
+        assert_eq!(
+            reached(slow, sampled).to_bits(),
+            written_out.to_bits(),
+            "{slow} / {sampled}"
+        );
+    }
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_walks_its_events() {
     // No `der` anywhere: there is no step to take, so the solver walks
     // from one scheduled instant to the next output point and back,
