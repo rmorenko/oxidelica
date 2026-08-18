@@ -1398,6 +1398,96 @@ fn a_clock_reaches_through_every_kind_of_expression() {
     assert!(!format!("{:?}", m.equations).contains("hold"));
 }
 
+/// When each `when` clause of a flat model ticks: the start and the
+/// interval the clock was lowered onto.
+fn ticks_of(m: &oxidelica_parser::Model) -> Vec<(f64, f64)> {
+    m.when_clauses
+        .iter()
+        .map(|clause| match &clause.branches[0].condition {
+            Expr::Call(name, args) if name == "sample" && args.len() == 2 => {
+                match (&args[0], &args[1]) {
+                    (Expr::Number(start), Expr::Number(interval)) => (*start, *interval),
+                    other => panic!("a clock ticks on two numbers, not {other:?}"),
+                }
+            }
+            other => panic!("not lowered onto a clock: {other:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn one_clock_is_derived_from_another_by_exact_fractions() {
+    // Five clocks written down, but only three of them are clocks: the
+    // shift undone by `backSample` and the round trip through
+    // `superSample` and `subSample` both land back on `base`, which is
+    // the whole reason the rates are kept as fractions. In seconds,
+    // `0.1 / 3 * 3` is not `0.1`, and the two would drift apart.
+    let m = parse_model(
+        "model M Clock base = Clock(1, 10); \
+         Clock fast = superSample(base, 2); \
+         Clock late = shiftSample(base, 1, 4); \
+         Clock back = backSample(late, 1, 4); \
+         Clock round = subSample(superSample(base, 3), 3); \
+         Real b; Real f; Real l; Real k; Real r; Real out; \
+         equation b = previous(b) + interval(base); \
+         f = previous(f) + interval(fast); \
+         l = previous(l) + interval(late); \
+         k = previous(k) + interval(back); \
+         r = previous(r) + interval(round); \
+         out = hold(b) + hold(f) + hold(l) + hold(k) + hold(r); end M;",
+    )
+    .unwrap();
+    let mut ticks = ticks_of(&m);
+    ticks.sort_by(|a, b| a.partial_cmp(b).expect("no clock ticks on a NaN"));
+    assert_eq!(ticks, vec![(0.0, 0.05), (0.0, 0.1), (0.025, 0.1)]);
+    // `b`, `k` and `r` share a clock, so they share a `when`.
+    let together = m
+        .when_clauses
+        .iter()
+        .find(|clause| {
+            matches!(&clause.branches[0].condition,
+                Expr::Call(_, args) if args[0] == Expr::Number(0.0) && args[1] == Expr::Number(0.1))
+        })
+        .expect("the base clock is one of them");
+    assert_eq!(together.branches[0].actions.len(), 3);
+
+    // A clock the model names only through the operators works the
+    // same way: the equation lands on the derived clock, not on the one
+    // its argument was written on.
+    let m = parse_model(
+        "model M Clock base = Clock(0.1); Real u; Real s; Real slow; Real out; \
+         equation u = time; s = sample(u, base); slow = subSample(s, 4) + 1; \
+         out = hold(slow); end M;",
+    )
+    .unwrap();
+    let mut ticks = ticks_of(&m);
+    ticks.sort_by(|a, b| a.partial_cmp(b).expect("no clock ticks on a NaN"));
+    assert_eq!(ticks, vec![(0.0, 0.1), (0.0, 0.4)]);
+}
+
+#[test]
+fn first_tick_is_answered_from_a_counter_the_partition_keeps() {
+    // A clock has no way of telling its first activation from its
+    // hundredth, so the partition counts, and `firstTick` reads the
+    // count. The counter has to be raised before anything asks.
+    let m = parse_model(
+        "model M Clock c = Clock(0.1); Real n; Real out; \
+         equation n = if firstTick() then 0 else previous(n) + interval(c); \
+         out = hold(n); end M;",
+    )
+    .unwrap();
+    let actions = &m.when_clauses[0].branches[0].actions;
+    assert_eq!(actions.len(), 2);
+    assert!(format!("{:?}", actions[0]).contains("$tick"));
+    assert!(!format!("{:?}", actions[1]).contains("firstTick"));
+    let counter = m
+        .components
+        .iter()
+        .find(|component| component.name.starts_with("$tick"))
+        .expect("the partition keeps one");
+    assert_eq!(counter.variability, oxidelica_parser::Variability::Discrete);
+}
+
 #[test]
 fn clock_error_paths() {
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
@@ -1436,6 +1526,57 @@ fn clock_error_paths() {
     assert!(err("model M Clock c = Clock(0.1); Real u; Real a; Real b; \
          equation u = time; a = sample(u, c) + b; b = a + 1; end M;")
     .contains("in a circle"));
+
+    // A value belongs to one clock. Reaching across two without saying
+    // how they meet is not an equation this language has a meaning for.
+    assert!(err(
+        "model M Clock base = Clock(0.1); Clock slow = subSample(base, 2); \
+         Real u; Real v; Real out; equation u = previous(u) + interval(base); \
+         v = u + interval(slow); out = hold(v); end M;"
+    )
+    .contains("two clocks at once"));
+    // Two partitions that need each other within one tick leave no
+    // order to compute them in.
+    assert!(err(
+        "model M Clock base = Clock(0.1); Clock slow = subSample(base, 2); \
+         Real u; Real v; Real out; \
+         equation u = superSample(v, 2) + interval(base); \
+         v = subSample(u, 2) + interval(slow); out = hold(u) + hold(v); end M;"
+    )
+    .contains("leaves no order"));
+    // A clock cannot start before the run does.
+    assert!(err(
+        "model M Clock base = Clock(0.1); Clock early = backSample(base, 1, 2); \
+         Real u; Real out; equation u = previous(u) + interval(early); \
+         out = hold(u); end M;"
+    )
+    .contains("before the start of the run"));
+    // The factors are counted, so they are whole numbers, and small
+    // enough that the exact arithmetic can hold what they multiply to.
+    assert!(err(
+        "model M Clock base = Clock(0.1); Clock odd = subSample(base, 2.5); \
+         Real u; Real out; equation u = previous(u) + interval(odd); \
+         out = hold(u); end M;"
+    )
+    .contains("whole number between 1 and"));
+    assert!(err("model M Clock base = Clock(0.1); \
+         Clock huge = superSample(superSample(superSample(base, 999999), 999999), 999999); \
+         Clock worse = superSample(superSample(huge, 999999), 999999); \
+         Real u; Real out; equation u = previous(u) + interval(worse); \
+         out = hold(u); end M;")
+    .contains("too large to keep exactly"));
+    // `Clock(counter, resolution)` is counted the same way.
+    assert!(
+        err("model M Clock c = Clock(1, 0); Real y; equation y = 1; end M;")
+            .contains("whole number between 1 and")
+    );
+    // A sub-clock conversion this compiler will not guess a factor for.
+    assert!(err(
+        "model M Clock base = Clock(0.1); Real u; Real v; Real out; \
+         equation u = previous(u) + interval(base); v = subSample(u); \
+         out = hold(v); end M;"
+    )
+    .contains("does not infer one"));
 }
 
 #[test]

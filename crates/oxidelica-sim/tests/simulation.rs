@@ -1344,6 +1344,72 @@ fn every_solver_stops_when_the_model_says_to() {
 }
 
 #[test]
+fn clocks_derived_from_one_another_tick_where_the_fractions_put_them() {
+    // Three rates and a phase off the grid, all counted from one root.
+    // Each variable adds its own interval at each of its ticks, so its
+    // value is a reading of how many times its clock has fired.
+    let result = run("model M Clock base = Clock(1, 10); \
+         Clock fast = superSample(base, 2); \
+         Clock late = shiftSample(base, 1, 4); \
+         Clock slow = subSample(base, 2); \
+         Real b; Real f; Real l; Real s; \
+         Real hb; Real hf; Real hl; Real hs; \
+         equation b = previous(b) + interval(base); \
+         f = previous(f) + interval(fast); \
+         l = previous(l) + interval(late); \
+         s = previous(s) + interval(slow); \
+         hb = hold(b); hf = hold(f); hl = hold(l); hs = hold(s); \
+         annotation(experiment(StopTime = 0.4, Interval = 0.4)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // Counting the ticks in [0, 0.4], the first one at t = 0 included:
+    // the base fires 5 times adding 0.1, the fast clock 9 times adding
+    // 0.05, the shifted one at 0.025 and every 0.1 after - 4 times
+    // adding 0.1 - and the slow one at 0, 0.2 and 0.4 adding 0.2.
+    for (name, expected) in [("hb", 0.5), ("hf", 0.45), ("hl", 0.4), ("hs", 0.6)] {
+        assert!(
+            (last[index(name)] - expected).abs() < 1e-12,
+            "{name} = {}, not {expected}",
+            last[index(name)]
+        );
+    }
+}
+
+#[test]
+fn a_partition_sees_this_tick_of_the_one_it_reads() {
+    // Two clocks that tick together at t = 0, 0.2, 0.4. The slow
+    // partition reads the fast one, so it has to run second - a `when`
+    // branch fires once per event, and one placed first would take the
+    // value from the tick before. `noClock` is the same read with the
+    // clock left to be inferred from elsewhere.
+    let result = run(
+        "model M Clock base = Clock(0.1); Clock slow = subSample(base, 2); \
+         Real u; Real v; Real w; Real hv; Real hw; \
+         equation u = previous(u) + interval(base); \
+         v = subSample(u, 2) + interval(slow); \
+         w = noClock(u) + interval(slow); \
+         hv = hold(v); hw = hold(w); \
+         annotation(experiment(StopTime = 0.2, Interval = 0.2)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // At t = 0.2 the base has ticked three times, so u is 0.3, and both
+    // readers see that rather than the 0.1 left from t = 0.
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[index("u")] - 0.3).abs() < 1e-12,
+        "{}",
+        last[index("u")]
+    );
+    for name in ["hv", "hw"] {
+        assert!(
+            (last[index(name)] - 0.5).abs() < 1e-12,
+            "{name} = {}",
+            last[index(name)]
+        );
+    }
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_walks_its_events() {
     // No `der` anywhere: there is no step to take, so the solver walks
     // from one scheduled instant to the next output point and back,
