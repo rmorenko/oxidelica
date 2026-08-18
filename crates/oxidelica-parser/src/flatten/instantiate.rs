@@ -653,10 +653,12 @@ pub(super) fn instantiate(
         }
         let mut bindings: HashMap<String, Expr> = HashMap::new();
         let mut assigned: Vec<String> = Vec::new();
+        let mut section_asserts: Vec<(Expr, String)> = Vec::new();
         match execute(
             &plain,
             &mut bindings,
             &mut assigned,
+            &mut section_asserts,
             &local_consts,
             &sizes,
             registry,
@@ -670,6 +672,11 @@ pub(super) fn instantiate(
             Flow::Return => {
                 return Err("`return` belongs in a function, not a model algorithm".to_string())
             }
+        }
+        // Checks written among the statements are checks of the model,
+        // and carry its prefix like everything else it says.
+        for (condition, message) in section_asserts {
+            acc.asserts.push((resolve_here(&condition)?, message));
         }
         for name in assigned {
             let value = bindings
@@ -1026,6 +1033,109 @@ fn array_element(value: &Expr, position: usize, count: usize) -> Expr {
     }
 }
 
+/// The values a loop variable takes, from whatever the range expanded
+/// to. A range, a set and an array all expand to the same thing - the
+/// values, in order - so there is nothing to tell apart here.
+pub(super) fn loop_values(
+    spread: &Value,
+    env: &HashMap<String, f64>,
+    variable: &str,
+) -> Result<Vec<f64>, String> {
+    let Value::Array(items) = spread else {
+        return Err(format!(
+            "`{variable}` needs something to run over - a range, a set or an array - and \
+             a single value is not one"
+        ));
+    };
+    items
+        .iter()
+        .map(|item| {
+            let expr = item.clone().scalar()?;
+            const_eval(&expr, env).ok_or_else(|| {
+                format!("`{variable}` runs over values the compiler cannot work out: {expr:?}")
+            })
+        })
+        .collect()
+}
+
+/// What `for i loop` runs over, which the body has to say: the size of
+/// the array along the dimension `i` is used to subscript.
+pub(super) fn implied_range(
+    body: &[ForBody],
+    variable: &str,
+    prefix: &str,
+    outers: &HashMap<String, String>,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Result<Vec<f64>, String> {
+    let mut found = None;
+    for item in body {
+        let mut look = |expr: &Expr| {
+            if found.is_none() {
+                found = subscript_extent(&prefix_expr(expr, prefix, outers), variable, sizes);
+            }
+        };
+        match item {
+            ForBody::Equation(equation) => {
+                look(&equation.lhs);
+                look(&equation.rhs);
+            }
+            ForBody::Connect(a, b) => {
+                look(a);
+                look(b);
+            }
+            ForBody::Nested(inner) => {
+                if found.is_none() {
+                    found = implied_range(&inner.body, variable, prefix, outers, sizes)
+                        .ok()
+                        .map(|values| values.len() as i64);
+                }
+            }
+        }
+    }
+    let Some(extent) = found else {
+        return Err(format!(
+            "`for {variable} loop` leaves the range to the body, and nothing in the body \
+             uses `{variable}` to subscript an array of a length the compiler knows"
+        ));
+    };
+    Ok((1..=extent).map(|index| index as f64).collect())
+}
+
+/// How long an array is along the dimension a name is used to subscript
+/// it by, looking through a whole expression for the first such use.
+pub(super) fn subscript_extent(
+    expr: &Expr,
+    variable: &str,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Option<i64> {
+    let recur = |inner: &Expr| subscript_extent(inner, variable, sizes);
+    match expr {
+        Expr::Index(base, subscripts) => {
+            if let Expr::Ref(name) = base.as_ref() {
+                if let Some(shape) = sizes.get(name) {
+                    let along = subscripts.iter().position(
+                        |subscript| matches!(subscript, Expr::Ref(used) if used == variable),
+                    );
+                    if let Some(dimension) = along.and_then(|at| shape.get(at)) {
+                        return Some(*dimension);
+                    }
+                }
+            }
+            recur(base).or_else(|| subscripts.iter().find_map(recur))
+        }
+        Expr::Call(_, args) | Expr::Array(args) => args.iter().find_map(recur),
+        Expr::Neg(inner) | Expr::Not(inner) | Expr::Member(inner, _) => recur(inner),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => recur(l).or_else(|| recur(r)),
+        Expr::If(c, t, e) => recur(c).or_else(|| recur(t)).or_else(|| recur(e)),
+        Expr::MatrixRows(rows) => rows.iter().find_map(|row| row.iter().find_map(recur)),
+        _ => None,
+    }
+}
+
 /// Unroll a `for` equation, recursing into nested loops. The loop
 /// variable is a compile-time constant, so the body is emitted once per
 /// value with every subscript already resolved.
@@ -1056,37 +1166,35 @@ pub(super) fn unroll(
         )
         .collect();
     let consts = &consts;
-    let bound = |expr: &Expr| -> Result<i64, String> {
-        let mut env = consts.clone();
-        env.extend(outer_vars.iter().map(|(k, v)| (k.clone(), *v)));
-        // A bound may ask an array how long it is, so it goes through
-        // the same expansion as everything else before being folded.
-        let shapes = Shapes {
-            sizes,
-            loop_vars: outer_vars,
-            consts,
-            records: no_records(),
-        };
-        let expr = &expand(
-            &prefix_expr(expr, prefix, outers),
-            &shapes,
-            registry,
-            scope,
-            imports,
-            0,
-        )?
-        .scalar()?;
-        let value = const_eval(expr, &env)
-            .ok_or_else(|| format!("loop bound is not a compile-time constant: {expr:?}"))?;
-        if value.fract() != 0.0 {
-            return Err(format!("loop bound must be a whole number, got {value}"));
+    let values = match &loop_eq.range {
+        Some(range) => {
+            let mut env = consts.clone();
+            env.extend(outer_vars.iter().map(|(k, v)| (k.clone(), *v)));
+            // A range may ask an array how long it is, so it goes
+            // through the same expansion as everything else - which is
+            // also what turns `1:n`, `{1, 3, 5}` and the name of an
+            // array into one thing: the values, in order.
+            let shapes = Shapes {
+                sizes,
+                loop_vars: outer_vars,
+                consts,
+                records: no_records(),
+            };
+            let spread = expand(
+                &prefix_expr(range, prefix, outers),
+                &shapes,
+                registry,
+                scope,
+                imports,
+                0,
+            )?;
+            loop_values(&spread, &env, &loop_eq.variable)?
         }
-        Ok(value as i64)
+        None => implied_range(&loop_eq.body, &loop_eq.variable, prefix, outers, sizes)?,
     };
-    let (lower, upper) = (bound(&loop_eq.range.0)?, bound(&loop_eq.range.1)?);
-    for index in lower..=upper {
+    for index in values {
         let mut loop_vars = outer_vars.clone();
-        loop_vars.insert(loop_eq.variable.clone(), index as f64);
+        loop_vars.insert(loop_eq.variable.clone(), index);
         // The loop variable is a compile-time number, not a component,
         // and it is folded in before anything is prefixed: prefixing
         // reaches into subscripts too, and `x[i]` inside a component

@@ -172,8 +172,9 @@ pub enum Statement {
     TupleAssign(Vec<Option<String>>, Expr),
     /// `if c then … elseif … else … end if;`
     If(Vec<StatementBranch>),
-    /// `for i in lo:hi loop … end for;`
-    For(String, (Expr, Expr), Vec<Statement>),
+    /// `for i in lo:hi loop … end for;` — the range is whatever the
+    /// values are, and `None` where the loop left it to the body.
+    For(String, Option<Expr>, Vec<Statement>),
     /// `while c loop … end while;` — executed at compile time, so the
     /// condition must be decidable there, each round.
     While(Expr, Vec<Statement>),
@@ -184,6 +185,9 @@ pub enum Statement {
     /// `when c then … elsewhen … end when;` among the statements: what
     /// it holds happens at an event and nowhere else.
     When(Vec<StatementBranch>),
+    /// `assert(condition, "message");` — a check written where the
+    /// statements are rather than among the equations.
+    Assert(Expr, String),
 }
 
 /// The kind of a class definition.
@@ -332,8 +336,10 @@ pub enum ForBody {
 pub struct ForEquation {
     /// The loop variable, visible inside the body.
     pub variable: String,
-    /// Inclusive range bounds; both must be constant at compile time.
-    pub range: (Expr, Expr),
+    /// What the variable runs over: a range, a set, an array - anything
+    /// the compiler can work out the values of. `None` where the loop
+    /// left it for the body to say.
+    pub range: Option<Expr>,
     /// Equations and nested loops of the body.
     pub body: Vec<ForBody>,
 }

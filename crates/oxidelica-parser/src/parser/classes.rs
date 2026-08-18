@@ -283,21 +283,7 @@ impl Parser {
                 // it is accepted and not distinguished.
                 Token::Ident(name) if in_equations && name == "assert" => {
                     self.bump();
-                    self.expect(&Token::LParen, "parenthesis after assert")?;
-                    let condition = self.expr()?;
-                    self.expect(&Token::Comma, "comma before the assert message")?;
-                    let message = match self.bump() {
-                        Token::Str(message) => message,
-                        other => {
-                            return Err(self
-                                .err(format!("assert expects a string message, found `{other}`")))
-                        }
-                    };
-                    if self.peek() == &Token::Comma {
-                        self.bump();
-                        self.dotted_name("assertion level")?;
-                    }
-                    self.expect(&Token::RParen, "closing parenthesis of assert")?;
+                    let (condition, message) = self.assert_arguments()?;
                     if self.peek() == &Token::Annotation {
                         self.annotation_body(&mut Experiment::default())?;
                     }

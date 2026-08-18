@@ -3,12 +3,65 @@
 use super::*;
 
 impl Parser {
+    /// `(condition, "message")` after the word `assert`, wherever it
+    /// was written. An optional third argument names the assertion
+    /// level; it is accepted and not distinguished.
+    pub(super) fn assert_arguments(&mut self) -> Result<(Expr, String), ParseError> {
+        self.expect(&Token::LParen, "parenthesis after assert")?;
+        let condition = self.expr()?;
+        self.expect(&Token::Comma, "comma before the assert message")?;
+        let message = match self.bump() {
+            Token::Str(message) => message,
+            other => {
+                return Err(self.err(format!("assert expects a string message, found `{other}`")))
+            }
+        };
+        if self.peek() == &Token::Comma {
+            self.bump();
+            self.dotted_name("assertion level")?;
+        }
+        self.expect(&Token::RParen, "closing parenthesis of assert")?;
+        Ok((condition, message))
+    }
+
     /// An algorithm section: assignments, `if` and `for` statements, up
     /// to whatever ends the section.
     pub(super) fn statements(&mut self) -> Result<Vec<Statement>, ParseError> {
         let mut out = Vec::new();
         loop {
             match self.peek() {
+                // A name followed by a parenthesis is a call standing on
+                // its own, not something being assigned to.
+                Token::Ident(name) if self.peek_at(1) == &Token::LParen => {
+                    let called = name.clone();
+                    self.bump();
+                    match called.as_str() {
+                        // Inside a loop this is one check per round,
+                        // with the loop variable already folded in.
+                        "assert" => {
+                            let (condition, message) = self.assert_arguments()?;
+                            self.expect(&Token::Semi, "semicolon after assert")?;
+                            out.push(Statement::Assert(condition, message));
+                        }
+                        "terminate" => {
+                            return Err(self.err(
+                                "`terminate` among the statements would end the run the moment \
+                                 the section is reached; it belongs in a `when`"
+                                    .to_string(),
+                            ))
+                        }
+                        // Every function here is pure, so a call whose
+                        // outputs go nowhere cannot do anything, and
+                        // writing one is a mistake rather than an intent.
+                        _ => {
+                            return Err(self.err(format!(
+                                "`{called}(...)` on its own does nothing: a function here has \
+                                 no way to act but through its outputs, so its answer has to \
+                                 go somewhere"
+                            )))
+                        }
+                    }
+                }
                 Token::Ident(_) => {
                     let target = self.component_ref()?;
                     // `c[i] := ...` assigns one element of an array.
@@ -163,26 +216,30 @@ impl Parser {
         Ok(Statement::If(branches))
     }
 
-    /// `for i in lo:hi loop … end for;` inside an algorithm.
+    /// `for <indices> loop … end for;` inside an algorithm. Several
+    /// indices nest, the same way they do among equations.
     pub(super) fn for_statement(&mut self) -> Result<Statement, ParseError> {
         self.expect(&Token::For, "for")?;
-        let variable = self.ident("loop variable")?;
-        self.expect(&Token::In, "in after the loop variable")?;
-        let Expr::Range(lower, step, upper) = self.expr()? else {
-            return Err(self.err("a loop needs a range: `for i in 1:n`".into()));
-        };
-        if step.is_some() {
-            return Err(self.err("a loop range with a step is not supported yet".into()));
-        }
-        let (lower, upper) = (*lower, *upper);
+        let indices = self.for_indices()?;
         self.expect(&Token::Loop, "loop after the range")?;
-        let body = self.statements()?;
+        let mut body = self.statements()?;
         self.expect(&Token::End, "end for")?;
         self.expect(&Token::For, "for after end")?;
         self.expect(&Token::Semi, "semicolon after end for")?;
         if body.is_empty() {
             return Err(self.err("for statement has no body".into()));
         }
-        Ok(Statement::For(variable, (lower, upper), body))
+        let mut built: Option<Statement> = None;
+        for (variable, range) in indices.into_iter().rev() {
+            built = Some(Statement::For(
+                variable,
+                range,
+                match built {
+                    Some(inner) => vec![inner],
+                    None => std::mem::take(&mut body),
+                },
+            ));
+        }
+        Ok(built.expect("a loop has at least one index"))
     }
 }

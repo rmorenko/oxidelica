@@ -61,7 +61,11 @@ is how an ideal switch is written;
 call arguments (`f(x, precision = 6)`); algorithm
 sections in models and functions with `:=`, `if`, `for`, and `while`
 with `break` and `return` where the compiler can decide the
-conditions; arrays as
+conditions — a loop runs over a range, a stepped range, a set or an
+array alike, takes several indices at once (`for i in 1:2, j in 1:3`),
+and takes none at all (`for i loop`), reading the range off the array
+the body subscripts by it; `assert` may be written among the statements
+of a model, where inside a loop it is one check per round; arrays as
 values (literals, empty ones, flexible sizes read from the value a component or a function input
 is given, with results shaped by `size(v, 1)`, ranges, slicing with `end`,
 comprehensions,

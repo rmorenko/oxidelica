@@ -344,11 +344,11 @@ mod tests {
     fn equations_are_refused_when_they_do_not_make_sense() {
         assert!(
             refused("model M Real y; equation for i loop y = 1; end for; end M;")
-                .contains("in after the loop variable")
+                .contains("nothing in the body uses `i` to subscript")
         );
         assert!(
             refused("model M Real y; equation for i in 3 loop y = 1; end for; end M;")
-                .contains("a loop needs a range")
+                .contains("a range, a set or an array")
         );
         assert!(refused("model M Real y; equation for i in 1:2 loop y = 1;")
             .contains("unterminated for equation"));
@@ -385,16 +385,18 @@ mod tests {
         );
         assert!(
             refused("model M Real y; algorithm for i loop y := 1; end for; end M;")
-                .contains("in after the loop variable")
+                .contains("nothing in the body uses `i` to subscript")
         );
         assert!(
             refused("model M Real y; algorithm for i in 3 loop y := 1; end for; end M;")
-                .contains("a loop needs a range")
+                .contains("a range, a set or an array")
         );
-        assert!(
-            refused("model M Real y; algorithm for i in 1:2:9 loop y := 1; end for; end M;")
-                .contains("a loop range with a step")
-        );
+        // A range with a step is a range like any other; it used to be
+        // refused here, and now runs over 1, 3, 5, 7, 9.
+        assert!(parse_model(
+            "model M Real y; algorithm for i in 1:2:9 loop y := 1; end for; end M;"
+        )
+        .is_ok());
         // Annotations may follow an assignment or a tuple assignment.
         let m = parse_model(
             "function two output Real a; output Real b; algorithm a := 1; b := 2; end two; model M Real p; Real q; Real r; algorithm r := 3 annotation(x = 1); (p, q) := two() annotation(y = 2); end M;",

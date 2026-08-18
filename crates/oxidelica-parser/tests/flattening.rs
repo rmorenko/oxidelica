@@ -204,7 +204,7 @@ fn array_and_function_error_paths() {
     // A loop bound that is not constant.
     assert!(
         err("model M Real x; equation x = 1; for i in 1:x loop x = i; end for; end M;")
-            .contains("not a compile-time constant")
+            .contains("a range needs bounds the compiler can see")
     );
     // Functions: wrong arity, missing output, output never assigned.
     assert!(err(
@@ -1094,14 +1094,20 @@ fn the_rest_of_the_refusals_are_named_too() {
     // A `when` in an algorithm that holds something else.
     assert!(err("model M Real u; discrete Real c(start = 0); equation u = time; algorithm when u > 1 then for i in 1:2 loop c := 1; end for; end when; end M;")
         .contains("holds assignments"));
-    // Loop bounds that are not whole numbers.
-    assert!(
-        err("model M Real y; equation for i in 1:2.5 loop y = i; end for; end M;")
-            .contains("must be a whole number")
-    );
-    assert!(
-        err("model M Real y; algorithm for i in 1:2.5 loop y := i; end for; end M;")
-            .contains("must be a whole number")
+    // A range with a fractional end is still a range: `1:2.5` runs over
+    // 1 and 2, the way the range operator reads everywhere else. It was
+    // refused here once for not being whole, which was stricter than
+    // the language - so what it is refused for now is two equations for
+    // the one unknown.
+    let twice_over =
+        parse_model("model M Real y; equation for i in 1:2.5 loop y = i; end for; end M;").unwrap();
+    assert_eq!(twice_over.equations.len(), 2);
+    let twice =
+        parse_model("model M Real y; algorithm for i in 1:2.5 loop y := i; end for; end M;")
+            .unwrap();
+    assert_eq!(
+        format!("{:?}", twice.equations),
+        "[EquationItem { lhs: Ref(\"y\"), rhs: Number(2.0) }]"
     );
     // A tuple filled by something that is not a function.
     assert!(err(
@@ -1671,6 +1677,137 @@ fn a_solver_clock_turns_a_derivative_into_a_step() {
         .contains("does not know how long its next step is"));
     // The one-stage method needs no such guess, so it works there.
     assert!(parse_model(&event.replace("{}", "ExplicitEuler")).is_ok());
+}
+
+#[test]
+fn a_loop_runs_over_whatever_the_values_are() {
+    // A range, a set and an array are one thing to a loop: the values,
+    // in order. Two of these were refused outright before, and the
+    // third only in its plainest form.
+    let m = parse_model(
+        "model M Real y[5]; Real a[3]; Real m[2,3]; \
+         equation for i in {1, 3, 5} loop y[i] = i * 10; end for; \
+         for i in {2, 4} loop y[i] = -1; end for; \
+         for i loop a[i] = i * i; end for; \
+         for i in 1:2, j in 1:3 loop m[i,j] = i * 10 + j; end for; end M;",
+    )
+    .unwrap();
+    let defined: Vec<String> = m
+        .equations
+        .iter()
+        .map(|equation| format!("{:?}", equation.lhs))
+        .collect();
+    // The set says it: three loops written five different ways, and
+    // every element each one names comes out once. `for i loop` took
+    // its range from the array the body subscripts by `i`, and the two
+    // indices ran as two loops one inside the other.
+    for name in [
+        "y[1]", "y[3]", "y[5]", "y[2]", "y[4]", "a[1]", "a[2]", "a[3]", "m[1,1]", "m[1,3]",
+        "m[2,1]", "m[2,3]",
+    ] {
+        assert!(
+            defined.contains(&format!("Ref({name:?})")),
+            "{name} among {defined:?}"
+        );
+    }
+    assert_eq!(m.equations.len(), 5 + 3 + 6);
+
+    // The same four forms among the statements of a function.
+    let value = |body: &str| {
+        let m = parse_model(&format!(
+            "model M function f input Real x; output Real y; protected Real a[4]; \
+             algorithm {body} end f; Real y; equation y = f(2); end M;"
+        ))
+        .unwrap();
+        format!("{:?}", m.equations)
+    };
+    // Unrolling leaves the sum written out rather than added up, so
+    // what the loop ran over is read off the terms.
+    let over_the_set = value("y := 0; for i in {1, 3, 5} loop y := y + i; end for;");
+    for term in ["1.0", "3.0", "5.0"] {
+        assert!(over_the_set.contains(term), "{over_the_set}");
+    }
+    let stepped = value("y := 0; for i in 1:2:7 loop y := y + i; end for;");
+    assert!(
+        stepped.contains("7.0") && !stepped.contains("6.0"),
+        "{stepped}"
+    );
+    // `for i loop` among statements reads the range off the array the
+    // body assigns through it.
+    assert!(value("for i loop a[i] := i; end for; y := a[4];").contains("4.0"));
+
+    // The body may say the range from a `connect` rather than from an
+    // equation, and an outer loop may hear it from an inner one's body.
+    let m = parse_model(
+        "model M connector Pin Real v; flow Real i; end Pin; \
+         model Node Pin p; Real x; equation p.i = 0; x = p.v; end Node; \
+         Node n[3]; Pin bus; Real m[2,2]; \
+         equation for i loop connect(n[i].p, bus); end for; \
+         for i loop for j in 1:2 loop m[i,j] = i + j; end for; end for; \
+         bus.v = 5; end M;",
+    )
+    .unwrap();
+    assert!(m.components.iter().any(|c| c.name == "n[3].x"));
+    assert!(m
+        .equations
+        .iter()
+        .any(|equation| equation.lhs == Expr::Ref("m[2,2]".to_string())));
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // A loop runs over values, and one value is not values.
+    assert!(
+        err("model M Real y; equation for i in 3 loop y = 1; end for; end M;")
+            .contains("a range, a set or an array")
+    );
+    // And where the body is left to say the range, it has to say it.
+    for section in [
+        "equation for i loop y = 1; end for;",
+        "algorithm for i loop y := 1; end for;",
+    ] {
+        assert!(
+            err(&format!("model M Real y; {section} end M;"))
+                .contains("nothing in the body uses `i` to subscript"),
+            "{section}"
+        );
+    }
+}
+
+#[test]
+fn a_check_may_be_written_where_the_statements_are() {
+    // `assert` among the statements is a statement, and inside a loop
+    // it is one check per round with the loop variable folded in.
+    let m = parse_model(
+        "model M parameter Real g[3] = {1, 2, 3}; Real y; \
+         algorithm y := 0; \
+         for i loop assert(g[i] > 0, \"every gain must be positive\"); y := y + g[i]; end for; \
+         end M;",
+    )
+    .unwrap();
+    assert_eq!(m.asserts.len(), 3);
+    assert!(m
+        .asserts
+        .iter()
+        .all(|(_, message)| message.contains("gain")));
+    assert!(format!("{:?}", m.asserts[2].0).contains("g[3]"));
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // A check inside a function would have to travel out through the
+    // expression the call becomes, and an expression carries none.
+    assert!(err("model M function f input Real x; output Real y; \
+         algorithm assert(x > 0, \"positive\"); y := x; end f; \
+         Real y; equation y = f(2); end M;")
+    .contains("has nowhere to go"));
+    // A call standing on its own cannot do anything: every function
+    // here is pure, so its answer has to go somewhere.
+    assert!(err(
+        "model M function f input Real x; output Real y; algorithm y := x; end f; \
+         Real y; algorithm f(1); y := 1; end M;"
+    )
+    .contains("on its own does nothing"));
+    assert!(
+        err("model M Real y; algorithm terminate(\"now\"); y := 1; end M;")
+            .contains("belongs in a `when`")
+    );
 }
 
 #[test]
@@ -2481,7 +2618,7 @@ fn algorithm_error_paths() {
     // A loop whose bounds are not constant.
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm y := 0; for i in 1:u loop y := y + i; end for; end M;")
-    .contains("not a compile-time constant"));
+    .contains("a range needs bounds the compiler can see"));
     // A `while` whose trip count depends on a simulated variable.
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm y := 0; while y < u loop y := y + 1; end while; end M;")
@@ -2677,12 +2814,12 @@ fn the_new_expression_forms_travel_through_every_walker() {
     let stepped = parse_model("model M Real v[3]; equation v = 1:3:7; end M;").unwrap();
     let text = format!("{:?}", stepped.equations);
     assert!(text.contains("Number(7.0)"), "{text}");
-    assert!(
-        parse_model("model M Real x; equation for i in 1:2:9 loop x = i; end for; end M;")
-            .unwrap_err()
-            .to_string()
-            .contains("step is not supported")
-    );
+    // A loop takes a stepped range too, and runs over 1, 3, 5, 7, 9.
+    // It used to be refused for having a step at all.
+    let stepped =
+        parse_model("model M Real x; equation for i in 1:2:9 loop x = i; end for; end M;").unwrap();
+    assert_eq!(stepped.equations.len(), 5);
+    assert!(format!("{:?}", stepped.equations).contains("Number(9.0)"));
 
     // `fixed` through an alias-typed declaration's modifier list.
     let held = parse_model(

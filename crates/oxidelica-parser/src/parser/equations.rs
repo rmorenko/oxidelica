@@ -68,18 +68,36 @@ impl Parser {
         Some(targets)
     }
 
-    /// `for <var> in <lo>:<hi> loop <equations> end for;`
+    /// `i in 1:3, j in {1, 5}, k` — the indices of one loop, each with
+    /// its own range or with none, where the body is left to say what
+    /// it runs over.
+    pub(super) fn for_indices(&mut self) -> Result<Vec<(String, Option<Expr>)>, ParseError> {
+        let mut indices = Vec::new();
+        loop {
+            let variable = self.ident("loop variable")?;
+            let range = match self.peek() {
+                Token::In => {
+                    self.bump();
+                    Some(self.expr()?)
+                }
+                _ => None,
+            };
+            indices.push((variable, range));
+            if self.peek() != &Token::Comma {
+                return Ok(indices);
+            }
+            self.bump();
+        }
+    }
+
+    /// `for <indices> loop <equations> end for;`
+    ///
+    /// Several indices are the same thing as loops one inside another,
+    /// which is what they are turned into: the body belongs to the last
+    /// of them, and each earlier one holds the next.
     pub(super) fn for_equation(&mut self) -> Result<ForEquation, ParseError> {
         self.expect(&Token::For, "for")?;
-        let variable = self.ident("loop variable")?;
-        self.expect(&Token::In, "in after the loop variable")?;
-        let Expr::Range(lower, step, upper) = self.expr()? else {
-            return Err(self.err("a loop needs a range: `for i in 1:n`".into()));
-        };
-        if step.is_some() {
-            return Err(self.err("a loop range with a step is not supported yet".into()));
-        }
-        let (lower, upper) = (*lower, *upper);
+        let indices = self.for_indices()?;
         self.expect(&Token::Loop, "loop after the range")?;
         let mut body = Vec::new();
         while self.peek() != &Token::End {
@@ -99,11 +117,18 @@ impl Parser {
         if body.is_empty() {
             return Err(self.err("for equation has no body".into()));
         }
-        Ok(ForEquation {
-            variable,
-            range: (lower, upper),
-            body,
-        })
+        let mut built: Option<ForEquation> = None;
+        for (variable, range) in indices.into_iter().rev() {
+            built = Some(ForEquation {
+                variable,
+                range,
+                body: match built {
+                    Some(inner) => vec![ForBody::Nested(inner)],
+                    None => std::mem::take(&mut body),
+                },
+            });
+        }
+        Ok(built.expect("a loop has at least one index"))
     }
 
     /// `if <cond> then <equations> [elseif …] [else …] end if;` in an

@@ -1564,6 +1564,64 @@ fn a_clock_left_unsaid_runs_like_the_one_written_out() {
 }
 
 #[test]
+fn every_form_of_loop_comes_out_at_the_right_numbers() {
+    // A set, a stepped range, a range the body is left to work out, and
+    // two indices at once - all four unrolled and run.
+    let result = run("model M Real y[5]; Real a[3]; Real m[2,3]; Real total; \
+         equation for i in {1, 3, 5} loop y[i] = i * 10; end for; \
+         for i in {2, 4} loop y[i] = -1; end for; \
+         for i loop a[i] = i * i; end for; \
+         for i in 1:2, j in 1:3 loop m[i,j] = i * 10 + j; end for; \
+         total = sum(a); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    for (name, expected) in [
+        ("y[1]", 10.0),
+        ("y[2]", -1.0),
+        ("y[3]", 30.0),
+        ("y[4]", -1.0),
+        ("y[5]", 50.0),
+        ("a[1]", 1.0),
+        ("a[3]", 9.0),
+        ("total", 14.0),
+        ("m[1,1]", 11.0),
+        ("m[1,3]", 13.0),
+        ("m[2,1]", 21.0),
+        ("m[2,3]", 23.0),
+    ] {
+        assert_eq!(last[index(name)], expected, "{name}");
+    }
+}
+
+#[test]
+fn a_check_among_the_statements_is_checked_as_the_run_goes() {
+    // One `assert` written inside a loop is one check per element, and
+    // each carries the message the loop was written with.
+    let source = |gains: &str| {
+        format!(
+            "model M parameter Real g[3] = {gains}; Real y; \
+             algorithm y := 0; \
+             for i loop assert(g[i] > 0, \"every gain must be positive\"); y := y + g[i]; \
+             end for; \
+             annotation(experiment(StopTime = 0, Interval = 1)); end M;"
+        )
+    };
+    let result = run(&source("{1, 2, 3}"));
+    let index = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows.last().unwrap()[index], 6.0);
+    // The check belongs to the run, not to the compilation: the model
+    // builds, and the second gain stops it where it stands.
+    let model = parse_model(&source("{1, -2, 3}")).unwrap();
+    let stopped = compile(&model)
+        .expect("a model that builds")
+        .simulate()
+        .expect_err("and stops itself")
+        .to_string();
+    assert!(stopped.contains("every gain must be positive"), "{stopped}");
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_finds_where_a_relation_turns() {
     // Nothing is integrated here, so the walk goes from output point to
     // output point - but a relation does not wait for the grid, and the

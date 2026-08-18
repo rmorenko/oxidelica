@@ -15,6 +15,44 @@ pub(super) fn has_flow_control(statements: &[Statement]) -> bool {
     })
 }
 
+/// What `for i loop` runs over among statements: the size of the array
+/// along the dimension `i` is used to subscript, wherever the body
+/// first uses it that way.
+pub(super) fn implied_statement_range(
+    body: &[Statement],
+    variable: &str,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Result<Vec<f64>, String> {
+    fn look(body: &[Statement], variable: &str, sizes: &HashMap<String, Vec<i64>>) -> Option<i64> {
+        body.iter().find_map(|statement| match statement {
+            Statement::Assign(name, subscripts, value) => sizes
+                .get(name)
+                .and_then(|shape| {
+                    subscripts
+                        .iter()
+                        .position(|s| matches!(s, Expr::Ref(used) if used == variable))
+                        .and_then(|at| shape.get(at).copied())
+                })
+                .or_else(|| subscript_extent(value, variable, sizes)),
+            Statement::TupleAssign(_, value) => subscript_extent(value, variable, sizes),
+            Statement::If(branches) | Statement::When(branches) => branches
+                .iter()
+                .find_map(|branch| look(&branch.body, variable, sizes)),
+            Statement::For(_, _, inner) | Statement::While(_, inner) => {
+                look(inner, variable, sizes)
+            }
+            _ => None,
+        })
+    }
+    match look(body, variable, sizes) {
+        Some(extent) => Ok((1..=extent).map(|index| index as f64).collect()),
+        None => Err(format!(
+            "`for {variable} loop` leaves the range to the body, and nothing in the body \
+             uses `{variable}` to subscript an array of a length the compiler knows"
+        )),
+    }
+}
+
 /// Whether a `return` hides anywhere below, loops included.
 pub(super) fn has_return(statements: &[Statement]) -> bool {
     statements.iter().any(|statement| match statement {
@@ -48,6 +86,7 @@ pub(super) fn execute(
     statements: &[Statement],
     bindings: &mut HashMap<String, Expr>,
     assigned: &mut Vec<String>,
+    asserts: &mut Vec<(Expr, String)>,
     consts: &HashMap<String, f64>,
     sizes: &HashMap<String, Vec<i64>>,
     registry: &HashMap<&str, &ClassDef>,
@@ -197,6 +236,7 @@ pub(super) fn execute(
                             body,
                             bindings,
                             assigned,
+                            asserts,
                             consts,
                             sizes,
                             registry,
@@ -219,6 +259,7 @@ pub(super) fn execute(
                         &branch.body,
                         &mut local,
                         assigned,
+                        asserts,
                         consts,
                         sizes,
                         registry,
@@ -289,43 +330,46 @@ pub(super) fn execute(
                     bindings.insert(name, value);
                 }
             }
-            Statement::For(variable, (lower, upper), body) => {
-                let bound = |expr: &Expr| -> Result<i64, String> {
-                    let expr = substitute_refs(expr, bindings);
-                    // Through the array layer first, so a bound written
-                    // `size(v, 1)` is a number by the time it is asked
-                    // to be constant.
-                    let no_loop_vars = HashMap::new();
-                    let measured = expand(
-                        &expr,
-                        &Shapes {
-                            sizes,
-                            loop_vars: &no_loop_vars,
-                            consts,
-                            records: no_records(),
-                        },
-                        registry,
-                        scope,
-                        imports,
-                        depth + 1,
-                    )
-                    .map(Value::into_expr)
-                    .unwrap_or_else(|_| expr.clone());
-                    let value = const_eval(&measured, consts).ok_or_else(|| {
-                        format!("loop bound of `{variable}` is not a compile-time constant")
-                    })?;
-                    if value.fract() != 0.0 {
-                        return Err(format!("loop bound must be a whole number, got {value}"));
+            // A check written where the statements are, carried out
+            // to the model with whatever the section has assigned so
+            // far already substituted into it.
+            Statement::Assert(condition, message) => {
+                asserts.push((substitute_refs(condition, bindings), message.clone()));
+            }
+            Statement::For(variable, range, body) => {
+                let values = match range {
+                    Some(range) => {
+                        let expr = substitute_refs(range, bindings);
+                        // Through the array layer first, so a range
+                        // written `1:size(v, 1)` is a list of numbers by
+                        // the time it is asked to be constant - and so
+                        // that `{1, 3, 5}` and the name of an array come
+                        // out as the same kind of list.
+                        let no_loop_vars = HashMap::new();
+                        let spread = expand(
+                            &expr,
+                            &Shapes {
+                                sizes,
+                                loop_vars: &no_loop_vars,
+                                consts,
+                                records: no_records(),
+                            },
+                            registry,
+                            scope,
+                            imports,
+                            depth + 1,
+                        )?;
+                        loop_values(&spread, consts, variable)?
                     }
-                    Ok(value as i64)
+                    None => implied_statement_range(body, variable, sizes)?,
                 };
-                let (lower, upper) = (bound(lower)?, bound(upper)?);
-                for index in lower..=upper {
-                    bindings.insert(variable.clone(), Expr::Number(index as f64));
+                for index in values {
+                    bindings.insert(variable.clone(), Expr::Number(index));
                     let flow = execute(
                         body,
                         bindings,
                         assigned,
+                        asserts,
                         consts,
                         sizes,
                         registry,
@@ -370,6 +414,7 @@ pub(super) fn execute(
                         body,
                         bindings,
                         assigned,
+                        asserts,
                         consts,
                         sizes,
                         registry,
@@ -543,10 +588,15 @@ pub(super) fn inline_function_outputs(
     collect_shapes(registry, class, consts, &mut sizes, 0);
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
+    // An `assert` in a function body would have to travel out through
+    // the expression the call becomes, and expressions have nowhere to
+    // carry one; a model's own section is where it works.
+    let mut inner_asserts = Vec::new();
     if execute(
         &class.algorithm,
         &mut bindings,
         &mut assigned,
+        &mut inner_asserts,
         consts,
         &sizes,
         registry,
@@ -558,6 +608,13 @@ pub(super) fn inline_function_outputs(
     {
         return Err(format!(
             "`break` outside of a loop in function `{}`",
+            class.name
+        ));
+    }
+    if !inner_asserts.is_empty() {
+        return Err(format!(
+            "`assert` in function `{}` has nowhere to go: a call becomes an expression, and \
+             an expression carries no checks - one written among a model's own statements does",
             class.name
         ));
     }
