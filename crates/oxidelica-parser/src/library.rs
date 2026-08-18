@@ -144,6 +144,9 @@ pub fn library_sources(near: Option<&Path>) -> Vec<String> {
 mod tests {
     use super::*;
 
+    /// Tests that touch the environment take turns.
+    static ENVIRONMENT: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     /// A throwaway tree with a library in it.
     struct Sandbox(PathBuf);
 
@@ -171,6 +174,9 @@ mod tests {
 
     #[test]
     fn a_library_is_found_above_the_model() {
+        let _guard = ENVIRONMENT
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         let sandbox = Sandbox::new("above");
         let model = sandbox.0.join("deep/nested/model.mo");
         let found = library_directory(Some(&model)).expect("found by climbing");
@@ -183,9 +189,6 @@ mod tests {
         assert_eq!(sources.len(), 1);
         assert!(sources[0].contains("package Tiny"));
     }
-
-    /// Tests that touch the environment take turns.
-    static ENVIRONMENT: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
     #[test]
     fn a_library_may_be_a_tree_of_packages() {
@@ -270,6 +273,9 @@ mod tests {
 
     #[test]
     fn a_directory_without_models_is_not_a_library() {
+        let _guard = ENVIRONMENT
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
         let sandbox = Sandbox::new("empty");
         let bare = sandbox.0.join("deep");
         std::fs::create_dir_all(bare.join("lib")).unwrap();
