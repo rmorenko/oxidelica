@@ -937,21 +937,22 @@ fn instantiate(
         };
         // An array bound - or started - as a whole hands each element
         // its own value.
-        let spread = |expr: &Expr, what: &str| -> Result<Vec<Expr>, String> {
+        let spread = |expr: &Expr, what: &str, prefixed: bool| -> Result<Vec<Expr>, String> {
             let shapes = Shapes {
                 sizes: &sizes_here,
                 loop_vars: &HashMap::new(),
                 consts: &local_consts,
             };
-            let expr = substitute_class_constants(expr, registry, scope, &imports);
-            let value = expand(
-                &prefix_expr(&expr, prefix, &outers),
-                &shapes,
-                registry,
-                scope,
-                &imports,
-                0,
-            )?;
+            // A modifier arrives already written in the terms of the
+            // class that supplied it; only a declaration's own value
+            // still needs this class's prefix.
+            let expr = if prefixed {
+                expr.clone()
+            } else {
+                let expr = substitute_class_constants(expr, registry, scope, &imports);
+                prefix_expr(&expr, prefix, &outers)
+            };
+            let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
             let mut items = Vec::new();
             value.flatten_into(&mut items);
             // A scalar start spreads over the whole array.
@@ -968,12 +969,33 @@ fn instantiate(
             }
             Ok(items)
         };
-        let element_bindings: Option<Vec<Expr>> = match (&component.binding, sizes.is_empty()) {
-            (Some(binding), false) => Some(spread(binding, "value")?),
+        // A modifier naming the whole array - `Chain c(m = {1, 2, 3})`
+        // - beats the declaration's own value and is handed out to the
+        // elements the same way.
+        let handed_down = |target: &str| -> Option<Expr> {
+            extra_modifiers
+                .iter()
+                .chain(overrides.iter())
+                .find(|(name, _)| name == target)
+                .map(|(_, value)| value.clone())
+        };
+        let element_bindings: Option<Vec<Expr>> = match (
+            handed_down(&component.name),
+            &component.binding,
+            sizes.is_empty(),
+        ) {
+            (Some(value), _, false) => Some(spread(&value, "value", true)?),
+            (None, Some(binding), false) => Some(spread(binding, "value", false)?),
             _ => None,
         };
-        let element_starts: Option<Vec<Expr>> = match (&component.start, sizes.is_empty()) {
-            (Some(start), false) => Some(spread(start, "start")?),
+        let start_target = format!("{}.start", component.name);
+        let element_starts: Option<Vec<Expr>> = match (
+            handed_down(&start_target),
+            &component.start,
+            sizes.is_empty(),
+        ) {
+            (Some(value), _, false) => Some(spread(&value, "start", true)?),
+            (None, Some(start), false) => Some(spread(start, "start", false)?),
             _ => None,
         };
 
@@ -1758,8 +1780,12 @@ fn instantiate_one(
             if let Some(value) = modifier(local_name) {
                 flat.binding = Some(value);
             }
-            if let Some(value) = modifier(&format!("{}.start", component.name)) {
-                flat.start = Some(value);
+            // On an array the start has already been handed out
+            // element by element; this is the scalar case.
+            if site.start.is_none() {
+                if let Some(value) = modifier(&format!("{}.start", component.name)) {
+                    flat.start = Some(value);
+                }
             }
             if let Some(value) = modifier(&format!("{}.fixed", component.name)) {
                 flat.fixed = Some(!matches!(value, Expr::Bool(false) | Expr::Number(0.0)));
@@ -4349,6 +4375,58 @@ mod tests {
         assert!(m.components.iter().all(|c| !c.name.starts_with("nothing[")));
         assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(0.0)");
         assert_eq!(format!("{:?}", m.equations[1].rhs), "Number(0.0)");
+    }
+
+    #[test]
+    fn a_whole_array_handed_to_a_component_reaches_its_elements() {
+        // The declaration has no value of its own; each instance says
+        // what its array holds, and how long it is.
+        let m = parse_model(
+            "model Sub parameter Integer n = 3; parameter Real k[n]; Real y[n]; \
+             equation for i in 1:n loop y[i] = k[i]; end for; end Sub;\
+             model M Sub a(n = 3, k = {1, 2, 3}); Sub b(n = 2, k = {10, 20}); end M;",
+        )
+        .unwrap();
+        let binding = |name: &str| {
+            format!(
+                "{:?}",
+                m.components
+                    .iter()
+                    .find(|c| c.name == name)
+                    .unwrap_or_else(|| panic!("no {name}"))
+                    .binding
+            )
+        };
+        assert!(binding("a.k[1]").contains("1.0"), "{}", binding("a.k[1]"));
+        assert!(binding("a.k[3]").contains("3.0"), "{}", binding("a.k[3]"));
+        assert!(binding("b.k[2]").contains("20.0"), "{}", binding("b.k[2]"));
+        // The shorter instance has no third element at all.
+        assert!(!m.components.iter().any(|c| c.name == "b.k[3]"));
+
+        // A start given as an array is spread the same way, and a
+        // scalar one covers every element.
+        let m = parse_model(
+            "model Sub parameter Integer n = 3; Real x[n](start = 0); \
+             equation for i in 1:n loop der(x[i]) = 0; end for; end Sub;\
+             model M Sub a(n = 3, x(start = {5, 6, 7})); Sub b(n = 3, x(start = 2)); end M;",
+        )
+        .unwrap();
+        let start = |name: &str| {
+            format!(
+                "{:?}",
+                m.components.iter().find(|c| c.name == name).unwrap().start
+            )
+        };
+        assert!(start("a.x[2]").contains("6.0"), "{}", start("a.x[2]"));
+        assert!(start("b.x[3]").contains("2.0"), "{}", start("b.x[3]"));
+
+        // A value of the wrong length is refused by name.
+        let error = parse_model(
+            "model Sub parameter Real k[3]; end Sub; model M Sub a(k = {1, 2}); end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("3 element(s)"), "{error}");
     }
 
     #[test]

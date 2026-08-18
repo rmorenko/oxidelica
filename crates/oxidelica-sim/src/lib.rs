@@ -5715,9 +5715,11 @@ mod tests {
 
     #[test]
     fn two_chains_of_different_length_share_their_functions() {
-        // `total` and `weighted` are declared once with `[:]` inputs
-        // and called at length three and at length five. Neither chain
-        // is pushed from outside, so the physics has two exact
+        // One `Chain` component, instantiated at three masses and at
+        // five: the length is a parameter and the masses and starts
+        // are handed over as whole arrays. `total` and `weighted` are
+        // declared once with `[:]` inputs and measure each. Neither
+        // chain is pushed from outside, so the physics has two exact
         // statements to make: momentum is constant, and the centre of
         // mass travels in a straight line.
         let result = compile(&with_library("mass_chains.mo"))
@@ -5725,10 +5727,10 @@ mod tests {
             .simulate()
             .unwrap();
         let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
-        for (chain, mass) in [("3", 6.0f64), ("5", 6.0f64)] {
+        for (chain, mass) in [("short", 6.0f64), ("long", 6.0f64)] {
             let (momentum, centre) = (
-                index(&format!("momentum{chain}")),
-                index(&format!("centre{chain}")),
+                index(&format!("{chain}.momentum")),
+                index(&format!("{chain}.centre")),
             );
             let first = &result.rows[0];
             let speed = first[momentum] / mass;
@@ -5751,9 +5753,13 @@ mod tests {
         }
         // The two chains really did start out differently.
         assert!(
-            (result.rows[0][index("momentum3")] + 0.5).abs() < 1e-12
-                && result.rows[0][index("momentum5")].abs() < 1e-12
+            (result.rows[0][index("short.momentum")] + 0.5).abs() < 1e-12
+                && result.rows[0][index("long.momentum")].abs() < 1e-12
         );
+        // Each instance really did get its own length and its own
+        // masses, handed over as whole arrays.
+        assert!(result.columns.iter().any(|c| c == "long.x[5]"));
+        assert!(!result.columns.iter().any(|c| c == "short.x[4]"));
     }
 
     #[test]

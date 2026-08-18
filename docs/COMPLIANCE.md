@@ -30,7 +30,9 @@ under a chapter works as specified for the subset this project covers.
 
 Flat and hierarchical models; packages with qualified names and imports
 (`import A.B;`, `import C = A.B;`); inheritance with modifiers, nested
-modifiers down to a child's attribute; `replaceable`/`redeclare` for
+modifiers down to a child's attribute, including a whole array handed
+to a component (`Chain c(m = {1, 2, 3}, x(start = {0, 1, 2}))`), which
+is spread over the elements; `replaceable`/`redeclare` for
 components and for classes (`replaceable package Medium = …` with
 `constrainedby` checked), conditional components, `inner`/`outer`,
 enumerations; connectors with `flow` and `stream`
@@ -78,10 +80,7 @@ never carry units, so `x = 5` is accepted whatever `x` is declared in.
 **Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
 or enumeration indexing. A flexible size (`:`) is read from the
 argument at the call site, so it belongs to a function input; a model
-component still needs a dimension the compiler can work out. An array
-modifier written on a declaration that has no binding of its own
-(`parameter Real m[n];` overridden with `m = {1, 2, 3}`) is not
-distributed to the elements.
+component still needs a dimension the compiler can work out.
 
 **Functions** (ch. 12): no recursion, no external C/Fortran, no
 `derivative`/`inverse` annotations, no functions as arguments, no
