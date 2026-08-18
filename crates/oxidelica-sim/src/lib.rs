@@ -5522,6 +5522,47 @@ mod tests {
     }
 
     #[test]
+    fn a_control_loop_wired_through_a_bus_closes() {
+        // Nothing in the model wires the plant to the controller
+        // directly: both talk to an expandable bus, and a sub-bus
+        // carries the same members because it is joined to it. The
+        // loop that comes out settles at k*r/(1+k) with time constant
+        // T/(1+k).
+        let result = compile(&with_library("signal_bus.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (k, r, t_plant) = (4.0f64, 1.0f64, 0.5f64);
+        let settled = k * r / (1.0 + k);
+        let tau = t_plant / (1.0 + k);
+        for row in &result.rows {
+            let expected = settled * (1.0 - (-row[0] / tau).exp());
+            assert!(
+                (row[index("plant.x")] - expected).abs() < 1e-6,
+                "t = {}: x = {} vs {expected}",
+                row[0],
+                row[index("plant.x")]
+            );
+        }
+        // The bus and the sub-bus really do carry the same signal.
+        let last = result.rows.last().unwrap();
+        assert_eq!(
+            last[index("bus.measurement.y")],
+            last[index("subbus.measurement.y")]
+        );
+        assert_eq!(
+            last[index("bus.command.y")],
+            last[index("subbus.command.y")]
+        );
+        // What the plant is driven with is the law applied to what the
+        // controller heard, both of which travelled through the bus.
+        let heard = last[index("controller.measurement.y")];
+        assert!((last[index("plant.u.y")] - k * (r - heard)).abs() < 1e-12);
+        assert!((heard - settled).abs() < 1e-4, "not settled: {heard}");
+    }
+
+    #[test]
     fn a_stream_junction_mixes_and_the_tank_relaxes_to_it() {
         // Two sources push 1 kg/s at h=100 and 3 kg/s at h=20 into a
         // three-way node; the junction hands the tank their

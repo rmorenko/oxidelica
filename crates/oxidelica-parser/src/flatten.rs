@@ -102,6 +102,10 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     };
     instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
 
+    // An expandable connector holds whatever the connections to it
+    // name, so its members exist only once every `connect` is in.
+    expand_buses(&registry, &mut acc)?;
+
     // Connection sets via union-find over connector instance paths.
     let paths: Vec<String> = acc.connectors.keys().cloned().collect();
     let index: HashMap<&str, usize> = paths.iter().map(|p| p.as_str()).zip(0..).collect();
@@ -134,13 +138,31 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
 
     for members in sets.values_mut() {
         members.sort();
+        // Connectors in one set must match in shape, not in name: a
+        // signal output and a signal input are different classes with
+        // the same members, and connecting them is the whole point.
         let class_name = acc.connectors[members[0]].clone();
-        if members.iter().any(|m| acc.connectors[*m] != class_name) {
-            return Err(format!(
-                "connection set {members:?} mixes different connector classes"
-            ));
-        }
         let class = registry[class_name.as_str()];
+        let shape = |class: &ClassDef| -> Vec<(String, bool, bool)> {
+            let mut members: Vec<(String, bool, bool)> = class
+                .components
+                .iter()
+                .map(|c| (c.name.clone(), c.flow, c.stream))
+                .collect();
+            members.sort();
+            members
+        };
+        let wanted = shape(class);
+        for member in members.iter() {
+            let other = registry[acc.connectors[*member].as_str()];
+            if shape(other) != wanted {
+                return Err(format!(
+                    "connection set {members:?} joins `{class_name}` to `{}`, \
+                     which have different members",
+                    other.name
+                ));
+            }
+        }
         // A stream variable rides on the one flow variable of its
         // connector; without exactly one, `inStream` has no weights.
         if class.components.iter().any(|c| c.stream) {
@@ -252,6 +274,122 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     };
     crate::check::verify(&model)?;
     Ok(model)
+}
+
+/// Give every expandable connector the members its connections name.
+///
+/// A bus declares nothing of its own: `connect(bus.speed, sensor.w)`
+/// is what creates `bus.speed`, and it takes the type of the other
+/// side. Buses connected to each other share one pool of members, so a
+/// sub-bus carries everything its parent does and the matching members
+/// are connected in turn.
+fn expand_buses(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> Result<(), String> {
+    let mut buses: Vec<String> = acc
+        .connectors
+        .iter()
+        .filter(|(_, class_name)| registry[class_name.as_str()].expandable)
+        .map(|(path, _)| path.clone())
+        .collect();
+    if buses.is_empty() {
+        return Ok(());
+    }
+    buses.sort();
+    let index: HashMap<&str, usize> = buses.iter().map(|p| p.as_str()).zip(0..).collect();
+
+    // Buses joined directly share their members.
+    let mut parent: Vec<usize> = (0..buses.len()).collect();
+    fn root(parent: &mut Vec<usize>, i: usize) -> usize {
+        if parent[i] != i {
+            let found = root(parent, parent[i]);
+            parent[i] = found;
+        }
+        parent[i]
+    }
+    for (a, b) in &acc.connects {
+        if let (Some(&ia), Some(&ib)) = (index.get(a.as_str()), index.get(b.as_str())) {
+            let (ra, rb) = (root(&mut parent, ia), root(&mut parent, ib));
+            if ra != rb {
+                parent[ra] = rb;
+            }
+        }
+    }
+    let mut groups: HashMap<usize, Vec<String>> = HashMap::new();
+    for (i, bus) in buses.iter().enumerate() {
+        let group = root(&mut parent, i);
+        groups.entry(group).or_default().push(bus.clone());
+    }
+
+    // Every `<bus>.<member>` a connection names, with the other side
+    // of that connection: the only place its type can come from.
+    let mut pending: Vec<(usize, String, String)> = Vec::new();
+    for (a, b) in &acc.connects {
+        for (side, other) in [(a, b), (b, a)] {
+            if acc.connectors.contains_key(side) {
+                continue;
+            }
+            let Some((head, member)) = side.rsplit_once('.') else {
+                continue;
+            };
+            let Some(&position) = index.get(head) else {
+                continue;
+            };
+            pending.push((
+                root(&mut parent, position),
+                member.to_string(),
+                other.clone(),
+            ));
+        }
+    }
+
+    let env = Env {
+        overrides: &[],
+        redeclares: &[],
+        inners: &HashMap::new(),
+    };
+    let mut fresh: Vec<(String, String)> = Vec::new();
+    loop {
+        let mut progress = false;
+        let mut waiting = Vec::new();
+        for (group, member, other) in pending {
+            let paths: Vec<String> = groups[&group]
+                .iter()
+                .map(|bus| format!("{bus}.{member}"))
+                .collect();
+            // Another connection may have created it already.
+            if acc.connectors.contains_key(&paths[0]) {
+                continue;
+            }
+            // The type comes from the other side, which must itself be
+            // a connector by now - it may be a bus member created in an
+            // earlier round.
+            let Some(class_name) = acc.connectors.get(&other).cloned() else {
+                waiting.push((group, member, other));
+                continue;
+            };
+            let class = registry[class_name.as_str()];
+            for path in &paths {
+                instantiate(registry, class, &format!("{path}."), &env, acc, 0)?;
+                acc.connectors.insert(path.clone(), class_name.clone());
+            }
+            // Matching members of joined buses are connected.
+            for path in &paths[1..] {
+                fresh.push((paths[0].clone(), path.clone()));
+            }
+            progress = true;
+        }
+        pending = waiting;
+        if pending.is_empty() || !progress {
+            break;
+        }
+    }
+    if let Some((_, member, other)) = pending.first() {
+        return Err(format!(
+            "connect({other}, ...{member}): a bus member takes its type from the other \
+             side of the connection, and `{other}` is not a connector"
+        ));
+    }
+    acc.connects.append(&mut fresh);
+    Ok(())
 }
 
 /// The regularisation floor of a stream mix: a port whose flow points
@@ -3562,13 +3700,21 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("recursive"));
-        // Mixing connector classes in one set.
+        // Connectors whose members do not line up.
         assert!(parse_model(
-            "connector A Real v; flow Real i; end A;             connector B Real v; flow Real i; end B;             model U A p; end U; model W B p; end W;             model M U u; W w; equation connect(u.p, w.p); end M;"
+            "connector A Real v; flow Real i; end A;             connector B Real v; flow Real q; end B;             model U A p; end U; model W B p; end W;             model M U u; W w; equation connect(u.p, w.p); end M;"
         )
         .unwrap_err()
         .to_string()
-        .contains("mixes different connector classes"));
+        .contains("different members"));
+        // Two names for the same shape connect happily: a signal
+        // output and a signal input are exactly that case.
+        parse_model(
+            "connector Out output Real y; end Out; connector In input Real y; end In; \
+             model U Out p; equation p.y = 1; end U; model W In p; end W; \
+             model M U u; W w; equation connect(u.p, w.p); end M;",
+        )
+        .unwrap();
         // A file with no model class.
         assert!(parse_model("connector Pin Real v; flow Real i; end Pin;")
             .unwrap_err()
@@ -3873,6 +4019,64 @@ mod tests {
             text.contains("Ref(\"s.k\")"),
             "the argument must prefix: {text}"
         );
+    }
+
+    #[test]
+    fn an_expandable_connector_holds_what_is_connected_to_it() {
+        const SIGNALS: &str = "connector Out output Real y; end Out; \
+             connector In input Real y; end In; \
+             expandable connector Bus end Bus;";
+
+        // The member exists because a connection named it, and it
+        // takes the type of the other side.
+        let m = parse_model(&format!(
+            "{SIGNALS} model Src Out port; equation port.y = 5; end Src;\
+             model Snk In port; end Snk;\
+             model M Bus bus; Src src; Snk snk; \
+             equation connect(src.port, bus.speed); connect(bus.speed, snk.port); end M;"
+        ))
+        .unwrap();
+        let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"bus.speed.y"),
+            "the bus member must exist: {names:?}"
+        );
+        // Source, bus and sink all carry the same signal.
+        let text = format!("{:?}", m.equations);
+        assert!(text.contains("bus.speed.y"), "{text}");
+
+        // Joined buses share one pool: the sub-bus gets the member
+        // too, and the two are connected.
+        let m = parse_model(&format!(
+            "{SIGNALS} model Src Out port; equation port.y = 5; end Src;\
+             model Snk In port; end Snk;\
+             model M Bus bus; Bus sub; Src src; Snk snk; \
+             equation connect(bus, sub); connect(src.port, bus.speed); \
+             connect(sub.speed, snk.port); end M;"
+        ))
+        .unwrap();
+        let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            names.contains(&"bus.speed.y") && names.contains(&"sub.speed.y"),
+            "both buses carry the member: {names:?}"
+        );
+        // Everything ends up equal to the source, through both buses.
+        let text = format!("{:?}", m.equations);
+        assert!(text.contains("sub.speed.y"), "{text}");
+
+        // A bus nobody writes to is simply empty.
+        let m = parse_model(&format!("{SIGNALS} model M Bus bus; end M;")).unwrap();
+        assert!(m.components.is_empty(), "{:?}", m.components);
+    }
+
+    #[test]
+    fn expandable_connector_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // Two bus members connected to each other and to nothing else:
+        // there is no side to take a type from.
+        assert!(err("expandable connector Bus end Bus; \
+             model M Bus a; Bus b; equation connect(a.speed, b.rate); end M;")
+        .contains("not a connector"));
     }
 
     #[test]

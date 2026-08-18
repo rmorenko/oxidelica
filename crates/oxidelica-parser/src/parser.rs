@@ -259,6 +259,12 @@ impl Parser {
         } else {
             false
         };
+        let expandable = if self.peek() == &Token::Expandable {
+            self.bump();
+            true
+        } else {
+            false
+        };
         let kind = match self.bump() {
             Token::Model | Token::Block => ClassKind::Model,
             Token::Connector => ClassKind::Connector,
@@ -332,6 +338,7 @@ impl Parser {
                 kind,
                 name,
                 partial,
+                expandable,
                 alias_of,
                 alias_unit,
                 enumeration,
@@ -438,7 +445,8 @@ impl Parser {
                 | Token::Function
                 | Token::Package
                 | Token::Type
-                | Token::Partial => match self.class_def()? {
+                | Token::Partial
+                | Token::Expandable => match self.class_def()? {
                     ClassItem::Class(class) => nested.push(*class),
                     ClassItem::Alias(alias) => class_aliases.push(alias),
                 },
@@ -455,6 +463,7 @@ impl Parser {
                             | Token::Package
                             | Token::Type
                             | Token::Partial
+                            | Token::Expandable
                     ) =>
                 {
                     match self.class_def()? {
@@ -505,6 +514,7 @@ impl Parser {
             kind,
             name,
             partial,
+            expandable,
             alias_of,
             alias_unit,
             enumeration,

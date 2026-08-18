@@ -34,7 +34,9 @@ modifiers down to a child's attribute; `replaceable`/`redeclare` for
 components and for classes (`replaceable package Medium = …` with
 `constrainedby` checked), conditional components, `inner`/`outer`,
 enumerations; connectors with `flow` and `stream`
-(`inStream`/`actualStream` with junction mixing), connections with
+(`inStream`/`actualStream` with junction mixing), `expandable
+connector` buses whose members come from the connections and are
+shared with joined buses, connections with
 subscripts, inside `for` loops and between whole connector arrays;
 DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
@@ -91,8 +93,11 @@ clocked constructs (16) — note that `sample()` events and clocked
 discrete blocks in the ordinary sense do work — and state
 machines (17).
 
-**Structure**: no `expandable connector` or `operator` classes
-(`block` parses as a model, causality unchecked);
+**Structure**: no `operator` classes (`block` parses as a model,
+causality unchecked); an `expandable connector` takes each member's
+type from the other side of the connection that names it, so a member
+connected only to another bus member has nowhere to get one, and
+`each`-style array members of a bus are not supported;
 `protected` is accepted but not enforced; `final` and `each` are parsed
 and ignored (array modifiers distribute regardless); package `extends`
 does not merge members through an alias; selective model extension
@@ -106,5 +111,7 @@ balanced branches); `when` inside algorithms is not supported; vector
 `homotopy`, `semiLinear`, `spatialDistribution`, `getInstanceName`;
 overconstrained connection
 graphs (`Connections.root` and friends) are not implemented; subtype
-compatibility (ch. 6) is approximated by the `extends` chain rather
-than structural plug-compatibility.
+compatibility (ch. 6) is approximated by the `extends` chain for
+`constrainedby`, though a connection set matches its connectors by
+shape — same member names, same `flow` and `stream` prefixes — rather
+than by class name.

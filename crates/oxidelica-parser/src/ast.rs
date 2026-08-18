@@ -201,6 +201,9 @@ pub struct ClassDef {
     pub name: String,
     /// `partial` classes are bases only: they cannot be instantiated.
     pub partial: bool,
+    /// `expandable connector` — a bus whose members are whatever the
+    /// connections to it name, rather than what it declares.
+    pub expandable: bool,
     /// For `type` aliases: the primitive being named, plus attribute
     /// defaults (`type Voltage = Real(start = 0)`).
     pub alias_of: Option<(String, Vec<(String, Expr)>)>,

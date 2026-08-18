@@ -56,6 +56,8 @@ pub enum Token {
     Flow,
     /// Keyword `stream`.
     Stream,
+    /// Keyword `expandable`.
+    Expandable,
     /// Keyword `extends`.
     Extends,
     /// Keyword `connect`.
@@ -198,6 +200,7 @@ impl fmt::Display for Token {
             Token::Block => write!(f, "block"),
             Token::Flow => write!(f, "flow"),
             Token::Stream => write!(f, "stream"),
+            Token::Expandable => write!(f, "expandable"),
             Token::Extends => write!(f, "extends"),
             Token::Connect => write!(f, "connect"),
             Token::For => write!(f, "for"),
@@ -424,6 +427,7 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "block" => Token::Block,
                     "flow" => Token::Flow,
                     "stream" => Token::Stream,
+                    "expandable" => Token::Expandable,
                     "extends" => Token::Extends,
                     "connect" => Token::Connect,
                     "for" => Token::For,
