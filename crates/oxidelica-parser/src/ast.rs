@@ -168,6 +168,9 @@ pub enum Statement {
     Break,
     /// `return;` — leave the function, outputs as they stand.
     Return,
+    /// `when c then … elsewhen … end when;` among the statements: what
+    /// it holds happens at an event and nowhere else.
+    When(Vec<StatementBranch>),
 }
 
 /// The kind of a class definition.
@@ -242,6 +245,8 @@ pub struct ClassDef {
     pub transitions: Vec<Transition>,
     /// The state a machine starts in, from `initialState(s)`.
     pub initial_state: Option<String>,
+    /// `Connections.root`, `potentialRoot` and `branch` clauses.
+    pub connection_graph: Vec<GraphClause>,
     /// `for` equations, unrolled while flattening.
     pub for_equations: Vec<ForEquation>,
     /// `if` equations, resolved while flattening.
@@ -313,6 +318,19 @@ pub struct IfBranch {
     pub equations: Vec<EquationItem>,
     /// `connect` statements the branch contributes.
     pub connects: Vec<(Expr, Expr)>,
+}
+
+/// A statement about the overconstrained connection graph.
+#[derive(Debug, Clone)]
+pub enum GraphClause {
+    /// `Connections.root(a)` — this node is a root and stays one.
+    Root(String),
+    /// `Connections.potentialRoot(a, priority)` — a root where one is
+    /// needed; lower priority is preferred.
+    PotentialRoot(String, i64),
+    /// `Connections.branch(a, b)` — the two are joined in the graph
+    /// whether or not they are connected in the ordinary way.
+    Branch(String, String),
 }
 
 /// One arrow of a state machine: `transition(from, to, condition, …)`.
@@ -405,6 +423,8 @@ pub struct Model {
     pub transitions: Vec<Transition>,
     /// Where each machine starts, by instance path.
     pub initial_states: Vec<String>,
+    /// Graph clauses with nodes named by instance path.
+    pub connection_graph: Vec<GraphClause>,
     /// Experiment settings (defaults when absent).
     pub experiment: Experiment,
 }

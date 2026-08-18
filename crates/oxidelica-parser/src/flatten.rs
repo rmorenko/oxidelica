@@ -286,6 +286,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         asserts: acc.asserts,
         transitions: acc.transitions,
         initial_states: acc.initial_states,
+        connection_graph: acc.connection_graph.clone(),
         when_clauses: acc.when_clauses,
         conditional: Vec::new(),
         experiment: top_class.experiment.clone(),
@@ -295,6 +296,17 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             model.equations.extend(branch.iter().cloned());
         }
     }
+    // An overconstrained graph is broken open before anything else
+    // looks at it, and `Connections.isRoot` is answered from what that
+    // came to.
+    let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
+    if !acc.connection_graph.is_empty() {
+        for equation in &mut model.equations {
+            equation.lhs = answer_graph_queries(&equation.lhs, &roots);
+            equation.rhs = answer_graph_queries(&equation.rhs, &roots);
+        }
+    }
+
     // Clocked equations are lifted out before anything is checked:
     // what they leave behind is a `when` clause per clock, which the
     // rest of the pipeline already understands.
@@ -657,6 +669,8 @@ struct Flat {
     transitions: Vec<Transition>,
     /// Where each machine starts.
     initial_states: Vec<String>,
+    /// Graph clauses with nodes named by instance path.
+    connection_graph: Vec<GraphClause>,
     /// Connector instance path -> connector class name.
     connectors: HashMap<String, String>,
     /// Connect statements with fully prefixed paths.
@@ -1136,6 +1150,17 @@ fn instantiate(
     if let Some(state) = &class.initial_state {
         acc.initial_states.push(flat_name(state, prefix, &outers));
     }
+    for clause in &class.connection_graph {
+        acc.connection_graph.push(match clause {
+            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, &outers)),
+            GraphClause::PotentialRoot(node, priority) => {
+                GraphClause::PotentialRoot(flat_name(node, prefix, &outers), *priority)
+            }
+            GraphClause::Branch(a, b) => {
+                GraphClause::Branch(flat_name(a, prefix, &outers), flat_name(b, prefix, &outers))
+            }
+        });
+    }
 
     for equation in &class.initial_equations {
         let (lhs, rhs) = (
@@ -1157,10 +1182,48 @@ fn instantiate(
     // comes out is one equation per variable it assigns, which is what
     // the rest of the pipeline understands.
     if class.kind != ClassKind::Function && !class.algorithm.is_empty() {
+        // A `when` written among the statements is an event, not a
+        // step of the algorithm: it becomes a clause of its own and
+        // the rest of the section runs without it.
+        let mut plain = Vec::new();
+        for statement in &class.algorithm {
+            let Statement::When(branches) = statement else {
+                plain.push(statement.clone());
+                continue;
+            };
+            let mut lifted = Vec::new();
+            for branch in branches {
+                let mut actions = Vec::new();
+                for inner in &branch.body {
+                    let Statement::Assign(target, subscripts, value) = inner else {
+                        return Err("a `when` in an algorithm holds assignments".to_string());
+                    };
+                    if !subscripts.is_empty() {
+                        return Err(
+                            "a `when` in an algorithm assigns whole variables, not elements"
+                                .to_string(),
+                        );
+                    }
+                    actions.push(WhenAction::Assign(
+                        flat_name(target, prefix, &outers),
+                        resolve_here(value)?,
+                    ));
+                }
+                let condition = branch
+                    .condition
+                    .as_ref()
+                    .ok_or_else(|| "a `when` has no `else`".to_string())?;
+                lifted.push(WhenBranch {
+                    condition: resolve_here(condition)?,
+                    actions,
+                });
+            }
+            acc.when_clauses.push(WhenClause { branches: lifted });
+        }
         let mut bindings: HashMap<String, Expr> = HashMap::new();
         let mut assigned: Vec<String> = Vec::new();
         match execute(
-            &class.algorithm,
+            &plain,
             &mut bindings,
             &mut assigned,
             &local_consts,
@@ -2426,6 +2489,29 @@ fn resolve(
                 // generation and continuity; the value is the argument.
                 _ if name == "noEvent" && args.len() == 1 => args[0].clone(),
                 _ if name == "smooth" && args.len() == 2 => args[1].clone(),
+                // `homotopy` offers an easier problem to start from. A
+                // tool may take the real one and go straight at it,
+                // which is what this one does.
+                _ if name == "homotopy" && args.len() == 2 => args[0].clone(),
+                // `semiLinear(x, a, b)` is `a * x` one way and `b * x`
+                // the other, meeting at zero.
+                _ if name == "semiLinear" && args.len() == 3 => Expr::If(
+                    Box::new(Expr::Rel(
+                        crate::ast::RelOp::Ge,
+                        Box::new(args[0].clone()),
+                        Box::new(Expr::Number(0.0)),
+                    )),
+                    Box::new(Expr::Bin(
+                        BinOp::Mul,
+                        Box::new(args[1].clone()),
+                        Box::new(args[0].clone()),
+                    )),
+                    Box::new(Expr::Bin(
+                        BinOp::Mul,
+                        Box::new(args[2].clone()),
+                        Box::new(args[0].clone()),
+                    )),
+                ),
                 _ if args.iter().any(|a| matches!(a, Expr::NamedArg(_, _))) => {
                     return Err(format!(
                         "`{name}` is not a function, so it cannot take named arguments"
@@ -2866,6 +2952,11 @@ fn execute(
             }
             Statement::Break => return Ok(Flow::Break),
             Statement::Return => return Ok(Flow::Return),
+            // A `when` is lifted out of the section before the rest of
+            // it is executed, so nothing should arrive here.
+            Statement::When(_) => {
+                return Err("a `when` may sit at the top of a model's algorithm section, not inside an `if`, a loop or a function".to_string())
+            }
         }
     }
     Ok(Flow::Normal)
@@ -3315,6 +3406,159 @@ fn partition_clocks(model: &mut Model) -> Result<(), String> {
         .components
         .retain(|component| component.type_name != "Clock");
     Ok(())
+}
+
+/// Break an overconstrained connection graph open, and say which nodes
+/// ended up as roots.
+///
+/// Every part of the graph needs exactly one root: with none there is
+/// nothing for the rest of it to be measured against, and with two the
+/// equations that hold a loop closed would be stated twice. A declared
+/// root is taken as given; a potential one serves where a part has
+/// none, lowest priority first and by name after that, so the same
+/// model always breaks the same way.
+fn choose_roots(
+    clauses: &[GraphClause],
+    connects: &[(String, String)],
+) -> Result<HashMap<String, bool>, String> {
+    if clauses.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let mut nodes: Vec<String> = Vec::new();
+    let remember = |name: &str, nodes: &mut Vec<String>| {
+        if !nodes.iter().any(|known| known == name) {
+            nodes.push(name.to_string());
+        }
+    };
+    for clause in clauses {
+        match clause {
+            GraphClause::Root(node) | GraphClause::PotentialRoot(node, _) => {
+                remember(node, &mut nodes)
+            }
+            GraphClause::Branch(a, b) => {
+                remember(a, &mut nodes);
+                remember(b, &mut nodes);
+            }
+        }
+    }
+    // A `connect` between two nodes of the graph is a branch of it as
+    // surely as one written out.
+    let mut edges: Vec<(String, String)> = clauses
+        .iter()
+        .filter_map(|clause| match clause {
+            GraphClause::Branch(a, b) => Some((a.clone(), b.clone())),
+            _ => None,
+        })
+        .collect();
+    for (a, b) in connects {
+        if nodes.contains(a) && nodes.contains(b) {
+            edges.push((a.clone(), b.clone()));
+        }
+    }
+
+    let mut parent: Vec<usize> = (0..nodes.len()).collect();
+    fn root_of(parent: &mut Vec<usize>, index: usize) -> usize {
+        if parent[index] != index {
+            let found = root_of(parent, parent[index]);
+            parent[index] = found;
+        }
+        parent[index]
+    }
+    // Every edge names nodes of the graph: a branch puts its ends
+    // there, and a connection counts only when both ends are already in.
+    let at = |name: &String| {
+        nodes
+            .iter()
+            .position(|known| known == name)
+            .expect("edges name nodes of the graph")
+    };
+    for (a, b) in &edges {
+        let (ra, rb) = (root_of(&mut parent, at(a)), root_of(&mut parent, at(b)));
+        if ra != rb {
+            parent[ra] = rb;
+        }
+    }
+
+    let mut chosen: HashMap<String, bool> =
+        nodes.iter().map(|node| (node.clone(), false)).collect();
+    let mut parts: HashMap<usize, Vec<usize>> = HashMap::new();
+    for index in 0..nodes.len() {
+        let part = root_of(&mut parent, index);
+        parts.entry(part).or_default().push(index);
+    }
+    let mut ordered: Vec<&Vec<usize>> = parts.values().collect();
+    ordered.sort_by_key(|part| nodes[part[0]].clone());
+    for part in ordered {
+        let declared: Vec<&str> = part
+            .iter()
+            .filter(|index| {
+                clauses.iter().any(
+                    |clause| matches!(clause, GraphClause::Root(node) if node == &nodes[**index]),
+                )
+            })
+            .map(|index| nodes[*index].as_str())
+            .collect();
+        if declared.len() > 1 {
+            return Err(format!(
+                "the connection graph holding {declared:?} has more than one root"
+            ));
+        }
+        if let Some(root) = declared.first() {
+            chosen.insert((*root).to_string(), true);
+            continue;
+        }
+        // No declared root: the best potential one takes the part.
+        let mut candidates: Vec<(i64, &str)> = part
+            .iter()
+            .filter_map(|index| {
+                clauses.iter().find_map(|clause| match clause {
+                    GraphClause::PotentialRoot(node, priority) if node == &nodes[*index] => {
+                        Some((*priority, node.as_str()))
+                    }
+                    _ => None,
+                })
+            })
+            .collect();
+        candidates.sort();
+        match candidates.first() {
+            Some((_, root)) => {
+                chosen.insert((*root).to_string(), true);
+            }
+            None => {
+                return Err(format!(
+                    "the connection graph holding `{}` has no root, so nothing says what the rest of it is measured against",
+                    nodes[part[0]]
+                ))
+            }
+        }
+    }
+    Ok(chosen)
+}
+
+/// Answer `Connections.isRoot` and `Connections.rooted` from the roots
+/// that were chosen.
+fn answer_graph_queries(expr: &Expr, roots: &HashMap<String, bool>) -> Expr {
+    let recur = |e: &Expr| answer_graph_queries(e, roots);
+    match expr {
+        Expr::Call(name, args)
+            if (name == "Connections.isRoot" || name == "Connections.rooted")
+                && args.len() == 1 =>
+        {
+            match &args[0] {
+                Expr::Ref(node) => Expr::Bool(roots.get(node).copied().unwrap_or(false)),
+                _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            }
+        }
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        _ => expr.clone(),
+    }
 }
 
 /// Turn the arrows of a state machine into equations on its clock.
@@ -5967,6 +6211,120 @@ mod tests {
     }
 
     #[test]
+    fn the_last_of_the_builtins_say_what_they_mean() {
+        // `homotopy` offers an easier problem to start from; this
+        // compiler takes the real one.
+        let m =
+            parse_model("model M Real y; equation y = homotopy(3 * time, time); end M;").unwrap();
+        assert!(format!("{:?}", m.equations[0].rhs).contains("Number(3.0)"));
+
+        // `semiLinear` is two slopes meeting at zero.
+        let m = parse_model(
+            "model M Real u; Real y; equation u = time - 1; y = semiLinear(u, 2, 5); end M;",
+        )
+        .unwrap();
+        let text = format!("{:?}", m.equations[1].rhs);
+        assert!(text.starts_with("If(Rel(Ge"), "{text}");
+        assert!(
+            text.contains("Number(2.0)") && text.contains("Number(5.0)"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_when_may_watch_several_conditions_at_once() {
+        // Each condition is a branch of its own: a disjunction has no
+        // edge left once one of them already holds.
+        let m = parse_model(
+            "model M Real u; discrete Real hits(start = 0); equation u = time; when {u > 0.3, u > 0.6, u > 0.9} then hits = pre(hits) + 1; end when; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.when_clauses[0].branches.len(), 3);
+        assert!(m.when_clauses[0]
+            .branches
+            .iter()
+            .all(|branch| branch.actions.len() == 1));
+    }
+
+    #[test]
+    fn a_when_may_stand_among_the_statements_of_an_algorithm() {
+        let m = parse_model(
+            "model M Real u; discrete Real counted(start = 0); Real doubled; equation u = time; algorithm doubled := 2 * u; when u > 0.5 then counted := pre(counted) + 1; elsewhen u > 0.9 then counted := pre(counted) + 2; end when; end M;",
+        )
+        .unwrap();
+        // The `when` became a clause; the rest of the section is still
+        // one equation per variable it assigns.
+        assert_eq!(m.when_clauses.len(), 1);
+        assert_eq!(m.when_clauses[0].branches.len(), 2);
+        assert!(m
+            .equations
+            .iter()
+            .any(|equation| format!("{:?}", equation.lhs) == "Ref(\"doubled\")"));
+
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // Only at the top of a section, and only assignments.
+        assert!(err(
+            "model M Real u; discrete Real c(start = 0); equation u = time; algorithm if u > 0 then when u > 1 then c := 1; end when; end if; end M;"
+        )
+        .contains("not inside an `if`"));
+        assert!(err(
+            "model M Real u; Real v[2]; discrete Real c(start = 0); equation u = time; v = {1, 2}; algorithm when u > 1 then c := 1; v[1] := 2; end when; end M;"
+        )
+        .contains("whole variables, not elements"));
+    }
+
+    #[test]
+    fn an_overconstrained_graph_is_broken_at_a_root() {
+        const FRAMES: &str = "connector Frame Real r; flow Real f; end Frame; model Body Frame a; Frame b; equation a.r = b.r; a.f + b.f = 0; Connections.branch(a, b); end Body;";
+
+        // A declared root takes its part of the graph.
+        let m = parse_model(&format!(
+            "{FRAMES} model Anchor Frame p; equation p.r = 0; Connections.root(p); end Anchor; model M Anchor ground; Body arm; Real here; Real there; equation connect(ground.p, arm.a); here = if Connections.isRoot(ground.p) then 1 else 0; there = if Connections.isRoot(arm.b) then 1 else 0; end M;"
+        ))
+        .unwrap();
+        let value = |name: &str| {
+            let equation = m
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .unwrap_or_else(|| panic!("no equation for {name}"));
+            format!("{:?}", equation.rhs)
+        };
+        assert!(value("here").contains("Bool(true)"), "{}", value("here"));
+        assert!(value("there").contains("Bool(false)"), "{}", value("there"));
+
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // What is written in the clauses has to make sense.
+        assert!(err(&format!(
+            "{FRAMES} model M Body arm; equation Connections.knot(arm.a); end M;"
+        ))
+        .contains("is not a clause this compiler knows"));
+        assert!(err(&format!(
+            "{FRAMES} model M Body arm; equation Connections.potentialRoot(arm.a, 1.5); end M;"
+        ))
+        .contains("priority of a potential root is a whole number"));
+        // A part with nothing to measure against.
+        assert!(err(&format!(
+            "{FRAMES} model M Body arm; Real y; equation y = 1; end M;"
+        ))
+        .contains("has no root"));
+        // Two declared roots in one part is one too many.
+        assert!(err(&format!(
+            "{FRAMES} model Anchor Frame p; equation p.r = 0; Connections.root(p); end Anchor; model M Anchor one; Anchor two; Body arm; equation connect(one.p, arm.a); connect(arm.b, two.p); end M;"
+        ))
+        .contains("more than one root"));
+        // A potential root serves where no root was declared, and the
+        // answer is found wherever in an expression it was asked.
+        let m = parse_model(&format!(
+            "{FRAMES} model Loose Frame p; equation p.r = 0; Connections.potentialRoot(p, 2); end Loose; model M Loose maybe; Body arm; Real deep; equation connect(maybe.p, arm.a); deep = if not Connections.isRoot(arm.b) and (Connections.rooted(maybe.p) or false) then abs(-(if Connections.isRoot(maybe.p) then 2 else 3)) else 0; end M;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        assert!(!text.contains("Connections."), "all answered: {text}");
+        assert!(text.contains("Bool(true)"), "the potential root took it");
+    }
+
+    #[test]
     fn a_state_machine_becomes_equations_on_its_clock() {
         const MACHINE: &str = "model M block Step Real n(start = 0); \
              equation n = previous(n) + 1; end Step; \
@@ -6018,6 +6376,17 @@ mod tests {
     #[test]
     fn state_machine_error_paths() {
         let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // One class starts in one state.
+        assert!(err(
+            "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; Clock c = Clock(0.5); S a; S b; equation initialState(a); initialState(b); end M;"
+        )
+        .contains("one initial state too many"));
+        // And one model holds one machine, however many classes bring
+        // one along.
+        assert!(err(
+            "model Machine block S Real n(start = 0); equation n = previous(n) + 1; end S; S a; equation initialState(a); end Machine; model M Clock c = Clock(0.5); Machine one; Machine two; end M;"
+        )
+        .contains("only one state machine"));
         // A machine with no clock to run on, or with several.
         assert!(err(
             "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
@@ -6036,6 +6405,11 @@ mod tests {
         assert!(err("model M Clock c = Clock(0.5); Real y; \
              equation initialState(y); y = previous(y) + 1; end M;")
         .contains("is not a component with anything in it"));
+        // A priority that is not a whole number from one.
+        assert!(err(
+            "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; Clock c = Clock(0.5); S a; S b; equation initialState(a); transition(a, b, a.n >= 1, priority = 0.5); end M;"
+        )
+        .contains("whole number from 1"));
         // A setting this compiler will not pretend to honour.
         assert!(err(
             "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \

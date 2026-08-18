@@ -46,7 +46,9 @@ subscripts, inside `for` loops and between whole connector arrays;
 DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
-`noEvent`, `smooth`), event iteration; `if` equations, structural on a
+`noEvent`, `smooth`, `semiLinear`), a `when` watching several
+conditions at once and one standing among the statements of an
+algorithm; event iteration; `if` equations, structural on a
 compile-time condition and balanced-branch on a run-time one — each
 mode is matched, torn and solved as its own model and rebuilt when the
 condition flips, so branches may constrain different unknowns, which
@@ -158,12 +160,16 @@ the model, and `import A.pi;` is the way to write it.
 run-time `if` equation must be readable from the parameters, the
 states and plain `name = expr` definitions at the instant the mode is
 settled — a condition that only an algebraic loop could produce falls
-back to the `else`. `when` inside algorithms is not
-supported; vector
-`when` conditions are not supported; no `delay`, `terminal`,
-`homotopy`, `semiLinear`, `spatialDistribution`, `getInstanceName`;
-overconstrained connection
-graphs (`Connections.root` and friends) are not implemented; subtype
+back to the `else`. A `when` may stand among the statements of a
+model's algorithm section, but only at the top of one and holding
+whole-variable assignments. `homotopy` takes the real problem and goes
+straight at it, which the specification permits and which means no
+continuation is run. `Connections.root`, `potentialRoot`, `branch`,
+`isRoot` and `rooted` decide the roots of an overconstrained graph and
+refuse one with no root or with two, but no equality constraints are
+generated or dropped, since overdetermined types are not supported.
+No `delay`, `terminal`, `spatialDistribution`, `getInstanceName`;
+subtype
 compatibility (ch. 6) is approximated by the `extends` chain for
 `constrainedby`, though a connection set matches its connectors by
 shape — same member names, same `flow` and `stream` prefixes — rather

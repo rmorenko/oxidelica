@@ -395,6 +395,7 @@ impl Parser {
                 asserts: Vec::new(),
                 transitions: Vec::new(),
                 initial_state: None,
+                connection_graph: Vec::new(),
             })));
         }
 
@@ -413,6 +414,7 @@ impl Parser {
         let mut asserts = Vec::new();
         let mut transitions = Vec::new();
         let mut initial_state = None;
+        let mut connection_graph = Vec::new();
         let mut algorithm = Vec::new();
         let mut initial_equations = Vec::new();
         let mut experiment = Experiment::default();
@@ -549,7 +551,11 @@ impl Parser {
                 Token::Ident(name) if in_equations && name == "initialState" => {
                     self.bump();
                     self.expect(&Token::LParen, "parenthesis after initialState")?;
-                    initial_state = Some(self.dotted_name("the state to start in")?);
+                    let named = self.dotted_name("the state to start in")?;
+                    if let Some(already) = &initial_state {
+                        return Err(self.err(format!("this class already starts in `{already}`, so `{named}` is one initial state too many")));
+                    }
+                    initial_state = Some(named);
                     self.expect(&Token::RParen, "closing parenthesis of initialState")?;
                     if self.peek() == &Token::Annotation {
                         self.annotation_body(&mut Experiment::default())?;
@@ -559,6 +565,11 @@ impl Parser {
                 Token::Ident(name) if in_equations && name == "transition" => {
                     self.bump();
                     transitions.push(self.transition_clause()?);
+                }
+                // `Connections.root(a);` and its relatives say how an
+                // overconstrained graph is to be broken open.
+                Token::Ident(name) if in_equations && name == "Connections" => {
+                    connection_graph.push(self.connections_clause()?);
                 }
                 _ => {
                     if in_initial {
@@ -597,6 +608,7 @@ impl Parser {
             asserts,
             transitions,
             initial_state,
+            connection_graph,
         })))
     }
 
@@ -708,6 +720,54 @@ impl Parser {
             reset,
             priority,
         })
+    }
+
+    /// `Connections.root(a);`, `Connections.potentialRoot(a, p);`,
+    /// `Connections.branch(a, b);`
+    fn connections_clause(&mut self) -> Result<GraphClause, ParseError> {
+        let name = self.dotted_name("a Connections clause")?;
+        let which = match name.strip_prefix("Connections.") {
+            Some(which) => which.to_string(),
+            None => return Err(self.err(format!("`{name}` is not a Connections clause"))),
+        };
+        self.expect(&Token::LParen, "parenthesis after a Connections clause")?;
+        let first = self.dotted_name("the node named")?;
+        let clause = match which.as_str() {
+            "root" => GraphClause::Root(first),
+            "potentialRoot" => {
+                let mut priority = 0;
+                if self.peek() == &Token::Comma {
+                    self.bump();
+                    match self.bump() {
+                        Token::Number(number) if number.fract() == 0.0 => priority = number as i64,
+                        other => {
+                            return Err(self.err(format!(
+                            "the priority of a potential root is a whole number, found `{other}`"
+                        )))
+                        }
+                    }
+                }
+                GraphClause::PotentialRoot(first, priority)
+            }
+            "branch" => {
+                self.expect(&Token::Comma, "comma between the ends of a branch")?;
+                GraphClause::Branch(first, self.dotted_name("the other end")?)
+            }
+            other => {
+                return Err(self.err(format!(
+                    "`Connections.{other}` is not a clause this compiler knows"
+                )))
+            }
+        };
+        self.expect(
+            &Token::RParen,
+            "closing parenthesis of a Connections clause",
+        )?;
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Experiment::default())?;
+        }
+        self.expect(&Token::Semi, "semicolon after a Connections clause")?;
+        Ok(clause)
     }
 
     /// A dotted class name: `Modelica.Electrical.Analog.Basic.Resistor`.
@@ -929,6 +989,7 @@ impl Parser {
                 }
                 Token::If => out.push(self.if_statement()?),
                 Token::For => out.push(self.for_statement()?),
+                Token::When => out.push(self.when_statement()?),
                 Token::While => {
                     self.bump();
                     let condition = self.expr()?;
@@ -953,6 +1014,42 @@ impl Parser {
             }
         }
         Ok(out)
+    }
+
+    /// `when c then … elsewhen … end when;` inside an algorithm.
+    fn when_statement(&mut self) -> Result<Statement, ParseError> {
+        self.expect(&Token::When, "when")?;
+        let mut branches = Vec::new();
+        loop {
+            let condition = self.expr()?;
+            self.expect(&Token::Then, "then after a when condition")?;
+            let body = self.statements()?;
+            // A vector condition is a branch apiece here too, and for
+            // the same reason.
+            match condition {
+                Expr::Array(conditions) if !conditions.is_empty() => {
+                    for condition in conditions {
+                        branches.push(StatementBranch {
+                            condition: Some(condition),
+                            body: body.clone(),
+                        });
+                    }
+                }
+                condition => branches.push(StatementBranch {
+                    condition: Some(condition),
+                    body,
+                }),
+            }
+            if self.peek() == &Token::ElseWhen {
+                self.bump();
+                continue;
+            }
+            break;
+        }
+        self.expect(&Token::End, "end closing the when")?;
+        self.expect(&Token::When, "when after end")?;
+        self.expect(&Token::Semi, "semicolon after end when")?;
+        Ok(Statement::When(branches))
     }
 
     /// `if c then … elseif … else … end if;` inside an algorithm.
@@ -1279,7 +1376,20 @@ impl Parser {
             if actions.is_empty() {
                 return Err(self.err("when branch has no actions".into()));
             }
-            branches.push(WhenBranch { condition, actions });
+            // `when {c1, c2} then ...` fires whenever any one of them
+            // becomes true - which is a branch apiece, since a
+            // disjunction has no edge of its own once one holds.
+            match condition {
+                Expr::Array(conditions) if !conditions.is_empty() => {
+                    for condition in conditions {
+                        branches.push(WhenBranch {
+                            condition,
+                            actions: actions.clone(),
+                        });
+                    }
+                }
+                condition => branches.push(WhenBranch { condition, actions }),
+            }
             if self.peek() == &Token::ElseWhen {
                 self.bump();
                 continue;
