@@ -13,6 +13,8 @@ use crate::*;
 pub(crate) fn simplify(expr: &Expr) -> Expr {
     use oxidelica_parser::BinOp::*;
     match expr {
+        // Nothing to fold: a string is already as simple as it gets.
+        Expr::Str(_) => expr.clone(),
         Expr::Neg(inner) => match simplify(inner) {
             Expr::Number(n) => Expr::Number(-n),
             other => Expr::Neg(Box::new(other)),
@@ -79,7 +81,7 @@ pub(crate) fn simplify(expr: &Expr) -> Expr {
 pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
     match expr {
         Expr::Ref(name) if name == var => Expr::Number(value),
-        Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
             args.iter().map(|a| substitute(a, var, value)).collect(),

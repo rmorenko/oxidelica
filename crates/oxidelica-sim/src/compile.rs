@@ -1540,6 +1540,8 @@ pub(crate) fn compile_at(
 /// the functions whose sign changes mark an event.
 pub(crate) fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
     match expr {
+        // A string holds no relation, and cannot become one.
+        Expr::Str(_) => {}
         Expr::Rel(_, l, r) => {
             out.push(simplify(&Expr::Bin(
                 oxidelica_parser::BinOp::Sub,

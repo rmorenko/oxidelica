@@ -16,6 +16,12 @@ pub(crate) fn truth(yes: bool) -> f64 {
 pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     use oxidelica_parser::BinOp::*;
     Ok(match expr {
+        Expr::Str(text) => {
+            return err(format!(
+                "`\"{text}\"` is a String, and a String has no value a step can carry; \
+                 strings are settled before the run"
+            ))
+        }
         Expr::Number(n) => *n,
         Expr::Bool(b) => {
             if *b {
@@ -330,6 +336,12 @@ impl SlotTable {
     /// variable or a function the model does not have.
     pub(crate) fn compile(&self, expr: &Expr) -> Result<Code, SimError> {
         Ok(match expr {
+            Expr::Str(text) => {
+                return err(format!(
+                    "`\"{text}\"` is a String, and a String has no value a step can carry; \
+                     strings are settled before the run"
+                ))
+            }
             Expr::Number(value) => Code::Const(*value),
             Expr::Bool(value) => Code::Const(truth(*value)),
             Expr::Time => Code::Time,

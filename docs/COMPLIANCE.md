@@ -72,7 +72,10 @@ with declared transitions; `operator record` classes whose
 arithmetic operators are dispatched on the record they belong to;
 a static type layer
 (Boolean/Integer/Real) and dimensional unit checking (ch. 19), both
-permissive: an error needs two declared facts to contradict.
+permissive: an error needs two declared facts to contradict; `String`
+constants and parameters, built from literals, from each other and
+from `String(number)`, compared with `==` and `<>`, and settled before
+the run.
 
 ## Known gaps, largest first
 
@@ -80,8 +83,7 @@ permissive: an error needs two declared facts to contradict.
 contradictions between declarations: a variable with no unit, a call
 the checker does not know, or a unit spelled in a symbol outside its
 table all pass unexamined, and everything is still carried as a
-floating-point number at runtime. `String` exists only as literals in
-descriptions and `terminate`; `nominal`, `quantity` and `stateSelect`
+floating-point number at runtime. `nominal`, `quantity` and `stateSelect`
 are parsed and ignored; unit scale factors are ignored too (`g` and
 `kg` are the same dimension, `displayUnit` does nothing); numeric
 literals never carry units, so `x = 5` is accepted whatever `x` is
@@ -91,6 +93,17 @@ and one the run produces stops it where it left the bounds. An
 `Integer` is refused a value that works out to a fraction, in a
 binding, a `start` or an assignment - though `Integer i = 3.0` passes,
 since a whole number spelled with a point contradicts nothing.
+
+**Strings** are worked out at the end of flattening and take no part
+in a run: the arrays a step works on hold numbers. A `String` constant
+or parameter may be built from literals, from another string and from
+`String(number)`, joined with `+` and compared with `==` and `<>` -
+which is how a model names a medium or a mode and reads it in an `if`.
+A comparison becomes the Boolean it comes to and the declaration
+disappears. What is missing: a `String` that only a run could produce
+(`String(x)` of a variable), string variables in results, the string
+functions of ch. 12, and `assert`/`terminate` messages built by
+joining - those still take a literal.
 
 **Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
 or enumeration indexing. A flexible size (`:`) is read from the

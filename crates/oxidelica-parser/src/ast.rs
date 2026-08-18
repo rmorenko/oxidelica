@@ -470,6 +470,10 @@ pub enum RelOp {
 /// An expression tree node.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    /// A string literal. Strings are settled before the run - there is
+    /// no place for one in the numeric arrays a step works on - so a
+    /// `String` that survives into the equations is refused.
+    Str(String),
     /// Numeric literal.
     Number(f64),
     /// Boolean literal.

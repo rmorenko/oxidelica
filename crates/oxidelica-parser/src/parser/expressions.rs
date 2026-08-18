@@ -187,6 +187,10 @@ impl Parser {
                 self.bump();
                 Ok(Expr::Number(n))
             }
+            Token::Str(text) => {
+                self.bump();
+                Ok(Expr::Str(text))
+            }
             Token::True => {
                 self.bump();
                 Ok(Expr::Bool(true))

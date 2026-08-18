@@ -64,7 +64,10 @@ impl Parser {
         let mut modifiers = Vec::new();
         let mut redeclares = Vec::new();
         if self.peek() == &Token::LParen {
-            if matches!(type_name.as_str(), "Real" | "Integer" | "Boolean") {
+            if matches!(
+                type_name.as_str(),
+                "Real" | "Integer" | "Boolean" | "String"
+            ) {
                 self.bump();
                 loop {
                     while matches!(self.peek(), Token::Final | Token::Each) {

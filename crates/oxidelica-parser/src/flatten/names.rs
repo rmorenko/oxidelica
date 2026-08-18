@@ -64,7 +64,7 @@ pub(super) fn prefix_expr_under(
                 .collect(),
         ),
         Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
-        Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         // The keyword names an input of the function, not a component.
         Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value))),
         Expr::Tuple(targets) => Expr::Tuple(
@@ -185,7 +185,7 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
 pub(super) fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
     match expr {
         Expr::Ref(name) => map.get(name).cloned().unwrap_or_else(|| expr.clone()),
-        Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
             args.iter().map(|a| substitute_refs(a, map)).collect(),
@@ -342,7 +342,7 @@ pub(super) fn substitute_class_constants(
             .find(|(local, _)| local == name)
             .and_then(|(_, target)| class_constant(registry, target, scope, imports))
             .map_or_else(|| expr.clone(), Expr::Number),
-        Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
@@ -444,7 +444,10 @@ pub(super) fn lookup<'a>(
 /// Built-in scalar types. `Integer` and `Boolean` are carried as
 /// numbers, like everything else in the flat model.
 pub(super) fn is_primitive(type_name: &str) -> bool {
-    matches!(type_name, "Real" | "Integer" | "Boolean" | "Clock")
+    matches!(
+        type_name,
+        "Real" | "Integer" | "Boolean" | "String" | "Clock"
+    )
 }
 
 /// Flat scalar name of one array element: `T[2]`, `A[1,3]`.
@@ -587,7 +590,7 @@ pub(super) fn resolve(
         Expr::ColonSubscript | Expr::EndSubscript => {
             return Err("`:` and `end` make sense only inside a subscript".to_string())
         }
-        Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value)?)),
         Expr::Tuple(_) => {
             return Err("a tuple may only stand on the left of `=` or `:=`".to_string())

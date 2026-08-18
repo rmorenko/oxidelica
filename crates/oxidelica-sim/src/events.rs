@@ -44,6 +44,7 @@ impl EventRewrite<'_> {
     /// Rewrite one expression.
     pub(crate) fn expr(&mut self, expr: &Expr) -> Result<Expr, SimError> {
         Ok(match expr {
+            Expr::Str(_) => expr.clone(),
             Expr::Call(name, args) => match (name.as_str(), args.len()) {
                 ("pre", 1) => self.pre_of(&args[0], "pre")?,
                 // edge(b) is "b just became true", change(v) is "v just

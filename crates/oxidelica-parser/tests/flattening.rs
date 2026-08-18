@@ -2468,3 +2468,110 @@ fn connects_generate_kirchhoff_equations() {
     });
     assert!(has_zero_flow, "unconnected flow must be zeroed");
 }
+
+#[test]
+fn a_string_chooses_what_a_model_does() {
+    // How strings are actually used in Modelica: one names a choice at
+    // the top of a model and the equations read it. Nothing here needs
+    // a string while the run goes, so it is settled beforehand and
+    // what it leaves behind is a Boolean.
+    let density = |medium: &str| {
+        let model = parse_model(&format!(
+            "model M parameter String medium = \"{medium}\"; Real rho; \
+             equation if medium == \"water\" then rho = 1000; else rho = 850; end if; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ))
+        .expect("parses");
+        // The declaration is gone: there is nowhere in a run to put it.
+        assert!(
+            !model.components.iter().any(|c| c.name == "medium"),
+            "the string outlived the flattening"
+        );
+        model
+    };
+    assert!(format!("{:?}", density("water").conditional).contains("Bool(true)"));
+    assert!(format!("{:?}", density("oil").conditional).contains("Bool(false)"));
+
+    // Built from another string, from a number, and compared with `<>`.
+    let model = parse_model(
+        "model M constant String base = \"n\"; parameter String tag = base + \"=\" + String(42); \
+         Real r; equation r = if tag <> \"n=42\" then 0 else 7; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    assert!(format!("{:?}", model.equations).contains("Bool(false)"));
+}
+
+#[test]
+fn a_string_is_refused_where_a_number_belongs() {
+    let refused = |source: &str| parse_model(source).expect_err("should be refused").message;
+
+    let text = refused("model M Real r; equation r = \"text\"; end M;");
+    assert!(text.contains("has no value an equation can hold"), "{text}");
+
+    // A string only a run could produce is not a string this compiler
+    // can settle, and it says which one.
+    let text = refused(
+        "model M Real x; parameter String s = String(x); Real r; \
+         equation x = time; r = 1; end M;",
+    );
+    assert!(
+        text.contains("`s` is a String whose value is not settled"),
+        "{text}"
+    );
+
+    let text = refused("model M String s; Real r; equation r = 1; end M;");
+    assert!(text.contains("`s` is a String with no value"), "{text}");
+
+    let text = refused(
+        "model M parameter String a = \"x\"; Real r; equation r = if a < \"y\" then 1 else 0; end M;",
+    );
+    assert!(text.contains("`==` and `<>`"), "{text}");
+}
+
+#[test]
+fn a_string_travels_through_every_shape_of_expression() {
+    // The string pass rewrites comparisons and has to hand every other
+    // shape back untouched, so a model with a string in it must still
+    // carry arrays, matrices, ranges, comprehensions, subscripts,
+    // tuples and named arguments through unharmed.
+    let m = parse_model(
+        "function pick input Real a; input Real b; output Real hi; output Real lo; \
+         algorithm hi := max(a, b); lo := min(a, b); end pick; \
+         function scaled input Real v; input Real by = 2; output Real y; \
+         algorithm y := v * by; end scaled; \
+         model M \
+           parameter String medium = \"water\"; \
+           parameter Real row[2, 2] = [1, 2; 3, 4]; \
+           parameter Real ramp[3] = {i * 2 for i in 1:3}; \
+           parameter Real span[3] = 1:1:3; \
+           Real hi; Real lo; Real picked; Real named; Real gate; Real total; \
+         equation \
+           (hi, lo) = pick(ramp[1], ramp[end]); \
+           picked = row[2, 1] + sum(span) + sum({j * 1.0 for j in 1:3}); \
+           named = scaled(3, by = 4); \
+           gate = if medium == \"water\" and not medium <> \"water\" then 1 else 0; \
+           total = hi + lo + picked + named + gate; \
+           annotation(experiment(StopTime = 1, Interval = 1)); \
+         end M;",
+    )
+    .expect("parses");
+
+    // The comparison became what it comes to, and nothing else moved.
+    let gate = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs).contains("gate"))
+        .expect("gate is there");
+    assert!(!format!("{:?}", gate.rhs).contains("medium"));
+    assert!(format!("{:?}", gate.rhs).contains("Bool(true)"), "{gate:?}");
+    assert!(!m.components.iter().any(|c| c.type_name == "String"));
+
+    // Every other shape came through: the matrix, the comprehension,
+    // the range, `end` as a subscript, the tuple and the named
+    // argument are all still in the flat model.
+    let all = format!("{:?}", m.equations);
+    for kept in ["row[2,1]", "ramp[3]", "span[3]", "hi", "lo"] {
+        assert!(all.contains(kept), "`{kept}` did not survive: {all}");
+    }
+}

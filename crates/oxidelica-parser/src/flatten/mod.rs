@@ -28,6 +28,7 @@ mod connections;
 mod instantiate;
 mod names;
 mod operators;
+mod strings;
 #[cfg(test)]
 mod tests;
 
@@ -40,6 +41,7 @@ use connections::*;
 use instantiate::*;
 use names::*;
 use operators::*;
+use strings::*;
 
 /// Maximum instantiation depth (guards against recursive classes).
 const MAX_DEPTH: usize = 32;
@@ -343,6 +345,10 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // The branches themselves travel to the compiler, which settles
     // which one applies and compiles that mode as its own model.
     model.conditional = acc.conditional;
+    // Strings are settled last, once every branch that could hold one
+    // is in the model: what they leave behind is a Boolean where one
+    // was compared, and nothing where one was declared.
+    resolve_strings(&mut model)?;
     Ok(model)
 }
 
