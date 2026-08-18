@@ -957,6 +957,42 @@ fn discrete_layer(
 /// evaluated in passes: each pass settles whatever it can, and a pass
 /// that settles nothing means what is left refers to itself or to
 /// something that is not there.
+/// The two boundary equations of every `spatialDistribution`.
+///
+/// Which end is the inflow depends on the direction, and so does which
+/// end reads the profile: going forward, ξ = 0 is where the quantity
+/// enters and ξ = 1 is where what entered a unit of `x` ago comes out.
+/// Going backward the two swap over, which is why both readings are
+/// kept and the condition picks between them.
+fn with_transport_equations(model: &Model) -> Model {
+    let mut out = model.clone();
+    for (index, transport) in model.transports.iter().enumerate() {
+        let pick = |forward: Expr, backward: Expr| {
+            Expr::If(
+                Box::new(transport.positive.clone()),
+                Box::new(forward),
+                Box::new(backward),
+            )
+        };
+        let read = |name: String| Expr::Ref(name);
+        out.equations.push(EquationItem {
+            lhs: Expr::Ref(transport.out0.clone()),
+            rhs: pick(
+                transport.in0.clone(),
+                read(format!("$carried_at_zero{index}")),
+            ),
+        });
+        out.equations.push(EquationItem {
+            lhs: Expr::Ref(transport.out1.clone()),
+            rhs: pick(
+                read(format!("$carried_at_one{index}")),
+                transport.in1.clone(),
+            ),
+        });
+    }
+    out
+}
+
 /// The `min` and `max` attributes, as the assertions Modelica says they
 /// are. A bound that is settled before the run is already refused by the
 /// checker; these are for the values that only a run produces - a level
@@ -1051,6 +1087,18 @@ pub(crate) fn compile_at(
     model: &Model,
     resume: Option<ResumePoint>,
 ) -> Result<CompiledModel, SimError> {
+    // 0. `spatialDistribution` becomes two ordinary equations: the two
+    // ends of the profile, each of them either what is entering there
+    // or what the profile has carried to it. Everything after this
+    // point sees equations and nothing else.
+    let carried;
+    let model = if model.transports.is_empty() {
+        model
+    } else {
+        carried = with_transport_equations(model);
+        &carried
+    };
+
     // 1. Parameters and constants, in whatever order they depend on
     // each other.
     let params = evaluate_parameters(model)?;
@@ -1336,6 +1384,14 @@ pub(crate) fn compile_at(
     let delay_slots: Vec<Slot> = (0..delayed.len())
         .map(|index| table.slot(&format!("$delay{index}")))
         .collect();
+    let transport_slots: Vec<(Slot, Slot)> = (0..model.transports.len())
+        .map(|index| {
+            (
+                table.slot(&format!("$carried_at_zero{index}")),
+                table.slot(&format!("$carried_at_one{index}")),
+            )
+        })
+        .collect();
     for (name, value) in discretes.iter().zip(&discrete_start) {
         let slot = table.slot(name);
         table.template[slot] = *value;
@@ -1465,6 +1521,35 @@ pub(crate) fn compile_at(
             })
             .collect::<Result<Vec<_>, SimError>>()?,
         history: std::cell::RefCell::new(vec![Vec::new(); delayed.len()]),
+        transports: model
+            .transports
+            .iter()
+            .zip(&transport_slots)
+            .map(|(transport, &(at_zero_slot, at_one_slot))| {
+                Ok(CompiledTransport {
+                    at_zero_slot,
+                    at_one_slot,
+                    in0: table.compile(&transport.in0)?,
+                    in1: table.compile(&transport.in1)?,
+                    x: table.compile(&transport.x)?,
+                    positive: table.compile(&transport.positive)?,
+                    // The profile is given along the coordinate; the
+                    // entry positions it stands for need `x` at the
+                    // start, which only the run knows, so the pairs are
+                    // kept as written and turned round on the first
+                    // point. Reversed, since a position further along
+                    // ξ entered earlier.
+                    initial: transport
+                        .initial_points
+                        .iter()
+                        .zip(&transport.initial_values)
+                        .rev()
+                        .map(|(&point, &value)| (point, value))
+                        .collect(),
+                })
+            })
+            .collect::<Result<Vec<_>, SimError>>()?,
+        profiles: std::cell::RefCell::new(vec![Vec::new(); model.transports.len()]),
         algebraics: ordered_algs,
         algebraic_start,
         fixed_starts,

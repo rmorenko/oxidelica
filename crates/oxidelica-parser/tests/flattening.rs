@@ -2674,3 +2674,41 @@ fn a_model_can_ask_where_it_is() {
     )
     .is_ok());
 }
+
+#[test]
+fn a_carried_profile_is_checked_before_the_run() {
+    // Everything about `spatialDistribution` except the two inflows is
+    // settled before a run starts, so a profile that does not describe
+    // the coordinate is a mistake in the model rather than one the
+    // arithmetic will find.
+    let refused = |source: &str| {
+        parse_model(&format!(
+            "model M Real x(start = 0, fixed = true); Real a; Real b; \
+             equation der(x) = 1; {source} \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ))
+        .expect_err("should be refused")
+        .message
+    };
+
+    assert!(
+        refused("(a, b) = spatialDistribution(0, 0, x, true, {0.5, 1.0}, {0.0, 0.0});")
+            .contains("span 0 to 1")
+    );
+    assert!(refused(
+        "(a, b) = spatialDistribution(0, 0, x, true, {0.0, 0.4, 0.2, 1.0}, {0.0, 0.0, 0.0, 0.0});"
+    )
+    .contains("must not decrease"));
+    assert!(
+        refused("(a, b) = spatialDistribution(0, 0, x, true, {0.0, 1.0}, {0.0, 0.0, 0.0});")
+            .contains("2 initialPoints against 3 initialValues")
+    );
+    assert!(
+        refused("(a, b) = spatialDistribution(0, 0, x, true, {0.0, 1.0});")
+            .contains("but got 5 arguments")
+    );
+    assert!(
+        refused("(a, b) = spatialDistribution(0, 0, x, true, {0.0, x}, {0.0, 0.0});")
+            .contains("must be known before the run")
+    );
+}

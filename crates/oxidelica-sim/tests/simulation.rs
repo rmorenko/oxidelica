@@ -1683,3 +1683,118 @@ fn the_end_of_a_run_is_an_event_of_its_own() {
     assert_eq!(stopped.rows.last().unwrap()[flag], 0.0);
     assert!(stopped.terminated.is_some());
 }
+
+#[test]
+fn a_carried_profile_arrives_where_and_when_it_should() {
+    // `spatialDistribution` is transport along a coordinate: what goes
+    // in at one end comes out at the other once the coordinate has
+    // moved by one. With a unit velocity that is a delay of one second,
+    // and unlike `delay` it is exact - the profile remembers the
+    // position each value entered at, so nothing is interpolated
+    // between output points.
+    let result = run(
+        "model Pipe Real x(start = 0, fixed = true); Real inlet; Real out0; Real out1; \
+         equation der(x) = 1; inlet = sin(3 * time); \
+         (out0, out1) = spatialDistribution(inlet, 0, x, true, {0.0, 1.0}, {0.0, 0.0}); \
+         annotation(experiment(StopTime = 3, Interval = 0.002, Tolerance = 1e-10)); end Pipe;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    for row in &result.rows {
+        let t = row[0];
+        // Going forward, the near end is simply what is entering.
+        assert!(
+            (row[index("out0")] - (3.0 * t).sin()).abs() < 1e-12,
+            "t = {t}"
+        );
+        // And the far end is what entered a unit of x ago, which is
+        // one second here. Before that it is the profile it started
+        // from, which is flat and zero.
+        let wanted = if t >= 1.0 {
+            (3.0 * (t - 1.0)).sin()
+        } else {
+            0.0
+        };
+        assert!(
+            (row[index("out1")] - wanted).abs() < 1e-9,
+            "t = {t}: {} vs {wanted}",
+            row[index("out1")]
+        );
+    }
+}
+
+#[test]
+fn a_carried_profile_runs_both_ways() {
+    // The same pipe with the flow reversed: what enters at the far end
+    // leaves at the near one, a unit of x later.
+    let backward = run(
+        "model B Real x(start = 0, fixed = true); Real feed; Real out0; Real out1; \
+         equation der(x) = -1; feed = sin(3 * time); \
+         (out0, out1) = spatialDistribution(0, feed, x, false, {0.0, 1.0}, {0.0, 0.0}); \
+         annotation(experiment(StopTime = 3, Interval = 0.002, Tolerance = 1e-10)); end B;",
+    );
+    let at =
+        |result: &SimResult, name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    for row in &backward.rows {
+        let t = row[0];
+        let wanted = if t >= 1.0 {
+            (3.0 * (t - 1.0)).sin()
+        } else {
+            0.0
+        };
+        assert!(
+            (row[at(&backward, "out0")] - wanted).abs() < 1e-9,
+            "t = {t}"
+        );
+    }
+
+    // And a flow that turns round mid-run. Up to t = 1.5 the pipe
+    // fills with what the clock read; after it, that same fluid comes
+    // back out in the order it went in - so the near end reads 3 - t -
+    // until the fronts meet at t = 2.5 and the fluid that entered
+    // backward starts arriving, a unit of x behind the clock.
+    let turning = run(
+        "model R Real x(start = 0, fixed = true); Real feed; Real out0; Real out1; \
+         Boolean forward; \
+         equation forward = time < 1.5; der(x) = if forward then 1 else -1; feed = time; \
+         (out0, out1) = spatialDistribution(feed, feed, x, forward, {0.0, 1.0}, {0.0, 0.0}); \
+         annotation(experiment(StopTime = 3.4, Interval = 0.005, Tolerance = 1e-10)); end R;",
+    );
+    let out0 = at(&turning, "out0");
+    for row in &turning.rows {
+        let (t, got) = (row[0], row[out0]);
+        if (1.55..2.45).contains(&t) {
+            assert!(
+                (got - (3.0 - t)).abs() < 1e-6,
+                "t = {t}: {got} vs {}",
+                3.0 - t
+            );
+        } else if t > 2.55 {
+            assert!(
+                (got - (t - 1.0)).abs() < 1e-9,
+                "t = {t}: {got} vs {}",
+                t - 1.0
+            );
+        }
+    }
+}
+
+#[test]
+fn a_carried_profile_starts_from_the_one_it_was_given() {
+    // A step sitting in the middle of the pipe at t = 0: the far half
+    // holds one, the near half zero. Carried forward at unit speed the
+    // far end reads one until the step reaches it, half a second in.
+    let result = run(
+        "model P Real x(start = 0, fixed = true); Real out0; Real out1; \
+         equation der(x) = 1; \
+         (out0, out1) = spatialDistribution(0, 0, x, true, \
+           {0.0, 0.5, 0.5, 1.0}, {0.0, 0.0, 1.0, 1.0}); \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end P;",
+    );
+    let out1 = result.columns.iter().position(|c| c == "out1").unwrap();
+    let seen: String = result
+        .rows
+        .iter()
+        .map(|row| if row[out1] > 0.5 { '1' } else { '0' })
+        .collect();
+    assert_eq!(seen, "11111100000", "the step arrived at the wrong time");
+}

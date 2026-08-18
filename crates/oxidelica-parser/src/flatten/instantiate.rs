@@ -375,6 +375,34 @@ pub(super) fn instantiate(
             let Expr::Call(name, raw_args) = &rhs else {
                 return Err("the right side of a tuple equation must be a function call".into());
             };
+            // `spatialDistribution` fills a pair the way a function
+            // does, but there is no body to inline: what it stands for
+            // is a profile the run carries, so it is recorded here and
+            // the equation becomes the two boundary values.
+            if name == "spatialDistribution" {
+                let shapes = Shapes {
+                    sizes: &sizes_here,
+                    loop_vars: &no_loop_vars,
+                    consts: &local_consts,
+                    records: &records_here,
+                };
+                let arguments = raw_args
+                    .iter()
+                    .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
+                    .collect::<Result<Vec<Expr>, String>>()?;
+                // The targets go through the usual pipeline, so the
+                // names recorded are the flat ones.
+                let mut named = Vec::new();
+                for target in targets {
+                    let Some(target) = target else {
+                        named.push(None);
+                        continue;
+                    };
+                    named.push(Some(expand_here(target, &no_loop_vars)?.into_expr()));
+                }
+                spatial_transport(&named, &arguments, prefix, &outers, &local_consts, acc)?;
+                continue;
+            }
             let function = lookup(registry, name, scope, &imports)
                 .filter(|c| c.kind == ClassKind::Function)
                 .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
@@ -1322,4 +1350,81 @@ pub(super) fn flat_name(name: &str, prefix: &str, outers: &HashMap<String, Strin
         };
     }
     format!("{prefix}{name}")
+}
+
+/// Record one `spatialDistribution` and give the equation section the
+/// two boundary values in its place.
+///
+/// The arguments are checked here rather than at the run, since every
+/// one of them but the two inputs is settled before it: a profile that
+/// does not span the coordinate, or a pair of arrays of different
+/// lengths, is a mistake in the model rather than in the arithmetic.
+fn spatial_transport(
+    targets: &[Option<Expr>],
+    arguments: &[Expr],
+    prefix: &str,
+    outers: &HashMap<String, String>,
+    consts: &HashMap<String, f64>,
+    acc: &mut Flat,
+) -> Result<(), String> {
+    if arguments.len() != 6 {
+        return Err(format!(
+            "spatialDistribution takes in0, in1, x, positiveVelocity, \
+             initialPoints and initialValues, but got {} arguments",
+            arguments.len()
+        ));
+    }
+    if targets.len() != 2 {
+        return Err("spatialDistribution fills two values, `(out0, out1)`".to_string());
+    }
+    let numbers = |expr: &Expr, what: &str| -> Result<Vec<f64>, String> {
+        let Expr::Array(items) = expr else {
+            return Err(format!("spatialDistribution needs an array for {what}"));
+        };
+        items
+            .iter()
+            .map(|item| {
+                const_eval(item, consts).ok_or_else(|| {
+                    format!("{what} of spatialDistribution must be known before the run")
+                })
+            })
+            .collect()
+    };
+    let initial_points = numbers(&arguments[4], "initialPoints")?;
+    let initial_values = numbers(&arguments[5], "initialValues")?;
+    if initial_points.len() != initial_values.len() {
+        return Err(format!(
+            "spatialDistribution has {} initialPoints against {} initialValues",
+            initial_points.len(),
+            initial_values.len()
+        ));
+    }
+    if initial_points.len() < 2
+        || initial_points.first() != Some(&0.0)
+        || initial_points.last() != Some(&1.0)
+    {
+        return Err("initialPoints of spatialDistribution must span 0 to 1".to_string());
+    }
+    if initial_points.windows(2).any(|pair| pair[1] < pair[0]) {
+        return Err("initialPoints of spatialDistribution must not decrease".to_string());
+    }
+    let named = |target: &Option<Expr>, which: &str| -> Result<String, String> {
+        match target {
+            Some(Expr::Ref(name)) => Ok(name.clone()),
+            _ => Err(format!(
+                "the {which} of spatialDistribution must be a variable"
+            )),
+        }
+    };
+    acc.transports.push(SpatialTransport {
+        out0: named(&targets[0], "first output")?,
+        out1: named(&targets[1], "second output")?,
+        in0: prefix_expr(&arguments[0], prefix, outers),
+        in1: prefix_expr(&arguments[1], prefix, outers),
+        x: prefix_expr(&arguments[2], prefix, outers),
+        positive: prefix_expr(&arguments[3], prefix, outers),
+        initial_points,
+        initial_values,
+    });
+    Ok(())
 }

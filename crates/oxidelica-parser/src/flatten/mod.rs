@@ -301,6 +301,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // would look like a volt equated to an ampere, which is exactly
     // what an ideal switch is and not a mistake.
     let mut model = Model {
+        transports: acc.transports.clone(),
         name: top_class.name.clone(),
         description: top_class.description.clone(),
         components: acc.components,
@@ -372,6 +373,7 @@ struct StreamContext<'a> {
 #[derive(Default)]
 struct Flat {
     components: Vec<Component>,
+    transports: Vec<SpatialTransport>,
     equations: Vec<EquationItem>,
     when_clauses: Vec<WhenClause>,
     /// Equations of the `initial equation` sections, prefixed.

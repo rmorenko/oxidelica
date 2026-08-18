@@ -5,6 +5,22 @@ use crate::*;
 
 /// What a remembered trace was at a moment, straight between the two
 /// points either side of it.
+/// Lay the profile a model starts from into entry coordinates.
+///
+/// It is written along ξ, and a value at ξ = p is one that entered
+/// when the coordinate stood at `x - p`. Taken from the far end back
+/// that is a rising sequence, which is what reading it wants.
+fn seed(transport: &CompiledTransport, profile: &mut Vec<(f64, f64)>, x: f64) {
+    if profile.is_empty() {
+        profile.extend(
+            transport
+                .initial
+                .iter()
+                .map(|&(point, value)| (x - point, value)),
+        );
+    }
+}
+
 pub(crate) fn look_back(trace: &[(f64, f64)], at: f64) -> f64 {
     let Some((first_time, first_value)) = trace.first().copied() else {
         return 0.0;
@@ -88,10 +104,65 @@ impl CompiledModel {
         }
     }
 
+    /// Read each profile a unit ahead and a unit behind, so the two
+    /// boundary equations have both readings to choose between.
+    ///
+    /// This runs after the states are placed, since the coordinate the
+    /// profile is read at is one of them.
+    pub(crate) fn fill_transports(&self, t: f64, values: &mut [f64]) {
+        if self.transports.is_empty() {
+            return;
+        }
+        let mut profiles = self.profiles.borrow_mut();
+        for (transport, profile) in self.transports.iter().zip(profiles.iter_mut()) {
+            let x = transport.x.run(values, t);
+            // The first point reads the profile before anything has
+            // been put into it, and what it should read is the one the
+            // model started from.
+            seed(transport, profile, x);
+            values[transport.at_zero_slot] = look_back(profile, x);
+            values[transport.at_one_slot] = look_back(profile, x - 1.0);
+        }
+    }
+
+    /// Put what is entering into each profile, at the coordinate it
+    /// entered at.
+    ///
+    /// A reversal makes part of the profile wrong rather than merely
+    /// old: what was pushed ahead of the current coordinate never
+    /// happened as far as the new direction is concerned, so it goes.
+    pub(crate) fn remember_transports(&self, t: f64, values: &[f64]) {
+        if self.transports.is_empty() {
+            return;
+        }
+        let mut profiles = self.profiles.borrow_mut();
+        for (transport, profile) in self.transports.iter().zip(profiles.iter_mut()) {
+            let x = transport.x.run(values, t);
+            let forward = transport.positive.run(values, t) != 0.0;
+            seed(transport, profile, x);
+            let entering = if forward {
+                transport.in0.run(values, t)
+            } else {
+                transport.in1.run(values, t)
+            };
+            // The flow writes the end it enters by, and everything
+            // beyond that end has left the pipe - or, after a
+            // reversal, never was in it.
+            if forward {
+                profile.retain(|&(key, _)| key < x);
+                profile.push((x, entering));
+            } else {
+                profile.retain(|&(key, _)| key > x - 1.0);
+                profile.insert(0, (x - 1.0, entering));
+            }
+        }
+    }
+
     /// Remember what each delayed expression is at a point the run has
     /// settled on. Only accepted points are remembered: a rejected
     /// step or a Newton iteration would put the past out of order.
     pub(crate) fn remember_delays(&self, t: f64, values: &[f64]) {
+        self.remember_transports(t, values);
         if self.delays.is_empty() {
             return;
         }

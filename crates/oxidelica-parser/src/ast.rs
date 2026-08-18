@@ -403,6 +403,34 @@ pub struct ConditionalEquations {
     pub branches: Vec<Vec<EquationItem>>,
 }
 
+/// One `spatialDistribution(...)`: a quantity carried along a
+/// coordinate rather than held for a time.
+///
+/// The profile lives on ξ ∈ [0, 1] and moves with the velocity whose
+/// integral is `x`. What enters at one end leaves at the other once
+/// `x` has moved by one, so the memory is indexed by position rather
+/// than by the clock - which is the whole difference from `delay`.
+#[derive(Debug, Clone)]
+pub struct SpatialTransport {
+    /// Where `z(0, t)` is written.
+    pub out0: String,
+    /// Where `z(1, t)` is written.
+    pub out1: String,
+    /// What enters at ξ = 0 while the velocity is positive.
+    pub in0: Expr,
+    /// What enters at ξ = 1 while it is negative.
+    pub in1: Expr,
+    /// The integral of the velocity.
+    pub x: Expr,
+    /// Which way the transport is going.
+    pub positive: Expr,
+    /// The profile the run starts from: positions in [0, 1], sorted,
+    /// with the value carried at each.
+    pub initial_points: Vec<f64>,
+    /// See [`SpatialTransport::initial_points`].
+    pub initial_values: Vec<f64>,
+}
+
 /// A parsed flat model.
 #[derive(Debug, Clone)]
 pub struct Model {
@@ -427,6 +455,8 @@ pub struct Model {
     /// The arrows of the state machines, with the states named by
     /// their instance paths.
     pub transitions: Vec<Transition>,
+    /// Every `spatialDistribution` of the model.
+    pub transports: Vec<SpatialTransport>,
     /// Where each machine starts, by instance path.
     pub initial_states: Vec<String>,
     /// Graph clauses with nodes named by instance path.

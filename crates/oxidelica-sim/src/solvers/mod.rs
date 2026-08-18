@@ -318,6 +318,9 @@ impl CompiledModel {
         for (&slot, value) in self.state_slots.iter().zip(y) {
             values[slot] = *value;
         }
+        // A carried profile is read at a coordinate that is itself a
+        // state, so this comes after they are in place.
+        self.fill_transports(t, values);
         for stage in &self.stages {
             match stage {
                 AlgStage::Explicit { var, code } => {

@@ -8,7 +8,7 @@ under a chapter works as specified for the subset this project covers.
 | Ch. | Area                          | Status  |
 | --- | ----------------------------- | ------- |
 | 2   | Lexical structure             | Full    |
-| 3   | Operators and expressions     | Partial |
+| 3   | Operators and expressions     | Mostly  |
 | 4   | Classes, types, declarations  | Partial |
 | 5   | Scoping, lookup, flattening   | Partial |
 | 6   | Type relationships            | Minimal |
@@ -47,7 +47,7 @@ DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
 `noEvent`, `smooth`, `semiLinear`, `delay`, `nthRoot`, `terminal`,
-`getInstanceName`), a `when` watching several
+`getInstanceName`, `spatialDistribution`), a `when` watching several
 conditions at once and one standing among the statements of an
 algorithm; event iteration; `if` equations, structural on a
 compile-time condition and balanced-branch on a run-time one — each
@@ -126,10 +126,17 @@ stopped itself never reaches it, which is the difference between an
 analysis that ended and one that succeeded.
 `getInstanceName()` answers with the simulated model's name and the
 path of the instance that asked, settled before the run like every
-other string. What is missing is `spatialDistribution()`, which needs
-a history of its own along a coordinate. `cardinality()` is not
-implemented deliberately: the specification marks it deprecated and
-says it will be removed.
+other string. `spatialDistribution()` carries a profile along a coordinate rather
+than holding a value for a time: what enters at one end leaves at the
+other once the coordinate has moved by one, in either direction and
+across a reversal, from whatever profile the model started with. It is
+exact between output points, since the profile remembers the position
+each value entered at rather than sampling a grid. Its arguments but
+the two inflows are checked before the run.
+
+The one thing not implemented is `cardinality()`, and deliberately:
+the specification marks it deprecated and says it will be removed in a
+coming release.
 
 **Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
 or enumeration indexing. A flexible size (`:`) is read from the

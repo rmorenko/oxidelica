@@ -177,6 +177,35 @@ struct CompiledDelay {
     seconds: f64,
 }
 
+/// One `spatialDistribution(...)`: a profile carried along a
+/// coordinate, and the two slots the run reads it from.
+///
+/// The memory is the same shape as a delay's - a rising sequence of
+/// (key, value) - but the key is a position rather than a time. The
+/// key that makes both directions the same shape is `k = x - ξ`: a
+/// value keeps its key while the coordinate moves, which is precisely
+/// what being carried along means. The pipe is then the window
+/// `k ∈ [x - 1, x]`, its two ends are the two slots, and whichever end
+/// the flow enters by is the one being written.
+#[derive(Debug)]
+struct CompiledTransport {
+    /// The profile at ξ = 0, which is `k = x`.
+    at_zero_slot: Slot,
+    /// The profile at ξ = 1, which is `k = x - 1`.
+    at_one_slot: Slot,
+    /// What enters at ξ = 0, and at ξ = 1.
+    in0: Code,
+    /// See [`CompiledTransport::in0`].
+    in1: Code,
+    /// The integral of the velocity.
+    x: Code,
+    /// Which way it is going, as 1.0 or 0.0.
+    positive: Code,
+    /// The profile the run starts from, as (position, value) pairs
+    /// already turned into entry coordinates once `x` is known.
+    initial: Vec<(f64, f64)>,
+}
+
 /// A model reduced to "states plus ordered algebraic assignments".
 #[derive(Debug)]
 pub struct CompiledModel {
@@ -216,6 +245,11 @@ pub struct CompiledModel {
     /// What each delayed expression has been, kept as the run goes.
     /// Only the run touches it, and a run has the model to itself.
     history: std::cell::RefCell<Vec<Vec<(f64, f64)>>>,
+    /// The `spatialDistribution` operators, and the profile each one
+    /// carries. Kept beside the delays, and for the same reason.
+    transports: Vec<CompiledTransport>,
+    /// See [`CompiledModel::transports`].
+    profiles: std::cell::RefCell<Vec<Vec<(f64, f64)>>>,
     /// Slot of the flag raised by each `sample(...)` source.
     sample_slots: Vec<Slot>,
     /// Algebraic variables in evaluation order.
