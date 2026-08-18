@@ -322,12 +322,41 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     }
     // An overconstrained graph is broken open before anything else
     // looks at it, and `Connections.isRoot` is answered from what that
-    // came to.
+    // came to. `cardinality` is answered from the same place: how many
+    // `connect` equations named a port. Both are questions about the
+    // connections, and this is the last moment the answers are known.
     let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
-    if !acc.connection_graph.is_empty() {
-        for equation in &mut model.equations {
-            equation.lhs = answer_graph_queries(&equation.lhs, &roots);
-            equation.rhs = answer_graph_queries(&equation.rhs, &roots);
+    let mut connected: HashMap<String, f64> = HashMap::new();
+    for (a, b) in &acc.connects {
+        for port in [a, b] {
+            *connected.entry(port.clone()).or_insert(0.0) += 1.0;
+        }
+    }
+    let answer = |expr: &Expr| answer_graph_queries(expr, &roots, &connected);
+    for equation in model
+        .equations
+        .iter_mut()
+        .chain(model.initial_equations.iter_mut())
+    {
+        equation.lhs = answer(&equation.lhs);
+        equation.rhs = answer(&equation.rhs);
+    }
+    // An unconnected port is what `cardinality` is usually asked about,
+    // and what it is usually asked about it in is an assertion.
+    for (condition, _) in &mut model.asserts {
+        *condition = answer(condition);
+    }
+    for clause in &mut model.when_clauses {
+        for branch in &mut clause.branches {
+            branch.condition = answer(&branch.condition);
+            for action in &mut branch.actions {
+                match action {
+                    WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => {
+                        *value = answer(value);
+                    }
+                    WhenAction::Terminate(_) => {}
+                }
+            }
         }
     }
 

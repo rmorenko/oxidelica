@@ -2712,3 +2712,60 @@ fn a_carried_profile_is_checked_before_the_run() {
             .contains("must be known before the run")
     );
 }
+
+#[test]
+fn cardinality_counts_the_connections_to_a_port() {
+    // How many `connect` equations name a port. The specification
+    // deprecates the operator and says it will be removed, but while it
+    // is still defined it is answered - and it is answered here,
+    // because this is the last moment the connections are in hand.
+    const PARTS: &str = "connector P Real v; flow Real i; end P; \
+         model Src P p; equation p.v = 1; end Src; \
+         model Snk P p; equation p.i = 0; end Snk; ";
+    let flat = |body: &str| {
+        parse_model(&format!(
+            "{PARTS} model M Src a; Snk b; Snk c; Real n; Real m; equation {body} \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ))
+        .expect("parses")
+    };
+    let value_of = |model: &oxidelica_parser::Model, name: &str| -> f64 {
+        let equation = model
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(target) if target == name))
+            .unwrap_or_else(|| panic!("no equation for {name}"));
+        match equation.rhs {
+            Expr::Number(value) => value,
+            ref other => panic!("{name} was left as {other:?}"),
+        }
+    };
+
+    // One connection names each of its two ends once.
+    let one =
+        flat("connect(a.p, b.p); connect(c.p, b.p); n = cardinality(a.p); m = cardinality(c.p);");
+    assert_eq!(value_of(&one, "n"), 1.0);
+    assert_eq!(value_of(&one, "m"), 1.0);
+
+    // A port named twice is counted twice.
+    let twice =
+        flat("connect(a.p, b.p); connect(a.p, c.p); n = cardinality(a.p); m = cardinality(b.p);");
+    assert_eq!(value_of(&twice, "n"), 2.0);
+    assert_eq!(value_of(&twice, "m"), 1.0);
+
+    // And a port no connection names is zero - which is what the
+    // operator is nearly always asked about, in an assertion.
+    let lonely = parse_model(&format!(
+        "{PARTS} model M Src a; Real n; equation n = cardinality(a.p); \
+         assert(cardinality(a.p) > 0, \"port a.p is not connected\"); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .expect("parses");
+    assert_eq!(value_of(&lonely, "n"), 0.0);
+    assert!(
+        matches!(&lonely.asserts[0].0, Expr::Rel(_, left, _)
+            if matches!(**left, Expr::Number(count) if count == 0.0)),
+        "the assertion was left unanswered: {:?}",
+        lonely.asserts[0].0
+    );
+}

@@ -432,8 +432,12 @@ pub(super) fn choose_roots(
 
 /// Answer `Connections.isRoot` and `Connections.rooted` from the roots
 /// that were chosen.
-pub(super) fn answer_graph_queries(expr: &Expr, roots: &HashMap<String, bool>) -> Expr {
-    let recur = |e: &Expr| answer_graph_queries(e, roots);
+pub(super) fn answer_graph_queries(
+    expr: &Expr,
+    roots: &HashMap<String, bool>,
+    connected: &HashMap<String, f64>,
+) -> Expr {
+    let recur = |e: &Expr| answer_graph_queries(e, roots, connected);
     match expr {
         Expr::Call(name, args)
             if (name == "Connections.isRoot" || name == "Connections.rooted")
@@ -444,6 +448,14 @@ pub(super) fn answer_graph_queries(expr: &Expr, roots: &HashMap<String, bool>) -
                 _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
             }
         }
+        // `cardinality(c)` is how many `connect` equations name `c`,
+        // and every one of them is already in hand. The specification
+        // deprecates the operator and says it will be removed; it is
+        // answered here because the specification still defines it.
+        Expr::Call(name, args) if name == "cardinality" && args.len() == 1 => match &args[0] {
+            Expr::Ref(port) => Expr::Number(connected.get(port).copied().unwrap_or(0.0)),
+            _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        },
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),

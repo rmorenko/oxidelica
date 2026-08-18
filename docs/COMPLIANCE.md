@@ -8,7 +8,7 @@ under a chapter works as specified for the subset this project covers.
 | Ch. | Area                          | Status  |
 | --- | ----------------------------- | ------- |
 | 2   | Lexical structure             | Full    |
-| 3   | Operators and expressions     | Mostly  |
+| 3   | Operators and expressions     | Full    |
 | 4   | Classes, types, declarations  | Partial |
 | 5   | Scoping, lookup, flattening   | Partial |
 | 6   | Type relationships            | Minimal |
@@ -47,7 +47,8 @@ DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
 `noEvent`, `smooth`, `semiLinear`, `delay`, `nthRoot`, `terminal`,
-`getInstanceName`, `spatialDistribution`), a `when` watching several
+`getInstanceName`, `spatialDistribution`, `cardinality`), a `when`
+watching several
 conditions at once and one standing among the statements of an
 algorithm; event iteration; `if` equations, structural on a
 compile-time condition and balanced-branch on a run-time one — each
@@ -134,9 +135,14 @@ exact between output points, since the profile remembers the position
 each value entered at rather than sampling a grid. Its arguments but
 the two inflows are checked before the run.
 
-The one thing not implemented is `cardinality()`, and deliberately:
-the specification marks it deprecated and says it will be removed in a
-coming release.
+`cardinality(c)` answers how many `connect` equations name a port,
+which is settled while the connections are still in hand. The
+specification deprecates it and says it will be removed in a coming
+release, so a model is better off without it - but while it is defined
+it is answered, including in the assertion it is nearly always asked
+inside.
+
+Chapter 3 is complete.
 
 **Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
 or enumeration indexing. A flexible size (`:`) is read from the
