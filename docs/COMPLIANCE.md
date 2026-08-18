@@ -41,7 +41,9 @@ subscripts, inside `for` loops and between whole connector arrays;
 DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
-`noEvent`, `smooth`), event iteration; `initial equation`; runtime
+`noEvent`, `smooth`), event iteration; `if` equations, structural on a
+compile-time condition and balanced-branch on a run-time one;
+`initial equation`; runtime
 `assert` with its message; functions with several outputs
 (`(a, , c) = f(...)` in equations and algorithms), named and defaulted
 call arguments (`f(x, precision = 6)`); algorithm
@@ -104,9 +106,16 @@ does not merge members through an alias; selective model extension
 (3.6's `break`) is not parsed. No `MODELICAPATH` or one-class-per-file
 directory layout — libraries are flat `.mo` files in `lib/`.
 
-**Semantics**: `der()` only of a plain variable; `if`-equations require
-compile-time conditions (the spec also allows run-time ones with
-balanced branches); `when` inside algorithms is not supported; vector
+**Semantics**: `der()` only of a plain variable; an `if` equation
+whose condition the run decides keeps all its branches and merges each
+position into one equation choosing its residual — but the matching of
+equations to unknowns is done once, so branches that determine
+*different* unknowns (the textbook ideal switch, `if open then i = 0
+else v = 0`) leave the solver with a singular block in one of the
+modes. Mode-dependent matching would be needed; until then such
+switches want the usual auxiliary-variable form, where both branches
+are expressions of one free unknown. `when` inside algorithms is not
+supported; vector
 `when` conditions are not supported; no `delay`, `terminal`,
 `homotopy`, `semiLinear`, `spatialDistribution`, `getInstanceName`;
 overconstrained connection

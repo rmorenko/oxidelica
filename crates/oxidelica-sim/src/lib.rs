@@ -5522,6 +5522,55 @@ mod tests {
     }
 
     #[test]
+    fn a_chopped_supply_draws_the_exact_staircase() {
+        // The supply's two branches are kept and merged into one
+        // equation apiece, decided while the run goes; the relation
+        // driving them is an event indicator, so the switching
+        // instants land exactly. What comes out is an RC charging
+        // towards the supply for half a period and towards zero for
+        // the next, which has a closed form.
+        let result = compile(&with_library("switched_rc.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (supply, tau, half) = (10.0f64, 0.2f64, 0.5f64);
+        let exact = |t: f64| {
+            let (mut voltage, mut at, mut on) = (0.0f64, 0.0f64, true);
+            while at < t - 1e-15 {
+                let next = (at / half + 1e-9).floor() * half + half;
+                let until = next.min(t);
+                let target = if on { supply } else { 0.0 };
+                voltage = target - (target - voltage) * (-(until - at) / tau).exp();
+                if until >= next - 1e-12 {
+                    on = !on;
+                }
+                at = until;
+            }
+            voltage
+        };
+        for row in &result.rows {
+            let wanted = exact(row[0]);
+            assert!(
+                (row[index("capacitor.v")] - wanted).abs() < 1e-6,
+                "t = {}: v = {} vs {wanted}",
+                row[0],
+                row[index("capacitor.v")]
+            );
+        }
+        // The other equation of each branch travelled with it.
+        for row in &result.rows {
+            let energised = row[index("supply.energised")] > 0.5;
+            let delivered = row[index("supply.delivered")];
+            if energised {
+                assert!((delivered - supply * row[index("supply.p.i")]).abs() < 1e-9);
+            } else {
+                assert_eq!(delivered, 0.0);
+            }
+        }
+    }
+
+    #[test]
     fn a_control_loop_wired_through_a_bus_closes() {
         // Nothing in the model wires the plant to the controller
         // directly: both talk to an expandable bus, and a sub-bus

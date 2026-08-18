@@ -260,9 +260,24 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         for (condition, _) in &mut acc.asserts {
             *condition = resolve_streams(condition, &context)?;
         }
+        for conditional in &mut acc.conditional {
+            for condition in &mut conditional.conditions {
+                *condition = resolve_streams(condition, &context)?;
+            }
+            for branch in &mut conditional.branches {
+                for equation in branch {
+                    equation.lhs = resolve_streams(&equation.lhs, &context)?;
+                    equation.rhs = resolve_streams(&equation.rhs, &context)?;
+                }
+            }
+        }
     }
 
-    let model = Model {
+    // The branches of a run-time `if` are checked one equation at a
+    // time, the way they were written: merged into residuals they
+    // would look like a volt equated to an ampere, which is exactly
+    // what an ideal switch is and not a mistake.
+    let mut model = Model {
         name: top_class.name.clone(),
         description: top_class.description.clone(),
         components: acc.components,
@@ -272,8 +287,127 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         when_clauses: acc.when_clauses,
         experiment: top_class.experiment.clone(),
     };
+    for conditional in &acc.conditional {
+        for branch in &conditional.branches {
+            model.equations.extend(branch.iter().cloned());
+        }
+    }
     crate::check::verify(&model)?;
+    for conditional in &acc.conditional {
+        for branch in &conditional.branches {
+            model
+                .equations
+                .truncate(model.equations.len() - branch.len());
+        }
+    }
+    // Now one equation per position, choosing its residual as it runs.
+    for conditional in &acc.conditional {
+        let residual = |equation: &EquationItem| {
+            Expr::Bin(
+                BinOp::Sub,
+                Box::new(equation.lhs.clone()),
+                Box::new(equation.rhs.clone()),
+            )
+        };
+        let otherwise = conditional.branches.last().expect("an else branch");
+        for position in 0..otherwise.len() {
+            let mut merged = residual(&otherwise[position]);
+            for (condition, branch) in conditional
+                .conditions
+                .iter()
+                .zip(&conditional.branches)
+                .rev()
+            {
+                merged = Expr::If(
+                    Box::new(condition.clone()),
+                    Box::new(residual(&branch[position])),
+                    Box::new(merged),
+                );
+            }
+            model.equations.push(EquationItem {
+                lhs: merged,
+                rhs: Expr::Number(0.0),
+            });
+        }
+    }
     Ok(model)
+}
+
+/// Record an `if` equation whose condition only the run can decide.
+///
+/// The spec calls such an `if` balanced: every branch, `else`
+/// included, contributes the same number of equations, so the model
+/// has one equation per position however the condition falls. What a
+/// branch may not do is change the structure - no `connect`, since a
+/// connection is drawn once and for all.
+fn push_conditional<R, E>(
+    if_equation: &IfEquation,
+    class_name: &str,
+    resolve_here: R,
+    expand_here: E,
+    no_loop_vars: &HashMap<String, f64>,
+    acc: &mut Flat,
+) -> Result<(), String>
+where
+    R: Fn(&Expr) -> Result<Expr, String>,
+    E: Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String>,
+{
+    let mut conditions = Vec::new();
+    let mut branches: Vec<Vec<EquationItem>> = Vec::new();
+    for (position, branch) in if_equation.branches.iter().enumerate() {
+        let last = position + 1 == if_equation.branches.len();
+        match (&branch.condition, last) {
+            (Some(condition), false) => conditions.push(resolve_here(condition)?),
+            (None, true) => {}
+            (Some(_), true) => {
+                return Err(format!(
+                    "an `if` equation in `{class_name}` has a condition the compiler cannot \
+                     decide and no `else`, so the model would have a different number of \
+                     equations depending on it"
+                ))
+            }
+            (None, false) => unreachable!("an else branch is always last"),
+        }
+        if !branch.connects.is_empty() {
+            return Err(format!(
+                "a `connect` in `{class_name}` sits in an `if` branch whose condition is not \
+                 known at compile time; connections are structural"
+            ));
+        }
+        let mut scalars = Vec::new();
+        for equation in &branch.equations {
+            let lhs = expand_here(&equation.lhs, no_loop_vars)?;
+            let rhs = expand_here(&equation.rhs, no_loop_vars)?;
+            let (mut left, mut right) = (Vec::new(), Vec::new());
+            lhs.flatten_into(&mut left);
+            rhs.flatten_into(&mut right);
+            if left.len() != right.len() {
+                return Err(format!(
+                    "an equation in `{class_name}` puts {} value(s) against {}",
+                    left.len(),
+                    right.len()
+                ));
+            }
+            for (lhs, rhs) in left.into_iter().zip(right) {
+                scalars.push(EquationItem { lhs, rhs });
+            }
+        }
+        branches.push(scalars);
+    }
+    let wanted = branches[0].len();
+    if let Some(odd) = branches.iter().position(|branch| branch.len() != wanted) {
+        return Err(format!(
+            "the branches of an `if` equation in `{class_name}` are not balanced: \
+             {wanted} equation(s) in the first, {} in branch {}",
+            branches[odd].len(),
+            odd + 1
+        ));
+    }
+    acc.conditional.push(Conditional {
+        conditions,
+        branches,
+    });
+    Ok(())
 }
 
 /// Give every expandable connector the members its connections name.
@@ -548,6 +682,18 @@ struct Flat {
     const_values: HashMap<String, f64>,
     /// Instance paths of components a false condition left out.
     disabled: Vec<String>,
+    /// `if` equations whose condition is only known while running.
+    conditional: Vec<Conditional>,
+}
+
+/// An `if` equation the compiler cannot decide: every branch holds the
+/// same number of equations, and each position becomes one equation
+/// choosing its residual by the condition.
+struct Conditional {
+    /// One condition per branch except the final `else`.
+    conditions: Vec<Expr>,
+    /// The equations of each branch, scalar and in source order.
+    branches: Vec<Vec<EquationItem>>,
 }
 
 impl Flat {
@@ -1028,6 +1174,28 @@ fn instantiate(
     for if_equation in &class.if_equations {
         let mut env = acc.const_values.clone();
         env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+        // A structural condition picks one branch and the model is
+        // built from it. A condition only the run holds decides
+        // nothing here, so every branch must contribute the same
+        // number of equations and each position becomes one equation
+        // that chooses its residual as it goes.
+        let decidable = if_equation.branches.iter().all(|branch| {
+            branch
+                .condition
+                .as_ref()
+                .is_none_or(|condition| const_eval(condition, &env).is_some())
+        });
+        if !decidable {
+            push_conditional(
+                if_equation,
+                &class.name,
+                resolve_here,
+                expand_here,
+                &no_loop_vars,
+                acc,
+            )?;
+            continue;
+        }
         let mut chosen = None;
         for branch in &if_equation.branches {
             match &branch.condition {
@@ -4022,6 +4190,86 @@ mod tests {
     }
 
     #[test]
+    fn a_run_time_if_equation_keeps_every_branch() {
+        // Two equations per branch, merged position by position.
+        let m = parse_model(
+            "model M Real gate; Real a; Real b; equation gate = time; \
+             if gate > 1 then a = 1; b = 2; else a = 3; b = 4; end if; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.equations.len(), 3);
+        let first = format!("{:?}", m.equations[1].lhs);
+        assert!(
+            first.contains("Ref(\"a\")") && !first.contains("Ref(\"b\")"),
+            "{first}"
+        );
+        let second = format!("{:?}", m.equations[2].lhs);
+        assert!(
+            second.contains("Ref(\"b\")") && !second.contains("Ref(\"a\")"),
+            "{second}"
+        );
+
+        // An `elseif` chain nests, outermost condition first.
+        let m = parse_model(
+            "model M Real gate; Real y; equation gate = time; \
+             if gate > 2 then y = 1; elseif gate > 1 then y = 2; else y = 3; end if; end M;",
+        )
+        .unwrap();
+        let merged = format!("{:?}", m.equations[1].lhs);
+        assert_eq!(merged.matches("If(").count(), 2, "{merged}");
+
+        // Whole-array equations count by their scalars, not by the
+        // lines they were written on.
+        let m = parse_model(
+            "model M Real gate; Real v[2]; equation gate = time; \
+             if gate > 1 then v = {1, 2}; else v[1] = 3; v[2] = 4; end if; end M;",
+        )
+        .unwrap();
+        assert_eq!(m.equations.len(), 3);
+
+        // Each branch is checked as it was written, so a mistake
+        // inside one is still caught.
+        let error = parse_model(
+            "model M Real gate; Boolean flag; Real y; equation gate = time; flag = true; \
+             if gate > 1 then y = flag; else y = 3; end if; end M;",
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("type mismatch"), "{error}");
+
+        // A branch may equate a volt to a volt and the other an
+        // ampere to an ampere: they are separate equations, and only
+        // the merge puts them in one slot.
+        parse_model(
+            "model M Real gate; Real v(unit = \"V\"); Real i(unit = \"A\"); \
+             equation gate = time; \
+             if gate > 1 then v = 1; i = 0; else v = 0; i = 1; end if; end M;",
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn run_time_if_equation_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        // Unbalanced branches.
+        assert!(
+            err("model M Real gate; Real a; Real b; equation gate = time; \
+             if gate > 1 then a = 1; b = 2; else a = 3; end if; b = 0; end M;")
+            .contains("not balanced")
+        );
+        // No `else`, so the equation count would depend on the run.
+        assert!(err("model M Real gate; Real a; equation gate = time; \
+             if gate > 1 then a = 1; end if; end M;")
+        .contains("no `else`"));
+        // A connection cannot be drawn conditionally at run time.
+        assert!(err("connector Pin Real v; flow Real i; end Pin; \
+             model U Pin p; end U; \
+             model M Real gate; U a; U b; equation gate = time; \
+             if gate > 1 then connect(a.p, b.p); else connect(a.p, b.p); end if; end M;")
+        .contains("connections are structural"));
+    }
+
+    #[test]
     fn an_expandable_connector_holds_what_is_connected_to_it() {
         const SIGNALS: &str = "connector Out output Real y; end Out; \
              connector In input Real y; end In; \
@@ -4772,14 +5020,18 @@ mod tests {
             .equations
             .is_empty());
 
-        // A condition that is not constant cannot select equations.
-        let error = crate::parser::parse_model(
+        // A condition the run decides keeps every branch instead,
+        // merged into one equation that picks its residual.
+        let m = crate::parser::parse_model(
             "model M Real gate; Real y; equation gate = time; \
              if gate > 0 then y = 1; else y = 2; end if; end M;",
         )
-        .unwrap_err()
-        .to_string();
-        assert!(error.contains("not a compile-time constant"), "{error}");
+        .unwrap();
+        assert_eq!(m.equations.len(), 2);
+        let merged = format!("{:?}", m.equations[1].lhs);
+        assert!(merged.starts_with("If("), "{merged}");
+        assert!(merged.contains("Sub, Ref(\"y\"), Number(1.0)"), "{merged}");
+        assert!(merged.contains("Sub, Ref(\"y\"), Number(2.0)"), "{merged}");
     }
 
     #[test]
