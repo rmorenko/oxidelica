@@ -1,0 +1,909 @@
+//! The array layer: values with a shape, and what may be done to
+//! them before everything drops to scalars.
+
+use super::*;
+
+/// Expand an expression into scalars, keeping the array structure while
+/// it is needed and dropping to the scalar path for everything else.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn expand(
+    expr: &Expr,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    if depth > MAX_DEPTH {
+        return Err("expression nested deeper than the instantiation limit".to_string());
+    }
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let scalar = |e: &Expr| -> Result<Value, String> {
+        Ok(Value::Scalar(resolve(
+            e,
+            shapes.loop_vars,
+            shapes.consts,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+        )?))
+    };
+
+    let constant_here = |e: &Expr| -> Option<f64> {
+        let mut env = shapes.consts.clone();
+        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+        const_eval(e, &env)
+    };
+    Ok(match expr {
+        Expr::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+        // A range is a vector whose bounds the compiler can see.
+        Expr::Range(a, step, b) => {
+            let scalar_of = |e: &Expr| -> Result<f64, String> {
+                let resolved = recur(e)?.scalar()?;
+                constant_here(&resolved)
+                    .ok_or_else(|| "a range needs bounds the compiler can see".to_string())
+            };
+            let (from, to) = (scalar_of(a)?, scalar_of(b)?);
+            let step = match step {
+                Some(step) => scalar_of(step)?,
+                None => 1.0,
+            };
+            if step == 0.0 {
+                return Err("a range cannot step by zero".to_string());
+            }
+            let count = ((to - from) / step + 1e-9).floor() as i64 + 1;
+            Value::Array(
+                (0..count.max(0))
+                    .map(|i| Value::Scalar(Expr::Number(from + i as f64 * step)))
+                    .collect(),
+            )
+        }
+        // `{expr for i in range}` unrolls with the iterator bound.
+        Expr::Comprehension(body, variable, range) => {
+            let Value::Array(items) = recur(range)? else {
+                return Err(format!("`{variable}` needs an array to iterate over"));
+            };
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                let value = constant_here(&item.scalar()?).ok_or_else(|| {
+                    format!("the range of `{variable}` must be constant at compile time")
+                })?;
+                let mut loop_vars = shapes.loop_vars.clone();
+                loop_vars.insert(variable.clone(), value);
+                let inner = Shapes {
+                    sizes: shapes.sizes,
+                    loop_vars: &loop_vars,
+                    consts: shapes.consts,
+                    records: no_records(),
+                };
+                out.push(expand(body, &inner, registry, scope, imports, depth + 1)?);
+            }
+            Value::Array(out)
+        }
+        // `[a, b; c, d]`: rows concatenated along the first dimension,
+        // the elements of a row along the second. A scalar element is a
+        // 1x1 block; vector elements lie along the row.
+        Expr::MatrixRows(rows) => {
+            let mut out_rows: Vec<Value> = Vec::new();
+            for row in rows {
+                let mut cells: Vec<Value> = Vec::new();
+                for item in row {
+                    match recur(item)? {
+                        Value::Scalar(expr) => cells.push(Value::Scalar(expr)),
+                        Value::Array(items) => cells.extend(items),
+                    }
+                }
+                out_rows.push(Value::Array(cells));
+            }
+            let width = out_rows
+                .first()
+                .map(|row| row.shape().first().copied().unwrap_or(0))
+                .unwrap_or(0);
+            for row in &out_rows {
+                if row.shape().first().copied().unwrap_or(0) != width {
+                    return Err("the rows of a matrix must be equally wide".to_string());
+                }
+            }
+            Value::Array(out_rows)
+        }
+        Expr::ColonSubscript | Expr::EndSubscript => {
+            return Err("`:` and `end` make sense only inside a subscript".to_string())
+        }
+        // A name that was declared with dimensions stands for all of its
+        // elements at once.
+        Expr::Ref(name) if shapes.sizes.contains_key(name) => {
+            elements_of(name, &shapes.sizes[name])
+        }
+        // A record instance stands for its fields, in the order they
+        // were declared: that is what an operator works on.
+        Expr::Ref(name) if shapes.records.contains_key(name) => {
+            let of = registry
+                .get(shapes.records[name].as_str())
+                .ok_or_else(|| format!("`{name}` is a record of a class that is not here"))?;
+            Value::Array(
+                record_fields(of)
+                    .into_iter()
+                    .map(|field| Value::Scalar(Expr::Ref(format!("{name}.{field}"))))
+                    .collect(),
+            )
+        }
+        Expr::Neg(inner) => {
+            if let Some(record) = record_class_of(inner, shapes, registry, scope, imports) {
+                return apply_operator(
+                    &record,
+                    "-",
+                    std::slice::from_ref(inner.as_ref()),
+                    shapes,
+                    registry,
+                    scope,
+                    imports,
+                    depth,
+                );
+            }
+            map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e)))
+        }
+        Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
+            // An operator on records is whatever the record says it
+            // is; anything else combines element by element.
+            if let Some(record) = record_class_of(expr, shapes, registry, scope, imports) {
+                return apply_operator(
+                    &record,
+                    operator_symbol(*op),
+                    &[l.as_ref().clone(), r.as_ref().clone()],
+                    shapes,
+                    registry,
+                    scope,
+                    imports,
+                    depth,
+                );
+            }
+            let elementwise = matches!(expr, Expr::Elementwise(_, _, _));
+            combine(*op, &recur(l)?, &recur(r)?, elementwise)?
+        }
+        Expr::If(condition, then, otherwise) => {
+            let condition = recur(condition)?.scalar()?;
+            // A guard on the loop variable takes its branch and
+            // leaves the other alone: at the first element of a loop
+            // over neighbours, `if i > 1 then x[i - 1] else 0` must
+            // not go looking for `x[0]`. A condition that does not
+            // mention the loop stays as it was written, parameters
+            // included - folding those would nail down a value the
+            // model is meant to be re-run with.
+            // Inside a loop being unrolled, everything the compiler
+            // can decide is part of the structure being built; outside
+            // one it is a value the model may be re-run with.
+            if shapes.loop_vars.is_empty() {
+                let (then, otherwise) = (recur(then)?, recur(otherwise)?);
+                return zip_values(&then, &otherwise, &|a, b| {
+                    Expr::If(
+                        Box::new(condition.clone()),
+                        Box::new(a.clone()),
+                        Box::new(b.clone()),
+                    )
+                });
+            }
+            if let Some(truth) = constant_here(&condition) {
+                return if truth != 0.0 {
+                    recur(then)
+                } else {
+                    recur(otherwise)
+                };
+            }
+            let (then, otherwise) = (recur(then)?, recur(otherwise)?);
+            zip_values(&then, &otherwise, &|a, b| {
+                Expr::If(
+                    Box::new(condition.clone()),
+                    Box::new(a.clone()),
+                    Box::new(b.clone()),
+                )
+            })?
+        }
+        Expr::Call(name, args) => expand_call(name, args, shapes, registry, scope, imports, depth)?,
+        // Indexing something that expands to an array picks the element:
+        // this is how `a[i]` works inside a function whose `a` was bound
+        // to an array literal.
+        Expr::Index(base, subscripts) => {
+            let base_value = recur(base)?;
+            match base_value {
+                Value::Array(_) => {
+                    // A subscript picks one element; a range, a `:` or a
+                    // vector of indices takes a slice; `end` stands for
+                    // this dimension's length.
+                    let mut current = base_value;
+                    for subscript in subscripts {
+                        let Value::Array(items) = current else {
+                            return Err("more subscripts than dimensions".to_string());
+                        };
+                        let length = items.len();
+                        let one = |index: f64| -> Result<Value, String> {
+                            if index.fract() != 0.0 || index < 1.0 || index as usize > length {
+                                return Err(format!(
+                                    "subscript {index} is outside an array of {length}"
+                                ));
+                            }
+                            Ok(items[index as usize - 1].clone())
+                        };
+                        let with_end = substitute_end(subscript, length as f64);
+                        current = match &with_end {
+                            Expr::ColonSubscript => Value::Array(items.clone()),
+                            _ => match expand(
+                                &with_end,
+                                shapes,
+                                registry,
+                                scope,
+                                imports,
+                                depth + 1,
+                            )? {
+                                Value::Scalar(index) => {
+                                    let index = constant_here(&index).ok_or_else(|| {
+                                        "a subscript into an array value must be a                                          compile-time constant"
+                                            .to_string()
+                                    })?;
+                                    one(index)?
+                                }
+                                Value::Array(picks) => {
+                                    // A vector subscript selects a slice.
+                                    let mut out = Vec::with_capacity(picks.len());
+                                    for pick in picks {
+                                        let index =
+                                            constant_here(&pick.scalar()?).ok_or_else(|| {
+                                                "a slicing subscript must be constant at                                                  compile time"
+                                                    .to_string()
+                                            })?;
+                                        out.push(one(index)?);
+                                    }
+                                    Value::Array(out)
+                                }
+                            },
+                        };
+                    }
+                    current
+                }
+                _ => scalar(expr)?,
+            }
+        }
+        other => scalar(other)?,
+    })
+}
+
+/// The array built-ins, and the ordinary ones applied to every element.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn expand_call(
+    name: &str,
+    args: &[Expr],
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let constant = |e: &Expr| -> Result<i64, String> {
+        let value = recur(e)?.scalar()?;
+        let mut env = shapes.consts.clone();
+        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+        let value = const_eval(&value, &env)
+            .ok_or_else(|| format!("`{name}` needs a length the compiler can see"))?;
+        if value.fract() != 0.0 || value < 0.0 {
+            return Err(format!(
+                "`{name}`: a length must be a whole number, got {value}"
+            ));
+        }
+        Ok(value as i64)
+    };
+
+    match (name, args.len()) {
+        // How long an array is, which is a compile-time number.
+        ("size", 1) => {
+            let shape = recur(&args[0])?.shape();
+            Ok(Value::Array(
+                shape
+                    .into_iter()
+                    .map(|length| Value::Scalar(Expr::Number(length as f64)))
+                    .collect(),
+            ))
+        }
+        ("size", 2) => {
+            let shape = recur(&args[0])?.shape();
+            let dimension = constant(&args[1])?;
+            let length = shape
+                .get((dimension - 1).max(0) as usize)
+                .ok_or_else(|| format!("size(..., {dimension}): there is no such dimension"))?;
+            Ok(Value::Scalar(Expr::Number(*length as f64)))
+        }
+        // Reductions.
+        ("sum", 1) | ("product", 1) => {
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            Ok(Value::Scalar(match name {
+                "sum" => sum_of(terms),
+                _ => terms
+                    .into_iter()
+                    .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+                    .unwrap_or(Expr::Number(1.0)),
+            }))
+        }
+        ("min", 1) | ("max", 1) => {
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            let reduced = terms
+                .into_iter()
+                .reduce(|a, b| Expr::Call(name.to_string(), vec![a, b]))
+                .ok_or_else(|| format!("`{name}` of an empty array"))?;
+            Ok(Value::Scalar(reduced))
+        }
+        // Constructors.
+        ("zeros", 1) | ("ones", 1) => {
+            let length = constant(&args[0])?;
+            let value = if name == "ones" { 1.0 } else { 0.0 };
+            Ok(Value::Array(
+                (0..length)
+                    .map(|_| Value::Scalar(Expr::Number(value)))
+                    .collect(),
+            ))
+        }
+        ("fill", 2) => {
+            let filler = recur(&args[0])?.scalar()?;
+            let length = constant(&args[1])?;
+            Ok(Value::Array(
+                (0..length).map(|_| Value::Scalar(filler.clone())).collect(),
+            ))
+        }
+        ("transpose", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            if shape.len() != 2 {
+                return Err("transpose works on a matrix".to_string());
+            }
+            let Value::Array(rows) = &value else {
+                return Err("transpose works on a matrix".to_string());
+            };
+            (0..shape[1])
+                .map(|column| pick_column(rows, column))
+                .collect::<Result<Vec<_>, String>>()
+                .map(Value::Array)
+        }
+        ("identity", 1) => {
+            let n = constant(&args[0])?;
+            Ok(Value::Array(
+                (1..=n)
+                    .map(|i| {
+                        Value::Array(
+                            (1..=n)
+                                .map(|j| {
+                                    Value::Scalar(Expr::Number(if i == j { 1.0 } else { 0.0 }))
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+        ("diagonal", 1) => {
+            let Value::Array(items) = recur(&args[0])? else {
+                return Err("diagonal takes a vector".to_string());
+            };
+            let n = items.len();
+            Ok(Value::Array(
+                (0..n)
+                    .map(|i| {
+                        Value::Array(
+                            (0..n)
+                                .map(|j| {
+                                    if i == j {
+                                        items[i].clone()
+                                    } else {
+                                        Value::Scalar(Expr::Number(0.0))
+                                    }
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+        ("cross", 2) => {
+            let (a, b) = (recur(&args[0])?, recur(&args[1])?);
+            let (Value::Array(a), Value::Array(b)) = (&a, &b) else {
+                return Err("cross takes two 3-vectors".to_string());
+            };
+            if a.len() != 3 || b.len() != 3 {
+                return Err("cross takes two 3-vectors".to_string());
+            }
+            let term = |i: usize, j: usize| -> Result<Expr, String> {
+                Ok(Expr::Bin(
+                    BinOp::Mul,
+                    Box::new(a[i].clone().scalar()?),
+                    Box::new(b[j].clone().scalar()?),
+                ))
+            };
+            let minus = |p: Expr, q: Expr| Expr::Bin(BinOp::Sub, Box::new(p), Box::new(q));
+            Ok(Value::Array(vec![
+                Value::Scalar(minus(term(1, 2)?, term(2, 1)?)),
+                Value::Scalar(minus(term(2, 0)?, term(0, 2)?)),
+                Value::Scalar(minus(term(0, 1)?, term(1, 0)?)),
+            ]))
+        }
+        // cat(1, ...) stacks along the first dimension; cat(2, ...)
+        // joins along the second.
+        ("cat", n) if n >= 2 => {
+            let along = constant(&args[0])?;
+            let values = args[1..]
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?;
+            match along {
+                1 => {
+                    let mut out = Vec::new();
+                    for value in values {
+                        match value {
+                            Value::Array(items) => out.extend(items),
+                            scalar => out.push(scalar),
+                        }
+                    }
+                    Ok(Value::Array(out))
+                }
+                2 => {
+                    let rows = values
+                        .first()
+                        .map(|value| value.shape().first().copied().unwrap_or(0))
+                        .unwrap_or(0);
+                    (0..rows)
+                        .map(|row| {
+                            let mut cells = Vec::new();
+                            for value in &values {
+                                let Value::Array(these) = value else {
+                                    return Err("cat(2, ...) takes matrices".to_string());
+                                };
+                                let Some(Value::Array(row_cells)) = these.get(row) else {
+                                    return Err("cat(2, ...) needs equal row counts".to_string());
+                                };
+                                cells.extend(row_cells.iter().cloned());
+                            }
+                            Ok(Value::Array(cells))
+                        })
+                        .collect::<Result<Vec<_>, String>>()
+                        .map(Value::Array)
+                }
+                other => Err(format!("cat along dimension {other} is not supported")),
+            }
+        }
+        ("linspace", 3) => {
+            let (from, to) = (recur(&args[0])?.scalar()?, recur(&args[1])?.scalar()?);
+            let length = constant(&args[2])?;
+            if length < 2 {
+                return Err("linspace needs at least two points".to_string());
+            }
+            Ok(Value::Array(
+                (0..length)
+                    .map(|index| {
+                        let fraction = index as f64 / (length - 1) as f64;
+                        // from + (to - from) * fraction
+                        Value::Scalar(Expr::Bin(
+                            BinOp::Add,
+                            Box::new(from.clone()),
+                            Box::new(Expr::Bin(
+                                BinOp::Mul,
+                                Box::new(Expr::Bin(
+                                    BinOp::Sub,
+                                    Box::new(to.clone()),
+                                    Box::new(from.clone()),
+                                )),
+                                Box::new(Expr::Number(fraction)),
+                            )),
+                        ))
+                    })
+                    .collect(),
+            ))
+        }
+        _ => {
+            // `Complex(1, 2)` builds a record from its fields, in the
+            // order they were declared.
+            if let Some(class) = lookup(registry, name, scope, imports) {
+                if class.kind == ClassKind::Record {
+                    let fields = record_fields(class);
+                    if fields.len() != args.len() {
+                        return Err(format!(
+                            "`{}` is built from {} field(s), {} given",
+                            class.name,
+                            fields.len(),
+                            args.len()
+                        ));
+                    }
+                    return Ok(Value::Array(args.iter().map(&recur).collect::<Result<
+                        Vec<_>,
+                        String,
+                    >>(
+                    )?));
+                }
+            }
+            // A user function that takes or returns an array is inlined
+            // with the arrays intact - vectorizing it element by element
+            // would compute something else entirely.
+            if let Some(class) = lookup(registry, name, scope, imports) {
+                if class.kind == ClassKind::Function
+                    && class
+                        .components
+                        .iter()
+                        .any(|c| c.causality != Causality::None && !c.dimensions.is_empty())
+                {
+                    let values = args
+                        .iter()
+                        .map(&recur)
+                        .collect::<Result<Vec<_>, String>>()?;
+                    // The shape each argument turned out to have is
+                    // what a `[:]` input takes its length from.
+                    let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                    let arguments: Vec<Expr> =
+                        values.into_iter().map(|value| value.into_expr()).collect();
+                    let result = inline_function(
+                        class,
+                        &arguments,
+                        &argument_shapes,
+                        shapes.consts,
+                        registry,
+                        depth + 1,
+                    )?;
+                    return expand(&result, shapes, registry, scope, imports, depth + 1);
+                }
+            }
+            // Anything else: an ordinary call, applied to every element
+            // when an argument turns out to be an array.
+            let values = args
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?;
+            let arrayed = values.iter().any(|value| matches!(value, Value::Array(_)));
+            if !arrayed {
+                let scalars = values
+                    .into_iter()
+                    .map(Value::scalar)
+                    .collect::<Result<Vec<_>, String>>()?;
+                return resolve(
+                    &Expr::Call(name.to_string(), scalars),
+                    shapes.loop_vars,
+                    shapes.consts,
+                    registry,
+                    scope,
+                    imports,
+                    depth + 1,
+                )
+                .map(Value::Scalar);
+            }
+            // The call spreads over the elements, a scalar argument
+            // travelling unchanged to every one - the vectorization the
+            // language gives every scalar function.
+            let length = values
+                .iter()
+                .filter_map(|value| match value {
+                    Value::Array(items) => Some(items.len()),
+                    Value::Scalar(_) => None,
+                })
+                .max()
+                .expect("at least one argument is an array");
+            if values
+                .iter()
+                .any(|value| matches!(value, Value::Array(items) if items.len() != length))
+            {
+                return Err(format!(
+                    "`{name}`: its array arguments must have one length"
+                ));
+            }
+            let elements = (0..length)
+                .map(|index| {
+                    let args = values
+                        .iter()
+                        .map(|value| match value {
+                            Value::Array(items) => items[index].clone().scalar(),
+                            Value::Scalar(expr) => Ok(expr.clone()),
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    // Through `resolve`, so a user function still
+                    // inlines per element instead of surviving as a call.
+                    resolve(
+                        &Expr::Call(name.to_string(), args),
+                        shapes.loop_vars,
+                        shapes.consts,
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                    )
+                    .map(Value::Scalar)
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Array(elements))
+        }
+    }
+}
+
+/// Combine two values with an arithmetic operator.
+///
+/// Written with a dot the operator always works element by element.
+/// Written plainly, `+` and `-` do too, while `*` between two vectors is
+/// their scalar product and `/` only divides by a scalar - which is what
+/// the language means by them.
+pub(super) fn combine(
+    op: BinOp,
+    left: &Value,
+    right: &Value,
+    elementwise: bool,
+) -> Result<Value, String> {
+    let apply = |a: &Expr, b: &Expr| Expr::Bin(op, Box::new(a.clone()), Box::new(b.clone()));
+    if elementwise || matches!(op, BinOp::Add | BinOp::Sub) {
+        return zip_values(left, right, &apply);
+    }
+    match (op, left, right) {
+        (BinOp::Mul, Value::Array(a), Value::Array(b)) => {
+            let (left_shape, right_shape) = (left.shape(), right.shape());
+            match (left_shape.len(), right_shape.len()) {
+                // Vector times vector is their scalar product.
+                (1, 1) => {
+                    if a.len() != b.len() {
+                        return Err(format!(
+                            "a scalar product needs equal lengths, got {} and {}",
+                            a.len(),
+                            b.len()
+                        ));
+                    }
+                    let products = zip_values(left, right, &apply)?;
+                    let mut terms = Vec::new();
+                    products.flatten_into(&mut terms);
+                    Ok(Value::Scalar(sum_of(terms)))
+                }
+                // Matrix times vector, vector times matrix, and matrix
+                // times matrix follow the usual row-by-column rule.
+                (2, 1) => a
+                    .iter()
+                    .map(|row| combine(BinOp::Mul, row, right, false))
+                    .collect::<Result<Vec<_>, String>>()
+                    .map(Value::Array),
+                (1, 2) => {
+                    let columns = right_shape[1];
+                    (0..columns)
+                        .map(|column| {
+                            let column = pick_column(b, column)?;
+                            combine(BinOp::Mul, left, &column, false)
+                        })
+                        .collect::<Result<Vec<_>, String>>()
+                        .map(Value::Array)
+                }
+                (2, 2) => a
+                    .iter()
+                    .map(|row| combine(BinOp::Mul, row, right, false))
+                    .collect::<Result<Vec<_>, String>>()
+                    .map(Value::Array),
+                _ => Err("`*` between arrays deeper than matrices".to_string()),
+            }
+        }
+        (BinOp::Div, _, Value::Array(_)) => {
+            Err("an array cannot be a divisor; use `./` for element by element".to_string())
+        }
+        _ => zip_values(left, right, &apply),
+    }
+}
+
+/// One column of a matrix given by rows, as a vector value.
+pub(super) fn pick_column(rows: &[Value], column: usize) -> Result<Value, String> {
+    rows.iter()
+        .map(|row| {
+            let Value::Array(cells) = row else {
+                return Err("a matrix row must be an array".to_string());
+            };
+            cells
+                .get(column)
+                .cloned()
+                .ok_or_else(|| "the rows of a matrix must be equally wide".to_string())
+        })
+        .collect::<Result<Vec<_>, String>>()
+        .map(Value::Array)
+}
+
+/// The sum of a list of expressions, or zero when it is empty.
+pub(super) fn sum_of(terms: Vec<Expr>) -> Expr {
+    terms
+        .into_iter()
+        .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+        .unwrap_or(Expr::Number(0.0))
+}
+
+/// Apply a scalar operation to every element of a value.
+pub(super) fn map_value(value: &Value, f: &dyn Fn(Expr) -> Expr) -> Value {
+    match value {
+        Value::Scalar(expr) => Value::Scalar(f(expr.clone())),
+        Value::Array(items) => Value::Array(items.iter().map(|item| map_value(item, f)).collect()),
+    }
+}
+
+/// Pair two values element by element, broadcasting a scalar over an
+/// array. Arrays of different shapes are an error, not a guess.
+pub(super) fn zip_values(
+    left: &Value,
+    right: &Value,
+    f: &dyn Fn(&Expr, &Expr) -> Expr,
+) -> Result<Value, String> {
+    Ok(match (left, right) {
+        (Value::Scalar(a), Value::Scalar(b)) => Value::Scalar(f(a, b)),
+        (Value::Array(items), Value::Scalar(b)) => Value::Array(
+            items
+                .iter()
+                .map(|item| zip_values(item, &Value::Scalar(b.clone()), f))
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+        (Value::Scalar(a), Value::Array(items)) => Value::Array(
+            items
+                .iter()
+                .map(|item| zip_values(&Value::Scalar(a.clone()), item, f))
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+        (Value::Array(a), Value::Array(b)) => {
+            if a.len() != b.len() {
+                return Err(format!(
+                    "arrays of {} and {} elements do not fit together",
+                    a.len(),
+                    b.len()
+                ));
+            }
+            Value::Array(
+                a.iter()
+                    .zip(b)
+                    .map(|(x, y)| zip_values(x, y, f))
+                    .collect::<Result<Vec<_>, String>>()?,
+            )
+        }
+    })
+}
+
+/// The scalar references an array name stands for: `v` of `Real v[3]`
+/// is `{v[1], v[2], v[3]}`.
+pub(super) fn elements_of(name: &str, sizes: &[i64]) -> Value {
+    match sizes.split_first() {
+        None => Value::Scalar(Expr::Ref(name.to_string())),
+        Some((&length, rest)) => Value::Array(
+            (1..=length)
+                .map(|index| {
+                    if rest.is_empty() {
+                        Value::Scalar(Expr::Ref(element_name(name, &[index])))
+                    } else {
+                        // Deeper dimensions keep the subscripts together,
+                        // which is how the flat names are written.
+                        let inner = elements_of(name, rest);
+                        prefix_subscript(&inner, name, index)
+                    }
+                })
+                .collect(),
+        ),
+    }
+}
+
+/// Put an outer subscript in front of the ones a nested value carries.
+pub(super) fn prefix_subscript(value: &Value, name: &str, index: i64) -> Value {
+    match value {
+        Value::Scalar(Expr::Ref(inner)) => {
+            let subscripts = inner
+                .strip_prefix(name)
+                .and_then(|rest| rest.strip_prefix('['))
+                .and_then(|rest| rest.strip_suffix(']'))
+                .unwrap_or_default();
+            Value::Scalar(Expr::Ref(format!("{name}[{index},{subscripts}]")))
+        }
+        Value::Array(items) => Value::Array(
+            items
+                .iter()
+                .map(|item| prefix_subscript(item, name, index))
+                .collect(),
+        ),
+        other => other.clone(),
+    }
+}
+
+/// Dimensions of every array component of a class and of its bases.
+pub(super) fn collect_shapes(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    consts: &HashMap<String, f64>,
+    out: &mut HashMap<String, Vec<i64>>,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    let scope = class.name.as_str();
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+            collect_shapes(registry, base, consts, out, depth + 1);
+        }
+    }
+    for component in &class.components {
+        if component.dimensions.is_empty() {
+            continue;
+        }
+        // Declarations are visited in source order, so a length
+        // written as `size(v, 1)` can look up a `v` already measured -
+        // which is how a function's result takes the shape of its
+        // argument.
+        let sizes: Option<Vec<i64>> = component
+            .dimensions
+            .iter()
+            .map(|dimension| dimension_value(dimension, consts, out))
+            .collect();
+        if let Some(sizes) = sizes {
+            out.insert(component.name.clone(), sizes);
+        }
+    }
+}
+
+/// The shape of a value, as the dimension tables spell it.
+pub(super) fn shape_i64(value: &Value) -> Vec<i64> {
+    value
+        .shape()
+        .into_iter()
+        .map(|length| length as i64)
+        .collect()
+}
+
+/// One array dimension as a number, or `None` when it cannot be told
+/// here - a colon waiting for a call site, or a length that depends on
+/// something not yet known.
+pub(super) fn dimension_value(
+    expr: &Expr,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Option<i64> {
+    // `size(v)` and `size(v, k)` of something already measured.
+    if let Expr::Call(name, args) = expr {
+        if name == "size" && !args.is_empty() {
+            if let Expr::Ref(of) = &args[0] {
+                let shape = sizes.get(of)?;
+                let index = match args.get(1) {
+                    None => 0,
+                    Some(dimension) => const_eval(dimension, consts)? as usize - 1,
+                };
+                return shape.get(index).copied();
+            }
+        }
+    }
+    let value = const_eval(expr, consts)?;
+    (value.fract() == 0.0 && value >= 0.0).then_some(value as i64)
+}
+
+/// The same shapes under the instance path, since equations are
+/// prefixed before they are expanded.
+pub(super) fn prefixed_sizes(
+    sizes: &HashMap<String, Vec<i64>>,
+    prefix: &str,
+) -> HashMap<String, Vec<i64>> {
+    sizes
+        .iter()
+        .map(|(name, dimensions)| (format!("{prefix}{name}"), dimensions.clone()))
+        .collect()
+}
+
+/// Emit one equation per element, refusing sides that do not match.
+pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result<(), String> {
+    let (left_shape, right_shape) = (lhs.shape(), rhs.shape());
+    if left_shape != right_shape {
+        return Err(format!(
+            "an equation between shapes {left_shape:?} and {right_shape:?}"
+        ));
+    }
+    let (mut left, mut right) = (Vec::new(), Vec::new());
+    lhs.flatten_into(&mut left);
+    rhs.flatten_into(&mut right);
+    for (lhs, rhs) in left.into_iter().zip(right) {
+        acc.equations.push(EquationItem { lhs, rhs });
+    }
+    Ok(())
+}
+
+/// No record instances are in scope here.
+pub(super) fn no_records() -> &'static HashMap<String, String> {
+    static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
+}
