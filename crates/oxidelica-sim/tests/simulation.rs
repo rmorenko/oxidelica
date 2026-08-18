@@ -1283,3 +1283,270 @@ fn time_is_available_in_equations() {
     let last = result.rows.last().unwrap();
     assert!((last[1] - 2.0).abs() < 1e-12);
 }
+
+/// Compile `source`, run it on `method`, and give back the result.
+fn run_on(source: &str, method: SolverMethod) -> Result<SimResult, String> {
+    let mut compiled = compile(&parse_model(source).unwrap()).unwrap();
+    compiled.method = method;
+    compiled.simulate().map_err(|e| e.to_string())
+}
+
+#[test]
+fn every_solver_stops_when_the_model_says_to() {
+    // `terminate` has to be honoured wherever the run happens to be:
+    // at a scheduled instant, at a crossing found by the event search,
+    // and at the very first point, before any stepping at all.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let scheduled = run_on(
+            "model G Real x(start = 1, fixed = true); discrete Real n(start = 0); \
+             equation der(x) = -x; \
+             when sample(0.25, 0.25) then n = pre(n) + 1; end when; \
+             when n > 1.5 then terminate(\"the second tick\"); end when; \
+             annotation(experiment(StopTime = 2, Interval = 0.05)); end G;",
+            method,
+        )
+        .expect("runs");
+        assert_eq!(
+            scheduled.terminated.as_deref(),
+            Some("terminated at t = 0.500000: the second tick"),
+            "{method:?} missed the scheduled stop"
+        );
+        assert!(scheduled.rows.last().unwrap()[0] <= 0.5 + 1e-9);
+
+        let crossing = run_on(
+            "model T Real x(start = 1, fixed = true); equation der(x) = -1; \
+             when x < 0.5 then terminate(\"halfway down\"); end when; \
+             annotation(experiment(StopTime = 2, Interval = 0.05)); end T;",
+            method,
+        )
+        .expect("runs");
+        assert_eq!(
+            crossing.terminated.as_deref(),
+            Some("terminated at t = 0.500000: halfway down"),
+            "{method:?} missed the crossing"
+        );
+    }
+
+    // RK4 steps on a fixed grid and refuses `sample`, but it still has
+    // to stop before its first step when the start itself terminates.
+    let at_once = run_on(
+        "model F Real x(start = 1, fixed = true); equation der(x) = -x; \
+         when initial() then terminate(\"nothing to do\"); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end F;",
+        SolverMethod::Rk4,
+    )
+    .expect("runs");
+    assert_eq!(
+        at_once.terminated.as_deref(),
+        Some("terminated at t = 0.000000: nothing to do")
+    );
+    assert_eq!(at_once.rows.len(), 1, "no step should have been taken");
+}
+
+#[test]
+fn a_model_with_nothing_to_integrate_still_walks_its_events() {
+    // No `der` anywhere: there is no step to take, so the solver walks
+    // from one scheduled instant to the next output point and back,
+    // and the discrete layer has to keep working across both.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model A Real y; discrete Real k(start = 0); \
+             equation y = k * 2; \
+             when sample(0.13, 0.13) then k = pre(k) + 1; end when; \
+             when k > 2.5 then terminate(\"three ticks\"); end when; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end A;",
+            method,
+        )
+        .expect("runs");
+        // Ticks at 0.13, 0.26, 0.39 - the third one stops the run, on a
+        // clock that shares no instant with the output grid.
+        assert_eq!(
+            result.terminated.as_deref(),
+            Some("terminated at t = 0.390000: three ticks"),
+            "{method:?} walked the grid wrong"
+        );
+        let last = result.rows.last().unwrap();
+        assert!((last[0] - 0.39).abs() < 1e-9, "stopped at {}", last[0]);
+        assert!((last[1] - 6.0).abs() < 1e-12, "y = {}", last[1]);
+    }
+}
+
+#[test]
+fn a_solution_that_runs_away_is_reported_where_it_gave_up() {
+    // Two ways for a run to come apart, and both must be named rather
+    // than returned as numbers. `der(x) = -1/x` from x(0) = 1 reaches
+    // x = 0 at t = 1/2 exactly, where the derivative is infinite;
+    // `der(x) = -sqrt(x) - 1` reaches x = 0 at a t the square root
+    // cannot be continued past, and the corrector is what notices.
+    let singular = run_on(
+        "model N Real x(start = 1, fixed = true); equation der(x) = -1 / x; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end N;",
+        SolverMethod::Bdf,
+    )
+    .expect_err("cannot reach the stop time");
+    assert!(
+        singular.contains("step size underflow at t = 0.49") && singular.contains("singularity"),
+        "{singular}"
+    );
+
+    let stuck = run_on(
+        "model Q Real x(start = 1, fixed = true); equation der(x) = -sqrt(x) - 1; \
+         annotation(experiment(StopTime = 2, Interval = 0.01)); end Q;",
+        SolverMethod::Bdf,
+    )
+    .expect_err("cannot reach the stop time");
+    assert!(
+        stuck.contains("Newton iteration does not converge"),
+        "{stuck}"
+    );
+}
+
+#[test]
+fn the_stiff_solver_reselects_states_like_the_adaptive_one() {
+    // A pendulum in Cartesian coordinates given enough speed to go
+    // over the top: the length constraint defines a different
+    // coordinate every quarter turn, so the run stalls, re-selects and
+    // resumes - on BDF as much as on the explicit solver, and both
+    // must agree about the circle they stayed on.
+    const SPIN: &str = "model P parameter Real g = 9.81; \
+         Real x(start = 0, fixed = true); Real y(start = -1, fixed = true); \
+         Real vx(start = 8, fixed = true); Real vy(start = 0, fixed = true); Real lam; \
+         equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - g; \
+         x * x + y * y = 1; \
+         annotation(experiment(StopTime = 3, Interval = 0.002, Tolerance = 1e-9)); end P;";
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(SPIN, method).expect("runs");
+        assert!(
+            result.reselections >= 4,
+            "{method:?} took {} re-selections",
+            result.reselections
+        );
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (x, y) = (index("x"), index("y"));
+        let worst = result
+            .rows
+            .iter()
+            .map(|row| (row[x] * row[x] + row[y] * row[y] - 1.0).abs())
+            .fold(0.0f64, f64::max);
+        assert!(worst < 1e-6, "{method:?} left the circle by {worst}");
+        assert!((result.rows.last().unwrap()[0] - 3.0).abs() < 1e-6);
+    }
+}
+
+#[test]
+fn a_model_with_nothing_to_integrate_reaches_its_stop_time() {
+    // The same walk as above, but nothing stops it early: the last
+    // output point is the stop time itself, which does not sit on the
+    // sampling clock and has to be recorded on the way out.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model A Real y; discrete Real k(start = 0); \
+             equation y = k * 2; \
+             when sample(0.13, 0.13) then k = pre(k) + 1; end when; \
+             annotation(experiment(StopTime = 0.5, Interval = 0.2)); end A;",
+            method,
+        )
+        .expect("runs");
+        let last = result.rows.last().unwrap();
+        assert!(
+            (last[0] - 0.5).abs() < 1e-9,
+            "{method:?} ended at {}",
+            last[0]
+        );
+        // Ticks at 0.13, 0.26 and 0.39 have all been and gone by 0.5.
+        assert!(
+            (last[1] - 6.0).abs() < 1e-12,
+            "{method:?} saw y = {}",
+            last[1]
+        );
+    }
+}
+
+#[test]
+fn a_run_whose_stop_time_is_off_the_grid_still_ends_on_it() {
+    // Interval divides into StopTime with a remainder, so the last
+    // scheduled output point falls short and the stop time is recorded
+    // separately once the stepping is done.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model E Real x(start = 1, fixed = true); equation der(x) = -x; \
+             annotation(experiment(StopTime = 1, Interval = 0.3, Tolerance = 1e-10)); end E;",
+            method,
+        )
+        .expect("runs");
+        let last = result.rows.last().unwrap();
+        assert!(
+            (last[0] - 1.0).abs() < 1e-9,
+            "{method:?} ended at {}",
+            last[0]
+        );
+        assert!(
+            (last[1] - (-1.0f64).exp()).abs() < 1e-7,
+            "{method:?} gave x(1) = {}",
+            last[1]
+        );
+    }
+}
+
+#[test]
+fn a_state_event_that_jumps_is_recorded_on_both_solvers() {
+    // `reinit` moves a state without moving time. Both solvers have to
+    // stop at the crossing, record the jump, and carry on from the new
+    // value rather than interpolating across it.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model H Real x(start = 1, fixed = true); equation der(x) = -1; \
+             when x < 0.5 then reinit(x, 1); end when; \
+             annotation(experiment(StopTime = 2, Interval = 0.05)); end H;",
+            method,
+        )
+        .expect("runs");
+        let x: Vec<f64> = result.rows.iter().map(|row| row[1]).collect();
+        // A sawtooth between 1 and 0.5: never below the trigger, and
+        // back at the top three times over two seconds.
+        assert!(
+            x.iter().all(|&v| (0.5 - 1e-6..=1.0 + 1e-6).contains(&v)),
+            "{method:?} left the band"
+        );
+        let jumps = result
+            .rows
+            .windows(2)
+            .filter(|pair| pair[1][1] > pair[0][1] + 0.4)
+            .count();
+        assert!(jumps >= 3, "{method:?} jumped {jumps} times");
+    }
+}
+
+#[test]
+fn an_algebraic_loop_that_comes_apart_says_so() {
+    let refused = |source: &str| {
+        compile(&parse_model(source).unwrap())
+            .expect_err("has no solution")
+            .to_string()
+    };
+
+    // `1 / x = 0` has no solution, and Newton walks straight off the
+    // number line rather than merely failing to converge - the run has
+    // to say which loop it was, not hand back a NaN.
+    assert_eq!(
+        refused(
+            "model D Real x; Real s(start = 0, fixed = true); \
+             equation 1 / x = 0; der(s) = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end D;"
+        ),
+        "algebraic loop diverged: [\"x\"]"
+    );
+
+    // The other way a loop fails: `x^2 * y = 1` where y is sin(t),
+    // which is exactly zero at the start. The residual does not move
+    // when x does, so there is no direction to step in - and that is a
+    // different complaint from walking off to infinity.
+    assert_eq!(
+        refused(
+            "model S Real x; Real y; Real s(start = 0, fixed = true); \
+             equation y = sin(time); x * x * y = 1; der(s) = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end S;"
+        ),
+        "singular Jacobian in algebraic loop [\"x\"]"
+    );
+}
