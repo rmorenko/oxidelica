@@ -430,6 +430,77 @@ pub(super) fn expand_call(
                 Value::Scalar(minus(term(0, 1)?, term(1, 0)?)),
             ]))
         }
+        // outerProduct(x, y)[i, j] = x[i] * y[j].
+        ("outerProduct", 2) => {
+            let (Value::Array(x), Value::Array(y)) = (recur(&args[0])?, recur(&args[1])?) else {
+                return Err("outerProduct takes two vectors".to_string());
+            };
+            let rows = x
+                .iter()
+                .map(|xi| {
+                    let xi = xi.clone().scalar()?;
+                    let row = y
+                        .iter()
+                        .map(|yj| {
+                            Ok(Value::Scalar(Expr::Bin(
+                                BinOp::Mul,
+                                Box::new(xi.clone()),
+                                Box::new(yj.clone().scalar()?),
+                            )))
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    Ok(Value::Array(row))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Array(rows))
+        }
+        // symmetric(A) keeps A on and above the diagonal and mirrors it
+        // below: B[i, j] = A[i, j] for i <= j, else A[j, i].
+        ("symmetric", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            let Value::Array(rows) = &value else {
+                return Err("symmetric takes a square matrix".to_string());
+            };
+            if shape.len() != 2 || shape[0] != shape[1] {
+                return Err("symmetric takes a square matrix".to_string());
+            }
+            let at = |i: usize, j: usize| -> Result<Value, String> {
+                let Value::Array(row) = &rows[i] else {
+                    return Err("symmetric takes a square matrix".to_string());
+                };
+                Ok(row[j].clone())
+            };
+            let n = shape[0];
+            let out = (0..n)
+                .map(|i| {
+                    let row = (0..n)
+                        .map(|j| if i <= j { at(i, j) } else { at(j, i) })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    Ok(Value::Array(row))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Array(out))
+        }
+        // skew(x) is the 3x3 matrix with skew(x) * y = cross(x, y):
+        // [0, -x3, x2; x3, 0, -x1; -x2, x1, 0].
+        ("skew", 1) => {
+            let Value::Array(x) = recur(&args[0])? else {
+                return Err("skew takes a 3-vector".to_string());
+            };
+            if x.len() != 3 {
+                return Err("skew takes a 3-vector".to_string());
+            }
+            let e = |k: usize| x[k].clone().scalar();
+            let zero = || Expr::Number(0.0);
+            let neg = |v: Expr| Expr::Neg(Box::new(v));
+            let s = |v: Expr| Value::Scalar(v);
+            Ok(Value::Array(vec![
+                Value::Array(vec![s(zero()), s(neg(e(2)?)), s(e(1)?)]),
+                Value::Array(vec![s(e(2)?), s(zero()), s(neg(e(0)?))]),
+                Value::Array(vec![s(neg(e(1)?)), s(e(0)?), s(zero())]),
+            ]))
+        }
         // cat(1, ...) stacks along the first dimension; cat(2, ...)
         // joins along the second.
         ("cat", n) if n >= 2 => {

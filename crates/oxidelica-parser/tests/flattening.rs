@@ -2334,6 +2334,7 @@ fn more_matrix_builtins_and_their_error_paths() {
     assert_eq!(binding_of("D[1,2]"), Expr::Number(0.0));
     assert_eq!(binding_of("W[1,3]"), Expr::Number(5.0));
     assert_eq!(binding_of("S[3,1]"), Expr::Number(5.0));
+
     // Vector times matrix picks columns.
     let vm = m
         .equations
@@ -2341,6 +2342,40 @@ fn more_matrix_builtins_and_their_error_paths() {
         .find(|e| format!("{:?}", e.lhs) == "Ref(\"vm[2]\")")
         .unwrap();
     assert!(format!("{:?}", vm.rhs).contains("Number(2.0)"));
+
+    // outerProduct, symmetric and skew, each folded to its elements -
+    // to element expressions rather than single numbers, as `cross`
+    // does; the shape and the terms are what matter here.
+    let m2 = parse_model(
+        "model M \
+         parameter Real O[2, 2] = outerProduct({1, 2}, {3, 4}); \
+         parameter Real Y[2, 2] = symmetric([1, 2; 9, 4]); \
+         parameter Real K[3, 3] = skew({1, 2, 3}); \
+         Real done; equation done = 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    let shape_of = |name: &str| {
+        format!(
+            "{:?}",
+            m2.components
+                .iter()
+                .find(|c| c.name == name)
+                .and_then(|c| c.binding.clone())
+                .unwrap_or_else(|| panic!("no binding for {name}"))
+        )
+    };
+    // outerProduct[i, j] = x[i] * y[j].
+    assert_eq!(shape_of("O[2,1]"), "Bin(Mul, Number(2.0), Number(3.0))");
+    assert_eq!(shape_of("O[1,2]"), "Bin(Mul, Number(1.0), Number(4.0))");
+    // symmetric mirrors the upper triangle, so the 9 below is dropped.
+    assert_eq!(shape_of("Y[2,1]"), "Number(2.0)");
+    assert_eq!(shape_of("Y[1,2]"), "Number(2.0)");
+    // skew is the cross-product matrix: K[1,2] = -x3, K[1,3] = x2.
+    assert_eq!(shape_of("K[1,2]"), "Neg(Number(3.0))");
+    assert_eq!(shape_of("K[1,3]"), "Number(2.0)");
+    assert_eq!(shape_of("K[3,1]"), "Neg(Number(2.0))");
+    assert_eq!(shape_of("K[2,2]"), "Number(0.0)");
 
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
     assert!(err("model M Real x; equation x = transpose({1, 2}); end M;").contains("matrix"));
