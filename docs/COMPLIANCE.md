@@ -224,9 +224,11 @@ causality unchecked); an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
 `each`-style array members of a bus are not supported;
-`protected` is accepted but not enforced; `final` and `each` are parsed
-and ignored (array modifiers distribute regardless); selective model extension
-(3.6's `break`) is not parsed. A library may be a directory tree, but
+`protected` is accepted but not enforced; a `final` declaration is
+closed to modification from an enclosing class, and `each` spreads a
+modifier over an array where a bare list is handed out per element;
+selective model extension (3.6's `break`) is the one part of
+inheritance still not parsed. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.
