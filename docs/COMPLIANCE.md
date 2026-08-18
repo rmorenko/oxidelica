@@ -15,7 +15,7 @@ under a chapter works as specified for the subset this project covers.
 | 7   | Inheritance, redeclaration    | Full    |
 | 8   | Equations                     | Mostly  |
 | 9   | Connectors and connections    | Partial |
-| 10  | Arrays                        | Partial |
+| 10  | Arrays                        | Full    |
 | 11  | Statements and algorithms     | Partial |
 | 12  | Functions                     | Partial |
 | 13  | Packages                      | Full    |
@@ -62,8 +62,8 @@ call arguments (`f(x, precision = 6)`); algorithm
 sections in models and functions with `:=`, `if`, `for`, and `while`
 with `break` and `return` where the compiler can decide the
 conditions; arrays as
-values (literals, empty ones, flexible sizes on function inputs with
-results shaped by `size(v, 1)`, ranges, slicing with `end`,
+values (literals, empty ones, flexible sizes read from the value a component or a function input
+is given, with results shaped by `size(v, 1)`, ranges, slicing with `end`,
 comprehensions,
 elementwise operators, matrix algebra with `transpose`, `identity`,
 `diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
@@ -172,10 +172,14 @@ inside.
 
 Chapter 3 is complete.
 
-**Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
-or enumeration indexing. A flexible size (`:`) is read from the
-argument at the call site, so it belongs to a function input; a model
-component still needs a dimension the compiler can work out.
+**Arrays** (ch. 10) are complete: literals, ranges, slicing with `end`,
+comprehensions, elementwise operators and the matrix algebra
+(`transpose`, `identity`, `diagonal`, `cross`, `outerProduct`,
+`symmetric`, `skew`, `cat` and `[ , ; ]`), the reductions and the
+constructors. A dimension may be a number, a type - `Real x[Boolean]`
+has two elements indexed off `false`, `Real x[E]` one per enumeration
+literal - or a `:` that reads its length from the value the component
+is given.
 
 **Functions** (ch. 12): no recursion, no external C/Fortran, no
 `derivative`/`inverse` annotations, no functions as arguments, no

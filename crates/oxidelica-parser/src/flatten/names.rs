@@ -528,6 +528,15 @@ pub(super) fn lookup<'a>(
         .find_map(|(_, target)| registry.get(format!("{target}.{name}").as_str()).copied())
 }
 
+/// Whether an expression is Boolean, so a subscript of it indexes a
+/// Boolean dimension off its `false` lower bound.
+pub(super) fn is_boolean(expr: &Expr) -> bool {
+    matches!(
+        expr,
+        Expr::Bool(_) | Expr::Rel(..) | Expr::And(..) | Expr::Or(..) | Expr::Not(..)
+    )
+}
+
 /// Built-in scalar types. `Integer` and `Boolean` are carried as
 /// numbers, like everything else in the flat model.
 pub(super) fn is_primitive(type_name: &str) -> bool {
@@ -592,6 +601,15 @@ pub(super) fn resolve(
                 let value = const_eval(&resolved, &subscript_env).ok_or_else(|| {
                     format!("subscript of `{name}` is not constant: {subscript:?}")
                 })?;
+                // A Boolean subscript indexes a Boolean dimension, whose
+                // lower bound is `false`: `x[false]` is the first
+                // element, `x[true]` the second. Enumeration literals
+                // already carry their 1-based position, so only the
+                // Booleans need lifting off zero.
+                if is_boolean(&resolved) {
+                    indices.push(value as i64 + 1);
+                    continue;
+                }
                 if value.fract() != 0.0 || value < 1.0 {
                     return Err(format!(
                         "subscript of `{name}` must be a positive whole number, got {value}"

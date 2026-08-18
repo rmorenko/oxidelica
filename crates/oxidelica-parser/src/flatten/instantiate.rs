@@ -239,19 +239,57 @@ pub(super) fn instantiate(
             }
         }
 
-        // Array dimensions expand into scalar elements.
+        // The value that fixes a flexible `:` size, if the component has
+        // one: an override handed down, else the declaration's own.
+        let sizing_binding = overrides
+            .iter()
+            .find(|(name, _)| name == &component.name)
+            .map(|(_, e)| e.clone())
+            .or_else(|| component.binding.clone());
+
+        // Array dimensions expand into scalar elements. A dimension may
+        // be a number, but also a type - `Real x[Boolean]` has two
+        // elements, `Real x[E]` one per enumeration literal - or a `:`
+        // that reads its length from the value the component is given.
         let mut sizes = Vec::new();
-        for dimension in &component.dimensions {
-            let value = const_eval(dimension, &local_consts).ok_or_else(|| {
-                format!("dimension of `{flat_name}` is not a compile-time constant")
-            })?;
-            if value.fract() != 0.0 || value < 0.0 {
-                return Err(format!(
-                    "dimension of `{flat_name}` must be a whole number that is not negative, \
-                     got {value}"
-                ));
-            }
-            sizes.push(value as i64);
+        for (axis, dimension) in component.dimensions.iter().enumerate() {
+            let value = match dimension {
+                Expr::Ref(name) if name == "Boolean" => 2,
+                Expr::Ref(name)
+                    if lookup(registry, name, scope, &imports)
+                        .is_some_and(|c| !c.enumeration.is_empty()) =>
+                {
+                    lookup(registry, name, scope, &imports)
+                        .unwrap()
+                        .enumeration
+                        .len() as i64
+                }
+                Expr::ColonSubscript => {
+                    let shape = sizing_binding
+                        .as_ref()
+                        .and_then(|binding| flexible_size(binding, axis))
+                        .ok_or_else(|| {
+                            format!(
+                                "the flexible size `:` of `{flat_name}` needs a value \
+                                 to read its length from"
+                            )
+                        })?;
+                    shape
+                }
+                _ => {
+                    let value = const_eval(dimension, &local_consts).ok_or_else(|| {
+                        format!("dimension of `{flat_name}` is not a compile-time constant")
+                    })?;
+                    if value.fract() != 0.0 || value < 0.0 {
+                        return Err(format!(
+                            "dimension of `{flat_name}` must be a whole number that is not \
+                             negative, got {value}"
+                        ));
+                    }
+                    value as i64
+                }
+            };
+            sizes.push(value);
         }
         // A dimension of zero is legal and means there is nothing
         // there: the declaration contributes no variables at all.
@@ -944,6 +982,23 @@ pub(super) fn instantiate_one(
         }
     }
     Ok(())
+}
+
+/// The length of a value along one axis, for a flexible `:` size. Only
+/// an array literal is measured: a `:` size on a model component is
+/// read from a value written out in full.
+pub(super) fn flexible_size(binding: &Expr, axis: usize) -> Option<i64> {
+    let mut here = binding;
+    for _ in 0..axis {
+        here = match here {
+            Expr::Array(items) => items.first()?,
+            _ => return None,
+        };
+    }
+    match here {
+        Expr::Array(items) => Some(items.len() as i64),
+        _ => None,
+    }
 }
 
 /// A connect side written back as the dotted name a `break

@@ -3104,3 +3104,65 @@ fn a_selective_extends_leaves_an_element_out() {
         error.message
     );
 }
+
+#[test]
+fn a_dimension_may_be_a_type_or_read_from_a_value() {
+    // A `:` size takes its length from the value the component is
+    // given, a Boolean dimension has two elements indexed off `false`,
+    // and an enumeration dimension one per literal.
+    let names = |source: &str| {
+        parse_model(source)
+            .expect("parses")
+            .components
+            .iter()
+            .map(|c| c.name.clone())
+            .collect::<Vec<_>>()
+    };
+
+    // `v[:] = {1, 2, 3}` becomes three scalar elements.
+    let flat = names(
+        "model M parameter Real v[:] = {1, 2, 3}; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(flat.contains(&"v[1]".to_string()) && flat.contains(&"v[3]".to_string()));
+    assert!(!flat.contains(&"v[4]".to_string()));
+
+    // A Boolean dimension has two elements; an enumeration one per
+    // literal.
+    let flat = names(
+        "model M Real x[Boolean]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert_eq!(
+        flat.iter().filter(|n| n.starts_with("x[")).count(),
+        2,
+        "{flat:?}"
+    );
+    let flat = names(
+        "model M type E = enumeration(a, b, c); Real x[E]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert_eq!(flat.iter().filter(|n| n.starts_with("x[")).count(), 3);
+
+    // A Boolean subscript indexes off `false`: x[false] is element 1.
+    let model = parse_model(
+        "model M Real x[Boolean]; Real y; equation x[false] = 10; x[true] = 20; y = x[false]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    // The equation for y reads x[1], the false element.
+    let y = model
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "y"))
+        .unwrap();
+    assert_eq!(format!("{:?}", y.rhs), "Ref(\"x[1]\")");
+
+    // A flexible `:` with no value to measure is refused.
+    let error = parse_model(
+        "model M Real v[:]; equation v[1] = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect_err("nothing to size from");
+    assert!(error.message.contains("flexible size"), "{}", error.message);
+}

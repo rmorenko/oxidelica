@@ -241,11 +241,19 @@ pub(super) fn expand(
                                 depth + 1,
                             )? {
                                 Value::Scalar(index) => {
-                                    let index = constant_here(&index).ok_or_else(|| {
+                                    let value = constant_here(&index).ok_or_else(|| {
                                         "a subscript into an array value must be a                                          compile-time constant"
                                             .to_string()
                                     })?;
-                                    one(index)?
+                                    // A Boolean subscript indexes off its
+                                    // `false` lower bound: `false` is the
+                                    // first element, `true` the second.
+                                    let value = if is_boolean(&with_end) {
+                                        value + 1.0
+                                    } else {
+                                        value
+                                    };
+                                    one(value)?
                                 }
                                 Value::Array(picks) => {
                                     // A vector subscript selects a slice.
@@ -898,11 +906,25 @@ pub(super) fn collect_shapes(
         // Declarations are visited in source order, so a length
         // written as `size(v, 1)` can look up a `v` already measured -
         // which is how a function's result takes the shape of its
-        // argument.
+        // argument. A type dimension (`Boolean`, an enumeration) or a
+        // flexible `:` read from the declaration's value is measured
+        // the same way it is when the component is instantiated.
         let sizes: Option<Vec<i64>> = component
             .dimensions
             .iter()
-            .map(|dimension| dimension_value(dimension, consts, out))
+            .enumerate()
+            .map(|(axis, dimension)| match dimension {
+                Expr::Ref(name) if name == "Boolean" => Some(2),
+                Expr::Ref(name) => lookup(registry, name, scope, &class.imports)
+                    .filter(|c| !c.enumeration.is_empty())
+                    .map(|c| c.enumeration.len() as i64)
+                    .or_else(|| dimension_value(dimension, consts, out)),
+                Expr::ColonSubscript => component
+                    .binding
+                    .as_ref()
+                    .and_then(|binding| flexible_size(binding, axis)),
+                _ => dimension_value(dimension, consts, out),
+            })
             .collect();
         if let Some(sizes) = sizes {
             out.insert(component.name.clone(), sizes);
