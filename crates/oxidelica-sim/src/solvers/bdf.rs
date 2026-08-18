@@ -429,8 +429,28 @@ impl CompiledModel {
                     }
                     // A state event that changed something is recorded at
                     // the instant it happened, so the jump is visible.
-                    if outcome.changed {
+                    let mode_left = !self.mode_holds(&values, t);
+                    if outcome.changed || mode_left {
                         record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                    }
+                    // A run-time `if` equation that changed branch at
+                    // this very event wants a model built for the mode
+                    // now in force, and it has to be rebuilt *here*
+                    // rather than after the next step: the branch turns
+                    // over exactly at the crossing, so a step taken
+                    // first would find the mode gone and stall back at
+                    // the instant this segment began, over and over.
+                    // The row just written is only there to carry the
+                    // point over; the continuation starts at this
+                    // instant and writes it again with the values of
+                    // the mode that now applies.
+                    if mode_left {
+                        let mut outcome =
+                            self.stall_at_last_row(columns, rows, SolverMethod::Bdf, true)?;
+                        if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                            stall.partial.rows.pop();
+                        }
+                        return Ok(outcome);
                     }
                     h = (h * 0.25).max(1e-12);
                     continue;

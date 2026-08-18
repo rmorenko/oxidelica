@@ -6,7 +6,7 @@
 //! here rather than by a reader.
 
 use oxidelica_parser::parse_model;
-use oxidelica_sim::{compile, SimResult};
+use oxidelica_sim::{compile, SimResult, SolverMethod};
 
 fn example(name: &str) -> String {
     std::fs::read_to_string(
@@ -376,43 +376,49 @@ fn a_chopped_supply_draws_the_exact_staircase() {
     // instants land exactly. What comes out is an RC charging
     // towards the supply for half a period and towards zero for
     // the next, which has a closed form.
-    let result = compile(&with_library("switched_rc.mo"))
-        .unwrap()
-        .simulate()
-        .unwrap();
-    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    //
+    // Both adaptive solvers are held to it. The branch turns over at
+    // the crossing itself, so a solver that waits until after its next
+    // step to notice would have to rebuild at the instant it just
+    // started from, and would never get past the first switch.
     let (supply, tau, half) = (10.0f64, 0.2f64, 0.5f64);
-    let exact = |t: f64| {
-        let (mut voltage, mut at, mut on) = (0.0f64, 0.0f64, true);
-        while at < t - 1e-15 {
-            let next = (at / half + 1e-9).floor() * half + half;
-            let until = next.min(t);
-            let target = if on { supply } else { 0.0 };
-            voltage = target - (target - voltage) * (-(until - at) / tau).exp();
-            if until >= next - 1e-12 {
-                on = !on;
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let mut compiled = compile(&with_library("switched_rc.mo")).unwrap();
+        compiled.method = method;
+        let result = compiled.simulate().unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let exact = |t: f64| {
+            let (mut voltage, mut at, mut on) = (0.0f64, 0.0f64, true);
+            while at < t - 1e-15 {
+                let next = (at / half + 1e-9).floor() * half + half;
+                let until = next.min(t);
+                let target = if on { supply } else { 0.0 };
+                voltage = target - (target - voltage) * (-(until - at) / tau).exp();
+                if until >= next - 1e-12 {
+                    on = !on;
+                }
+                at = until;
             }
-            at = until;
+            voltage
+        };
+        for row in &result.rows {
+            let wanted = exact(row[0]);
+            assert!(
+                (row[index("capacitor.v")] - wanted).abs() < 1e-6,
+                "{method:?} at t = {}: v = {} vs {wanted}",
+                row[0],
+                row[index("capacitor.v")]
+            );
         }
-        voltage
-    };
-    for row in &result.rows {
-        let wanted = exact(row[0]);
-        assert!(
-            (row[index("capacitor.v")] - wanted).abs() < 1e-6,
-            "t = {}: v = {} vs {wanted}",
-            row[0],
-            row[index("capacitor.v")]
-        );
-    }
-    // The other equation of each branch travelled with it.
-    for row in &result.rows {
-        let energised = row[index("supply.energised")] > 0.5;
-        let delivered = row[index("supply.delivered")];
-        if energised {
-            assert!((delivered - supply * row[index("supply.p.i")]).abs() < 1e-9);
-        } else {
-            assert_eq!(delivered, 0.0);
+        // The other equation of each branch travelled with it.
+        for row in &result.rows {
+            let energised = row[index("supply.energised")] > 0.5;
+            let delivered = row[index("supply.delivered")];
+            if energised {
+                assert!((delivered - supply * row[index("supply.p.i")]).abs() < 1e-9);
+            } else {
+                assert_eq!(delivered, 0.0);
+            }
         }
     }
 }
