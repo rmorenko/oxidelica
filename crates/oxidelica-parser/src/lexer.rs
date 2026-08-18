@@ -881,6 +881,50 @@ line2""#
     }
 
     #[test]
+    fn every_token_can_say_its_own_name() {
+        // The display is what error messages are written with, so
+        // each keyword has to spell itself.
+        let source = "model M stream flow expandable operator encapsulated block while break return connector record function package type partial import protected within replaceable redeclare constrainedby inner outer enumeration final each discrete when elsewhen algorithm extends connect for in loop equation annotation";
+        let spelled: Vec<String> = lex(source)
+            .unwrap()
+            .iter()
+            .map(|s| s.token.to_string())
+            .collect();
+        for word in source.split_whitespace() {
+            assert!(spelled.iter().any(|t| t == word), "{word} is not spelled");
+        }
+        // And so do the shapes that are not words.
+        for source in [
+            "1 + 2 - 3 * 4 / 5 ^ 6",
+            "a .+ b .- c .* d ./ e .^ f",
+            "x[1] {2} (3)",
+            "a < b <= c > d >= e == f <> g",
+            "h := 1; i, j.k : l",
+            "\"text\" true false 'quoted'",
+        ] {
+            let spelled: Vec<String> = lex(source)
+                .unwrap()
+                .iter()
+                .map(|s| s.token.to_string())
+                .collect();
+            assert!(!spelled.is_empty(), "{source}");
+        }
+    }
+
+    #[test]
+    fn a_quoted_identifier_must_be_closed() {
+        let failed = lex("model M Real 'unfinished").unwrap_err();
+        assert!(failed.message.contains("unterminated quoted identifier"));
+        // One that is closed keeps its quotes, and may span a line.
+        let spelled: Vec<String> = lex("'+' 'two\nlines'")
+            .unwrap()
+            .iter()
+            .map(|s| s.token.to_string())
+            .collect();
+        assert_eq!(spelled[0], "'+'");
+    }
+
+    #[test]
     fn error_reports_line_number() {
         let e = lex("x\ny\n#").unwrap_err();
         assert_eq!(e.line, 3);

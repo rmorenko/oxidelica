@@ -2650,7 +2650,11 @@ fn execute(
     for statement in statements {
         match statement {
             Statement::Assign(target, subscripts, value) => {
-                let value = substitute_refs(value, bindings);
+                // A body may name a constant of a package the way an
+                // equation may, and it is resolved where it was
+                // written - in this class, not at the call site.
+                let value = substitute_class_constants(value, registry, scope, imports);
+                let value = substitute_refs(&value, bindings);
                 // Through the array layer, so `c := a .* b` binds a whole
                 // array and a scalar stays a scalar.
                 let no_loop_vars = HashMap::new();
@@ -2815,7 +2819,8 @@ fn execute(
                         .condition
                         .as_ref()
                         .map(|c| {
-                            let c = substitute_refs(c, &before);
+                            let c = substitute_class_constants(c, registry, scope, imports);
+                            let c = substitute_refs(&c, &before);
                             resolve(
                                 &c,
                                 &HashMap::new(),
@@ -6226,6 +6231,64 @@ mod tests {
             .find(|equation| format!("{:?}", equation.lhs) == "Ref(\"out\")")
             .unwrap();
         assert_eq!(format!("{:?}", held.rhs), "Ref(\"acc\")");
+    }
+
+    #[test]
+    fn a_function_body_may_be_written_in_arrays_throughout() {
+        // Inlining substitutes the arguments into the body, and the
+        // body may be written in any of the array forms - which the
+        // substitution has to walk through to reach the names.
+        let m = parse_model(
+            "function shaped input Real v[3]; input Real k; output Real y; protected Real ranged[3]; Real made[3]; Real rows[2, 3]; Real picked[2]; algorithm ranged := 1:3; made := {v[i] * k for i in 1:3}; rows := [v[1], v[2], v[3]; made[1], made[2], made[3]]; picked := {rows[1, 1], rows[2, 3]}; y := sum(ranged) + sum(made) + picked[1] + picked[2] + rows[2, 2]; end shaped; model M parameter Real a[3] = {1, 2, 3}; Real out; equation out = shaped(a, 2); end M;",
+        )
+        .unwrap();
+        // 6 for the range, 12 for the doubled vector, 1 and 6 for the
+        // corners picked out, and 4 in the middle.
+        let mut known = std::collections::HashMap::new();
+        for component in &m.components {
+            if let Some(binding) = &component.binding {
+                if let Some(number) = super::const_eval(binding, &known) {
+                    known.insert(component.name.clone(), number);
+                }
+            }
+        }
+        assert_eq!(super::const_eval(&m.equations[0].rhs, &known), Some(29.0));
+    }
+
+    #[test]
+    fn a_function_may_leave_from_inside_a_loop() {
+        // `return` reaches out through a loop, which is a thing the
+        // walk that looks for one has to know.
+        let m = parse_model(
+            "function first_over input Real limit; output Real k; algorithm k := 0; for i in 1:10 loop if i * i > limit then k := i; return; end if; end for; end first_over; model M Real y; equation y = first_over(30); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(6.0)");
+
+        // And a `while` inside a `for` is left the same way.
+        let m = parse_model(
+            "function counted output Real n; protected Real i; algorithm n := 0; for outer_step in 1:3 loop i := 0; while i < 2 loop i := i + 1; n := n + 1; if n > 4 then return; end if; end while; end for; end counted; model M Real y; equation y = counted(); end M;",
+        )
+        .unwrap();
+        assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(5.0)");
+    }
+
+    #[test]
+    fn a_tuple_equation_may_sit_inside_a_component() {
+        // Prefixing and constant substitution both walk a tuple, and
+        // only inside a component do they have anything to do.
+        let m = parse_model(
+            "package K constant Real gain = 3; end K; function two input Real a; output Real b; output Real c; algorithm b := a * K.gain; c := a + 1; end two; model Sub parameter Real seed = 2; Real p; Real q; equation (p, q) = two(seed); end Sub; model M Sub s; Real out; equation out = s.p + s.q; end M;",
+        )
+        .unwrap();
+        let named: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+        assert!(
+            named.contains(&"s.p") && named.contains(&"s.q"),
+            "{named:?}"
+        );
+        let text = format!("{:?}", m.equations);
+        assert!(text.contains("Ref(\"s.seed\")"), "prefixed: {text}");
+        assert!(text.contains("Number(3.0)"), "the constant folded: {text}");
     }
 
     #[test]

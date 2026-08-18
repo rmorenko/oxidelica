@@ -249,6 +249,33 @@ mod tests {
     }
 
     #[test]
+    fn the_library_variable_names_one_outright() {
+        let _guard = ENVIRONMENT
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let sandbox = Sandbox::new("named");
+        std::env::set_var(LIBRARY_VARIABLE, sandbox.0.join("lib"));
+        let found = library_directories(None);
+        let sources = library_sources(None);
+        std::env::remove_var(LIBRARY_VARIABLE);
+        assert_eq!(
+            found[0].canonicalize().unwrap(),
+            sandbox.0.join("lib").canonicalize().unwrap()
+        );
+        assert_eq!(sources.len(), 1);
+
+        // A variable naming somewhere with no models in it is no help,
+        // so the search goes on looking.
+        std::env::set_var(LIBRARY_VARIABLE, sandbox.0.join("deep"));
+        let found = library_directories(Some(&sandbox.0.join("deep/nested/model.mo")));
+        std::env::remove_var(LIBRARY_VARIABLE);
+        assert_eq!(
+            found[0].canonicalize().unwrap(),
+            sandbox.0.join("lib").canonicalize().unwrap()
+        );
+    }
+
+    #[test]
     fn modelicapath_names_the_roots() {
         let _guard = ENVIRONMENT
             .lock()

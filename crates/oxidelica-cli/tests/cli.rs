@@ -111,6 +111,38 @@ fn simulate_writes_csv_to_file() {
 }
 
 #[test]
+fn the_solver_may_be_chosen_on_the_command_line() {
+    let decay = example("decay.mo");
+    let decay = decay.to_str().unwrap();
+    for name in ["auto", "dopri45", "rk4", "bdf"] {
+        let out = bin()
+            .args(["simulate", decay, "--solver", name, "--stop", "0.5"])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{name}: {}", stderr(&out));
+        assert!(stderr(&out).contains("final point:"), "{name}");
+    }
+    let out = bin()
+        .args(["simulate", decay, "--solver", "nonsense"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("unknown solver `nonsense`"));
+}
+
+#[test]
+fn a_run_that_stops_early_says_so() {
+    // `terminate` ends the run, and the message reaches the terminal.
+    let ball = example("bouncing_ball.mo");
+    let out = bin()
+        .args(["simulate", ball.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stderr(&out).contains("final point:"));
+}
+
+#[test]
 fn simulate_reports_flag_errors() {
     let decay = example("decay.mo");
     let decay = decay.to_str().unwrap();
