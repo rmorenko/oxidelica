@@ -434,10 +434,10 @@ impl Parser {
     pub(super) fn extends_clause(&mut self) -> Result<Extend, ParseError> {
         self.expect(&Token::Extends, "extends")?;
         let base = self.dotted_name("base class name")?;
-        let (modifiers, redeclares, _each) = if self.peek() == &Token::LParen {
+        let (modifiers, redeclares, _each, broken) = if self.peek() == &Token::LParen {
             self.modifier_list()?
         } else {
-            (Vec::new(), Vec::new(), Vec::new())
+            (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
         if self.peek() == &Token::Annotation {
             self.annotation_body(&mut Experiment::default())?;
@@ -446,6 +446,7 @@ impl Parser {
         Ok(Extend {
             base,
             modifiers,
+            broken,
             redeclares,
         })
     }

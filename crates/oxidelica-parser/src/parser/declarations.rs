@@ -123,7 +123,7 @@ impl Parser {
                     }
                 }
             } else {
-                (modifiers, redeclares, each_modifiers) = self.modifier_list()?;
+                (modifiers, redeclares, each_modifiers, _) = self.modifier_list()?;
             }
         }
 
@@ -202,10 +202,11 @@ impl Parser {
         let mut modifiers = Vec::new();
         let mut redeclares = Vec::new();
         let mut each_names = Vec::new();
+        let mut broken = Vec::new();
         // An empty list, `Interface()`, modifies nothing.
         if self.peek() == &Token::RParen {
             self.bump();
-            return Ok((modifiers, redeclares, each_names));
+            return Ok((modifiers, redeclares, each_names, broken));
         }
         loop {
             let mut has_each = false;
@@ -213,7 +214,22 @@ impl Parser {
                 has_each |= self.peek() == &Token::Each;
                 self.bump();
             }
-            if self.peek() == &Token::Redeclare {
+            if self.peek() == &Token::Break {
+                // Selective extension: `break f` leaves out a component
+                // of the base, `break connect(a, b)` one connection.
+                self.bump();
+                if self.peek() == &Token::Connect {
+                    self.bump();
+                    self.expect(&Token::LParen, "`(` after break connect")?;
+                    let a = self.component_ref()?;
+                    self.expect(&Token::Comma, "`,` in break connect")?;
+                    let b = self.component_ref()?;
+                    self.expect(&Token::RParen, "`)` after break connect")?;
+                    broken.push(Deselect::Connection(a, b));
+                } else {
+                    broken.push(Deselect::Component(self.component_ref()?));
+                }
+            } else if self.peek() == &Token::Redeclare {
                 redeclares.push(self.redeclaration()?);
             } else {
                 let name = self.component_ref()?;
@@ -221,7 +237,8 @@ impl Parser {
                     each_names.push(name.clone());
                 }
                 if self.peek() == &Token::LParen {
-                    let (nested, nested_redeclares, nested_each) = self.modifier_list()?;
+                    let (nested, nested_redeclares, nested_each, _nested_break) =
+                        self.modifier_list()?;
                     modifiers.extend(
                         nested
                             .into_iter()
@@ -256,7 +273,7 @@ impl Parser {
                 }
             }
         }
-        Ok((modifiers, redeclares, each_names))
+        Ok((modifiers, redeclares, each_names, broken))
     }
 
     /// Whether the current token closes a modifier or the whole list.

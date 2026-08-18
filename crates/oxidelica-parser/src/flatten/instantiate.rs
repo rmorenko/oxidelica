@@ -103,10 +103,28 @@ pub(super) fn instantiate(
             overrides: &mods,
             redeclares: &base_redeclares,
             inners: &inners,
+            broken: &extend.broken,
         };
         instantiate(registry, base, prefix, &base_env, acc, depth + 1)?;
     }
     let overrides = env.overrides;
+
+    // A selective `extends` leaves out named elements of this class:
+    // `break f` drops the component and its connections, `break
+    // connect(a, b)` drops that one connection. Every break must match
+    // something, so what did is tracked and checked at the end.
+    let broken = env.broken;
+    let mut broke_something = vec![false; broken.len()];
+    let component_broken = |name: &str, hit: &mut [bool]| -> bool {
+        let mut out = false;
+        for (index, item) in broken.iter().enumerate() {
+            if matches!(item, Deselect::Component(f) if f == name) {
+                hit[index] = true;
+                out = true;
+            }
+        }
+        out
+    };
 
     // Parameter values of this class, resolved to numbers where
     // possible: array dimensions and loop bounds are compile-time
@@ -178,6 +196,13 @@ pub(super) fn instantiate(
         // to the enclosing `inner` instance above. A `redeclare` in the
         // body replaced an inherited declaration instead of adding one.
         if component.scope == Scope::Outer || component.redeclaration {
+            continue;
+        }
+
+        // A selective `extends` broke this component: leave it out, and
+        // mark it disabled so the connections to it fall away too.
+        if component_broken(&component.name, &mut broke_something) {
+            acc.disabled.push(flat_name.clone());
             continue;
         }
 
@@ -737,6 +762,17 @@ pub(super) fn instantiate(
     // it: this is how the standard library switches a support flange
     // between an external connector and an internal ground.
     for (a, b) in &class.connects {
+        // `break connect(a, b)` drops this exact connection, in either
+        // order, before it becomes a set.
+        let (na, nb) = (connect_side_name(a), connect_side_name(b));
+        if let Some(index) = broken.iter().position(|item| {
+            matches!(item, Deselect::Connection(x, y)
+                if (Some(x) == na.as_ref() && Some(y) == nb.as_ref())
+                    || (Some(x) == nb.as_ref() && Some(y) == na.as_ref()))
+        }) {
+            broke_something[index] = true;
+            continue;
+        }
         let shapes = Shapes {
             sizes: &sizes_here,
             loop_vars: &no_loop_vars,
@@ -746,6 +782,21 @@ pub(super) fn instantiate(
         push_connects(
             a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
         )?;
+    }
+
+    // A break that matched nothing is a mistake in the extending class.
+    if let Some(index) = broke_something.iter().position(|hit| !hit) {
+        return Err(match &broken[index] {
+            Deselect::Component(name) => {
+                format!("`break {name}` matches nothing in `{}`", class.name)
+            }
+            Deselect::Connection(a, b) => {
+                format!(
+                    "`break connect({a}, {b})` matches no connection in `{}`",
+                    class.name
+                )
+            }
+        });
     }
     Ok(())
 }
@@ -887,11 +938,24 @@ pub(super) fn instantiate_one(
                 overrides: &mods,
                 redeclares,
                 inners,
+                broken: &[],
             };
             instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
         }
     }
     Ok(())
+}
+
+/// A connect side written back as the dotted name a `break
+/// connect(...)` would name it by, when it is a plain reference. A
+/// subscripted or otherwise compound side is left unnamed, so a break
+/// only matches what it can spell.
+fn connect_side_name(expr: &Expr) -> Option<String> {
+    match expr {
+        Expr::Ref(name) => Some(name.clone()),
+        Expr::Member(base, member) => Some(format!("{}.{member}", connect_side_name(base)?)),
+        _ => None,
+    }
 }
 
 /// One element's slice of a modifier value spread over an array.

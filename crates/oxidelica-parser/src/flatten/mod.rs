@@ -144,6 +144,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         overrides: &[],
         redeclares: &[],
         inners: &HashMap::new(),
+        broken: &[],
     };
     instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
 
@@ -477,6 +478,8 @@ struct Env<'a> {
     redeclares: &'a [Redeclare],
     /// `inner` instances visible here, by declaration name.
     inners: &'a HashMap<String, InnerInstance>,
+    /// A selective `extends` leaves these elements of this class out.
+    broken: &'a [Deselect],
 }
 
 /// One component element about to be instantiated: the declaration, the

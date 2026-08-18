@@ -3004,3 +3004,68 @@ fn each_spreads_a_modifier_where_a_list_is_handed_out() {
         assert_eq!(value(&source, "items[3].w"), 7.0);
     }
 }
+
+#[test]
+fn a_selective_extends_leaves_an_element_out() {
+    // `break s` removes the component and the connections to it, so the
+    // extending class may wire the base's bus to its own source
+    // instead. The flat model keeps `mine` and drops `s`.
+    let model = parse_model(
+        "connector P Real v; flow Real i; end P; \
+         model Src P p; equation p.v = 5; end Src; \
+         model Base P bus; Src s; equation connect(s.p, bus); end Base; \
+         model M extends Base(break s); Src mine; equation connect(mine.p, bus); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    let names: Vec<&str> = model.components.iter().map(|c| c.name.as_str()).collect();
+    assert!(!names.iter().any(|n| n.starts_with("s.")), "{names:?}");
+    assert!(names.iter().any(|n| n.starts_with("mine.")), "{names:?}");
+
+    // `break connect(a, b)` drops that one connection: with the base's
+    // join gone, `a.v` and `b.v` are no longer forced equal, so the two
+    // declared values stand. The connection equality is not in the flat
+    // model.
+    let model = parse_model(
+        "connector P Real v; flow Real i; end P; \
+         model Base P a; P b; equation a.v = 3; b.v = 7; connect(a, b); end Base; \
+         model M Real y; extends Base(break connect(a, b)); equation y = b.v; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    // No equation ties a.v to b.v: the connection is gone.
+    assert!(
+        !model.equations.iter().any(|e| {
+            let text = format!("{:?} {:?}", e.lhs, e.rhs);
+            text.contains("a.v") && text.contains("b.v")
+        }),
+        "the broken connection survived: {:?}",
+        model.equations
+    );
+
+    // A break that matches nothing in the base is a mistake.
+    let error = parse_model(
+        "model Base Real x; equation x = 1; end Base; \
+         model M Real y; extends Base(break nope); equation y = x; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect_err("break matched nothing");
+    assert!(
+        error.message.contains("`break nope` matches nothing"),
+        "{}",
+        error.message
+    );
+
+    let error = parse_model(
+        "connector P Real v; flow Real i; end P; \
+         model Base P a; P b; equation a.v = 1; b.v = 2; end Base; \
+         model M extends Base(break connect(a, b)); Real y; equation y = a.v; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect_err("no such connection");
+    assert!(
+        error.message.contains("break connect(a, b)") && error.message.contains("no connection"),
+        "{}",
+        error.message
+    );
+}

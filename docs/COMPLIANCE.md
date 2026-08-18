@@ -12,7 +12,7 @@ under a chapter works as specified for the subset this project covers.
 | 4   | Classes, types, declarations  | Partial |
 | 5   | Scoping, lookup, flattening   | Partial |
 | 6   | Type relationships            | Minimal |
-| 7   | Inheritance, redeclaration    | Mostly  |
+| 7   | Inheritance, redeclaration    | Full    |
 | 8   | Equations                     | Mostly  |
 | 9   | Connectors and connections    | Partial |
 | 10  | Arrays                        | Partial |
@@ -102,6 +102,14 @@ and one the run produces stops it where it left the bounds. An
 `Integer` is refused a value that works out to a fraction, in a
 binding, a `start` or an assignment - though `Integer i = 3.0` passes,
 since a whole number spelled with a point contradicts nothing.
+
+**Inheritance** (ch. 7) is complete: a class extends its bases with
+their modifiers and redeclarations, a `final` declaration is closed to
+modification from an enclosing class, `each` spreads a modifier over an
+array where a bare list is handed out one entry per element, and a
+selective `extends Base(break f)` leaves a component and its
+connections out - `break connect(a, b)` one connection - refusing a
+break that matches nothing.
 
 **Packages** (ch. 13) hold classes and constants and nothing else - a
 parameter or a variable in one is refused, since a package has no
@@ -224,11 +232,7 @@ causality unchecked); an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
 `each`-style array members of a bus are not supported;
-`protected` is accepted but not enforced; a `final` declaration is
-closed to modification from an enclosing class, and `each` spreads a
-modifier over an array where a bare list is handed out per element;
-selective model extension (3.6's `break`) is the one part of
-inheritance still not parsed. A library may be a directory tree, but
+`protected` is accepted but not enforced. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.

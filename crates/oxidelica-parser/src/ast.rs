@@ -212,6 +212,18 @@ pub struct Extend {
     pub modifiers: Vec<(String, Expr)>,
     /// Redeclarations applied to the base.
     pub redeclares: Vec<Redeclare>,
+    /// Selective extension: elements of the base to leave out.
+    pub broken: Vec<Deselect>,
+}
+
+/// One `break` of a selective `extends`: an element of the base that
+/// the extending class leaves out.
+#[derive(Debug, Clone)]
+pub enum Deselect {
+    /// `break f` — the component `f` and every connection to it.
+    Component(String),
+    /// `break connect(a, b)` — that one connection.
+    Connection(String, String),
 }
 
 /// One class definition in a file.
