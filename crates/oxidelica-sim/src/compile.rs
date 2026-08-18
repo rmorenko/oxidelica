@@ -162,6 +162,520 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     compile_at(model, None)
 }
 
+/// The order a run evaluates the algebraic layer in.
+///
+/// An equation that can be solved for its own unknown on its own is an
+/// explicit assignment, and those go first in dependency order. What
+/// is left is cyclic and becomes one torn block: inside it the
+/// equations that can still be solved explicitly are evaluated in
+/// order, and Newton iterates only on the few that cannot - which
+/// keeps the Jacobian small.
+fn build_plan(
+    unknowns: &[String],
+    algebraic_eqs: &[(Expr, Expr)],
+    matched_var: &[usize],
+    eq_vars: &[Vec<usize>],
+    n_alg: usize,
+) -> (Vec<String>, Vec<PlanStage>) {
+    // Kahn topological order over equations.
+    let producer: Vec<usize> = {
+        let mut p = vec![0; n_alg];
+        for (eq, &v) in matched_var.iter().enumerate() {
+            p[v] = eq;
+        }
+        p
+    };
+    let mut indegree = vec![0usize; n_alg];
+    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); n_alg];
+    for eq in 0..n_alg {
+        for &v in &eq_vars[eq] {
+            if v != matched_var[eq] {
+                dependents[producer[v]].push(eq);
+                indegree[eq] += 1;
+            }
+        }
+    }
+    let mut queue: Vec<usize> = (0..n_alg).filter(|&e| indegree[e] == 0).collect();
+    let mut emitted = Vec::new();
+    let mut done = vec![false; n_alg];
+    while let Some(eq) = queue.pop() {
+        if done[eq] {
+            continue;
+        }
+        done[eq] = true;
+        emitted.push(eq);
+        for &dep in &dependents[eq] {
+            indegree[dep] = indegree[dep].saturating_sub(1);
+            if indegree[dep] == 0 && !done[dep] {
+                queue.push(dep);
+            }
+        }
+    }
+
+    let mentions = |expr: &Expr, name: &str| -> bool {
+        let mut refs = Vec::new();
+        expr.collect_refs(&mut refs);
+        refs.contains(&name)
+    };
+    let mut ordered_algs: Vec<String> = Vec::new();
+    let mut stages: Vec<PlanStage> = Vec::new();
+    for &eq in &emitted {
+        let var_name = unknowns[matched_var[eq]].clone();
+        let index = ordered_algs.len();
+        let (lhs, rhs) = &algebraic_eqs[eq];
+        let stage = if matches!(lhs, Expr::Ref(n) if n == &var_name) && !mentions(rhs, &var_name) {
+            PlanStage::Explicit {
+                var: index,
+                expr: rhs.clone(),
+            }
+        } else if matches!(rhs, Expr::Ref(n) if n == &var_name) && !mentions(lhs, &var_name) {
+            PlanStage::Explicit {
+                var: index,
+                expr: lhs.clone(),
+            }
+        } else if let Some(expr) = solve_linear_for(lhs, rhs, &var_name) {
+            // Linear in its unknown: solved symbolically, no iteration.
+            PlanStage::Explicit { var: index, expr }
+        } else {
+            PlanStage::Implicit {
+                vars: vec![index],
+                torn: vec![index],
+                inner: Vec::new(),
+                residuals: vec![(lhs.clone(), rhs.clone())],
+            }
+        };
+        ordered_algs.push(var_name);
+        stages.push(stage);
+    }
+
+    // The cyclic remainder becomes one torn block: equations that can
+    // be solved explicitly for their unknown are evaluated in
+    // dependency order, and Newton iterates only on the tearing
+    // variables needed to break the remaining cycles.
+    let remainder: Vec<usize> = (0..n_alg).filter(|&e| !done[e]).collect();
+    if !remainder.is_empty() {
+        let base = ordered_algs.len();
+        let mut index_of: HashMap<usize, usize> = HashMap::new();
+        for (offset, &eq) in remainder.iter().enumerate() {
+            let var = matched_var[eq];
+            index_of.insert(var, base + offset);
+            ordered_algs.push(unknowns[var].clone());
+        }
+        let vars: Vec<usize> = (base..ordered_algs.len()).collect();
+
+        // Which equations can be solved explicitly for their unknown?
+        let solvable: HashMap<usize, Expr> = remainder
+            .iter()
+            .filter_map(|&eq| {
+                let name = &unknowns[matched_var[eq]];
+                let (lhs, rhs) = &algebraic_eqs[eq];
+                if matches!(lhs, Expr::Ref(n) if n == name) && !mentions(rhs, name) {
+                    Some((eq, rhs.clone()))
+                } else if matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs, name) {
+                    Some((eq, lhs.clone()))
+                } else {
+                    solve_linear_for(lhs, rhs, name).map(|expr| (eq, expr))
+                }
+            })
+            .collect();
+
+        // Equations that resist explicit solution force their unknown
+        // into the tearing set; then tear greedily until the rest sorts
+        // topologically, preferring the most-referenced unknowns.
+        let mut torn_eqs: Vec<usize> = remainder
+            .iter()
+            .copied()
+            .filter(|eq| !solvable.contains_key(eq))
+            .collect();
+        let uses: HashMap<usize, usize> = {
+            let mut counts: HashMap<usize, usize> = HashMap::new();
+            for &eq in &remainder {
+                for &v in &eq_vars[eq] {
+                    if index_of.contains_key(&v) {
+                        *counts.entry(v).or_default() += 1;
+                    }
+                }
+            }
+            counts
+        };
+        let inner_order = loop {
+            let torn_vars: Vec<usize> = torn_eqs.iter().map(|&eq| matched_var[eq]).collect();
+            let pending: Vec<usize> = remainder
+                .iter()
+                .copied()
+                .filter(|eq| !torn_eqs.contains(eq))
+                .collect();
+            // Topological pass over the untorn equations.
+            let mut placed: Vec<usize> = Vec::new();
+            let mut available = torn_vars.clone();
+            let mut left = pending.clone();
+            loop {
+                let before = left.len();
+                left.retain(|&eq| {
+                    let ready = eq_vars[eq].iter().all(|v| {
+                        !index_of.contains_key(v) || *v == matched_var[eq] || available.contains(v)
+                    });
+                    if ready {
+                        placed.push(eq);
+                        available.push(matched_var[eq]);
+                        false
+                    } else {
+                        true
+                    }
+                });
+                if left.is_empty() || left.len() == before {
+                    break;
+                }
+            }
+            if left.is_empty() {
+                break placed;
+            }
+            // Still cyclic: tear the most-referenced unknown left.
+            let victim = *left
+                .iter()
+                .max_by_key(|&&eq| uses.get(&matched_var[eq]).copied().unwrap_or(0))
+                .expect("non-empty cycle");
+            torn_eqs.push(victim);
+        };
+
+        let inner: Vec<(usize, Expr)> = inner_order
+            .iter()
+            .map(|eq| (index_of[&matched_var[*eq]], solvable[eq].clone()))
+            .collect();
+        let torn: Vec<usize> = torn_eqs
+            .iter()
+            .map(|&eq| index_of[&matched_var[eq]])
+            .collect();
+        let residuals: Vec<(Expr, Expr)> = torn_eqs
+            .iter()
+            .map(|&eq| algebraic_eqs[eq].clone())
+            .collect();
+        stages.push(PlanStage::Implicit {
+            vars,
+            torn,
+            inner,
+            residuals,
+        });
+    }
+    (ordered_algs, stages)
+}
+
+/// How many times a constraint may be differentiated before the model
+/// is called singular rather than merely of high index.
+const MAX_INDEX_REDUCTIONS: usize = 16;
+
+/// What index reduction leaves behind: the system as it stands, and
+/// the matching that covers it.
+struct Reduction {
+    /// The states that survived demotion.
+    states: Vec<String>,
+    /// Everything solved for algebraically, demoted states included.
+    unknowns: Vec<String>,
+    /// The algebraic equations, differentiated constraints included.
+    algebraic_eqs: Vec<(Expr, Expr)>,
+    /// Demoted state -> the dummy unknown standing for its derivative.
+    dummies: HashMap<String, String>,
+    /// Per reduction: the constraint, the victim, and what else was on
+    /// offer - the run watches these to know when to choose again.
+    selection_records: Vec<(Expr, String, Vec<String>)>,
+    /// Which equation was matched to each unknown.
+    matched_eq: Vec<Option<usize>>,
+    /// The unknowns each equation mentions.
+    eq_vars: Vec<Vec<usize>>,
+    /// How many unknowns there are.
+    n_alg: usize,
+}
+
+// Augmenting-path maximum matching.
+fn try_match(
+    eq: usize,
+    eq_vars: &[Vec<usize>],
+    matched_eq: &mut [Option<usize>],
+    visited: &mut [bool],
+) -> bool {
+    for &v in &eq_vars[eq] {
+        if !visited[v] {
+            visited[v] = true;
+            if matched_eq[v].is_none()
+                || try_match(matched_eq[v].unwrap(), eq_vars, matched_eq, visited)
+            {
+                matched_eq[v] = Some(eq);
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Match every equation to an unknown, reducing the index where that
+/// cannot be done.
+///
+/// An equation that cannot be matched is a constraint of the DAE, and
+/// one step of Pantelides with dummy derivatives is taken for it:
+/// differentiate the constraint and *add* the result (the original
+/// stays, so it keeps holding exactly - no drift, no stabilisation
+/// term), then demote one state appearing in it to an algebraic
+/// unknown. Its former state equation determines the dummy that
+/// replaces its derivative, which restores the balance.
+fn reduce_index(
+    mut states: Vec<String>,
+    mut unknowns: Vec<String>,
+    mut algebraic_eqs: Vec<(Expr, Expr)>,
+    state_rhs: &mut HashMap<String, Expr>,
+    params: &HashMap<String, f64>,
+    start_env: &HashMap<String, f64>,
+    at_time: f64,
+) -> Result<Reduction, SimError> {
+    let mut dummies: HashMap<String, String> = HashMap::new();
+    // States named in the right-hand side of an already-demoted state:
+    // when `y` goes, its `der(y) = vy` marks `vy` as the companion the
+    // next differentiation level should demote. Preferring companions
+    // keeps each level of a chain of constraints demoting at its own
+    // level - a velocity constraint takes a velocity, not a position
+    // that happens to be numerically larger at this instant.
+    let mut companions: Vec<String> = Vec::new();
+    // Per reduction: the constraint residual, the demoted victim and
+    // the states that were candidates - the runtime monitor watches the
+    // victim's sensitivity against the alternatives and asks for a
+    // re-selection while the numbers are still healthy.
+    let mut selection_records: Vec<(Expr, String, Vec<String>)> = Vec::new();
+    let mut reductions = 0usize;
+    let (matched_eq, eq_vars, n_alg) = loop {
+        let var_index: HashMap<&str, usize> = unknowns
+            .iter()
+            .enumerate()
+            .map(|(i, n)| (n.as_str(), i))
+            .collect();
+        let eq_vars: Vec<Vec<usize>> = algebraic_eqs
+            .iter()
+            .map(|(lhs, rhs)| {
+                let mut refs = Vec::new();
+                lhs.collect_refs(&mut refs);
+                rhs.collect_refs(&mut refs);
+                let mut vars: Vec<usize> = refs
+                    .iter()
+                    .filter_map(|r| var_index.get(r).copied())
+                    .collect();
+                vars.sort_unstable();
+                vars.dedup();
+                vars
+            })
+            .collect();
+
+        let n_alg = unknowns.len();
+        let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];
+        let mut failed = None;
+        for eq in 0..algebraic_eqs.len() {
+            let mut visited = vec![false; n_alg];
+            if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
+                failed = Some(eq);
+                break;
+            }
+        }
+        let Some(eq) = failed else {
+            break (matched_eq, eq_vars, n_alg);
+        };
+
+        let (lhs, rhs) = algebraic_eqs[eq].clone();
+        if reductions >= MAX_INDEX_REDUCTIONS {
+            return err(format!(
+            "structurally singular model: equation {lhs:?} = {rhs:?} still cannot be matched after {MAX_INDEX_REDUCTIONS} index reductions"
+        ));
+        }
+        reductions += 1;
+
+        // Explicit definitions let differentiation reach through
+        // algebraic unknowns.
+        // Definitions to differentiate through, built to a fixpoint so
+        // the graph is acyclic and grounds out in states and parameters.
+        // Explicit forms (`u = 2*x`) come first; an unknown that only
+        // appears inside a linear equation (`phi_rel = b - a` pins `a`)
+        // is defined by solving for it. A definition is accepted only
+        // once everything it references is itself grounded, which is
+        // what keeps `a := b` and `b := a` from chasing each other.
+        let alg_defs: HashMap<String, Expr> = {
+            let mut candidates: Vec<(String, Expr)> = Vec::new();
+            for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
+                // The equation under reduction cannot define its own
+                // way out: `u = 3` must be read through `u = 2*x`.
+                if index == eq {
+                    continue;
+                }
+                if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
+                    if unknowns.contains(name) {
+                        candidates.push((name.clone(), other.clone()));
+                    }
+                }
+                let mut named = Vec::new();
+                l.collect_refs(&mut named);
+                r.collect_refs(&mut named);
+                named.sort_unstable();
+                named.dedup();
+                for name in named {
+                    if !unknowns.iter().any(|u| u == name) {
+                        continue;
+                    }
+                    if let Some(solved) = solve_linear_for(l, r, name) {
+                        candidates.push((name.to_string(), solved));
+                    }
+                }
+            }
+            let mut accepted: HashMap<String, Expr> = HashMap::new();
+            loop {
+                let mut progress = false;
+                for (name, expr) in &candidates {
+                    if accepted.contains_key(name) {
+                        continue;
+                    }
+                    let mut refs = Vec::new();
+                    expr.collect_refs(&mut refs);
+                    let grounded = refs.iter().all(|r| {
+                        *r != name
+                            && (!unknowns.iter().any(|u| u == *r) || accepted.contains_key(*r))
+                    });
+                    if grounded {
+                        accepted.insert(name.clone(), expr.clone());
+                        progress = true;
+                    }
+                }
+                if !progress {
+                    break;
+                }
+            }
+            accepted
+        };
+
+        let residual = Expr::Bin(
+            oxidelica_parser::BinOp::Sub,
+            Box::new(lhs.clone()),
+            Box::new(rhs.clone()),
+        );
+        let derivative = match differentiate(
+        &residual,
+        &DiffTarget::Time {
+            state_rhs: &*state_rhs,
+            params,
+            dummies: &dummies,
+            alg_defs: &alg_defs,
+        },
+    ) {
+        Ok(d) => simplify(&d),
+        Err(reason) => {
+            return err(format!(
+                "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown ({reason})"
+            ))
+        }
+    };
+
+        // Demote a state the constraint actually constrains. The
+        // choice is a pivot: the constraint has to *determine* the
+        // demoted variable, so prefer the state with the largest
+        // sensitivity at the start point. (The selection is static;
+        // models that need it to change mid-run - a pendulum swinging
+        // full circle - are the known limit of this implementation.)
+        // Reachable states: the constraint may pin a state only
+        // indirectly, through the definition of an algebraic unknown
+        // (`u = 3` with `u = 2*x` constrains x).
+        let mut reachable: Vec<String> = Vec::new();
+        {
+            let mut queue: Vec<String> = Vec::new();
+            let mut direct = Vec::new();
+            residual.collect_refs(&mut direct);
+            queue.extend(direct.into_iter().map(str::to_string));
+            let mut seen: Vec<String> = Vec::new();
+            while let Some(name) = queue.pop() {
+                if seen.contains(&name) {
+                    continue;
+                }
+                seen.push(name.clone());
+                if states.iter().any(|s| s == &name) {
+                    reachable.push(name.clone());
+                } else if let Some(definition) = alg_defs.get(&name) {
+                    let mut more = Vec::new();
+                    definition.collect_refs(&mut more);
+                    queue.extend(more.into_iter().map(str::to_string));
+                }
+            }
+        }
+        let sensitivity = |name: &str| -> f64 {
+            differentiate(&residual, &DiffTarget::Variable(name))
+                .ok()
+                .map(|d| simplify(&d))
+                .and_then(|d| {
+                    eval(
+                        &d,
+                        &EvalCtx {
+                            vars: start_env,
+                            time: at_time,
+                        },
+                    )
+                    .ok()
+                })
+                .map(f64::abs)
+                .unwrap_or(0.0)
+        };
+        // Companions of earlier victims first, by sensitivity; anything
+        // else only when no companion is constrained here at all.
+        let favoured: Vec<String> = reachable
+            .iter()
+            .filter(|name| companions.contains(name) && sensitivity(name) > 0.0)
+            .cloned()
+            .collect();
+        let candidates = if favoured.is_empty() {
+            reachable
+        } else {
+            favoured
+        };
+        // The runtime monitor compares the victim against exactly the
+        // set the pivot weighed - alternatives of another derivative
+        // level would make a healthy selection look wrong.
+        let all_candidates = candidates.clone();
+        let Some(victim) = candidates.into_iter().max_by(|a, b| {
+            sensitivity(a)
+                .partial_cmp(&sensitivity(b))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            return err(format!(
+            "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
+        ));
+        };
+
+        selection_records.push((residual.clone(), victim.clone(), all_candidates));
+        let dummy = format!("der({victim})");
+        let victim_rhs = state_rhs
+            .remove(&victim)
+            .expect("a state has a defining derivative");
+        {
+            let mut named = Vec::new();
+            victim_rhs.collect_refs(&mut named);
+            companions.extend(
+                named
+                    .into_iter()
+                    .filter(|name| states.iter().any(|s| s == name))
+                    .map(str::to_string),
+            );
+        }
+        states.retain(|s| s != &victim);
+        unknowns.push(victim.clone());
+        unknowns.push(dummy.clone());
+        dummies.insert(victim.clone(), dummy.clone());
+        // The former state equation `der(v) = rhs` now determines the
+        // dummy, and the differentiated constraint joins the system.
+        algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
+        algebraic_eqs.push((derivative, Expr::Number(0.0)));
+    };
+    Ok(Reduction {
+        states,
+        unknowns,
+        algebraic_eqs,
+        dummies,
+        selection_records,
+        matched_eq,
+        eq_vars,
+        n_alg,
+    })
+}
+
 /// The equations of a model, sorted: what each state's derivative is,
 /// and everything else.
 type SortedEquations = (HashMap<String, Expr>, Vec<(Expr, Expr)>);
@@ -609,11 +1123,11 @@ pub(crate) fn compile_at(
         .filter(|c| c.variability == Variability::Continuous && !discretes.contains(&c.name))
         .map(|c| c.name.as_str())
         .collect();
-    let (mut state_rhs, mut algebraic_eqs) = split_equations(&equations, &continuous)?;
+    let (mut state_rhs, algebraic_eqs) = split_equations(&equations, &continuous)?;
 
     // 3. What is left to solve for, and whether every name in the
     // equations is one the model knows.
-    let (mut states, mut unknowns) = unknowns_of(&continuous, &state_rhs);
+    let (states, unknowns) = unknowns_of(&continuous, &state_rhs);
     check_references(&state_rhs, &algebraic_eqs, &continuous, &params, &discretes)?;
     if algebraic_eqs.len() != unknowns.len() {
         return err(format!(
@@ -635,267 +1149,26 @@ pub(crate) fn compile_at(
     //     unknown. Its former state equation becomes an ordinary
     //     equation and its derivative becomes a dummy unknown, which
     //     restores the equation/unknown balance.
-    const MAX_INDEX_REDUCTIONS: usize = 16;
 
-    // Augmenting-path maximum matching.
-    fn try_match(
-        eq: usize,
-        eq_vars: &[Vec<usize>],
-        matched_eq: &mut [Option<usize>],
-        visited: &mut [bool],
-    ) -> bool {
-        for &v in &eq_vars[eq] {
-            if !visited[v] {
-                visited[v] = true;
-                if matched_eq[v].is_none()
-                    || try_match(matched_eq[v].unwrap(), eq_vars, matched_eq, visited)
-                {
-                    matched_eq[v] = Some(eq);
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    let mut dummies: HashMap<String, String> = HashMap::new();
-    // States named in the right-hand side of an already-demoted state:
-    // when `y` goes, its `der(y) = vy` marks `vy` as the companion the
-    // next differentiation level should demote. Preferring companions
-    // keeps each level of a chain of constraints demoting at its own
-    // level - a velocity constraint takes a velocity, not a position
-    // that happens to be numerically larger at this instant.
-    let mut companions: Vec<String> = Vec::new();
-    // Per reduction: the constraint residual, the demoted victim and
-    // the states that were candidates - the runtime monitor watches the
-    // victim's sensitivity against the alternatives and asks for a
-    // re-selection while the numbers are still healthy.
-    let mut selection_records: Vec<(Expr, String, Vec<String>)> = Vec::new();
-    let mut reductions = 0usize;
-    let (matched_eq, eq_vars, n_alg) = loop {
-        let var_index: HashMap<&str, usize> = unknowns
-            .iter()
-            .enumerate()
-            .map(|(i, n)| (n.as_str(), i))
-            .collect();
-        let eq_vars: Vec<Vec<usize>> = algebraic_eqs
-            .iter()
-            .map(|(lhs, rhs)| {
-                let mut refs = Vec::new();
-                lhs.collect_refs(&mut refs);
-                rhs.collect_refs(&mut refs);
-                let mut vars: Vec<usize> = refs
-                    .iter()
-                    .filter_map(|r| var_index.get(r).copied())
-                    .collect();
-                vars.sort_unstable();
-                vars.dedup();
-                vars
-            })
-            .collect();
-
-        let n_alg = unknowns.len();
-        let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];
-        let mut failed = None;
-        for eq in 0..algebraic_eqs.len() {
-            let mut visited = vec![false; n_alg];
-            if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
-                failed = Some(eq);
-                break;
-            }
-        }
-        let Some(eq) = failed else {
-            break (matched_eq, eq_vars, n_alg);
-        };
-
-        let (lhs, rhs) = algebraic_eqs[eq].clone();
-        if reductions >= MAX_INDEX_REDUCTIONS {
-            return err(format!(
-                "structurally singular model: equation {lhs:?} = {rhs:?} still cannot be matched after {MAX_INDEX_REDUCTIONS} index reductions"
-            ));
-        }
-        reductions += 1;
-
-        // Explicit definitions let differentiation reach through
-        // algebraic unknowns.
-        // Definitions to differentiate through, built to a fixpoint so
-        // the graph is acyclic and grounds out in states and parameters.
-        // Explicit forms (`u = 2*x`) come first; an unknown that only
-        // appears inside a linear equation (`phi_rel = b - a` pins `a`)
-        // is defined by solving for it. A definition is accepted only
-        // once everything it references is itself grounded, which is
-        // what keeps `a := b` and `b := a` from chasing each other.
-        let alg_defs: HashMap<String, Expr> = {
-            let mut candidates: Vec<(String, Expr)> = Vec::new();
-            for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
-                // The equation under reduction cannot define its own
-                // way out: `u = 3` must be read through `u = 2*x`.
-                if index == eq {
-                    continue;
-                }
-                if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
-                    if unknowns.contains(name) {
-                        candidates.push((name.clone(), other.clone()));
-                    }
-                }
-                let mut named = Vec::new();
-                l.collect_refs(&mut named);
-                r.collect_refs(&mut named);
-                named.sort_unstable();
-                named.dedup();
-                for name in named {
-                    if !unknowns.iter().any(|u| u == name) {
-                        continue;
-                    }
-                    if let Some(solved) = solve_linear_for(l, r, name) {
-                        candidates.push((name.to_string(), solved));
-                    }
-                }
-            }
-            let mut accepted: HashMap<String, Expr> = HashMap::new();
-            loop {
-                let mut progress = false;
-                for (name, expr) in &candidates {
-                    if accepted.contains_key(name) {
-                        continue;
-                    }
-                    let mut refs = Vec::new();
-                    expr.collect_refs(&mut refs);
-                    let grounded = refs.iter().all(|r| {
-                        *r != name
-                            && (!unknowns.iter().any(|u| u == *r) || accepted.contains_key(*r))
-                    });
-                    if grounded {
-                        accepted.insert(name.clone(), expr.clone());
-                        progress = true;
-                    }
-                }
-                if !progress {
-                    break;
-                }
-            }
-            accepted
-        };
-
-        let residual = Expr::Bin(
-            oxidelica_parser::BinOp::Sub,
-            Box::new(lhs.clone()),
-            Box::new(rhs.clone()),
-        );
-        let derivative = match differentiate(
-            &residual,
-            &DiffTarget::Time {
-                state_rhs: &state_rhs,
-                params: &params,
-                dummies: &dummies,
-                alg_defs: &alg_defs,
-            },
-        ) {
-            Ok(d) => simplify(&d),
-            Err(reason) => {
-                return err(format!(
-                    "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown ({reason})"
-                ))
-            }
-        };
-
-        // Demote a state the constraint actually constrains. The
-        // choice is a pivot: the constraint has to *determine* the
-        // demoted variable, so prefer the state with the largest
-        // sensitivity at the start point. (The selection is static;
-        // models that need it to change mid-run - a pendulum swinging
-        // full circle - are the known limit of this implementation.)
-        // Reachable states: the constraint may pin a state only
-        // indirectly, through the definition of an algebraic unknown
-        // (`u = 3` with `u = 2*x` constrains x).
-        let mut reachable: Vec<String> = Vec::new();
-        {
-            let mut queue: Vec<String> = Vec::new();
-            let mut direct = Vec::new();
-            residual.collect_refs(&mut direct);
-            queue.extend(direct.into_iter().map(str::to_string));
-            let mut seen: Vec<String> = Vec::new();
-            while let Some(name) = queue.pop() {
-                if seen.contains(&name) {
-                    continue;
-                }
-                seen.push(name.clone());
-                if states.iter().any(|s| s == &name) {
-                    reachable.push(name.clone());
-                } else if let Some(definition) = alg_defs.get(&name) {
-                    let mut more = Vec::new();
-                    definition.collect_refs(&mut more);
-                    queue.extend(more.into_iter().map(str::to_string));
-                }
-            }
-        }
-        let sensitivity = |name: &str| -> f64 {
-            differentiate(&residual, &DiffTarget::Variable(name))
-                .ok()
-                .map(|d| simplify(&d))
-                .and_then(|d| {
-                    eval(
-                        &d,
-                        &EvalCtx {
-                            vars: &start_env,
-                            time: resume.as_ref().map_or(0.0, |point| point.time),
-                        },
-                    )
-                    .ok()
-                })
-                .map(f64::abs)
-                .unwrap_or(0.0)
-        };
-        // Companions of earlier victims first, by sensitivity; anything
-        // else only when no companion is constrained here at all.
-        let favoured: Vec<String> = reachable
-            .iter()
-            .filter(|name| companions.contains(name) && sensitivity(name) > 0.0)
-            .cloned()
-            .collect();
-        let candidates = if favoured.is_empty() {
-            reachable
-        } else {
-            favoured
-        };
-        // The runtime monitor compares the victim against exactly the
-        // set the pivot weighed - alternatives of another derivative
-        // level would make a healthy selection look wrong.
-        let all_candidates = candidates.clone();
-        let Some(victim) = candidates.into_iter().max_by(|a, b| {
-            sensitivity(a)
-                .partial_cmp(&sensitivity(b))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) else {
-            return err(format!(
-                "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
-            ));
-        };
-
-        selection_records.push((residual.clone(), victim.clone(), all_candidates));
-        let dummy = format!("der({victim})");
-        let victim_rhs = state_rhs
-            .remove(&victim)
-            .expect("a state has a defining derivative");
-        {
-            let mut named = Vec::new();
-            victim_rhs.collect_refs(&mut named);
-            companions.extend(
-                named
-                    .into_iter()
-                    .filter(|name| states.iter().any(|s| s == name))
-                    .map(str::to_string),
-            );
-        }
-        states.retain(|s| s != &victim);
-        unknowns.push(victim.clone());
-        unknowns.push(dummy.clone());
-        dummies.insert(victim.clone(), dummy.clone());
-        // The former state equation `der(v) = rhs` now determines the
-        // dummy, and the differentiated constraint joins the system.
-        algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
-        algebraic_eqs.push((derivative, Expr::Number(0.0)));
-    };
+    // 4b. Matching, and the index reduction it may call for.
+    let Reduction {
+        states,
+        unknowns,
+        algebraic_eqs,
+        dummies,
+        selection_records,
+        matched_eq,
+        eq_vars,
+        n_alg,
+    } = reduce_index(
+        states,
+        unknowns,
+        algebraic_eqs,
+        &mut state_rhs,
+        &params,
+        &start_env,
+        resume.as_ref().map_or(0.0, |point| point.time),
+    )?;
 
     let mut matched_var: Vec<usize> = vec![0; n_alg];
     for (v, eq) in matched_eq.iter().enumerate() {
@@ -925,186 +1198,11 @@ pub(crate) fn compile_at(
         initial.push(value);
     }
 
-    // Kahn topological order over equations.
-    let producer: Vec<usize> = {
-        let mut p = vec![0; n_alg];
-        for (eq, &v) in matched_var.iter().enumerate() {
-            p[v] = eq;
-        }
-        p
-    };
-    let mut indegree = vec![0usize; n_alg];
-    let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); n_alg];
-    for eq in 0..n_alg {
-        for &v in &eq_vars[eq] {
-            if v != matched_var[eq] {
-                dependents[producer[v]].push(eq);
-                indegree[eq] += 1;
-            }
-        }
-    }
-    let mut queue: Vec<usize> = (0..n_alg).filter(|&e| indegree[e] == 0).collect();
-    let mut emitted = Vec::new();
-    let mut done = vec![false; n_alg];
-    while let Some(eq) = queue.pop() {
-        if done[eq] {
-            continue;
-        }
-        done[eq] = true;
-        emitted.push(eq);
-        for &dep in &dependents[eq] {
-            indegree[dep] = indegree[dep].saturating_sub(1);
-            if indegree[dep] == 0 && !done[dep] {
-                queue.push(dep);
-            }
-        }
-    }
-
-    let mentions = |expr: &Expr, name: &str| -> bool {
-        let mut refs = Vec::new();
-        expr.collect_refs(&mut refs);
-        refs.contains(&name)
-    };
-    let mut ordered_algs: Vec<String> = Vec::new();
-    let mut stages: Vec<PlanStage> = Vec::new();
-    for &eq in &emitted {
-        let var_name = unknowns[matched_var[eq]].clone();
-        let index = ordered_algs.len();
-        let (lhs, rhs) = &algebraic_eqs[eq];
-        let stage = if matches!(lhs, Expr::Ref(n) if n == &var_name) && !mentions(rhs, &var_name) {
-            PlanStage::Explicit {
-                var: index,
-                expr: rhs.clone(),
-            }
-        } else if matches!(rhs, Expr::Ref(n) if n == &var_name) && !mentions(lhs, &var_name) {
-            PlanStage::Explicit {
-                var: index,
-                expr: lhs.clone(),
-            }
-        } else if let Some(expr) = solve_linear_for(lhs, rhs, &var_name) {
-            // Linear in its unknown: solved symbolically, no iteration.
-            PlanStage::Explicit { var: index, expr }
-        } else {
-            PlanStage::Implicit {
-                vars: vec![index],
-                torn: vec![index],
-                inner: Vec::new(),
-                residuals: vec![(lhs.clone(), rhs.clone())],
-            }
-        };
-        ordered_algs.push(var_name);
-        stages.push(stage);
-    }
-
-    // The cyclic remainder becomes one torn block: equations that can
-    // be solved explicitly for their unknown are evaluated in
-    // dependency order, and Newton iterates only on the tearing
-    // variables needed to break the remaining cycles.
-    let remainder: Vec<usize> = (0..n_alg).filter(|&e| !done[e]).collect();
-    if !remainder.is_empty() {
-        let base = ordered_algs.len();
-        let mut index_of: HashMap<usize, usize> = HashMap::new();
-        for (offset, &eq) in remainder.iter().enumerate() {
-            let var = matched_var[eq];
-            index_of.insert(var, base + offset);
-            ordered_algs.push(unknowns[var].clone());
-        }
-        let vars: Vec<usize> = (base..ordered_algs.len()).collect();
-
-        // Which equations can be solved explicitly for their unknown?
-        let solvable: HashMap<usize, Expr> = remainder
-            .iter()
-            .filter_map(|&eq| {
-                let name = &unknowns[matched_var[eq]];
-                let (lhs, rhs) = &algebraic_eqs[eq];
-                if matches!(lhs, Expr::Ref(n) if n == name) && !mentions(rhs, name) {
-                    Some((eq, rhs.clone()))
-                } else if matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs, name) {
-                    Some((eq, lhs.clone()))
-                } else {
-                    solve_linear_for(lhs, rhs, name).map(|expr| (eq, expr))
-                }
-            })
-            .collect();
-
-        // Equations that resist explicit solution force their unknown
-        // into the tearing set; then tear greedily until the rest sorts
-        // topologically, preferring the most-referenced unknowns.
-        let mut torn_eqs: Vec<usize> = remainder
-            .iter()
-            .copied()
-            .filter(|eq| !solvable.contains_key(eq))
-            .collect();
-        let uses: HashMap<usize, usize> = {
-            let mut counts: HashMap<usize, usize> = HashMap::new();
-            for &eq in &remainder {
-                for &v in &eq_vars[eq] {
-                    if index_of.contains_key(&v) {
-                        *counts.entry(v).or_default() += 1;
-                    }
-                }
-            }
-            counts
-        };
-        let inner_order = loop {
-            let torn_vars: Vec<usize> = torn_eqs.iter().map(|&eq| matched_var[eq]).collect();
-            let pending: Vec<usize> = remainder
-                .iter()
-                .copied()
-                .filter(|eq| !torn_eqs.contains(eq))
-                .collect();
-            // Topological pass over the untorn equations.
-            let mut placed: Vec<usize> = Vec::new();
-            let mut available = torn_vars.clone();
-            let mut left = pending.clone();
-            loop {
-                let before = left.len();
-                left.retain(|&eq| {
-                    let ready = eq_vars[eq].iter().all(|v| {
-                        !index_of.contains_key(v) || *v == matched_var[eq] || available.contains(v)
-                    });
-                    if ready {
-                        placed.push(eq);
-                        available.push(matched_var[eq]);
-                        false
-                    } else {
-                        true
-                    }
-                });
-                if left.is_empty() || left.len() == before {
-                    break;
-                }
-            }
-            if left.is_empty() {
-                break placed;
-            }
-            // Still cyclic: tear the most-referenced unknown left.
-            let victim = *left
-                .iter()
-                .max_by_key(|&&eq| uses.get(&matched_var[eq]).copied().unwrap_or(0))
-                .expect("non-empty cycle");
-            torn_eqs.push(victim);
-        };
-
-        let inner: Vec<(usize, Expr)> = inner_order
-            .iter()
-            .map(|eq| (index_of[&matched_var[*eq]], solvable[eq].clone()))
-            .collect();
-        let torn: Vec<usize> = torn_eqs
-            .iter()
-            .map(|&eq| index_of[&matched_var[eq]])
-            .collect();
-        let residuals: Vec<(Expr, Expr)> = torn_eqs
-            .iter()
-            .map(|&eq| algebraic_eqs[eq].clone())
-            .collect();
-        stages.push(PlanStage::Implicit {
-            vars,
-            torn,
-            inner,
-            residuals,
-        });
-    }
+    // 5. The order to evaluate in: what can be solved on its own is
+    // an explicit assignment, and what is left over becomes one torn
+    // block.
+    let (ordered_algs, stages) =
+        build_plan(&unknowns, &algebraic_eqs, &matched_var, &eq_vars, n_alg);
 
     let ctx = ctx0;
     let derivatives: Vec<Expr> = states.iter().map(|s| state_rhs[s].clone()).collect();
