@@ -3117,11 +3117,17 @@ impl CompiledModel {
         for &slot in &self.sample_slots {
             values[slot] = 0.0;
         }
-        self.eval_point(t, y, values, &mut scratch, alg_guess)?;
-        state.when_prev = self.when_conditions(t, values);
+        // The states restarted by `reinit` take their new values now
+        // that the round of events is over - and before the point is
+        // evaluated again, so what the conditions are remembered as is
+        // what they are once the jump has happened. Remembering them
+        // from before it would leave a condition that fired standing
+        // true for ever, and it would never fire again.
         for (index, value) in pending_reinit {
             y[index] = value;
         }
+        self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+        state.when_prev = self.when_conditions(t, values);
         Ok(outcome)
     }
 }
@@ -5847,6 +5853,156 @@ mod tests {
         let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
         let source = std::fs::read_to_string(root.join("examples").join(name)).unwrap();
         oxidelica_parser::parse_model_with_libraries(&[library], &source).unwrap()
+    }
+
+    /// Compile a model and give back what it refused to do.
+    fn refused(source: &str) -> String {
+        let model = parse_model(source).expect("parses");
+        match compile(&model) {
+            Ok(_) => panic!("should have been refused"),
+            Err(e) => e.to_string(),
+        }
+    }
+
+    #[test]
+    fn each_solver_may_be_asked_for_by_itself() {
+        // The single-method entry points, on a model with an event in
+        // it so the machinery around the step is exercised too.
+        let source = "model M Real x(start = 1); discrete Real hits(start = 0); equation der(x) = -x; when x < 0.5 then hits = pre(hits) + 1; reinit(x, 1); end when; annotation(experiment(StopTime = 3, Interval = 0.05, Tolerance = 1e-8)); end M;";
+        let model = parse_model(source).unwrap();
+        for asked in ["adaptive", "bdf", "rk4"] {
+            let compiled = compile(&model).unwrap();
+            let result = match asked {
+                "adaptive" => compiled.simulate_adaptive().unwrap(),
+                "bdf" => compiled.simulate_bdf().unwrap(),
+                _ => compiled.simulate_rk4().unwrap(),
+            };
+            let hits = result.columns.iter().position(|c| c == "hits").unwrap();
+            // It falls to a half three times over three seconds.
+            let last = result.rows.last().unwrap()[hits];
+            assert!(last >= 3.0, "{asked}: only {last} hits");
+        }
+    }
+
+    #[test]
+    fn a_run_that_cannot_go_on_says_so_by_the_method_it_was_asked_for() {
+        // A block that has an answer where the run starts and none
+        // where it is going: `y * y = 1 - x` runs out of real answers
+        // once `x` passes one, whichever way the run is asked for.
+        let source = "model M Real x(start = 0); Real y(start = 1); equation der(x) = 1; y * y = 1 - x; annotation(experiment(StopTime = 3, Interval = 0.1)); end M;";
+        let model = parse_model(source).unwrap();
+        for asked in ["adaptive", "bdf", "rk4", "auto"] {
+            let mut compiled = compile(&model).unwrap();
+            let outcome = match asked {
+                "adaptive" => compiled.simulate_adaptive(),
+                "bdf" => compiled.simulate_bdf(),
+                "rk4" => compiled.simulate_rk4(),
+                _ => {
+                    compiled.method = SolverMethod::Auto;
+                    compiled.simulate()
+                }
+            };
+            assert!(outcome.is_err(), "{asked} should not have got through");
+        }
+    }
+
+    #[test]
+    fn a_constraint_of_every_shape_is_differentiated() {
+        // Index reduction differentiates the constraint, and the
+        // walker that puts the derivatives back has every shape to
+        // step through on the way.
+        let source = "model M parameter Real g = 9.81; Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - g; sqrt(x * x + y * y) * (if true then 1 else 2) * (if x > -2 and not (y > 9) or false then 1 else 0) = 1; annotation(experiment(StopTime = 1, Interval = 0.01, Tolerance = 1e-10)); end M;";
+        let model = parse_model(source).unwrap();
+        let result = compile(&model).unwrap().simulate().unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        // Whatever it was written as, it is still a pendulum on a
+        // string of length one.
+        for row in &result.rows {
+            let (x, y) = (row[index("x")], row[index("y")]);
+            assert!(
+                (x.hypot(y) - 1.0).abs() < 1e-6,
+                "t = {}: length {}",
+                row[0],
+                x.hypot(y)
+            );
+        }
+    }
+
+    #[test]
+    fn the_compiler_names_what_it_cannot_do() {
+        assert!(refused("model M Real y; equation y = nowhere; end M;")
+            .contains("unknown variable `nowhere`"));
+        assert!(refused("model M Real y; equation y = atan2(1); end M;")
+            .contains("expects 2 arguments"));
+        assert!(
+            refused("model M Real y; equation y = made_up(1); end M;").contains("unknown function")
+        );
+        assert!(refused(
+            "model M Real x(start = 0); Real y; equation der(x) = 1; y = 2 * der(x); end M;"
+        )
+        .contains("der() must appear alone on one side"));
+        assert!(refused("model M Real y; equation y = pre(y); end M;").contains("is not discrete"));
+        assert!(refused("model M discrete Real d(start = 0); Real y; equation y = 1; when sample(0, 0) then d = 1; end when; end M;")
+            .contains("the interval must be positive"));
+        assert!(
+            refused("model M Real y; equation y = delay(time, 0); end M;")
+                .contains("the delay must be positive")
+        );
+        assert!(
+            refused("model M parameter Real p; Real y; equation y = p; end M;")
+                .contains("has no value")
+        );
+    }
+
+    #[test]
+    fn differentiation_says_what_it_cannot_reach_through() {
+        // An index reduction differentiates the constraint, and what
+        // it cannot differentiate it says so about: the pendulum below
+        // is held by a length no derivative of ours can take apart.
+        assert!(refused("model M Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - 9.81; x * x + atan2(y, x) = 1; end M;")
+            .contains("differentiate"));
+        // A model with more equations than unknowns says so by count.
+        assert!(refused("model M Real x(start = 1); Real a; Real b; equation a = b; b = a; x * a = 1; der(x) = -x; end M;")
+            .contains("unbalanced model"));
+    }
+
+    #[test]
+    fn the_initialisation_problem_is_solved_or_named() {
+        // An initial equation that pins nothing.
+        assert!(refused(
+            "model M Real x(start = 0); equation der(x) = 1; initial equation 0 = 0; end M;"
+        )
+        .contains("initialization problem is singular"));
+        // One that cannot be solved from where it starts.
+        let model = parse_model(
+            "model M Real x(start = 1); equation der(x) = 1; initial equation x * x = -1; end M;",
+        )
+        .unwrap();
+        let outcome = compile(&model);
+        assert!(outcome.is_err(), "an impossible start should be refused");
+    }
+
+    #[test]
+    fn a_run_reports_what_went_wrong_in_it() {
+        // A model with no points at all to stall from.
+        let model = parse_model("model M Real x(start = 0); equation der(x) = 1; annotation(experiment(StopTime = 1, Interval = 0.5)); end M;").unwrap();
+        let compiled = compile(&model).unwrap();
+        // Every method reaches the same answer on a straight line.
+        for method in [
+            SolverMethod::Auto,
+            SolverMethod::Dopri45,
+            SolverMethod::Rk4,
+            SolverMethod::Bdf,
+        ] {
+            let mut compiled = compile(&model).unwrap();
+            compiled.method = method;
+            let result = compiled.simulate().unwrap();
+            let last = result.rows.last().unwrap();
+            assert!((last[1] - 1.0).abs() < 1e-6, "{method:?}: {}", last[1]);
+            assert_eq!(SolverMethod::from_name(method.name()), Some(method));
+        }
+        assert_eq!(SolverMethod::from_name("nonsense"), None);
+        assert_eq!(compiled.states, vec!["x"]);
     }
 
     #[test]
