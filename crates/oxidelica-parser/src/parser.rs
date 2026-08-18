@@ -1188,6 +1188,7 @@ impl Parser {
         // allows: `inner replaceable parameter Real k`.
         let mut variability = Variability::Continuous;
         let mut flow = false;
+        let mut stream = false;
         let mut causality = Causality::None;
         let mut scope = Scope::Local;
         let mut replaceable = false;
@@ -1198,6 +1199,7 @@ impl Parser {
                 Token::Constant => variability = Variability::Constant,
                 Token::Discrete => variability = Variability::Discrete,
                 Token::Flow => flow = true,
+                Token::Stream => stream = true,
                 Token::Input => causality = Causality::Input,
                 Token::Output => causality = Causality::Output,
                 Token::Inner => scope = Scope::Inner,
@@ -1332,6 +1334,7 @@ impl Parser {
             name,
             type_name,
             flow,
+            stream,
             dimensions,
             causality,
             modifiers,

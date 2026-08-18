@@ -141,8 +141,25 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             ));
         }
         let class = registry[class_name.as_str()];
+        // A stream variable rides on the one flow variable of its
+        // connector; without exactly one, `inStream` has no weights.
+        if class.components.iter().any(|c| c.stream) {
+            let flows = class.components.iter().filter(|c| c.flow).count();
+            if flows != 1 {
+                return Err(format!(
+                    "connector `{class_name}` carries stream variables, so it needs \
+                     exactly one flow variable, found {flows}"
+                ));
+            }
+        }
         for member_component in &class.components {
             let var = |path: &str| format!("{path}.{}", member_component.name);
+            if member_component.stream {
+                // A stream variable gets no equation from the
+                // connection: each side's outflow is set by its own
+                // component, and `inStream` reads the others' below.
+                continue;
+            }
             if member_component.flow {
                 if members.len() == 1 {
                     // Unconnected connector: flow forced to zero.
@@ -174,6 +191,55 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
     }
 
+    // `inStream` and `actualStream` are functions of the connection
+    // set, so only now, with the sets known, do they have a value.
+    let any_streams = acc.connectors.values().any(|class_name| {
+        registry[class_name.as_str()]
+            .components
+            .iter()
+            .any(|c| c.stream)
+    });
+    if any_streams {
+        let mut node_of: HashMap<String, Vec<String>> = HashMap::new();
+        for members in sets.values() {
+            for member in members.iter() {
+                node_of.insert(
+                    (*member).to_string(),
+                    members.iter().map(|m| (*m).to_string()).collect(),
+                );
+            }
+        }
+        let context = StreamContext {
+            nodes: node_of,
+            connectors: &acc.connectors,
+            registry: &registry,
+        };
+        for equation in &mut acc.equations {
+            equation.lhs = resolve_streams(&equation.lhs, &context)?;
+            equation.rhs = resolve_streams(&equation.rhs, &context)?;
+        }
+        for equation in &mut acc.initial_equations {
+            equation.lhs = resolve_streams(&equation.lhs, &context)?;
+            equation.rhs = resolve_streams(&equation.rhs, &context)?;
+        }
+        for clause in &mut acc.when_clauses {
+            for branch in &mut clause.branches {
+                branch.condition = resolve_streams(&branch.condition, &context)?;
+                for action in &mut branch.actions {
+                    match action {
+                        WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => {
+                            *value = resolve_streams(value, &context)?;
+                        }
+                        WhenAction::Terminate(_) => {}
+                    }
+                }
+            }
+        }
+        for (condition, _) in &mut acc.asserts {
+            *condition = resolve_streams(condition, &context)?;
+        }
+    }
+
     let model = Model {
         name: top_class.name.clone(),
         description: top_class.description.clone(),
@@ -186,6 +252,143 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     };
     crate::check::verify(&model)?;
     Ok(model)
+}
+
+/// The regularisation floor of a stream mix: a port whose flow points
+/// out of the node still contributes this much weight, so the mix
+/// stays defined when every other flow vanishes.
+const STREAM_EPS: f64 = 1e-10;
+
+/// What `inStream` needs to know: who shares the node with a
+/// connector, and what its class calls the stream and flow members.
+struct StreamContext<'a> {
+    /// Connector instance path -> every path on the same node, sorted.
+    nodes: HashMap<String, Vec<String>>,
+    /// Connector instance path -> connector class name.
+    connectors: &'a HashMap<String, String>,
+    /// Class definitions, for the member prefixes.
+    registry: &'a HashMap<&'a str, &'a ClassDef>,
+}
+
+/// Replace `inStream(...)` and `actualStream(...)` with the mix the
+/// connection set defines for them.
+fn resolve_streams(expr: &Expr, context: &StreamContext) -> Result<Expr, String> {
+    let recur = |e: &Expr| resolve_streams(e, context);
+    Ok(match expr {
+        Expr::Call(name, args) if name == "inStream" || name == "actualStream" => {
+            let [Expr::Ref(target)] = args.as_slice() else {
+                return Err(format!(
+                    "`{name}` expects a single reference to a stream variable"
+                ));
+            };
+            stream_mix(target, context, name == "actualStream")?
+        }
+        Expr::Call(name, args) => Expr::Call(
+            name.clone(),
+            args.iter().map(recur).collect::<Result<_, _>>()?,
+        ),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
+        Expr::If(c, a, b) => Expr::If(
+            Box::new(recur(c)?),
+            Box::new(recur(a)?),
+            Box::new(recur(b)?),
+        ),
+        // Everything else is a leaf here, or an array form that never
+        // survives to this point.
+        _ => expr.clone(),
+    })
+}
+
+/// The value flowing towards a port: what the other ports of its node
+/// push out, weighted by how hard they push. `actual` wraps it into
+/// `actualStream`: the incoming mix when the flow enters, the port's
+/// own outflow when it leaves.
+fn stream_mix(name: &str, context: &StreamContext, actual: bool) -> Result<Expr, String> {
+    let Some((path, member)) = name.rsplit_once('.') else {
+        return Err(format!(
+            "`inStream` expects a connector's stream variable, got `{name}`"
+        ));
+    };
+    let Some(class_name) = context.connectors.get(path) else {
+        return Err(format!(
+            "`{path}` is not a connector, so `inStream({name})` has no meaning"
+        ));
+    };
+    let class = context.registry[class_name.as_str()];
+    let Some(component) = class.components.iter().find(|c| c.name == member) else {
+        return Err(format!("connector `{class_name}` has no member `{member}`"));
+    };
+    if !component.stream {
+        return Err(format!(
+            "`{name}` is not a stream variable; `inStream` reads only those"
+        ));
+    }
+    let flow_name = class
+        .components
+        .iter()
+        .find(|c| c.flow)
+        .map(|c| c.name.clone())
+        .expect("checked when the connection sets were built");
+    let others: Vec<&String> = context.nodes[path]
+        .iter()
+        .filter(|other| other.as_str() != path)
+        .collect();
+    let in_stream = match others.as_slice() {
+        // An unconnected port hears its own outflow back.
+        [] => Expr::Ref(name.to_string()),
+        // Two on a node: each hears exactly the other.
+        [other] => Expr::Ref(format!("{other}.{member}")),
+        // A junction: the mix of what the others push into the node,
+        // weighted by their outbound flows, floored so the division
+        // survives every flow going quiet.
+        _ => {
+            let weight = |other: &str| {
+                Expr::Call(
+                    "max".to_string(),
+                    vec![
+                        Expr::Neg(Box::new(Expr::Ref(format!("{other}.{flow_name}")))),
+                        Expr::Number(STREAM_EPS),
+                    ],
+                )
+            };
+            let sum = |terms: Vec<Expr>| {
+                terms
+                    .into_iter()
+                    .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+                    .expect("at least two others")
+            };
+            let numerator = sum(others
+                .iter()
+                .map(|other| {
+                    Expr::Bin(
+                        BinOp::Mul,
+                        Box::new(weight(other)),
+                        Box::new(Expr::Ref(format!("{other}.{member}"))),
+                    )
+                })
+                .collect());
+            let denominator = sum(others.iter().map(|other| weight(other)).collect());
+            Expr::Bin(BinOp::Div, Box::new(numerator), Box::new(denominator))
+        }
+    };
+    Ok(if actual {
+        Expr::If(
+            Box::new(Expr::Rel(
+                crate::ast::RelOp::Gt,
+                Box::new(Expr::Ref(format!("{path}.{flow_name}"))),
+                Box::new(Expr::Number(0.0)),
+            )),
+            Box::new(in_stream),
+            Box::new(Expr::Ref(name.to_string())),
+        )
+    } else {
+        in_stream
+    })
 }
 
 /// Accumulated flat model contents.
@@ -3670,6 +3873,131 @@ mod tests {
             text.contains("Ref(\"s.k\")"),
             "the argument must prefix: {text}"
         );
+    }
+
+    #[test]
+    fn streams_mix_by_their_connection_set() {
+        const PORT: &str = "connector Port Real p; flow Real m; stream Real h; end Port;";
+
+        // Unconnected: a port hears its own outflow back.
+        let m = parse_model(&format!(
+            "{PORT} model M Port port; Real y; \
+             equation port.h = 7; y = inStream(port.h); end M;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        assert!(
+            text.contains("Ref(\"y\"), rhs: Ref(\"port.h\")"),
+            "an unconnected inStream is the own outflow: {text}"
+        );
+
+        // Two on a node: each hears exactly the other.
+        let m = parse_model(&format!(
+            "{PORT} model A Port port; Real y; \
+             equation port.h = 1; port.m = 0; y = inStream(port.h); end A;\
+             model B Port port; equation port.h = 2; end B;\
+             model M A a; B b; equation connect(a.port, b.port); end M;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        assert!(
+            text.contains("Ref(\"a.y\"), rhs: Ref(\"b.port.h\")"),
+            "a pair hears each other: {text}"
+        );
+
+        // Three on a node: the flow-weighted mix of the others.
+        let m = parse_model(&format!(
+            "{PORT} model E Port port; Real y; \
+             equation port.h = 1; port.m = 0; y = inStream(port.h); end E;\
+             model M E e1; E e2; E e3; \
+             equation connect(e1.port, e2.port); connect(e2.port, e3.port); end M;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", m.equations);
+        assert!(
+            text.contains("Call(\"max\""),
+            "a junction needs weights: {text}"
+        );
+        // Each mix reads the two other ports, never its own.
+        assert!(
+            !text.contains("Ref(\"e1.y\"), rhs: Ref(\"e1.port.h\")"),
+            "a junction mix is not an echo: {text}"
+        );
+
+        // The connection itself writes no equation for a stream
+        // variable: the two outflow definitions above are the only
+        // ones naming them on the left.
+        let stream_lhs = m
+            .equations
+            .iter()
+            .filter(|eq| format!("{:?}", eq.lhs).contains(".port.h"))
+            .count();
+        assert_eq!(stream_lhs, 3, "one outflow definition per component");
+    }
+
+    #[test]
+    fn streams_reach_conditions_whens_asserts_and_initials() {
+        const PORT: &str = "connector Port Real p; flow Real m; stream Real h; end Port;";
+        let m = parse_model(&format!(
+            "{PORT} model M Port port; Real y; discrete Real d(start = 0); \
+             Real z(start = 1, fixed = false); \
+             equation port.h = 7; port.m = 0; der(z) = -z; \
+             y = if time > 0.5 then inStream(port.h) else -inStream(port.h); \
+             when time > 1 then d = inStream(port.h); end when; \
+             assert(not (inStream(port.h) < 0) or inStream(port.h) > 100, \"mixed\"); \
+             initial equation z = inStream(port.h); end M;"
+        ))
+        .unwrap();
+        // Every corner rewrote its call away.
+        let everything = format!(
+            "{:?} {:?} {:?} {:?}",
+            m.equations, m.initial_equations, m.when_clauses, m.asserts
+        );
+        assert!(
+            !everything.contains("inStream"),
+            "a call survived: {everything}"
+        );
+    }
+
+    #[test]
+    fn stream_error_paths() {
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        const PORT: &str = "connector Port Real p; flow Real m; stream Real h; end Port;";
+        // The argument must be a single reference to a stream member.
+        assert!(err(&format!(
+            "{PORT} model M Port port; Real y; \
+             equation port.h = 1; y = inStream(1 + 2); end M;"
+        ))
+        .contains("single reference"));
+        assert!(err(&format!(
+            "{PORT} model M Port port; Real x; Real y; \
+             equation port.h = 1; x = 1; y = inStream(x); end M;"
+        ))
+        .contains("stream variable"));
+        assert!(err(&format!(
+            "{PORT} model M Port port; Real y; \
+             equation port.h = 1; y = inStream(port.nope); end M;"
+        ))
+        .contains("no member"));
+        // A stream connector must carry exactly one flow variable.
+        assert!(err("connector Port Real p; stream Real h; end Port; \
+             model M Port port; equation port.h = 1; end M;")
+        .contains("exactly one flow variable"));
+        // `inStream` of something that is not a stream variable.
+        assert!(err(
+            "connector Port Real p; flow Real m; stream Real h; end Port; \
+             model M Port port; Real y; \
+             equation port.h = 1; y = inStream(port.p); end M;"
+        )
+        .contains("not a stream variable"));
+        // `inStream` of something that is not a connector member.
+        assert!(err(
+            "connector Port Real p; flow Real m; stream Real h; end Port; \
+             model Sub Real x; end Sub; \
+             model M Port port; Sub sub; Real y; \
+             equation port.h = 1; sub.x = 1; y = inStream(sub.x); end M;"
+        )
+        .contains("is not a connector"));
     }
 
     #[test]

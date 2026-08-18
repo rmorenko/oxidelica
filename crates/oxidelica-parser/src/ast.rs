@@ -73,6 +73,9 @@ pub struct Component {
     pub type_name: String,
     /// Whether the component carries the `flow` prefix (connectors).
     pub flow: bool,
+    /// Whether the component carries the `stream` prefix: a quantity
+    /// transported by the flow, mixed by `inStream` at a connection.
+    pub stream: bool,
     /// Array dimensions: `Real T[N, 3]` gives two of them. Empty for
     /// scalars; expanded into scalar components while flattening.
     pub dimensions: Vec<Expr>,

@@ -20,7 +20,7 @@ under a chapter works as specified for the subset this project covers.
 | 12  | Functions                     | Partial |
 | 13  | Packages                      | Partial |
 | 14  | Overloaded operators          | Absent  |
-| 15  | Stream connectors             | Absent  |
+| 15  | Stream connectors             | Partial |
 | 16  | Synchronous language elements | Absent  |
 | 17  | State machines                | Absent  |
 | 18  | Annotations                   | Partial |
@@ -33,8 +33,10 @@ Flat and hierarchical models; packages with qualified names and imports
 modifiers down to a child's attribute; `replaceable`/`redeclare` for
 components and for classes (`replaceable package Medium = …` with
 `constrainedby` checked), conditional components, `inner`/`outer`,
-enumerations; connectors with `flow`, connections with subscripts,
-inside `for` loops and between whole connector arrays; DAE index
+enumerations; connectors with `flow` and `stream`
+(`inStream`/`actualStream` with junction mixing), connections with
+subscripts, inside `for` loops and between whole connector arrays;
+DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
 `noEvent`, `smooth`), event iteration; `initial equation`; runtime
@@ -77,9 +79,16 @@ time, so its condition must be decidable there: the trip count cannot
 depend on a simulated variable, and a `break` or `return` behind an
 undecidable `if` is an error.
 
-**Whole chapters absent**: overloaded operators (14), stream connectors
-(15), synchronous clocked constructs (16) — note that `sample()` events
-and clocked discrete blocks in the ordinary sense do work — and state
+**Stream connectors** (ch. 15) work in the flat convention: `stream`
+variables, `inStream`/`actualStream`, unconnected and pairwise sets,
+and flow-weighted junction mixes regularised with a floor of 1e-10.
+The inside/outside distinction of 15.2 is not made — connection sets
+that bridge a component's boundary port mix with flat signs — and
+there is no `positiveMax` with nominal-based regularisation.
+
+**Whole chapters absent**: overloaded operators (14), synchronous
+clocked constructs (16) — note that `sample()` events and clocked
+discrete blocks in the ordinary sense do work — and state
 machines (17).
 
 **Structure**: no `expandable connector` or `operator` classes

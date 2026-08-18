@@ -5522,6 +5522,31 @@ mod tests {
     }
 
     #[test]
+    fn a_stream_junction_mixes_and_the_tank_relaxes_to_it() {
+        // Two sources push 1 kg/s at h=100 and 3 kg/s at h=20 into a
+        // three-way node; the junction hands the tank their
+        // flow-weighted mix and the tank's contents approach it as a
+        // first-order lag with time constant mass / m_flow = 2 s.
+        let result = compile(&with_library("stream_mixer.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let mix = (1.0 * 100.0 + 3.0 * 20.0) / 4.0;
+        let last = result.rows.last().unwrap();
+        assert!((last[index("h_supplied")] - mix).abs() < 1e-9);
+        for row in &result.rows {
+            let expected = mix * (1.0 - (-row[0] / 2.0).exp());
+            assert!(
+                (row[index("tank.h")] - expected).abs() < 1e-5,
+                "t = {}: h = {} vs {expected}",
+                row[0],
+                row[index("tank.h")]
+            );
+        }
+    }
+
+    #[test]
     fn a_while_loop_computes_the_exact_large_swing_period() {
         // The function runs an arithmetic-geometric mean to convergence
         // at compile time; the simulated pendulum must come back to its
