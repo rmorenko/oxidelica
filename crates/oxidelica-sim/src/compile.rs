@@ -162,6 +162,10 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     compile_at(model, None)
 }
 
+/// The equations of a model, sorted: what each state's derivative is,
+/// and everything else.
+type SortedEquations = (HashMap<String, Expr>, Vec<(Expr, Expr)>);
+
 /// Sort the equations into the ones that give a state its derivative
 /// and the ones that are algebraic.
 ///
@@ -171,7 +175,7 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
 fn split_equations(
     equations: &[EquationItem],
     continuous: &[&str],
-) -> Result<(HashMap<String, Expr>, Vec<(Expr, Expr)>), SimError> {
+) -> Result<SortedEquations, SimError> {
     let mut state_rhs: HashMap<String, Expr> = HashMap::new();
     let mut algebraic_eqs: Vec<(Expr, Expr)> = Vec::new();
 
@@ -420,7 +424,7 @@ fn discrete_layer(
                         eval(
                             expr,
                             &EvalCtx {
-                                vars: &params,
+                                vars: params,
                                 time: 0.0,
                             },
                         )
