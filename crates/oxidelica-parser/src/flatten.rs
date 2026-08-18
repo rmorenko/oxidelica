@@ -285,6 +285,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         initial_equations: acc.initial_equations,
         asserts: acc.asserts,
         when_clauses: acc.when_clauses,
+        conditional: Vec::new(),
         experiment: top_class.experiment.clone(),
     };
     for conditional in &acc.conditional {
@@ -300,36 +301,9 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 .truncate(model.equations.len() - branch.len());
         }
     }
-    // Now one equation per position, choosing its residual as it runs.
-    for conditional in &acc.conditional {
-        let residual = |equation: &EquationItem| {
-            Expr::Bin(
-                BinOp::Sub,
-                Box::new(equation.lhs.clone()),
-                Box::new(equation.rhs.clone()),
-            )
-        };
-        let otherwise = conditional.branches.last().expect("an else branch");
-        for position in 0..otherwise.len() {
-            let mut merged = residual(&otherwise[position]);
-            for (condition, branch) in conditional
-                .conditions
-                .iter()
-                .zip(&conditional.branches)
-                .rev()
-            {
-                merged = Expr::If(
-                    Box::new(condition.clone()),
-                    Box::new(residual(&branch[position])),
-                    Box::new(merged),
-                );
-            }
-            model.equations.push(EquationItem {
-                lhs: merged,
-                rhs: Expr::Number(0.0),
-            });
-        }
-    }
+    // The branches themselves travel to the compiler, which settles
+    // which one applies and compiles that mode as its own model.
+    model.conditional = acc.conditional;
     Ok(model)
 }
 
@@ -403,7 +377,7 @@ where
             odd + 1
         ));
     }
-    acc.conditional.push(Conditional {
+    acc.conditional.push(ConditionalEquations {
         conditions,
         branches,
     });
@@ -683,17 +657,7 @@ struct Flat {
     /// Instance paths of components a false condition left out.
     disabled: Vec<String>,
     /// `if` equations whose condition is only known while running.
-    conditional: Vec<Conditional>,
-}
-
-/// An `if` equation the compiler cannot decide: every branch holds the
-/// same number of equations, and each position becomes one equation
-/// choosing its residual by the condition.
-struct Conditional {
-    /// One condition per branch except the final `else`.
-    conditions: Vec<Expr>,
-    /// The equations of each branch, scalar and in source order.
-    branches: Vec<Vec<EquationItem>>,
+    conditional: Vec<ConditionalEquations>,
 }
 
 impl Flat {
@@ -4191,32 +4155,31 @@ mod tests {
 
     #[test]
     fn a_run_time_if_equation_keeps_every_branch() {
-        // Two equations per branch, merged position by position.
+        // Two equations per branch, kept side by side for the
+        // compiler to choose between.
         let m = parse_model(
             "model M Real gate; Real a; Real b; equation gate = time; \
              if gate > 1 then a = 1; b = 2; else a = 3; b = 4; end if; end M;",
         )
         .unwrap();
-        assert_eq!(m.equations.len(), 3);
-        let first = format!("{:?}", m.equations[1].lhs);
-        assert!(
-            first.contains("Ref(\"a\")") && !first.contains("Ref(\"b\")"),
-            "{first}"
-        );
-        let second = format!("{:?}", m.equations[2].lhs);
-        assert!(
-            second.contains("Ref(\"b\")") && !second.contains("Ref(\"a\")"),
-            "{second}"
+        assert_eq!(m.equations.len(), 1);
+        let conditional = &m.conditional[0];
+        assert_eq!(conditional.branches.len(), 2);
+        assert!(conditional.branches.iter().all(|branch| branch.len() == 2));
+        assert_eq!(
+            format!("{:?}", conditional.branches[1][1].rhs),
+            "Number(4.0)"
         );
 
-        // An `elseif` chain nests, outermost condition first.
+        // An `elseif` chain keeps a condition for every branch but the
+        // last, which is the `else`.
         let m = parse_model(
             "model M Real gate; Real y; equation gate = time; \
              if gate > 2 then y = 1; elseif gate > 1 then y = 2; else y = 3; end if; end M;",
         )
         .unwrap();
-        let merged = format!("{:?}", m.equations[1].lhs);
-        assert_eq!(merged.matches("If(").count(), 2, "{merged}");
+        assert_eq!(m.conditional[0].conditions.len(), 2);
+        assert_eq!(m.conditional[0].branches.len(), 3);
 
         // Whole-array equations count by their scalars, not by the
         // lines they were written on.
@@ -4225,7 +4188,7 @@ mod tests {
              if gate > 1 then v = {1, 2}; else v[1] = 3; v[2] = 4; end if; end M;",
         )
         .unwrap();
-        assert_eq!(m.equations.len(), 3);
+        assert!(m.conditional[0].branches.iter().all(|b| b.len() == 2));
 
         // Each branch is checked as it was written, so a mistake
         // inside one is still caught.
@@ -5020,18 +4983,26 @@ mod tests {
             .equations
             .is_empty());
 
-        // A condition the run decides keeps every branch instead,
-        // merged into one equation that picks its residual.
+        // A condition the run decides keeps every branch instead, for
+        // the compiler to settle where the run has got to.
         let m = crate::parser::parse_model(
             "model M Real gate; Real y; equation gate = time; \
              if gate > 0 then y = 1; else y = 2; end if; end M;",
         )
         .unwrap();
-        assert_eq!(m.equations.len(), 2);
-        let merged = format!("{:?}", m.equations[1].lhs);
-        assert!(merged.starts_with("If("), "{merged}");
-        assert!(merged.contains("Sub, Ref(\"y\"), Number(1.0)"), "{merged}");
-        assert!(merged.contains("Sub, Ref(\"y\"), Number(2.0)"), "{merged}");
+        assert_eq!(m.equations.len(), 1);
+        assert_eq!(m.conditional.len(), 1);
+        let conditional = &m.conditional[0];
+        assert_eq!(conditional.conditions.len(), 1);
+        assert_eq!(conditional.branches.len(), 2);
+        assert_eq!(
+            format!("{:?}", conditional.branches[0][0].rhs),
+            "Number(1.0)"
+        );
+        assert_eq!(
+            format!("{:?}", conditional.branches[1][0].rhs),
+            "Number(2.0)"
+        );
     }
 
     #[test]

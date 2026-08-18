@@ -208,6 +208,11 @@ pub struct CompiledModel {
     /// Sensitivity of each reduced constraint to its chosen victim and
     /// to the alternatives; see [`CompiledModel::selection_sound`].
     selection_monitor: Vec<(Code, Vec<Code>)>,
+    /// One entry per run-time `if` equation: the conditions and the
+    /// branch this compilation was made for. A branch that no longer
+    /// holds means the model on hand is the wrong one for where the
+    /// run has got to.
+    mode_monitor: Vec<(Vec<Code>, usize)>,
     /// `assert` conditions with their messages: each must hold at every
     /// recorded point, or the run stops and says which one did not.
     asserts: Vec<(Code, String)>,
@@ -596,6 +601,10 @@ struct Stall {
     time: f64,
     /// The value of every variable there, by name.
     values: HashMap<String, f64>,
+    /// Whether a run-time `if` equation changed branch, rather than
+    /// the state selection going bad: a mode change is ordinary
+    /// business and may happen as often as the model switches.
+    mode_change: bool,
 }
 
 impl CompiledModel {
@@ -618,6 +627,22 @@ impl CompiledModel {
         })
     }
 
+    /// Whether the branch each run-time `if` equation was compiled for
+    /// is still the branch that holds.
+    ///
+    /// The event machinery puts the step a hair past the crossing, so
+    /// at the point this is asked the relation has already switched and
+    /// the answer is unambiguous.
+    fn mode_holds(&self, values: &[f64], time: f64) -> bool {
+        self.mode_monitor.iter().all(|(conditions, compiled_for)| {
+            let now = conditions
+                .iter()
+                .position(|condition| condition.run(values, time) != 0.0)
+                .unwrap_or(conditions.len());
+            now == *compiled_for
+        })
+    }
+
     /// The stall a segment reports: the point it resumes from is the
     /// last row it *recorded*, never a re-evaluation at the breakdown -
     /// the algebraic layer is exactly what cannot be trusted there.
@@ -626,6 +651,7 @@ impl CompiledModel {
         columns: Vec<String>,
         rows: Vec<Vec<f64>>,
         method: SolverMethod,
+        mode_change: bool,
     ) -> Result<AdaptiveOutcome, SimError> {
         let Some(last) = rows.last() else {
             return err("the run stalled before producing a single point".to_string());
@@ -646,6 +672,7 @@ impl CompiledModel {
             },
             time,
             values,
+            mode_change,
         }))
     }
 }
@@ -957,20 +984,128 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         })
         .collect();
 
+    // Start values of every continuous variable: used to pick the
+    // demotion victim by numerical pivoting.
+    let resumed = |name: &str| -> Option<f64> {
+        resume
+            .as_ref()
+            .and_then(|point| point.values.get(name))
+            .copied()
+    };
+    let start_env: HashMap<String, f64> = {
+        let mut env = params.clone();
+        for (name, value) in discretes.iter().zip(&discrete_start) {
+            env.insert(name.clone(), resumed(name).unwrap_or(*value));
+        }
+        for component in &model.components {
+            if component.variability == Variability::Continuous {
+                let value = resumed(&component.name)
+                    .or_else(|| {
+                        component.start.as_ref().and_then(|expr| {
+                            eval(
+                                expr,
+                                &EvalCtx {
+                                    vars: &params,
+                                    time: 0.0,
+                                },
+                            )
+                            .ok()
+                        })
+                    })
+                    .unwrap_or(0.0);
+                env.insert(component.name.clone(), value);
+            }
+        }
+        env
+    };
+
     // The event built-ins become references the evaluator can look up.
     let mut rewrite = EventRewrite {
         discretes: &discretes,
         params: &params,
         samples: Vec::new(),
     };
+    // An `if` equation the compiler could not decide is settled here:
+    // whichever branch holds at this point joins the model, and this
+    // mode is then matched, torn and solved as its own set of
+    // equations. The run watches the conditions and asks for a fresh
+    // compilation when one of them flips.
+    // A condition usually names a variable an ordinary equation
+    // defines - `energised = sin(...) >= 0` - and start attributes say
+    // nothing about those. Definitions of the plain `name = expr` kind
+    // are followed to a fixpoint first, so the condition can be asked
+    // before anything has been matched or solved.
+    let mode_time = resume.as_ref().map_or(0.0, |point| point.time);
+    let mut mode_env = start_env.clone();
+    for _ in 0..MAX_DEFINITION_PASSES {
+        let mut progress = false;
+        for equation in &model.equations {
+            let Expr::Ref(name) = &equation.lhs else {
+                continue;
+            };
+            if resume.is_some() && mode_env.contains_key(name) {
+                // A continuation already knows this from the run.
+                continue;
+            }
+            if let Ok(value) = eval(
+                &equation.rhs,
+                &EvalCtx {
+                    vars: &mode_env,
+                    time: mode_time,
+                },
+            ) {
+                if mode_env.insert(name.clone(), value) != Some(value) {
+                    progress = true;
+                }
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+    let start_ctx = EvalCtx {
+        vars: &mode_env,
+        time: mode_time,
+    };
+    let mut modes: Vec<usize> = Vec::new();
+    for conditional in &model.conditional {
+        let mut taken = conditional.branches.len() - 1;
+        for (index, condition) in conditional.conditions.iter().enumerate() {
+            if eval(condition, &start_ctx)? != 0.0 {
+                taken = index;
+                break;
+            }
+        }
+        modes.push(taken);
+    }
     let equations: Vec<EquationItem> = model
         .equations
         .iter()
+        .chain(
+            model
+                .conditional
+                .iter()
+                .zip(&modes)
+                .flat_map(|(conditional, &taken)| &conditional.branches[taken]),
+        )
         .map(|equation| {
             Ok(EquationItem {
                 lhs: rewrite.expr(&equation.lhs)?,
                 rhs: rewrite.expr(&equation.rhs)?,
             })
+        })
+        .collect::<Result<Vec<_>, SimError>>()?;
+    // The conditions, rewritten the same way, so the run can tell when
+    // the mode it was compiled for has been left behind.
+    let mode_conditions: Vec<Vec<Expr>> = model
+        .conditional
+        .iter()
+        .map(|conditional| {
+            conditional
+                .conditions
+                .iter()
+                .map(|condition| rewrite.expr(condition))
+                .collect::<Result<Vec<_>, SimError>>()
         })
         .collect::<Result<Vec<_>, SimError>>()?;
     let mut when_clauses: Vec<WhenClause> = Vec::new();
@@ -1124,41 +1259,6 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         }
         false
     }
-
-    // Start values of every continuous variable: used to pick the
-    // demotion victim by numerical pivoting.
-    let resumed = |name: &str| -> Option<f64> {
-        resume
-            .as_ref()
-            .and_then(|point| point.values.get(name))
-            .copied()
-    };
-    let start_env: HashMap<String, f64> = {
-        let mut env = params.clone();
-        for (name, value) in discretes.iter().zip(&discrete_start) {
-            env.insert(name.clone(), resumed(name).unwrap_or(*value));
-        }
-        for component in &model.components {
-            if component.variability == Variability::Continuous {
-                let value = resumed(&component.name)
-                    .or_else(|| {
-                        component.start.as_ref().and_then(|expr| {
-                            eval(
-                                expr,
-                                &EvalCtx {
-                                    vars: &params,
-                                    time: 0.0,
-                                },
-                            )
-                            .ok()
-                        })
-                    })
-                    .unwrap_or(0.0);
-                env.insert(component.name.clone(), value);
-            }
-        }
-        env
-    };
 
     let mut dummies: HashMap<String, String> = HashMap::new();
     // States named in the right-hand side of an already-demoted state:
@@ -1642,6 +1742,15 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
                 collect(&branch.condition);
             }
         }
+        // The condition of a run-time `if` equation belongs here even
+        // though the branch it chose may not mention it: the step has
+        // to land on the switch, or the mode would change somewhere
+        // inside a step that was taken under the old one.
+        for conditions in &mode_conditions {
+            for condition in conditions {
+                collect(condition);
+            }
+        }
         out
     };
 
@@ -1821,6 +1930,19 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         resume: resume.is_some(),
         reselectable: !dummies.is_empty(),
         selection_monitor,
+        mode_monitor: mode_conditions
+            .iter()
+            .zip(&modes)
+            .map(|(conditions, &taken)| {
+                Ok((
+                    conditions
+                        .iter()
+                        .map(|condition| table.compile(condition))
+                        .collect::<Result<Vec<_>, SimError>>()?,
+                    taken,
+                ))
+            })
+            .collect::<Result<Vec<_>, SimError>>()?,
         asserts: model
             .asserts
             .iter()
@@ -2073,6 +2195,12 @@ fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
 
 /// Guards against cyclic algebraic definitions while differentiating.
 const MAX_DIFF_DEPTH: usize = 32;
+
+/// How many times to follow plain `name = expr` definitions while
+/// working out which branch of a run-time `if` equation holds at the
+/// point being compiled. A chain longer than this is not worth
+/// chasing: the branch falls back to the `else`.
+const MAX_DEFINITION_PASSES: usize = 16;
 
 fn differentiate_at(expr: &Expr, target: &DiffTarget, depth: usize) -> Result<Expr, String> {
     if depth > MAX_DIFF_DEPTH {
@@ -3234,6 +3362,7 @@ impl CompiledModel {
         let mut outcome = self.run_segment()?;
         let mut merged: Option<SimResult> = None;
         let mut reselections = 0usize;
+        let mut mode_changes = 0usize;
         let mut last_stall = f64::NEG_INFINITY;
         loop {
             match outcome {
@@ -3249,16 +3378,33 @@ impl CompiledModel {
                     unreachable!("run_segment resolves the stiffness switch itself")
                 }
                 AdaptiveOutcome::Stalled(stall) => {
-                    // A stall that made no ground since the last one is
-                    // not a wrong selection but a genuine singularity.
-                    if stall.time <= last_stall + 1e-12 || reselections >= 200 {
+                    // A mode change is ordinary business - a chopper
+                    // switches as often as it likes - so it is not held
+                    // to the rule below. What it is held to is telling
+                    // the truth: the compilation that follows must
+                    // settle on a different branch, or the run would
+                    // rebuild the same model at the same instant for
+                    // ever.
+                    if stall.mode_change {
+                        if mode_changes >= 100_000 {
+                            return err(format!(
+                                "the model kept changing mode at t = {:.6}",
+                                stall.time
+                            ));
+                        }
+                        mode_changes += 1;
+                    } else if stall.time <= last_stall + 1e-12 || reselections >= 200 {
+                        // A stall that made no ground since the last one
+                        // is not a wrong selection but a genuine
+                        // singularity.
                         return err(format!(
                             "step size underflow at t = {:.6}: probable singularity                              (state re-selection did not help)",
                             stall.time
                         ));
+                    } else {
+                        last_stall = stall.time;
+                        reselections += 1;
                     }
-                    last_stall = stall.time;
-                    reselections += 1;
                     // Compile again at the point reached: the pivot now
                     // sees the sensitivities of this instant and picks
                     // the states that fit here.
@@ -3466,7 +3612,8 @@ impl CompiledModel {
         let mut indicators_prev = self.indicator_values(t0, &values);
         // Pure-algebraic models: no ODE to integrate, only the grid.
         if n == 0 {
-            let mut out_i = 1usize;
+            // A continuation picks the grid up where it left off.
+            let mut out_i = (t0 / out_step + 1e-9).floor() as usize + 1;
             loop {
                 // Walk to whichever comes first: the next output point
                 // or the next scheduled time event.
@@ -3479,6 +3626,19 @@ impl CompiledModel {
                     break;
                 }
                 record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
+                // Nothing is integrated here, so a mode change is
+                // noticed at the first grid point that sees it. The row
+                // just written used the model on hand; the
+                // continuation writes this instant again with the one
+                // that now applies.
+                if !self.mode_holds(&values, t) {
+                    let mut outcome =
+                        self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, true)?;
+                    if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                        stall.partial.rows.pop();
+                    }
+                    return Ok(outcome);
+                }
                 if (t - grid).abs() < 1e-12 {
                     last_out_t = t;
                     out_i += 1;
@@ -3539,7 +3699,7 @@ impl CompiledModel {
                 match $attempt {
                     Ok(value) => value,
                     Err(_) if self.reselectable => {
-                        return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                        return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, false);
                     }
                     Err(error) => return Err(error),
                 }
@@ -3629,7 +3789,12 @@ impl CompiledModel {
                     Err(_) if self.reselectable => {
                         h *= 0.2;
                         if h < stop * 5e-14 {
-                            return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                            return self.stall_at_last_row(
+                                columns,
+                                rows,
+                                SolverMethod::Dopri45,
+                                false,
+                            );
                         }
                         continue;
                     }
@@ -3769,7 +3934,8 @@ impl CompiledModel {
                     }
                     // A state event that changed something is recorded at
                     // the instant it happened, so the jump is visible.
-                    if outcome.changed {
+                    let mode_left = !self.mode_holds(&values, t);
+                    if outcome.changed || mode_left {
                         or_stall!(record(
                             t,
                             &y,
@@ -3777,6 +3943,20 @@ impl CompiledModel {
                             &mut derivatives_scratch,
                             &mut alg_guess
                         ));
+                    }
+                    // A run-time `if` equation that changed branch at
+                    // this very event wants a model built for the mode
+                    // now in force. The row just written is only there
+                    // to carry the point over; the continuation starts
+                    // at this instant and writes it again with the
+                    // values of the mode that now applies.
+                    if mode_left {
+                        let mut outcome =
+                            self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, true)?;
+                        if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                            stall.partial.rows.pop();
+                        }
+                        return Ok(outcome);
                     }
                     h = (h * theta.max(0.1)).max(1e-12);
                     continue;
@@ -3808,7 +3988,13 @@ impl CompiledModel {
                 // here: hand the run back for a re-selection while the
                 // algebra is still sound.
                 if self.reselectable && !self.selection_sound(&values, t) {
-                    return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                    return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, false);
+                }
+                // A run-time `if` equation that changed branch wants a
+                // model built for the mode now in force: this one was
+                // matched and torn for the other.
+                if !self.mode_holds(&values, t) {
+                    return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, true);
                 }
 
                 // The step ended on a scheduled instant: raise the flags
@@ -3858,7 +4044,7 @@ impl CompiledModel {
             if self.reselectable && h < stop * 5e-14 {
                 // The snapshot comes from the last accepted point; the
                 // evaluation there succeeded when it was accepted.
-                return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45);
+                return self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, false);
             }
             if h < stop * 1e-14 || h < 1e-300 {
                 return err(format!(
@@ -4083,7 +4269,7 @@ impl CompiledModel {
                 match $attempt {
                     Ok(value) => value,
                     Err(_) if self.reselectable => {
-                        return self.stall_at_last_row(columns, rows, SolverMethod::Bdf);
+                        return self.stall_at_last_row(columns, rows, SolverMethod::Bdf, false);
                     }
                     Err(error) => return Err(error),
                 }
@@ -4363,7 +4549,13 @@ impl CompiledModel {
                 // See the adaptive solver: a selection that stopped
                 // being the right one is re-made in clean territory.
                 if self.reselectable && !self.selection_sound(&values, t) {
-                    return self.stall_at_last_row(columns, rows, SolverMethod::Bdf);
+                    return self.stall_at_last_row(columns, rows, SolverMethod::Bdf, false);
+                }
+                // A run-time `if` equation that changed branch wants a
+                // model built for the mode now in force: this one was
+                // matched and torn for the other.
+                if !self.mode_holds(&values, t) {
+                    return self.stall_at_last_row(columns, rows, SolverMethod::Bdf, true);
                 }
                 // Raise the order once the history supports it. The
                 // step controller keeps the error near its target, so
@@ -4418,7 +4610,7 @@ impl CompiledModel {
             // A collapsing step on a model whose states were chosen by
             // a pivot: stall and let the caller choose again.
             if self.reselectable && h < stop * 5e-14 {
-                return self.stall_at_last_row(columns, rows, SolverMethod::Bdf);
+                return self.stall_at_last_row(columns, rows, SolverMethod::Bdf, false);
             }
             if h < stop * 1e-14 || h < 1e-300 {
                 return err(format!(
@@ -5519,6 +5711,41 @@ mod tests {
         let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
         let source = std::fs::read_to_string(root.join("examples").join(name)).unwrap();
         oxidelica_parser::parse_model_with_libraries(&[library], &source).unwrap()
+    }
+
+    #[test]
+    fn the_textbook_ideal_switch_rectifies_exactly() {
+        // The switch's branches constrain different unknowns: blocking
+        // is an equation on the current, conducting one on the voltage.
+        // Each mode is compiled as its own model - matched and torn for
+        // the equations actually in force - and compiled again at the
+        // instant the switch flips. Nothing here is approximate: the
+        // current is the clipped source to the last bit.
+        let result = compile(&with_library("ideal_rectifier.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (mut blocking_rows, mut conducting_rows) = (0, 0);
+        for row in &result.rows {
+            assert_eq!(
+                row[index("switch.i")],
+                row[index("clipped")],
+                "at t = {}",
+                row[0]
+            );
+            if row[index("switch.blocking")] > 0.5 {
+                // The blocking branch is `i = 0`, and it holds exactly.
+                assert_eq!(row[index("switch.i")], 0.0, "at t = {}", row[0]);
+                blocking_rows += 1;
+            } else {
+                // The conducting branch is `v = 0`, likewise.
+                assert_eq!(row[index("switch.v")], 0.0, "at t = {}", row[0]);
+                conducting_rows += 1;
+            }
+        }
+        // Two full periods: the switch really did work both ways.
+        assert!(blocking_rows > 400 && conducting_rows > 400);
     }
 
     #[test]

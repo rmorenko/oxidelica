@@ -338,6 +338,22 @@ pub struct Experiment {
     pub tolerance: Option<f64>,
 }
 
+/// An `if` equation whose condition only the run can decide.
+///
+/// Every branch holds the same number of equations, so the model is
+/// square whichever one applies. Which one that is gets settled when
+/// the model is compiled, and the run asks for a fresh compilation
+/// when a condition flips: that way each mode is matched, torn and
+/// solved as the equations of that mode, rather than as one blurred
+/// residual standing for all of them.
+#[derive(Debug, Clone)]
+pub struct ConditionalEquations {
+    /// One condition per branch except the final `else`.
+    pub conditions: Vec<Expr>,
+    /// The equations of each branch, scalar and in source order.
+    pub branches: Vec<Vec<EquationItem>>,
+}
+
 /// A parsed flat model.
 #[derive(Debug, Clone)]
 pub struct Model {
@@ -356,6 +372,9 @@ pub struct Model {
     pub asserts: Vec<(Expr, String)>,
     /// `when` clauses (events).
     pub when_clauses: Vec<WhenClause>,
+    /// `if` equations settled while running rather than while
+    /// compiling.
+    pub conditional: Vec<ConditionalEquations>,
     /// Experiment settings (defaults when absent).
     pub experiment: Experiment,
 }
