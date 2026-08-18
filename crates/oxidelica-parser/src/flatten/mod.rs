@@ -280,6 +280,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         let context = StreamContext {
             nodes: node_of,
             connectors: &acc.connectors,
+            outside: &acc.outside,
             registry: &registry,
         };
         for equation in &mut acc.equations {
@@ -417,6 +418,9 @@ struct StreamContext<'a> {
     nodes: HashMap<String, Vec<String>>,
     /// Connector instance path -> connector class name.
     connectors: &'a HashMap<String, String>,
+    /// The connectors that were a class's own port: their flow enters
+    /// the node where an inside connector's leaves it.
+    outside: &'a [String],
     /// Class definitions, for the member prefixes.
     registry: &'a HashMap<&'a str, &'a ClassDef>,
 }
@@ -425,6 +429,10 @@ struct StreamContext<'a> {
 #[derive(Default)]
 struct Flat {
     components: Vec<Component>,
+    /// Connectors that were a class's own port where a `connect` named
+    /// them - "outside" connectors, whose flow points into the node
+    /// rather than out of it.
+    outside: Vec<String>,
     transports: Vec<SpatialTransport>,
     equations: Vec<EquationItem>,
     when_clauses: Vec<WhenClause>,

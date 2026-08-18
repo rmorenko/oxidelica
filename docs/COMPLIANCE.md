@@ -20,7 +20,7 @@ under a chapter works as specified for the subset this project covers.
 | 12  | Functions                     | Partial |
 | 13  | Packages                      | Full    |
 | 14  | Overloaded operators          | Full    |
-| 15  | Stream connectors             | Partial |
+| 15  | Stream connectors             | Full    |
 | 16  | Synchronous language elements | Partial |
 | 17  | State machines                | Partial |
 | 18  | Annotations                   | Partial |

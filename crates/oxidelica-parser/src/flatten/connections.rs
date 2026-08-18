@@ -50,9 +50,29 @@ pub(super) fn push_connects(
             right.len()
         ));
     }
+    // A connector named here is "outside" when it is a port of the very
+    // class the `connect` is written in, rather than of one of its
+    // components: `connect(inner.c, c)` in Sub makes `c` outside and
+    // `inner.c` inside, and the names differ by exactly that - an
+    // outside port sits directly under the class prefix.
+    //
+    // The top-level model is nobody's component, so nothing there is
+    // outside; an empty prefix would otherwise call every connector
+    // outside and flip the sign of the whole node.
+    let is_outside = |path: &str| {
+        !prefix.is_empty()
+            && path
+                .strip_prefix(prefix)
+                .is_some_and(|rest| !rest.contains('.'))
+    };
     for (a, b) in left.into_iter().zip(right) {
         if acc.is_disabled(&a) || acc.is_disabled(&b) {
             continue;
+        }
+        for side in [&a, &b] {
+            if is_outside(side) && !acc.outside.contains(side) {
+                acc.outside.push(side.clone());
+            }
         }
         acc.connects.push((a, b));
     }
@@ -260,13 +280,32 @@ pub(super) fn stream_mix(
         // weighted by their outbound flows, floored so the division
         // survives every flow going quiet.
         _ => {
-            let weight = |other: &str| {
+            // The specification weighs each port by `max(-m, 0)`: a port
+            // pushing nothing into the node has no say in what the node
+            // holds. Only the divisor is regularised - that is what
+            // `positiveMax` is - so the mix survives every flow going
+            // quiet without a silent port tugging it towards its own
+            // value.
+            // Which way a port's flow points into the node depends on
+            // which side of its class it is: an inside connector pushes
+            // when its flow is negative, an outside one - a port of the
+            // class the connection was written in - when it is
+            // positive. That is the sign convention of 9.1.2, and it is
+            // the whole of the inside/outside distinction here.
+            let inflow = |other: &str| {
+                let flow = Expr::Ref(format!("{other}.{flow_name}"));
+                if context.outside.iter().any(|path| path == other) {
+                    flow
+                } else {
+                    Expr::Neg(Box::new(flow))
+                }
+            };
+            let weight =
+                |other: &str| Expr::Call("max".to_string(), vec![inflow(other), Expr::Number(0.0)]);
+            let guarded = |other: &str| {
                 Expr::Call(
                     "max".to_string(),
-                    vec![
-                        Expr::Neg(Box::new(Expr::Ref(format!("{other}.{flow_name}")))),
-                        Expr::Number(STREAM_EPS),
-                    ],
+                    vec![inflow(other), Expr::Number(STREAM_EPS)],
                 )
             };
             let sum = |terms: Vec<Expr>| {
@@ -285,7 +324,7 @@ pub(super) fn stream_mix(
                     )
                 })
                 .collect());
-            let denominator = sum(others.iter().map(|other| weight(other)).collect());
+            let denominator = sum(others.iter().map(|other| guarded(other)).collect());
             Expr::Bin(BinOp::Div, Box::new(numerator), Box::new(denominator))
         }
     };

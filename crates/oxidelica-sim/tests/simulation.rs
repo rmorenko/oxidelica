@@ -1843,3 +1843,55 @@ fn a_record_carries_its_own_operators_through_a_run() {
     // The record's own String reads the doubled field.
     assert_eq!(at("named"), 1.0);
 }
+
+#[test]
+fn a_stream_junction_weighs_only_what_flows_into_it() {
+    // The mix at a node is each port's stream value weighted by what it
+    // pushes in - `max(-m, 0)` - so a port pushing nothing has no say.
+    // Only the divisor is regularised, which is what keeps the mix
+    // defined when every flow goes quiet without a silent port tugging
+    // the answer towards its own value.
+    const P: &str = "connector P Real p; flow Real m; stream Real h; end P; ";
+    let mixed = |a_flow: f64, a_value: f64, b_flow: f64, b_value: f64| {
+        let result = run(&format!(
+            "{P} model M P a; P b; P c; Real mix; \
+             equation connect(a, b); connect(b, c); \
+             a.m = {a_flow}; a.h = {a_value}; b.m = {b_flow}; b.h = {b_value}; \
+             c.h = 0; a.p = 0; mix = inStream(c.h); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ));
+        let index = result.columns.iter().position(|c| c == "mix").unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    // Two parts of 100 against one of 200. The divisor carries the
+    // regularising floor, so the answer is off by that much and no more.
+    assert!((mixed(-2.0, 100.0, -1.0, 200.0) - 400.0 / 3.0).abs() < 1e-6);
+    // A port pushing nothing does not move the answer off 100.
+    assert!((mixed(-2.0, 100.0, 0.0, 999.0) - 100.0).abs() < 1e-6);
+}
+
+#[test]
+fn a_port_of_the_model_pushes_the_other_way() {
+    // Inside a class, its own port is an "outside" connector: flow
+    // entering the node is positive there, where an inside connector's
+    // is negative. So what a component's port hears includes what comes
+    // in through the enclosing model's port.
+    const P: &str = "connector P Real p; flow Real m; stream Real h; end P; ";
+    const SRC: &str = "model Src P c; parameter Real hv = 0; parameter Real mv = 0; \
+         equation c.h = hv; c.m = mv; end Src; ";
+    let result = run(&format!(
+        "{P} {SRC} \
+         model Sub P c; Src a(hv = 10, mv = -1); Src b(hv = 20, mv = -1); Real heard; \
+         equation connect(a.c, c); connect(b.c, c); heard = inStream(a.c.h); end Sub; \
+         model M Sub sub; Real z; equation sub.c.h = 500; sub.c.p = 0; z = sub.heard; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ));
+    let index = result.columns.iter().position(|c| c == "z").unwrap();
+    // b pushes 20 with weight 1; the outside port brings 500 in with
+    // weight 2, since the two inside ports each send 1 out of the node.
+    assert!(
+        (result.rows.last().unwrap()[index] - 340.0).abs() < 1e-6,
+        "heard {}",
+        result.rows.last().unwrap()[index]
+    );
+}
