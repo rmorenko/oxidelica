@@ -162,63 +162,211 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     compile_at(model, None)
 }
 
-/// Compile a model, either from its declared start (`resume` absent) or
-/// as a continuation from mid-run.
+/// Sort the equations into the ones that give a state its derivative
+/// and the ones that are algebraic.
 ///
-/// A continuation matters for one reason: the choice of which states to
-/// demote during index reduction is a numerical pivot at a point, and a
-/// choice that was right at the start can become singular later - a
-/// pendulum in Cartesian coordinates crossing the horizontal. Compiling
-/// again at the current point re-makes the choice with the sensitivities
-/// of *now*, and everything downstream (matching, tearing, slots) simply
-/// follows.
-pub(crate) fn compile_at(
-    model: &Model,
-    resume: Option<ResumePoint>,
-) -> Result<CompiledModel, SimError> {
-    // 1. Parameters and constants: multi-pass dependency evaluation.
-    let mut params: HashMap<String, f64> = HashMap::new();
-    let mut pending: Vec<(&str, &Expr)> = Vec::new();
-    for c in &model.components {
-        if matches!(
-            c.variability,
-            Variability::Parameter | Variability::Constant
-        ) {
-            let binding = c.binding.as_ref().or(c.start.as_ref());
-            match binding {
-                Some(expr) => pending.push((&c.name, expr)),
-                None => return err(format!("parameter {} has no value", c.name)),
+/// `der(x)` has to stand alone on one side, which is what makes the
+/// first kind recognisable; anything else is algebraic and need not be
+/// in assignment form at all.
+fn split_equations(
+    equations: &[EquationItem],
+    continuous: &[&str],
+) -> Result<(HashMap<String, Expr>, Vec<(Expr, Expr)>), SimError> {
+    let mut state_rhs: HashMap<String, Expr> = HashMap::new();
+    let mut algebraic_eqs: Vec<(Expr, Expr)> = Vec::new();
+
+    for EquationItem { lhs, rhs } in equations {
+        // der(v) = expr  |  expr = der(v)
+        let (target, value) = if let Some(v) = lhs.as_der_of() {
+            (Some(v), rhs)
+        } else if let Some(v) = rhs.as_der_of() {
+            (Some(v), lhs)
+        } else {
+            (None, rhs)
+        };
+        if let Some(state) = target {
+            if !continuous.contains(&state) {
+                return err(format!(
+                    "der({state}): {state} is not a continuous variable"
+                ));
             }
+            if value.contains_der() {
+                return err("der() must appear alone on one side of an equation".to_string());
+            }
+            if state_rhs.insert(state.to_string(), value.clone()).is_some() {
+                return err(format!("two equations for der({state})"));
+            }
+            continue;
         }
+        if lhs.contains_der() || rhs.contains_der() {
+            return err("der() must appear alone on one side of an equation".to_string());
+        }
+        algebraic_eqs.push((lhs.clone(), rhs.clone()));
     }
-    loop {
-        let before = pending.len();
-        pending.retain(|(name, expr)| {
-            match eval(
-                expr,
+    Ok((state_rhs, algebraic_eqs))
+}
+
+/// The states, and the algebraic unknowns left over.
+fn unknowns_of(
+    continuous: &[&str],
+    state_rhs: &HashMap<String, Expr>,
+) -> (Vec<String>, Vec<String>) {
+    let states = continuous
+        .iter()
+        .filter(|n| state_rhs.contains_key(**n))
+        .map(|n| n.to_string())
+        .collect();
+    let unknowns = continuous
+        .iter()
+        .filter(|n| !state_rhs.contains_key(**n))
+        .map(|n| n.to_string())
+        .collect();
+    (states, unknowns)
+}
+
+/// Every name the equations use must be one the model declared.
+fn check_references(
+    state_rhs: &HashMap<String, Expr>,
+    algebraic_eqs: &[(Expr, Expr)],
+    continuous: &[&str],
+    params: &HashMap<String, f64>,
+    discretes: &[String],
+) -> Result<(), SimError> {
+    let mut refs = Vec::new();
+    for expr in state_rhs.values() {
+        expr.collect_refs(&mut refs);
+    }
+    for (lhs, rhs) in algebraic_eqs {
+        lhs.collect_refs(&mut refs);
+        rhs.collect_refs(&mut refs);
+    }
+    if let Some(bad) = refs.iter().find(|r| {
+        !continuous.contains(r)
+            && !params.contains_key(**r)
+            && !discretes.iter().any(|d| d == **r)
+            // `$pre.x`, `$initial` and `$sampleN` are supplied by the
+            // event machinery, not by the equations.
+            && !r.starts_with('$')
+    }) {
+        return err(format!("unknown variable `{bad}` in equation"));
+    }
+    Ok(())
+}
+
+/// Which branch of each run-time `if` equation holds at this point.
+///
+/// A condition usually names a variable an ordinary equation defines -
+/// `energised = sin(...) >= 0` - and start attributes say nothing
+/// about those, so plain `name = expr` definitions are followed to a
+/// fixpoint first. Then the conditions can be asked, before anything
+/// has been matched or solved.
+fn settle_modes(
+    model: &Model,
+    start_env: &HashMap<String, f64>,
+    mode_time: f64,
+    resuming: bool,
+) -> Result<Vec<usize>, SimError> {
+    let mut mode_env = start_env.clone();
+    for _ in 0..MAX_DEFINITION_PASSES {
+        let mut progress = false;
+        for equation in &model.equations {
+            let Expr::Ref(name) = &equation.lhs else {
+                continue;
+            };
+            if resuming && mode_env.contains_key(name) {
+                // A continuation already knows this from the run.
+                continue;
+            }
+            if let Ok(value) = eval(
+                &equation.rhs,
                 &EvalCtx {
-                    vars: &params,
-                    time: 0.0,
+                    vars: &mode_env,
+                    time: mode_time,
                 },
             ) {
-                Ok(v) => {
-                    params.insert((*name).to_string(), v);
-                    false
+                if mode_env.insert(name.clone(), value) != Some(value) {
+                    progress = true;
                 }
-                Err(_) => true,
             }
-        });
-        if pending.is_empty() {
+        }
+        if !progress {
             break;
         }
-        if pending.len() == before {
-            let names: Vec<_> = pending.iter().map(|(n, _)| *n).collect();
-            return err(format!(
-                "cannot evaluate parameters {names:?}: cycle or unknown reference"
-            ));
+    }
+    let start_ctx = EvalCtx {
+        vars: &mode_env,
+        time: mode_time,
+    };
+    let mut modes: Vec<usize> = Vec::new();
+    for conditional in &model.conditional {
+        let mut taken = conditional.branches.len() - 1;
+        for (index, condition) in conditional.conditions.iter().enumerate() {
+            if eval(condition, &start_ctx)? != 0.0 {
+                taken = index;
+                break;
+            }
+        }
+        modes.push(taken);
+    }
+    Ok(modes)
+}
+
+/// What every variable stands at, at the point being compiled for.
+///
+/// A fresh compilation reads the start attributes; a continuation
+/// reads the run. The pivot that decides which states to demote works
+/// from these numbers, so they have to be the numbers of *here*.
+fn values_at_this_point(
+    model: &Model,
+    params: &HashMap<String, f64>,
+    discretes: &[String],
+    discrete_start: &[f64],
+    resume: &Option<ResumePoint>,
+) -> HashMap<String, f64> {
+    let resumed = |name: &str| -> Option<f64> {
+        resume
+            .as_ref()
+            .and_then(|point| point.values.get(name))
+            .copied()
+    };
+    let mut env = params.clone();
+    for (name, value) in discretes.iter().zip(discrete_start) {
+        env.insert(name.clone(), resumed(name).unwrap_or(*value));
+    }
+    for component in &model.components {
+        if component.variability == Variability::Continuous {
+            let value = resumed(&component.name)
+                .or_else(|| {
+                    component.start.as_ref().and_then(|expr| {
+                        eval(
+                            expr,
+                            &EvalCtx {
+                                vars: params,
+                                time: 0.0,
+                            },
+                        )
+                        .ok()
+                    })
+                })
+                .unwrap_or(0.0);
+            env.insert(component.name.clone(), value);
         }
     }
+    env
+}
 
+/// The discrete variables of a model, and the value each one starts
+/// from.
+///
+/// A variable is discrete when it says so or when a `when` clause
+/// assigns it: either way it keeps its value between events, so the
+/// continuous part treats it as known. They come back in declaration
+/// order, which is what keeps the result columns steady.
+fn discrete_layer(
+    model: &Model,
+    params: &HashMap<String, f64>,
+    resume: &Option<ResumePoint>,
+) -> Result<(Vec<String>, Vec<f64>), SimError> {
     // 1b. The discrete layer. A variable is discrete when it says so or
     // when a `when` clause assigns it: either way it keeps its value
     // between events, so the continuous part treats it as known.
@@ -282,41 +430,92 @@ pub(crate) fn compile_at(
                 .unwrap_or(0.0)
         })
         .collect();
+    Ok((discretes, discrete_start))
+}
 
-    // Start values of every continuous variable: used to pick the
-    // demotion victim by numerical pivoting.
+/// Work out the value of every parameter and constant.
+///
+/// One may be written in terms of another, in any order, so they are
+/// evaluated in passes: each pass settles whatever it can, and a pass
+/// that settles nothing means what is left refers to itself or to
+/// something that is not there.
+fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> {
+    let mut params: HashMap<String, f64> = HashMap::new();
+    let mut pending: Vec<(&str, &Expr)> = Vec::new();
+    for c in &model.components {
+        if matches!(
+            c.variability,
+            Variability::Parameter | Variability::Constant
+        ) {
+            let binding = c.binding.as_ref().or(c.start.as_ref());
+            match binding {
+                Some(expr) => pending.push((&c.name, expr)),
+                None => return err(format!("parameter {} has no value", c.name)),
+            }
+        }
+    }
+    loop {
+        let before = pending.len();
+        pending.retain(|(name, expr)| {
+            match eval(
+                expr,
+                &EvalCtx {
+                    vars: &params,
+                    time: 0.0,
+                },
+            ) {
+                Ok(v) => {
+                    params.insert((*name).to_string(), v);
+                    false
+                }
+                Err(_) => true,
+            }
+        });
+        if pending.is_empty() {
+            break;
+        }
+        if pending.len() == before {
+            let names: Vec<_> = pending.iter().map(|(n, _)| *n).collect();
+            return err(format!(
+                "cannot evaluate parameters {names:?}: cycle or unknown reference"
+            ));
+        }
+    }
+    Ok(params)
+}
+
+/// Compile a model, either from its declared start (`resume` absent) or
+/// as a continuation from mid-run.
+///
+/// A continuation matters for one reason: the choice of which states to
+/// demote during index reduction is a numerical pivot at a point, and a
+/// choice that was right at the start can become singular later - a
+/// pendulum in Cartesian coordinates crossing the horizontal. Compiling
+/// again at the current point re-makes the choice with the sensitivities
+/// of *now*, and everything downstream (matching, tearing, slots) simply
+/// follows.
+pub(crate) fn compile_at(
+    model: &Model,
+    resume: Option<ResumePoint>,
+) -> Result<CompiledModel, SimError> {
+    // 1. Parameters and constants, in whatever order they depend on
+    // each other.
+    let params = evaluate_parameters(model)?;
+
+    // 1b. The discrete layer: what changes only at an event, and what
+    // each of those starts at.
+    let (discretes, discrete_start) = discrete_layer(model, &params, &resume)?;
+
+    // Where everything stands at the point being compiled for: the
+    // pivot that chooses which states to demote reads it, and so does
+    // the question of which branch of a run-time `if` holds here.
     let resumed = |name: &str| -> Option<f64> {
         resume
             .as_ref()
             .and_then(|point| point.values.get(name))
             .copied()
     };
-    let start_env: HashMap<String, f64> = {
-        let mut env = params.clone();
-        for (name, value) in discretes.iter().zip(&discrete_start) {
-            env.insert(name.clone(), resumed(name).unwrap_or(*value));
-        }
-        for component in &model.components {
-            if component.variability == Variability::Continuous {
-                let value = resumed(&component.name)
-                    .or_else(|| {
-                        component.start.as_ref().and_then(|expr| {
-                            eval(
-                                expr,
-                                &EvalCtx {
-                                    vars: &params,
-                                    time: 0.0,
-                                },
-                            )
-                            .ok()
-                        })
-                    })
-                    .unwrap_or(0.0);
-                env.insert(component.name.clone(), value);
-            }
-        }
-        env
-    };
+    let start_env = values_at_this_point(model, &params, &discretes, &discrete_start, &resume);
 
     // The event built-ins become references the evaluator can look up.
     let mut rewrite = EventRewrite {
@@ -330,54 +529,8 @@ pub(crate) fn compile_at(
     // mode is then matched, torn and solved as its own set of
     // equations. The run watches the conditions and asks for a fresh
     // compilation when one of them flips.
-    // A condition usually names a variable an ordinary equation
-    // defines - `energised = sin(...) >= 0` - and start attributes say
-    // nothing about those. Definitions of the plain `name = expr` kind
-    // are followed to a fixpoint first, so the condition can be asked
-    // before anything has been matched or solved.
     let mode_time = resume.as_ref().map_or(0.0, |point| point.time);
-    let mut mode_env = start_env.clone();
-    for _ in 0..MAX_DEFINITION_PASSES {
-        let mut progress = false;
-        for equation in &model.equations {
-            let Expr::Ref(name) = &equation.lhs else {
-                continue;
-            };
-            if resume.is_some() && mode_env.contains_key(name) {
-                // A continuation already knows this from the run.
-                continue;
-            }
-            if let Ok(value) = eval(
-                &equation.rhs,
-                &EvalCtx {
-                    vars: &mode_env,
-                    time: mode_time,
-                },
-            ) {
-                if mode_env.insert(name.clone(), value) != Some(value) {
-                    progress = true;
-                }
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
-    let start_ctx = EvalCtx {
-        vars: &mode_env,
-        time: mode_time,
-    };
-    let mut modes: Vec<usize> = Vec::new();
-    for conditional in &model.conditional {
-        let mut taken = conditional.branches.len() - 1;
-        for (index, condition) in conditional.conditions.iter().enumerate() {
-            if eval(condition, &start_ctx)? != 0.0 {
-                taken = index;
-                break;
-            }
-        }
-        modes.push(taken);
-    }
+    let modes = settle_modes(model, &start_env, mode_time, resume.is_some())?;
     let equations: Vec<EquationItem> = model
         .equations
         .iter()
@@ -444,80 +597,20 @@ pub(crate) fn compile_at(
     let samples = rewrite.samples;
     let delayed = rewrite.delays;
 
-    // 2. Split equations: explicit state derivatives vs general
-    // algebraic equations (which need not be in assignment form).
+    // 2. Which equations give a state its derivative, and which are
+    // algebraic.
     let continuous: Vec<&str> = model
         .components
         .iter()
         .filter(|c| c.variability == Variability::Continuous && !discretes.contains(&c.name))
         .map(|c| c.name.as_str())
         .collect();
+    let (mut state_rhs, mut algebraic_eqs) = split_equations(&equations, &continuous)?;
 
-    let mut state_rhs: HashMap<String, Expr> = HashMap::new();
-    let mut algebraic_eqs: Vec<(Expr, Expr)> = Vec::new();
-
-    for EquationItem { lhs, rhs } in &equations {
-        // der(v) = expr  |  expr = der(v)
-        let (target, value) = if let Some(v) = lhs.as_der_of() {
-            (Some(v), rhs)
-        } else if let Some(v) = rhs.as_der_of() {
-            (Some(v), lhs)
-        } else {
-            (None, rhs)
-        };
-        if let Some(state) = target {
-            if !continuous.contains(&state) {
-                return err(format!(
-                    "der({state}): {state} is not a continuous variable"
-                ));
-            }
-            if value.contains_der() {
-                return err("der() must appear alone on one side of an equation".to_string());
-            }
-            if state_rhs.insert(state.to_string(), value.clone()).is_some() {
-                return err(format!("two equations for der({state})"));
-            }
-            continue;
-        }
-        if lhs.contains_der() || rhs.contains_der() {
-            return err("der() must appear alone on one side of an equation".to_string());
-        }
-        algebraic_eqs.push((lhs.clone(), rhs.clone()));
-    }
-
-    // 3. Unknowns and reference validation.
-    let mut states: Vec<String> = continuous
-        .iter()
-        .filter(|n| state_rhs.contains_key(**n))
-        .map(|n| n.to_string())
-        .collect();
-    let mut unknowns: Vec<String> = continuous
-        .iter()
-        .filter(|n| !state_rhs.contains_key(**n))
-        .map(|n| n.to_string())
-        .collect();
-
-    {
-        let mut refs = Vec::new();
-        for expr in state_rhs.values() {
-            expr.collect_refs(&mut refs);
-        }
-        for (lhs, rhs) in &algebraic_eqs {
-            lhs.collect_refs(&mut refs);
-            rhs.collect_refs(&mut refs);
-        }
-        if let Some(bad) = refs.iter().find(|r| {
-            !continuous.contains(r)
-                && !params.contains_key(**r)
-                && !discretes.iter().any(|d| d == **r)
-                // `$pre.x`, `$initial` and `$sampleN` are supplied by the
-                // event machinery, not by the equations.
-                && !r.starts_with('$')
-        }) {
-            return err(format!("unknown variable `{bad}` in equation"));
-        }
-    }
-
+    // 3. What is left to solve for, and whether every name in the
+    // equations is one the model knows.
+    let (mut states, mut unknowns) = unknowns_of(&continuous, &state_rhs);
+    check_references(&state_rhs, &algebraic_eqs, &continuous, &params, &discretes)?;
     if algebraic_eqs.len() != unknowns.len() {
         return err(format!(
             "unbalanced model: {} algebraic equation(s) for {} unknown(s) {:?}",
