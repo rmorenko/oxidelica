@@ -13,6 +13,18 @@ pub(super) fn operator_symbol(op: BinOp) -> &'static str {
     }
 }
 
+/// How a relational operator is spelled where a record declares one.
+pub(super) fn relation_symbol(op: RelOp) -> &'static str {
+    match op {
+        RelOp::Lt => "<",
+        RelOp::Le => "<=",
+        RelOp::Gt => ">",
+        RelOp::Ge => ">=",
+        RelOp::Eq => "==",
+        RelOp::Ne => "<>",
+    }
+}
+
 /// Work an overloaded operator, or say why the record cannot.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_operator(

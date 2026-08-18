@@ -166,6 +166,29 @@ pub(super) fn expand(
             let elementwise = matches!(expr, Expr::Elementwise(_, _, _));
             combine(*op, &recur(l)?, &recur(r)?, elementwise)?
         }
+        // A comparison of records is whatever the record's relational
+        // operator says; a comparison of numbers is left for the run.
+        Expr::Rel(op, l, r) => {
+            if let Some(record) = record_class_of(l, shapes, registry, scope, imports)
+                .or_else(|| record_class_of(r, shapes, registry, scope, imports))
+            {
+                return apply_operator(
+                    &record,
+                    relation_symbol(*op),
+                    &[l.as_ref().clone(), r.as_ref().clone()],
+                    shapes,
+                    registry,
+                    scope,
+                    imports,
+                    depth,
+                );
+            }
+            Value::Scalar(Expr::Rel(
+                *op,
+                Box::new(recur(l)?.scalar()?),
+                Box::new(recur(r)?.scalar()?),
+            ))
+        }
         Expr::If(condition, then, otherwise) => {
             let condition = recur(condition)?.scalar()?;
             // A guard on the loop variable takes its branch and
@@ -582,9 +605,25 @@ pub(super) fn expand_call(
             ))
         }
         _ => {
-            // `Complex(1, 2)` builds a record from its fields, in the
-            // order they were declared.
+            // `Complex(1, 2)` builds a record. A declared
+            // `'constructor'` is called if the record has one; failing
+            // that, the fields are taken in the order they were
+            // declared.
             if let Some(class) = lookup(registry, name, scope, imports) {
+                if class.kind == ClassKind::Record
+                    && operator_function(registry, &class.name, "constructor", args.len()).is_some()
+                {
+                    return apply_operator(
+                        &class.name.clone(),
+                        "constructor",
+                        args,
+                        shapes,
+                        registry,
+                        scope,
+                        imports,
+                        depth,
+                    );
+                }
                 if class.kind == ClassKind::Record {
                     let fields = record_fields(class);
                     if fields.len() != args.len() {

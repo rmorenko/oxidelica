@@ -151,3 +151,53 @@ fn a_record_may_say_what_its_operators_mean() {
     .to_string();
     assert!(error.contains("2 field(s), 1 given"), "{error}");
 }
+
+#[test]
+fn a_record_may_declare_a_constructor_and_a_comparison() {
+    // An operator record with a `'constructor'` that scales its inputs,
+    // a `'<'` that compares by magnitude, and a `'+'` written field by
+    // field. Each output is built up member by member, `v.x := ...`.
+    const V: &str = "operator record V Real x; Real y; \
+         encapsulated operator function 'constructor' input Real a; input Real b; \
+         output V v; algorithm v.x := a * 2; v.y := b * 2; end 'constructor'; \
+         encapsulated operator function '+' input V a; input V b; output V c; \
+         algorithm c.x := a.x + b.x; c.y := a.y + b.y; end '+'; \
+         encapsulated operator function '<' input V a; input V b; output Boolean r; \
+         algorithm r := a.x * a.x + a.y * a.y < b.x * b.x + b.y * b.y; end '<'; end V; ";
+
+    let m = parse_model(&format!(
+        "{V} model M V p; V q; Boolean less; \
+         equation p = V(1, 2); q = V(1, 1) + V(2, 2); less = V(1, 0) < V(3, 0); end M;"
+    ))
+    .unwrap();
+    let value = |name: &str| {
+        let equation = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+            .unwrap_or_else(|| panic!("no equation for {name}"));
+        super::const_eval(&equation.rhs, &std::collections::HashMap::new())
+            .unwrap_or_else(|| panic!("{name} is not a number: {:?}", equation.rhs))
+    };
+    // The constructor doubled each field.
+    assert_eq!((value("p.x"), value("p.y")), (2.0, 4.0));
+    // V(1,1) + V(2,2), each doubled first, is (2+4, 2+4).
+    assert_eq!((value("q.x"), value("q.y")), (6.0, 6.0));
+    // |(1,0)| < |(3,0)| is true.
+    assert_eq!(value("less"), 1.0);
+
+    // The comparison the other way is false.
+    let m = parse_model(&format!(
+        "{V} model M Boolean less; equation less = V(3, 0) < V(1, 0); end M;"
+    ))
+    .unwrap();
+    let less = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"less\")")
+        .unwrap();
+    assert_eq!(
+        super::const_eval(&less.rhs, &std::collections::HashMap::new()),
+        Some(0.0)
+    );
+}

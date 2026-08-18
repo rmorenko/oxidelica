@@ -586,6 +586,26 @@ pub(super) fn inline_function_outputs(
                     .collect::<Result<Vec<_>, String>>()?;
                 return Ok((name.clone(), Expr::Array(items)));
             }
+            // A record-typed output built up field by field - `v.x :=`,
+            // `v.y :=`, as an operator record's constructor does - is
+            // gathered into the record value its fields make.
+            if let Some(record) = lookup(registry, &output.type_name, &class.name, &class.imports)
+                .filter(|c| c.kind == ClassKind::Record)
+            {
+                let fields = record_fields(record)
+                    .into_iter()
+                    .map(|field| {
+                        let member = format!("{name}.{field}");
+                        bindings.get(&member).cloned().ok_or_else(|| {
+                            format!(
+                                "function `{}` never assigns `{member}` of its output",
+                                class.name
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                return Ok((name.clone(), Expr::Array(fields)));
+            }
             Err(format!(
                 "function `{}` never assigns its output `{name}`",
                 class.name
