@@ -24,7 +24,7 @@ under a chapter works as specified for the subset this project covers.
 | 16  | Synchronous language elements | Partial |
 | 17  | State machines                | Partial |
 | 18  | Annotations                   | Partial |
-| 19  | Unit expressions              | Partial |
+| 19  | Unit expressions              | Full    |
 
 ## What works
 
@@ -95,15 +95,23 @@ contradictions between declarations: a variable with no unit, a call
 the checker does not know, or a unit spelled in a symbol outside its
 table all pass unexamined, and everything is still carried as a
 floating-point number at runtime. `nominal`, `quantity` and `stateSelect`
-are parsed and ignored; unit scale factors are ignored too (`g` and
-`kg` are the same dimension, `displayUnit` does nothing); numeric
-literals never carry units, so `x = 5` is accepted whatever `x` is
-declared in. `min` and `max` are the assertions the specification says
+are parsed and ignored; numeric literals never carry units, so `x = 5`
+is accepted whatever `x` is declared in. `min` and `max` are the assertions the specification says
 they are: a value settled before the run is refused by the checker,
 and one the run produces stops it where it left the bounds. An
 `Integer` is refused a value that works out to a fraction, in a
 binding, a `start` or an assignment - though `Integer i = 3.0` passes,
 since a whole number spelled with a point contradicts nothing.
+
+**Unit expressions** (ch. 19) follow the grammar in full: the SI base
+and derived units with every prefix, the non-SI units the chapter names
+(`min`, `h`, `d`, `l`/`L`, `eV`, `deg`, `bar`), a single division with
+a parenthesised compound denominator, and rational exponents written
+`m(1/2)`, which the dimensions are kept as fractions to hold exactly -
+so `sqrt` of a length is `m(1/2)` and squaring it gives the length
+back. The one thing dropped is the scale factor, on purpose: `g` and
+`kg` are the same dimension and `displayUnit` does nothing, which is
+exactly right for checking consistency and says nothing about a value.
 
 **Strings** are worked out at the end of flattening and take no part
 in a run: the arrays a step works on hold numbers. A `String` constant

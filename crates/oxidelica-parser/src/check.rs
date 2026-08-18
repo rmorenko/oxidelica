@@ -480,32 +480,85 @@ const BASE_NAMES: [&str; BASES] = ["m", "kg", "s", "A", "K", "mol", "cd"];
 
 /// Exponents over the base dimensions; scale factors are irrelevant
 /// for consistency, so `g` and `kg` are the same dimension.
+///
+/// The exponents are rational, not whole: the grammar writes `m(1/2)`,
+/// and the square root of an odd power lands there too. One shared
+/// denominator across the bases is enough, and keeping it reduced makes
+/// two equal dimensions equal field by field, which is what the derived
+/// `Eq` needs.
 #[derive(Clone, Copy, PartialEq, Eq)]
-struct Dim([i32; BASES]);
+struct Dim {
+    powers: [i32; BASES],
+    denominator: i32,
+}
 
 impl Dim {
-    const ONE: Dim = Dim([0; BASES]);
+    const ONE: Dim = Dim {
+        powers: [0; BASES],
+        denominator: 1,
+    };
 
-    fn combine(self, other: Dim, sign: i32) -> Dim {
-        let mut out = self.0;
-        for (slot, value) in out.iter_mut().zip(other.0) {
-            *slot += sign * value;
+    /// Whole-number exponents, the common case: base and derived units.
+    fn of(powers: [i32; BASES]) -> Dim {
+        Dim {
+            powers,
+            denominator: 1,
         }
-        Dim(out)
     }
 
-    /// `m2.kg.s-3.A-1` - the canonical spelling for error messages.
+    /// Reduce to the canonical form: a positive denominator, and no
+    /// factor shared by it and every power.
+    fn reduced(mut powers: [i32; BASES], mut denominator: i32) -> Dim {
+        if denominator < 0 {
+            denominator = -denominator;
+            powers = powers.map(|power| -power);
+        }
+        let mut divisor = denominator;
+        for &power in &powers {
+            divisor = gcd(divisor, power);
+        }
+        if divisor == 0 {
+            divisor = 1;
+        }
+        Dim {
+            powers: powers.map(|power| power / divisor),
+            denominator: denominator / divisor,
+        }
+    }
+
+    /// Multiply every exponent by the rational `n / d`: a power, a root,
+    /// or the sign of a division.
+    fn scaled(self, n: i32, d: i32) -> Dim {
+        Dim::reduced(self.powers.map(|power| power * n), self.denominator * d)
+    }
+
+    /// `self` times `other^sign`, over a common denominator.
+    fn combine(self, other: Dim, sign: i32) -> Dim {
+        let denominator = lcm(self.denominator, other.denominator);
+        let mine = denominator / self.denominator;
+        let theirs = denominator / other.denominator;
+        let mut powers = [0; BASES];
+        for (index, slot) in powers.iter_mut().enumerate() {
+            *slot = self.powers[index] * mine + sign * other.powers[index] * theirs;
+        }
+        Dim::reduced(powers, denominator)
+    }
+
+    /// `m2.kg.s-3.A-1`, or `m(1/2)` where an exponent is not whole - the
+    /// canonical spelling for error messages.
     fn text(self) -> String {
         let parts: Vec<String> = self
-            .0
+            .powers
             .iter()
             .zip(BASE_NAMES)
             .filter(|(&power, _)| power != 0)
             .map(|(&power, name)| {
-                if power == 1 {
-                    name.to_string()
-                } else {
-                    format!("{name}{power}")
+                let divisor = gcd(power, self.denominator);
+                let (whole, over) = (power / divisor, self.denominator / divisor);
+                match (whole, over) {
+                    (1, 1) => name.to_string(),
+                    (_, 1) => format!("{name}{whole}"),
+                    _ => format!("{name}({whole}/{over})"),
                 }
             })
             .collect();
@@ -514,6 +567,24 @@ impl Dim {
         } else {
             parts.join(".")
         }
+    }
+}
+
+/// Greatest common divisor, for keeping a dimension reduced.
+fn gcd(a: i32, b: i32) -> i32 {
+    let (mut a, mut b) = (a.abs(), b.abs());
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
+}
+
+/// Least common multiple of two denominators, both positive.
+fn lcm(a: i32, b: i32) -> i32 {
+    if a == 0 || b == 0 {
+        1
+    } else {
+        a / gcd(a, b) * b
     }
 }
 
@@ -675,7 +746,7 @@ impl UnitLayer {
                 Units::Of(dim) => {
                     let mut seconds = [0; BASES];
                     seconds[2] = 1;
-                    Units::Of(dim.combine(Dim(seconds), -1))
+                    Units::Of(dim.combine(Dim::of(seconds), -1))
                 }
                 _ => Units::Any,
             }),
@@ -708,11 +779,11 @@ impl UnitLayer {
                 }
                 Ok(Units::Weak)
             }
+            // The square root halves every exponent, and a rational
+            // dimension holds a half exactly - `sqrt` of a length is
+            // `m(1/2)`, not "no information".
             "sqrt" => Ok(match one(self)? {
-                Units::Of(dim) if dim.0.iter().all(|power| power % 2 == 0) => {
-                    Units::Of(Dim(dim.0.map(|power| power / 2)))
-                }
-                Units::Of(_) => Units::Any,
+                Units::Of(dim) => Units::Of(dim.scaled(1, 2)),
                 other => other,
             }),
             "abs" | "pre" | "noEvent" | "floor" | "ceil" | "integer" => one(self),
@@ -756,9 +827,17 @@ impl UnitLayer {
         match base {
             Units::Of(dim) => {
                 if let Expr::Number(n) = exponent {
-                    let scaled = dim.0.map(|power| f64::from(power) * n);
-                    if scaled.iter().all(|power| power.fract() == 0.0) {
-                        return Ok(Units::Of(Dim(scaled.map(|power| power as i32))));
+                    // A whole power scales exactly; a fractional one
+                    // still does when it is a simple ratio, which the
+                    // rational dimension can now hold.
+                    if n.fract() == 0.0 {
+                        return Ok(Units::Of(dim.scaled(*n as i32, 1)));
+                    }
+                    for over in 2..=12 {
+                        let whole = n * f64::from(over);
+                        if whole.fract() == 0.0 {
+                            return Ok(Units::Of(dim.scaled(whole as i32, over)));
+                        }
                     }
                 }
                 Ok(Units::Any)
@@ -817,32 +896,52 @@ struct UnitReader {
 }
 
 impl UnitReader {
-    /// Factors joined by `.` and `/`, applied left to right.
+    /// `numerator [ "/" denominator ]`: one division at most, which is
+    /// what the grammar allows - `N.m/s/K` is not a unit, `N.m/(s.K)`
+    /// is. A denominator of several factors has to be parenthesised.
     fn expression(&mut self) -> Option<Dim> {
-        let mut dim = self.factor(1)?;
-        while let Some(&operator) = self.chars.get(self.at) {
-            let sign = match operator {
-                '.' => 1,
-                '/' => -1,
-                _ => return Some(dim),
-            };
+        let mut dim = self.numerator()?;
+        if self.chars.get(self.at) == Some(&'/') {
             self.at += 1;
-            dim = dim.combine(self.factor(sign)?, 1);
+            dim = dim.combine(self.denominator()?, -1);
         }
         Some(dim)
     }
 
-    /// One symbol with an optional exponent, or a parenthesised group.
-    fn factor(&mut self, sign: i32) -> Option<Dim> {
+    /// `"1" | factors | "(" expression ")"`.
+    fn numerator(&mut self) -> Option<Dim> {
         if self.chars.get(self.at) == Some(&'(') {
-            self.at += 1;
-            let inner = self.expression()?;
-            if self.chars.get(self.at) != Some(&')') {
-                return None;
-            }
-            self.at += 1;
-            return Some(Dim::ONE.combine(inner, sign));
+            return self.group();
         }
+        let mut dim = self.factor()?;
+        while self.chars.get(self.at) == Some(&'.') {
+            self.at += 1;
+            dim = dim.combine(self.factor()?, 1);
+        }
+        Some(dim)
+    }
+
+    /// `factor | "(" expression ")"`: a single factor, unless grouped.
+    fn denominator(&mut self) -> Option<Dim> {
+        if self.chars.get(self.at) == Some(&'(') {
+            return self.group();
+        }
+        self.factor()
+    }
+
+    /// `"(" expression ")"`.
+    fn group(&mut self) -> Option<Dim> {
+        self.at += 1;
+        let inner = self.expression()?;
+        if self.chars.get(self.at) != Some(&')') {
+            return None;
+        }
+        self.at += 1;
+        Some(inner)
+    }
+
+    /// One symbol with an optional exponent: `m`, `s-1`, `m(1/2)`.
+    fn factor(&mut self) -> Option<Dim> {
         let start = self.at;
         while self
             .chars
@@ -862,23 +961,62 @@ impl UnitReader {
             return None;
         }
         let base = symbol_dimensions(&symbol)?;
-        let mut exponent = 1;
-        let exponent_start = self.at;
-        if self
-            .chars
-            .get(self.at)
-            .is_some_and(|c| *c == '+' || *c == '-')
-        {
+        let (whole, over) = self.exponent()?;
+        Some(base.scaled(whole, over))
+    }
+
+    /// The exponent of a factor: absent (so `1/1`), a signed integer
+    /// (`m2`, `s-1`), or a signed rational in parentheses (`m(1/2)`).
+    fn exponent(&mut self) -> Option<(i32, i32)> {
+        let before = self.at;
+        let sign = match self.chars.get(self.at) {
+            Some('+') => {
+                self.at += 1;
+                1
+            }
+            Some('-') => {
+                self.at += 1;
+                -1
+            }
+            _ => 1,
+        };
+        if self.chars.get(self.at) == Some(&'(') {
             self.at += 1;
+            let numerator = self.unsigned()?;
+            if self.chars.get(self.at) != Some(&'/') {
+                return None;
+            }
+            self.at += 1;
+            let denominator = self.unsigned()?;
+            if denominator == 0 || self.chars.get(self.at) != Some(&')') {
+                return None;
+            }
+            self.at += 1;
+            return Some((sign * numerator, denominator));
         }
+        if let Some(whole) = self.unsigned() {
+            return Some((sign * whole, 1));
+        }
+        // A sign with no number behind it was never an exponent: leave
+        // it for whatever comes next to make sense of, or not.
+        self.at = before;
+        Some((1, 1))
+    }
+
+    /// A run of digits as a number, or `None` without consuming any.
+    fn unsigned(&mut self) -> Option<i32> {
+        let start = self.at;
         while self.chars.get(self.at).is_some_and(char::is_ascii_digit) {
             self.at += 1;
         }
-        if self.at > exponent_start {
-            let text: String = self.chars[exponent_start..self.at].iter().collect();
-            exponent = text.parse().ok()?;
+        if self.at == start {
+            return None;
         }
-        Some(Dim::ONE.combine(base, sign * exponent))
+        self.chars[start..self.at]
+            .iter()
+            .collect::<String>()
+            .parse()
+            .ok()
     }
 }
 
@@ -889,19 +1027,24 @@ fn symbol_dimensions(symbol: &str) -> Option<Dim> {
     }
     // A whole-symbol match wins over a prefix reading, so `cd` is the
     // candela and `min` the minute; `mm`, `kPa` and `MOhm` land here.
-    let prefixes: [&str; 17] = [
-        "da", "y", "z", "a", "f", "p", "n", "u", "µ", "m", "c", "d", "h", "k", "M", "G", "T",
+    // Every SI prefix is here, the two-letter `da` first so it is tried
+    // before `d`, and the reading is the first prefix that leaves a
+    // symbol behind - scale factors do not matter, only that the letter
+    // is a prefix at all.
+    let prefixes: [&str; 25] = [
+        "da", "Q", "R", "Y", "Z", "E", "P", "T", "G", "M", "k", "h", "d", "c", "m", "u", "µ", "n",
+        "p", "f", "a", "z", "y", "r", "q",
     ];
     prefixes
         .iter()
-        .find(|prefix| symbol.starts_with(**prefix))
-        .and_then(|prefix| bare_symbol(&symbol[prefix.len()..]))
+        .filter(|prefix| symbol.starts_with(**prefix))
+        .find_map(|prefix| bare_symbol(&symbol[prefix.len()..]))
 }
 
 /// The dimensions of an unprefixed symbol: SI base and derived units,
 /// with angles dimensionless and scale factors ignored.
 fn bare_symbol(symbol: &str) -> Option<Dim> {
-    let dim = |values: [i32; BASES]| Some(Dim(values));
+    let dim = |values: [i32; BASES]| Some(Dim::of(values));
     match symbol {
         "1" | "rad" | "sr" | "deg" | "%" => dim([0, 0, 0, 0, 0, 0, 0]),
         "m" => dim([1, 0, 0, 0, 0, 0, 0]),
@@ -1235,6 +1378,39 @@ mod tests {
         assert_eq!(dims("h"), dims("d"));
         assert_eq!(dims("%"), dims("sr"));
         assert_eq!(dims("N/(V.s+2)"), dims("N.V-1.s-2"));
+
+        // A rational exponent, which the grammar writes in parentheses.
+        // The half of a length is a half, kept exactly, so squaring it
+        // gives the length back.
+        assert_eq!(dims("m(1/2)"), Some("m(1/2)".to_string()));
+        assert_eq!(dims("m(2/2)"), dims("m"));
+        assert_eq!(dims("m(3/2)"), Some("m(3/2)".to_string()));
+        // The sign of a rational exponent sits before the parenthesis,
+        // as the grammar puts it, not inside.
+        assert_eq!(dims("s-(1/2)"), Some("s(-1/2)".to_string()));
+        assert_eq!(dims("s(-1/2)"), None);
+        assert_eq!(dims("m(2/4)"), dims("m(1/2)"));
+        assert_eq!(dims("m(1/3).m(2/3)"), dims("m"));
+        // A malformed rational is no information, not a wrong guess.
+        assert_eq!(dims("m(1/0)"), None);
+        assert_eq!(dims("m(1/)"), None);
+        assert_eq!(dims("m(/2)"), None);
+
+        // Every SI prefix is recognised, the large ones included, and a
+        // whole-symbol unit still wins over a prefix reading.
+        assert_eq!(dims("PW"), dims("W").map(|_| "m2.kg.s-3".to_string()));
+        assert_eq!(dims("EJ"), dims("J"));
+        assert_eq!(dims("YN"), dims("N"));
+        assert_eq!(dims("qs"), dims("s"));
+        assert_eq!(dims("Pa"), dims("bar")); // pascal, not peta-are
+        assert_eq!(dims("T"), dims("Wb/m2")); // tesla, not tera
+        assert_eq!(dims("min"), dims("s")); // minute, not milli-inch
+
+        // At most one `/`, and a compound denominator parenthesised -
+        // `W/m/K` is not a unit, `W/(m.K)` is the one that was meant.
+        assert_eq!(dims("W/m/K"), None);
+        assert_eq!(dims("W/(m.K)"), dims("W.m-1.K-1"));
+        assert_eq!(dims("J/(kg.K)"), dims("m2.s-2.K-1"));
     }
 
     #[test]
