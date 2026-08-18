@@ -19,7 +19,7 @@ impl Parser {
                 // `encapsulated` says the class may not see out of
                 // itself, which changes nothing here: every name is
                 // already resolved from where it was written.
-                Token::Final | Token::Encapsulated => {}
+                Token::Final | Token::Encapsulated | Token::Pure | Token::Impure => {}
                 Token::Operator => operator_class = true,
                 _ => break,
             }
@@ -44,7 +44,8 @@ impl Parser {
             ClassKind::Package
         } else {
             match self.bump() {
-                Token::Model | Token::Block => ClassKind::Model,
+                // `class` puts no restriction on what is inside it.
+                Token::Model | Token::Block | Token::Class => ClassKind::Model,
                 Token::Connector => ClassKind::Connector,
                 Token::Record => ClassKind::Record,
                 Token::Function => ClassKind::Function,
@@ -186,12 +187,9 @@ impl Parser {
                     in_equations = true;
                     in_initial = false;
                 }
-                // `initial` is not a keyword: `initial()` is a built-in
-                // of the event layer, so the section is recognized by
-                // the pair of tokens.
-                Token::Ident(word)
-                    if word == "initial" && self.peek_ahead(1) == &Token::Equation =>
-                {
+                // `initial` is both an operator and the head of a
+                // section; the token after it says which.
+                Token::Initial if self.peek_ahead(1) == &Token::Equation => {
                     self.bump();
                     self.bump();
                     in_equations = true;
@@ -219,14 +217,23 @@ impl Parser {
                 Token::Connect => {
                     connects.push(self.connect_clause()?);
                 }
-                Token::Protected => {
+                Token::Protected | Token::Public => {
                     self.bump();
+                }
+                // An implementation outside Modelica: better to say so
+                // than to fail somewhere further in.
+                Token::External => {
+                    return Err(self.err(
+                        "`external` is not supported: a function must have a Modelica body"
+                            .to_string(),
+                    ))
                 }
                 Token::Import => {
                     imports.extend(self.import_clause()?);
                 }
                 Token::Model
                 | Token::Block
+                | Token::Class
                 | Token::Connector
                 | Token::Record
                 | Token::Function
@@ -235,7 +242,9 @@ impl Parser {
                 | Token::Partial
                 | Token::Expandable
                 | Token::Operator
-                | Token::Encapsulated => match self.class_def()? {
+                | Token::Encapsulated
+                | Token::Pure
+                | Token::Impure => match self.class_def()? {
                     ClassItem::Class(class) => nested.push(*class),
                     ClassItem::Alias(alias) => class_aliases.push(alias),
                 },
@@ -246,6 +255,7 @@ impl Parser {
                         self.peek_ahead(1),
                         Token::Model
                             | Token::Block
+                            | Token::Class
                             | Token::Connector
                             | Token::Record
                             | Token::Function
@@ -255,6 +265,8 @@ impl Parser {
                             | Token::Expandable
                             | Token::Operator
                             | Token::Encapsulated
+                            | Token::Pure
+                            | Token::Impure
                     ) =>
                 {
                     match self.class_def()? {

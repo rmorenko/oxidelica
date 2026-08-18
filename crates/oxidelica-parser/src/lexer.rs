@@ -116,6 +116,20 @@ pub enum Token {
     Final,
     /// Keyword `each` — applies a modifier to every array element.
     Each,
+    /// Keyword `class` — a class with no restriction of its own.
+    Class,
+    /// Keyword `der` — the derivative operator.
+    Der,
+    /// Keyword `initial` — the operator, and the `initial equation` section.
+    Initial,
+    /// Keyword `public` — a visibility section (parsed, not enforced).
+    Public,
+    /// Keyword `external` — an implementation outside Modelica.
+    External,
+    /// Keyword `pure` — a function without state (parsed, ignored).
+    Pure,
+    /// Keyword `impure` — a function with state (parsed, ignored).
+    Impure,
     /// `(`
     LParen,
     /// `)`
@@ -234,6 +248,13 @@ impl fmt::Display for Token {
             Token::Enumeration => write!(f, "enumeration"),
             Token::Final => write!(f, "final"),
             Token::Each => write!(f, "each"),
+            Token::Class => write!(f, "class"),
+            Token::Der => write!(f, "der"),
+            Token::Initial => write!(f, "initial"),
+            Token::Public => write!(f, "public"),
+            Token::External => write!(f, "external"),
+            Token::Pure => write!(f, "pure"),
+            Token::Impure => write!(f, "impure"),
             Token::LParen => write!(f, "("),
             Token::RParen => write!(f, ")"),
             Token::Semi => write!(f, ";"),
@@ -541,6 +562,13 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "enumeration" => Token::Enumeration,
                     "final" => Token::Final,
                     "each" => Token::Each,
+                    "class" => Token::Class,
+                    "der" => Token::Der,
+                    "initial" => Token::Initial,
+                    "public" => Token::Public,
+                    "external" => Token::External,
+                    "pure" => Token::Pure,
+                    "impure" => Token::Impure,
                     _ => Token::Ident(word),
                 };
                 out.push(Spanned { token, line });

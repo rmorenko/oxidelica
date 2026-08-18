@@ -2575,3 +2575,58 @@ fn a_string_travels_through_every_shape_of_expression() {
         assert!(all.contains(kept), "`{kept}` did not survive: {all}");
     }
 }
+
+#[test]
+fn the_reserved_words_are_reserved() {
+    // Chapter 2 lists them, so none of them may name anything - and
+    // `der` and `initial` still have to work as the operators they are,
+    // which is why they were identifiers here for so long.
+    for word in [
+        "class", "der", "external", "impure", "initial", "public", "pure",
+    ] {
+        let error = parse_model(&format!(
+            "model M Real {word}; Real y; equation y = 1; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ))
+        .expect_err("a reserved word cannot name a component")
+        .message;
+        assert!(error.contains(word), "{word}: {error}");
+    }
+
+    // Each of them in the place it belongs.
+    let ok = |source: &str| assert!(parse_model(source).is_ok(), "{source}");
+    ok("class M Real x; equation x = 1; \
+        annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    ok("model M public Real x; equation x = 1; \
+        annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    ok(
+        "model M Real x(start = 1, fixed = true); equation der(x) = -x; \
+        annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    ok(
+        "model M Real x; discrete Real k(start = 0); equation x = k; \
+        when initial() then k = 5; end when; \
+        annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    ok("model M Real x(start = 0); equation der(x) = 1 - x; \
+        initial equation der(x) = 0; \
+        annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    for prefix in ["pure", "impure"] {
+        ok(&format!(
+            "model M {prefix} function twice input Real a; output Real b; \
+             algorithm b := 2 * a; end twice; Real y; equation y = twice(3); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ));
+    }
+
+    // `external` is a word this compiler knows and cannot honour, so it
+    // says which rather than failing further in.
+    let error = parse_model(
+        "model M function f input Real a; output Real b; external \"C\"; end f; \
+         Real y; equation y = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect_err("no external bodies")
+    .message;
+    assert!(error.contains("must have a Modelica body"), "{error}");
+}

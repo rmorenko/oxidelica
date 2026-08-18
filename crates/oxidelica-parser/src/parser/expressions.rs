@@ -266,6 +266,33 @@ impl Parser {
                 }
                 Ok(Expr::MatrixRows(rows))
             }
+            // `der` and `initial` are reserved words, and they are also
+            // the operators they name. Reserving them stops a model
+            // calling a variable `der`; being able to write `der(x)` is
+            // the whole point of the word, so they take the call path
+            // an ordinary name would.
+            Token::Der | Token::Initial => {
+                let name = self.bump().to_string();
+                self.expect(&Token::LParen, "`(` after the operator")?;
+                let mut args = Vec::new();
+                if self.peek() == &Token::RParen {
+                    self.bump();
+                } else {
+                    loop {
+                        args.push(self.expr()?);
+                        match self.bump() {
+                            Token::Comma => continue,
+                            Token::RParen => break,
+                            other => {
+                                return Err(self.err(format!(
+                                    "expected `,` or `)` in `{name}(...)`, found `{other}`"
+                                )))
+                            }
+                        }
+                    }
+                }
+                Ok(Expr::Call(name, args))
+            }
             Token::Ident(name) => {
                 self.bump();
                 if name == "time" {
