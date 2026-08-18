@@ -38,7 +38,9 @@ inside `for` loops and between whole connector arrays; DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
 `noEvent`, `smooth`), event iteration; `initial equation`; runtime
-`assert` with its message; algorithm
+`assert` with its message; functions with several outputs
+(`(a, , c) = f(...)` in equations and algorithms), named and defaulted
+call arguments (`f(x, precision = 6)`); algorithm
 sections in models and functions with `:=`, `if`, `for`; arrays as
 values (literals, ranges, slicing with `end`, comprehensions,
 elementwise operators, matrix algebra with `transpose`, `identity`,
@@ -64,11 +66,11 @@ never carry units, so `x = 5` is accepted whatever `x` is declared in.
 `outerProduct`/`symmetric`/`skew`, no Boolean or enumeration
 indexing. Dimensions must be compile-time constants.
 
-**Functions** (ch. 12): exactly one output — no tuple results, no named
-or defaulted call arguments, no recursion, no `while`/`break`/`return`,
-no external C/Fortran, no `derivative`/`inverse` annotations, no
-functions as arguments, no record constructors. Functions are inlined
-symbolically, which is also what rules recursion out.
+**Functions** (ch. 12): no recursion, no `while`/`break`/`return`, no
+external C/Fortran, no `derivative`/`inverse` annotations, no functions
+as arguments, no record constructors. Functions are inlined
+symbolically, which is also what rules recursion out — and a skipped
+tuple slot still costs the work of computing that output's expression.
 
 **Whole chapters absent**: overloaded operators (14), stream connectors
 (15), synchronous clocked constructs (16) — note that `sample()` events

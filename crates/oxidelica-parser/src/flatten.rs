@@ -560,6 +560,47 @@ fn instantiate(
     };
     let no_loop_vars = HashMap::new();
     for equation in &class.equations {
+        // `(a, , c) = f(...)`: one call fills several targets. The
+        // call is inlined once per output; a skipped slot costs its
+        // computation nothing, since the expression is never used.
+        if let Expr::Tuple(targets) = &equation.lhs {
+            let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports);
+            let rhs = prefix_expr(&rhs, prefix, &outers);
+            let Expr::Call(name, raw_args) = &rhs else {
+                return Err("the right side of a tuple equation must be a function call".into());
+            };
+            let function = lookup(registry, name, scope, &imports)
+                .filter(|c| c.kind == ClassKind::Function)
+                .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
+            let shapes = Shapes {
+                sizes: &sizes_here,
+                loop_vars: &no_loop_vars,
+                consts: &local_consts,
+            };
+            let arguments = raw_args
+                .iter()
+                .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
+                .collect::<Result<Vec<_>, String>>()?;
+            let outputs =
+                inline_function_outputs(function, &arguments, &local_consts, registry, 0)?;
+            if targets.len() > outputs.len() {
+                return Err(format!(
+                    "`{name}` has {} output(s) for {} target(s)",
+                    outputs.len(),
+                    targets.len()
+                ));
+            }
+            for (slot, (_, value)) in targets.iter().zip(outputs) {
+                let Some(target) = slot else { continue };
+                // The target goes through the usual pipeline; the
+                // inlined value is already resolved and only needs the
+                // array layer, or a second prefix would corrupt it.
+                let lhs = expand_here(target, &no_loop_vars)?;
+                let rhs = expand(&value, &shapes, registry, scope, &imports, 0)?;
+                push_equations(&lhs, &rhs, acc)?;
+            }
+            continue;
+        }
         let lhs = expand_here(&equation.lhs, &no_loop_vars)?;
         let rhs = expand_here(&equation.rhs, &no_loop_vars)?;
         push_equations(&lhs, &rhs, acc)?;
@@ -1331,6 +1372,14 @@ fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> E
         ),
         Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        // The keyword names an input of the function, not a component.
+        Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value))),
+        Expr::Tuple(targets) => Expr::Tuple(
+            targets
+                .iter()
+                .map(|slot| slot.as_ref().map(recur))
+                .collect(),
+        ),
     }
 }
 
@@ -1457,6 +1506,15 @@ fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
                 .collect(),
         ),
         Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
+        Expr::NamedArg(keyword, value) => {
+            Expr::NamedArg(keyword.clone(), Box::new(substitute_refs(value, map)))
+        }
+        Expr::Tuple(targets) => Expr::Tuple(
+            targets
+                .iter()
+                .map(|slot| slot.as_ref().map(|target| substitute_refs(target, map)))
+                .collect(),
+        ),
     }
 }
 
@@ -1559,6 +1617,13 @@ fn substitute_class_constants(
                 .collect(),
         ),
         Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
+        Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value))),
+        Expr::Tuple(targets) => Expr::Tuple(
+            targets
+                .iter()
+                .map(|slot| slot.as_ref().map(recur))
+                .collect(),
+        ),
     }
 }
 
@@ -1696,6 +1761,11 @@ fn resolve(
                 // generation and continuity; the value is the argument.
                 _ if name == "noEvent" && args.len() == 1 => args[0].clone(),
                 _ if name == "smooth" && args.len() == 2 => args[1].clone(),
+                _ if args.iter().any(|a| matches!(a, Expr::NamedArg(_, _))) => {
+                    return Err(format!(
+                        "`{name}` is not a function, so it cannot take named arguments"
+                    ))
+                }
                 _ => Expr::Call(name.clone(), args),
             }
         }
@@ -1727,6 +1797,10 @@ fn resolve(
             return Err("`:` and `end` make sense only inside a subscript".to_string())
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
+        Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value)?)),
+        Expr::Tuple(_) => {
+            return Err("a tuple may only stand on the left of `=` or `:=`".to_string())
+        }
     })
 }
 
@@ -1800,6 +1874,49 @@ fn execute(
                     assigned.push(target.clone());
                 }
                 bindings.insert(target, value);
+            }
+            Statement::TupleAssign(targets, value) => {
+                let value = substitute_refs(value, bindings);
+                let Expr::Call(name, raw_args) = &value else {
+                    return Err(
+                        "the right side of a tuple assignment must be a function call".into(),
+                    );
+                };
+                let function = lookup(registry, name, scope, imports)
+                    .filter(|c| c.kind == ClassKind::Function)
+                    .ok_or_else(|| {
+                        format!("`{name}` is not a function, so it cannot fill a tuple")
+                    })?;
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
+                    sizes,
+                    loop_vars: &no_loop_vars,
+                    consts,
+                };
+                let arguments = raw_args
+                    .iter()
+                    .map(|arg| {
+                        let arg =
+                            expand(arg, &shapes, registry, scope, imports, depth + 1)?.into_expr();
+                        Ok(substitute_refs(&arg, bindings))
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                let outputs =
+                    inline_function_outputs(function, &arguments, consts, registry, depth + 1)?;
+                if targets.len() > outputs.len() {
+                    return Err(format!(
+                        "`{name}` has {} output(s) for {} target(s)",
+                        outputs.len(),
+                        targets.len()
+                    ));
+                }
+                for (slot, (_, output)) in targets.iter().zip(outputs) {
+                    let Some(target) = slot else { continue };
+                    if !assigned.contains(target) {
+                        assigned.push(target.clone());
+                    }
+                    bindings.insert(target.clone(), output);
+                }
             }
             Statement::If(branches) => {
                 let before = bindings.clone();
@@ -2813,6 +2930,9 @@ fn expand_call(
 /// Inline a function call: arguments are bound to the inputs, the
 /// algorithm's assignments are substituted in order, and the output
 /// expression replaces the call.
+/// Inline a call in an expression: the value is the first output. A
+/// function with several outputs may still be called this way; the
+/// rest are computed for nothing and dropped, as the spec allows.
 fn inline_function(
     class: &ClassDef,
     args: &[Expr],
@@ -2820,6 +2940,21 @@ fn inline_function(
     registry: &HashMap<&str, &ClassDef>,
     depth: usize,
 ) -> Result<Expr, String> {
+    let mut outputs = inline_function_outputs(class, args, consts, registry, depth)?;
+    Ok(outputs.remove(0).1)
+}
+
+/// Execute a function body symbolically and return every output, in
+/// declaration order, as `(name, expression)`. Arguments are matched
+/// positionally, then by name (`f(x, precision = 6)`); an input left
+/// unmatched falls back to its declared default.
+fn inline_function_outputs(
+    class: &ClassDef,
+    args: &[Expr],
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    depth: usize,
+) -> Result<Vec<(String, Expr)>, String> {
     if depth > MAX_DEPTH {
         return Err(format!("recursive function `{}`", class.name));
     }
@@ -2833,26 +2968,58 @@ fn inline_function(
         .iter()
         .filter(|c| c.causality == Causality::Output)
         .collect();
-    if outputs.len() != 1 {
-        return Err(format!(
-            "function `{}` must declare exactly one output, found {}",
-            class.name,
-            outputs.len()
-        ));
+    if outputs.is_empty() {
+        return Err(format!("function `{}` declares no output", class.name));
     }
-    if args.len() != inputs.len() {
-        return Err(format!(
-            "function `{}` expects {} argument(s), got {}",
-            class.name,
-            inputs.len(),
-            args.len()
-        ));
+    let mut bindings: HashMap<String, Expr> = HashMap::new();
+    let mut position = 0;
+    for arg in args {
+        if let Expr::NamedArg(name, value) = arg {
+            if !inputs.iter().any(|input| &input.name == name) {
+                return Err(format!(
+                    "function `{}` has no input named `{name}`",
+                    class.name
+                ));
+            }
+            if bindings.insert(name.clone(), (**value).clone()).is_some() {
+                return Err(format!(
+                    "argument `{name}` of function `{}` is given twice",
+                    class.name
+                ));
+            }
+        } else {
+            if bindings.len() > position {
+                return Err(format!(
+                    "function `{}`: positional arguments must come before named ones",
+                    class.name
+                ));
+            }
+            let Some(input) = inputs.get(position) else {
+                return Err(format!(
+                    "function `{}` expects {} argument(s), got more",
+                    class.name,
+                    inputs.len()
+                ));
+            };
+            bindings.insert(input.name.clone(), arg.clone());
+            position += 1;
+        }
     }
-    let mut bindings: HashMap<String, Expr> = inputs
-        .iter()
-        .map(|c| c.name.clone())
-        .zip(args.iter().cloned())
-        .collect();
+    // Whatever the call left unsaid falls back to the input's own
+    // default. Defaults may name earlier inputs, so they are resolved
+    // against what is already bound.
+    for input in &inputs {
+        if !bindings.contains_key(&input.name) {
+            let Some(default) = &input.binding else {
+                return Err(format!(
+                    "function `{}` is missing its argument `{}`",
+                    class.name, input.name
+                ));
+            };
+            let default = substitute_refs(default, &bindings);
+            bindings.insert(input.name.clone(), default);
+        }
+    }
     for component in &class.components {
         if component.causality == Causality::None {
             if let Some(binding) = &component.binding {
@@ -2874,31 +3041,37 @@ fn inline_function(
         &class.imports,
         depth + 1,
     )?;
-    let output = &outputs[0].name;
-    // A whole-array assignment bound the name itself; per-element
-    // assignments bound `c[1]`, `c[2]`, ... - gather them in order.
-    if let Some(expr) = bindings.get(output) {
-        return Ok(expr.clone());
-    }
-    if let Some(dimensions) = sizes.get(output) {
-        let items = index_tuples(dimensions)
-            .into_iter()
-            .map(|indices| {
-                let element = element_name(output, &indices);
-                bindings.get(&element).cloned().ok_or_else(|| {
-                    format!(
-                        "function `{}` never assigns `{element}` of its output",
-                        class.name
-                    )
-                })
-            })
-            .collect::<Result<Vec<_>, String>>()?;
-        return Ok(Expr::Array(items));
-    }
-    Err(format!(
-        "function `{}` never assigns its output `{output}`",
-        class.name
-    ))
+    outputs
+        .iter()
+        .map(|output| {
+            let name = &output.name;
+            // A whole-array assignment bound the name itself;
+            // per-element assignments bound `c[1]`, `c[2]`, ... -
+            // gather them in order.
+            if let Some(expr) = bindings.get(name) {
+                return Ok((name.clone(), expr.clone()));
+            }
+            if let Some(dimensions) = sizes.get(name) {
+                let items = index_tuples(dimensions)
+                    .into_iter()
+                    .map(|indices| {
+                        let element = element_name(name, &indices);
+                        bindings.get(&element).cloned().ok_or_else(|| {
+                            format!(
+                                "function `{}` never assigns `{element}` of its output",
+                                class.name
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, String>>()?;
+                return Ok((name.clone(), Expr::Array(items)));
+            }
+            Err(format!(
+                "function `{}` never assigns its output `{name}`",
+                class.name
+            ))
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -3081,12 +3254,110 @@ mod tests {
         .contains("expects 1 argument"));
         assert!(err("function f input Real a; algorithm a := 1; end f;\
              model M Real y; equation y = f(1); end M;")
-        .contains("exactly one output"));
+        .contains("declares no output"));
+        // Every output must be assigned, even one the caller ignores.
         assert!(err(
             "function f input Real a; output Real b; output Real c; algorithm b := a; end f;\
              model M Real y; equation y = f(1); end M;"
         )
-        .contains("exactly one output"));
+        .contains("never assigns its output `c`"));
+    }
+
+    #[test]
+    fn a_function_fills_a_tuple_of_targets() {
+        const TWO: &str = "function two input Real a; output Real b; output Real c; \
+             algorithm b := a + 1; c := a + 2; end two;";
+
+        // Both outputs of one call, in one equation each.
+        let m = parse_model(&format!(
+            "{TWO} model M Real p; Real q; equation (p, q) = two(3); end M;"
+        ))
+        .unwrap();
+        assert_eq!(m.equations.len(), 2);
+        let text = format!("{:?}", m.equations);
+        assert!(
+            !text.contains("Call(\"two\""),
+            "the call must inline: {text}"
+        );
+
+        // A skipped slot drops that output on the floor.
+        let m = parse_model(&format!(
+            "{TWO} model M Real q; equation (, q) = two(3); end M;"
+        ))
+        .unwrap();
+        assert_eq!(m.equations.len(), 1);
+        assert_eq!(format!("{:?}", m.equations[0].lhs), "Ref(\"q\")");
+
+        // An expression context quietly takes the first output.
+        let m = parse_model(&format!(
+            "{TWO} model M Real y; equation y = two(3) * 10; end M;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", m.equations[0].rhs);
+        assert!(text.contains("1.0"), "b = a + 1 is the value: {text}");
+        assert!(!text.contains("2.0"), "c must not leak: {text}");
+
+        // The same tuple inside an algorithm.
+        let m = parse_model(&format!(
+            "{TWO} model M Real p; Real q; algorithm (p, q) := two(3); end M;"
+        ))
+        .unwrap();
+        assert_eq!(m.equations.len(), 2);
+
+        // A parenthesised left side is still an ordinary equation.
+        let m =
+            parse_model("model M Real x; Real y; equation (x) = 2 * y; y = time; end M;").unwrap();
+        assert_eq!(m.equations.len(), 2);
+    }
+
+    #[test]
+    fn named_arguments_and_defaults_fill_the_inputs() {
+        const LINE: &str = "function line input Real x; input Real k = 2; input Real b = 10; \
+             output Real y; algorithm y := k * x + b; end line;";
+
+        // A named argument out of order; the untouched input defaults.
+        let m = parse_model(&format!(
+            "{LINE} model M Real y; equation y = line(5, b = 1); end M;"
+        ))
+        .unwrap();
+        let text = format!("{:?}", m.equations[0].rhs);
+        assert!(text.contains("2.0") && text.contains("5.0") && text.contains("1.0"));
+        assert!(
+            !text.contains("10.0"),
+            "the default for b must lose: {text}"
+        );
+
+        // A default may lean on an earlier input.
+        let m = parse_model(
+            "function f input Real a; input Real half = a / 2; output Real y; \
+             algorithm y := half; end f; \
+             model M Real y; equation y = f(8); end M;",
+        )
+        .unwrap();
+        assert!(format!("{:?}", m.equations[0].rhs).contains("8.0"));
+
+        // The whole family of mistakes, each named.
+        let err = |source: &str| parse_model(source).unwrap_err().to_string();
+        let bad = |call: &str| {
+            err(&format!(
+                "{LINE} model M Real y; equation y = {call}; end M;"
+            ))
+        };
+        assert!(bad("line(5, q = 1)").contains("no input named"));
+        assert!(bad("line(5, x = 1)").contains("given twice"));
+        assert!(bad("line(k = 2, 5)").contains("positional arguments must come before"));
+        assert!(bad("line()").contains("missing its argument `x`"));
+        assert!(err("model M Real y; equation y = sin(x = 1); end M;")
+            .contains("cannot take named arguments"));
+        assert!(err("model M Real p; Real q; equation (p, q) = 5; end M;")
+            .contains("must be a function call"));
+        assert!(err("model M Real p; Real q; algorithm (p, q) := 5; end M;")
+            .contains("must be a function call"));
+        assert!(err(
+            "function f input Real a; output Real b; algorithm b := a; end f;\
+             model M Real p; Real q; equation (p, q) = f(1); end M;"
+        )
+        .contains("1 output(s) for 2 target(s)"));
     }
 
     #[test]

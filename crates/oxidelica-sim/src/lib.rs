@@ -815,7 +815,9 @@ impl EventRewrite<'_> {
             | Expr::Comprehension(_, _, _)
             | Expr::ColonSubscript
             | Expr::EndSubscript
-            | Expr::MatrixRows(_) => {
+            | Expr::MatrixRows(_)
+            | Expr::NamedArg(_, _)
+            | Expr::Tuple(_) => {
                 return err("subscripts and arrays survive flattening only as scalars".to_string())
             }
             Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
@@ -1895,6 +1897,8 @@ fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
         | Expr::ColonSubscript
         | Expr::EndSubscript
         | Expr::MatrixRows(_)
+        | Expr::NamedArg(_, _)
+        | Expr::Tuple(_)
         | Expr::Number(_)
         | Expr::Bool(_)
         | Expr::Ref(_)
@@ -1968,7 +1972,9 @@ fn simplify(expr: &Expr) -> Expr {
         | Expr::Comprehension(_, _, _)
         | Expr::ColonSubscript
         | Expr::EndSubscript
-        | Expr::MatrixRows(_) => expr.clone(),
+        | Expr::MatrixRows(_)
+        | Expr::NamedArg(_, _)
+        | Expr::Tuple(_) => expr.clone(),
     }
 }
 
@@ -2014,7 +2020,9 @@ fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
         | Expr::Comprehension(_, _, _)
         | Expr::ColonSubscript
         | Expr::EndSubscript
-        | Expr::MatrixRows(_) => expr.clone(),
+        | Expr::MatrixRows(_)
+        | Expr::NamedArg(_, _)
+        | Expr::Tuple(_) => expr.clone(),
     }
 }
 
@@ -2440,7 +2448,9 @@ impl SlotTable {
             | Expr::Comprehension(_, _, _)
             | Expr::ColonSubscript
             | Expr::EndSubscript
-            | Expr::MatrixRows(_) => {
+            | Expr::MatrixRows(_)
+            | Expr::NamedArg(_, _)
+            | Expr::Tuple(_) => {
                 return err("subscripts and arrays survive flattening only as scalars".to_string())
             }
         })
@@ -2699,7 +2709,9 @@ fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
         | Expr::Comprehension(_, _, _)
         | Expr::ColonSubscript
         | Expr::EndSubscript
-        | Expr::MatrixRows(_) => return err("an array reached the evaluator".to_string()),
+        | Expr::MatrixRows(_)
+        | Expr::NamedArg(_, _)
+        | Expr::Tuple(_) => return err("an array reached the evaluator".to_string()),
     })
 }
 
@@ -5507,6 +5519,39 @@ mod tests {
         let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
         let source = std::fs::read_to_string(root.join("examples").join(name)).unwrap();
         oxidelica_parser::parse_model_with_libraries(&[library], &source).unwrap()
+    }
+
+    #[test]
+    fn the_flight_plan_and_the_flown_trajectory_agree() {
+        // `(planned_range, planned_duration) = flight(v0, angle)` fills
+        // both targets from one call, with gravity defaulted inside the
+        // function; the integrated throw must land where it says.
+        let result = compile(&with_library("ballistic_range.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let last = result.rows.last().unwrap();
+
+        let (v0, angle, g) = (12.0f64, 0.6f64, 9.81);
+        let range = v0 * v0 * (2.0 * angle).sin() / g;
+        let duration = 2.0 * v0 * angle.sin() / g;
+        // The planned values are constants over the whole run.
+        assert!((result.rows[0][index("planned_range")] - range).abs() < 1e-12);
+        assert!((last[index("planned_range")] - range).abs() < 1e-12);
+        assert!((last[index("planned_duration")] - duration).abs() < 1e-12);
+        // The run stops within a hair of the planned landing, so the
+        // ball is at the planned range and back on the ground.
+        assert!(
+            (last[index("x")] - range).abs() < 1e-3,
+            "landed at {} instead of {range}",
+            last[index("x")]
+        );
+        assert!(
+            last[index("y")].abs() < 1e-2,
+            "still {} up",
+            last[index("y")]
+        );
     }
 
     #[test]

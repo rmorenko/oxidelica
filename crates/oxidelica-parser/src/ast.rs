@@ -145,6 +145,9 @@ pub enum Statement {
     /// `target := value;` — the subscripts are empty for a plain
     /// target, and hold the indices of `c[i] := value;`.
     Assign(String, Vec<Expr>, Expr),
+    /// `(a, , c) := f(...);` — one function call fills several
+    /// targets, `None` where an output is skipped.
+    TupleAssign(Vec<Option<String>>, Expr),
     /// `if c then … elseif … else … end if;`
     If(Vec<StatementBranch>),
     /// `for i in lo:hi loop … end for;`
@@ -428,6 +431,12 @@ pub enum Expr {
     /// `[a, b; c, d]` - rows of a matrix, elements within a row
     /// concatenated along the second dimension, rows along the first.
     MatrixRows(Vec<Vec<Expr>>),
+    /// `gain = 2` inside a call's argument list; matched against the
+    /// function's inputs by name when the call is inlined.
+    NamedArg(String, Box<Expr>),
+    /// `(a, , c)` on the left of an equation: targets for a function
+    /// with several outputs, `None` where one is skipped.
+    Tuple(Vec<Option<Expr>>),
 }
 
 impl Expr {
@@ -466,6 +475,8 @@ impl Expr {
             Expr::Comprehension(body, _, range) => body.contains_der() || range.contains_der(),
             Expr::ColonSubscript | Expr::EndSubscript => false,
             Expr::MatrixRows(rows) => rows.iter().any(|row| row.iter().any(Expr::contains_der)),
+            Expr::NamedArg(_, value) => value.contains_der(),
+            Expr::Tuple(targets) => targets.iter().flatten().any(Expr::contains_der),
             _ => false,
         }
     }
@@ -510,6 +521,11 @@ impl Expr {
             Expr::MatrixRows(rows) => rows
                 .iter()
                 .for_each(|row| row.iter().for_each(|item| item.collect_refs(out))),
+            Expr::NamedArg(_, value) => value.collect_refs(out),
+            Expr::Tuple(targets) => targets
+                .iter()
+                .flatten()
+                .for_each(|target| target.collect_refs(out)),
             _ => {}
         }
     }

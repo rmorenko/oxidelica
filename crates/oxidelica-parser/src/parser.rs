@@ -172,6 +172,14 @@ impl Parser {
         &self.tokens[self.pos].token
     }
 
+    /// The token `offset` places past the current one; the lexer ends
+    /// the stream with `Eof`, which stands in past the end too.
+    fn peek_at(&self, offset: usize) -> &Token {
+        self.tokens
+            .get(self.pos + offset)
+            .map_or(&Token::Eof, |spanned| &spanned.token)
+    }
+
     /// The token `ahead` positions past the current one, clamped to the
     /// end-of-file marker. Used where a prefix keyword alone does not
     /// say whether a class or a component follows.
@@ -730,6 +738,35 @@ impl Parser {
                     }
                     self.expect(&Token::Semi, "semicolon after assignment")?;
                     out.push(Statement::Assign(target, subscripts, value));
+                }
+                // `(a, , c) := f(...);` — nothing else in an algorithm
+                // starts with a parenthesis.
+                Token::LParen => {
+                    self.bump();
+                    let mut targets = Vec::new();
+                    loop {
+                        match self.peek() {
+                            Token::Comma | Token::RParen => targets.push(None),
+                            _ => targets.push(Some(self.ident("target of a tuple assignment")?)),
+                        }
+                        match self.bump() {
+                            Token::Comma => continue,
+                            Token::RParen => break,
+                            other => {
+                                return Err(self.err(format!(
+                                    "expected `,` or `)` in a tuple of targets, found `{other}`"
+                                )))
+                            }
+                        }
+                    }
+                    self.expect(&Token::Becomes, "`:=` after the tuple of targets")?;
+                    let value = self.expr()?;
+                    self.opt_string();
+                    if self.peek() == &Token::Annotation {
+                        self.annotation_body(&mut Experiment::default())?;
+                    }
+                    self.expect(&Token::Semi, "semicolon after assignment")?;
+                    out.push(Statement::TupleAssign(targets, value));
                 }
                 Token::If => out.push(self.if_statement()?),
                 Token::For => out.push(self.for_statement()?),
@@ -1302,7 +1339,13 @@ impl Parser {
     }
 
     fn equation_item(&mut self) -> Result<EquationItem, ParseError> {
-        let lhs = self.expr()?;
+        // `(a, b) = f(...)` fills several targets from one call. Only
+        // a top-level comma tells it from a parenthesised expression,
+        // so the tuple is tried first and abandoned without a trace.
+        let lhs = match self.tuple_targets() {
+            Some(targets) => Expr::Tuple(targets),
+            None => self.expr()?,
+        };
         self.expect(&Token::Assign, "`=` in equation")?;
         let rhs = self.expr()?;
         self.opt_string();
@@ -1311,6 +1354,51 @@ impl Parser {
         }
         self.expect(&Token::Semi, "semicolon after equation")?;
         Ok(EquationItem { lhs, rhs })
+    }
+
+    /// Try to read `(a, , c)` followed by `=`: the targets of a tuple
+    /// equation, `None` for a skipped slot. Anything else - no opening
+    /// parenthesis, no top-level comma, no `=` after - restores the
+    /// position and returns `None`.
+    fn tuple_targets(&mut self) -> Option<Vec<Option<Expr>>> {
+        if self.peek() != &Token::LParen {
+            return None;
+        }
+        let saved = self.pos;
+        self.bump();
+        let mut targets = Vec::new();
+        let mut saw_comma = false;
+        loop {
+            match self.peek() {
+                Token::Comma | Token::RParen => targets.push(None),
+                _ => match self.expr() {
+                    Ok(target) => targets.push(Some(target)),
+                    Err(_) => {
+                        self.pos = saved;
+                        return None;
+                    }
+                },
+            }
+            match self.peek() {
+                Token::Comma => {
+                    self.bump();
+                    saw_comma = true;
+                }
+                Token::RParen => {
+                    self.bump();
+                    break;
+                }
+                _ => {
+                    self.pos = saved;
+                    return None;
+                }
+            }
+        }
+        if !saw_comma || self.peek() != &Token::Assign {
+            self.pos = saved;
+            return None;
+        }
+        Some(targets)
     }
 
     /// A class-level `annotation ( ... ) ;`.
@@ -1698,7 +1786,21 @@ impl Parser {
                     let mut args = Vec::new();
                     if self.peek() != &Token::RParen {
                         loop {
-                            let arg = self.expr()?;
+                            // `precision = 6`: an argument passed by
+                            // name. One token of lookahead tells it
+                            // from an expression starting with a name.
+                            let arg = if let Token::Ident(keyword) = self.peek() {
+                                if self.peek_at(1) == &Token::Assign {
+                                    let keyword = keyword.clone();
+                                    self.bump();
+                                    self.bump();
+                                    Expr::NamedArg(keyword, Box::new(self.expr()?))
+                                } else {
+                                    self.expr()?
+                                }
+                            } else {
+                                self.expr()?
+                            };
                             // `sum(expr for i in range)`: the reduction
                             // form is the comprehension passed whole.
                             if args.is_empty() && self.peek() == &Token::For {
