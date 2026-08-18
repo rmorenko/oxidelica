@@ -348,7 +348,31 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                         }
                         Some('\\') => {
                             if let Some(&next) = bytes.get(i + 1) {
-                                s.push(next);
+                                // S-ESCAPE: the set is closed, so an
+                                // escape outside it is a mistake worth
+                                // naming rather than passing through.
+                                s.push(match next {
+                                    '\'' => '\'',
+                                    '"' => '"',
+                                    '?' => '?',
+                                    '\\' => '\\',
+                                    'a' => '\x07',
+                                    'b' => '\x08',
+                                    'f' => '\x0C',
+                                    'n' => '\n',
+                                    'r' => '\r',
+                                    't' => '\t',
+                                    'v' => '\x0B',
+                                    other => {
+                                        return Err(LexError {
+                                            message: format!(
+                                                "unknown escape `\\{other}` in a string; \
+                                                 Modelica allows \\' \\\" \\? \\\\ \\a \\b \\f \\n \\r \\t \\v"
+                                            ),
+                                            line,
+                                        })
+                                    }
+                                });
                                 i += 2;
                             } else {
                                 return Err(LexError {
@@ -371,15 +395,23 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     line,
                 });
             }
-            '0'..='9' => {
+            // A number, with the digits on either side of the point
+            // optional: the specification's own examples give `13.`
+            // and `.13E2` as the same number as `13E0`. A lone `.` is
+            // still the member-access dot, so the point only starts a
+            // literal when a digit follows it.
+            c if c.is_ascii_digit()
+                || (c == '.' && bytes.get(i + 1).is_some_and(|c| c.is_ascii_digit())) =>
+            {
                 let start = i;
-                while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == '.') {
-                    // A dot is part of the number only when followed by a
-                    // digit; `1.x` is Number(1), Dot, Ident(x).
-                    if bytes[i] == '.' && !bytes.get(i + 1).is_some_and(|c| c.is_ascii_digit()) {
-                        break;
-                    }
+                while i < bytes.len() && bytes[i].is_ascii_digit() {
                     i += 1;
+                }
+                if i < bytes.len() && bytes[i] == '.' {
+                    i += 1;
+                    while i < bytes.len() && bytes[i].is_ascii_digit() {
+                        i += 1;
+                    }
                 }
                 // Exponent part: 1e-3, 2.5E+10.
                 if i < bytes.len() && (bytes[i] == 'e' || bytes[i] == 'E') {
@@ -393,6 +425,22 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                             i += 1;
                         }
                     }
+                }
+                // Two numbers cannot stand next to each other in any
+                // Modelica, so a second point is a malformed literal
+                // rather than the start of the next one.
+                if bytes.get(i) == Some(&'.')
+                    && bytes.get(i + 1).is_some_and(|c| c.is_ascii_digit())
+                {
+                    let mut j = i + 1;
+                    while bytes.get(j).is_some_and(|c| c.is_ascii_digit()) {
+                        j += 1;
+                    }
+                    let text: String = bytes[start..j].iter().collect();
+                    return Err(LexError {
+                        message: format!("invalid number `{text}`: a second decimal point"),
+                        line,
+                    });
                 }
                 let text: String = bytes[start..i].iter().collect();
                 let value = text.parse::<f64>().map_err(|_| LexError {
@@ -432,9 +480,11 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     line,
                 });
             }
-            c if c.is_alphabetic() || c == '_' => {
+            // Modelica restricts identifiers to 7-bit ASCII, though
+            // strings and comments may hold any Unicode.
+            c if c.is_ascii_alphabetic() || c == '_' => {
                 let start = i;
-                while i < bytes.len() && (bytes[i].is_alphanumeric() || bytes[i] == '_') {
+                while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == '_') {
                     i += 1;
                 }
                 let word: String = bytes[start..i].iter().collect();
@@ -669,6 +719,15 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                 });
                 i += 1;
             }
+            other if other.is_alphabetic() => {
+                return Err(LexError {
+                    message: format!(
+                        "`{other}` cannot begin a name: Modelica writes identifiers in \
+                         7-bit ASCII, though a string or a comment may hold anything"
+                    ),
+                    line,
+                });
+            }
             other => {
                 return Err(LexError {
                     message: format!("unexpected character `{other}`"),
@@ -839,23 +898,39 @@ mod tests {
     }
 
     #[test]
-    fn dot_after_number_is_separate_token() {
-        // `1.x` is Number(1), Dot, Ident: the dot is not part of the number.
+    fn a_number_takes_the_point_with_it() {
+        // Longest match, as the specification's own examples ask for:
+        // `13.` is a number in its own right, so `1.x` is that number
+        // followed by a name rather than a member access on a digit.
         assert_eq!(
             tokens("1.x"),
+            vec![Token::Number(1.0), Token::Ident("x".into()), Token::Eof]
+        );
+        // A member access is untouched, since no digit follows there.
+        assert_eq!(
+            tokens("a.b"),
             vec![
-                Token::Number(1.0),
+                Token::Ident("a".into()),
                 Token::Dot,
-                Token::Ident("x".into()),
+                Token::Ident("b".into()),
                 Token::Eof
             ]
         );
+        // The point may also begin one: `.13E2` is 13.
+        assert_eq!(tokens(".13E2"), vec![Token::Number(13.0), Token::Eof]);
+        assert_eq!(tokens("1.e3"), vec![Token::Number(1000.0), Token::Eof]);
     }
 
     #[test]
     fn rejects_double_dot_number() {
         let e = lex("1.2.3").unwrap_err();
-        assert!(e.message.contains("invalid number"), "{}", e.message);
+        assert!(
+            e.message.contains("a second decimal point"),
+            "{}",
+            e.message
+        );
+        let e = lex("1..5").unwrap_err();
+        assert!(e.message.contains("invalid number `1..5`"), "{}", e.message);
     }
 
     #[test]
@@ -946,5 +1021,40 @@ line2""#
             .unwrap_err()
             .message
             .contains("unterminated string"));
+    }
+
+    #[test]
+    fn an_escape_stands_for_another_character() {
+        // The whole point of an escape is that the two characters
+        // written become one other character. Dropping the backslash
+        // and keeping the letter turned "a\nb" into "anb", which is
+        // what a `terminate` message used to reach the reader as.
+        assert_eq!(
+            tokens(r#""a\nb""#),
+            vec![Token::Str("a\nb".into()), Token::Eof]
+        );
+        let all = r#""\'\"\?\\\a\b\f\n\r\t\v""#;
+        assert_eq!(
+            tokens(all),
+            vec![
+                Token::Str("'\"?\\\u{7}\u{8}\u{c}\n\r\t\u{b}".into()),
+                Token::Eof
+            ]
+        );
+        // The set is closed, so anything else is a mistake by name.
+        let e = lex(r#""C:\dir""#).unwrap_err();
+        assert!(e.message.contains("unknown escape `\\d`"), "{}", e.message);
+    }
+
+    #[test]
+    fn a_name_is_ascii_but_the_text_around_it_need_not_be() {
+        // Modelica restricts identifiers to 7-bit ASCII; strings and
+        // comments carry whatever the file holds.
+        let e = lex("model Röhre").unwrap_err();
+        assert!(e.message.contains("7-bit ASCII"), "{}", e.message);
+        assert_eq!(
+            tokens("// Röhre, 管\n\"Röhre, 管\""),
+            vec![Token::Str("Röhre, 管".into()), Token::Eof]
+        );
     }
 }

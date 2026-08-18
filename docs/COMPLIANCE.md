@@ -7,7 +7,7 @@ under a chapter works as specified for the subset this project covers.
 
 | Ch. | Area                          | Status  |
 | --- | ----------------------------- | ------- |
-| 2   | Lexical structure             | Partial |
+| 2   | Lexical structure             | Mostly  |
 | 3   | Operators and expressions     | Partial |
 | 4   | Classes, types, declarations  | Partial |
 | 5   | Scoping, lookup, flattening   | Partial |
@@ -104,6 +104,16 @@ disappears. What is missing: a `String` that only a run could produce
 (`String(x)` of a variable), string variables in results, the string
 functions of ch. 12, and `assert`/`terminate` messages built by
 joining - those still take a literal.
+
+**Lexical structure** (ch. 2) follows the specification except for
+seven reserved words. `class`, `der`, `external`, `impure`, `initial`,
+`public` and `pure` are read as ordinary identifiers, so a model may
+still name a variable after one of them; `der` and `initial` work as
+the operators they are because the parser knows them by name. Quoted
+identifiers, the escape sequences, numbers with the digits missing on
+either side of the point (`13.`, `.13E2`), non-nesting block comments,
+Unicode in strings and comments and 7-bit ASCII in names are all as
+written in chapter 2.
 
 **Arrays** (ch. 10): no `outerProduct`/`symmetric`/`skew`, no Boolean
 or enumeration indexing. A flexible size (`:`) is read from the
