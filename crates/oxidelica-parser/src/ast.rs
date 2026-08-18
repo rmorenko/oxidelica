@@ -216,6 +216,10 @@ pub struct ClassDef {
     pub name: String,
     /// `partial` classes are bases only: they cannot be instantiated.
     pub partial: bool,
+    /// `encapsulated` — a class that does not see its enclosing scope:
+    /// a simple name inside it is looked up in the class and its
+    /// imports and nowhere further out.
+    pub encapsulated: bool,
     /// `expandable connector` — a bus whose members are whatever the
     /// connections to it name, rather than what it declares.
     pub expandable: bool,

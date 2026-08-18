@@ -117,6 +117,28 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;
 
+    // A package holds classes and constants and nothing else: the
+    // specification forbids a parameter or a variable in one, since a
+    // package has no instance for a value to belong to.
+    for class in classes.iter().filter(|c| c.kind == ClassKind::Package) {
+        if let Some(loose) = class
+            .components
+            .iter()
+            .find(|c| !matches!(c.variability, Variability::Constant))
+        {
+            return Err(format!(
+                "`{}.{}` is a {} in a package; a package may hold only classes and constants",
+                class.name,
+                loose.name,
+                match loose.variability {
+                    Variability::Parameter => "parameter",
+                    Variability::Discrete => "discrete variable",
+                    _ => "variable",
+                }
+            ));
+        }
+    }
+
     let mut acc = Flat::default();
     let env = Env {
         overrides: &[],

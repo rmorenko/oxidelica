@@ -1463,8 +1463,8 @@ fn a_package_may_be_opened_wholesale() {
     .unwrap();
     assert_eq!(m.components.len(), 4);
 
-    // A constant brought in by name may be written without one; one
-    // reached through a wildcard may not, and says so.
+    // A constant reaches its user whether it was brought in by name or
+    // through a wildcard - both open the package.
     let m = parse_model(&format!(
         "{LIB} model M import Lib.pi; Real y; equation y = pi; end M;"
     ))
@@ -1476,9 +1476,17 @@ fn a_package_may_be_opened_wholesale() {
     .unwrap();
     assert_eq!(
         format!("{:?}", m.equations[0].rhs),
-        "Ref(\"pi\")",
-        "a wildcard does not reach constants; the compiler rejects it"
+        "Number(3.5)",
+        "a wildcard opens the package's constants too"
     );
+
+    // But a component of the model outranks a wildcard-imported
+    // constant of the same name: `pi` here is the variable.
+    let m = parse_model(&format!(
+        "{LIB} model M import Lib.*; Real pi; equation pi = 9; end M;"
+    ))
+    .unwrap();
+    assert_eq!(format!("{:?}", m.equations[0].lhs), "Ref(\"pi\")");
 
     // What has a name of its own outranks a package opened
     // wholesale: the local `Gain` wins over `Lib.Gain`.
@@ -2768,4 +2776,151 @@ fn cardinality_counts_the_connections_to_a_port() {
         "the assertion was left unanswered: {:?}",
         lonely.asserts[0].0
     );
+}
+
+#[test]
+fn an_unqualified_import_reaches_a_packages_constants() {
+    // `import A.*;` opens the package's constants as well as its
+    // classes, so a bare name may be one of them - the last reading
+    // tried, since a component of the model outranks it.
+    let value = |source: &str| {
+        let model = parse_model(source).expect("parses");
+        match &model
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "y"))
+            .unwrap()
+            .rhs
+        {
+            Expr::Number(v) => Some(*v),
+            _ => None,
+        }
+    };
+    assert_eq!(
+        value(
+            "package A constant Real half = 0.5; end A; \
+               model M import A.*; Real y; equation y = half; \
+               annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ),
+        Some(0.5)
+    );
+    // Two packages opened at once: each bare name reaches its own.
+    let both = parse_model(
+        "package A constant Real a = 1; end A; package B constant Real b = 4; end B; \
+         model M import A.*; import B.*; Real y; equation y = a + b; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    assert!(format!("{:?}", both.equations[0].rhs).contains("Number(1.0)"));
+    assert!(format!("{:?}", both.equations[0].rhs).contains("Number(4.0)"));
+    // A component of the model wins over a wildcard constant of the
+    // same name: `half` is the variable, not 0.5.
+    let model = parse_model(
+        "package A constant Real half = 0.5; end A; \
+         model M import A.*; Real half; Real y; equation half = 9; y = half; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    assert!(model.components.iter().any(|c| c.name == "half"));
+}
+
+#[test]
+fn a_package_inherits_the_constants_of_its_base() {
+    // `extends` brings a base package's constants into the derived
+    // one's namespace, so `Derived.k` reads a `k` that `Base` declared.
+    // Each `y = ...` has its constants replaced by their values.
+    let rhs = |source: &str| {
+        let model = parse_model(source).expect("parses");
+        format!(
+            "{:?}",
+            model
+                .equations
+                .iter()
+                .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "y"))
+                .unwrap()
+                .rhs
+        )
+    };
+    // k(=2) from Base and j(=3) from Derived, each in place.
+    let sum = rhs("package Base constant Real k = 2; end Base; \
+         package Derived extends Base; constant Real j = 3; end Derived; \
+         model M Real y; equation y = Derived.k + Derived.j; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    assert!(
+        sum.contains("Number(2.0)") && sum.contains("Number(3.0)"),
+        "{sum}"
+    );
+    // Two levels of extends, and a base constant built from another.
+    assert_eq!(
+        rhs(
+            "package A constant Real a = 1; constant Real a2 = a * 10; end A; \
+             package B extends A; end B; package C extends B; end C; \
+             model M Real y; equation y = C.a2; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ),
+        "Number(10.0)"
+    );
+    // A derived constant overrides the inherited one of the same name.
+    assert_eq!(
+        rhs("package Base constant Real k = 2; end Base; \
+             package Derived extends Base; constant Real k = 9; end Derived; \
+             model M Real y; equation y = Derived.k; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"),
+        "Number(9.0)"
+    );
+}
+
+#[test]
+fn an_encapsulated_package_does_not_see_out_of_itself() {
+    let ok = |source: &str| parse_model(source).is_ok();
+    let widget = "package Outer model Widget Real w; equation w = 1; end Widget; ";
+
+    // Encapsulated: a simple name inside cannot reach Outer's Widget.
+    assert!(!ok(&format!(
+        "{widget} encapsulated package Inner \
+         model Use Widget x; equation x.w = 2; end Use; end Inner; end Outer; \
+         model M Outer.Inner.Use u; Real y; equation y = u.x.w; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    )));
+    // The same tree without the wall resolves Widget by simple name.
+    assert!(ok(&format!(
+        "{widget} package Inner \
+         model Use Widget x; equation x.w = 2; end Use; end Inner; end Outer; \
+         model M Outer.Inner.Use u; Real y; equation y = u.x.w; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    )));
+    // And the wall's own import is the way through it.
+    assert!(ok(&format!(
+        "{widget} encapsulated package Inner import Outer.Widget; \
+         model Use Widget x; equation x.w = 2; end Use; end Inner; end Outer; \
+         model M Outer.Inner.Use u; Real y; equation y = u.x.w; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    )));
+}
+
+#[test]
+fn a_package_holds_only_classes_and_constants() {
+    let refused = |source: &str| parse_model(source).expect_err("should be refused").message;
+
+    let text = refused(
+        "package A parameter Real p = 1; end A; \
+         model M Real y; equation y = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(text.contains("parameter in a package"), "{text}");
+
+    let text = refused(
+        "package A Real x; end A; \
+         model M Real y; equation y = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(text.contains("variable in a package"), "{text}");
+
+    // A constant is fine, and so is a class.
+    assert!(parse_model(
+        "package A constant Real c = 1; model Thing Real t; equation t = c; end Thing; end A; \
+         model M A.Thing g; Real y; equation y = g.t; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    )
+    .is_ok());
 }

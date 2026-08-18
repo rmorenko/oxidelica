@@ -12,14 +12,16 @@ impl Parser {
         let mut replaceable = false;
         let mut redeclaration = false;
         let mut operator_class = false;
+        let mut encapsulated = false;
         loop {
             match self.peek() {
                 Token::Replaceable => replaceable = true,
                 Token::Redeclare => redeclaration = true,
                 // `encapsulated` says the class may not see out of
-                // itself, which changes nothing here: every name is
-                // already resolved from where it was written.
-                Token::Final | Token::Encapsulated | Token::Pure | Token::Impure => {}
+                // itself: a simple name inside it is looked up here and
+                // in its imports, never in an enclosing package.
+                Token::Encapsulated => encapsulated = true,
+                Token::Final | Token::Pure | Token::Impure => {}
                 Token::Operator => operator_class = true,
                 _ => break,
             }
@@ -120,6 +122,7 @@ impl Parser {
                 kind,
                 name,
                 partial,
+                encapsulated,
                 expandable,
                 alias_of,
                 alias_unit,
@@ -344,6 +347,7 @@ impl Parser {
             kind,
             name,
             partial,
+            encapsulated,
             expandable,
             alias_of,
             alias_unit,

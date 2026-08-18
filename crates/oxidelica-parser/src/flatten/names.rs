@@ -291,13 +291,12 @@ pub(super) fn class_constant(
     if let Some(index) = class.enumeration.iter().position(|l| l == member) {
         return Some(index as f64 + 1.0);
     }
-    if !class.components.iter().any(|c| {
-        c.name == member
-            && matches!(
-                c.variability,
-                Variability::Constant | Variability::Parameter
-            )
-    }) {
+    // A package's constants are its own and every base's: `extends`
+    // brings the inherited ones into the same namespace, so `Derived.k`
+    // reads a `k` that `Base` declared.
+    let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
+    gather_package_constants(registry, class, 0, &mut constants);
+    if !constants.iter().any(|(n, _)| n == member) {
         return None;
     }
     // Constants of one package may build on each other, so resolve the
@@ -305,17 +304,12 @@ pub(super) fn class_constant(
     let mut values: HashMap<String, f64> = HashMap::new();
     loop {
         let mut progress = false;
-        for component in &class.components {
-            if !matches!(
-                component.variability,
-                Variability::Constant | Variability::Parameter
-            ) || values.contains_key(&component.name)
-            {
+        for (name, binding) in &constants {
+            if values.contains_key(name) {
                 continue;
             }
-            let binding = component.binding.as_ref().or(component.start.as_ref());
-            if let Some(value) = binding.and_then(|expr| const_eval(expr, &values)) {
-                values.insert(component.name.clone(), value);
+            if let Some(value) = binding.as_ref().and_then(|expr| const_eval(expr, &values)) {
+                values.insert(name.clone(), value);
                 progress = true;
             }
         }
@@ -326,14 +320,47 @@ pub(super) fn class_constant(
     values.get(member).copied()
 }
 
+/// The constants and parameters a package holds, its own and those it
+/// inherits. Bases come first, so a class's own declaration overrides
+/// an inherited one of the same name.
+fn gather_package_constants<'a>(
+    registry: &HashMap<&str, &'a ClassDef>,
+    class: &'a ClassDef,
+    depth: usize,
+    out: &mut Vec<(String, Option<Expr>)>,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+            gather_package_constants(registry, base, depth + 1, out);
+        }
+    }
+    for component in &class.components {
+        if matches!(
+            component.variability,
+            Variability::Constant | Variability::Parameter
+        ) {
+            let binding = component
+                .binding
+                .clone()
+                .or_else(|| component.start.clone());
+            out.retain(|(existing, _)| existing != &component.name);
+            out.push((component.name.clone(), binding));
+        }
+    }
+}
+
 /// Replace every reference to a class constant with its value.
 pub(super) fn substitute_class_constants(
     expr: &Expr,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
+    shadow: &[&str],
 ) -> Expr {
-    let recur = |e: &Expr| substitute_class_constants(e, registry, scope, imports);
+    let recur = |e: &Expr| substitute_class_constants(e, registry, scope, imports, shadow);
     match expr {
         Expr::Ref(name) if name.contains('.') => {
             match class_constant(registry, name, scope, imports) {
@@ -341,15 +368,31 @@ pub(super) fn substitute_class_constants(
                 None => expr.clone(),
             }
         }
-        // A constant brought in by name is written without one:
-        // `import Modelica.Constants.pi;` and then `pi`. Only an import
-        // that named it counts - after `import A.*;` a bare name is far
-        // more likely to be a variable of the model.
-        Expr::Ref(name) => imports
-            .iter()
-            .find(|(local, _)| local == name)
-            .and_then(|(_, target)| class_constant(registry, target, scope, imports))
-            .map_or_else(|| expr.clone(), Expr::Number),
+        Expr::Ref(name) => {
+            // A constant brought in by name is written without one:
+            // `import Modelica.Constants.pi;` and then `pi`.
+            if let Some(value) = imports
+                .iter()
+                .find(|(local, _)| local == name)
+                .and_then(|(_, target)| class_constant(registry, target, scope, imports))
+            {
+                return Expr::Number(value);
+            }
+            // A package opened wholesale (`import A.*;`) also brings its
+            // constants in, but at the bottom of the pile: a component
+            // of the model with the same name outranks it, so only a
+            // name that is not one is looked for among them.
+            if !shadow.contains(&name.as_str()) {
+                for (_, target) in imports.iter().filter(|(local, _)| local == WILDCARD_IMPORT) {
+                    if let Some(value) =
+                        class_constant(registry, &format!("{target}.{name}"), scope, imports)
+                    {
+                        return Expr::Number(value);
+                    }
+                }
+            }
+            expr.clone()
+        }
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
@@ -392,6 +435,26 @@ pub(super) fn substitute_class_constants(
     }
 }
 
+/// A class named through one import list: `import Basic = A.B;` then
+/// `Basic.Resistor`, or `import A.Widget;` then `Widget`. The wildcard
+/// form is not tried here - it is the lowest-priority reading and left
+/// to the end of [`lookup`].
+fn named_import<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    head: &str,
+    rest: Option<&str>,
+    imports: &[(String, String)],
+) -> Option<&'a ClassDef> {
+    let (_, target) = imports
+        .iter()
+        .find(|(local, _)| local == head && local != WILDCARD_IMPORT)?;
+    let qualified = match rest {
+        Some(rest) => format!("{target}.{rest}"),
+        None => target.clone(),
+    };
+    registry.get(qualified.as_str()).copied()
+}
+
 /// Resolve a class name the way Modelica scoping does: an import
 /// alias first, then the class's own nested classes, then the
 /// enclosing packages from the inside out, then the global name.
@@ -410,19 +473,13 @@ pub(super) fn lookup<'a>(
         Some((head, rest)) => (head, Some(rest)),
         None => (name, None),
     };
-    if let Some((_, target)) = imports
-        .iter()
-        .find(|(local, _)| local == head && local != WILDCARD_IMPORT)
-    {
-        let qualified = match rest {
-            Some(rest) => format!("{target}.{rest}"),
-            None => target.clone(),
-        };
-        if let Some(class) = registry.get(qualified.as_str()) {
-            return Some(class);
-        }
+    if let Some(class) = named_import(registry, head, rest, imports) {
+        return Some(class);
     }
     // Walk out of the enclosing packages: A.B.C -> A.B -> A -> global.
+    // An `encapsulated` class is a wall: its own scope is searched, and
+    // then the walk stops rather than reaching what encloses it, so a
+    // simple name has to be imported or built in.
     let mut prefix = scope.to_string();
     loop {
         let candidate = if prefix.is_empty() {
@@ -432,6 +489,28 @@ pub(super) fn lookup<'a>(
         };
         if let Some(class) = registry.get(candidate.as_str()) {
             return Some(class);
+        }
+        // Each enclosing class brings its own imports to the lookup -
+        // they are not inherited, but they are lexically in view - so
+        // an `import` on the encapsulated wall is what a name inside it
+        // reaches through.
+        if let Some(enclosing) = registry.get(prefix.as_str()) {
+            if let Some(class) = named_import(registry, head, rest, &enclosing.imports) {
+                return Some(class);
+            }
+            // The wall is a package's: a name inside an encapsulated
+            // package does not reach past it. The overloads gathered
+            // under a quoted operator symbol (`Complex.'+'`) are a
+            // package too, but they exist to serve their record and
+            // still see it, so they are not a wall.
+            let is_operator = enclosing
+                .name
+                .rsplit('.')
+                .next()
+                .is_some_and(|segment| segment.starts_with('\''));
+            if enclosing.encapsulated && enclosing.kind == ClassKind::Package && !is_operator {
+                break;
+            }
         }
         match prefix.rfind('.') {
             Some(cut) => prefix.truncate(cut),

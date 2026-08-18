@@ -71,6 +71,13 @@ pub(super) fn instantiate(
     // The class's own aliases join its imports, with any redeclarations
     // from outside already applied.
     let imports = effective_imports(registry, class, scope, &redeclares)?;
+    // Names a wildcard-imported constant may not quietly stand in for:
+    // a component of this class outranks anything `import A.*;` opened.
+    let shadow: Vec<&str> = class
+        .components
+        .iter()
+        .map(|component| component.name.as_str())
+        .collect();
 
     // Bases first, with their modifiers (already parent-scoped).
     for extend in &class.extends {
@@ -80,7 +87,7 @@ pub(super) fn instantiate(
             .modifiers
             .iter()
             .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &imports);
+                let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
                 (n.clone(), prefix_expr(&e, prefix, &outers))
             })
             .chain(env.overrides.iter().cloned())
@@ -125,7 +132,8 @@ pub(super) fn instantiate(
                         .as_ref()
                         .or(component.start.as_ref())
                         .map(|e| {
-                            let e = substitute_class_constants(e, registry, scope, &imports);
+                            let e =
+                                substitute_class_constants(e, registry, scope, &imports, &shadow);
                             prefix_expr(&e, prefix, &outers)
                         })
                 });
@@ -275,7 +283,7 @@ pub(super) fn instantiate(
             let expr = if prefixed {
                 expr.clone()
             } else {
-                let expr = substitute_class_constants(expr, registry, scope, &imports);
+                let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
                 prefix_expr(&expr, prefix, &outers)
             };
             let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
@@ -342,7 +350,7 @@ pub(super) fn instantiate(
 
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let resolve_here = |expr: &Expr| -> Result<Expr, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &imports);
+        let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
         resolve(
             &prefix_expr(&expr, prefix, &outers),
             &HashMap::new(),
@@ -354,7 +362,7 @@ pub(super) fn instantiate(
         )
     };
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &imports);
+        let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
         let expr = prefix_expr(&expr, prefix, &outers);
         let shapes = Shapes {
             sizes: &sizes_here,
@@ -370,7 +378,7 @@ pub(super) fn instantiate(
         // call is inlined once per output; a skipped slot costs its
         // computation nothing, since the expression is never used.
         if let Expr::Tuple(targets) = &equation.lhs {
-            let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports);
+            let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports, &shadow);
             let rhs = prefix_expr(&rhs, prefix, &outers);
             let Expr::Call(name, raw_args) = &rhs else {
                 return Err("the right side of a tuple equation must be a function call".into());
@@ -733,7 +741,7 @@ pub(super) fn instantiate_one(
             flat.name = flat_name.to_string();
             flat.dimensions = Vec::new();
             let resolve_value = |e: &Expr| -> Result<Expr, String> {
-                let e = substitute_class_constants(e, registry, scope, imports);
+                let e = substitute_class_constants(e, registry, scope, imports, &[]);
                 resolve(
                     &prefix_expr(&e, prefix, outers),
                     &HashMap::new(),
@@ -826,7 +834,7 @@ pub(super) fn instantiate_one(
             let mods: Vec<(String, Expr)> = inherited
                 .chain(extra_modifiers.iter().cloned())
                 .chain(component.modifiers.iter().map(|(n, e)| {
-                    let e = substitute_class_constants(e, registry, scope, imports);
+                    let e = substitute_class_constants(e, registry, scope, imports, &[]);
                     (n.clone(), prefix_expr(&e, prefix, outers))
                 }))
                 .collect();
@@ -922,7 +930,7 @@ pub(super) fn unroll(
                     };
                     let side = |expr: &Expr| -> Result<Value, String> {
                         let expr = substitute_refs(expr, &folded);
-                        let expr = substitute_class_constants(&expr, registry, scope, imports);
+                        let expr = substitute_class_constants(&expr, registry, scope, imports, &[]);
                         expand(
                             &prefix_expr(&expr, prefix, outers),
                             &shapes,
@@ -1210,7 +1218,7 @@ pub(super) fn qualify_redeclare(
             .modifiers
             .iter()
             .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &class.imports);
+                let e = substitute_class_constants(e, registry, scope, &class.imports, &[]);
                 (n.clone(), prefix_expr(&e, prefix, outers))
             })
             .collect(),

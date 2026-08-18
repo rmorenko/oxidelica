@@ -18,7 +18,7 @@ under a chapter works as specified for the subset this project covers.
 | 10  | Arrays                        | Partial |
 | 11  | Statements and algorithms     | Partial |
 | 12  | Functions                     | Partial |
-| 13  | Packages                      | Partial |
+| 13  | Packages                      | Full    |
 | 14  | Overloaded operators          | Partial |
 | 15  | Stream connectors             | Partial |
 | 16  | Synchronous language elements | Partial |
@@ -102,6 +102,18 @@ and one the run produces stops it where it left the bounds. An
 `Integer` is refused a value that works out to a fraction, in a
 binding, a `start` or an assignment - though `Integer i = 3.0` passes,
 since a whole number spelled with a point contradicts nothing.
+
+**Packages** (ch. 13) hold classes and constants and nothing else - a
+parameter or a variable in one is refused, since a package has no
+instance to own a value. The imports are all four forms (`import A.B;`,
+`import C = A.B;`, `import A.B.*;`, `import A.{C, D};`), a wildcard
+reaching a package's constants as well as its classes but outranked by
+a component of the model with the same name; `extends` merges a base
+package's constants into the derived one, later declarations winning;
+and `encapsulated` is a wall a simple name inside a package does not
+reach past, so it must be imported or built in - the overloads under a
+quoted operator symbol excepted, since they exist to serve their
+record and still see it.
 
 **Unit expressions** (ch. 19) follow the grammar in full: the SI base
 and derived units with every prefix, the non-SI units the chapter names
@@ -213,14 +225,11 @@ type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
 `each`-style array members of a bus are not supported;
 `protected` is accepted but not enforced; `final` and `each` are parsed
-and ignored (array modifiers distribute regardless); package `extends`
-does not merge members through an alias; selective model extension
+and ignored (array modifiers distribute regardless); selective model extension
 (3.6's `break`) is not parsed. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
-though it were flat. An unqualified import reaches classes but not
-constants: after `import A.*;` a bare `pi` is taken for a variable of
-the model, and `import A.pi;` is the way to write it.
+though it were flat.
 
 **Semantics**: `der()` only of a plain variable; a condition of a
 run-time `if` equation must be readable from the parameters, the

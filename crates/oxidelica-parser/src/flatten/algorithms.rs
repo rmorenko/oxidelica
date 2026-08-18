@@ -65,7 +65,7 @@ pub(super) fn execute(
                 // A body may name a constant of a package the way an
                 // equation may, and it is resolved where it was
                 // written - in this class, not at the call site.
-                let value = substitute_class_constants(value, registry, scope, imports);
+                let value = substitute_class_constants(value, registry, scope, imports, &[]);
                 let value = substitute_refs(&value, bindings);
                 // Through the array layer, so `c := a .* b` binds a whole
                 // array and a scalar stays a scalar.
@@ -231,7 +231,7 @@ pub(super) fn execute(
                         .condition
                         .as_ref()
                         .map(|c| {
-                            let c = substitute_class_constants(c, registry, scope, imports);
+                            let c = substitute_class_constants(c, registry, scope, imports, &[]);
                             let c = substitute_refs(&c, &before);
                             resolve(
                                 &c,
