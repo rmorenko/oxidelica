@@ -65,6 +65,7 @@ impl Parser {
         let (mut min, mut max) = (None, None);
         let mut modifiers = Vec::new();
         let mut redeclares = Vec::new();
+        let mut each_modifiers = Vec::new();
         if self.peek() == &Token::LParen {
             if matches!(
                 type_name.as_str(),
@@ -122,7 +123,7 @@ impl Parser {
                     }
                 }
             } else {
-                (modifiers, redeclares) = self.modifier_list()?;
+                (modifiers, redeclares, each_modifiers) = self.modifier_list()?;
             }
         }
 
@@ -183,6 +184,7 @@ impl Parser {
             redeclares,
             redeclaration,
             is_final,
+            each_modifiers,
         })
     }
 
@@ -199,26 +201,33 @@ impl Parser {
         self.expect(&Token::LParen, "modifier list")?;
         let mut modifiers = Vec::new();
         let mut redeclares = Vec::new();
+        let mut each_names = Vec::new();
         // An empty list, `Interface()`, modifies nothing.
         if self.peek() == &Token::RParen {
             self.bump();
-            return Ok((modifiers, redeclares));
+            return Ok((modifiers, redeclares, each_names));
         }
         loop {
+            let mut has_each = false;
             while matches!(self.peek(), Token::Final | Token::Each) {
+                has_each |= self.peek() == &Token::Each;
                 self.bump();
             }
             if self.peek() == &Token::Redeclare {
                 redeclares.push(self.redeclaration()?);
             } else {
                 let name = self.component_ref()?;
+                if has_each {
+                    each_names.push(name.clone());
+                }
                 if self.peek() == &Token::LParen {
-                    let (nested, nested_redeclares) = self.modifier_list()?;
+                    let (nested, nested_redeclares, nested_each) = self.modifier_list()?;
                     modifiers.extend(
                         nested
                             .into_iter()
                             .map(|(sub, value)| (format!("{name}.{sub}"), value)),
                     );
+                    each_names.extend(nested_each.into_iter().map(|sub| format!("{name}.{sub}")));
                     redeclares.extend(nested_redeclares.into_iter().map(|mut r| {
                         r.name = format!("{name}.{}", r.name);
                         r
@@ -247,7 +256,7 @@ impl Parser {
                 }
             }
         }
-        Ok((modifiers, redeclares))
+        Ok((modifiers, redeclares, each_names))
     }
 
     /// Whether the current token closes a modifier or the whole list.

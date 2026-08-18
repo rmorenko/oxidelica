@@ -172,8 +172,9 @@ struct Parser {
 }
 
 /// What a modifier list contributes: value modifiers by (possibly
-/// dotted) name, plus the redeclarations found among them.
-type Modifications = (Vec<(String, Expr)>, Vec<Redeclare>);
+/// dotted) name, the redeclarations found among them, and the names
+/// that carried `each`.
+type Modifications = (Vec<(String, Expr)>, Vec<Redeclare>, Vec<String>);
 /// Attribute defaults of a `type` alias, with the `unit` string apart.
 type AliasAttributes = (Vec<(String, Expr)>, Option<String>);
 

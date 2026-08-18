@@ -490,6 +490,10 @@ struct Site<'a> {
     flat_name: &'a str,
     /// Modifiers from a redeclaration, already prefixed.
     extra_modifiers: &'a [(String, Expr)],
+    /// This element's own modifiers, already substituted and prefixed.
+    /// On an array component each element holds its slice of an
+    /// array-valued modifier that was not written `each`.
+    modifiers: &'a [(String, Expr)],
     /// Redeclarations aimed at this component's own members.
     redeclares: &'a [Redeclare],
     /// The binding of this element, when the declaration bound the whole

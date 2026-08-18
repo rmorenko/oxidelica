@@ -2962,3 +2962,45 @@ fn a_final_declaration_is_closed_to_the_enclosing_class() {
     )
     .is_ok());
 }
+
+#[test]
+fn each_spreads_a_modifier_where_a_list_is_handed_out() {
+    // On an array of components, a modifier written as a list of the
+    // right length gives each element its own entry; `each`, or a
+    // scalar, reaches every element whole.
+    const ITEM: &str = "model Item parameter Real w = 0; Real y; equation y = w; end Item; ";
+    let value = |source: &str, name: &str| {
+        let model = parse_model(source).expect("parses");
+        let component = model
+            .components
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("no {name}"));
+        match component.binding.as_ref() {
+            Some(Expr::Number(v)) => *v,
+            other => panic!("{name} bound as {other:?}"),
+        }
+    };
+    let indexed = format!(
+        "{ITEM} model M Item items[3](w = {{10, 20, 30}}); Real z; equation z = items[1].y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    );
+    assert_eq!(value(&indexed, "items[1].w"), 10.0);
+    assert_eq!(value(&indexed, "items[2].w"), 20.0);
+    assert_eq!(value(&indexed, "items[3].w"), 30.0);
+
+    // `each` spreads one value to all; so does a scalar.
+    for source in [
+        format!(
+            "{ITEM} model M Item items[3](each w = 7); Real z; equation z = items[1].y; \
+                 annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ),
+        format!(
+            "{ITEM} model M Item items[3](w = 7); Real z; equation z = items[1].y; \
+                 annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ),
+    ] {
+        assert_eq!(value(&source, "items[1].w"), 7.0);
+        assert_eq!(value(&source, "items[3].w"), 7.0);
+    }
+}

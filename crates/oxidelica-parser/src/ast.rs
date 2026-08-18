@@ -125,6 +125,10 @@ pub struct Component {
     /// `final` prefix: the declaration may not be modified or
     /// redeclared from an enclosing class.
     pub is_final: bool,
+    /// Names of the modifiers written with `each`: on an array
+    /// component, `each` spreads a value over every element rather than
+    /// handing the elements the slices of it.
+    pub each_modifiers: Vec<String>,
 }
 
 /// A single equation `lhs = rhs`.

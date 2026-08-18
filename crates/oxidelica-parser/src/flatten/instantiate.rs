@@ -352,13 +352,36 @@ pub(super) fn instantiate(
             _ => None,
         };
 
+        let element_count = element_names.len();
         for (position, local_name) in element_names.iter().enumerate() {
             let flat_name = format!("{prefix}{local_name}");
+            // This element's own modifiers: each value substituted and
+            // prefixed once, and - on an array component - handed this
+            // element's slice of an array-valued modifier, unless the
+            // modifier was written `each`, which spreads it whole.
+            let element_modifiers: Vec<(String, Expr)> = component
+                .modifiers
+                .iter()
+                .map(|(name, value)| {
+                    let value =
+                        substitute_class_constants(value, registry, scope, &imports, &shadow);
+                    let value = prefix_expr(&value, prefix, &outers);
+                    let spread_whole =
+                        element_count == 1 || component.each_modifiers.iter().any(|e| e == name);
+                    let value = if spread_whole {
+                        value
+                    } else {
+                        array_element(&value, position, element_count)
+                    };
+                    (name.clone(), value)
+                })
+                .collect();
             let site = Site {
                 component: &component,
                 local_name,
                 flat_name: &flat_name,
                 extra_modifiers: &extra_modifiers,
+                modifiers: &element_modifiers,
                 redeclares: &child_redeclares,
                 binding: element_bindings.as_ref().map(|items| &items[position]),
                 start: element_starts.as_ref().map(|items| &items[position]),
@@ -741,6 +764,7 @@ pub(super) fn instantiate_one(
         local_name,
         flat_name,
         extra_modifiers,
+        modifiers,
         redeclares,
         binding: _,
         start: _,
@@ -852,9 +876,10 @@ pub(super) fn instantiate_one(
             });
             let mods: Vec<(String, Expr)> = inherited
                 .chain(extra_modifiers.iter().cloned())
-                .chain(component.modifiers.iter().map(|(n, e)| {
-                    let e = substitute_class_constants(e, registry, scope, imports, &[]);
-                    (n.clone(), prefix_expr(&e, prefix, outers))
+                .chain(modifiers.iter().map(|(n, e)| {
+                    // Already substituted and prefixed, and given this
+                    // element its slice, before the site was built.
+                    (n.clone(), e.clone())
                 }))
                 .collect();
             let child_prefix = format!("{flat_name}.");
@@ -867,6 +892,19 @@ pub(super) fn instantiate_one(
         }
     }
     Ok(())
+}
+
+/// One element's slice of a modifier value spread over an array.
+///
+/// A value written as a list of the right length is handed out one
+/// entry per element - `items[3](w = {1, 2, 3})` gives each its own -
+/// while anything else, a scalar most of all, reaches every element
+/// whole.
+fn array_element(value: &Expr, position: usize, count: usize) -> Expr {
+    match value {
+        Expr::Array(items) if items.len() == count => items[position].clone(),
+        _ => value.clone(),
+    }
 }
 
 /// Unroll a `for` equation, recursing into nested loops. The loop
