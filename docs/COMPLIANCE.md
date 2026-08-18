@@ -46,7 +46,7 @@ subscripts, inside `for` loops and between whole connector arrays;
 DAE index
 reduction with dynamic state re-selection; events (`when`/`elsewhen`,
 `pre`, `edge`, `change`, `initial()`, `sample`, `reinit`, `terminate`,
-`noEvent`, `smooth`, `semiLinear`), a `when` watching several
+`noEvent`, `smooth`, `semiLinear`, `delay`), a `when` watching several
 conditions at once and one standing among the statements of an
 algorithm; event iteration; `if` equations, structural on a
 compile-time condition and balanced-branch on a run-time one — each
@@ -168,8 +168,12 @@ continuation is run. `Connections.root`, `potentialRoot`, `branch`,
 `isRoot` and `rooted` decide the roots of an overconstrained graph and
 refuse one with no root or with two, but no equality constraints are
 generated or dropped, since overdetermined types are not supported.
-No `delay`, `terminal`, `spatialDistribution`, `getInstanceName`;
-subtype
+`delay(u, T)` keeps what `u` was at each output point and reads
+between them in a straight line, so the shift is as exact as
+`Interval` is fine and the step is never longer than the delay; `T`
+must be known before the run, and a continuation after a
+re-compilation starts its memory over. No `terminal`,
+`spatialDistribution`, `getInstanceName`; subtype
 compatibility (ch. 6) is approximated by the `extends` chain for
 `constrainedby`, though a connection set matches its connectors by
 shape — same member names, same `flow` and `stream` prefixes — rather

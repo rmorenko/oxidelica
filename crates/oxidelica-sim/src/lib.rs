@@ -146,6 +146,18 @@ enum CompiledAction {
     Assign(usize, Code),
 }
 
+/// One `delay(u, T)`: where its value is read from, what to remember,
+/// and how far back to look.
+#[derive(Debug)]
+struct CompiledDelay {
+    /// The slot the delayed value is written into before each point.
+    slot: Slot,
+    /// The expression whose past is being kept.
+    source: Code,
+    /// How far back to look.
+    seconds: f64,
+}
+
 /// A model reduced to "states plus ordered algebraic assignments".
 #[derive(Debug)]
 pub struct CompiledModel {
@@ -177,6 +189,12 @@ pub struct CompiledModel {
     pre_slots: Vec<Slot>,
     /// Slot of the flag raised during the initial event.
     initial_slot: Slot,
+    /// The delayed expressions, each with the slot its value is read
+    /// from and how far back it looks.
+    delays: Vec<CompiledDelay>,
+    /// What each delayed expression has been, kept as the run goes.
+    /// Only the run touches it, and a run has the model to itself.
+    history: std::cell::RefCell<Vec<Vec<(f64, f64)>>>,
     /// Slot of the flag raised by each `sample(...)` source.
     sample_slots: Vec<Slot>,
     /// Algebraic variables in evaluation order.
@@ -627,6 +645,45 @@ impl CompiledModel {
         })
     }
 
+    /// Put each delayed value in its slot, read from what the run has
+    /// remembered. Before the delay has elapsed the answer is the
+    /// value the run started from, as the specification asks.
+    fn fill_delays(&self, t: f64, values: &mut [f64]) {
+        if self.delays.is_empty() {
+            return;
+        }
+        let history = self.history.borrow();
+        for (delay, trace) in self.delays.iter().zip(history.iter()) {
+            values[delay.slot] = look_back(trace, t - delay.seconds);
+        }
+    }
+
+    /// Remember what each delayed expression is at a point the run has
+    /// settled on. Only accepted points are remembered: a rejected
+    /// step or a Newton iteration would put the past out of order.
+    fn remember_delays(&self, t: f64, values: &[f64]) {
+        if self.delays.is_empty() {
+            return;
+        }
+        let mut history = self.history.borrow_mut();
+        for (delay, trace) in self.delays.iter().zip(history.iter_mut()) {
+            let value = delay.source.run(values, t);
+            match trace.last() {
+                Some((last, _)) if t <= *last + 1e-15 => {}
+                _ => trace.push((t, value)),
+            }
+        }
+    }
+
+    /// The longest step that keeps every delay looking at a past the
+    /// run has already been through.
+    fn delay_step_limit(&self) -> f64 {
+        self.delays
+            .iter()
+            .map(|delay| delay.seconds)
+            .fold(f64::INFINITY, f64::min)
+    }
+
     /// Whether the branch each run-time `if` equation was compiled for
     /// is still the branch that holds.
     ///
@@ -675,6 +732,30 @@ impl CompiledModel {
             mode_change,
         }))
     }
+}
+
+/// What a remembered trace was at a moment, straight between the two
+/// points either side of it.
+fn look_back(trace: &[(f64, f64)], at: f64) -> f64 {
+    let Some((first_time, first_value)) = trace.first().copied() else {
+        return 0.0;
+    };
+    if at <= first_time {
+        return first_value;
+    }
+    let mut previous = (first_time, first_value);
+    for &(time, value) in trace.iter().skip(1) {
+        if time >= at {
+            let span = time - previous.0;
+            if span <= 0.0 {
+                return value;
+            }
+            let across = (at - previous.0) / span;
+            return previous.1 + across * (value - previous.1);
+        }
+        previous = (time, value);
+    }
+    previous.1
 }
 
 /// Glue a continuation onto the rows already produced.
@@ -750,6 +831,8 @@ struct EventRewrite<'a> {
     params: &'a HashMap<String, f64>,
     /// Schedules found so far, in flag order.
     samples: Vec<(f64, f64)>,
+    /// Delayed expressions found so far, with how far back each looks.
+    delays: Vec<(Expr, f64)>,
 }
 
 impl EventRewrite<'_> {
@@ -791,6 +874,25 @@ impl EventRewrite<'_> {
                     Box::new(self.pre_of(&args[0], "change")?),
                 ),
                 ("initial", 0) => Expr::Ref("$initial".to_string()),
+                // `delay(u, T)` reads what `u` was `T` ago, which the
+                // run remembers for it. The third argument, the
+                // longest delay a variable one might reach, is not
+                // needed here: this delay is a constant.
+                ("delay", 2) | ("delay", 3) => {
+                    let source = self.expr(&args[0])?;
+                    let seconds = eval(
+                        &args[1],
+                        &EvalCtx {
+                            vars: self.params,
+                            time: 0.0,
+                        },
+                    )?;
+                    if seconds <= 0.0 || seconds.is_nan() {
+                        return err(format!("delay(..., {seconds}): the delay must be positive and known before the run"));
+                    }
+                    self.delays.push((source, seconds));
+                    Expr::Ref(format!("$delay{}", self.delays.len() - 1))
+                }
                 ("sample", 2) => {
                     let ctx = EvalCtx {
                         vars: self.params,
@@ -1024,6 +1126,7 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         discretes: &discretes,
         params: &params,
         samples: Vec::new(),
+        delays: Vec::new(),
     };
     // An `if` equation the compiler could not decide is settled here:
     // whichever branch holds at this point joins the model, and this
@@ -1142,6 +1245,7 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         })
         .collect::<Result<Vec<_>, SimError>>()?;
     let samples = rewrite.samples;
+    let delayed = rewrite.delays;
 
     // 2. Split equations: explicit state derivatives vs general
     // algebraic equations (which need not be in assignment form).
@@ -1801,6 +1905,9 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
     let sample_slots: Vec<Slot> = (0..samples.len())
         .map(|index| table.slot(&format!("$sample{index}")))
         .collect();
+    let delay_slots: Vec<Slot> = (0..delayed.len())
+        .map(|index| table.slot(&format!("$delay{index}")))
+        .collect();
     for (name, value) in discretes.iter().zip(&discrete_start) {
         let slot = table.slot(name);
         table.template[slot] = *value;
@@ -1917,6 +2024,18 @@ fn compile_at(model: &Model, resume: Option<ResumePoint>) -> Result<CompiledMode
         pre_slots,
         initial_slot,
         sample_slots,
+        delays: delayed
+            .iter()
+            .zip(&delay_slots)
+            .map(|((source, seconds), slot)| {
+                Ok(CompiledDelay {
+                    slot: *slot,
+                    source: table.compile(source)?,
+                    seconds: *seconds,
+                })
+            })
+            .collect::<Result<Vec<_>, SimError>>()?,
+        history: std::cell::RefCell::new(vec![Vec::new(); delayed.len()]),
         algebraics: ordered_algs,
         algebraic_start,
         fixed_starts,
@@ -3229,7 +3348,9 @@ impl CompiledModel {
     ) -> Result<(), SimError> {
         // Parameters sit in the array from the start and discrete values
         // are written there by the event machinery, so a point only has
-        // to place the states and run the plan.
+        // to place the states, look up what was delayed, and run the
+        // plan.
+        self.fill_delays(t, values);
         for (&slot, value) in self.state_slots.iter().zip(y) {
             values[slot] = *value;
         }
@@ -3546,6 +3667,10 @@ impl CompiledModel {
                           alg_guess: &mut [f64]|
          -> Result<(), SimError> {
             self.eval_point(t, y, values, k, alg_guess)?;
+            // What is written down is also what the delays remember:
+            // in order, and as close together as the model asked its
+            // output to be.
+            self.remember_delays(t, values);
             self.check_asserts(t, values)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
@@ -3562,6 +3687,8 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut alg_guess = self.algebraic_start.clone();
+        // A segment remembers its own past, from its own beginning.
+        self.history.borrow_mut().iter_mut().for_each(Vec::clear);
         let t0 = self.start_time;
         let mut last_out_t = t0;
         let mut terminated: Option<String> = None;
@@ -3609,6 +3736,7 @@ impl CompiledModel {
             &mut derivatives_scratch,
             &mut alg_guess,
         )?;
+        self.remember_delays(t0, &values);
         let mut indicators_prev = self.indicator_values(t0, &values);
         // Pure-algebraic models: no ODE to integrate, only the grid.
         if n == 0 {
@@ -3707,7 +3835,7 @@ impl CompiledModel {
         }
 
         while t < stop - 1e-12 {
-            h = h.min(stop - t);
+            h = h.min(stop - t).min(self.delay_step_limit());
             // A scheduled time event is not something to step over: the
             // step ends exactly on it.
             if let Some(next) = state.next_time_event() {
@@ -4157,6 +4285,10 @@ impl CompiledModel {
                           alg_guess: &mut [f64]|
          -> Result<(), SimError> {
             self.eval_point(t, y, values, k, alg_guess)?;
+            // What is written down is also what the delays remember:
+            // in order, and as close together as the model asked its
+            // output to be.
+            self.remember_delays(t, values);
             self.check_asserts(t, values)?;
             let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
             row.push(t);
@@ -4173,6 +4305,8 @@ impl CompiledModel {
 
         let mut y = self.initial.clone();
         let mut terminated: Option<String> = None;
+        // A segment remembers its own past, from its own beginning.
+        self.history.borrow_mut().iter_mut().for_each(Vec::clear);
         let t0 = self.start_time;
         let mut state = self.event_state();
         if self.resume {
@@ -4200,6 +4334,7 @@ impl CompiledModel {
             }
         }
         record(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+        self.remember_delays(t0, &values);
         let mut indicators_prev = self.indicator_values(t0, &values);
 
         // Pure-algebraic models: nothing to integrate, walk the grid.
@@ -4277,7 +4412,7 @@ impl CompiledModel {
         }
 
         while t < stop - 1e-12 {
-            h = h.min(stop - t);
+            h = h.min(stop - t).min(self.delay_step_limit());
             // A scheduled time event is not something to step over: the
             // step ends exactly on it.
             if let Some(next) = state.next_time_event() {
@@ -4659,6 +4794,7 @@ impl CompiledModel {
                           alg_guess: &mut [f64]|
          -> Result<(), SimError> {
             this.eval_point(t, y, values, k, alg_guess)?;
+            this.remember_delays(t, values);
             this.check_asserts(t, values)?;
             let mut row = Vec::with_capacity(1 + this.states.len() + this.algebraics.len());
             row.push(t);
@@ -5711,6 +5847,40 @@ mod tests {
         let library = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
         let source = std::fs::read_to_string(root.join("examples").join(name)).unwrap();
         oxidelica_parser::parse_model_with_libraries(&[library], &source).unwrap()
+    }
+
+    #[test]
+    fn a_delayed_wave_arrives_unchanged_but_later() {
+        // What comes out of the pipe is what went in, a transit time
+        // ago and a little smaller. The shape is exact; the shift is
+        // as exact as the output grid, which is what a straight line
+        // between two remembered points can manage.
+        let result = compile(&with_library("transport_delay.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (transit, loss) = (0.53f64, 0.15f64);
+        for row in &result.rows {
+            let (t, seen) = (row[0], row[index("outlet")]);
+            let wanted = if t >= transit {
+                (1.0 - loss) * (3.0 * (t - transit)).sin()
+            } else {
+                0.0
+            };
+            assert!(
+                (seen - wanted).abs() < 1e-5,
+                "t = {t}: outlet {seen} vs {wanted}"
+            );
+        }
+        // Before the fluid has crossed, the far end holds what the
+        // inlet started at.
+        assert_eq!(result.rows[0][index("outlet")], 0.0);
+        // And the vessel it pours into really did fill.
+        assert!(result
+            .rows
+            .iter()
+            .any(|row| row[index("vessel")].abs() > 0.2));
     }
 
     #[test]
