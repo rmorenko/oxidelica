@@ -93,7 +93,11 @@ fn settle(named: &[String], model: &Model) -> Result<HashMap<String, String>, St
             }
         }
     }
+    // The name of what is being simulated, for `getInstanceName`, and
+    // in place before anything is worked out, since a binding may ask
+    // for it. A `$` name cannot collide with anything a model writes.
     let mut values: HashMap<String, String> = HashMap::new();
+    values.insert("$model".to_string(), model.name.clone());
     for _ in 0..=named.len() {
         let before = values.len();
         for name in named {
@@ -130,6 +134,17 @@ fn text_of(expr: &Expr, values: &HashMap<String, String>) -> Option<String> {
         Expr::Ref(name) => values.get(name).cloned(),
         // `+` joins two strings, which is what Modelica spells it as.
         Expr::Bin(BinOp::Add, a, b) => Some(text_of(a, values)? + &text_of(b, values)?),
+        // `getInstanceName()` is the simulated model's name with the
+        // path of the instance that asked appended to it.
+        Expr::Call(name, args) if name == "getInstanceName" => {
+            let root = values.get("$model")?;
+            Some(match args.first() {
+                None => root.clone(),
+                Some(Expr::Str(path)) if path.is_empty() => root.clone(),
+                Some(Expr::Str(path)) => format!("{root}.{path}"),
+                _ => return None,
+            })
+        }
         Expr::Call(name, args) if name == "String" && args.len() == 1 => {
             let number = const_eval(&args[0], &HashMap::new())?;
             Some(if number.fract() == 0.0 {

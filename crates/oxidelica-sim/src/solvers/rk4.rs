@@ -85,6 +85,19 @@ impl CompiledModel {
                 .terminated;
         }
 
+        // See `finish_segment`: reaching the stop time is an event of
+        // its own, and this solver has to raise it as the others do.
+        if terminated.is_none() {
+            values[self.terminal_slot] = 1.0;
+            let stop = self.stop_time;
+            let outcome =
+                self.handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if outcome.changed {
+                record(stop, &y, &mut values, &mut k1, self, &mut alg_guess)?;
+            }
+            terminated = outcome.terminated;
+        }
+
         Ok(SimResult {
             columns,
             rows,

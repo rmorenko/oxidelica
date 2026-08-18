@@ -67,6 +67,7 @@ impl EventRewrite<'_> {
                     Box::new(self.pre_of(&args[0], "change")?),
                 ),
                 ("initial", 0) => Expr::Ref("$initial".to_string()),
+                ("terminal", 0) => Expr::Ref("$terminal".to_string()),
                 // `delay(u, T)` reads what `u` was `T` ago, which the
                 // run remembers for it. The third argument, the
                 // longest delay a variable one might reach, is not

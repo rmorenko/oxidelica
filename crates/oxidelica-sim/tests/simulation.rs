@@ -1633,3 +1633,53 @@ fn the_nth_root_takes_the_sign_with_it() {
     assert!((last[index("odd")] + 2.0).abs() < 1e-12);
     assert!((last[index("fourth")] - 2.0).abs() < 1e-12);
 }
+
+#[test]
+fn the_end_of_a_run_is_an_event_of_its_own() {
+    // `terminal()` is the predicate for an analysis that finished, and
+    // a `when` watching it fires once, at the stop time, with
+    // everything the run arrived at still in place.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf, SolverMethod::Rk4] {
+        for source in [
+            // With something to integrate, and with nothing.
+            "model M Real x(start = 0, fixed = true); discrete Real flag(start = 0); \
+             equation der(x) = 1; when terminal() then flag = 1; end when; \
+             annotation(experiment(StopTime = 1, Interval = 0.25)); end M;",
+            "model M Real y; discrete Real flag(start = 0); \
+             equation y = time; when terminal() then flag = 1; end when; \
+             annotation(experiment(StopTime = 1, Interval = 0.25)); end M;",
+        ] {
+            // RK4 steps a fixed grid and refuses `sample`; a model with
+            // nothing to integrate has no grid for it to step.
+            if matches!(method, SolverMethod::Rk4) && source.contains("y = time") {
+                continue;
+            }
+            let result = run_on(source, method).expect("runs");
+            let flag = result.columns.iter().position(|c| c == "flag").unwrap();
+            assert_eq!(
+                result.rows.last().unwrap()[flag],
+                1.0,
+                "{method:?} did not reach the end"
+            );
+            // And only at the end: every earlier row still has zero.
+            assert!(result.rows[..result.rows.len() - 1]
+                .iter()
+                .all(|row| row[flag] == 0.0));
+        }
+    }
+
+    // A run the model stopped itself did not finish, so the predicate
+    // stays false - that is the difference between an analysis that
+    // ended and one that succeeded.
+    let stopped = run_on(
+        "model M Real x(start = 0, fixed = true); discrete Real flag(start = 0); \
+         equation der(x) = 1; when x > 0.5 then terminate(\"far enough\"); end when; \
+         when terminal() then flag = 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.25)); end M;",
+        SolverMethod::Dopri45,
+    )
+    .expect("runs");
+    let flag = stopped.columns.iter().position(|c| c == "flag").unwrap();
+    assert_eq!(stopped.rows.last().unwrap()[flag], 0.0);
+    assert!(stopped.terminated.is_some());
+}

@@ -1329,6 +1329,7 @@ pub(crate) fn compile_at(
         .map(|name| table.slot(&format!("$pre.{name}")))
         .collect();
     let initial_slot = table.slot("$initial");
+    let terminal_slot = table.slot("$terminal");
     let sample_slots: Vec<Slot> = (0..samples.len())
         .map(|index| table.slot(&format!("$sample{index}")))
         .collect();
@@ -1450,6 +1451,7 @@ pub(crate) fn compile_at(
         discrete_slots,
         pre_slots,
         initial_slot,
+        terminal_slot,
         sample_slots,
         delays: delayed
             .iter()

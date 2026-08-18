@@ -2634,3 +2634,43 @@ fn the_reserved_words_are_reserved() {
     .message;
     assert!(error.contains("must have a Modelica body"), "{error}");
 }
+
+#[test]
+fn a_model_can_ask_where_it_is() {
+    // `getInstanceName()` answers with the simulated model's name and
+    // the path of the instance that asked, so the same class inside
+    // two components gives two different answers. Strings are settled
+    // before the run, and this is one of them.
+    let named = |source: &str| {
+        let model = parse_model(source).expect("parses");
+        format!("{:?}", model.equations)
+    };
+
+    // At the top there is no path to append.
+    assert!(named(
+        "model Vehicle Real y; \
+         equation y = if getInstanceName() == \"Vehicle\" then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end Vehicle;"
+    )
+    .contains("Bool(true)"));
+
+    // One level down, and two.
+    assert!(named(
+        "model Ctl Real y; \
+         equation y = if getInstanceName() == \"Vehicle.engine.controller\" then 1 else 0; \
+         end Ctl; \
+         model Eng Ctl controller; Real w; equation w = 1; end Eng; \
+         model Vehicle Eng engine; Real z; equation z = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end Vehicle;"
+    )
+    .contains("Bool(true)"));
+
+    // And it may be what a String parameter is built from.
+    assert!(parse_model(
+        "model Inner parameter String who = getInstanceName() + \" reporting\"; \
+         Real y; equation y = 1; end Inner; \
+         model Top Inner part; Real z; equation z = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end Top;"
+    )
+    .is_ok());
+}

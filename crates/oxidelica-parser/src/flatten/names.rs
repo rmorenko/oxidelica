@@ -23,6 +23,14 @@ pub(super) fn prefix_expr_under(
 ) -> Expr {
     let recur = |e: &Expr| prefix_expr_under(e, prefix, outers, bound);
     match expr {
+        // `getInstanceName()` answers with where it was written, and
+        // this is the only place that still knows: the instance path
+        // rides along as an argument until the strings pass puts the
+        // model's own name in front of it.
+        Expr::Call(name, args) if name == "getInstanceName" && args.is_empty() => Expr::Call(
+            name.clone(),
+            vec![Expr::Str(prefix.trim_end_matches('.').to_string())],
+        ),
         Expr::Ref(name) if bound.contains(&name.as_str()) => expr.clone(),
         Expr::Ref(name) => Expr::Ref(flat_name(name, prefix, outers)),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),

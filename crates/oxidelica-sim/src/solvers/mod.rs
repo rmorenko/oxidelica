@@ -191,15 +191,32 @@ impl CompiledModel {
                 break;
             }
         }
-        if terminated.is_none() && last_out_t < stop - 1e-12 {
-            self.record_row(
-                stop,
-                &y,
-                &mut values,
-                &mut scratch,
-                &mut alg_guess,
-                &mut rows,
-            )?;
+        if terminated.is_none() {
+            if last_out_t < stop - 1e-12 {
+                self.record_row(
+                    stop,
+                    &y,
+                    &mut values,
+                    &mut scratch,
+                    &mut alg_guess,
+                    &mut rows,
+                )?;
+            }
+            // See `finish_segment`: the end of the run is an event.
+            values[self.terminal_slot] = 1.0;
+            let outcome =
+                self.handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if outcome.changed {
+                self.record_row(
+                    stop,
+                    &y,
+                    &mut values,
+                    &mut scratch,
+                    &mut alg_guess,
+                    &mut rows,
+                )?;
+            }
+            terminated = outcome.terminated;
         }
         Ok(AdaptiveOutcome::Finished(SimResult {
             columns,
@@ -231,18 +248,37 @@ impl CompiledModel {
             ..
         } = segment;
         let stop = self.stop_time;
-        if terminated.is_none() && last_out_t < stop - 1e-12 {
-            self.record_row(
-                stop,
-                &y,
-                &mut values,
-                &mut scratch,
-                &mut alg_guess,
-                &mut rows,
-            )?;
-            terminated = self
-                .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
-                .terminated;
+        if terminated.is_none() {
+            if last_out_t < stop - 1e-12 {
+                self.record_row(
+                    stop,
+                    &y,
+                    &mut values,
+                    &mut scratch,
+                    &mut alg_guess,
+                    &mut rows,
+                )?;
+            }
+            // Reaching the stop time is itself an event: `terminal()`
+            // becomes true and a `when` watching it fires once, here,
+            // with everything the run arrived at still in place. A run
+            // the model stopped itself never gets here, which is the
+            // difference between an analysis that ended and one that
+            // succeeded.
+            values[self.terminal_slot] = 1.0;
+            let outcome =
+                self.handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if outcome.changed {
+                self.record_row(
+                    stop,
+                    &y,
+                    &mut values,
+                    &mut scratch,
+                    &mut alg_guess,
+                    &mut rows,
+                )?;
+            }
+            terminated = outcome.terminated;
         }
         Ok(AdaptiveOutcome::Finished(SimResult {
             columns,

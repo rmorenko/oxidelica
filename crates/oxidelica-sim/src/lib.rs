@@ -208,6 +208,8 @@ pub struct CompiledModel {
     pre_slots: Vec<Slot>,
     /// Slot of the flag raised during the initial event.
     initial_slot: Slot,
+    /// Slot of `$terminal`, raised once the run reaches its stop time.
+    terminal_slot: Slot,
     /// The delayed expressions, each with the slot its value is read
     /// from and how far back it looks.
     delays: Vec<CompiledDelay>,
