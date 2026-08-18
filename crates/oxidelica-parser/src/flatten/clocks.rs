@@ -89,6 +89,10 @@ fn gcd(a: i128, b: i128) -> i128 {
 pub(super) enum Root {
     /// A fixed interval in seconds: `Clock(0.1)` or `Clock(1, 10)`.
     Every(f64),
+    /// The rising edge of a condition: `Clock(b, startInterval)`. The
+    /// number is what `interval` answers at the first tick, there being
+    /// no earlier tick to measure back to.
+    When(Expr, f64),
 }
 
 /// A clock as the compiler keeps it: a root, and this clock's ticks as
@@ -117,23 +121,58 @@ impl ClockSpec {
         }
     }
 
-    /// The interval between two ticks, in seconds.
-    fn interval(&self) -> f64 {
-        let Root::Every(period) = self.root;
-        period * self.rate.value()
+    /// A clock ticking whenever a condition rises.
+    fn when(condition: Expr, start_interval: f64) -> ClockSpec {
+        ClockSpec {
+            root: Root::When(condition, start_interval),
+            rate: Ratio::ONE,
+            shift: Ratio::ZERO,
+        }
+    }
+
+    /// The interval between two ticks, in seconds, when it is a number
+    /// the compiler knows. An event clock's is not: it is however long
+    /// the run takes to raise the condition again.
+    fn interval(&self) -> Option<f64> {
+        match &self.root {
+            Root::Every(period) => Some(period * self.rate.value()),
+            Root::When(..) => None,
+        }
     }
 
     /// When the first tick falls, in seconds past the start.
-    fn first(&self) -> f64 {
-        let Root::Every(period) = self.root;
-        period * self.shift.value()
+    fn first(&self) -> Option<f64> {
+        match &self.root {
+            Root::Every(period) => Some(period * self.shift.value()),
+            Root::When(..) => None,
+        }
+    }
+
+    /// How many ticks of the root make one of this clock. An event
+    /// clock sub-sampled by three fires on every third rising edge.
+    fn every_nth(&self) -> i64 {
+        self.rate.num
+    }
+
+    /// How to name this clock in a message.
+    fn describe(&self) -> String {
+        match self.interval() {
+            Some(interval) => format!("every {interval}"),
+            None => "on an event".to_string(),
+        }
     }
 
     /// Whether two clocks are the same clock - which is a question
     /// about the fractions, not about the seconds they work out to.
     fn same(&self, other: &ClockSpec) -> bool {
-        let (Root::Every(mine), Root::Every(theirs)) = (&self.root, &other.root);
-        mine.to_bits() == theirs.to_bits() && self.rate == other.rate && self.shift == other.shift
+        let roots = match (&self.root, &other.root) {
+            (Root::Every(mine), Root::Every(theirs)) => mine.to_bits() == theirs.to_bits(),
+            (Root::When(mine, start), Root::When(theirs, other_start)) => {
+                mine == theirs && start.to_bits() == other_start.to_bits()
+            }
+            _ => false,
+        };
+        roots && self.rate == other.rate && self.shift == other.shift
     }
 
     /// The same clock ticking `factor` times more slowly, its first
@@ -147,7 +186,12 @@ impl ClockSpec {
 
     /// The same clock ticking `factor` times faster, the interval split
     /// into that many equal parts.
+    ///
+    /// There is nothing to split on an event clock: the specification
+    /// forbids super-sampling one, because no compiler can say when the
+    /// condition will rise next, let alone a third of the way there.
     fn super_sampled(&self, factor: i64) -> Result<ClockSpec, String> {
+        self.periodic_only("superSample")?;
         Ok(ClockSpec {
             rate: self.rate.times(Ratio::new(1, i128::from(factor))?)?,
             ..self.clone()
@@ -157,6 +201,10 @@ impl ClockSpec {
     /// The same clock with every tick moved `counter / resolution` of an
     /// interval later, or earlier when `back`.
     fn shifted(&self, counter: i64, resolution: i64, back: bool) -> Result<ClockSpec, String> {
+        // A shift is a fraction of an interval, and `shiftSample` is
+        // written in the specification as a `superSample` followed by a
+        // `subSample` - so it is out of reach for the same reason.
+        self.periodic_only(if back { "backSample" } else { "shiftSample" })?;
         let step = self
             .rate
             .times(Ratio::new(i128::from(counter), i128::from(resolution))?)?;
@@ -172,6 +220,18 @@ impl ClockSpec {
             shift,
             ..self.clone()
         })
+    }
+
+    /// Refuse an operator that only means something on a clock whose
+    /// ticks are known in advance.
+    fn periodic_only(&self, operator: &str) -> Result<(), String> {
+        match self.root {
+            Root::Every(_) => Ok(()),
+            Root::When(..) => Err(format!(
+                "`{operator}` asks where a tick falls between two others, and an event \
+                 clock has no answer - only `subSample`, which counts them, applies to one"
+            )),
+        }
     }
 }
 
@@ -295,7 +355,11 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                  `Clock {name} = Clock(0.1);`"
             ));
         };
-        if clocks.spec(index).interval() <= 0.0 {
+        if clocks
+            .spec(index)
+            .interval()
+            .is_some_and(|seconds| seconds <= 0.0)
+        {
             return Err(format!("the interval of `{name}` must be positive"));
         }
     }
@@ -378,58 +442,114 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         }
     }
     model.equations = kept;
-    let mut counters = Vec::new();
+    let mut bookkeeping: Vec<(String, usize, f64)> = Vec::new();
     for clock in in_partition_order(&lifted)? {
         let mut actions = lifted.remove(&clock).expect("the order names each once");
+        let spec = clocks.spec(clock).clone();
+        let counter = counter_name(clock);
+        let last = last_tick_name(clock);
+
         // `firstTick` needs the partition to count its own ticks, and
         // nothing but a counter will do it: a clock has no other way of
-        // telling its first activation from its hundredth.
-        if actions
-            .iter()
-            .any(|(_, value)| mentions_call(value, "firstTick"))
+        // telling its first activation from its hundredth. An event
+        // clock's `interval` reads the same counter to know whether
+        // there was a tick before to measure back to.
+        let asks_when = actions.iter().any(|(_, value)| mentions_ref(value, &last));
+        if asks_when
+            || actions
+                .iter()
+                .any(|(_, value)| mentions_call(value, "firstTick"))
         {
-            let counter = format!("$tick{clock}");
             for (_, value) in &mut actions {
                 *value = answer_first_tick(value, &counter);
             }
-            actions.push((
-                counter.clone(),
-                Expr::Bin(
-                    BinOp::Add,
+            actions.push((counter.clone(), after(&counter, Expr::Number(1.0))));
+            bookkeeping.push((counter.clone(), clock, 0.0));
+        }
+        if asks_when {
+            actions.push((last.clone(), Expr::Time));
+            bookkeeping.push((last, clock, 0.0));
+        }
+
+        // An event clock sub-sampled by n fires on every n-th rising
+        // edge, but the edge itself arrives every time, so the
+        // partition counts the ones it skips and holds what it had
+        // through them. A periodic clock needs none of this: its rate
+        // is already in the interval it ticks on.
+        let condition = match &spec.root {
+            Root::Every(_) => Expr::Call(
+                "sample".to_string(),
+                vec![
+                    Expr::Number(spec.first().expect("a periodic clock has a first tick")),
+                    Expr::Number(spec.interval().expect("and an interval")),
+                ],
+            ),
+            Root::When(condition, _) => condition.clone(),
+        };
+        if spec.interval().is_none() && spec.every_nth() > 1 {
+            let skipped = format!("$every{clock}");
+            let due = Expr::Rel(
+                crate::ast::RelOp::Ge,
+                Box::new(after(&skipped, Expr::Number(1.0))),
+                Box::new(Expr::Number(spec.every_nth() as f64)),
+            );
+            for (target, value) in &mut actions {
+                *value = Expr::If(
+                    Box::new(Expr::Rel(
+                        crate::ast::RelOp::Lt,
+                        Box::new(Expr::Ref(skipped.clone())),
+                        Box::new(Expr::Number(0.5)),
+                    )),
+                    Box::new(value.clone()),
                     Box::new(Expr::Call(
                         "pre".to_string(),
-                        vec![Expr::Ref(counter.clone())],
+                        vec![Expr::Ref(target.clone())],
                     )),
-                    Box::new(Expr::Number(1.0)),
+                );
+            }
+            actions.push((
+                skipped.clone(),
+                Expr::If(
+                    Box::new(due),
+                    Box::new(Expr::Number(0.0)),
+                    Box::new(after(&skipped, Expr::Number(1.0))),
                 ),
             ));
-            counters.push((counter, clock));
+            // Counting from one short of the factor makes the first
+            // edge a firing one, as 16.5 asks: the sub-sampled clock's
+            // first activation is its argument's first activation.
+            bookkeeping.push((skipped, clock, spec.every_nth() as f64 - 1.0));
         }
+
         // The equations of a partition are equations, in no order of
         // their own; what the tick needs is an order in which each is
         // ready when its turn comes. `previous` reaches back to the
         // tick before, so it is not a reason to wait.
         let actions = in_dependency_order(actions)?;
-        let spec = clocks.spec(clock);
+        // What an event clock waits for happens in continuous time, so
+        // its condition is written in continuous time too: a clocked
+        // variable only changes at a tick, and a clock waiting on one of
+        // its own would be waiting on itself.
+        if let Some(clocked) = clocked_outside_hold(&condition, &clock_of) {
+            return Err(format!(
+                "an event clock waits on something the run varies between ticks, and \
+                 `{clocked}` is clocked - `hold({clocked})` is how a clocked value is \
+                 read in continuous time"
+            ));
+        }
         model.when_clauses.push(WhenClause {
-            branches: vec![WhenBranch {
-                condition: Expr::Call(
-                    "sample".to_string(),
-                    vec![Expr::Number(spec.first()), Expr::Number(spec.interval())],
-                ),
-                actions,
-            }],
+            branches: vec![WhenBranch { condition, actions }],
         });
     }
-    for (counter, clock) in counters {
+    for (name, clock, start) in bookkeeping {
         model.components.push(Component {
-            name: counter.clone(),
+            name: name.clone(),
             variability: Variability::Discrete,
-            start: Some(Expr::Number(0.0)),
-            description: Some("clock tick counter".to_string()),
+            start: Some(Expr::Number(start)),
+            description: Some("clock bookkeeping".to_string()),
             ..blank_component()
         });
-        clock_of.insert(counter, clock);
+        clock_of.insert(name, clock);
     }
 
     // What is left of the continuous part may only reach a clocked
@@ -515,20 +635,27 @@ pub(super) fn clock_expr(
     };
     match (name.as_str(), args.len()) {
         // `Clock(0.1)` says its interval in seconds.
-        ("Clock", 1) => match const_eval(&args[0], parameters) {
-            Some(interval) => Ok(Some(clocks.intern(ClockSpec::every(interval)))),
-            None => {
-                Err("`Clock(interval)` needs an interval the compiler can work out".to_string())
+        ("Clock", 1) => Ok(Some(match const_eval(&args[0], parameters) {
+            Some(interval) => clocks.intern(ClockSpec::every(interval)),
+            None => clocks.intern(ClockSpec::when(args[0].clone(), 0.0)),
+        })),
+        ("Clock", 2) => Ok(Some(match const_eval(&args[0], parameters) {
+            // `Clock(1, 10)` says the interval as a fraction, which is
+            // how a model asks for a rate no decimal writes exactly.
+            Some(_) => {
+                let counter = whole_argument(&args[0], parameters, "interval counter")?;
+                let resolution = whole_argument(&args[1], parameters, "resolution")?;
+                clocks.intern(ClockSpec::every(counter as f64 / resolution as f64))
             }
-        },
-        // `Clock(1, 10)` says it as a fraction, which is how a model
-        // asks for a rate that no decimal writes exactly.
-        ("Clock", 2) => {
-            let counter = whole_argument(&args[0], parameters, "interval counter")?;
-            let resolution = whole_argument(&args[1], parameters, "resolution")?;
-            let interval = counter as f64 / resolution as f64;
-            Ok(Some(clocks.intern(ClockSpec::every(interval))))
-        }
+            None => {
+                let Some(start) = const_eval(&args[1], parameters) else {
+                    return Err("the start interval of an event clock has to be a number \
+                                the compiler can work out"
+                        .to_string());
+                };
+                clocks.intern(ClockSpec::when(args[0].clone(), start))
+            }
+        })),
         _ => {
             let Some((_, takes_resolution)) =
                 SUB_CLOCK.iter().find(|(known, _)| known == name).copied()
@@ -685,11 +812,11 @@ pub(super) fn one_clock(
         .find(|clock| !clocks.spec(*clock).same(clocks.spec(first)))
     {
         return Err(format!(
-            "`{target}` is written on two clocks at once, one ticking every {} and one \
-             every {} - a value belongs to one clock, and crossing between them asks for \
+            "`{target}` is written on two clocks at once, one ticking {} and one ticking \
+             {} - a value belongs to one clock, and crossing between them asks for \
              `subSample`, `superSample` or `hold`",
-            clocks.spec(first).interval(),
-            clocks.spec(other).interval()
+            clocks.spec(first).describe(),
+            clocks.spec(other).describe()
         ));
     }
     Ok(Some(first))
@@ -739,6 +866,73 @@ pub(super) fn in_partition_order(
         }
     }
     Ok(placed)
+}
+
+/// The variable a partition counts its own ticks in.
+fn counter_name(clock: usize) -> String {
+    format!("$tick{clock}")
+}
+
+/// The variable an event partition remembers the time of its last tick
+/// in, so that `interval` has something to measure back to.
+fn last_tick_name(clock: usize) -> String {
+    format!("$last{clock}")
+}
+
+/// What a bookkeeping variable held at the tick before, plus a step.
+fn after(name: &str, step: Expr) -> Expr {
+    Expr::Bin(
+        BinOp::Add,
+        Box::new(Expr::Call(
+            "pre".to_string(),
+            vec![Expr::Ref(name.to_string())],
+        )),
+        Box::new(step),
+    )
+}
+
+/// How long an event clock's last interval was: the time now less the
+/// time of the tick before. There is no tick before the first, which
+/// is what the start interval of the constructor answers for.
+fn elapsed_since_last_tick(spec: &ClockSpec, clock: usize) -> Expr {
+    let Root::When(_, start_interval) = &spec.root else {
+        unreachable!("a periodic clock answers with the interval it was declared with")
+    };
+    Expr::If(
+        Box::new(Expr::Rel(
+            crate::ast::RelOp::Lt,
+            Box::new(Expr::Ref(counter_name(clock))),
+            Box::new(Expr::Number(1.5)),
+        )),
+        Box::new(Expr::Number(*start_interval)),
+        Box::new(Expr::Bin(
+            BinOp::Sub,
+            Box::new(Expr::Time),
+            Box::new(Expr::Call(
+                "pre".to_string(),
+                vec![Expr::Ref(last_tick_name(clock))],
+            )),
+        )),
+    )
+}
+
+/// Whether a name appears anywhere in an expression, `pre` included -
+/// which is where the bookkeeping variables are read.
+pub(super) fn mentions_ref(expr: &Expr, wanted: &str) -> bool {
+    match expr {
+        Expr::Ref(name) => name == wanted,
+        Expr::Call(_, args) => args.iter().any(|arg| mentions_ref(arg, wanted)),
+        Expr::Neg(inner) | Expr::Not(inner) => mentions_ref(inner, wanted),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => mentions_ref(l, wanted) || mentions_ref(r, wanted),
+        Expr::If(c, a, b) => {
+            mentions_ref(c, wanted) || mentions_ref(a, wanted) || mentions_ref(b, wanted)
+        }
+        _ => false,
+    }
 }
 
 /// Answer `firstTick` from the counter its partition keeps.
@@ -796,7 +990,16 @@ pub(super) fn at_the_tick(
                 .first()
                 .and_then(|arg| clock_of_expr(arg, clocks, clock_of));
             match named.or(here) {
-                Some(clock) => Expr::Number(clocks.spec(clock).interval()),
+                Some(clock) => match clocks.spec(clock).interval() {
+                    Some(seconds) => Expr::Number(seconds),
+                    // An event clock's interval is however long the run
+                    // took to raise the condition again, so it is
+                    // measured rather than known: the time now, less
+                    // the time at the tick before. There is no tick
+                    // before the first, which is what the start
+                    // interval of the constructor answers for.
+                    None => elapsed_since_last_tick(clocks.spec(clock), clock),
+                },
                 None => Expr::Call(name.clone(), args.iter().map(recur).collect()),
             }
         }
@@ -1006,7 +1209,24 @@ pub(super) fn build_state_machines(
             clocks.count()
         ));
     };
+    // `timeInState` is the tick count times the period, and an event
+    // clock has no period to multiply by: how long a state has been
+    // held is then a question only the run can answer.
     let period = clocks.spec(clock).interval();
+    if period.is_none()
+        && model
+            .equations
+            .iter()
+            .any(|equation| mentions_call(&equation.rhs, "timeInState"))
+    {
+        return Err(
+            "`timeInState` counts periods, and this machine's clock ticks on an event \
+             rather than on a period - `ticksInState` is what it can answer"
+                .to_string(),
+        );
+    }
+    // Never read where there is none: the check above saw to that.
+    let period = period.unwrap_or(0.0);
     let Some(start) = model.initial_states.first().cloned() else {
         return Err("a state machine needs `initialState(...)` to say where it starts".to_string());
     };

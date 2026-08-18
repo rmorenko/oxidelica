@@ -1489,6 +1489,107 @@ fn first_tick_is_answered_from_a_counter_the_partition_keeps() {
 }
 
 #[test]
+fn an_event_clock_ticks_on_its_condition_rather_than_on_a_period() {
+    // What the first argument is decides which clock this is: a number
+    // the compiler can work out is an interval, anything else is a
+    // condition. So the `when` this one is lowered onto fires on the
+    // condition itself, not on a `sample`.
+    let m = parse_model(
+        "model M Real x(start = 0, fixed = true); Clock e = Clock(x > 0.5, 0.25); \
+         Real gap; Real n; Real out; \
+         equation der(x) = 1; gap = interval(e); n = previous(n) + gap; \
+         out = hold(n); end M;",
+    )
+    .unwrap();
+    assert_eq!(m.when_clauses.len(), 1);
+    let branch = &m.when_clauses[0].branches[0];
+    assert!(
+        matches!(&branch.condition, Expr::Rel(..)),
+        "{:?}",
+        branch.condition
+    );
+    // Its interval is measured rather than known - the time now less
+    // the time at the tick before - so the partition remembers both the
+    // count of its ticks and when the last one was.
+    for name in ["$tick0", "$last0"] {
+        assert!(
+            m.components.iter().any(|c| c.name == name),
+            "{name} is kept"
+        );
+    }
+    let printed = format!("{:?}", branch.actions);
+    assert!(printed.contains("Time"), "{printed}");
+    assert!(printed.contains("0.25"), "{printed}");
+}
+
+#[test]
+fn an_event_clock_may_be_sub_sampled_but_not_placed_between_its_ticks() {
+    // Counting rising edges is something a run can do, so `subSample`
+    // works; the others ask where a tick falls between two others, and
+    // no compiler can say when a condition will rise next.
+    let event = "model M Real x(start = 0, fixed = true); Clock e = Clock(x > 0.5, 0.25); ";
+    let m = parse_model(&format!(
+        "{event} Clock half = subSample(e, 2); Real gap; Real n; Real m; Real out; \
+         equation der(x) = 1; gap = interval(e); n = previous(n) + gap; \
+         m = subSample(n, 2) + 1; out = hold(m); end M;"
+    ))
+    .unwrap();
+    // The edge arrives every time, so the slower partition counts the
+    // ones it skips, starting one short of the factor so that the first
+    // edge is a firing one.
+    let skipped = m
+        .components
+        .iter()
+        .find(|c| c.name.starts_with("$every"))
+        .expect("the sub-sampled partition counts");
+    assert_eq!(skipped.start, Some(Expr::Number(1.0)));
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    for operator in [
+        "superSample(e, 2)",
+        "shiftSample(e, 1, 2)",
+        "backSample(e, 1, 2)",
+    ] {
+        assert!(
+            err(&format!(
+                "{event} Clock bad = {operator}; Real z; Real out; \
+                 equation der(x) = 1; z = previous(z) + interval(bad); \
+                 out = hold(z); end M;"
+            ))
+            .contains("an event clock has no answer"),
+            "{operator}"
+        );
+    }
+    // The start interval is what `interval` answers before there is a
+    // tick to measure back to, so it has to be known before the run.
+    assert!(err(
+        "model M Real x(start = 0, fixed = true); Real q; Clock e = Clock(x > 0.5, q); \
+         Real g; Real out; equation der(x) = 1; q = time; g = interval(e); \
+         out = hold(g); end M;"
+    )
+    .contains("start interval of an event clock"));
+    // A machine on an event clock can count its ticks but cannot turn
+    // them into seconds.
+    assert!(err(
+        "model M block Step Real n(start = 0); equation n = previous(n) + 1; end Step; \
+         Real x(start = 0, fixed = true); Clock c = Clock(x > 0.5, 0.25); \
+         Step a; Step b; Real lamp; Real out; \
+         equation der(x) = 1; initialState(a); transition(a, b, a.n >= 1); \
+         lamp = timeInState(); out = hold(lamp); end M;"
+    )
+    .contains("`ticksInState` is what it can answer"));
+    // What an event clock waits for happens in continuous time. A clock
+    // waiting on a value that only its own ticks change would be
+    // waiting on itself.
+    assert!(err(
+        "model M Clock c = Clock(0.1); Real u; Real s; Clock e = Clock(s > 0.5, 0.25); \
+         Real n; Real out; equation u = time; s = sample(u, c); \
+         n = previous(n) + interval(e); out = hold(n) + hold(s); end M;"
+    )
+    .contains("`hold(s)` is how a clocked value is read"));
+}
+
+#[test]
 fn clock_error_paths() {
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
     // A clock with no interval anyone can work out.

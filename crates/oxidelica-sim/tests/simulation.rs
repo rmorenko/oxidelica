@@ -1410,6 +1410,68 @@ fn a_partition_sees_this_tick_of_the_one_it_reads() {
 }
 
 #[test]
+fn an_event_clock_measures_the_interval_it_could_not_be_told() {
+    // `x` is `sin(time)`, so `x > 0.5` rises at pi/6 and once every
+    // turn after: at pi/6, pi/6 + 2 pi and pi/6 + 4 pi. A clock ticking
+    // on that has no period anyone could have written down, so
+    // `interval` is measured - the time now less the time at the tick
+    // before - and the first tick, having nothing behind it, answers
+    // with the start interval the constructor was given.
+    let result = run(
+        "model M Real x(start = 0, fixed = true); Real v(start = 1, fixed = true); \
+         Clock e = Clock(x > 0.5, 0.25); Clock half = subSample(e, 2); \
+         Real gap; Real n; Real m; Real first; \
+         Real hg; Real hn; Real hm; Real hf; \
+         equation der(x) = v; der(v) = -x; \
+         gap = interval(e); n = previous(n) + gap; \
+         m = subSample(n, 2) + 1; \
+         first = if firstTick() then 100 else previous(first) + gap; \
+         hg = hold(gap); hn = hold(n); hm = hold(m); hf = hold(first); \
+         annotation(experiment(StopTime = 14, Interval = 0.5)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let turn = std::f64::consts::TAU;
+    let last = result.rows.last().unwrap();
+    // Three ticks: 0.25 for the first, then a turn each time.
+    assert!(
+        (last[index("hg")] - turn).abs() < 1e-5,
+        "{}",
+        last[index("hg")]
+    );
+    assert!(
+        (last[index("hn")] - (0.25 + 2.0 * turn)).abs() < 1e-5,
+        "{}",
+        last[index("hn")]
+    );
+    // `firstTick` was true once, at the first of them.
+    assert!(
+        (last[index("hf")] - (100.0 + 2.0 * turn)).abs() < 1e-5,
+        "{}",
+        last[index("hf")]
+    );
+    // The sub-sampled clock fires on the first and the third edge and
+    // holds what it had through the second, so it reads `n` from the
+    // third rather than from the second.
+    assert!(
+        (last[index("hm")] - (1.25 + 2.0 * turn)).abs() < 1e-5,
+        "{}",
+        last[index("hm")]
+    );
+    // And it really did skip one: at the second tick it still read what
+    // the first had left.
+    let between = result
+        .rows
+        .iter()
+        .find(|row| row[0] > 7.0)
+        .expect("a point between the second tick and the third");
+    assert!(
+        (between[index("hm")] - 1.25).abs() < 1e-12,
+        "{}",
+        between[index("hm")]
+    );
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_walks_its_events() {
     // No `der` anywhere: there is no step to take, so the solver walks
     // from one scheduled instant to the next output point and back,
