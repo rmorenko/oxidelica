@@ -122,6 +122,9 @@ pub struct Component {
     /// `redeclare` prefix: the declaration replaces an inherited
     /// `replaceable` one instead of adding a component of its own.
     pub redeclaration: bool,
+    /// `final` prefix: the declaration may not be modified or
+    /// redeclared from an enclosing class.
+    pub is_final: bool,
 }
 
 /// A single equation `lhs = rhs`.

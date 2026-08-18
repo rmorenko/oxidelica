@@ -2924,3 +2924,41 @@ fn a_package_holds_only_classes_and_constants() {
     )
     .is_ok());
 }
+
+#[test]
+fn a_final_declaration_is_closed_to_the_enclosing_class() {
+    let refused = |source: &str| parse_model(source).expect_err("should be refused").message;
+
+    // `extends Base(k = 5)` where Base declared `k` final.
+    let text = refused(
+        "model Base final parameter Real k = 2; Real y; equation y = k; end Base; \
+         model M extends Base(k = 5); Real z; equation z = y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(text.contains("`k` is final"), "{text}");
+
+    // Reaching an attribute of a final component from outside is
+    // refused just the same.
+    let text = refused(
+        "model Inner parameter Real a = 1; Real w; equation w = a; end Inner; \
+         model Outer final Inner c; Real y; equation y = c.w; end Outer; \
+         model M extends Outer(c(a = 9)); Real z; equation z = y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(text.contains("`c` is final"), "{text}");
+
+    // What is not modified from outside is fine: a final declaration
+    // with its own value, and an ordinary (non-final) one modified.
+    assert!(parse_model(
+        "model M final Inner c(a = 3); Real y; equation y = c.w; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         model Inner parameter Real a = 1; Real w; equation w = a; end Inner;"
+    )
+    .is_ok());
+    assert!(parse_model(
+        "model Base parameter Real k = 2; Real y; equation y = k; end Base; \
+         model M extends Base(k = 5); Real z; equation z = y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    )
+    .is_ok());
+}

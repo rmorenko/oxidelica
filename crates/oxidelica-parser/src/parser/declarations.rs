@@ -13,6 +13,7 @@ impl Parser {
         let mut scope = Scope::Local;
         let mut replaceable = false;
         let mut redeclaration = false;
+        let mut is_final = false;
         loop {
             match self.peek() {
                 Token::Parameter => variability = Variability::Parameter,
@@ -29,7 +30,8 @@ impl Parser {
                 Token::Outer => {}
                 Token::Replaceable => replaceable = true,
                 Token::Redeclare => redeclaration = true,
-                Token::Final | Token::Each => {}
+                Token::Final => is_final = true,
+                Token::Each => {}
                 _ => break,
             }
             self.bump();
@@ -180,6 +182,7 @@ impl Parser {
             condition,
             redeclares,
             redeclaration,
+            is_final,
         })
     }
 

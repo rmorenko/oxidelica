@@ -761,5 +761,6 @@ pub(super) fn blank_component() -> Component {
         condition: None,
         redeclares: Vec::new(),
         redeclaration: false,
+        is_final: false,
     }
 }

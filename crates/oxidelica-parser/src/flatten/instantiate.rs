@@ -181,6 +181,25 @@ pub(super) fn instantiate(
             continue;
         }
 
+        // A `final` declaration is closed to the enclosing class: an
+        // `extends Base(k = ...)` or a component modifier that reaches
+        // it - itself or any of its attributes - is refused, since the
+        // whole point of `final` is that the value cannot be changed
+        // from outside.
+        if component.is_final {
+            let modifies = |name: &str| {
+                name == component.name
+                    || name.starts_with(&format!("{}.", component.name))
+                    || name.starts_with(&format!("{}[", component.name))
+            };
+            if let Some((target, _)) = overrides.iter().find(|(name, _)| modifies(name)) {
+                return Err(format!(
+                    "`{}` is final and cannot be modified from outside, but `{target}` does",
+                    format_args!("{prefix}{}", component.name)
+                ));
+            }
+        }
+
         // `Support support if useSupport;` — a condition that does not
         // hold removes the component, and later the connections to it.
         if let Some(condition) = &component.condition {
