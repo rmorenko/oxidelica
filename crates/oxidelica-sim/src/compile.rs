@@ -957,6 +957,41 @@ fn discrete_layer(
 /// evaluated in passes: each pass settles whatever it can, and a pass
 /// that settles nothing means what is left refers to itself or to
 /// something that is not there.
+/// The `min` and `max` attributes, as the assertions Modelica says they
+/// are. A bound that is settled before the run is already refused by the
+/// checker; these are for the values that only a run produces - a level
+/// that drains past empty, a temperature that goes below absolute zero.
+fn bound_asserts(model: &Model) -> Vec<(Expr, String)> {
+    let mut out = Vec::new();
+    for component in &model.components {
+        for (bound, op, side) in [
+            (&component.min, RelOp::Ge, "below its min of"),
+            (&component.max, RelOp::Le, "above its max of"),
+        ] {
+            let Some(limit) = bound else { continue };
+            out.push((
+                Expr::Rel(
+                    op,
+                    Box::new(Expr::Ref(component.name.clone())),
+                    Box::new(limit.clone()),
+                ),
+                format!("`{}` went {side} {}", component.name, describe(limit)),
+            ));
+        }
+    }
+    out
+}
+
+/// A bound as it was written, for the message of the assertion above.
+fn describe(expr: &Expr) -> String {
+    match expr {
+        Expr::Number(value) => format!("{value}"),
+        Expr::Neg(inner) => format!("-{}", describe(inner)),
+        Expr::Ref(name) => name.clone(),
+        _ => "its limit".to_string(),
+    }
+}
+
 fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> {
     let mut params: HashMap<String, f64> = HashMap::new();
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
@@ -1458,6 +1493,11 @@ pub(crate) fn compile_at(
             .asserts
             .iter()
             .map(|(condition, message)| Ok((table.compile(condition)?, message.clone())))
+            .chain(
+                bound_asserts(model)
+                    .iter()
+                    .map(|(condition, message)| Ok((table.compile(condition)?, message.clone()))),
+            )
             .collect::<Result<Vec<_>, SimError>>()?,
         flat: model.clone(),
         jacobian_groups,

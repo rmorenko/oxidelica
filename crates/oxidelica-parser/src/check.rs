@@ -12,15 +12,26 @@
 //! `x + 1` or `x = 5` never complain, mirroring how models are
 //! actually written.
 
-use crate::ast::{BinOp, Expr, Model, RelOp, WhenAction};
+use crate::ast::{BinOp, Component, Expr, Model, RelOp, WhenAction};
+use crate::flatten::const_eval;
 use std::collections::HashMap;
 
 /// Check a flattened model. An `Err` names the first contradiction.
 pub fn verify(model: &Model) -> Result<(), String> {
     let types = TypeLayer::of(model);
     let units = UnitLayer::of(model);
+    let declared: HashMap<&str, &Component> = model
+        .components
+        .iter()
+        .map(|component| (component.name.as_str(), component))
+        .collect();
+    for component in &model.components {
+        types.declaration(component)?;
+    }
     for equation in model.equations.iter().chain(&model.initial_equations) {
         types.equation(&equation.lhs, &equation.rhs)?;
+        types.pinned_to_a_fraction(&equation.lhs, &equation.rhs)?;
+        pinned_bounds(&declared, &equation.lhs, &equation.rhs)?;
         units.equation(&equation.lhs, &equation.rhs)?;
     }
     for clause in &model.when_clauses {
@@ -45,6 +56,57 @@ pub fn verify(model: &Model) -> Result<(), String> {
     for (condition, _) in &model.asserts {
         types.condition(condition)?;
         units.infer(condition)?;
+    }
+    Ok(())
+}
+
+/// A binding arrives here as an equation, so a declaration whose value
+/// is settled before the run - `Real level(min = 0) = -1` - can be
+/// caught without starting one.
+fn pinned_bounds(
+    declared: &HashMap<&str, &Component>,
+    lhs: &Expr,
+    rhs: &Expr,
+) -> Result<(), String> {
+    let nothing = HashMap::new();
+    for (side, other) in [(lhs, rhs), (rhs, lhs)] {
+        let Expr::Ref(name) = side else { continue };
+        let Some(component) = declared.get(name.as_str()) else {
+            continue;
+        };
+        if let Some(value) = const_eval(other, &nothing) {
+            bounds(component, value, "is")?;
+        }
+    }
+    Ok(())
+}
+
+/// `min` and `max` against a value that is known before the run. Both
+/// are declared facts, so a binding or a `start` outside them is the
+/// same kind of contradiction this module reports everywhere else -
+/// caught here rather than by the run-time assertion that also guards
+/// them, because there is no need to start a run to find out.
+fn bounds(component: &Component, value: f64, what: &str) -> Result<(), String> {
+    let known = |bound: &Option<Expr>| -> Option<f64> {
+        bound
+            .as_ref()
+            .and_then(|expr| const_eval(expr, &HashMap::new()))
+    };
+    if let Some(low) = known(&component.min) {
+        if value < low {
+            return Err(format!(
+                "`{}` {what} {value}, below its min of {low}",
+                component.name
+            ));
+        }
+    }
+    if let Some(high) = known(&component.max) {
+        if value > high {
+            return Err(format!(
+                "`{}` {what} {value}, above its max of {high}",
+                component.name
+            ));
+        }
     }
     Ok(())
 }
@@ -99,7 +161,11 @@ impl TypeLayer {
     }
 
     /// The two sides of an equation must not put a Boolean against a
-    /// number. `Integer` against `Real` is fine - integers promote.
+    /// number. `Integer` against `Real` is fine - integers promote, so
+    /// `2 * i = x` is an ordinary equation, and which side an equation
+    /// determines is the matcher's business rather than something to
+    /// read off the text. Where the direction *is* known - a
+    /// declaration, an assignment - see [`TypeLayer::declaration`].
     fn equation(&self, lhs: &Expr, rhs: &Expr) -> Result<(), String> {
         let (left, right) = (self.infer(lhs)?, self.infer(rhs)?);
         if bool_against_number(left, right) {
@@ -112,6 +178,53 @@ impl TypeLayer {
             ));
         }
         Ok(())
+    }
+
+    /// An Integer pinned to a fraction. A declaration with a binding
+    /// arrives here as an equation, and which side an equation
+    /// determines is usually the matcher's business - but not when the
+    /// other side works out to a constant on its own: `Integer i = 1.5`
+    /// says the whole number is 1.5, and no matching can rescue that.
+    ///
+    /// The value is folded rather than merely typed, so `Integer i = 3.0`
+    /// still passes. That is deliberate, and of a piece with the rest of
+    /// this module: a complaint needs a real contradiction, not a
+    /// literal that happens to be spelled with a point.
+    fn pinned_to_a_fraction(&self, lhs: &Expr, rhs: &Expr) -> Result<(), String> {
+        let nothing = HashMap::new();
+        for (side, other) in [(lhs, rhs), (rhs, lhs)] {
+            let Expr::Ref(name) = side else { continue };
+            if self.vars.get(name) != Some(&Ty::Int) {
+                continue;
+            }
+            if let Some(value) = const_eval(other, &nothing) {
+                if value.fract() != 0.0 {
+                    return Err(format!(
+                        "`{name}` is an Integer but `{}` works out to {value}; use `integer()`",
+                        describe(other)
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// A `start` attribute is a value for its variable just as much as a
+    /// binding is, and unlike a binding it survives flattening.
+    fn declaration(&self, component: &Component) -> Result<(), String> {
+        let Some(start) = &component.start else {
+            return Ok(());
+        };
+        let Some(value) = const_eval(start, &HashMap::new()) else {
+            return Ok(());
+        };
+        if self.vars.get(&component.name) == Some(&Ty::Int) && value.fract() != 0.0 {
+            return Err(format!(
+                "`{}` is an Integer but starts at {value}; use `integer()`",
+                component.name
+            ));
+        }
+        bounds(component, value, "starts at")
     }
 
     /// `:=` is directional: a Real value cannot land in an Integer.
@@ -1214,5 +1327,49 @@ mod tests {
              when x > 1 then reinit(x, v); end when; end M;",
         );
         assert!(text.contains("unit mismatch"), "{text}");
+    }
+
+    #[test]
+    fn an_integer_may_not_hold_a_fraction() {
+        // A binding arrives at the checker as an equation, so this is
+        // the one place a direction can be read off it: the other side
+        // works out on its own, and it is not a whole number.
+        let text = error_of("model M Integer i = 1.5; Real y; equation y = i; end M;");
+        assert!(text.contains("works out to 1.5"), "{text}");
+
+        let text = error_of("model M Integer i(start = 0.5); Real y; equation y = i; end M;");
+        assert!(text.contains("starts at 0.5"), "{text}");
+
+        // Spelling a whole number with a point is not a contradiction,
+        // and neither is an equation that merely *mentions* an Integer
+        // beside a Real: `2 * i = x` promotes, and which side it
+        // determines is the matcher's business.
+        assert!(parse_model("model M Integer i = 3.0; Real y; equation y = i; end M;").is_ok());
+        assert!(parse_model("model M Integer i = 3; Real y; equation y = i; end M;").is_ok());
+        assert!(
+            parse_model("model M Integer i = 3; Real x; equation 2 * i = x; end M;").is_ok(),
+            "an Integer beside a Real is ordinary"
+        );
+    }
+
+    #[test]
+    fn a_value_settled_before_the_run_must_sit_inside_its_bounds() {
+        let text = error_of("model M Real level(min = 0) = -1; Real y; equation y = level; end M;");
+        assert!(text.contains("below its min of 0"), "{text}");
+
+        let text = error_of("model M Real p(max = 10) = 11; Real y; equation y = p; end M;");
+        assert!(text.contains("above its max of 10"), "{text}");
+
+        let text = error_of("model M Real x(start = -3, min = -1); equation der(x) = 1; end M;");
+        assert!(text.contains("starts at -3"), "{text}");
+
+        // Inside the bounds, and bounds with nothing to say about a
+        // value the run has yet to produce, both pass.
+        assert!(parse_model(
+            "model M Real p(min = 0, max = 10) = 5; Real y; \
+             equation y = p; end M;"
+        )
+        .is_ok());
+        assert!(parse_model("model M Real x(min = 0); equation x = time; end M;").is_ok());
     }
 }

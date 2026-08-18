@@ -31,6 +31,8 @@ mod operators;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use names::const_eval;
+
 use algorithms::*;
 use arrays::*;
 use clocks::*;

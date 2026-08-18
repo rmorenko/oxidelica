@@ -1255,6 +1255,18 @@ pub(super) fn resolve_type(
                     }
                     false
                 }
+                "min" => {
+                    if component.min.is_none() {
+                        component.min = Some(value.clone());
+                    }
+                    false
+                }
+                "max" => {
+                    if component.max.is_none() {
+                        component.max = Some(value.clone());
+                    }
+                    false
+                }
                 _ => true,
             });
     }
@@ -1284,6 +1296,8 @@ pub(super) fn resolve_type(
                 "fixed" if component.fixed.is_none() => {
                     component.fixed = Some(matches!(value, Expr::Bool(true)))
                 }
+                "min" if component.min.is_none() => component.min = Some(value),
+                "max" if component.max.is_none() => component.max = Some(value),
                 _ => {}
             }
         }

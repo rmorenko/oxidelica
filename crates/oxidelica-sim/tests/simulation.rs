@@ -1589,3 +1589,32 @@ fn a_mode_change_reaches_a_model_with_nothing_to_integrate() {
         }
     }
 }
+
+#[test]
+fn a_bound_broken_only_by_the_run_is_reported_where_it_broke() {
+    // Modelica calls `min` and `max` assertions on the value. The
+    // checker settles the ones it can before the run; this one it
+    // cannot, because nothing says beforehand where a falling level
+    // ends up.
+    let broken = run_on(
+        "model B Real level(start = 2, fixed = true, min = 0); \
+         equation der(level) = -1; \
+         annotation(experiment(StopTime = 3, Interval = 0.1)); end B;",
+        SolverMethod::Dopri45,
+    )
+    .expect_err("crosses its floor");
+    assert!(
+        broken.contains("`level` went below its min of 0") && broken.contains("t = 2."),
+        "{broken}"
+    );
+
+    // A run that stays inside is not disturbed by the guard.
+    let fine = run_on(
+        "model G Real level(start = 2, fixed = true, min = 0, max = 5); \
+         equation der(level) = -0.1; \
+         annotation(experiment(StopTime = 3, Interval = 0.1)); end G;",
+        SolverMethod::Dopri45,
+    )
+    .expect("stays inside");
+    assert!((fine.rows.last().unwrap()[1] - 1.7).abs() < 1e-9);
+}

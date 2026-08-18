@@ -751,6 +751,8 @@ pub(super) fn blank_component() -> Component {
         start: None,
         fixed: None,
         unit: None,
+        min: None,
+        max: None,
         binding: None,
         description: None,
         scope: Scope::Local,

@@ -60,6 +60,7 @@ impl Parser {
         let mut start = None;
         let mut fixed = None;
         let mut unit = None;
+        let (mut min, mut max) = (None, None);
         let mut modifiers = Vec::new();
         let mut redeclares = Vec::new();
         if self.peek() == &Token::LParen {
@@ -73,6 +74,8 @@ impl Parser {
                     self.expect(&Token::Assign, "`=` in attribute")?;
                     match attr.as_str() {
                         "start" => start = Some(self.expr()?),
+                        "min" => min = Some(self.expr()?),
+                        "max" => max = Some(self.expr()?),
                         "fixed" => {
                             fixed = Some(match self.bump() {
                                 Token::True => true,
@@ -91,7 +94,7 @@ impl Parser {
                                 )
                             }
                         },
-                        // The remaining attributes (min, max, nominal,
+                        // The remaining attributes (nominal, quantity,
                         // stateSelect, …) describe the variable rather
                         // than the equations: parsed and dropped.
                         _ => {
@@ -164,6 +167,8 @@ impl Parser {
             start,
             fixed,
             unit,
+            min,
+            max,
             binding,
             description,
             scope,

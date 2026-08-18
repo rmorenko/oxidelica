@@ -465,12 +465,16 @@ mod tests {
         assert!(err_of("model M Real x;").contains("end of file"));
         // Unknown component type at flattening.
         assert!(err_of("model M Widget x; end M;").contains("unknown type"));
-        // An attribute the compiler has no use for is dropped, not
-        // rejected: the standard library sets these on most variables.
-        let tolerated =
-            parse_model("model M Real x(min = 0, max = 1, unit = \"m\", start = 2); end M;")
-                .unwrap();
+        // A descriptive attribute the compiler has no use for is
+        // dropped, not rejected: the standard library sets these on
+        // most variables. `min` and `max` are kept, and checked.
+        let tolerated = parse_model(
+            "model M Real x(min = 0, max = 5, nominal = 3, unit = \"m\", start = 2); end M;",
+        )
+        .unwrap();
         assert_eq!(tolerated.components[0].start, Some(Expr::Number(2.0)));
+        assert_eq!(tolerated.components[0].min, Some(Expr::Number(0.0)));
+        assert_eq!(tolerated.components[0].max, Some(Expr::Number(5.0)));
         // Non-boolean fixed.
         assert!(err_of("model M Real x(fixed=1); end M;").contains("true/false"));
         // Missing comma between attributes.

@@ -79,7 +79,7 @@ pub(super) fn prefix_expr_under(
 /// Evaluate a compile-time constant expression (array dimensions, loop
 /// bounds, subscripts). Only the arithmetic that can appear there is
 /// supported; anything else means the value is not constant.
-pub(super) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64> {
+pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64> {
     use crate::ast::BinOp::*;
     use crate::ast::RelOp;
     // Truth is carried as 1.0 and 0.0, the way the flat model carries

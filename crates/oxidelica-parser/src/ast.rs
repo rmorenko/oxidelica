@@ -98,6 +98,12 @@ pub struct Component {
     /// The `unit` attribute: `Real v(unit = "V")`, or inherited from a
     /// type alias. Feeds the dimensional check; `None` is unchecked.
     pub unit: Option<String>,
+    /// The `min` and `max` attributes. Modelica calls these
+    /// assertions on the value, so they become run-time checks rather
+    /// than anything the solver is told about.
+    pub min: Option<Expr>,
+    /// See [`Component::min`].
+    pub max: Option<Expr>,
     /// Declaration binding: `parameter Real a = 1.0`.
     pub binding: Option<Expr>,
     /// Optional description string.
