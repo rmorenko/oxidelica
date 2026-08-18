@@ -1550,3 +1550,42 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         "singular Jacobian in algebraic loop [\"x\"]"
     );
 }
+
+#[test]
+fn a_mode_change_reaches_a_model_with_nothing_to_integrate() {
+    // No `der` anywhere and a run-time `if` whose branches constrain
+    // different unknowns: `a` is defined before the switch and `b`
+    // after it. There is no step to take here, so the change has to be
+    // noticed at an output point - and a solver that misses it does not
+    // fail, it quietly keeps answering from the branch that has already
+    // been left.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model X Real a; Real b; \
+             equation if time < 0.5 then a = time; b = 2 * a; \
+             else b = time; a = b / 2; end if; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end X;",
+            method,
+        )
+        .expect("runs");
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (a, b) = (index("a"), index("b"));
+        for row in &result.rows {
+            // Either way round the pair means the same thing, so the
+            // only way to tell the branches apart is which of the two
+            // the run computed from - and after the switch it is `b`.
+            let (wanted_a, wanted_b) = if row[0] < 0.5 {
+                (row[0], 2.0 * row[0])
+            } else {
+                (row[0] / 2.0, row[0])
+            };
+            assert!(
+                (row[a] - wanted_a).abs() < 1e-9 && (row[b] - wanted_b).abs() < 1e-9,
+                "{method:?} at t = {}: a = {} (want {wanted_a}), b = {} (want {wanted_b})",
+                row[0],
+                row[a],
+                row[b]
+            );
+        }
+    }
+}

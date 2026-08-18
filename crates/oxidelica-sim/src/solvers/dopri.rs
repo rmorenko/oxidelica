@@ -2,6 +2,8 @@
 
 use crate::*;
 
+use super::{Segment, SegmentStart};
+
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
     pub fn simulate_adaptive(&self) -> Result<SimResult, SimError> {
@@ -84,154 +86,27 @@ impl CompiledModel {
         let rtol = self.tolerance;
         let atol = self.tolerance * 1e-3;
 
-        let mut values = self.values_template.clone();
-        let mut columns = vec!["time".to_string()];
-        columns.extend(self.states.iter().cloned());
-        columns.extend(self.output_algebraics.iter().map(|(name, _)| name.clone()));
-        columns.extend(self.discretes.iter().cloned());
-        let mut rows: Vec<Vec<f64>> = Vec::new();
-        let mut derivatives_scratch = Vec::new();
-
-        let mut record = |t: f64,
-                          y: &[f64],
-                          values: &mut [f64],
-                          k: &mut Vec<f64>,
-                          alg_guess: &mut [f64]|
-         -> Result<(), SimError> {
-            self.eval_point(t, y, values, k, alg_guess)?;
-            // What is written down is also what the delays remember:
-            // in order, and as close together as the model asked its
-            // output to be.
-            self.remember_delays(t, values);
-            self.check_asserts(t, values)?;
-            let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
-            row.push(t);
-            row.extend_from_slice(y);
-            for &(_, slot) in &self.output_algebraics {
-                row.push(values[slot]);
-            }
-            for &slot in &self.discrete_slots {
-                row.push(values[slot]);
-            }
-            rows.push(row);
-            Ok(())
+        let segment = match self.begin_segment(SolverMethod::Dopri45)? {
+            SegmentStart::Finished(result) => return Ok(AdaptiveOutcome::Finished(result)),
+            SegmentStart::Running(segment) => *segment,
         };
-
-        let mut y = self.initial.clone();
-        let mut alg_guess = self.algebraic_start.clone();
-        // A segment remembers its own past, from its own beginning.
-        self.history.borrow_mut().iter_mut().for_each(Vec::clear);
-        let t0 = self.start_time;
-        let mut last_out_t = t0;
-        let mut terminated: Option<String> = None;
-        let mut state = self.event_state();
-        if self.resume {
-            // Mid-run already: no initial event, and the `when`
-            // conditions resume from what is true at this instant.
-            self.eval_point(
-                t0,
-                &y,
-                &mut values,
-                &mut derivatives_scratch,
-                &mut alg_guess,
-            )?;
-            state.when_prev = self.when_conditions(t0, &values);
-        } else {
-            values[self.initial_slot] = 1.0;
-            // The initial event comes before the first output point: a
-            // `when initial()` or a `sample(0, …)` has already fired by then.
-            state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);
-            let start_event =
-                self.handle_event(t0, &mut y, &mut values, &mut alg_guess, &mut state)?;
-            if let Some(message) = start_event.terminated {
-                record(
-                    t0,
-                    &y,
-                    &mut values,
-                    &mut derivatives_scratch,
-                    &mut alg_guess,
-                )?;
-                return Ok(AdaptiveOutcome::Finished(SimResult {
-                    columns,
-                    rows,
-                    parameters: self.parameters.clone(),
-                    terminated: Some(message),
-                    method: SolverMethod::Dopri45,
-                    reselections: 0,
-                }));
-            }
-        }
-        record(
-            t0,
-            &y,
-            &mut values,
-            &mut derivatives_scratch,
-            &mut alg_guess,
-        )?;
-        self.remember_delays(t0, &values);
-        let mut indicators_prev = self.indicator_values(t0, &values);
-        // Pure-algebraic models: no ODE to integrate, only the grid.
         if n == 0 {
-            // A continuation picks the grid up where it left off.
-            let mut out_i = (t0 / out_step + 1e-9).floor() as usize + 1;
-            loop {
-                // Walk to whichever comes first: the next output point
-                // or the next scheduled time event.
-                let grid = out_i as f64 * out_step;
-                let t = match state.next_time_event() {
-                    Some(next) if next < grid - 1e-12 => next,
-                    _ => grid,
-                };
-                if t > stop + 1e-12 {
-                    break;
-                }
-                record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
-                // Nothing is integrated here, so a mode change is
-                // noticed at the first grid point that sees it. The row
-                // just written used the model on hand; the
-                // continuation writes this instant again with the one
-                // that now applies.
-                if !self.mode_holds(&values, t) {
-                    let mut outcome =
-                        self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, true)?;
-                    if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
-                        stall.partial.rows.pop();
-                    }
-                    return Ok(outcome);
-                }
-                if (t - grid).abs() < 1e-12 {
-                    last_out_t = t;
-                    out_i += 1;
-                }
-                state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
-                let outcome =
-                    self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
-                if outcome.changed {
-                    record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
-                }
-                terminated = outcome.terminated;
-                if terminated.is_some() {
-                    break;
-                }
-            }
-            if terminated.is_none() && last_out_t < stop - 1e-12 {
-                record(
-                    stop,
-                    &y,
-                    &mut values,
-                    &mut derivatives_scratch,
-                    &mut alg_guess,
-                )?;
-            }
-            return Ok(AdaptiveOutcome::Finished(SimResult {
-                columns,
-                rows,
-                parameters: self.parameters.clone(),
-                terminated,
-                method: SolverMethod::Dopri45,
-                reselections: 0,
-            }));
+            return self.walk_without_states(segment, SolverMethod::Dopri45);
         }
+        let Segment {
+            mut values,
+            columns,
+            mut rows,
+            mut y,
+            mut alg_guess,
+            scratch: mut derivatives_scratch,
+            mut state,
+            mut indicators_prev,
+            mut out_i,
+            mut last_out_t,
+            mut terminated,
+        } = segment;
+        let t0 = self.start_time;
 
         let mut k: Vec<Vec<f64>> = vec![vec![0.0; n]; 7];
         let mut stage = vec![0.0; n];
@@ -245,8 +120,6 @@ impl CompiledModel {
         let mut interp = vec![0.0; n];
         let mut t = t0;
         let mut h = out_step.min(stop - t0).max(1e-9);
-        // The next output-grid index after where this segment starts.
-        let mut out_i = (t0 / out_step + 1e-9).floor() as usize + 1;
         let mut evals: u64 = 0;
 
         self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess)?;
@@ -452,12 +325,13 @@ impl CompiledModel {
                             break;
                         }
                         interpolate(((out_t - t) / h).clamp(0.0, 1.0), &mut interp, &y, &k);
-                        or_stall!(record(
+                        or_stall!(self.record_row(
                             out_t,
                             &interp,
                             &mut values,
                             &mut derivatives_scratch,
                             &mut alg_guess,
+                            &mut rows,
                         ));
                         last_out_t = out_t;
                         out_i += 1;
@@ -482,12 +356,13 @@ impl CompiledModel {
                     or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
                     if let Some(message) = outcome.terminated {
-                        or_stall!(record(
+                        or_stall!(self.record_row(
                             t,
                             &y,
                             &mut values,
                             &mut derivatives_scratch,
-                            &mut alg_guess
+                            &mut alg_guess,
+                            &mut rows
                         ));
                         terminated = Some(message);
                         break;
@@ -496,12 +371,13 @@ impl CompiledModel {
                     // the instant it happened, so the jump is visible.
                     let mode_left = !self.mode_holds(&values, t);
                     if outcome.changed || mode_left {
-                        or_stall!(record(
+                        or_stall!(self.record_row(
                             t,
                             &y,
                             &mut values,
                             &mut derivatives_scratch,
-                            &mut alg_guess
+                            &mut alg_guess,
+                            &mut rows
                         ));
                     }
                     // A run-time `if` equation that changed branch at
@@ -530,12 +406,13 @@ impl CompiledModel {
                         break;
                     }
                     interpolate(((out_t - t) / h).clamp(0.0, 1.0), &mut interp, &y, &k);
-                    or_stall!(record(
+                    or_stall!(self.record_row(
                         out_t,
                         &interp,
                         &mut values,
                         &mut derivatives_scratch,
                         &mut alg_guess,
+                        &mut rows,
                     ));
                     last_out_t = out_t;
                     out_i += 1;
@@ -581,7 +458,14 @@ impl CompiledModel {
                     if outcome.changed {
                         // The discrete values jumped here, so the point
                         // is recorded twice: before and after the event.
-                        record(t, &y, &mut values, &mut derivatives_scratch, &mut alg_guess)?;
+                        self.record_row(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut derivatives_scratch,
+                            &mut alg_guess,
+                            &mut rows,
+                        )?;
                     }
                     if let Some(message) = outcome.terminated {
                         terminated = Some(message);
@@ -612,25 +496,21 @@ impl CompiledModel {
                 ));
             }
         }
-        if terminated.is_none() && last_out_t < stop - 1e-12 {
-            record(
-                stop,
-                &y,
-                &mut values,
-                &mut derivatives_scratch,
-                &mut alg_guess,
-            )?;
-            terminated = self
-                .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
-                .terminated;
-        }
-        Ok(AdaptiveOutcome::Finished(SimResult {
-            columns,
-            rows,
-            parameters: self.parameters.clone(),
-            terminated,
-            method: SolverMethod::Dopri45,
-            reselections: 0,
-        }))
+        self.finish_segment(
+            Segment {
+                values,
+                columns,
+                rows,
+                y,
+                alg_guess,
+                scratch: derivatives_scratch,
+                state,
+                indicators_prev,
+                out_i,
+                last_out_t,
+                terminated,
+            },
+            SolverMethod::Dopri45,
+        )
     }
 }

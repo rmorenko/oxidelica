@@ -7,7 +7,252 @@ mod bdf;
 mod dopri;
 mod rk4;
 
+/// Everything a segment carries that has nothing to do with how the
+/// stepping is done: the run's own bookkeeping.
+///
+/// Both solvers set this up the same way, walk the same grid when
+/// there is nothing to integrate, and close it out the same way. Only
+/// what happens between the two - explicit stages against a Newton
+/// iteration - is theirs alone. Keeping the rest here is not tidiness:
+/// the two copies it replaces had drifted apart twice, and each time
+/// the implicit solver was the one missing a step.
+pub(crate) struct Segment {
+    pub(crate) values: Vec<f64>,
+    pub(crate) columns: Vec<String>,
+    pub(crate) rows: Vec<Vec<f64>>,
+    pub(crate) y: Vec<f64>,
+    pub(crate) alg_guess: Vec<f64>,
+    pub(crate) scratch: Vec<f64>,
+    pub(crate) state: EventState,
+    pub(crate) indicators_prev: Vec<f64>,
+    /// Index of the next output point on the `Interval` grid.
+    pub(crate) out_i: usize,
+    pub(crate) last_out_t: f64,
+    pub(crate) terminated: Option<String>,
+}
+
+/// What starting a segment produced: something to integrate, or a run
+/// that was over before its first step.
+pub(crate) enum SegmentStart {
+    Running(Box<Segment>),
+    Finished(SimResult),
+}
+
 impl CompiledModel {
+    /// Write one output row, and let the delays and the asserts see the
+    /// point while it is evaluated.
+    pub(crate) fn record_row(
+        &self,
+        t: f64,
+        y: &[f64],
+        values: &mut [f64],
+        scratch: &mut Vec<f64>,
+        alg_guess: &mut [f64],
+        rows: &mut Vec<Vec<f64>>,
+    ) -> Result<(), SimError> {
+        self.eval_point(t, y, values, scratch, alg_guess)?;
+        // What is written down is also what the delays remember: in
+        // order, and as close together as the model asked its output to
+        // be.
+        self.remember_delays(t, values);
+        self.check_asserts(t, values)?;
+        let mut row = Vec::with_capacity(
+            1 + self.states.len() + self.algebraics.len() + self.discretes.len(),
+        );
+        row.push(t);
+        row.extend_from_slice(y);
+        for &(_, slot) in &self.output_algebraics {
+            row.push(values[slot]);
+        }
+        for &slot in &self.discrete_slots {
+            row.push(values[slot]);
+        }
+        rows.push(row);
+        Ok(())
+    }
+
+    /// Set a segment up to its first output point: the initial event if
+    /// this is the beginning, the resumed truth if it is not.
+    pub(crate) fn begin_segment(&self, method: SolverMethod) -> Result<SegmentStart, SimError> {
+        let mut values = self.values_template.clone();
+        let mut columns = vec!["time".to_string()];
+        columns.extend(self.states.iter().cloned());
+        columns.extend(self.output_algebraics.iter().map(|(name, _)| name.clone()));
+        columns.extend(self.discretes.iter().cloned());
+        let mut rows: Vec<Vec<f64>> = Vec::new();
+        let mut y = self.initial.clone();
+        let mut alg_guess = self.algebraic_start.clone();
+        let mut scratch = Vec::new();
+
+        // A segment remembers its own past, from its own beginning.
+        self.history.borrow_mut().iter_mut().for_each(Vec::clear);
+        let t0 = self.start_time;
+        let mut state = self.event_state();
+        if self.resume {
+            // Mid-run already: no initial event, and the `when`
+            // conditions resume from what is true at this instant.
+            self.eval_point(t0, &y, &mut values, &mut scratch, &mut alg_guess)?;
+            state.when_prev = self.when_conditions(t0, &values);
+        } else {
+            values[self.initial_slot] = 1.0;
+            // The initial event comes before the first output point: a
+            // `when initial()` or a `sample(0, …)` has already fired by then.
+            state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);
+            let start_event =
+                self.handle_event(t0, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if let Some(message) = start_event.terminated {
+                self.record_row(t0, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
+                return Ok(SegmentStart::Finished(SimResult {
+                    columns,
+                    rows,
+                    parameters: self.parameters.clone(),
+                    terminated: Some(message),
+                    method,
+                    reselections: 0,
+                }));
+            }
+        }
+        self.record_row(t0, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
+        self.remember_delays(t0, &values);
+        let indicators_prev = self.indicator_values(t0, &values);
+        // A continuation picks the grid up where it left off.
+        let out_i = (t0 / self.step.max(1e-12) + 1e-9).floor() as usize + 1;
+        Ok(SegmentStart::Running(Box::new(Segment {
+            values,
+            columns,
+            rows,
+            y,
+            alg_guess,
+            scratch,
+            state,
+            indicators_prev,
+            out_i,
+            last_out_t: t0,
+            terminated: None,
+        })))
+    }
+
+    /// A model with no state to integrate: there is no step to take, so
+    /// the run walks from one scheduled instant to the next output
+    /// point and lets the discrete layer do the rest.
+    pub(crate) fn walk_without_states(
+        &self,
+        segment: Segment,
+        method: SolverMethod,
+    ) -> Result<AdaptiveOutcome, SimError> {
+        let Segment {
+            mut values,
+            columns,
+            mut rows,
+            mut y,
+            mut alg_guess,
+            mut scratch,
+            mut state,
+            mut out_i,
+            mut last_out_t,
+            mut terminated,
+            ..
+        } = segment;
+        let (stop, out_step) = (self.stop_time, self.step.max(1e-12));
+        loop {
+            // Walk to whichever comes first: the next output point or
+            // the next scheduled time event.
+            let grid = out_i as f64 * out_step;
+            let t = match state.next_time_event() {
+                Some(next) if next < grid - 1e-12 => next,
+                _ => grid,
+            };
+            if t > stop + 1e-12 {
+                break;
+            }
+            self.record_row(t, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
+            // Nothing is integrated here, so a mode change is noticed at
+            // the first grid point that sees it. The row just written
+            // used the model on hand; the continuation writes this
+            // instant again with the one that now applies.
+            if !self.mode_holds(&values, t) {
+                let mut outcome = self.stall_at_last_row(columns, rows, method, true)?;
+                if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                    stall.partial.rows.pop();
+                }
+                return Ok(outcome);
+            }
+            if (t - grid).abs() < 1e-12 {
+                last_out_t = t;
+                out_i += 1;
+            }
+            state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
+            let outcome = self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
+            if outcome.changed {
+                self.record_row(t, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
+            }
+            terminated = outcome.terminated;
+            if terminated.is_some() {
+                break;
+            }
+        }
+        if terminated.is_none() && last_out_t < stop - 1e-12 {
+            self.record_row(
+                stop,
+                &y,
+                &mut values,
+                &mut scratch,
+                &mut alg_guess,
+                &mut rows,
+            )?;
+        }
+        Ok(AdaptiveOutcome::Finished(SimResult {
+            columns,
+            rows,
+            parameters: self.parameters.clone(),
+            terminated,
+            method,
+            reselections: 0,
+        }))
+    }
+
+    /// Close a segment out: if the stepping stopped short of the stop
+    /// time, that instant is still an output point and still an event.
+    pub(crate) fn finish_segment(
+        &self,
+        segment: Segment,
+        method: SolverMethod,
+    ) -> Result<AdaptiveOutcome, SimError> {
+        let Segment {
+            mut values,
+            columns,
+            mut rows,
+            mut y,
+            mut alg_guess,
+            mut scratch,
+            mut state,
+            last_out_t,
+            mut terminated,
+            ..
+        } = segment;
+        let stop = self.stop_time;
+        if terminated.is_none() && last_out_t < stop - 1e-12 {
+            self.record_row(
+                stop,
+                &y,
+                &mut values,
+                &mut scratch,
+                &mut alg_guess,
+                &mut rows,
+            )?;
+            terminated = self
+                .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
+                .terminated;
+        }
+        Ok(AdaptiveOutcome::Finished(SimResult {
+            columns,
+            rows,
+            parameters: self.parameters.clone(),
+            terminated,
+            method,
+            reselections: 0,
+        }))
+    }
     /// Evaluate algebraic variables and derivatives at point (t, y).
     /// `env` is reused between calls to avoid per-step allocation.
     /// Check every `assert` at an evaluated point; a violated one stops

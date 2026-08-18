@@ -2,6 +2,8 @@
 
 use crate::*;
 
+use super::{Segment, SegmentStart};
+
 impl CompiledModel {
     /// Variable-order (1..5), variable-step BDF with Newton iteration
     /// and a reused finite-difference Jacobian.
@@ -35,117 +37,27 @@ impl CompiledModel {
         let rtol = self.tolerance;
         let atol = self.tolerance * 1e-3;
 
-        let mut values = self.values_template.clone();
-        let mut columns = vec!["time".to_string()];
-        columns.extend(self.states.iter().cloned());
-        columns.extend(self.output_algebraics.iter().map(|(name, _)| name.clone()));
-        columns.extend(self.discretes.iter().cloned());
-        let mut rows: Vec<Vec<f64>> = Vec::new();
-        let mut alg_guess = self.algebraic_start.clone();
-        let mut f_scratch = Vec::new();
-
-        let mut record = |t: f64,
-                          y: &[f64],
-                          values: &mut [f64],
-                          k: &mut Vec<f64>,
-                          alg_guess: &mut [f64]|
-         -> Result<(), SimError> {
-            self.eval_point(t, y, values, k, alg_guess)?;
-            // What is written down is also what the delays remember:
-            // in order, and as close together as the model asked its
-            // output to be.
-            self.remember_delays(t, values);
-            self.check_asserts(t, values)?;
-            let mut row = Vec::with_capacity(1 + n + self.algebraics.len() + self.discretes.len());
-            row.push(t);
-            row.extend_from_slice(y);
-            for &(_, slot) in &self.output_algebraics {
-                row.push(values[slot]);
-            }
-            for &slot in &self.discrete_slots {
-                row.push(values[slot]);
-            }
-            rows.push(row);
-            Ok(())
+        let segment = match self.begin_segment(SolverMethod::Bdf)? {
+            SegmentStart::Finished(result) => return Ok(AdaptiveOutcome::Finished(result)),
+            SegmentStart::Running(segment) => *segment,
         };
-
-        let mut y = self.initial.clone();
-        let mut terminated: Option<String> = None;
-        // A segment remembers its own past, from its own beginning.
-        self.history.borrow_mut().iter_mut().for_each(Vec::clear);
-        let t0 = self.start_time;
-        let mut state = self.event_state();
-        if self.resume {
-            // Mid-run already: no initial event, conditions resume from
-            // their current truth.
-            self.eval_point(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-            state.when_prev = self.when_conditions(t0, &values);
-        } else {
-            values[self.initial_slot] = 1.0;
-            // The initial event comes before the first output point: a
-            // `when initial()` or a `sample(0, …)` has already fired by then.
-            state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);
-            let start_event =
-                self.handle_event(t0, &mut y, &mut values, &mut alg_guess, &mut state)?;
-            if let Some(message) = start_event.terminated {
-                record(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-                return Ok(AdaptiveOutcome::Finished(SimResult {
-                    columns,
-                    rows,
-                    parameters: self.parameters.clone(),
-                    terminated: Some(message),
-                    method: SolverMethod::Bdf,
-                    reselections: 0,
-                }));
-            }
-        }
-        record(t0, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-        self.remember_delays(t0, &values);
-        let mut indicators_prev = self.indicator_values(t0, &values);
-
-        // Pure-algebraic models: nothing to integrate, walk the grid.
-        let mut out_i = (t0 / out_step + 1e-9).floor() as usize + 1;
-        let mut last_out_t = t0;
         if n == 0 {
-            loop {
-                // Walk to whichever comes first: the next output point
-                // or the next scheduled time event.
-                let grid = out_i as f64 * out_step;
-                let t = match state.next_time_event() {
-                    Some(next) if next < grid - 1e-12 => next,
-                    _ => grid,
-                };
-                if t > stop + 1e-12 {
-                    break;
-                }
-                record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-                if (t - grid).abs() < 1e-12 {
-                    last_out_t = t;
-                    out_i += 1;
-                }
-                state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
-                let outcome =
-                    self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
-                if outcome.changed {
-                    record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-                }
-                terminated = outcome.terminated;
-                if terminated.is_some() {
-                    break;
-                }
-            }
-            if terminated.is_none() && last_out_t < stop - 1e-12 {
-                record(stop, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-            }
-            return Ok(AdaptiveOutcome::Finished(SimResult {
-                columns,
-                rows,
-                parameters: self.parameters.clone(),
-                terminated,
-                method: SolverMethod::Bdf,
-                reselections: 0,
-            }));
+            return self.walk_without_states(segment, SolverMethod::Bdf);
         }
+        let Segment {
+            mut values,
+            columns,
+            mut rows,
+            mut y,
+            mut alg_guess,
+            scratch: mut f_scratch,
+            mut state,
+            mut indicators_prev,
+            mut out_i,
+            mut last_out_t,
+            mut terminated,
+        } = segment;
+        let t0 = self.start_time;
 
         // History, newest first.
         let mut t_hist: Vec<f64> = vec![t0];
@@ -395,7 +307,14 @@ impl CompiledModel {
                         break;
                     }
                     sample(out_t, &mut interp);
-                    record(out_t, &interp, &mut values, &mut f_scratch, &mut alg_guess)?;
+                    self.record_row(
+                        out_t,
+                        &interp,
+                        &mut values,
+                        &mut f_scratch,
+                        &mut alg_guess,
+                        &mut rows,
+                    )?;
                     last_out_t = out_t;
                     out_i += 1;
                 }
@@ -423,7 +342,14 @@ impl CompiledModel {
                     self.eval_point(t, &y, &mut values, &mut f_last, &mut alg_guess)?;
                     indicators_prev = self.indicator_values(t, &values);
                     if let Some(message) = outcome.terminated {
-                        record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                        self.record_row(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &mut rows,
+                        )?;
                         terminated = Some(message);
                         break;
                     }
@@ -431,7 +357,14 @@ impl CompiledModel {
                     // the instant it happened, so the jump is visible.
                     let mode_left = !self.mode_holds(&values, t);
                     if outcome.changed || mode_left {
-                        record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                        self.record_row(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &mut rows,
+                        )?;
                     }
                     // A run-time `if` equation that changed branch at
                     // this very event wants a model built for the mode
@@ -499,7 +432,14 @@ impl CompiledModel {
                     if outcome.changed {
                         // A jump the history cannot represent: restart
                         // from order one, and record both sides of it.
-                        record(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                        self.record_row(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &mut rows,
+                        )?;
                         y_hist[0].copy_from_slice(&y);
                         t_hist.truncate(1);
                         y_hist.truncate(1);
@@ -540,19 +480,21 @@ impl CompiledModel {
             }
         }
 
-        if terminated.is_none() && last_out_t < stop - 1e-12 {
-            record(stop, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-            terminated = self
-                .handle_event(stop, &mut y, &mut values, &mut alg_guess, &mut state)?
-                .terminated;
-        }
-        Ok(AdaptiveOutcome::Finished(SimResult {
-            columns,
-            rows,
-            parameters: self.parameters.clone(),
-            terminated,
-            method: SolverMethod::Bdf,
-            reselections: 0,
-        }))
+        self.finish_segment(
+            Segment {
+                values,
+                columns,
+                rows,
+                y,
+                alg_guess,
+                scratch: f_scratch,
+                state,
+                indicators_prev,
+                out_i,
+                last_out_t,
+                terminated,
+            },
+            SolverMethod::Bdf,
+        )
     }
 }

@@ -340,32 +340,35 @@ fn the_textbook_ideal_switch_rectifies_exactly() {
     // Each mode is compiled as its own model - matched and torn for
     // the equations actually in force - and compiled again at the
     // instant the switch flips. Nothing here is approximate: the
-    // current is the clipped source to the last bit.
-    let result = compile(&with_library("ideal_rectifier.mo"))
-        .unwrap()
-        .simulate()
-        .unwrap();
-    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
-    let (mut blocking_rows, mut conducting_rows) = (0, 0);
-    for row in &result.rows {
-        assert_eq!(
-            row[index("switch.i")],
-            row[index("clipped")],
-            "at t = {}",
-            row[0]
-        );
-        if row[index("switch.blocking")] > 0.5 {
-            // The blocking branch is `i = 0`, and it holds exactly.
-            assert_eq!(row[index("switch.i")], 0.0, "at t = {}", row[0]);
-            blocking_rows += 1;
-        } else {
-            // The conducting branch is `v = 0`, likewise.
-            assert_eq!(row[index("switch.v")], 0.0, "at t = {}", row[0]);
-            conducting_rows += 1;
+    // current is the clipped source to the last bit - on either
+    // solver, since which branch is in force is the model's business
+    // and not the stepper's.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let mut compiled = compile(&with_library("ideal_rectifier.mo")).unwrap();
+        compiled.method = method;
+        let result = compiled.simulate().unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (mut blocking_rows, mut conducting_rows) = (0, 0);
+        for row in &result.rows {
+            assert_eq!(
+                row[index("switch.i")],
+                row[index("clipped")],
+                "{method:?} at t = {}",
+                row[0]
+            );
+            if row[index("switch.blocking")] > 0.5 {
+                // The blocking branch is `i = 0`, and it holds exactly.
+                assert_eq!(row[index("switch.i")], 0.0, "{method:?} at t = {}", row[0]);
+                blocking_rows += 1;
+            } else {
+                // The conducting branch is `v = 0`, likewise.
+                assert_eq!(row[index("switch.v")], 0.0, "{method:?} at t = {}", row[0]);
+                conducting_rows += 1;
+            }
         }
+        // Two full periods: the switch really did work both ways.
+        assert!(blocking_rows > 400 && conducting_rows > 400);
     }
-    // Two full periods: the switch really did work both ways.
-    assert!(blocking_rows > 400 && conducting_rows > 400);
 }
 
 #[test]
