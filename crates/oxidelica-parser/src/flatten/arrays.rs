@@ -330,6 +330,23 @@ pub(super) fn expand_call(
     };
 
     match (name, args.len()) {
+        // `String(a, ...)` on a record is what the record's `'String'`
+        // operator makes of it; on a number it stays for the string
+        // pass to fold.
+        ("String", _) if !args.is_empty() => {
+            if let Some(record) = record_class_of(&args[0], shapes, registry, scope, imports) {
+                if operator_function(registry, &record, "String", args.len()).is_some() {
+                    return apply_operator(
+                        &record, "String", args, shapes, registry, scope, imports, depth,
+                    );
+                }
+            }
+            let folded = args
+                .iter()
+                .map(|a| Ok(recur(a)?.into_expr()))
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Scalar(Expr::Call(name.to_string(), folded)))
+        }
         // How long an array is, which is a compile-time number.
         ("size", 1) => {
             let shape = recur(&args[0])?.shape();
@@ -349,7 +366,72 @@ pub(super) fn expand_call(
             Ok(Value::Scalar(Expr::Number(*length as f64)))
         }
         // Reductions.
-        ("sum", 1) | ("product", 1) => {
+        // Summing an array of records adds them with the record's own
+        // `'+'`, starting from its `'0'` - which is what that operator
+        // is for. Without a `'0'` the first element starts it off, and
+        // an empty array has nothing to start from at all.
+        ("sum", 1) => {
+            if let Some(record) = element_record_of(&args[0], shapes) {
+                if operator_function(registry, &record, "+", 2).is_some() {
+                    // Each element goes in as the array of its fields,
+                    // which is the shape a record argument arrives in.
+                    let Expr::Ref(array) = &args[0] else {
+                        return Err(format!("`sum` of a `{record}` that is not an array"));
+                    };
+                    let dimensions = shapes
+                        .sizes
+                        .get(array)
+                        .ok_or_else(|| format!("`{array}` has no shape"))?;
+                    let of = registry
+                        .get(record.as_str())
+                        .ok_or_else(|| format!("`{record}` is not here"))?;
+                    let fields = record_fields(of);
+                    let elements: Vec<Expr> = index_tuples(dimensions)
+                        .into_iter()
+                        .map(|indices| {
+                            let element = element_name(array, &indices);
+                            Expr::Array(
+                                fields
+                                    .iter()
+                                    .map(|field| Expr::Ref(format!("{element}.{field}")))
+                                    .collect(),
+                            )
+                        })
+                        .collect();
+                    let zero = operator_function(registry, &record, "0", 0).is_some();
+                    if elements.is_empty() && !zero {
+                        return Err(format!(
+                            "`sum` of an empty array of `{record}`, which declares no `'0'`"
+                        ));
+                    }
+                    let mut total = if zero {
+                        apply_operator(&record, "0", &[], shapes, registry, scope, imports, depth)?
+                            .into_expr()
+                    } else {
+                        elements[0].clone()
+                    };
+                    let rest = if zero { &elements[..] } else { &elements[1..] };
+                    for item in rest {
+                        total = apply_operator(
+                            &record,
+                            "+",
+                            &[total, item.clone()],
+                            shapes,
+                            registry,
+                            scope,
+                            imports,
+                            depth,
+                        )?
+                        .into_expr();
+                    }
+                    return recur(&total);
+                }
+            }
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            Ok(Value::Scalar(sum_of(terms)))
+        }
+        ("product", 1) => {
             let mut terms = Vec::new();
             recur(&args[0])?.flatten_into(&mut terms);
             Ok(Value::Scalar(match name {

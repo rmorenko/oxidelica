@@ -201,3 +201,114 @@ fn a_record_may_declare_a_constructor_and_a_comparison() {
         Some(0.0)
     );
 }
+
+#[test]
+fn a_record_may_say_how_it_reads() {
+    // `String(a)` on a record is what the record's `'String'` operator
+    // makes of it, and it folds like any other string: the comparison
+    // below settles before the run.
+    const V: &str = "operator record V Real x; Real y; \
+         encapsulated operator function 'String' input V a; output String s; \
+         algorithm s := \"V=\" + String(a.x); end 'String'; end V; ";
+
+    let m = parse_model(&format!(
+        "{V} model M V p; Real z; \
+         equation p = V(3, 0); z = if String(p) == \"V=3\" then 1 else 0; end M;"
+    ))
+    .unwrap();
+    let z = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"z\")")
+        .unwrap();
+    assert!(
+        format!("{:?}", z.rhs).contains("Bool(true)"),
+        "the record's own String was not used: {:?}",
+        z.rhs
+    );
+
+    // And it reads a different value differently.
+    let m = parse_model(&format!(
+        "{V} model M V p; Real z; \
+         equation p = V(9, 0); z = if String(p) == \"V=3\" then 1 else 0; end M;"
+    ))
+    .unwrap();
+    let z = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"z\")")
+        .unwrap();
+    assert!(
+        format!("{:?}", z.rhs).contains("Bool(false)"),
+        "{:?}",
+        z.rhs
+    );
+
+    // `String` of a plain number still folds, now that the string layer
+    // knows what a parameter is worth.
+    let m = parse_model(
+        "model M parameter Real k = 7; parameter String s = \"k=\" + String(k); \
+         Real z; equation z = if s == \"k=7\" then 1 else 0; end M;",
+    )
+    .unwrap();
+    let z = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"z\")")
+        .unwrap();
+    assert!(format!("{:?}", z.rhs).contains("Bool(true)"), "{:?}", z.rhs);
+}
+
+#[test]
+fn a_record_may_say_what_its_zero_is() {
+    // `sum` over an array of records adds them with the record's own
+    // `'+'`, starting from its `'0'` - which is what that operator is
+    // for. The result is one addition per element, off zero.
+    const V: &str = "operator record V Real x; Real y; \
+         encapsulated operator function '0' output V z; \
+         algorithm z.x := 0; z.y := 0; end '0'; \
+         encapsulated operator function '+' input V a; input V b; output V c; \
+         algorithm c.x := a.x + b.x; c.y := a.y + b.y; end '+'; end V; ";
+
+    let m = parse_model(&format!(
+        "{V} model M V arr[3]; V total; Real z; \
+         equation for i in 1:3 loop arr[i].x = i; arr[i].y = 0; end for; \
+         total = sum(arr); z = total.x; end M;"
+    ))
+    .unwrap();
+    let total = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"total.x\")")
+        .unwrap();
+    let text = format!("{:?}", total.rhs);
+    // Every element is in the sum, and it started from the zero.
+    for element in ["arr[1].x", "arr[2].x", "arr[3].x"] {
+        assert!(text.contains(element), "{element} is missing: {text}");
+    }
+    assert!(
+        text.contains("Number(0.0)"),
+        "the zero was not used: {text}"
+    );
+
+    // Without a `'0'` the first element starts the sum instead, so the
+    // same model still adds up - with one addition fewer.
+    const NO_ZERO: &str = "operator record W Real x; \
+         encapsulated operator function '+' input W a; input W b; output W c; \
+         algorithm c.x := a.x + b.x; end '+'; end W; ";
+    let m = parse_model(&format!(
+        "{NO_ZERO} model M W arr[2]; W total; Real z; \
+         equation for i in 1:2 loop arr[i].x = i; end for; \
+         total = sum(arr); z = total.x; end M;"
+    ))
+    .unwrap();
+    let total = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"total.x\")")
+        .unwrap();
+    assert_eq!(
+        format!("{:?}", total.rhs),
+        "Bin(Add, Ref(\"arr[1].x\"), Ref(\"arr[2].x\"))"
+    );
+}

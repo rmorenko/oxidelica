@@ -19,7 +19,7 @@ under a chapter works as specified for the subset this project covers.
 | 11  | Statements and algorithms     | Partial |
 | 12  | Functions                     | Partial |
 | 13  | Packages                      | Full    |
-| 14  | Overloaded operators          | Partial |
+| 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Partial |
 | 16  | Synchronous language elements | Partial |
 | 17  | State machines                | Partial |
@@ -197,15 +197,19 @@ The inside/outside distinction of 15.2 is not made — connection sets
 that bridge a component's boundary port mix with flat signs — and
 there is no `positiveMax` with nominal-based regularisation.
 
-**Overloaded operators** (ch. 14) work for the arithmetic: an
-`operator record` may declare `'+'`, `'-'`, `'*'`, `'/'` and `'^'`,
-either as one function or as a package of them told apart by how many
-arguments they take, and the record's own constructor builds it from
-its fields in order. What is missing: `'constructor'` and
-`'0'` are not consulted, comparison and `String` operators are not
-dispatched, and the record a value belongs to is worked out from the
-expression rather than from a type of its own — an operator whose
-result is a different record than its operands would be misread.
+**Overloaded operators** (ch. 14) are complete: an `operator record`
+may declare `'+'`, `'-'`, `'*'`, `'/'`, `'^'`, the six relational
+operators, `'constructor'`, `'0'` and `'String'`, each either as one
+function or as a package of them told apart by how many arguments they
+take. A constructor is consulted before the default field-order one; a
+comparison of records dispatches and returns a Boolean; `String(a)` is
+what the record's own `'String'` makes of it; and `sum` over an array
+of records adds them with `'+'` starting from `'0'`, or from the first
+element where no `'0'` is declared. An operator function may build its
+record output field by field. The record a value belongs to is still
+worked out from the expression rather than from a type of its own, so
+an operator whose result is a different record than its operands would
+be misread.
 
 **Synchronous elements** (ch. 16) cover the periodic case: a
 `Clock(interval)` declared with an interval the compiler can work out,

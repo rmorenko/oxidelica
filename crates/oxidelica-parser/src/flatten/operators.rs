@@ -91,6 +91,18 @@ pub(super) fn record_class_of(
     }
 }
 
+/// The record class the elements of an array belong to, when they
+/// belong to one: `V arr[3]` gives `V`. An array of records is filed
+/// under both tables - a shape and a record class - and it is the
+/// second that says what its elements are.
+pub(super) fn element_record_of(expr: &Expr, shapes: &Shapes) -> Option<String> {
+    let Expr::Ref(name) = expr else {
+        return None;
+    };
+    shapes.sizes.get(name)?;
+    shapes.records.get(name).cloned()
+}
+
 /// The fields of a record class, in the order they were declared.
 pub(super) fn record_fields(class: &ClassDef) -> Vec<String> {
     class

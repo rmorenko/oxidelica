@@ -22,7 +22,34 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
         .filter(|component| component.type_name == "String")
         .map(|component| component.name.clone())
         .collect();
-    let values = settle(&named, model)?;
+    // What a number-valued name is worth, so `String(x)` of a constant
+    // or a parameter folds to its digits rather than staying an
+    // unresolved call.
+    let numbers: HashMap<String, f64> = model
+        .components
+        .iter()
+        .filter(|c| {
+            matches!(
+                c.variability,
+                Variability::Constant | Variability::Parameter
+            )
+        })
+        .filter_map(|c| {
+            let value = c.binding.as_ref().or(c.start.as_ref())?;
+            Some((c.name.clone(), const_eval(value, &HashMap::new())?))
+        })
+        .collect();
+    // A record's fields arrive as equations rather than bindings, so a
+    // plain `name = number` is a value too.
+    let mut numbers = numbers;
+    for equation in &model.equations {
+        if let (Expr::Ref(name), Some(value)) =
+            (&equation.lhs, const_eval(&equation.rhs, &HashMap::new()))
+        {
+            numbers.entry(name.clone()).or_insert(value);
+        }
+    }
+    let values = settle(&named, model, &numbers)?;
 
     // A comparison of two strings is the one place a string reaches the
     // numbers, and it reaches them as a Boolean.
@@ -31,16 +58,16 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
         .iter_mut()
         .chain(model.initial_equations.iter_mut())
     {
-        equation.lhs = fold(&equation.lhs, &values)?;
-        equation.rhs = fold(&equation.rhs, &values)?;
+        equation.lhs = fold(&equation.lhs, &values, &numbers)?;
+        equation.rhs = fold(&equation.rhs, &values, &numbers)?;
     }
     for clause in &mut model.when_clauses {
         for branch in &mut clause.branches {
-            branch.condition = fold(&branch.condition, &values)?;
+            branch.condition = fold(&branch.condition, &values, &numbers)?;
             for action in &mut branch.actions {
                 match action {
                     WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => {
-                        *value = fold(value, &values)?;
+                        *value = fold(value, &values, &numbers)?;
                     }
                     WhenAction::Terminate(_) => {}
                 }
@@ -48,18 +75,18 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
         }
     }
     for (condition, _) in &mut model.asserts {
-        *condition = fold(condition, &values)?;
+        *condition = fold(condition, &values, &numbers)?;
     }
     // A run-time `if` keeps its conditions and branches of its own,
     // and a string chooses a branch as readily as a number does.
     for conditional in &mut model.conditional {
         for condition in &mut conditional.conditions {
-            *condition = fold(condition, &values)?;
+            *condition = fold(condition, &values, &numbers)?;
         }
         for branch in &mut conditional.branches {
             for equation in branch {
-                equation.lhs = fold(&equation.lhs, &values)?;
-                equation.rhs = fold(&equation.rhs, &values)?;
+                equation.lhs = fold(&equation.lhs, &values, &numbers)?;
+                equation.rhs = fold(&equation.rhs, &values, &numbers)?;
             }
         }
     }
@@ -77,7 +104,11 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
 
 /// The text of every `String` component, worked out in dependency
 /// order: one may be built from another.
-fn settle(named: &[String], model: &Model) -> Result<HashMap<String, String>, String> {
+fn settle(
+    named: &[String],
+    model: &Model,
+    numbers: &HashMap<String, f64>,
+) -> Result<HashMap<String, String>, String> {
     // A parameter or a constant keeps its binding on the declaration;
     // a plain variable's became an equation on the way here.
     let mut bindings: HashMap<&str, &Expr> = HashMap::new();
@@ -107,7 +138,7 @@ fn settle(named: &[String], model: &Model) -> Result<HashMap<String, String>, St
             let Some(binding) = bindings.get(name.as_str()) else {
                 continue;
             };
-            if let Some(text) = text_of(binding, &values) {
+            if let Some(text) = text_of(binding, &values, numbers) {
                 values.insert(name.clone(), text);
             }
         }
@@ -128,12 +159,18 @@ fn settle(named: &[String], model: &Model) -> Result<HashMap<String, String>, St
 }
 
 /// What an expression comes to as text, if it comes to text at all.
-fn text_of(expr: &Expr, values: &HashMap<String, String>) -> Option<String> {
+fn text_of(
+    expr: &Expr,
+    values: &HashMap<String, String>,
+    numbers: &HashMap<String, f64>,
+) -> Option<String> {
     match expr {
         Expr::Str(text) => Some(text.clone()),
         Expr::Ref(name) => values.get(name).cloned(),
         // `+` joins two strings, which is what Modelica spells it as.
-        Expr::Bin(BinOp::Add, a, b) => Some(text_of(a, values)? + &text_of(b, values)?),
+        Expr::Bin(BinOp::Add, a, b) => {
+            Some(text_of(a, values, numbers)? + &text_of(b, values, numbers)?)
+        }
         // `getInstanceName()` is the simulated model's name with the
         // path of the instance that asked appended to it.
         Expr::Call(name, args) if name == "getInstanceName" => {
@@ -146,7 +183,7 @@ fn text_of(expr: &Expr, values: &HashMap<String, String>) -> Option<String> {
             })
         }
         Expr::Call(name, args) if name == "String" && args.len() == 1 => {
-            let number = const_eval(&args[0], &HashMap::new())?;
+            let number = const_eval(&args[0], numbers)?;
             Some(if number.fract() == 0.0 {
                 format!("{number:.0}")
             } else {
@@ -159,9 +196,15 @@ fn text_of(expr: &Expr, values: &HashMap<String, String>) -> Option<String> {
 
 /// Replace a comparison of two strings with what it comes to, and
 /// refuse a string that is standing anywhere else.
-fn fold(expr: &Expr, values: &HashMap<String, String>) -> Result<Expr, String> {
+fn fold(
+    expr: &Expr,
+    values: &HashMap<String, String>,
+    numbers: &HashMap<String, f64>,
+) -> Result<Expr, String> {
     if let Expr::Rel(op, a, b) = expr {
-        if let (Some(left), Some(right)) = (text_of(a, values), text_of(b, values)) {
+        if let (Some(left), Some(right)) =
+            (text_of(a, values, numbers), text_of(b, values, numbers))
+        {
             // Every relational operator is defined on strings, and
             // defined as C's strcmp against zero - which is a
             // comparison of the bytes, and so is Rust's.
@@ -175,12 +218,12 @@ fn fold(expr: &Expr, values: &HashMap<String, String>) -> Result<Expr, String> {
             }));
         }
     }
-    if let Some(text) = text_of(expr, values) {
+    if let Some(text) = text_of(expr, values, numbers) {
         return Err(format!(
             "`{text}` is a String, and a String has no value an equation can hold"
         ));
     }
-    let recur = |e: &Expr| fold(e, values);
+    let recur = |e: &Expr| fold(e, values, numbers);
     Ok(match expr {
         Expr::Number(_) | Expr::Bool(_) | Expr::Ref(_) | Expr::Time => expr.clone(),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),

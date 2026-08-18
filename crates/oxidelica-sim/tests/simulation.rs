@@ -1798,3 +1798,48 @@ fn a_carried_profile_starts_from_the_one_it_was_given() {
         .collect();
     assert_eq!(seen, "11111100000", "the step arrived at the wrong time");
 }
+
+#[test]
+fn a_record_carries_its_own_operators_through_a_run() {
+    // The operators an `operator record` declares are used where a
+    // model does arithmetic on it, and the values that come out are
+    // what those operators say - all the way to a simulated column.
+    const V: &str = "operator record V Real x; Real y; \
+         encapsulated operator function 'constructor' input Real a; input Real b; \
+         output V v; algorithm v.x := a * 2; v.y := b * 2; end 'constructor'; \
+         encapsulated operator function '0' output V z; \
+         algorithm z.x := 0; z.y := 0; end '0'; \
+         encapsulated operator function '+' input V a; input V b; output V c; \
+         algorithm c.x := a.x + b.x; c.y := a.y + b.y; end '+'; \
+         encapsulated operator function '<' input V a; input V b; output Boolean r; \
+         algorithm r := a.x * a.x + a.y * a.y < b.x * b.x + b.y * b.y; end '<'; \
+         encapsulated operator function 'String' input V a; output String s; \
+         algorithm s := \"V=\" + String(a.x); end 'String'; end V; ";
+
+    let result = run(&format!(
+        "{V} model M V p; V q; V arr[3]; V total; \
+         Real built; Real added; Real summed; Real ordered; Real named; \
+         equation \
+           p = V(1, 2); q = V(1, 1) + V(2, 2); \
+           for i in 1:3 loop arr[i].x = i; arr[i].y = 0; end for; \
+           total = sum(arr); \
+           built = p.x; added = q.x; summed = total.x; \
+           ordered = if V(1, 0) < V(3, 0) then 1 else 0; \
+           named = if String(p) == \"V=2\" then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ));
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    // The constructor doubled its inputs, so V(1, 2).x is 2.
+    assert_eq!(at("built"), 2.0);
+    // V(1,1) + V(2,2), each doubled first: 2 + 4.
+    assert_eq!(at("added"), 6.0);
+    // sum over the array, from the record's own zero: 1 + 2 + 3.
+    assert_eq!(at("summed"), 6.0);
+    // |(2,0)| < |(6,0)| after the constructor doubled both.
+    assert_eq!(at("ordered"), 1.0);
+    // The record's own String reads the doubled field.
+    assert_eq!(at("named"), 1.0);
+}
