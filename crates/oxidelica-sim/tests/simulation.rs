@@ -1472,6 +1472,64 @@ fn an_event_clock_measures_the_interval_it_could_not_be_told() {
 }
 
 #[test]
+fn a_clock_carrying_a_solver_steps_its_own_derivative() {
+    // `der(x) = -x` from x = 1 is `exp(-t)`, and each method reaches
+    // t = 1 with the error its order allows: the Euler step is off by
+    // 2e-2, the midpoint by 7e-4, the four-stage method by 3e-7. Those
+    // are the amplification factors of the methods themselves, so the
+    // three answers below are what the tableaux say and not what any
+    // continuous solver would produce.
+    let run_with = |method: &str| {
+        let result = run(&format!(
+            "model M Clock c = Clock(Clock(0.1), \"{method}\"); \
+             Real u; Real x(start = 1); Real hx; \
+             equation u = sample(0, c); der(x) = -x + u; hx = hold(x); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ));
+        let index = result.columns.iter().position(|c| c == "hx").unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    // Ten steps of each, worked out from the tableau rather than taken
+    // from a run: 0.9^10, and the two mixes that follow it.
+    for (method, expected) in [
+        ("ExplicitEuler", 0.348_678_440_1),
+        ("ExplicitMidPoint2", 0.368_540_984_833_551_8),
+        ("ExplicitRungeKutta4", 0.367_879_774_412_498_4),
+    ] {
+        let reached = run_with(method);
+        assert!(
+            (reached - expected).abs() < 1e-12,
+            "{method} reached {reached}, not {expected}"
+        );
+    }
+    // The stages advance every state together, not one at a time: this
+    // is `sin` and `cos` at t = 1, to the accuracy ten steps of the
+    // four-stage method allow.
+    let result = run(
+        "model M Clock c = Clock(Clock(0.1), \"ExplicitRungeKutta4\"); \
+         Real u; Real x(start = 0); Real v(start = 1); Real hx; Real hv; \
+         equation u = sample(0, c); der(x) = v + u; der(v) = -x; \
+         hx = hold(x); hv = hold(v); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[index("hx")] - 0.841_470_477_800_274_3).abs() < 1e-12,
+        "{}",
+        last[index("hx")]
+    );
+    assert!(
+        (last[index("hv")] - 0.540_302_967_116_884_2).abs() < 1e-12,
+        "{}",
+        last[index("hv")]
+    );
+    // Close to the real thing, and closer than either lower-order
+    // method would have come.
+    assert!((last[index("hx")] - 1.0_f64.sin()).abs() < 1e-6);
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_walks_its_events() {
     // No `der` anywhere: there is no step to take, so the solver walks
     // from one scheduled instant to the next output point and back,

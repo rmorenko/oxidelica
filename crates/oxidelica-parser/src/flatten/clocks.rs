@@ -84,6 +84,49 @@ fn gcd(a: i128, b: i128) -> i128 {
     a
 }
 
+/// A way of stepping a differential equation from one tick to the next,
+/// and the tableau that says how.
+///
+/// Only the explicit methods are here. An implicit one asks for the
+/// derivative at the point being solved for, which means solving an
+/// equation at every tick, and the tick is a list of assignments rather
+/// than a system - the same wall chapter 11 runs into. The
+/// specification asks a tool to spell the methods it does support the
+/// way it spells them here, not to support them all.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub(super) struct Solver {
+    name: &'static str,
+    /// What each stage adds to the state before working out its slope,
+    /// in multiples of the step; one row per stage.
+    weights: &'static [&'static [f64]],
+    /// How the stages are mixed into the step that is taken.
+    mix: &'static [f64],
+}
+
+/// The explicit methods of 16.8, under the names the specification
+/// gives them.
+const SOLVERS: [Solver; 3] = [
+    Solver {
+        name: "ExplicitEuler",
+        weights: &[&[]],
+        mix: &[1.0],
+    },
+    Solver {
+        name: "ExplicitMidPoint2",
+        weights: &[&[], &[0.5]],
+        mix: &[0.0, 1.0],
+    },
+    Solver {
+        name: "ExplicitRungeKutta4",
+        weights: &[&[], &[0.5], &[0.0, 0.5], &[0.0, 0.0, 1.0]],
+        mix: &[1.0 / 6.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 6.0],
+    },
+];
+
+/// The methods the specification names that ask for the derivative at
+/// the point being solved for.
+const IMPLICIT: [&str; 2] = ["ImplicitEuler", "ImplicitTrapezoid"];
+
 /// What a clock's ticks are counted from.
 #[derive(Clone, Debug)]
 pub(super) enum Root {
@@ -109,6 +152,10 @@ pub(super) struct ClockSpec {
     /// How far the first tick sits past the root's first, counted in
     /// root intervals.
     shift: Ratio,
+    /// How a differential equation on this clock is stepped from one
+    /// tick to the next. Without one, this clock carries no derivatives
+    /// and a `der` on it is the mistake it has always been.
+    solver: Option<Solver>,
 }
 
 impl ClockSpec {
@@ -118,6 +165,7 @@ impl ClockSpec {
             root: Root::Every(period),
             rate: Ratio::ONE,
             shift: Ratio::ZERO,
+            solver: None,
         }
     }
 
@@ -127,6 +175,7 @@ impl ClockSpec {
             root: Root::When(condition, start_interval),
             rate: Ratio::ONE,
             shift: Ratio::ZERO,
+            solver: None,
         }
     }
 
@@ -172,7 +221,7 @@ impl ClockSpec {
             }
             _ => false,
         };
-        roots && self.rate == other.rate && self.shift == other.shift
+        roots && self.rate == other.rate && self.shift == other.shift && self.solver == other.solver
     }
 
     /// The same clock ticking `factor` times more slowly, its first
@@ -376,10 +425,10 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         let mut settled = true;
         let mut found = Vec::new();
         for equation in &model.equations {
-            let Expr::Ref(target) = &equation.lhs else {
+            let Some((target, is_rate)) = assigned_by(equation) else {
                 continue;
             };
-            if clock_of.contains_key(target) {
+            if clock_of.contains_key(&target) {
                 continue;
             }
             found.clear();
@@ -390,8 +439,15 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 &parameters,
                 &mut found,
             )?;
-            if let Some(clock) = one_clock(&found, &clocks, target)? {
-                clock_of.insert(target.clone(), clock);
+            if let Some(clock) = one_clock(&found, &clocks, &target)? {
+                // A derivative joins a clock only where the clock says
+                // how to step it across a tick. On any other it stays
+                // continuous, and reading a clocked value from it is
+                // the mistake the check further down names.
+                if is_rate && clocks.spec(clock).solver.is_none() {
+                    continue;
+                }
+                clock_of.insert(target, clock);
                 settled = false;
             }
         }
@@ -425,24 +481,63 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
     // Lift the clocked equations into one `when` per clock.
     let mut kept = Vec::new();
     let mut lifted: HashMap<usize, Vec<(String, Expr)>> = HashMap::new();
+    let mut rates: HashMap<usize, Vec<(String, Expr)>> = HashMap::new();
     for equation in model.equations.drain(..) {
-        let clock = match &equation.lhs {
-            Expr::Ref(target) => clock_of.get(target).copied(),
-            _ => None,
-        };
-        match (clock, &equation.lhs) {
-            (Some(clock), Expr::Ref(target)) => {
+        let clock = assigned_by(&equation)
+            .and_then(|(target, is_rate)| Some((target.clone(), is_rate, *clock_of.get(&target)?)));
+        match clock {
+            Some((target, is_rate, clock)) => {
                 let value = at_the_tick(&equation.rhs, &clocks, &clock_of, Some(clock));
-                lifted
-                    .entry(clock)
-                    .or_default()
-                    .push((target.clone(), value));
+                let into = if is_rate { &mut rates } else { &mut lifted };
+                into.entry(clock).or_default().push((target, value));
             }
-            _ => kept.push(equation),
+            None => kept.push(equation),
         }
     }
     model.equations = kept;
     let mut bookkeeping: Vec<(String, usize, f64)> = Vec::new();
+
+    // A clock carrying derivatives steps them across its tick with the
+    // method it was given, which turns each into an assignment like any
+    // other. It happens before the partitions are ordered, so what the
+    // step reads counts towards that order.
+    let mut clocks_with_rates: Vec<usize> = rates.keys().copied().collect();
+    clocks_with_rates.sort_unstable();
+    for clock in clocks_with_rates {
+        let mut states = rates.remove(&clock).expect("just listed");
+        states.sort_by(|left, right| left.0.cmp(&right.0));
+        let spec = clocks.spec(clock).clone();
+        let solver = spec
+            .solver
+            .expect("a derivative only joins a clock that steps it");
+        // The step just taken is one the run can measure. The step
+        // about to be taken is not, on an event clock, and a method
+        // with more than one stage has to guess where the state will be
+        // partway through it - so those want a clock that says in
+        // advance how long its ticks are.
+        let step = match spec.interval() {
+            Some(seconds) => Expr::Number(seconds),
+            None if solver.weights.len() == 1 => elapsed_since_last_tick(&spec, clock),
+            None => {
+                return Err(format!(
+                    "`{}` works out where the state will be partway through a step, and an \
+                     event clock does not know how long its next step is - `ExplicitEuler` \
+                     is what a clock ticking on a condition can be stepped with",
+                    solver.name
+                ))
+            }
+        };
+        let stepped = one_step(solver, clock, &states, &step);
+        for (target, _) in &stepped {
+            if !states.iter().any(|(name, _)| name == target) {
+                bookkeeping.push((target.clone(), clock, 0.0));
+            }
+        }
+        lifted.entry(clock).or_default().extend(stepped);
+    }
+    for (name, clock, _) in &bookkeeping {
+        clock_of.insert(name.clone(), *clock);
+    }
     for clock in in_partition_order(&lifted)? {
         let mut actions = lifted.remove(&clock).expect("the order names each once");
         let spec = clocks.spec(clock).clone();
@@ -639,6 +734,46 @@ pub(super) fn clock_expr(
             Some(interval) => clocks.intern(ClockSpec::every(interval)),
             None => clocks.intern(ClockSpec::when(args[0].clone(), 0.0)),
         })),
+        // `Clock(c, "ExplicitEuler")` is the clock `c` again, with a way
+        // of stepping a differential equation across its ticks.
+        ("Clock", 2) if matches!(&args[1], Expr::Str(_)) => {
+            let Expr::Str(method) = &args[1] else {
+                unreachable!("the guard just checked it")
+            };
+            let Some(base) = clock_expr(&args[0], clocks, parameters)? else {
+                return Ok(None);
+            };
+            let Some(solver) = SOLVERS.iter().find(|known| known.name == method) else {
+                let worked = SOLVERS
+                    .iter()
+                    .map(|known| known.name)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return Err(if IMPLICIT.contains(&method.as_str()) {
+                    format!(
+                        "`{method}` asks for the derivative at the point it is solving for, \
+                         so every tick becomes an equation to solve rather than a value to \
+                         work out, and a tick here is a list of assignments - the explicit \
+                         methods are {worked}"
+                    )
+                } else if method == "External" {
+                    format!(
+                        "`External` leaves the method to whatever is running the model, and \
+                         this one has nothing to leave it to - name a method instead: {worked}"
+                    )
+                } else {
+                    format!(
+                        "`{method}` is not a solver method the specification names; \
+                         this compiler works {worked}"
+                    )
+                });
+            };
+            let stepped = ClockSpec {
+                solver: Some(*solver),
+                ..clocks.spec(base).clone()
+            };
+            Ok(Some(clocks.intern(stepped)))
+        }
         ("Clock", 2) => Ok(Some(match const_eval(&args[0], parameters) {
             // `Clock(1, 10)` says the interval as a fraction, which is
             // how a model asks for a rate no decimal writes exactly.
@@ -866,6 +1001,133 @@ pub(super) fn in_partition_order(
         }
     }
     Ok(placed)
+}
+
+/// What an equation defines, and whether it defines its rate of change
+/// rather than its value.
+fn assigned_by(equation: &EquationItem) -> Option<(String, bool)> {
+    match &equation.lhs {
+        Expr::Ref(name) => Some((name.clone(), false)),
+        Expr::Call(name, args) if name == "der" && args.len() == 1 => match &args[0] {
+            Expr::Ref(inner) => Some((inner.clone(), true)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The value a partition worked out at the tick before.
+fn pre_of(name: &str) -> Expr {
+    Expr::Call("pre".to_string(), vec![Expr::Ref(name.to_string())])
+}
+
+fn add(left: Expr, right: Expr) -> Expr {
+    Expr::Bin(BinOp::Add, Box::new(left), Box::new(right))
+}
+
+fn mul(left: Expr, right: Expr) -> Expr {
+    Expr::Bin(BinOp::Mul, Box::new(left), Box::new(right))
+}
+
+/// Read a slope somewhere other than where the tick left the state:
+/// wherever the expression names one, hand it the stage's guess
+/// instead. That is the whole of an explicit method. What reaches back
+/// to an earlier tick is left where it is - a guess about this step
+/// says nothing about that one.
+fn at_the_stage(expr: &Expr, guesses: &HashMap<String, Expr>) -> Expr {
+    let recur = |e: &Expr| at_the_stage(e, guesses);
+    match expr {
+        Expr::Call(name, _) if name == "pre" => expr.clone(),
+        Expr::Ref(name) => match guesses.get(name) {
+            Some(guess) => guess.clone(),
+            None => expr.clone(),
+        },
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Elementwise(op, l, r) => {
+            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
+        }
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        _ => expr.clone(),
+    }
+}
+
+/// One step of an explicit method, written as assignments on the tick.
+///
+/// `der(x) = f` says nothing about how to get from one tick to the
+/// next; the solver method the clock carries does. A tick does two
+/// things: it takes the step the slopes worked out at the tick before
+/// call for, and then works out the slopes where that step has left it,
+/// for the tick after. That is 16.8's `x[i] = x[i-1] + h * xdot[i-1]`
+/// with the stages of an explicit Runge-Kutta in place of the one
+/// slope, and it makes the first tick leave the state at its start
+/// value, there being no earlier slope to step on.
+///
+/// The stages are kept in variables of their own rather than written
+/// out where they are used: a four-stage method whose stages quoted
+/// each other would carry four nested copies of every slope.
+fn one_step(
+    solver: Solver,
+    clock: usize,
+    states: &[(String, Expr)],
+    step: &Expr,
+) -> Vec<(String, Expr)> {
+    let stage_name = |stage: usize, which: usize| format!("$slope{stage}_{clock}_{which}");
+    // The step first: what it lands on is where the slopes are read.
+    let mut actions: Vec<(String, Expr)> = states
+        .iter()
+        .enumerate()
+        .map(|(which, (name, _))| {
+            let taken = solver
+                .mix
+                .iter()
+                .enumerate()
+                .filter(|(_, weight)| **weight != 0.0)
+                .fold(pre_of(name), |so_far, (stage, weight)| {
+                    add(
+                        so_far,
+                        mul(
+                            mul(step.clone(), Expr::Number(*weight)),
+                            pre_of(&stage_name(stage, which)),
+                        ),
+                    )
+                });
+            (name.clone(), taken)
+        })
+        .collect();
+    for (stage, weights) in solver.weights.iter().enumerate() {
+        // Where this stage thinks each state will have got to: where
+        // the tick left it, plus what the earlier stages suggest.
+        let guesses: HashMap<String, Expr> = states
+            .iter()
+            .enumerate()
+            .map(|(which, (name, _))| {
+                let guess = weights
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, weight)| **weight != 0.0)
+                    .fold(Expr::Ref(name.clone()), |so_far, (earlier, weight)| {
+                        add(
+                            so_far,
+                            mul(
+                                mul(step.clone(), Expr::Number(*weight)),
+                                Expr::Ref(stage_name(earlier, which)),
+                            ),
+                        )
+                    });
+                (name.clone(), guess)
+            })
+            .collect();
+        for (which, (_, slope)) in states.iter().enumerate() {
+            actions.push((stage_name(stage, which), at_the_stage(slope, &guesses)));
+        }
+    }
+    actions
 }
 
 /// The variable a partition counts its own ticks in.

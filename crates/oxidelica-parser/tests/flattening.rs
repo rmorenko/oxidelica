@@ -1590,6 +1590,64 @@ fn an_event_clock_may_be_sub_sampled_but_not_placed_between_its_ticks() {
 }
 
 #[test]
+fn a_solver_clock_turns_a_derivative_into_a_step() {
+    // A `der` on a clock that says how to step it becomes assignments
+    // like everything else on the tick: the step first, then the slopes
+    // where the step has left the state, for the tick after.
+    let m = parse_model(
+        "model M Clock c = Clock(Clock(0.1), \"ExplicitEuler\"); \
+         Real u; Real x(start = 1); Real out; \
+         equation u = sample(0, c); der(x) = -x + u; out = hold(x); end M;",
+    )
+    .unwrap();
+    assert!(!format!("{:?}", m.equations).contains("der"));
+    let x = m.components.iter().find(|c| c.name == "x").unwrap();
+    assert_eq!(x.variability, oxidelica_parser::Variability::Discrete);
+    assert_eq!(x.start, Some(Expr::Number(1.0)));
+    // One slope for the one stage, and four for the four-stage method.
+    let stages = |source: &str| {
+        parse_model(source)
+            .unwrap()
+            .components
+            .iter()
+            .filter(|c| c.name.starts_with("$slope"))
+            .count()
+    };
+    let of = |method: &str| {
+        format!(
+            "model M Clock c = Clock(Clock(0.1), \"{method}\"); \
+             Real u; Real x(start = 1); Real out; \
+             equation u = sample(0, c); der(x) = -x + u; out = hold(x); end M;"
+        )
+    };
+    assert_eq!(stages(&of("ExplicitEuler")), 1);
+    assert_eq!(stages(&of("ExplicitMidPoint2")), 2);
+    assert_eq!(stages(&of("ExplicitRungeKutta4")), 4);
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // An implicit method would make every tick an equation to solve.
+    for method in ["ImplicitEuler", "ImplicitTrapezoid"] {
+        assert!(
+            err(&of(method)).contains("rather than a value to work out"),
+            "{method}"
+        );
+    }
+    assert!(err(&of("External")).contains("nothing to leave it to"));
+    assert!(err(&of("Bogus")).contains("not a solver method the specification names"));
+    // A method with more than one stage guesses where the state will be
+    // partway through the step, which needs a step known in advance.
+    let event = "model M Real p(start = 0, fixed = true); \
+         Clock c = Clock(Clock(p > 0.5, 0.2), \"{}\"); \
+         Real u; Real x(start = 1); Real out; \
+         equation der(p) = 1; u = sample(0, c); der(x) = -x + u; \
+         out = hold(x); end M;";
+    assert!(err(&event.replace("{}", "ExplicitRungeKutta4"))
+        .contains("does not know how long its next step is"));
+    // The one-stage method needs no such guess, so it works there.
+    assert!(parse_model(&event.replace("{}", "ExplicitEuler")).is_ok());
+}
+
+#[test]
 fn clock_error_paths() {
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
     // A clock with no interval anyone can work out.
