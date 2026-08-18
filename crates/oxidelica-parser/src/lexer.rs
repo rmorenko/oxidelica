@@ -58,6 +58,10 @@ pub enum Token {
     Stream,
     /// Keyword `expandable`.
     Expandable,
+    /// Keyword `operator` — a class of overloads for a record.
+    Operator,
+    /// Keyword `encapsulated` — parsed and otherwise ignored.
+    Encapsulated,
     /// Keyword `extends`.
     Extends,
     /// Keyword `connect`.
@@ -201,6 +205,8 @@ impl fmt::Display for Token {
             Token::Flow => write!(f, "flow"),
             Token::Stream => write!(f, "stream"),
             Token::Expandable => write!(f, "expandable"),
+            Token::Operator => write!(f, "operator"),
+            Token::Encapsulated => write!(f, "encapsulated"),
             Token::Extends => write!(f, "extends"),
             Token::Connect => write!(f, "connect"),
             Token::For => write!(f, "for"),
@@ -398,6 +404,34 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     line,
                 });
             }
+            // A quoted identifier: `'+'` names an operator, and the
+            // quotes are kept so it can never be confused with a word
+            // anyone could type as a plain name.
+            '\'' => {
+                let start = i;
+                i += 1;
+                while i < bytes.len() && bytes[i] != '\'' {
+                    if bytes[i] == '\\' && i + 1 < bytes.len() {
+                        i += 1;
+                    }
+                    if bytes[i] == '\n' {
+                        line += 1;
+                    }
+                    i += 1;
+                }
+                if i >= bytes.len() {
+                    return Err(LexError {
+                        message: "unterminated quoted identifier".into(),
+                        line,
+                    });
+                }
+                i += 1;
+                let word: String = bytes[start..i].iter().collect();
+                out.push(Spanned {
+                    token: Token::Ident(word),
+                    line,
+                });
+            }
             c if c.is_alphabetic() || c == '_' => {
                 let start = i;
                 while i < bytes.len() && (bytes[i].is_alphanumeric() || bytes[i] == '_') {
@@ -428,6 +462,8 @@ pub fn lex(source: &str) -> Result<Vec<Spanned>, LexError> {
                     "flow" => Token::Flow,
                     "stream" => Token::Stream,
                     "expandable" => Token::Expandable,
+                    "operator" => Token::Operator,
+                    "encapsulated" => Token::Encapsulated,
                     "extends" => Token::Extends,
                     "connect" => Token::Connect,
                     "for" => Token::For,

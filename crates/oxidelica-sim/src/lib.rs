@@ -5714,6 +5714,41 @@ mod tests {
     }
 
     #[test]
+    fn a_phasor_written_in_complex_arithmetic_predicts_the_circuit() {
+        // The impedance is written `R + j * X` and worked out by the
+        // record's own operators; the circuit is then integrated from
+        // rest with none of that in sight. After the transient has
+        // died the two must agree, in amplitude and in phase.
+        let result = compile(&with_library("complex_impedance.mo"))
+            .unwrap()
+            .simulate()
+            .unwrap();
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let first = &result.rows[0];
+        let (amplitude, phase) = (
+            first[index("predicted_amplitude")],
+            first[index("predicted_phase")],
+        );
+
+        // The phasor is exact: complex division of 10 by 2 - 0.5j.
+        let (r, l, c, w, v) = (2.0f64, 0.5f64, 0.1f64, 4.0f64, 10.0f64);
+        let reactance = w * l - 1.0 / (w * c);
+        assert!((amplitude - v / r.hypot(reactance)).abs() < 1e-12);
+        assert!((phase - (-reactance).atan2(r)).abs() < 1e-12);
+
+        // And the circuit settles onto exactly that sine.
+        for row in result.rows.iter().filter(|row| row[0] >= 10.0) {
+            let wanted = amplitude * (w * row[0] + phase).sin();
+            assert!(
+                (row[index("i")] - wanted).abs() < 1e-6,
+                "t = {}: i = {} vs {wanted}",
+                row[0],
+                row[index("i")]
+            );
+        }
+    }
+
+    #[test]
     fn two_chains_of_different_length_share_their_functions() {
         // One `Chain` component, instantiated at three masses and at
         // five: the length is a parameter and the masses and starts

@@ -19,7 +19,7 @@ under a chapter works as specified for the subset this project covers.
 | 11  | Statements and algorithms     | Partial |
 | 12  | Functions                     | Partial |
 | 13  | Packages                      | Partial |
-| 14  | Overloaded operators          | Absent  |
+| 14  | Overloaded operators          | Partial |
 | 15  | Stream connectors             | Partial |
 | 16  | Synchronous language elements | Absent  |
 | 17  | State machines                | Absent  |
@@ -64,7 +64,9 @@ comprehensions,
 elementwise operators, matrix algebra with `transpose`, `identity`,
 `diagonal`, `cross`, concatenation via `cat` and `[ , ; ]`, reductions,
 `size`, `zeros`/`ones`/`fill`/`linspace`, array-valued functions);
-discrete variables and clocked blocks; a static type layer
+discrete variables and clocked blocks; `operator record` classes whose
+arithmetic operators are dispatched on the record they belong to;
+a static type layer
 (Boolean/Integer/Real) and dimensional unit checking (ch. 19), both
 permissive: an error needs two declared facts to contradict.
 
@@ -101,7 +103,17 @@ The inside/outside distinction of 15.2 is not made — connection sets
 that bridge a component's boundary port mix with flat signs — and
 there is no `positiveMax` with nominal-based regularisation.
 
-**Whole chapters absent**: overloaded operators (14), synchronous
+**Overloaded operators** (ch. 14) work for the arithmetic: an
+`operator record` may declare `'+'`, `'-'`, `'*'`, `'/'` and `'^'`,
+either as one function or as a package of them told apart by how many
+arguments they take, and the record's own constructor builds it from
+its fields in order. What is missing: `'constructor'` and
+`'0'` are not consulted, comparison and `String` operators are not
+dispatched, and the record a value belongs to is worked out from the
+expression rather than from a type of its own — an operator whose
+result is a different record than its operands would be misread.
+
+**Whole chapters absent**: synchronous
 clocked constructs (16) — note that `sample()` events and clocked
 discrete blocks in the ordinary sense do work — and state
 machines (17).

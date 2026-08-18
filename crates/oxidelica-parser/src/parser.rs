@@ -266,11 +266,16 @@ impl Parser {
         // and otherwise carry no meaning here.
         let mut replaceable = false;
         let mut redeclaration = false;
+        let mut operator_class = false;
         loop {
             match self.peek() {
                 Token::Replaceable => replaceable = true,
                 Token::Redeclare => redeclaration = true,
-                Token::Final => {}
+                // `encapsulated` says the class may not see out of
+                // itself, which changes nothing here: every name is
+                // already resolved from where it was written.
+                Token::Final | Token::Encapsulated => {}
+                Token::Operator => operator_class = true,
                 _ => break,
             }
             self.bump();
@@ -287,14 +292,23 @@ impl Parser {
         } else {
             false
         };
-        let kind = match self.bump() {
-            Token::Model | Token::Block => ClassKind::Model,
-            Token::Connector => ClassKind::Connector,
-            Token::Record => ClassKind::Record,
-            Token::Function => ClassKind::Function,
-            Token::Package => ClassKind::Package,
-            Token::Type => ClassKind::Type,
-            other => return Err(self.err(format!("expected a class definition, found `{other}`"))),
+        // `operator '+' ... end '+';` gathers the overloads of a
+        // symbol: a package by another name, with the symbol for a
+        // name and nothing between the keyword and it.
+        let kind = if operator_class && matches!(self.peek(), Token::Ident(_)) {
+            ClassKind::Package
+        } else {
+            match self.bump() {
+                Token::Model | Token::Block => ClassKind::Model,
+                Token::Connector => ClassKind::Connector,
+                Token::Record => ClassKind::Record,
+                Token::Function => ClassKind::Function,
+                Token::Package => ClassKind::Package,
+                Token::Type => ClassKind::Type,
+                other => {
+                    return Err(self.err(format!("expected a class definition, found `{other}`")))
+                }
+            }
         };
         let name = self.ident("class name")?;
 
@@ -468,7 +482,9 @@ impl Parser {
                 | Token::Package
                 | Token::Type
                 | Token::Partial
-                | Token::Expandable => match self.class_def()? {
+                | Token::Expandable
+                | Token::Operator
+                | Token::Encapsulated => match self.class_def()? {
                     ClassItem::Class(class) => nested.push(*class),
                     ClassItem::Alias(alias) => class_aliases.push(alias),
                 },
@@ -486,6 +502,8 @@ impl Parser {
                             | Token::Type
                             | Token::Partial
                             | Token::Expandable
+                            | Token::Operator
+                            | Token::Encapsulated
                     ) =>
                 {
                     match self.class_def()? {

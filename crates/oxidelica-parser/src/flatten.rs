@@ -837,6 +837,17 @@ fn instantiate(
     let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
     collect_shapes(registry, class, &local_consts, &mut sizes, 0);
     let sizes_here = prefixed_sizes(&sizes, prefix);
+    // Which of this class's components are records, and of what: an
+    // overloaded operator is chosen by the record its operands are of.
+    let records_here: HashMap<String, String> = class
+        .components
+        .iter()
+        .filter_map(|component| {
+            let of = lookup(registry, &component.type_name, scope, &imports)?;
+            (of.kind == ClassKind::Record)
+                .then(|| (format!("{prefix}{}", component.name), of.name.clone()))
+        })
+        .collect();
 
     for component in &class.components {
         let flat_name = format!("{prefix}{}", component.name);
@@ -942,6 +953,7 @@ fn instantiate(
                 sizes: &sizes_here,
                 loop_vars: &HashMap::new(),
                 consts: &local_consts,
+                records: no_records(),
             };
             // A modifier arrives already written in the terms of the
             // class that supplied it; only a declaration's own value
@@ -1034,6 +1046,7 @@ fn instantiate(
             sizes: &sizes_here,
             loop_vars,
             consts: &local_consts,
+            records: &records_here,
         };
         expand(&expr, &shapes, registry, scope, &imports, 0)
     };
@@ -1055,6 +1068,7 @@ fn instantiate(
                 sizes: &sizes_here,
                 loop_vars: &no_loop_vars,
                 consts: &local_consts,
+                records: &records_here,
             };
             let values = raw_args
                 .iter()
@@ -1230,6 +1244,7 @@ fn instantiate(
                 sizes: &sizes_here,
                 loop_vars: &no_loop_vars,
                 consts: &local_consts,
+                records: &records_here,
             };
             push_connects(
                 a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
@@ -1270,6 +1285,7 @@ fn instantiate(
             sizes: &sizes_here,
             loop_vars: &no_loop_vars,
             consts: &local_consts,
+            records: no_records(),
         };
         push_connects(
             a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
@@ -1606,6 +1622,7 @@ fn unroll(
             sizes,
             loop_vars: outer_vars,
             consts,
+            records: no_records(),
         };
         let expr = &expand(
             &prefix_expr(expr, prefix, outers),
@@ -1642,6 +1659,7 @@ fn unroll(
                         sizes,
                         loop_vars: &loop_vars,
                         consts,
+                        records: no_records(),
                     };
                     let side = |expr: &Expr| -> Result<Value, String> {
                         let expr = substitute_refs(expr, &folded);
@@ -1662,6 +1680,7 @@ fn unroll(
                         sizes,
                         loop_vars: &loop_vars,
                         consts,
+                        records: no_records(),
                     };
                     let (a, b) = (substitute_refs(a, &folded), substitute_refs(b, &folded));
                     push_connects(
@@ -2510,6 +2529,7 @@ fn execute(
                     sizes,
                     loop_vars: &no_loop_vars,
                     consts,
+                    records: no_records(),
                 };
                 let value =
                     expand(&value, &shapes, registry, scope, imports, depth + 1)?.into_expr();
@@ -2566,6 +2586,7 @@ fn execute(
                     sizes,
                     loop_vars: &no_loop_vars,
                     consts,
+                    records: no_records(),
                 };
                 let values = raw_args
                     .iter()
@@ -2735,6 +2756,7 @@ fn execute(
                             sizes,
                             loop_vars: &no_loop_vars,
                             consts,
+                            records: no_records(),
                         },
                         registry,
                         scope,
@@ -3042,6 +3064,151 @@ struct Shapes<'a> {
     loop_vars: &'a HashMap<String, f64>,
     /// Parameter values, for subscripts and lengths.
     consts: &'a HashMap<String, f64>,
+    /// Record instances in scope, by name, with the class each one is
+    /// of: what tells an overloaded operator which record it is for.
+    records: &'a HashMap<String, String>,
+}
+
+/// The fields of a record-typed argument of a function, when it is one.
+fn record_input_fields(
+    registry: &HashMap<&str, &ClassDef>,
+    function: &ClassDef,
+    input: &Component,
+) -> Option<Vec<String>> {
+    let of = lookup(
+        registry,
+        &input.type_name,
+        &function.name,
+        &function.imports,
+    )?;
+    (of.kind == ClassKind::Record).then(|| record_fields(of))
+}
+
+/// How an operator is spelled where a record declares it.
+fn operator_symbol(op: BinOp) -> &'static str {
+    match op {
+        BinOp::Add => "+",
+        BinOp::Sub => "-",
+        BinOp::Mul => "*",
+        BinOp::Div => "/",
+        BinOp::Pow => "^",
+    }
+}
+
+/// Work an overloaded operator, or say why the record cannot.
+#[allow(clippy::too_many_arguments)]
+fn apply_operator(
+    record: &str,
+    symbol: &str,
+    args: &[Expr],
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    let Some(function) = operator_function(registry, record, symbol, args.len()) else {
+        return Err(format!(
+            "`{record}` has no operator `{symbol}` taking {} argument(s)",
+            args.len()
+        ));
+    };
+    let mut arguments = Vec::new();
+    let mut argument_shapes = Vec::new();
+    for arg in args {
+        let value = expand(arg, shapes, registry, scope, imports, depth + 1)?;
+        argument_shapes.push(shape_i64(&value));
+        arguments.push(value.into_expr());
+    }
+    let result = inline_function_outputs(
+        function,
+        &arguments,
+        &argument_shapes,
+        shapes.consts,
+        registry,
+        depth + 1,
+    )?
+    .remove(0)
+    .1;
+    expand(&result, shapes, registry, scope, imports, depth + 1)
+}
+
+/// The record class an expression is of, when it is of one.
+///
+/// An overloaded operator is chosen by the record its operands belong
+/// to, and that has to be known before the operands are expanded -
+/// once they are, a record and an array of the same length look alike.
+fn record_class_of(
+    expr: &Expr,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<String> {
+    let recur = |e: &Expr| record_class_of(e, shapes, registry, scope, imports);
+    match expr {
+        Expr::Ref(name) => shapes.records.get(name).cloned(),
+        // An operator returns the record it was found on; the operands
+        // of a mixed expression need only one of them to say which.
+        Expr::Bin(_, l, r) | Expr::Elementwise(_, l, r) => recur(l).or_else(|| recur(r)),
+        Expr::Neg(inner) => recur(inner),
+        Expr::If(_, then, otherwise) => recur(then).or_else(|| recur(otherwise)),
+        // `Complex(1, 2)` builds one.
+        Expr::Call(name, _) => lookup(registry, name, scope, imports)
+            .filter(|class| class.kind == ClassKind::Record)
+            .map(|class| class.name.clone()),
+        _ => None,
+    }
+}
+
+/// The fields of a record class, in the order they were declared.
+fn record_fields(class: &ClassDef) -> Vec<String> {
+    class
+        .components
+        .iter()
+        .map(|component| component.name.clone())
+        .collect()
+}
+
+/// The function a record offers for an operator, by symbol and by how
+/// many arguments it takes.
+///
+/// A symbol may name a function outright or a package of them, which
+/// is how `'-'` holds both the subtraction and the negation.
+fn operator_function<'a>(
+    registry: &HashMap<&str, &'a ClassDef>,
+    record: &str,
+    symbol: &str,
+    arity: usize,
+) -> Option<&'a ClassDef> {
+    let named = registry.get(format!("{record}.'{symbol}'").as_str())?;
+    let takes = |class: &ClassDef| {
+        class
+            .components
+            .iter()
+            .filter(|c| c.causality == Causality::Input)
+            .count()
+            == arity
+    };
+    if named.kind == ClassKind::Function {
+        return takes(named).then_some(*named);
+    }
+    let prefix = format!("{record}.'{symbol}'.");
+    let mut inside: Vec<&&ClassDef> = registry
+        .iter()
+        .filter(|(name, class)| {
+            name.starts_with(&prefix) && class.kind == ClassKind::Function && takes(class)
+        })
+        .map(|(_, class)| class)
+        .collect();
+    inside.sort_by_key(|class| class.name.clone());
+    inside.first().map(|class| **class)
+}
+
+/// No record instances are in scope here.
+fn no_records() -> &'static HashMap<String, String> {
+    static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
+    EMPTY.get_or_init(HashMap::new)
 }
 
 /// Expand an expression into scalars, keeping the array structure while
@@ -3121,6 +3288,7 @@ fn expand(
                     sizes: shapes.sizes,
                     loop_vars: &loop_vars,
                     consts: shapes.consts,
+                    records: no_records(),
                 };
                 out.push(expand(body, &inner, registry, scope, imports, depth + 1)?);
             }
@@ -3160,9 +3328,52 @@ fn expand(
         Expr::Ref(name) if shapes.sizes.contains_key(name) => {
             elements_of(name, &shapes.sizes[name])
         }
-        Expr::Neg(inner) => map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e))),
-        Expr::Bin(op, l, r) => combine(*op, &recur(l)?, &recur(r)?, false)?,
-        Expr::Elementwise(op, l, r) => combine(*op, &recur(l)?, &recur(r)?, true)?,
+        // A record instance stands for its fields, in the order they
+        // were declared: that is what an operator works on.
+        Expr::Ref(name) if shapes.records.contains_key(name) => {
+            let of = registry
+                .get(shapes.records[name].as_str())
+                .ok_or_else(|| format!("`{name}` is a record of a class that is not here"))?;
+            Value::Array(
+                record_fields(of)
+                    .into_iter()
+                    .map(|field| Value::Scalar(Expr::Ref(format!("{name}.{field}"))))
+                    .collect(),
+            )
+        }
+        Expr::Neg(inner) => {
+            if let Some(record) = record_class_of(inner, shapes, registry, scope, imports) {
+                return apply_operator(
+                    &record,
+                    "-",
+                    std::slice::from_ref(inner.as_ref()),
+                    shapes,
+                    registry,
+                    scope,
+                    imports,
+                    depth,
+                );
+            }
+            map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e)))
+        }
+        Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
+            // An operator on records is whatever the record says it
+            // is; anything else combines element by element.
+            if let Some(record) = record_class_of(expr, shapes, registry, scope, imports) {
+                return apply_operator(
+                    &record,
+                    operator_symbol(*op),
+                    &[l.as_ref().clone(), r.as_ref().clone()],
+                    shapes,
+                    registry,
+                    scope,
+                    imports,
+                    depth,
+                );
+            }
+            let elementwise = matches!(expr, Expr::Elementwise(_, _, _));
+            combine(*op, &recur(l)?, &recur(r)?, elementwise)?
+        }
         Expr::If(condition, then, otherwise) => {
             let condition = recur(condition)?.scalar()?;
             // A guard on the loop variable takes its branch and
@@ -3694,6 +3905,26 @@ fn expand_call(
             ))
         }
         _ => {
+            // `Complex(1, 2)` builds a record from its fields, in the
+            // order they were declared.
+            if let Some(class) = lookup(registry, name, scope, imports) {
+                if class.kind == ClassKind::Record {
+                    let fields = record_fields(class);
+                    if fields.len() != args.len() {
+                        return Err(format!(
+                            "`{}` is built from {} field(s), {} given",
+                            class.name,
+                            fields.len(),
+                            args.len()
+                        ));
+                    }
+                    return Ok(Value::Array(args.iter().map(&recur).collect::<Result<
+                        Vec<_>,
+                        String,
+                    >>(
+                    )?));
+                }
+            }
             // A user function that takes or returns an array is inlined
             // with the arrays intact - vectorizing it element by element
             // would compute something else entirely.
@@ -3842,6 +4073,7 @@ fn inline_function_outputs(
     }
     let mut bindings: HashMap<String, Expr> = HashMap::new();
     let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+    let mut named_seen = false;
     let mut position = 0;
     for (index, arg) in args.iter().enumerate() {
         if let Expr::NamedArg(name, value) = arg {
@@ -3857,8 +4089,9 @@ fn inline_function_outputs(
                     class.name
                 ));
             }
+            named_seen = true;
         } else {
-            if bindings.len() > position {
+            if named_seen {
                 return Err(format!(
                     "function `{}`: positional arguments must come before named ones",
                     class.name
@@ -3879,6 +4112,26 @@ fn inline_function_outputs(
                     }
                 }
             }
+            // A record input arrives as its fields, and the body reads
+            // them by name: `c1.re` has to be bound, not `c1`.
+            if let Some(fields) = record_input_fields(registry, class, input) {
+                if let Expr::Array(items) = arg {
+                    if items.len() != fields.len() {
+                        return Err(format!(
+                            "function `{}` wants {} field(s) for `{}`, got {}",
+                            class.name,
+                            fields.len(),
+                            input.name,
+                            items.len()
+                        ));
+                    }
+                    for (field, value) in fields.iter().zip(items) {
+                        bindings.insert(format!("{}.{field}", input.name), value.clone());
+                    }
+                    position += 1;
+                    continue;
+                }
+            }
             bindings.insert(input.name.clone(), arg.clone());
             position += 1;
         }
@@ -3887,7 +4140,12 @@ fn inline_function_outputs(
     // default. Defaults may name earlier inputs, so they are resolved
     // against what is already bound.
     for input in &inputs {
-        if !bindings.contains_key(&input.name) {
+        // A record was bound field by field, so its own name is not
+        // among the bindings and it is not missing either.
+        let field_prefix = format!("{}.", input.name);
+        let bound = bindings.contains_key(&input.name)
+            || bindings.keys().any(|name| name.starts_with(&field_prefix));
+        if !bound {
             let Some(default) = &input.binding else {
                 return Err(format!(
                     "function `{}` is missing its argument `{}`",
@@ -4876,6 +5134,79 @@ mod tests {
         let k = m.components.iter().find(|c| c.name == "g.k").unwrap();
         assert!(k.binding.is_some());
         assert!(m.components.iter().any(|c| c.name == "g.y"));
+    }
+
+    #[test]
+    fn a_record_may_say_what_its_operators_mean() {
+        const COMPLEX: &str = "operator record Complex Real re; Real im; \
+             encapsulated operator function '+' input Complex a; input Complex b; \
+             output Complex c; algorithm c := Complex(a.re + b.re, a.im + b.im); end '+';\
+             encapsulated operator function '*' input Complex a; input Complex b; \
+             output Complex c; algorithm \
+             c := Complex(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); end '*';\
+             encapsulated operator '-' \
+             function negate input Complex a; output Complex c; \
+             algorithm c := Complex(-a.re, -a.im); end negate; \
+             function subtract input Complex a; input Complex b; output Complex c; \
+             algorithm c := Complex(a.re - b.re, a.im - b.im); end subtract; end '-';\
+             end Complex;";
+
+        // Each operator gives one equation per field, folded to the
+        // numbers the arithmetic works out to.
+        let m = parse_model(&format!(
+            "{COMPLEX} model M Complex s; Complex p; \
+             equation s = Complex(1, 2) + Complex(3, 4); \
+             p = Complex(1, 2) * Complex(3, 4); end M;"
+        ))
+        .unwrap();
+        let value = |name: &str| {
+            let equation = m
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .unwrap_or_else(|| panic!("no equation for {name}"));
+            super::const_eval(&equation.rhs, &std::collections::HashMap::new())
+                .unwrap_or_else(|| panic!("{name} is not a number"))
+        };
+        assert_eq!((value("s.re"), value("s.im")), (4.0, 6.0));
+        // (1 + 2i)(3 + 4i) = -5 + 10i.
+        assert_eq!((value("p.re"), value("p.im")), (-5.0, 10.0));
+
+        // A symbol may name a package of overloads: `-` is both the
+        // difference of two and the negation of one, told apart by how
+        // many arguments they take.
+        let m = parse_model(&format!(
+            "{COMPLEX} model M Complex d; Complex n; \
+             equation d = Complex(1, 2) - Complex(3, 4); n = -Complex(1, 2); end M;"
+        ))
+        .unwrap();
+        let value = |name: &str| {
+            let equation = m
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .unwrap();
+            super::const_eval(&equation.rhs, &std::collections::HashMap::new()).unwrap()
+        };
+        assert_eq!((value("d.re"), value("d.im")), (-2.0, -2.0));
+        assert_eq!((value("n.re"), value("n.im")), (-1.0, -2.0));
+
+        // An operator the record does not offer is refused by name.
+        let error = parse_model(&format!(
+            "{COMPLEX} model M Complex a; Complex q; \
+             equation a = Complex(1, 2); q = a / a; end M;"
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("no operator `/`"), "{error}");
+
+        // So is a constructor given the wrong number of fields.
+        let error = parse_model(&format!(
+            "{COMPLEX} model M Complex a; equation a = Complex(1); end M;"
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(error.contains("2 field(s), 1 given"), "{error}");
     }
 
     #[test]
