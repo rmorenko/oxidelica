@@ -75,6 +75,16 @@ impl Ratio {
     }
 }
 
+/// Whether two instants are the same instant, to the last bit. Both
+/// come from the same arithmetic on the same fractions, so agreement
+/// here is exact agreement and not a tolerance.
+fn same_number(mine: Option<f64>, theirs: Option<f64>) -> bool {
+    match (mine, theirs) {
+        (Some(mine), Some(theirs)) => mine.to_bits() == theirs.to_bits(),
+        _ => false,
+    }
+}
+
 /// Greatest common divisor, for keeping a fraction in lowest terms.
 fn gcd(a: i128, b: i128) -> i128 {
     let (mut a, mut b) = (a.abs(), b.abs());
@@ -211,17 +221,33 @@ impl ClockSpec {
         }
     }
 
-    /// Whether two clocks are the same clock - which is a question
-    /// about the fractions, not about the seconds they work out to.
+    /// Whether two clocks are the same clock, which is a question about
+    /// when they tick and not about the road taken to them.
+    ///
+    /// `Clock(1, 5)` and `Clock(1, 10)` sub-sampled by two are one
+    /// clock spelled two ways, and a model is free to reach the same
+    /// instants either way. Two periodic clocks are therefore compared
+    /// by the two numbers their `when` fires on; agreeing there to the
+    /// last bit is what ticking together means, and the fractions are
+    /// what puts the numbers where they belong rather than a rounding
+    /// away from it.
     fn same(&self, other: &ClockSpec) -> bool {
         let roots = match (&self.root, &other.root) {
-            (Root::Every(mine), Root::Every(theirs)) => mine.to_bits() == theirs.to_bits(),
+            (Root::Every(_), Root::Every(_)) => {
+                same_number(self.interval(), other.interval())
+                    && same_number(self.first(), other.first())
+            }
+            // No two conditions can be told to rise together except by
+            // being the same condition, counted the same way.
             (Root::When(mine, start), Root::When(theirs, other_start)) => {
-                mine == theirs && start.to_bits() == other_start.to_bits()
+                mine == theirs
+                    && start.to_bits() == other_start.to_bits()
+                    && self.rate == other.rate
+                    && self.shift == other.shift
             }
             _ => false,
         };
-        roots && self.rate == other.rate && self.shift == other.shift && self.solver == other.solver
+        roots && self.solver == other.solver
     }
 
     /// The same clock ticking `factor` times more slowly, its first
