@@ -48,6 +48,12 @@ impl std::error::Error for ParseError {}
 
 /// Parse all class definitions from a Modelica source file.
 pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
+    parse_file_within(source).map(|(classes, _)| classes)
+}
+
+/// As [`parse_file`], and also the namespace the file declared itself
+/// to sit in, when it said.
+fn parse_file_within(source: &str) -> Result<(Vec<ClassDef>, Option<String>), ParseError> {
     let tokens = lex(source).map_err(|e| ParseError {
         message: e.message,
         line: e.line,
@@ -58,11 +64,15 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
         in_subscript: false,
     };
     let mut classes = Vec::new();
+    let mut within: Option<String> = None;
     while parser.peek() != &Token::Eof {
         if parser.peek() == &Token::Within {
             parser.bump();
+            // `within A.B;` says where in the tree this file sits, so
+            // its classes are known by their place in it - which is
+            // what lets a library be spread over a directory.
             if matches!(parser.peek(), Token::Ident(_)) {
-                parser.dotted_name("within namespace")?;
+                within = Some(parser.dotted_name("within namespace")?);
             }
             parser.expect(&Token::Semi, "semicolon after within")?;
             continue;
@@ -81,6 +91,10 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
         };
         // A package contributes its members to the registry under
         // qualified names, alongside the package itself.
+        let mut class = class;
+        if let Some(namespace) = &within {
+            class.name = format!("{namespace}.{}", class.name);
+        }
         flatten_packages(class, &mut classes);
     }
     if classes.is_empty() {
@@ -89,7 +103,7 @@ pub fn parse_file(source: &str) -> Result<Vec<ClassDef>, ParseError> {
             line: 1,
         });
     }
-    Ok(classes)
+    Ok((classes, within))
 }
 
 /// Collect a class and everything nested inside it, qualifying the
@@ -118,14 +132,22 @@ pub fn parse_model_with_libraries(libraries: &[String], source: &str) -> Result<
     for library in libraries {
         classes.extend(parse_file(library)?);
     }
-    let own = parse_file(source)?;
+    let (own, within) = parse_file_within(source)?;
     // The model to simulate is the last one written at the top level of
     // the file; models nested inside other classes are components' types,
-    // not entry points.
+    // not entry points. A file that says where it sits carries that
+    // much of every name, so the test for "top level" looks past it.
+    let namespace = within.map(|space| format!("{space}.")).unwrap_or_default();
+    let top_level = |class: &ClassDef| {
+        class
+            .name
+            .strip_prefix(&namespace)
+            .is_some_and(|rest| !rest.contains('.'))
+    };
     let top = own
         .iter()
         .rev()
-        .find(|c| c.kind == ClassKind::Model && !c.partial && !c.name.contains('.'))
+        .find(|c| c.kind == ClassKind::Model && !c.partial && top_level(c))
         .or_else(|| {
             own.iter()
                 .rev()

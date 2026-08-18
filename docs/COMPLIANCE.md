@@ -29,7 +29,9 @@ under a chapter works as specified for the subset this project covers.
 ## What works
 
 Flat and hierarchical models; packages with qualified names and imports
-(`import A.B;`, `import C = A.B;`); inheritance with modifiers, nested
+(`import A.B;`, `import C = A.B;`), spread over one file or over a
+directory tree whose files say with `within` where they sit, found
+through `MODELICAPATH`; inheritance with modifiers, nested
 modifiers down to a child's attribute, including a whole array handed
 to a component (`Chain c(m = {1, 2, 3}, x(start = {0, 1, 2}))`), which
 is spread over the elements; `replaceable`/`redeclare` for
@@ -111,8 +113,10 @@ connected only to another bus member has nowhere to get one, and
 `protected` is accepted but not enforced; `final` and `each` are parsed
 and ignored (array modifiers distribute regardless); package `extends`
 does not merge members through an alias; selective model extension
-(3.6's `break`) is not parsed. No `MODELICAPATH` or one-class-per-file
-directory layout — libraries are flat `.mo` files in `lib/`.
+(3.6's `break`) is not parsed. A library may be a directory tree, but
+a file's place in it comes from its `within` clause rather than from
+where the file sits, so a tree without `within` headers is read as
+though it were flat. `import A.B.*;` is not parsed.
 
 **Semantics**: `der()` only of a plain variable; a condition of a
 run-time `if` equation must be readable from the parameters, the

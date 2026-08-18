@@ -4914,7 +4914,9 @@ mod tests {
              end Resistor;",
         )
         .unwrap();
-        assert_eq!(m.name, "Resistor");
+        // The `within` header is part of the class's name: that is
+        // what lets a library be spread over a directory.
+        assert_eq!(m.name, "Modelica.Electrical.Analog.Basic.Resistor");
         assert_eq!(
             m.equations.len(),
             2,

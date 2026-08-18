@@ -30,7 +30,11 @@ the answers.
 
 A model does not have to live in this folder: the standard library is
 looked for as `lib` next to the model, next to the working directory or
-next to the binary, and `OXIDELICA_LIB` names it outright.
+next to the binary. `OXIDELICA_LIB` names one outright and
+`MODELICAPATH` names several, separated the way your platform separates
+paths; either of them settles the matter, and the search stops looking
+around. A library may be a single file or a directory tree, each file
+saying with `within` where in the tree it sits.
 
 Linux needs the libraries Bevy links against — on Debian and Ubuntu
 `pkg-config libasound2-dev libudev-dev`; the Windows cross-build needs
