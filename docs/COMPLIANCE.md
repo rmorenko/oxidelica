@@ -267,8 +267,7 @@ generated or dropped, since overdetermined types are not supported.
 between them in a straight line, so the shift is as exact as
 `Interval` is fine and the step is never longer than the delay; `T`
 must be known before the run, and a continuation after a
-re-compilation starts its memory over. No `terminal`,
-`spatialDistribution`, `getInstanceName`; subtype
+re-compilation starts its memory over. Subtype
 compatibility (ch. 6) is approximated by the `extends` chain for
 `constrainedby`, though a connection set matches its connectors by
 shape — same member names, same `flow` and `stream` prefixes — rather
