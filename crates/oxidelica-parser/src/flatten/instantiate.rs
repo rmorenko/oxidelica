@@ -20,6 +20,12 @@ pub(super) fn instantiate(
     }
 
     let scope = class.name.as_str();
+    // A function called in an equation makes its checks every step of
+    // the run, and those checks belong to the model. The pass that
+    // inlines the call sets them aside; they are taken up here, once
+    // this class is done, since here is where there is somewhere to
+    // put them.
+    let checks_from = checks_mark();
     // Every equation this class puts in is stamped with the instance it
     // belongs to; a class instantiated inside it stamps its own, and
     // this one is put back afterwards.
@@ -477,7 +483,12 @@ pub(super) fn instantiate(
                                 prefix_expr(&binding, prefix, &outers)
                             }
                         };
-                        let value = expand(&binding, &shapes, registry, scope, &imports, 0).ok()?;
+                        // A measurement is not the model asking for a
+                        // value, so nothing it works out is kept.
+                        let mark = checks_mark();
+                        let value = expand(&binding, &shapes, registry, scope, &imports, 0);
+                        checks_rewind(mark);
+                        let value = value.ok()?;
                         value.shape().get(axis).map(|length| *length as i64)
                     };
                     sizing_binding.as_ref().and_then(measured).ok_or_else(|| {
@@ -789,8 +800,12 @@ pub(super) fn instantiate(
     }
 
     for (condition, message) in &class.asserts {
-        acc.asserts
-            .push((resolve_here(condition)?, message.clone()));
+        // A check may be written over arrays - `assert(length(n) >
+        // 0, ...)` of an axis of three - so it goes through the array
+        // layer like an equation, and what comes out is the one truth
+        // it has to be.
+        let condition = expand_here(condition, &no_loop_vars)?.scalar()?;
+        acc.asserts.push((condition, message.clone()));
     }
 
     // The arrows of a state machine name instances of this class, so
@@ -1092,6 +1107,7 @@ pub(super) fn instantiate(
         let Some(branch) = chosen else { continue };
         // The branch is the one taken, so its checks hold outright.
         for (condition, message) in &branch.asserts {
+            let _ = "BRANCH";
             acc.asserts
                 .push((resolve_here(condition)?, message.clone()));
         }
@@ -1350,6 +1366,32 @@ pub(super) fn instantiate(
             }
         });
     }
+    // A check written inside a function body may hold arrays and calls
+    // of its own, and working one out can leave another behind, so the
+    // taking goes round until nothing is left. What comes out already
+    // carries this class's prefix, since the call did.
+    loop {
+        let taken = checks_taken(checks_from);
+        if taken.is_empty() {
+            break;
+        }
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+            records: &records_here,
+        };
+        for (condition, message) in taken {
+            let condition = expand(&condition, &shapes, registry, scope, &imports, 0)?.scalar()?;
+            let check = (condition, message);
+            // The same call may be worked out more than once - a
+            // parameter settled in one pass and read again in the next
+            // - and one check written twice is still one check.
+            if !acc.asserts.contains(&check) {
+                acc.asserts.push(check);
+            }
+        }
+    }
     acc.origin = stamped;
     Ok(())
 }
@@ -1601,7 +1643,13 @@ fn array_element(
         consts,
         records: no_records(),
     };
-    let Ok(measured) = expand(value, &shapes, registry, scope, imports, 0) else {
+    let mark = checks_mark();
+    let measured = expand(value, &shapes, registry, scope, imports, 0);
+    // Slicing a modifier is a measurement rather than the model asking
+    // for the value, and the value itself is expanded again where it
+    // lands; keeping the checks here would count them twice.
+    checks_rewind(mark);
+    let Ok(measured) = measured else {
         return value.clone();
     };
     // The slice is taken along the outermost dimension: an element of

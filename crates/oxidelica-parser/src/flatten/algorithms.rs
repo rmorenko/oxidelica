@@ -2,6 +2,57 @@
 //! at the place they were called.
 
 use super::*;
+use std::cell::RefCell;
+
+thread_local! {
+    /// Checks set aside on the way out of an inlined function.
+    ///
+    /// An `assert` in a function body holds every time the function is
+    /// called, and a call written in an equation is made at every step
+    /// of the run - so the check is one the whole model carries. The
+    /// pass that inlines the call answers with an expression, though,
+    /// and an expression has nowhere to put a check. So the checks are
+    /// left here, and the class being instantiated - which does have
+    /// somewhere to put them - takes them up when it is done.
+    static SET_ASIDE: RefCell<Vec<(Expr, String)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// How many checks have been set aside so far.
+///
+/// Work that is thrown away must not leave its checks behind: an `if`
+/// branch nobody takes, an unrolling that turned out not to come to an
+/// end. Those places note the mark before and rewind to it after.
+pub(super) fn checks_mark() -> usize {
+    SET_ASIDE.with(|aside| aside.borrow().len())
+}
+
+/// Throw away every check set aside since `mark`.
+pub(super) fn checks_rewind(mark: usize) {
+    SET_ASIDE.with(|aside| aside.borrow_mut().truncate(mark));
+}
+
+/// Put a condition in front of every check set aside since `mark`.
+///
+/// Only the branch an `if` takes is worked out as the run goes, so a
+/// check a branch made holds only when that branch is the one taken:
+/// either the condition fell the other way, or the check holds.
+pub(super) fn checks_guarded(mark: usize, condition: &Expr, on_true: bool) {
+    let otherwise = if on_true {
+        Expr::Not(Box::new(condition.clone()))
+    } else {
+        condition.clone()
+    };
+    SET_ASIDE.with(|aside| {
+        for (check, _) in aside.borrow_mut().iter_mut().skip(mark) {
+            *check = Expr::Or(Box::new(otherwise.clone()), Box::new(check.clone()));
+        }
+    });
+}
+
+/// Take every check set aside since `mark`, in the order they came.
+pub(super) fn checks_taken(mark: usize) -> Vec<(Expr, String)> {
+    SET_ASIDE.with(|aside| aside.borrow_mut().split_off(mark))
+}
 
 /// How a body says it cannot be unrolled.
 ///
@@ -591,6 +642,13 @@ pub(super) fn inline_function(
     // the run walks it. For a body that does not lead back to itself
     // there is nothing behind, and a refusal is a refusal.
     let speculative = recursive(class, registry);
+    // A call that ends up standing was not inlined, so whatever checks
+    // the attempt set aside are checks of a body nobody ran.
+    let mark = checks_mark();
+    let standing = || {
+        checks_rewind(mark);
+        standing()
+    };
     let attempt = inline_function_outputs(class, args, shapes, consts, registry, depth);
     let mut outputs = match attempt {
         Ok(outputs) => outputs,
@@ -598,7 +656,10 @@ pub(super) fn inline_function(
             return standing()
         }
         Err(_) if speculative => return standing(),
-        Err(why) => return Err(why),
+        Err(why) => {
+            checks_rewind(mark);
+            return Err(why);
+        }
     };
     // An unrolling that still holds a call of its own cycle did not
     // reach the bottom: it stopped where the compiler stopped
@@ -1036,15 +1097,11 @@ pub(super) fn inline_function_outputs(
     if outputs.is_empty() {
         return Err(format!("function `{}` declares no output", class.name));
     }
-    // An `assert` in a function body would have to travel out through
-    // the expression the call becomes, and expressions have nowhere to
-    // carry one.
+    // An `assert` in a function body cannot travel out through the
+    // expression the call becomes, so it is set aside for the model
+    // being built to take up.
     if !checks.is_empty() {
-        return Err(format!(
-            "`assert` in function `{}` has nowhere to go: a call becomes an expression, and \
-             an expression carries no checks - one written among a model's own statements does",
-            class.name
-        ));
+        SET_ASIDE.with(|aside| aside.borrow_mut().extend(checks));
     }
     Ok(outputs)
 }

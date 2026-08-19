@@ -242,7 +242,14 @@ pub(super) fn expand(
                     Some(false) => (otherwise, then),
                     _ => (then, otherwise),
                 };
+                // A check a branch makes holds only when that branch
+                // is the one taken.
+                let before_first = checks_mark();
                 let first = recur(first)?;
+                checks_guarded(before_first, &condition, stands != Some(false));
+                // A branch that comes to nothing leaves no checks
+                // behind either.
+                let mark = checks_mark();
                 let second = match (recur(second), settled) {
                     (Ok(value), _) => value,
                     // Where the compiler settles the condition, the
@@ -253,9 +260,16 @@ pub(super) fn expand(
                     // branch is not part of this model - though a
                     // mistake in it will go unmentioned until a run
                     // that takes it.
-                    (Err(_), Some(_)) => return Ok(first),
-                    (Err(trouble), None) => return Err(trouble),
+                    (Err(_), Some(_)) => {
+                        checks_rewind(mark);
+                        return Ok(first);
+                    }
+                    (Err(trouble), None) => {
+                        checks_rewind(mark);
+                        return Err(trouble);
+                    }
                 };
+                checks_guarded(mark, &condition, stands == Some(false));
                 let (taken, left) = match stands {
                     Some(false) => (second, first),
                     _ => (first, second),
@@ -285,6 +299,9 @@ pub(super) fn expand(
                         crate::flatten::names::sketch(&condition)
                     ));
                 };
+                // One branch stands and the other is dropped, so the
+                // checks it made go with it.
+                checks_rewind(mark);
                 return Ok(if truth != 0.0 { taken } else { left });
             }
             if let Some(truth) = constant_here(&condition) {

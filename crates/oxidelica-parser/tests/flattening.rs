@@ -2107,12 +2107,37 @@ fn a_check_may_be_written_where_the_statements_are() {
     assert!(format!("{:?}", m.asserts[2].0).contains("g[3]"));
 
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
-    // A check inside a function would have to travel out through the
-    // expression the call becomes, and an expression carries none.
-    assert!(err("model M function f input Real x; output Real y; \
+    // A check inside a function cannot travel out through the
+    // expression the call becomes, so it is set aside and taken up by
+    // the model, which does have somewhere to put it. The call is made
+    // at every step of the run, so the check holds at every step.
+    let m = parse_model(
+        "model M function f input Real x; output Real y; \
          algorithm assert(x > 0, \"positive\"); y := x; end f; \
-         Real y; equation y = f(2); end M;")
-    .contains("has nowhere to go"));
+         Real y; equation y = f(2); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a check from an inlined body");
+    assert_eq!(m.asserts.len(), 1);
+    assert_eq!(m.asserts[0].1, "positive");
+    assert!(format!("{:?}", m.asserts[0].0).contains("Number(2.0)"));
+
+    // Only the branch an `if` takes is worked out, so a check from a
+    // branch comes with the condition in front of it.
+    let m = parse_model(
+        "model M function f input Real x; output Real y; \
+         algorithm assert(x > 0, \"positive\"); y := x; end f; \
+         parameter Boolean high = false; \
+         Real y; equation y = if high then f(-1) else 3; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a check from a branch behind a condition");
+    assert_eq!(m.asserts.len(), 1);
+    assert!(
+        format!("{:?}", m.asserts[0].0).starts_with("Or(Not(Ref(\"high\"))"),
+        "{:?}",
+        m.asserts[0].0
+    );
     // A call standing on its own takes nothing from its outputs; what
     // it is written for is the checks its body makes, and here they
     // have somewhere to go.
