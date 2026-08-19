@@ -267,6 +267,19 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 ));
             }
         }
+        // A connector that is one value rather than a set of members -
+        // `connector RealInput = input Real` - joins on itself: there
+        // is no member to name, so the paths are the variables.
+        if class.components.is_empty() && class.alias_of.is_some() {
+            for other in &members[1..] {
+                acc.equations.push(EquationItem {
+                    lhs: Expr::Ref((*other).to_string()),
+                    rhs: Expr::Ref(members[0].to_string()),
+                    origin: String::new(),
+                });
+            }
+            continue;
+        }
         for member_component in &class.components {
             let var = |path: &str| format!("{path}.{}", member_component.name);
             if member_component.stream {
@@ -635,6 +648,11 @@ struct Site<'a> {
     binding: Option<&'a Expr>,
     /// The start of this element, from an array-valued start attribute.
     start: Option<&'a Expr>,
+    /// The connector class this was declared with, where that class is
+    /// one holding a single value rather than members: `connector
+    /// RealInput = input Real`. Resolving the type leaves a primitive
+    /// behind and the connector-ness with it, so it is carried here.
+    value_connector: Option<&'a str>,
 }
 
 /// The class-level context a component is instantiated in.

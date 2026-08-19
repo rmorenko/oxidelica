@@ -437,6 +437,8 @@ enum Unary {
     Ceil,
     Floor,
     IntegerPart,
+    /// `Integer(e)` — the ordinal of an enumeration value.
+    Ordinal,
     Sin,
     Cos,
     Tan,

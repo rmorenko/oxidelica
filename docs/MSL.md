@@ -41,7 +41,7 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2610 read, 64 not read
-classes: 4764; example models: 632, of which 73 flatten
+classes: 4764; example models: 632, of which 125 flatten
 ```
 
 Two numbers, and they mean different things. **Read** is the parser:
@@ -76,9 +76,6 @@ The 64 files that will not parse, and the example models that will not
 flatten, are not a long tail of small things. They are a handful of
 features, each used widely:
 
-- **A subscript a parameter decides** — an array indexed by something
-  settled from the parameters rather than written as a literal. 48
-  models, the largest single refusal.
 - **Media** — `Modelica.Media` is built on replaceable packages and
   functions with `noDerivative` annotations, and reaches C for its
   property tables. 36 models between the two ways it is refused.
@@ -103,5 +100,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "73 of 632" mean anything — without it, one unparsed file would
+like "125 of 632" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

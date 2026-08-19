@@ -2843,3 +2843,52 @@ fn run_err(source: &str) -> String {
         .expect_err("should have been stopped")
         .to_string()
 }
+
+/// A connector that is one value rather than a set of members, which
+/// is how every signal in a block library is carried.
+#[test]
+fn a_connector_may_be_one_value() {
+    // `connect(src.y, gain.u)` joins the values themselves: there is
+    // no member to name on either side.
+    let result = run(
+        "connector RealInput = input Real; connector RealOutput = output Real; \
+         block Source RealOutput y; equation y = 2 * time; end Source; \
+         block Gain parameter Real k = 3; RealInput u; RealOutput y; \
+         equation y = k * u; end Gain; \
+         model M Source src; Gain gain(k = 5); Real out; \
+         equation connect(src.y, gain.u); out = gain.y; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;",
+    );
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    assert_eq!(at("src.y"), 2.0);
+    // The connection carried it across.
+    assert_eq!(at("gain.u"), 2.0);
+    assert_eq!(at("out"), 10.0);
+
+    // Three of them in one set all take the same value.
+    let result = run("connector Signal = input Real; \
+         block Source Signal y; equation y = time; end Source; \
+         model M Source src; Signal a; Signal b; Real out; \
+         equation connect(src.y, a); connect(a, b); out = b; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;");
+    let index = result.columns.iter().position(|c| c == "out").unwrap();
+    assert_eq!(result.rows.last().unwrap()[index], 1.0);
+}
+
+/// `Integer(e)` is the ordinal of an enumeration value, which is not
+/// the same thing as `integer(x)` cutting a number down.
+#[test]
+fn the_ordinal_of_an_enumeration_is_not_a_truncation() {
+    let result = run("model M type Resolution = enumeration(s, ms, us); \
+         parameter Resolution pick = Resolution.ms; \
+         constant Integer table[3] = {1, 1000, 1000000}; \
+         parameter Integer factor = table[Integer(pick)]; \
+         Real y; equation y = factor + integer(-1.5); \
+         annotation(experiment(StopTime = 1, Interval = 1, Tolerance = 1e-10)); end M;");
+    let index = result.columns.iter().position(|c| c == "y").unwrap();
+    // The second literal is the 1000, and `integer(-1.5)` is -2.
+    assert_eq!(result.rows.last().unwrap()[index], 998.0);
+}

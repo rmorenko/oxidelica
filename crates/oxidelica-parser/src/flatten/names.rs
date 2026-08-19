@@ -162,6 +162,11 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
                 "floor" => one()?.floor(),
                 "ceil" => one()?.ceil(),
                 "integer" => one()?.floor(),
+                // `Integer(e)` is the ordinal of an enumeration value,
+                // which is not the same thing as `integer(x)` cutting a
+                // number down. An enumeration is carried as its ordinal
+                // here, so there is nothing left to do.
+                "Integer" => one()?,
                 "atan2" => {
                     let (a, b) = two()?;
                     a.atan2(b)

@@ -307,6 +307,15 @@ pub(super) fn instantiate(
             )?);
         }
 
+        // A connector may be one value rather than a set of members:
+        // `connector RealInput = input Real` is how every signal in
+        // the standard library is carried. Resolving the type below
+        // leaves the primitive behind, so what class it came from is
+        // noted first - a connection to it is still a connection.
+        let value_connector = lookup(registry, &component.type_name, scope, &imports)
+            .filter(|class| class.kind == ClassKind::Connector && class.alias_of.is_some())
+            .map(|class| class.name.clone());
+
         // A `type` alias stands for a primitive plus attribute
         // defaults, and an enumeration for an `Integer`; substitute
         // before instantiating. This has to happen before the
@@ -493,6 +502,7 @@ pub(super) fn instantiate(
                 redeclares: &child_redeclares,
                 binding: element_bindings.as_ref().map(|items| &items[position]),
                 start: element_starts.as_ref().map(|items| &items[position]),
+                value_connector: value_connector.as_deref(),
             };
             instantiate_one(registry, &site, &level, acc, depth)?;
         }
@@ -1061,6 +1071,7 @@ pub(super) fn instantiate_one(
         redeclares,
         binding: _,
         start: _,
+        value_connector,
     } = *site;
     let Level {
         prefix,
@@ -1129,6 +1140,16 @@ pub(super) fn instantiate_one(
                         rhs: value,
                         origin: String::new(),
                     });
+                }
+            }
+            // A connector that is one value is still a connector: a
+            // `connect` naming it joins the values themselves.
+            if let Some(class_name) = value_connector {
+                acc.connectors
+                    .insert(flat_name.to_string(), class_name.to_string());
+                if !component.annotations.is_empty() {
+                    acc.connect_rules
+                        .push((flat_name.to_string(), component.annotations.clone()));
                 }
             }
             acc.components.push(flat);

@@ -134,6 +134,12 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
             }
             match operator_name(name) {
                 "der" => return err("der() outside a state equation is not supported in M0"),
+                // The ordinal of an enumeration value, which is what an
+                // enumeration is carried as.
+                "Integer" => {
+                    arity(1)?;
+                    vals[0]
+                }
                 "sin" => {
                     arity(1)?;
                     vals[0].sin()
@@ -312,6 +318,11 @@ impl Code {
                     // integer(x) truncates toward negative infinity,
                     // like floor - the spec defines it that way.
                     Unary::IntegerPart => x.floor(),
+                    // `Integer(e)` is the ordinal of an enumeration
+                    // value, which is what one is carried as: there is
+                    // nothing left to do to it. It is not `integer(x)`,
+                    // which cuts a number down.
+                    Unary::Ordinal => x,
                     Unary::Sin => x.sin(),
                     Unary::Cos => x.cos(),
                     Unary::Tan => x.tan(),
@@ -446,6 +457,7 @@ impl SlotTable {
             "ceil" => Some(Unary::Ceil),
             "floor" => Some(Unary::Floor),
             "integer" => Some(Unary::IntegerPart),
+            "Integer" => Some(Unary::Ordinal),
             "sin" => Some(Unary::Sin),
             "cos" => Some(Unary::Cos),
             "tan" => Some(Unary::Tan),

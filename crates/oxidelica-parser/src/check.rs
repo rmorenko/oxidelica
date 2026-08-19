@@ -367,6 +367,8 @@ impl TypeLayer {
             args.first().map_or(Ok(Ty::Unknown), |a| layer.infer(a))
         };
         match operator_name(name) {
+            // `Integer(e)` is the ordinal of an enumeration value.
+            "Integer" => Ok(Ty::Int),
             "der" | "sqrt" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "sinh" | "cosh"
             | "tanh" | "exp" | "log" | "log10" | "atan2" | "floor" | "ceil" => {
                 for arg in args {
