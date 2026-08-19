@@ -261,6 +261,8 @@ struct BranchBody {
     whens: Vec<WhenClause>,
     /// Calls standing on their own in the branch.
     calls: Vec<Expr>,
+    /// What the branch says about the connection graph.
+    graph: Vec<GraphClause>,
     /// How many warning-level checks were read and dropped. A branch
     /// that held only those is empty now and was not as written, which
     /// is the difference between an empty `if` and a mistake.

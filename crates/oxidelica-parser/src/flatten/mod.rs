@@ -611,6 +611,10 @@ struct Flat {
     /// Values of parameters already instantiated, by flat name: array
     /// dimensions and loop bounds are resolved against them.
     const_values: HashMap<String, f64>,
+    /// The same numbers in the order they arrived, so that a class
+    /// part-way through its declarations can take up what is new
+    /// without walking everything it already has.
+    numbers: Vec<(String, f64)>,
     /// Instance paths of components a false condition left out.
     disabled: Vec<String>,
     /// `if` equations whose condition is only known while running.

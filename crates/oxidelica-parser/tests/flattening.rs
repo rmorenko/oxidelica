@@ -4943,12 +4943,13 @@ fn a_parameter_may_be_built_on_an_element_of_a_table() {
          annotation(experiment(StopTime = 1, Interval = 1)); end M;",
     )
     .expect("a parameter off a table");
-    // The binding is the element by name; what `Evaluate` asked for is
-    // that it be worth a number, and reaching this far says it is.
+    // Every element of the table is a number of its own, so the
+    // binding comes out as the one it picked - which is what
+    // `Evaluate` asked for.
     let factor = m.components.iter().find(|c| c.name == "factor").unwrap();
     assert_eq!(
         format!("{:?}", factor.binding.as_ref().unwrap()),
-        "Ref(\"table[2]\")"
+        "Number(1000.0)"
     );
 
     // And a clock built the same way: the interval is a factor read
@@ -5980,4 +5981,67 @@ fn a_length_may_be_counted_over_arrays() {
         4
     );
     assert!(format!("{:?}", m.equations).contains("q[4]"));
+}
+
+/// An element of a parameter array is a number the next declaration
+/// may be subscripted with.
+#[test]
+fn a_subscript_may_come_out_of_a_parameter_array() {
+    let m = parse_model(
+        "package P type Seq = Integer[3]; \
+           function axisOf input Integer sequence[3]; input Real m[3, 3]; output Real e[3]; \
+           algorithm e := m[sequence[3], :]; end axisOf; \
+         end P; \
+         model M parameter P.Seq order = {3, 1, 2}; \
+         Real t[3, 3] = {{1, 0, 0}, {0, 2, 0}, {0, 0, 3}} * time; \
+         Real e[3]; Real y; \
+         equation e = P.axisOf(order, t); y = e[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a subscript read out of a parameter array");
+    // `order[3]` is 2, so the second row is taken and its middle is
+    // the only element that is not zero.
+    let given = |name: &str| {
+        format!(
+            "{:?}",
+            m.equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+                .expect(name)
+                .rhs
+        )
+    };
+    assert_eq!(given("e[1]"), "Ref(\"t[2,1]\")");
+    assert_eq!(given("e[2]"), "Ref(\"t[2,2]\")");
+}
+
+/// A branch of an `if` equation may say what the connection graph is.
+#[test]
+fn a_branch_may_say_where_the_graph_is_rooted() {
+    let m = parse_model(
+        "model M connector Frame Real r; flow Real f; end Frame; \
+         parameter Boolean enforce = true; Frame frame_a; Real y; \
+         equation frame_a.f = 0; y = time; \
+         if enforce then Connections.root(frame_a); \
+         else Connections.potentialRoot(frame_a); end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a root declared in a branch");
+    assert_eq!(m.connection_graph.len(), 1);
+    assert!(
+        format!("{:?}", m.connection_graph[0]).starts_with("Root("),
+        "{:?}",
+        m.connection_graph[0]
+    );
+
+    let error = parse_model(
+        "model M connector Frame Real r; flow Real f; end Frame; \
+         Boolean high; Frame frame_a; Real y; \
+         equation frame_a.f = 0; y = time; high = time > 0.5; \
+         if high then Connections.root(frame_a); \
+         else Connections.potentialRoot(frame_a); end if; end M;",
+    )
+    .expect_err("a graph the run would draw")
+    .message;
+    assert!(error.contains("drawn once and for all"), "{error}");
 }

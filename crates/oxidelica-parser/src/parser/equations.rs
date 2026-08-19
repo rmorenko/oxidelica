@@ -215,6 +215,7 @@ impl Parser {
                     && b.loops.is_empty()
                     && b.whens.is_empty()
                     && b.calls.is_empty()
+                    && b.graph.is_empty()
             })
         {
             return Err(self.err("if equation has no equations".into()));
@@ -233,6 +234,7 @@ impl Parser {
         let mut loops = Vec::new();
         let mut whens = Vec::new();
         let mut calls = Vec::new();
+        let mut graph = Vec::new();
         let mut dropped = 0;
         loop {
             match self.peek() {
@@ -242,6 +244,9 @@ impl Parser {
                 Token::If => nested.push(self.if_equation()?),
                 Token::For => loops.push(self.for_equation()?),
                 Token::When => whens.push(self.when_clause()?),
+                Token::Ident(name) if name == "Connections" => {
+                    graph.push(self.connections_clause()?)
+                }
                 // A check written among the equations of a branch: it
                 // is one of them for the purpose of being read here,
                 // and none of them for the purpose of counting.
@@ -267,6 +272,7 @@ impl Parser {
             loops,
             whens,
             calls,
+            graph,
             dropped,
         })
     }
@@ -567,6 +573,7 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
         loops: body.loops,
         whens: body.whens,
         calls: body.calls,
+        graph: body.graph,
     }];
     for inner in body.nested {
         let mut leaves = inner.branches;
@@ -579,6 +586,7 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
                 loops: Vec::new(),
                 whens: Vec::new(),
                 calls: Vec::new(),
+                graph: Vec::new(),
             });
         }
         let mut next = Vec::new();
@@ -603,6 +611,8 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
                 whens.extend(leaf.whens.iter().cloned());
                 let mut calls = outer.calls.clone();
                 calls.extend(leaf.calls.iter().cloned());
+                let mut graph = outer.graph.clone();
+                graph.extend(leaf.graph.iter().cloned());
                 next.push(IfBranch {
                     condition,
                     equations,
@@ -611,6 +621,7 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
                     loops,
                     whens,
                     calls,
+                    graph,
                 });
             }
         }

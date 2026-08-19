@@ -261,6 +261,8 @@ pub(super) fn instantiate(
     // into the table above. Each declaration brings its own, and the
     // one after it may be written with them.
     let mut taken = 0;
+    // The same, for the numbers each declaration turns out to be worth.
+    let mut counted = 0;
     // Parameters the lengths settled: `n = size(lines, 1)` is a number
     // by the time `lines` has been measured, and the declaration keeps
     // the number rather than the question, since nothing after
@@ -291,6 +293,15 @@ pub(super) fn instantiate(
             let (name, shape) = &acc.sizes[taken];
             sizes_here.insert(name.clone(), shape.clone());
             taken += 1;
+        }
+        // An element of a parameter array is a number of its own -
+        // `sequence[3]` is 3 - and a declaration after it may be
+        // written with that number. The elements are recorded as they
+        // are instantiated, so what is new is taken up here.
+        while counted < acc.numbers.len() {
+            let (name, value) = &acc.numbers[counted];
+            local_consts.entry(name.clone()).or_insert(*value);
+            counted += 1;
         }
         // A parameter may be worth a number only once the
         // declarations before it have been measured: `Integer n =
@@ -710,6 +721,14 @@ pub(super) fn instantiate(
         taken += 1;
     }
 
+    // The last declarations' numbers, which the loop above added after
+    // its final round.
+    while counted < acc.numbers.len() {
+        let (name, value) = &acc.numbers[counted];
+        local_consts.entry(name.clone()).or_insert(*value);
+        counted += 1;
+    }
+
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
         let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
@@ -838,18 +857,6 @@ pub(super) fn instantiate(
     if let Some(state) = &class.initial_state {
         acc.initial_states.push(flat_name(state, prefix, &outers));
     }
-    for clause in &class.connection_graph {
-        acc.connection_graph.push(match clause {
-            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, &outers)),
-            GraphClause::PotentialRoot(node, priority) => {
-                GraphClause::PotentialRoot(flat_name(node, prefix, &outers), *priority)
-            }
-            GraphClause::Branch(a, b) => {
-                GraphClause::Branch(flat_name(a, prefix, &outers), flat_name(b, prefix, &outers))
-            }
-        });
-    }
-
     for equation in &class.initial_equations {
         let (lhs, rhs) = (
             expand_here(&equation.lhs, &no_loop_vars)?,
@@ -1070,6 +1077,7 @@ pub(super) fn instantiate(
     // reinit(y, y_start); end when; end if;` is how the standard
     // library gives a block a reset it can be built without.
     let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
+    let mut graph_from_branches: Vec<&GraphClause> = Vec::new();
     // `if` equations: the branch that holds contributes its equations,
     // the others contribute nothing. Conditions are structural, so they
     // must be constant at compile time.
@@ -1134,6 +1142,7 @@ pub(super) fn instantiate(
                 .push((resolve_here(condition)?, message.clone()));
         }
         whens_from_branches.extend(branch.whens.iter());
+        graph_from_branches.extend(branch.graph.iter());
         for call in &branch.calls {
             take_checks(call, acc)?;
         }
@@ -1171,6 +1180,24 @@ pub(super) fn instantiate(
         }
     }
 
+    // What the class says about the overconstrained graph, and what
+    // the branches the compiler picked said about it.
+    for clause in class
+        .connection_graph
+        .iter()
+        .chain(graph_from_branches.iter().copied())
+    {
+        acc.connection_graph.push(match clause {
+            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, &outers)),
+            GraphClause::PotentialRoot(node, priority) => {
+                GraphClause::PotentialRoot(flat_name(node, prefix, &outers), *priority)
+            }
+            GraphClause::Branch(a, b) => {
+                GraphClause::Branch(flat_name(a, prefix, &outers), flat_name(b, prefix, &outers))
+            }
+        });
+    }
+
     for clause in class.when_clauses.iter().chain(whens_from_branches) {
         let mut branches = Vec::new();
         for branch in &clause.branches {
@@ -1206,6 +1233,7 @@ pub(super) fn instantiate(
                                 || !branch.asserts.is_empty()
                                 || !branch.whens.is_empty()
                                 || !branch.calls.is_empty()
+                                || !branch.graph.is_empty()
                             {
                                 return Err(
                                     "an `if` inside `when` gives values to variables".to_string()
@@ -1593,6 +1621,7 @@ pub(super) fn instantiate_one(
                     .and_then(|expr| const_eval(expr, &acc.const_values))
                 {
                     acc.const_values.insert(flat.name.clone(), value);
+                    acc.numbers.push((flat.name.clone(), value));
                 }
             }
             // A connector that is one value is still a connector: a
@@ -2109,6 +2138,13 @@ where
                 "a `for` equation in `{class_name}` sits in an `if` branch whose condition is \
                  not known at compile time; how many equations a loop makes is settled before \
                  the run"
+            ));
+        }
+        if !branch.graph.is_empty() {
+            return Err(format!(
+                "a `Connections` clause in `{class_name}` sits in an `if` branch whose \
+                 condition is not known at compile time; the connection graph is drawn once \
+                 and for all"
             ));
         }
         if !branch.calls.is_empty() {

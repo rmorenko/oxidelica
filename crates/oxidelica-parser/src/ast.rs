@@ -509,6 +509,11 @@ pub struct IfBranch {
     /// outputs, so what they are written for is what their bodies
     /// check - `Streams.error("...")` where a setting makes no sense.
     pub calls: Vec<Expr>,
+    /// What the branch says about the overconstrained connection
+    /// graph: a multibody body declares itself a root `if
+    /// enforceStates`. The graph is drawn once, so this too can only be
+    /// part of a branch the compiler picks.
+    pub graph: Vec<GraphClause>,
 }
 
 /// A statement about the overconstrained connection graph.

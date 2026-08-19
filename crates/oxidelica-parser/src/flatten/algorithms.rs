@@ -407,16 +407,18 @@ pub(super) fn execute(
                         .map(|c| {
                             let c = substitute_class_constants(c, registry, scope, imports, &[]);
                             let c = substitute_refs(&c, &before);
-                            resolve(
-                                &c,
-                                &HashMap::new(),
-                                consts,
+                            // The condition has to come to one truth,
+                            // but may be written over arrays to get
+                            // there: `if Q*Q_guess >= 0` asks which of
+                            // two four-vectors points the same way.
+                            let no_loop_vars = HashMap::new();
+                            let shapes = Shapes {
                                 sizes,
-                                registry,
-                                scope,
-                                imports,
-                                depth + 1,
-                            )
+                                loop_vars: &no_loop_vars,
+                                consts,
+                                records: no_records(),
+                            };
+                            expand(&c, &shapes, registry, scope, imports, depth + 1)?.scalar()
                         })
                         .transpose()?;
                     outcomes.push((condition, local));

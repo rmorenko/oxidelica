@@ -426,7 +426,11 @@ fn index_into(
     match expand(&with_end, shapes, registry, scope, imports, depth + 1)? {
         Value::Scalar(index) => {
             let value = constant_here(&index).ok_or_else(|| {
-                "a subscript into an array value must be a compile-time constant".to_string()
+                format!(
+                    "a subscript into an array of {length} must be a compile-time \
+                     constant, and `{}` is not",
+                    crate::flatten::names::sketch(&index)
+                )
             })?;
             // A Boolean subscript indexes off its `false` lower bound:
             // `false` is the first element, `true` the second.
