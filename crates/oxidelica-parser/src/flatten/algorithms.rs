@@ -1033,6 +1033,9 @@ pub(super) fn inline_function_outputs(
 ) -> Result<Vec<(String, Expr)>, String> {
     let mut checks = Vec::new();
     let outputs = inline_body(class, args, shapes, consts, registry, depth, &mut checks)?;
+    if outputs.is_empty() {
+        return Err(format!("function `{}` declares no output", class.name));
+    }
     // An `assert` in a function body would have to travel out through
     // the expression the call becomes, and expressions have nowhere to
     // carry one.
@@ -1125,9 +1128,6 @@ fn inline_body(
         .iter()
         .filter(|c| c.causality == Causality::Output)
         .collect();
-    if outputs.is_empty() {
-        return Err(format!("function `{}` declares no output", class.name));
-    }
     let mut bindings: HashMap<String, Expr> = HashMap::new();
     let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
     let mut named_seen = false;

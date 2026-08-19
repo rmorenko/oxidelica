@@ -1038,11 +1038,19 @@ pub(super) fn instantiate(
         // nothing here, so every branch must contribute the same
         // number of equations and each position becomes one equation
         // that chooses its residual as it goes.
+        // A condition is read with the constants of the classes it
+        // names put in first: `smoothness == Smoothness.LinearSegments`
+        // compares a parameter against an enumeration literal, and
+        // neither is a name the environment holds on its own.
+        let settle = |condition: &Expr| {
+            let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
+            const_eval(&named, &env)
+        };
         let decidable = if_equation.branches.iter().all(|branch| {
             branch
                 .condition
                 .as_ref()
-                .is_none_or(|condition| const_eval(condition, &env).is_some())
+                .is_none_or(|condition| settle(condition).is_some())
         });
         if !decidable {
             push_conditional(
@@ -1063,7 +1071,7 @@ pub(super) fn instantiate(
                     break;
                 }
                 Some(condition) => {
-                    let value = const_eval(condition, &env).ok_or_else(|| {
+                    let value = settle(condition).ok_or_else(|| {
                         format!(
                             "condition of an `if` equation in `{}` is not a compile-time constant",
                             class.name

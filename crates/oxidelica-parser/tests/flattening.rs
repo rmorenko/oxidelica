@@ -5658,3 +5658,88 @@ fn a_tuple_may_fill_a_field() {
     let written = format!("{:?}", m.equations[0].rhs);
     assert!(written.contains("Number(3.0)"), "{written}");
 }
+
+/// A branch the condition does not take need not be buildable.
+#[test]
+fn the_branch_not_taken_need_not_be_built() {
+    // `if tableOnFile then length(fileName) else 0` with `tableOnFile`
+    // false: the length has a body written in C, and it is not asked.
+    let m = parse_model(
+        "model M function outside input String s; output Integer n; \
+         external \"C\" n = strlen(s); end outside; \
+         parameter Boolean fromFile = false; \
+         parameter Integer width = if fromFile then outside(\"abc\") else 7; \
+         Real y; equation y = width * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a branch nobody takes");
+    let width = m
+        .components
+        .iter()
+        .find(|c| c.name == "width")
+        .expect("width");
+    assert_eq!(format!("{:?}", width.binding), "Some(Number(7.0))");
+
+    // Turn the condition round and the trouble is said plainly.
+    let error = parse_model(
+        "model M function outside input String s; output Integer n; \
+         external \"C\" n = strlen(s); end outside; \
+         parameter Boolean fromFile = true; \
+         parameter Integer width = if fromFile then outside(\"abc\") else 7; \
+         Real y; equation y = width * time; end M;",
+    )
+    .expect_err("the branch that is taken")
+    .message;
+    assert!(error.contains("written outside Modelica"), "{error}");
+}
+
+/// An `if` equation whose condition compares against an enumeration
+/// literal is settled here, so its branches may hold `for` equations.
+#[test]
+fn an_if_equation_may_compare_an_enumeration() {
+    let m = parse_model(
+        "package P type Shape = enumeration(Flat, Steep); \
+           block B parameter Shape shape = Shape.Flat; parameter Integer n = 2; \
+             Real y[n]; \
+             equation if shape == Shape.Flat then for i in 1:n loop y[i] = i * time; end for; \
+             else for i in 1:n loop y[i] = -i * time; end for; end if; end B; \
+         end P; \
+         model M P.B b; Real z; equation z = b.y[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an enumeration settles the branch");
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("b.y[2]"), "{written}");
+    // The flat branch was taken, so the second element rises rather
+    // than falls.
+    assert!(!written.contains("Neg("), "{written}");
+}
+
+/// A function that answers with nothing is called for what it checks.
+#[test]
+fn a_function_with_no_output_is_called_for_its_checks() {
+    let m = parse_model(
+        "model M parameter Real tab[:] = {1, 2, 3}; \
+         function isValid input Real table[:]; protected Integer n = size(table, 1); \
+         algorithm if n > 0 then for i in 2:n loop \
+           assert(table[i] > table[i - 1], \"not increasing\"); end for; end if; \
+         end isValid; \
+         Real y; initial algorithm isValid(tab); \
+         equation y = time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a function that only checks");
+    // Two neighbouring pairs, so two checks, and each names elements
+    // of the list it was handed.
+    assert_eq!(m.asserts.len(), 2);
+    assert!(format!("{:?}", m.asserts).contains("tab[2]"));
+
+    // Asked for a value, such a function is still refused.
+    let error = parse_model(
+        "model M function nothing input Real u; algorithm assert(u > 0, \"positive\"); \
+         end nothing; Real y; equation y = nothing(1); end M;",
+    )
+    .expect_err("no value to be had")
+    .message;
+    assert!(error.contains("declares no output"), "{error}");
+}

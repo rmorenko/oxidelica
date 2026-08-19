@@ -233,7 +233,33 @@ pub(super) fn expand(
             // can decide is part of the structure being built; outside
             // one it is a value the model may be re-run with.
             if shapes.loop_vars.is_empty() {
-                let (taken, left) = (recur(then)?, recur(otherwise)?);
+                let settled = constant_here(&condition);
+                // The branch that stands is expanded first, so that
+                // its own trouble is what gets said rather than the
+                // other's.
+                let stands = settled.map(|truth| truth != 0.0);
+                let (first, second) = match stands {
+                    Some(false) => (otherwise, then),
+                    _ => (then, otherwise),
+                };
+                let first = recur(first)?;
+                let second = match (recur(second), settled) {
+                    (Ok(value), _) => value,
+                    // Where the compiler settles the condition, the
+                    // branch it does not take need not be buildable at
+                    // all: the standard library asks the length of a
+                    // file name only `if tableOnFile`, and that length
+                    // has a body written in C. Nothing is lost - the
+                    // branch is not part of this model - though a
+                    // mistake in it will go unmentioned until a run
+                    // that takes it.
+                    (Err(_), Some(_)) => return Ok(first),
+                    (Err(trouble), None) => return Err(trouble),
+                };
+                let (taken, left) = match stands {
+                    Some(false) => (second, first),
+                    _ => (first, second),
+                };
                 // Two branches of the same shape are one value chosen
                 // as the run goes. Two of different shapes are not a
                 // value at all but a structure - the standard library
@@ -249,7 +275,7 @@ pub(super) fn expand(
                         )
                     });
                 }
-                let Some(truth) = constant_here(&condition) else {
+                let Some(truth) = settled else {
                     return Err(format!(
                         "an `if` whose branches are of shapes {:?} and {:?} decides the \
                          shape of what it stands for, so its condition has to be one the \

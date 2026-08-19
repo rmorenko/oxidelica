@@ -716,6 +716,20 @@ pub(super) fn is_primitive(type_name: &str) -> bool {
     )
 }
 
+/// Pick one element out of a list written in full: `{1, 2, 3}[2]`, and
+/// a dimension at a time for a list of lists.
+fn pick_from_list(items: &[Expr], indices: &[i64]) -> Option<Expr> {
+    let (first, rest) = indices.split_first()?;
+    let item = items.get(usize::try_from(*first - 1).ok()?)?;
+    if rest.is_empty() {
+        return Some(item.clone());
+    }
+    match item {
+        Expr::Array(inner) => pick_from_list(inner, rest),
+        _ => None,
+    }
+}
+
 /// Flat scalar name of one array element: `T[2]`, `A[1,3]`.
 pub(super) fn element_name(base: &str, subscripts: &[i64]) -> String {
     let list: Vec<String> = subscripts.iter().map(|i| i.to_string()).collect();
@@ -773,8 +787,17 @@ pub(super) fn resolve(
     };
     Ok(match expr {
         Expr::Index(base, subscripts) => {
-            let Expr::Ref(name) = base.as_ref() else {
-                return Err(format!("only variables can be subscripted, found {base:?}"));
+            // A function body reads `table[i]` off whatever it was
+            // handed, and what it was handed may be a list written out
+            // in full rather than a name.
+            let name = match base.as_ref() {
+                Expr::Ref(name) => name.clone(),
+                Expr::Array(_) => "a list".to_string(),
+                other => {
+                    return Err(format!(
+                        "only variables can be subscripted, found {other:?}"
+                    ))
+                }
             };
             // Subscripts see both loop variables and parameters: they
             // must be constant at compile time.
@@ -802,7 +825,15 @@ pub(super) fn resolve(
                 }
                 indices.push(value as i64);
             }
-            Expr::Ref(element_name(name, &indices))
+            match base.as_ref() {
+                Expr::Array(items) => {
+                    let picked = pick_from_list(items, &indices).ok_or_else(|| {
+                        format!("{indices:?} is not an element of a list of {}", items.len())
+                    })?;
+                    recur(&picked)?
+                }
+                _ => Expr::Ref(element_name(&name, &indices)),
+            }
         }
         // A loop variable is a compile-time constant, not a model
         // variable: it is folded into the unrolled equations. Parameters
@@ -869,11 +900,31 @@ pub(super) fn resolve(
         Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
         Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
         Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::If(c, a, b) => Expr::If(
-            Box::new(recur(c)?),
-            Box::new(recur(a)?),
-            Box::new(recur(b)?),
-        ),
+        Expr::If(c, a, b) => {
+            let condition = recur(c)?;
+            let mut env = consts.clone();
+            env.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+            let settled = const_eval(&condition, &env);
+            let (first, second) = match settled {
+                Some(0.0) => (b, a),
+                _ => (a, b),
+            };
+            let first = recur(first)?;
+            let second = match (recur(second), settled) {
+                (Ok(resolved), _) => resolved,
+                // Where the compiler settles the condition, the branch
+                // it does not take need not be one this compiler can
+                // build: the standard library asks the length of a file
+                // name only `if tableOnFile`, and that length has a
+                // body written in C. What stands is then all there is.
+                (Err(_), Some(_)) => return Ok(first),
+                (Err(trouble), None) => return Err(trouble),
+            };
+            match settled {
+                Some(0.0) => Expr::If(Box::new(condition), Box::new(second), Box::new(first)),
+                _ => Expr::If(Box::new(condition), Box::new(first), Box::new(second)),
+            }
+        }
         Expr::Member(base, path) => {
             let Expr::Ref(name) = recur(base)? else {
                 return Err(format!("`{path}` must follow a subscripted component"));
