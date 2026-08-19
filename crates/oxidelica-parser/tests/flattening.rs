@@ -6131,3 +6131,83 @@ fn a_base_may_be_sized_by_what_comes_after_it() {
     let written = format!("{:?}", first.rhs);
     assert!(written.contains("c.u[3]"), "{written}");
 }
+
+/// What the media library is written with: a member read off a
+/// subscripted component, a described import, a function handed as an
+/// argument, an attribute worked out rather than written, and a member
+/// that belongs to a base of the package naming it.
+#[test]
+fn the_forms_the_media_library_is_written_in() {
+    // `medium[i].Xi[1]` - a member of one of several, subscripted.
+    let m = parse_model(
+        "model M record Mix Real Xi[2]; end Mix; Mix medium[2]; Real y; \
+         equation for i in 1:2 loop \
+           medium[i].Xi[1] = i * time; medium[i].Xi[2] = 0; end for; \
+         y = medium[2].Xi[1]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a member of one of several, subscripted");
+    assert!(format!("{:?}", m.equations).contains("medium[2].Xi[1]"));
+
+    // An import may say what it is for.
+    let m = parse_model(
+        "package P constant Real g = 9.81; end P; \
+         model M import Gravity = P \"where the constants live\"; \
+         Real y; equation y = Gravity.g * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an import with a description");
+    assert!(format!("{:?}", m.equations[0].rhs).contains("9.81"));
+
+    // A type attribute may be worked out rather than written.
+    let m = parse_model(
+        "package P constant String name = \"water\"; \
+         type Flow = Real(quantity = \"MassFlowRate.\" + name, min = -1e5); end P; \
+         model M P.Flow w; Real y; equation w = time; y = w; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an attribute built out of a name");
+    let w = m.components.iter().find(|c| c.name == "w").expect("w");
+    assert_eq!(format!("{:?}", w.min), "Some(Neg(Number(100000.0)))");
+
+    // A package's member may belong to a base of it.
+    let m = parse_model(
+        "package P package Base model Props Real T; Real h; equation h = 2 * T; end Props; \
+         end Base; package Water extends P.Base; end Water; end P; \
+         model M P.Water.Props medium; Real y; \
+         equation medium.T = time; y = medium.h; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a member written in a base of the package");
+    assert!(format!("{:?}", m.equations).contains("medium.h"));
+
+    // A function handed as an argument is read, and refused where it
+    // is used: there is nothing here to pass a function around in.
+    let error = parse_model(
+        "model M function f input Real u; input Real a; output Real y; \
+         algorithm y := a * u; end f; \
+         function solve input Real g; output Real x; algorithm x := g; end solve; \
+         Real y; equation y = solve(function f(a = 2)); end M;",
+    )
+    .expect_err("a function passed around")
+    .message;
+    assert!(error.contains("pass a function around"), "{error}");
+}
+
+/// A function body handed a record reads an element of one of its
+/// members: what it was handed is a list written out, not a name.
+#[test]
+fn a_body_reads_an_element_off_what_it_was_handed() {
+    let m = parse_model(
+        "package P record Orient Real T[2, 2]; end Orient; \
+           function corner input Orient R; output Real c; \
+           algorithm c := R.T[2, 1]; end corner; \
+         end P; \
+         model M P.Orient r; Real y; \
+         equation r.T = {{1, 2}, {3, 4}} * time; y = P.corner(r); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an element of a member of a record handed over");
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("r.T[2,1]"), "{written}");
+}

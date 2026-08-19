@@ -96,7 +96,7 @@ pub(super) fn instantiate(
     // so what this class says about itself has to be worth something
     // before that happens. Only what folds on its own is settled here;
     // anything that needs a base's value waits for the round below.
-    let mut settled_early: HashMap<String, f64> = HashMap::new();
+    let mut settled_early: Vec<String> = Vec::new();
     loop {
         let mut progress = false;
         for component in &class.components {
@@ -104,7 +104,7 @@ pub(super) fn instantiate(
             if !matches!(
                 component.variability,
                 Variability::Parameter | Variability::Constant
-            ) || settled_early.contains_key(&named)
+            ) || settled_early.contains(&named)
             {
                 continue;
             }
@@ -120,10 +120,11 @@ pub(super) fn instantiate(
                     })
                 });
             let Some(binding) = binding else { continue };
-            let mut env = acc.const_values.clone();
-            env.extend(settled_early.iter().map(|(k, v)| (k.clone(), *v)));
-            if let Some(value) = const_eval(&binding, &env) {
-                settled_early.insert(named.clone(), value);
+            // What has settled is already in the model's table, so the
+            // table is what the next one is read against - copying it
+            // per declaration would cost more than the whole round.
+            if let Some(value) = const_eval(&binding, &acc.const_values) {
+                settled_early.push(named.clone());
                 acc.const_values.insert(named.clone(), value);
                 acc.numbers.push((named, value));
                 progress = true;

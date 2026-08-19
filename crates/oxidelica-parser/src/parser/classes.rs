@@ -505,6 +505,22 @@ impl Parser {
         )
     }
 
+    /// The end of an `import`: a description of it, an annotation on
+    /// it, and the semicolon. The standard library says what an import
+    /// is for - `import Medium = ...Air_pT "Medium model";` - and a
+    /// description belongs to whoever reads the source rather than to
+    /// anything here.
+    fn end_of_import(&mut self) -> Result<(), ParseError> {
+        if matches!(self.peek(), Token::Str(_)) {
+            self.bump();
+        }
+        if self.peek() == &Token::Annotation {
+            self.annotation_body(&mut Annotated::default())?;
+        }
+        self.expect(&Token::Semi, "semicolon after import")?;
+        Ok(())
+    }
+
     /// `import A.B.C;` or `import D = A.B.C;`
     pub(super) fn import_clause(&mut self) -> Result<Vec<(String, String)>, ParseError> {
         self.expect(&Token::Import, "import")?;
@@ -512,7 +528,7 @@ impl Parser {
         if self.peek() == &Token::Assign {
             self.bump();
             let target = self.dotted_name("import target")?;
-            self.expect(&Token::Semi, "semicolon after import")?;
+            self.end_of_import()?;
             return Ok(vec![(first, target)]);
         }
         let mut target = first;
@@ -538,7 +554,7 @@ impl Parser {
                         }
                     }
                 }
-                self.expect(&Token::Semi, "semicolon after import")?;
+                self.end_of_import()?;
                 return Ok(named);
             }
             self.bump();
@@ -550,10 +566,10 @@ impl Parser {
         // also how the elementwise operators are spelled.
         if self.peek() == &Token::DotStar {
             self.bump();
-            self.expect(&Token::Semi, "semicolon after import")?;
+            self.end_of_import()?;
             return Ok(vec![(WILDCARD_IMPORT.to_string(), target)]);
         }
-        self.expect(&Token::Semi, "semicolon after import")?;
+        self.end_of_import()?;
         let local = target
             .rsplit('.')
             .next()
@@ -625,7 +641,11 @@ impl Parser {
             // descriptive attributes are kept as opaque text and
             // ignored by the compiler.
             let value = match self.peek().clone() {
-                Token::Str(text) => {
+                // A descriptive attribute may be worked out rather than
+                // written: the standard library builds a quantity out
+                // of the name of the medium. Only one written as a
+                // plain string is taken as one.
+                Token::Str(text) if matches!(self.peek_at(1), Token::Comma | Token::RParen) => {
                     self.bump();
                     if name == "unit" {
                         unit = Some(text);

@@ -271,6 +271,51 @@ impl Parser {
             // calling a variable `der`; being able to write `der(x)` is
             // the whole point of the word, so they take the call path
             // an ordinary name would.
+            // `function f(A = A, w = w)` where a value is wanted: a
+            // function with some of its arguments already given,
+            // handed to something that will call it. It is read so
+            // that the file it is written in can be read, and refused
+            // where it is used - there is nothing here to pass a
+            // function around in.
+            Token::Function => {
+                self.bump();
+                let name = self.dotted_name("the function given as an argument")?;
+                self.expect(
+                    &Token::LParen,
+                    "`(` after the function given as an argument",
+                )?;
+                let mut args = vec![Expr::Ref(name)];
+                if self.peek() == &Token::RParen {
+                    self.bump();
+                } else {
+                    loop {
+                        let arg = if let Token::Ident(keyword) = self.peek() {
+                            if self.peek_at(1) == &Token::Assign {
+                                let keyword = keyword.clone();
+                                self.bump();
+                                self.bump();
+                                Expr::NamedArg(keyword, Box::new(self.expr()?))
+                            } else {
+                                self.expr()?
+                            }
+                        } else {
+                            self.expr()?
+                        };
+                        args.push(arg);
+                        match self.bump() {
+                            Token::Comma => continue,
+                            Token::RParen => break,
+                            other => {
+                                return Err(self.err(format!(
+                                    "expected `,` or `)` in the arguments given to a function, \
+                                     found `{other}`"
+                                )))
+                            }
+                        }
+                    }
+                }
+                Ok(Expr::Call(PARTIAL_CALL.to_string(), args))
+            }
             Token::Der | Token::Initial => {
                 let name = self.bump().to_string();
                 self.expect(&Token::LParen, "`(` after the operator")?;
@@ -328,7 +373,28 @@ impl Parser {
                             path.push('.');
                             path.push_str(&self.ident("member after `.`")?);
                         }
-                        return Ok(Expr::Member(Box::new(indexed), path));
+                        let member = Expr::Member(Box::new(indexed), path);
+                        // The member may be an array of its own:
+                        // `medium[i].Xi[1]` reads one mass fraction of
+                        // one of several media.
+                        if self.peek() != &Token::LBracket {
+                            return Ok(member);
+                        }
+                        self.bump();
+                        let mut inner = Vec::new();
+                        loop {
+                            inner.push(self.subscript()?);
+                            match self.bump() {
+                                Token::Comma => continue,
+                                Token::RBracket => break,
+                                other => {
+                                    return Err(self.err(format!(
+                                        "expected `,` or `]` in a subscript, found `{other}`"
+                                    )))
+                                }
+                            }
+                        }
+                        return Ok(Expr::Index(Box::new(member), inner));
                     }
                     return Ok(indexed);
                 }

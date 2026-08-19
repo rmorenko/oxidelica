@@ -6,6 +6,14 @@
 /// than as a name of its own.
 pub const WILDCARD_IMPORT: &str = "*";
 
+/// The name a function given as an argument is carried under.
+///
+/// `function f(A = A, w = w)` is a function with some of its arguments
+/// already given, handed to something that will call it. `function` is
+/// a word of the language, so nothing a model writes can be called
+/// this and be mistaken for one.
+pub const PARTIAL_CALL: &str = "function";
+
 /// How a component's value may change over time.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Variability {

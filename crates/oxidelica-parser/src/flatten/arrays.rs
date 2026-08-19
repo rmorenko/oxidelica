@@ -875,6 +875,12 @@ pub(super) fn expand_call(
                     .collect(),
             ))
         }
+        (PARTIAL_CALL, _) => Err(format!(
+            "a function is given as an argument with some of what it takes already filled \
+             in - {} - and there is nothing here to pass a function around in",
+            args.first()
+                .map_or(PARTIAL_CALL.to_string(), crate::flatten::names::sketch)
+        )),
         _ if name.starts_with("Connections.") => {
             // `Connections.rooted(frame_a.R)` asks the connection graph
             // about a node, and the node is the name itself rather than

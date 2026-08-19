@@ -592,6 +592,69 @@ fn through_alias<'a>(
     }
 }
 
+/// A class by name, without asking what anything inherits.
+///
+/// This is the walk out of the enclosing packages and nothing else. It
+/// is what `member_of_base` names a base with: going through `lookup`
+/// would ask about inherited members again, and about the same ones.
+fn plain_lookup<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+) -> Option<&'a ClassDef> {
+    let name = name.strip_prefix('.').unwrap_or(name);
+    let mut here = Some(scope);
+    while let Some(prefix) = here {
+        let candidate = if prefix.is_empty() {
+            name.to_string()
+        } else {
+            format!("{prefix}.{name}")
+        };
+        if let Some(class) = registry
+            .get(candidate.as_str())
+            .copied()
+            .or_else(|| through_alias(registry, &candidate, 0))
+        {
+            return Some(class);
+        }
+        here = match prefix.rsplit_once('.') {
+            Some((head, _)) => Some(head),
+            None if prefix.is_empty() => None,
+            None => Some(""),
+        };
+    }
+    None
+}
+
+/// A member a class inherits rather than declares.
+///
+/// `WaterIF97_ph.BaseProperties` is written in `WaterIF97_base`, which
+/// `WaterIF97_ph` extends. Only the last dot is split: the holder is a
+/// class by its own name, which is how the standard library names a
+/// medium. Trying every split as well would be a walk of the whole
+/// tree on every name that is not found, and most names that are not
+/// found are simply not there.
+fn member_of_base<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    depth: usize,
+) -> Option<&'a ClassDef> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    let (holder, member) = name.rsplit_once('.')?;
+    let owner = registry.get(holder)?;
+    owner.extends.iter().find_map(|extend| {
+        let base = plain_lookup(registry, &extend.base, holder)?;
+        let reached = format!("{}.{member}", base.name);
+        registry
+            .get(reached.as_str())
+            .copied()
+            .or_else(|| through_alias(registry, &reached, depth + 1))
+            .or_else(|| member_of_base(registry, &reached, depth + 1))
+    })
+}
+
 /// A class named through one import list: `import Basic = A.B;` then
 /// `Basic.Resistor`, or `import A.Widget;` then `Widget`. The wildcard
 /// form is not tried here - it is the lowest-priority reading and left
@@ -660,6 +723,13 @@ pub(super) fn lookup<'a>(
         if let Some(class) = through_alias(registry, &candidate, 0) {
             return Some(class);
         }
+        // A member may be written in a base of the class holding it:
+        // `WaterIF97_ph extends WaterIF97_base`, and `BaseProperties`
+        // belongs to the base. Naming it through the package that
+        // extends is how the standard library names a medium.
+        if let Some(class) = member_of_base(registry, &candidate, 0) {
+            return Some(class);
+        }
         // Each enclosing class brings its own imports to the lookup -
         // they are not inherited, but they are lexically in view - so
         // an `import` on the encapsulated wall is what a name inside it
@@ -692,10 +762,14 @@ pub(super) fn lookup<'a>(
     // import is outranked by everything with a name of its own, which
     // is what keeps `import A.*;` from quietly shadowing a class the
     // enclosing package already had.
-    imports
+    if let Some(class) = imports
         .iter()
         .filter(|(local, _)| local == WILDCARD_IMPORT)
         .find_map(|(_, target)| registry.get(format!("{target}.{name}").as_str()).copied())
+    {
+        return Some(class);
+    }
+    None
 }
 
 /// Whether an expression is Boolean, so a subscript of it indexes a
@@ -789,10 +863,15 @@ pub(super) fn resolve(
         Expr::Index(base, subscripts) => {
             // A function body reads `table[i]` off whatever it was
             // handed, and what it was handed may be a list written out
-            // in full rather than a name.
-            // A body handed a record reads `R.T[i, j]` off it, and what
-            // it was handed is a list written out rather than a name.
-            let name = match base.as_ref() {
+            // in full rather than a name. The base may also be a member
+            // read off a subscripted component - `medium[i].Xi[1]` -
+            // which is a name once the subscript in the middle is
+            // settled.
+            let base = match base.as_ref() {
+                Expr::Ref(_) | Expr::Array(_) => (**base).clone(),
+                other => recur(other)?,
+            };
+            let name = match &base {
                 Expr::Ref(name) => name.clone(),
                 Expr::Array(_) => "a list".to_string(),
                 other => {
@@ -827,7 +906,7 @@ pub(super) fn resolve(
                 }
                 indices.push(value as i64);
             }
-            match base.as_ref() {
+            match &base {
                 Expr::Array(items) => {
                     let picked = pick_from_list(items, &indices).ok_or_else(|| {
                         format!("{indices:?} is not an element of a list of {}", items.len())
