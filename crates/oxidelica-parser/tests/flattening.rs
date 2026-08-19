@@ -1942,14 +1942,29 @@ fn an_annotation_that_the_chapter_calls_an_error_is_one() {
 
 #[test]
 fn what_cannot_be_inlined_travels_with_the_model() {
-    // A recursive function is carried whole, with everything it calls,
-    // and named the way the registry knows it so the walk finds it.
+    // A body that calls itself unrolls where what decides the
+    // recursion is settled: `even(4)` counts down to a number, and
+    // nothing has to travel.
     let m = parse_model(
         "model M function even input Real n; output Real y; \
          algorithm if n <= 0 then y := 1; else y := odd(n - 1); end if; end even; \
          function odd input Real n; output Real y; \
          algorithm if n <= 0 then y := 0; else y := even(n - 1); end if; end odd; \
          Real y; equation y = even(4); end M;",
+    )
+    .unwrap();
+    assert!(m.functions.is_empty(), "{:?}", m.functions);
+    assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(1.0)");
+
+    // Where it is not settled - the count is a variable the run holds -
+    // the function is carried whole, with everything it calls, and
+    // named the way the registry knows it so the walk finds it.
+    let m = parse_model(
+        "model M function even input Real n; output Real y; \
+         algorithm if n <= 0 then y := 1; else y := odd(n - 1); end if; end even; \
+         function odd input Real n; output Real y; \
+         algorithm if n <= 0 then y := 0; else y := even(n - 1); end if; end odd; \
+         Real y; equation y = even(4 * time); end M;",
     )
     .unwrap();
     let carried: Vec<&str> = m
@@ -1961,9 +1976,10 @@ fn what_cannot_be_inlined_travels_with_the_model() {
         carried.contains(&"M.even") && carried.contains(&"M.odd"),
         "{carried:?}"
     );
-    assert_eq!(
-        format!("{:?}", m.equations[0].rhs),
-        "Call(\"M.even\", [Number(4.0)])"
+    assert!(
+        format!("{:?}", m.equations[0].rhs).starts_with("Call(\"M.even\""),
+        "{:?}",
+        m.equations[0].rhs
     );
     let inside = format!("{:?}", m.functions[0].algorithm);
     assert!(
@@ -1982,12 +1998,14 @@ fn what_cannot_be_inlined_travels_with_the_model() {
 
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
     // What a walked body may hold is narrower than what an inlined one
-    // may: a walk carries numbers, one at a time.
+    // may: a walk carries numbers, one at a time. The count comes from
+    // the run, so the recursion has no bottom the compiler can reach
+    // and the body is walked rather than unrolled.
     let recursive = |extra: &str, body: &str| {
         format!(
             "model M function f input Real a; output Real b; {extra} \
              algorithm {body} if a > 0 then b := f(a - 1); end if; end f; \
-             Real y; equation y = f(1); end M;"
+             Real y; equation y = f(time); end M;"
         )
     };
     assert!(
@@ -4794,4 +4812,50 @@ fn the_initial_section_and_a_tuple_at_an_event_say_their_limits() {
          when time > 0.5 then (p, q) = one(1); end when; end M;"
     )
     .contains("the tuple asks for"));
+}
+
+/// A body that calls itself unrolls where what decides the recursion is
+/// settled, and stands where it is not.
+#[test]
+fn a_recursion_unrolls_as_far_as_the_compiler_can_decide() {
+    // A body that counts itself down: with the count a parameter,
+    // every step of the recursion is decidable and the call comes out
+    // as the answer. 4 + 3 + 2 + 1 is 10.
+    let m = parse_model(
+        "model M function down input Integer n; output Real y; \
+         algorithm if n <= 0 then y := 0; else y := n + down(n - 1); end if; end down; \
+         parameter Integer steps = 4; parameter Real total = down(steps); \
+         Real y; equation y = total; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a recursion the compiler can follow");
+    let total = m
+        .components
+        .iter()
+        .find(|c| c.name == "total")
+        .expect("the total");
+    // Four rounds ran and the fifth ended it: the recursion is gone
+    // and what is left is the sum written out, with the count kept as
+    // a name so it stays tunable.
+    let written = format!("{:?}", total.binding.as_ref().unwrap());
+    assert_eq!(written.matches("Ref(\"steps\")").count(), 4, "{written}");
+    assert!(written.ends_with("Number(0.0)))))"), "{written}");
+    // Nothing had to travel: the whole recursion is gone.
+    assert!(m.functions.is_empty(), "{:?}", m.functions);
+
+    // Where the count comes from the run, the same body stands and is
+    // walked - and the model carries it.
+    let m = parse_model(
+        "model M function down input Real n; output Real y; \
+         algorithm if n <= 0 then y := 0; else y := n + down(n - 1); end if; end down; \
+         Real n; Real y; equation n = 3 * time; y = down(n); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a recursion the run decides");
+    assert_eq!(m.functions.len(), 1);
+    assert!(
+        format!("{:?}", m.equations.last().unwrap().rhs).starts_with("Call(\"M.down\""),
+        "{:?}",
+        m.equations.last().unwrap().rhs
+    );
 }

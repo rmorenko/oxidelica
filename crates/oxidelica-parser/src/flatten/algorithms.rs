@@ -10,6 +10,30 @@ use super::*;
 /// written once and matched against rather than repeated.
 pub(super) const UNDECIDABLE_LOOP: &str = "the trip count of a loop is not settled here";
 
+/// How an unrolling says it did not come to an end.
+///
+/// A body that calls itself unrolls only as far as what decides the
+/// recursion is settled; an expression that nests deeper than the
+/// compiler follows says the same thing about itself. Either way the
+/// call is left standing and the run walks it, so the two are matched
+/// against by these words rather than by where they came from.
+pub(super) const NO_BOTTOM: &str = "did not come to an end here";
+
+/// Whether an expression still holds a call to a function whose calls
+/// lead back to itself. Such a call is what an unrolling that stopped
+/// short leaves behind.
+fn holds_unbounded_call(expr: &Expr, registry: &HashMap<&str, &ClassDef>) -> bool {
+    // The names an unrolling leaves behind are already qualified, so
+    // the registry answers to them directly.
+    let mut called = Vec::new();
+    gather_calls(expr, registry, "", &[], &mut called);
+    called.iter().any(|name| {
+        registry
+            .get(name.as_str())
+            .is_some_and(|class| class.kind == ClassKind::Function && recursive(class, registry))
+    })
+}
+
 /// Whether a function's calls lead back to itself, directly or through
 /// others. Such a call has no bottom to inline to.
 pub(super) fn recursive(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
@@ -135,7 +159,9 @@ pub(super) fn execute(
     fold: bool,
 ) -> Result<Flow, String> {
     if depth > MAX_DEPTH {
-        return Err("algorithm nested deeper than the instantiation limit".to_string());
+        return Err(format!(
+            "an algorithm {NO_BOTTOM}, nested deeper than the compiler follows"
+        ));
     }
     for statement in statements {
         match statement {
@@ -250,11 +276,22 @@ pub(super) fn execute(
                 }
             }
             Statement::If(branches) => {
+                // A condition the compiler can decide picks one branch,
+                // and only that one runs. Merging both would be the
+                // same answer written at greater length - and where a
+                // body calls itself, it would be no answer at all: the
+                // branch that ends the recursion cannot end it if the
+                // branch that continues it is taken as well.
+                let decidable = branches.iter().all(|branch| {
+                    branch.condition.as_ref().is_none_or(|condition| {
+                        const_eval(&substitute_refs(condition, bindings), consts).is_some()
+                    })
+                });
                 // A branch that may `break` or `return` cannot be
-                // merged symbolically - whether it fires must be known.
-                // The conditions are decided and only the taken branch
-                // runs, its flow passed on.
-                if branches.iter().any(|b| has_flow_control(&b.body)) {
+                // merged symbolically either - whether it fires must be
+                // known. The conditions are decided and only the taken
+                // branch runs, its flow passed on.
+                if decidable || branches.iter().any(|b| has_flow_control(&b.body)) {
                     let mut taken = None;
                     for branch in branches {
                         match &branch.condition {
@@ -535,20 +572,43 @@ pub(super) fn inline_function(
     depth: usize,
 ) -> Result<Expr, String> {
     // A call nothing can inline is left standing, and the run walks the
-    // body for itself. Two things cannot be inlined: a function that
-    // leads back to itself, which has no bottom to unroll to, and a
-    // loop whose trip count the model decides rather than the compiler.
-    // The first is known by looking; the second only by trying.
-    if recursive(class, registry) {
-        return Ok(Expr::Call(class.name.clone(), args.to_vec()));
-    }
-    let mut outputs = match inline_function_outputs(class, args, shapes, consts, registry, depth) {
+    // body for itself. Two things cannot be inlined: a loop whose trip
+    // count the model decides rather than the compiler, and a
+    // recursion that does not come to an end here.
+    //
+    // Neither is known by looking. A function that leads back to
+    // itself unrolls perfectly well when what decides the recursion is
+    // settled - the standard library builds an m-phase winding by
+    // halving m until it is odd, and with m a parameter every step of
+    // that is decidable. So the unrolling is tried, and the depth
+    // guard inside is what says it will not come to an end.
+    let standing = || Ok(Expr::Call(class.name.clone(), args.to_vec()));
+    // Where a body leads back to itself the unrolling is a try rather
+    // than a demand: the walk is waiting behind it, so anything the
+    // inliner will not do - a loop it cannot unroll, a shape it cannot
+    // carry, a recursion with no bottom - means the call stands and
+    // the run walks it. For a body that does not lead back to itself
+    // there is nothing behind, and a refusal is a refusal.
+    let speculative = recursive(class, registry);
+    let attempt = inline_function_outputs(class, args, shapes, consts, registry, depth);
+    let mut outputs = match attempt {
         Ok(outputs) => outputs,
-        Err(why) if why.starts_with(UNDECIDABLE_LOOP) => {
-            return Ok(Expr::Call(class.name.clone(), args.to_vec()))
+        Err(why) if why.starts_with(UNDECIDABLE_LOOP) || why.contains(NO_BOTTOM) => {
+            return standing()
         }
+        Err(_) if speculative => return standing(),
         Err(why) => return Err(why),
     };
+    // An unrolling that still holds a call of its own cycle did not
+    // reach the bottom: it stopped where the compiler stopped
+    // following, and what it left behind is the same call under a pile
+    // of conditions. The call is better off standing.
+    if outputs
+        .iter()
+        .any(|(_, value)| holds_unbounded_call(value, registry))
+    {
+        return standing();
+    }
     let value = outputs.remove(0).1;
     // What a function says about its own inverse is checked and then
     // set aside. The nonlinear corrector already solves `f(x) = u` for
@@ -1011,7 +1071,7 @@ fn inline_body(
     checks: &mut Vec<(Expr, String)>,
 ) -> Result<Vec<(String, Expr)>, String> {
     if depth > MAX_DEPTH {
-        return Err(format!("recursive function `{}`", class.name));
+        return Err(format!("`{}` {NO_BOTTOM}", class.name));
     }
     // `external "builtin" y = asin(u)` says the function is the
     // operator the language already has, given a place in a library's

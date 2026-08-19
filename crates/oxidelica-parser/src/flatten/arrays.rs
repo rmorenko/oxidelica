@@ -15,7 +15,10 @@ pub(super) fn expand(
     depth: usize,
 ) -> Result<Value, String> {
     if depth > MAX_DEPTH {
-        return Err("expression nested deeper than the instantiation limit".to_string());
+        return Err(format!(
+            "an expression {NO_BOTTOM}, nested deeper than the compiler follows: {}",
+            sketch(expr)
+        ));
     }
     let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
     let scalar = |e: &Expr| -> Result<Value, String> {
@@ -46,8 +49,9 @@ pub(super) fn expand(
         Expr::Range(a, step, b) => {
             let scalar_of = |e: &Expr| -> Result<f64, String> {
                 let resolved = recur(e)?.scalar()?;
-                constant_here(&resolved)
-                    .ok_or_else(|| "a range needs bounds the compiler can see".to_string())
+                constant_here(&resolved).ok_or_else(|| {
+                    format!("{UNDECIDABLE_LOOP}: a range needs bounds the compiler can see")
+                })
             };
             let (from, to) = (scalar_of(a)?, scalar_of(b)?);
             let step = match step {
@@ -763,6 +767,19 @@ pub(super) fn expand_call(
                         registry,
                         depth + 1,
                     )?;
+                    // A call that could not be inlined comes back as
+                    // itself. Expanding it again would ask the same
+                    // question and get the same answer, for ever; and
+                    // there is nothing else to do with it here, since
+                    // what stands in for an un-inlined call is a walk,
+                    // and a walk carries numbers rather than arrays.
+                    if matches!(&result, Expr::Call(called, _) if called == &class.name) {
+                        return Err(format!(
+                            "`{}` gives back an array and cannot be worked out here: a call \
+                             left standing is walked at run time, and a walk carries numbers",
+                            class.name
+                        ));
+                    }
                     return expand(&result, shapes, registry, scope, imports, depth + 1);
                 }
             }

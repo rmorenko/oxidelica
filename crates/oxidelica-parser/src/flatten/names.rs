@@ -701,7 +701,10 @@ pub(super) fn resolve(
     depth: usize,
 ) -> Result<Expr, String> {
     if depth > MAX_DEPTH {
-        return Err("expression nested deeper than the instantiation limit".to_string());
+        return Err(format!(
+            "an expression {NO_BOTTOM}, nested deeper than the compiler follows: {}",
+            sketch(expr)
+        ));
     }
     let recur = |e: &Expr| resolve(e, loop_vars, consts, registry, scope, imports, depth + 1);
     Ok(match expr {
@@ -853,7 +856,7 @@ pub(super) fn substitute_end(expr: &Expr, length: f64) -> Expr {
 
 /// A short rendering of an expression, for a message that has to say
 /// which one it means without printing a tree.
-fn sketch(expr: &Expr) -> String {
+pub(super) fn sketch(expr: &Expr) -> String {
     let text = format!("{expr:?}");
     match text.char_indices().nth(70) {
         Some((cut, _)) => format!("{}...", &text[..cut]),

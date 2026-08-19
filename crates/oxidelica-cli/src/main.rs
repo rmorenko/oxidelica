@@ -304,7 +304,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
     }
     let mut classes = Vec::new();
     let (mut read, mut unread) = (0usize, 0usize);
-    let mut refusals: Vec<String> = Vec::new();
+    let mut refusals: Vec<(String, String)> = Vec::new();
     for file in &files {
         let Ok(source) = std::fs::read_to_string(file) else {
             continue;
@@ -316,7 +316,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
             }
             Err(why) => {
                 unread += 1;
-                refusals.push(why.message);
+                refusals.push((why.message, file.display().to_string()));
             }
         }
     }
@@ -329,11 +329,11 @@ fn library_check(args: &[String]) -> Result<(), String> {
         .map(|c| c.name.clone())
         .collect();
     let mut flat: Vec<&String> = Vec::new();
-    let mut why_not: Vec<String> = Vec::new();
+    let mut why_not: Vec<(String, String)> = Vec::new();
     for name in &models {
         match oxidelica_parser::flatten_named(&classes, name) {
             Ok(_) => flat.push(name),
-            Err(why) => why_not.push(why),
+            Err(why) => why_not.push((why, name.clone())),
         }
     }
     println!(
@@ -353,19 +353,23 @@ fn library_check(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
-/// The reasons that came up most, with how often each did.
-fn report(reasons: &[String], indent: &str) {
-    let mut counted: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
-    for reason in reasons {
+/// The reasons that came up most, with how often each did and one of
+/// the things it came up on - which is where to start reading.
+fn report(reasons: &[(String, String)], indent: &str) {
+    let mut counted: std::collections::BTreeMap<&str, (usize, &str)> =
+        std::collections::BTreeMap::new();
+    for (reason, what) in reasons {
         // The head of the message is what groups them: the tail names
         // the class or the token, and would make every one its own.
         let head = &reason[..reason.len().min(60)];
-        *counted.entry(head).or_default() += 1;
+        let entry = counted.entry(head).or_insert((0, what.as_str()));
+        entry.0 += 1;
     }
-    let mut ranked: Vec<(&&str, &usize)> = counted.iter().collect();
-    ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
-    for (reason, count) in ranked.iter().take(10) {
+    let mut ranked: Vec<(&&str, &(usize, &str))> = counted.iter().collect();
+    ranked.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then(a.0.cmp(b.0)));
+    for (reason, (count, what)) in ranked.iter().take(10) {
         println!("{indent}{count:5}  {reason}");
+        println!("{indent}       first on {what}");
     }
     if ranked.len() > 10 {
         println!("{indent}       and {} more kind(s)", ranked.len() - 10);

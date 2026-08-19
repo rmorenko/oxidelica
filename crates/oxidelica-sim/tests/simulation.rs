@@ -1749,12 +1749,14 @@ fn a_state_may_hold_a_machine_of_its_own() {
 #[test]
 fn a_body_nothing_could_inline_is_walked_by_the_run() {
     // Two things inlining cannot do. A function that leads back to
-    // itself has no bottom to unroll to; `5!` is the plainest example
-    // there is, and it comes out at 120.
+    // itself has no bottom to unroll to where what decides the
+    // recursion comes from the run - `fact(5)` written out would be
+    // unrolled here, so the count is what the run holds. `5!` is the
+    // plainest example there is, and it comes out at 120.
     let factorial = run("model M function fact input Real n; output Real y; \
          algorithm if n <= 1 then y := 1; else y := n * fact(n - 1); end if; end fact; \
-         Real y; equation y = fact(5); \
-         annotation(experiment(StopTime = 0, Interval = 1)); end M;");
+         Real n; Real y; equation n = 5 * time; y = fact(n); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
     let index =
         |result: &SimResult, name: &str| result.columns.iter().position(|c| c == name).unwrap();
     assert_eq!(
@@ -1785,8 +1787,8 @@ fn a_body_nothing_could_inline_is_walked_by_the_run() {
          assert(acc > 0, \"the sum must be positive\"); \
          if n <= 0 then y := 0; return; end if; \
          y := acc + walkme(n - 1); end walkme; \
-         Real y; equation y = walkme(5); \
-         annotation(experiment(StopTime = 0, Interval = 1)); end M;",
+         Real n; Real y; equation n = 5 * time; y = walkme(n); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
     );
     assert_eq!(broad.rows.last().unwrap()[index(&broad, "y")], 172.0);
 
@@ -1812,8 +1814,8 @@ fn a_body_nothing_could_inline_is_walked_by_the_run() {
         "model M function f input Real a; output Real b; protected Real acc; \
          algorithm acc := 0; for i in 1:2:5 loop acc := acc + i; end for; b := acc; \
          if a > 0 then b := b + f(a - 1); end if; end f; \
-         Real y; equation y = f(1); \
-         annotation(experiment(StopTime = 0, Interval = 1)); end M;",
+         Real n; Real y; equation n = time; y = f(n); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
     );
     assert_eq!(stepped.rows.last().unwrap()[index(&stepped, "y")], 18.0);
 
@@ -1824,7 +1826,7 @@ fn a_body_nothing_could_inline_is_walked_by_the_run() {
             "model M function f input Real a; output Real b; protected Real acc; \
              algorithm acc := 0; {body} \
              if a > 0 then b := b + f(a - 1); end if; end f; \
-             Real y; equation y = f(1); \
+             Real n; Real y; equation n = time; y = f(n); \
              annotation(experiment(StopTime = 0, Interval = 1)); end M;"
         ))
     };
