@@ -1109,8 +1109,13 @@ pub(super) fn prefixed_sizes(
 pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result<(), String> {
     let (left_shape, right_shape) = (lhs.shape(), rhs.shape());
     if left_shape != right_shape {
+        let (mut left, mut right) = (Vec::new(), Vec::new());
+        lhs.flatten_into(&mut left);
+        rhs.flatten_into(&mut right);
         return Err(format!(
-            "an equation between shapes {left_shape:?} and {right_shape:?}"
+            "an equation between shapes {left_shape:?} and {right_shape:?}: {} = {}",
+            left.first().map_or("()".to_string(), |e| format!("{e:?}")),
+            right.first().map_or("()".to_string(), |e| format!("{e:?}")),
         ));
     }
     let (mut left, mut right) = (Vec::new(), Vec::new());

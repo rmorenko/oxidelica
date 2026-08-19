@@ -441,7 +441,16 @@ pub(super) fn instantiate(
                     let value = if spread_whole {
                         value
                     } else {
-                        array_element(&value, position, element_count)
+                        array_element(
+                            &value,
+                            position,
+                            element_count,
+                            &sizes_here,
+                            &local_consts,
+                            registry,
+                            scope,
+                            &imports,
+                        )
                     };
                     (name.clone(), value)
                 })
@@ -1183,10 +1192,42 @@ fn connect_side_name(expr: &Expr) -> Option<String> {
 /// entry per element - `items[3](w = {1, 2, 3})` gives each its own -
 /// while anything else, a scalar most of all, reaches every element
 /// whole.
-fn array_element(value: &Expr, position: usize, count: usize) -> Expr {
-    match value {
-        Expr::Array(items) if items.len() == count => items[position].clone(),
-        _ => value.clone(),
+#[allow(clippy::too_many_arguments)]
+fn array_element(
+    value: &Expr,
+    position: usize,
+    count: usize,
+    sizes: &HashMap<String, Vec<i64>>,
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    // A literal says its length outright; a name has to be measured,
+    // which is how `cells(k = ks)` hands `cells[i].k` the value
+    // `ks[i]`. Anything that does not come to one value per element is
+    // handed over whole: a scalar spreads, and a modifier reaching
+    // into a member of the element is not an array at this level.
+    if let Expr::Array(items) = value {
+        if items.len() == count {
+            return items[position].clone();
+        }
+    }
+    let shapes = Shapes {
+        sizes,
+        loop_vars: &HashMap::new(),
+        consts,
+        records: no_records(),
+    };
+    let Ok(measured) = expand(value, &shapes, registry, scope, imports, 0) else {
+        return value.clone();
+    };
+    let mut items = Vec::new();
+    measured.flatten_into(&mut items);
+    if items.len() == count {
+        items[position].clone()
+    } else {
+        value.clone()
     }
 }
 

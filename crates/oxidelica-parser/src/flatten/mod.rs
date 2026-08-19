@@ -129,8 +129,37 @@ fn annotation_says(said: &[Expr], wanted: &str) -> Option<String> {
 }
 
 /// Flatten the class named `top` into a flat model.
+/// The classes the language defines itself.
+///
+/// `StateSelect` is the enumeration a model uses to say which
+/// variables it would rather the compiler integrated. Its literals are
+/// ordered from the least to the most insistent, which is the order
+/// the specification gives them and the order a comparison reads.
+fn built_in_classes() -> Vec<ClassDef> {
+    vec![ClassDef {
+        kind: ClassKind::Type,
+        name: "StateSelect".to_string(),
+        enumeration: ["never", "avoid", "default", "prefer", "always"]
+            .iter()
+            .map(|literal| literal.to_string())
+            .collect(),
+        ..ClassDef::empty()
+    }]
+}
+
+/// Flatten a model and everything it holds into one system of
+/// equations, with every name written out in full.
 pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
-    let registry: HashMap<&str, &ClassDef> = classes.iter().map(|c| (c.name.as_str(), c)).collect();
+    // The types the language supplies rather than a library: they are
+    // written as ordinary classes so that everything downstream reads
+    // them the way it reads any other, and they are put in first so a
+    // library that declares its own of that name wins.
+    let built_in = built_in_classes();
+    let registry: HashMap<&str, &ClassDef> = built_in
+        .iter()
+        .map(|c| (c.name.as_str(), c))
+        .chain(classes.iter().map(|c| (c.name.as_str(), c)))
+        .collect();
     let top_class = registry
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;

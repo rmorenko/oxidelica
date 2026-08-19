@@ -1169,7 +1169,10 @@ fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> 
             break;
         }
         if pending.len() == before {
-            let names: Vec<_> = pending.iter().map(|(n, _)| *n).collect();
+            let names: Vec<String> = pending
+                .iter()
+                .map(|(name, value)| format!("{name} = {value:?}"))
+                .collect();
             return err(format!(
                 "cannot evaluate parameters {names:?}: cycle or unknown reference"
             ));

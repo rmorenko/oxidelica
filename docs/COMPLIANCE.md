@@ -394,9 +394,9 @@ of the Modelica Standard Library's 2674 files, 2590 parse, and 57 of
 its 625 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:
-an array written on a component's type (`Foo[n] x`) or on a type alias
-(`type Orientation = Real[4]`), the media packages, external C bodies,
-matrices as values, and `StateSelect`.
+a member read across an array of components (`plug.pin.v`), the media
+packages, external C bodies, matrices as values, and a subscript a
+parameter decides.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's
@@ -408,7 +408,11 @@ a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.
 
-**Semantics**: `der()` only of a plain variable; a condition of a
+**Semantics**: `StateSelect` is the language's own enumeration and a
+model may declare with it and read its literals, but what it asks for
+is not acted on: `never` and `always` are demands about which variables
+are integrated, and the states here are chosen by where `der` appears
+and by index reduction. `der()` only of a plain variable; a condition of a
 run-time `if` equation must be readable from the parameters, the
 states and plain `name = expr` definitions at the instant the mode is
 settled — a condition that only an algebraic loop could produce falls

@@ -4613,3 +4613,58 @@ fn an_array_may_take_its_shape_from_its_type() {
     // And a clause that ends in neither a comma nor a semicolon.
     assert!(err("model M Real a = 1 Real b; end M;").contains("after a declaration"));
 }
+
+/// `StateSelect`, and the slice of a modifier an element of an array
+/// component is handed.
+#[test]
+fn the_language_supplies_state_select_and_an_array_takes_its_slice() {
+    // `StateSelect` is the language's own enumeration: a model may
+    // declare a parameter of it and name its literals, with no library
+    // defining either.
+    let m = parse_model(
+        "model M parameter StateSelect pick = StateSelect.prefer; \
+         Real x(start = 1, fixed = true, stateSelect = StateSelect.always); Real y; \
+         equation der(x) = -x; y = if pick == StateSelect.prefer then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("the built-in enumeration");
+    let pick = m.components.iter().find(|c| c.name == "pick").unwrap();
+    // The literals are ordered from the least to the most insistent,
+    // so `prefer` is the fourth of the five.
+    assert_eq!(pick.type_name, "Integer");
+    assert!(matches!(pick.binding, Some(Expr::Number(n)) if n == 4.0));
+
+    // A library may still define one of its own under its own name.
+    let m = parse_model(
+        "package P type StateSelect = enumeration(only, one); end P; \
+         model M parameter P.StateSelect pick = P.StateSelect.one; Real y; \
+         equation y = pick; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a library's own");
+    let pick = m.components.iter().find(|c| c.name == "pick").unwrap();
+    assert!(matches!(pick.binding, Some(Expr::Number(n)) if n == 2.0));
+
+    // `cells(k = ks)` hands `cells[i].k` the value `ks[i]`, whether the
+    // array is written out or named.
+    let m = parse_model(
+        "model Cell parameter Real k = 0; Real v; equation v = k * time; end Cell; \
+         model M parameter Real ks[3] = {1, 2, 3}; Cell cells[3](k = ks); \
+         Cell fixed[2](each k = 7); Real y; equation y = cells[2].v; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a named array as a modifier");
+    let value = |name: &str| {
+        m.components
+            .iter()
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
+            .map(|b| format!("{b:?}"))
+            .unwrap_or_default()
+    };
+    assert_eq!(value("cells[1].k"), "Ref(\"ks[1]\")");
+    assert_eq!(value("cells[3].k"), "Ref(\"ks[3]\")");
+    // `each` spreads one value over every element instead of slicing.
+    assert_eq!(value("fixed[1].k"), "Number(7.0)");
+    assert_eq!(value("fixed[2].k"), "Number(7.0)");
+}
