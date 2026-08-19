@@ -134,9 +134,23 @@ pub(super) fn instantiate(
     // possible: array dimensions and loop bounds are compile-time
     // constants and must come from here.
     let mut local_consts: HashMap<String, f64> = HashMap::new();
+    // A base class's parameters are this class's too, and a dimension
+    // may be written on one of them: `extends TwoPlug` brings `m`, and
+    // `parameter Voltage V[m]` is written with it. What the `extends`
+    // clause said about a base parameter comes with it.
+    let inherited = inherited_parameters(registry, class, 0);
     loop {
         let mut progress = false;
-        for component in &class.components {
+        for (component, from_extends) in class
+            .components
+            .iter()
+            .map(|component| (component, None))
+            .chain(
+                inherited
+                    .iter()
+                    .map(|(component, value)| (component, value.as_ref())),
+            )
+        {
             if !matches!(
                 component.variability,
                 Variability::Parameter | Variability::Constant
@@ -148,6 +162,7 @@ pub(super) fn instantiate(
                 .iter()
                 .find(|(n, _)| n == &component.name)
                 .map(|(_, e)| e.clone())
+                .or_else(|| from_extends.cloned())
                 .or_else(|| {
                     component
                         .binding
@@ -173,6 +188,16 @@ pub(super) fn instantiate(
         }
         if !progress {
             break;
+        }
+    }
+
+    // The same values under the instance path. A declaration's own
+    // value is written in the terms of this class and then prefixed -
+    // `fill(1, m)` becomes `fill(1, b.m)` - so whatever asks what it
+    // comes to has to find the parameter under either name.
+    if !prefix.is_empty() {
+        for (name, value) in local_consts.clone() {
+            local_consts.insert(format!("{prefix}{name}"), value);
         }
     }
 
@@ -334,6 +359,10 @@ pub(super) fn instantiate(
             };
             sizes.push(value);
         }
+        if !sizes.is_empty() {
+            acc.sizes
+                .insert(format!("{prefix}{}", component.name), sizes.clone());
+        }
         // A dimension of zero is legal and means there is nothing
         // there: the declaration contributes no variables at all.
         let element_names: Vec<String> = if sizes.is_empty() {
@@ -466,6 +495,16 @@ pub(super) fn instantiate(
                 start: element_starts.as_ref().map(|items| &items[position]),
             };
             instantiate_one(registry, &site, &level, acc, depth)?;
+        }
+    }
+
+    // The class's own declarations are in by now, and so are the
+    // declarations of everything they hold: an equation may name an
+    // array that belongs to a component rather than to this class.
+    let mut sizes_here = sizes_here;
+    for (name, shape) in &acc.sizes {
+        if name.starts_with(prefix) {
+            sizes_here.insert(name.clone(), shape.clone());
         }
     }
 
@@ -1229,6 +1268,44 @@ fn array_element(
     } else {
         value.clone()
     }
+}
+
+/// The parameters and constants a class inherits, each with what the
+/// `extends` clause that brought it said about its value.
+///
+/// A dimension may be written on one of them - `extends TwoPlug` brings
+/// `m`, and `parameter Voltage V[m]` is written with it - so they have
+/// to be worth a number here, before the dimensions are counted.
+fn inherited_parameters(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    depth: usize,
+) -> Vec<(Component, Option<Expr>)> {
+    let mut out = Vec::new();
+    if depth > MAX_DEPTH {
+        return out;
+    }
+    for extend in &class.extends {
+        let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) else {
+            continue;
+        };
+        for component in &base.components {
+            if !matches!(
+                component.variability,
+                Variability::Parameter | Variability::Constant
+            ) {
+                continue;
+            }
+            let said = extend
+                .modifiers
+                .iter()
+                .find(|(name, _)| name == &component.name)
+                .map(|(_, value)| value.clone());
+            out.push((component.clone(), said));
+        }
+        out.extend(inherited_parameters(registry, base, depth + 1));
+    }
+    out
 }
 
 /// The values a loop variable takes, from whatever the range expanded

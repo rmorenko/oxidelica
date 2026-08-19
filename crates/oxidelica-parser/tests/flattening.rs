@@ -4668,3 +4668,53 @@ fn the_language_supplies_state_select_and_an_array_takes_its_slice() {
     assert_eq!(value("fixed[1].k"), "Number(7.0)");
     assert_eq!(value("fixed[2].k"), "Number(7.0)");
 }
+
+/// A member read across an array of components, and a dimension
+/// written on a parameter a base class brought.
+#[test]
+fn a_member_may_be_read_across_an_array_of_components() {
+    // `plug.pin.v` is the array of the `v` of each pin. Nothing in the
+    // text of `M` says how long `plug.pin` is - it belongs to another
+    // class - so the length comes from what has been instantiated.
+    let m = parse_model(
+        "connector Pin Real v; end Pin; \
+         model Plug parameter Integer m = 3; Pin pin[m]; end Plug; \
+         model M Plug plug; Real v[3]; equation v = plug.pin.v; \
+         plug.pin.v = {1, 2, 3}; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a member across an array");
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("plug.pin[1].v"), "{written}");
+    assert!(written.contains("plug.pin[3].v"), "{written}");
+    assert_eq!(m.equations.len(), 6);
+
+    // The length of that array may be settled from outside.
+    let m = parse_model(
+        "connector Pin Real v; end Pin; \
+         model Plug parameter Integer m = 3; Pin pin[m]; end Plug; \
+         model M Plug plug(m = 2); Real v[2]; equation v = plug.pin.v; \
+         plug.pin.v = {1, 2}; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a length settled from outside");
+    assert_eq!(m.equations.len(), 4);
+
+    // A base class's parameter is this class's too, and a dimension
+    // may be written with it - as may a `fill` in a value, which is
+    // read after the declaration has taken this instance's prefix.
+    let m = parse_model(
+        "model Base parameter Integer m = 3; parameter Real v[m] = fill(2, m); end Base; \
+         model Middle extends Base(m = 2); Real w[m]; equation w = v * time; end Middle; \
+         model M Middle mid; Real y; equation y = mid.w[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a dimension on an inherited parameter");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("mid.v["))
+            .count(),
+        2
+    );
+}

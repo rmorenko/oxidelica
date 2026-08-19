@@ -120,6 +120,19 @@ pub(super) fn expand(
         Expr::Ref(name) if shapes.sizes.contains_key(name) => {
             elements_of(name, &shapes.sizes[name])
         }
+        // `plug.pin.v` where `pin` is an array of connectors is the
+        // array of their `v`. The name of the array is a prefix of the
+        // name written, so the prefixes are tried longest first: with
+        // arrays inside arrays, the innermost one is the one whose
+        // subscript goes nearest the member.
+        Expr::Ref(name) if member_of_array(name, shapes.sizes).is_some() => {
+            let (array, member) = member_of_array(name, shapes.sizes).expect("just matched");
+            let elements = elements_of(array, &shapes.sizes[array]);
+            map_value(&elements, &|element| match element {
+                Expr::Ref(each) => Expr::Ref(format!("{each}.{member}")),
+                other => other,
+            })
+        }
         // A record instance stands for its fields, in the order they
         // were declared: that is what an operator works on.
         Expr::Ref(name) if shapes.records.contains_key(name) => {
@@ -979,6 +992,24 @@ pub(super) fn elements_of(name: &str, sizes: &[i64]) -> Value {
                 })
                 .collect(),
         ),
+    }
+}
+
+/// Split `plug.pin.v` into the array `plug.pin` and the member `v`,
+/// where some prefix of the name is an array this table has measured.
+/// The longest prefix wins: `a.b.c` with both `a` and `a.b` measured is
+/// the member `c` of the array `a.b`.
+fn member_of_array<'a>(
+    name: &'a str,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Option<(&'a str, &'a str)> {
+    let mut cut = name.rfind('.')?;
+    loop {
+        let (array, member) = (&name[..cut], &name[cut + 1..]);
+        if sizes.contains_key(array) {
+            return Some((array, member));
+        }
+        cut = array.rfind('.')?;
     }
 }
 
