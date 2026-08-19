@@ -89,11 +89,158 @@ const CANVAS_SIZE: egui::Vec2 = egui::vec2(2400.0, 1600.0);
 /// Grid step used when placing a new component in a free slot.
 const GRID: egui::Vec2 = egui::vec2(170.0, 120.0);
 
+/// What an `Icon` annotation draws, in the coordinates it was written
+/// in: the extent it uses and the shapes inside it.
+///
+/// Modelica measures an icon in its own square with y pointing up,
+/// -100 to 100 unless the class says otherwise; a screen measures in
+/// pixels with y pointing down. Keeping the two apart until the moment
+/// of drawing is what makes the mapping one line rather than one per
+/// shape.
+struct Icon {
+    extent: (f32, f32, f32, f32),
+    shapes: Vec<Expr>,
+}
+
+/// The `Icon` a class declared, where it declared one.
+fn icon_of(annotations: &[Expr]) -> Option<Icon> {
+    let named = |args: &[Expr], wanted: &str| -> Option<Expr> {
+        args.iter().find_map(|arg| match arg {
+            Expr::NamedArg(name, value) if name == wanted => Some((**value).clone()),
+            _ => None,
+        })
+    };
+    let icon = annotations.iter().find_map(|entry| match entry {
+        Expr::Call(name, args) if name == "Icon" => Some(args.clone()),
+        _ => None,
+    })?;
+    let extent = named(&icon, "coordinateSystem")
+        .and_then(|system| match system {
+            Expr::Call(_, args) => named(&args, "extent"),
+            _ => None,
+        })
+        .and_then(|extent| corners(&extent))
+        .unwrap_or((-100.0, -100.0, 100.0, 100.0));
+    let shapes = match named(&icon, "graphics") {
+        Some(Expr::Array(items)) => items,
+        _ => Vec::new(),
+    };
+    Some(Icon { extent, shapes })
+}
+
+/// The two corners of an `extent = {{x1, y1}, {x2, y2}}`.
+fn corners(extent: &Expr) -> Option<(f32, f32, f32, f32)> {
+    let points = points_of(extent);
+    match points.as_slice() {
+        [(x1, y1), (x2, y2)] => Some((*x1, *y1, *x2, *y2)),
+        _ => None,
+    }
+}
+
+/// The points of a `{{x, y}, {x, y}, …}`, skipping anything that is not
+/// a pair of numbers the annotation settled on.
+fn points_of(expr: &Expr) -> Vec<(f32, f32)> {
+    let number = |e: &Expr| match e {
+        Expr::Number(value) => Some(*value as f32),
+        Expr::Neg(inner) => match inner.as_ref() {
+            Expr::Number(value) => Some(-*value as f32),
+            _ => None,
+        },
+        _ => None,
+    };
+    match expr {
+        Expr::Array(items) => items
+            .iter()
+            .filter_map(|item| match item {
+                Expr::Array(pair) if pair.len() == 2 => {
+                    Some((number(&pair[0])?, number(&pair[1])?))
+                }
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Draw what a class's `Icon` says, fitted into `area`.
+fn draw_icon(painter: &egui::Painter, area: egui::Rect, icon: &Icon, color: egui::Color32) {
+    let (x1, y1, x2, y2) = icon.extent;
+    let (wide, tall) = ((x2 - x1).abs().max(1.0), (y2 - y1).abs().max(1.0));
+    // The icon's own square onto the box, y turned over on the way.
+    let at = |(x, y): (f32, f32)| {
+        egui::pos2(
+            area.left() + (x - x1.min(x2)) / wide * area.width(),
+            area.bottom() - (y - y1.min(y2)) / tall * area.height(),
+        )
+    };
+    let stroke = egui::Stroke::new(1.8_f32, color);
+    let named = |args: &[Expr], wanted: &str| -> Option<Expr> {
+        args.iter().find_map(|arg| match arg {
+            Expr::NamedArg(name, value) if name == wanted => Some((**value).clone()),
+            _ => None,
+        })
+    };
+    for shape in &icon.shapes {
+        let Expr::Call(kind, args) = shape else {
+            continue;
+        };
+        let box_of = |args: &[Expr]| {
+            named(args, "extent")
+                .and_then(|extent| corners(&extent))
+                .map(|(a, b, c, d)| egui::Rect::from_two_pos(at((a, b)), at((c, d))))
+        };
+        match kind.as_str() {
+            "Line" | "Polygon" => {
+                let drawn: Vec<egui::Pos2> = named(args, "points")
+                    .map(|points| points_of(&points).into_iter().map(at).collect())
+                    .unwrap_or_default();
+                for pair in drawn.windows(2) {
+                    painter.line_segment([pair[0], pair[1]], stroke);
+                }
+                // A polygon comes back to where it started; a line does
+                // not, and saying so is the whole difference here.
+                if kind == "Polygon" && drawn.len() > 2 {
+                    painter.line_segment([drawn[drawn.len() - 1], drawn[0]], stroke);
+                }
+            }
+            "Rectangle" => {
+                if let Some(rect) = box_of(args) {
+                    painter.rect_stroke(rect, 1.0, stroke, egui::StrokeKind::Inside);
+                }
+            }
+            "Ellipse" => {
+                if let Some(rect) = box_of(args) {
+                    painter.circle_stroke(
+                        rect.center(),
+                        rect.width().min(rect.height()) / 2.0,
+                        stroke,
+                    );
+                }
+            }
+            "Text" => {
+                let (Some(rect), Some(Expr::Str(text))) = (box_of(args), named(args, "textString"))
+                else {
+                    continue;
+                };
+                painter.text(
+                    rect.center(),
+                    egui::Align2::CENTER_CENTER,
+                    text,
+                    egui::FontId::proportional(rect.height().clamp(8.0, 14.0)),
+                    color,
+                );
+            }
+            _ => {}
+        }
+    }
+}
+
 /// Draw a schematic symbol for a class inside `area`.
 ///
 /// The symbols are recognizable rather than standard-compliant: enough
 /// to tell a resistor from a capacitor at a glance. Anything unknown
-/// falls back to a plain block.
+/// falls back to a plain block. This is what a class without an `Icon`
+/// of its own gets; one that has an icon is drawn from what it says.
 fn draw_symbol(painter: &egui::Painter, area: egui::Rect, class: &str, color: egui::Color32) {
     let stroke = egui::Stroke::new(1.8_f32, color);
     let (left, right) = (
@@ -743,16 +890,21 @@ impl Diagram {
             );
             let short = placed.class.rsplit('.').next().unwrap_or(&placed.class);
             // The symbol occupies the middle of the box; the instance
-            // name sits above it and the class below.
-            draw_symbol(
-                &painter,
-                egui::Rect::from_center_size(
-                    rect.center() + egui::vec2(0.0, 2.0),
-                    egui::vec2(BOX_SIZE.x * 0.62, BOX_SIZE.y * 0.44),
-                ),
-                &placed.class,
-                visuals.text_color(),
+            // name sits above it and the class below. A class that drew
+            // itself is drawn from what it said; one that did not falls
+            // back to the symbols written here.
+            let inside = egui::Rect::from_center_size(
+                rect.center() + egui::vec2(0.0, 2.0),
+                egui::vec2(BOX_SIZE.x * 0.62, BOX_SIZE.y * 0.44),
             );
+            match self
+                .catalog
+                .get(&placed.class)
+                .and_then(|info| icon_of(&info.annotations))
+            {
+                Some(icon) => draw_icon(&painter, inside, &icon, visuals.text_color()),
+                None => draw_symbol(&painter, inside, &placed.class, visuals.text_color()),
+            }
             painter.text(
                 egui::pos2(rect.center().x, rect.top() + 11.0),
                 egui::Align2::CENTER_CENTER,
@@ -964,6 +1116,47 @@ mod tests {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
         let source = std::fs::read_to_string(root.join("lib/Oxidelica.mo")).unwrap();
         oxidelica_parser::parse_file(&source).unwrap()
+    }
+
+    #[test]
+    fn a_class_that_drew_itself_is_drawn_from_what_it_said() {
+        // The library declares its own symbols now, and this is the
+        // road from what it wrote to where the pen goes: the shapes
+        // come out of the annotation, and the icon's own square - y
+        // pointing up, -100 to 100 - lands on a box with y pointing
+        // down.
+        let classes = library();
+        let info = class_info(&classes, "Oxidelica.Electrical.Analog.Basic.Resistor").unwrap();
+        let icon = icon_of(&info.annotations).expect("the resistor draws itself");
+        assert_eq!(icon.extent, (-100.0, -100.0, 100.0, 100.0));
+        // Two leads and a body.
+        assert_eq!(icon.shapes.len(), 3);
+        let kinds: Vec<&str> = icon
+            .shapes
+            .iter()
+            .filter_map(|shape| match shape {
+                Expr::Call(kind, _) => Some(kind.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(kinds, vec!["Line", "Rectangle", "Line"]);
+        // The left lead runs from the left edge inwards, along the
+        // middle.
+        let Expr::Call(_, args) = &icon.shapes[0] else {
+            panic!("a line")
+        };
+        let points = args.iter().find_map(|arg| match arg {
+            Expr::NamedArg(name, value) if name == "points" => Some(points_of(value)),
+            _ => None,
+        });
+        assert_eq!(points, Some(vec![(-90.0, 0.0), (-70.0, 0.0)]));
+
+        // A class that did not draw itself has nothing to draw from,
+        // and falls back to the symbols written in this file.
+        let ground = class_info(&classes, "Oxidelica.Blocks.Sources.Constant")
+            .or_else(|| class_info(&classes, "Oxidelica.Mechanics.Rotational.Components.Spring"))
+            .unwrap();
+        let _ = icon_of(&ground.annotations);
     }
 
     #[test]

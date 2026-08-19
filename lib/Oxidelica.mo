@@ -226,6 +226,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           Interfaces.Pin p;
         equation
           p.v = 0;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{0, 90}, {0, 0}}), Line(points = {{-60, 0}, {60, 0}}), Line(points = {{-40, -20}, {40, -20}}), Line(points = {{-20, -40}, {20, -40}})}));
         end Ground;
 
         model Resistor "Ideal resistor"
@@ -233,6 +235,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           parameter Units.Resistance R = 1;
         equation
           v = R * i;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-70, 0}}), Rectangle(extent = {{-70, -25}, {70, 25}}), Line(points = {{70, 0}, {90, 0}})}));
         end Resistor;
 
         model Capacitor "Ideal capacitor"
@@ -240,6 +244,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           parameter Units.Capacitance C = 1;
         equation
           der(v) = i / C;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-10, 0}}), Line(points = {{-10, -40}, {-10, 40}}), Line(points = {{10, -40}, {10, 40}}), Line(points = {{10, 0}, {90, 0}})}));
         end Capacitor;
 
         model Inductor "Ideal inductor"
@@ -247,6 +253,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           parameter Units.Inductance L = 1;
         equation
           der(i) = v / L;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-60, 0}}), Ellipse(extent = {{-60, -20}, {-20, 20}}), Ellipse(extent = {{-20, -20}, {20, 20}}), Ellipse(extent = {{20, -20}, {60, 20}}), Line(points = {{60, 0}, {90, 0}})}));
         end Inductor;
 
         model EMF "Electromotive force: the electro-mechanical coupling"
@@ -264,6 +272,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           w = der(flange.phi);
           v = k * w;
           flange.tau = -k * i;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-40, 0}}), Ellipse(extent = {{-40, -40}, {40, 40}}), Line(points = {{40, 0}, {90, 0}}), Line(points = {{-30, 0}, {30, 0}})}));
         end EMF;
       end Basic;
 
@@ -352,6 +362,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           Interfaces.Flange flange;
         equation
           flange.phi = phi0;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{0, -30}, {0, 30}}), Line(points = {{-30, 30}, {30, 30}}), Line(points = {{0, 30}, {0, 90}})}));
         end Fixed;
 
         model Inertia "Rotating body with inertia"
@@ -368,6 +380,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           der(phi) = w;
           der(w) = a;
           J * a = flange_a.tau + flange_b.tau;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-50, 0}}), Rectangle(extent = {{-50, -50}, {50, 50}}), Line(points = {{50, 0}, {90, 0}})}));
         end Inertia;
 
         model Spring "Linear rotational spring"
@@ -379,6 +393,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           phi_rel = flange_b.phi - flange_a.phi;
           flange_b.tau = c * (phi_rel - phi_rel0);
           flange_a.tau + flange_b.tau = 0;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-60, 0}, {-45, 30}, {-15, -30}, {15, 30}, {45, -30}, {60, 0}, {90, 0}})}));
         end Spring;
 
         model ViscousFriction "Viscous friction between a shaft and the housing"
@@ -400,6 +416,8 @@ package Oxidelica "A standard library laid out like the Modelica Standard Librar
           der(phi_rel) = w_rel;
           flange_b.tau = d * w_rel;
           flange_a.tau + flange_b.tau = 0;
+          annotation(Icon(coordinateSystem(extent = {{-100, -100}, {100, 100}}),
+            graphics = {Line(points = {{-90, 0}, {-30, 0}}), Rectangle(extent = {{-30, -30}, {20, 30}}), Line(points = {{20, 0}, {90, 0}}), Line(points = {{-10, -30}, {-10, 30}})}));
         end Damper;
       end Components;
 
