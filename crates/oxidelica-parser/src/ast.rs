@@ -254,6 +254,13 @@ pub struct Extend {
     pub redeclares: Vec<Redeclare>,
     /// Selective extension: elements of the base to leave out.
     pub broken: Vec<Deselect>,
+    /// Whether this is the `extends` of a class that redeclares one it
+    /// inherited: `redeclare record extends SaturationProperties`
+    /// defines a `SaturationProperties` that extends the one a base of
+    /// the enclosing class declared. The name is the class's own, so
+    /// where to look for what it extends is not where a name is
+    /// usually looked for.
+    pub from_base: bool,
 }
 
 /// One `break` of a selective `extends`: an element of the base that

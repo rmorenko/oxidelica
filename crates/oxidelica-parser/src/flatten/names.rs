@@ -546,6 +546,52 @@ fn substitute_at(
     }
 }
 
+/// The class a short definition inside a package stands for.
+///
+/// `package StandardWater = WaterIF97_ph(...)` gives the package a
+/// member that is a name for another class; from outside, the member
+/// is reached by the same dotted name a class would be. The target is
+/// written in the terms of the package that holds it, and may be
+/// another such name, which is what the counter bounds.
+fn through_alias<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    depth: usize,
+) -> Option<&'a ClassDef> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    // The name may be a member of an alias rather than an alias
+    // itself: `Lib.Standard.Cell` is the `Cell` of whatever `Standard`
+    // names. So every split is tried, longest holder first.
+    let mut cut = name.rfind('.')?;
+    loop {
+        let (holder, rest) = (&name[..cut], &name[cut + 1..]);
+        if let Some(owner) = registry.get(holder) {
+            let (member, tail) = match rest.split_once('.') {
+                Some((member, tail)) => (member, Some(tail)),
+                None => (rest, None),
+            };
+            if let Some(alias) = owner
+                .class_aliases
+                .iter()
+                .find(|alias| alias.name == member && !alias.redeclaration)
+            {
+                let target = match tail {
+                    Some(tail) => format!("{}.{tail}", alias.target),
+                    None => alias.target.clone(),
+                };
+                if let Some(found) = lookup(registry, &target, holder, &owner.imports)
+                    .or_else(|| through_alias(registry, &target, depth + 1))
+                {
+                    return Some(found);
+                }
+            }
+        }
+        cut = holder.rfind('.')?;
+    }
+}
+
 /// A class named through one import list: `import Basic = A.B;` then
 /// `Basic.Resistor`, or `import A.Widget;` then `Widget`. The wildcard
 /// form is not tried here - it is the lowest-priority reading and left
@@ -606,6 +652,12 @@ pub(super) fn lookup<'a>(
             format!("{prefix}.{name}")
         };
         if let Some(class) = registry.get(candidate.as_str()) {
+            return Some(class);
+        }
+        // A package may name a class rather than define one -
+        // `package StandardWater = WaterIF97_ph(...)` - and a name
+        // from outside reaches it the same way it reaches a class.
+        if let Some(class) = through_alias(registry, &candidate, 0) {
             return Some(class);
         }
         // Each enclosing class brings its own imports to the lookup -

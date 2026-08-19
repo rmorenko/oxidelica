@@ -4942,3 +4942,63 @@ fn a_parameter_may_be_built_on_an_element_of_a_table() {
     let ticks = format!("{:?}", m.when_clauses);
     assert!(ticks.contains("0.002"), "{ticks}");
 }
+
+/// A class that replaces one it inherited by extending it, and a
+/// package member that is a name for another class.
+#[test]
+fn a_class_may_redeclare_the_one_it_inherited_by_extending_it() {
+    // `redeclare replaceable model extends BaseProperties(...)` - the
+    // class being defined is named by what it extends, and its body
+    // adds to it. This is how the media libraries are built.
+    let m = parse_model(
+        "package Base \
+           replaceable model Props parameter Real k = 1; Real v; \
+             equation v = k * time; end Props; \
+         end Base; \
+         package Water extends Base; \
+           redeclare replaceable model extends Props(k = 5) Real extra; \
+             equation extra = 2 * v; end Props; \
+         end Water; \
+         model M Water.Props p; Real y; equation y = p.extra; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a class redeclared by extending it");
+    // The body it added is there, and so is what it inherited, with
+    // the modifier the `extends` carried.
+    assert!(m.components.iter().any(|c| c.name == "p.extra"));
+    let k = m.components.iter().find(|c| c.name == "p.k").unwrap();
+    assert!(matches!(k.binding, Some(Expr::Number(n)) if n == 5.0));
+
+    // `package StandardWater = WaterIF97_ph(...)` gives a package a
+    // member that is a name for another class, and from outside it is
+    // reached by the same dotted name a class would be.
+    let m = parse_model(
+        "package Lib \
+           package Detailed model Cell parameter Real k = 3; Real v; \
+             equation v = k * time; end Cell; end Detailed; \
+           package Standard = Detailed; \
+         end Lib; \
+         model M Lib.Standard.Cell c; Real y; equation y = c.v; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a package that names another");
+    let k = m.components.iter().find(|c| c.name == "c.k").unwrap();
+    assert!(matches!(k.binding, Some(Expr::Number(n)) if n == 3.0));
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // A class may only redeclare by extending one that a base of the
+    // class it is written in declares. With no such base there is
+    // nothing to replace, and looking the name up the ordinary way
+    // would find the class itself.
+    assert!(err("package Water \
+           redeclare model extends Props Real extra; equation extra = 1; end Props; \
+         end Water; \
+         model M Water.Props p; Real y; equation y = p.extra; end M;")
+    .contains("no base of"));
+
+    // And a package that names a class that is not there says so where
+    // the name is used.
+    assert!(err("package Lib package Standard = Missing; end Lib; \
+         model M Lib.Standard.Cell c; Real y; equation y = c.v; end M;")
+    .contains("unknown type"));
+}

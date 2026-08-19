@@ -85,8 +85,18 @@ pub(super) fn instantiate(
 
     // Bases first, with their modifiers (already parent-scoped).
     for extend in &class.extends {
-        let base = lookup(registry, &extend.base, scope, &imports)
-            .ok_or_else(|| format!("unknown base class `{}`", extend.base))?;
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0).ok_or_else(|| {
+                format!(
+                    "`{}` redeclares `{}` by extending it, and no base of `{}` declares one",
+                    class.name,
+                    extend.base,
+                    class.name.rsplit_once('.').map_or("", |(head, _)| head)
+                )
+            })?,
+            false => lookup(registry, &extend.base, scope, &imports)
+                .ok_or_else(|| format!("unknown base class `{}`", extend.base))?,
+        };
         let mods: Vec<(String, Expr)> = extend
             .modifiers
             .iter()
@@ -1319,6 +1329,55 @@ fn array_element(
     } else {
         value.clone()
     }
+}
+
+/// What a class written `redeclare X extends Name` extends: the `Name`
+/// that a base of the class enclosing it declared.
+///
+/// Looking the name up the ordinary way finds the class doing the
+/// redeclaring, since that is what it is called; what is wanted is the
+/// one it replaces, and that lives in a base of the class it is
+/// written in.
+fn inherited_class<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    class: &ClassDef,
+    wanted: &str,
+    depth: usize,
+) -> Option<&'a ClassDef> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    let (enclosing, _) = class.name.rsplit_once('.')?;
+    let owner = registry.get(enclosing)?;
+    from_bases(registry, owner, wanted, &class.name, depth)
+}
+
+/// The class of a name declared by a base of `owner`, or by a base of
+/// one of those, skipping the class that is asking.
+fn from_bases<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    owner: &ClassDef,
+    wanted: &str,
+    asking: &str,
+    depth: usize,
+) -> Option<&'a ClassDef> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    for extend in &owner.extends {
+        let Some(base) = lookup(registry, &extend.base, &owner.name, &owner.imports) else {
+            continue;
+        };
+        if let Some(found) =
+            lookup(registry, wanted, &base.name, &base.imports).filter(|found| found.name != asking)
+        {
+            return Some(found);
+        }
+        if let Some(found) = from_bases(registry, base, wanted, asking, depth + 1) {
+            return Some(found);
+        }
+    }
+    None
 }
 
 /// The parameters and constants a class inherits, each with what the

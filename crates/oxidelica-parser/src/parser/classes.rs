@@ -58,6 +58,36 @@ impl Parser {
                 }
             }
         };
+        // `redeclare record extends SaturationProperties ... end
+        // SaturationProperties;` - a class that replaces one it
+        // inherited by extending it. Its name is the name it extends,
+        // and what it adds is written in its body like any other
+        // class's.
+        if self.peek() == &Token::Extends {
+            self.bump();
+            let name = self.dotted_name("the class being extended")?;
+            let (modifiers, redeclares, _each, broken) = if self.peek() == &Token::LParen {
+                self.modifier_list()?
+            } else {
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new())
+            };
+            let inherited = Extend {
+                base: name.clone(),
+                modifiers,
+                broken,
+                redeclares,
+                from_base: true,
+            };
+            return self.class_body(
+                kind,
+                name,
+                partial,
+                encapsulated,
+                expandable,
+                vec![inherited],
+            );
+        }
+
         let name = self.ident("class name")?;
 
         // `package Medium = Media.Water constrainedby PartialMedium;` -
@@ -186,13 +216,35 @@ impl Parser {
             })));
         }
 
+        self.class_body(kind, name, partial, encapsulated, expandable, Vec::new())
+    }
+
+    /// The body of a class: what stands between its name and its `end`.
+    ///
+    /// `inherited` carries the `extends` a class written as
+    /// `redeclare record extends X` already has - its own body may add
+    /// more.
+    #[allow(clippy::too_many_arguments)]
+    fn class_body(
+        &mut self,
+        kind: ClassKind,
+        name: String,
+        partial: bool,
+        encapsulated: bool,
+        expandable: bool,
+        inherited: Vec<Extend>,
+    ) -> Result<ClassItem, ParseError> {
+        let mut alias_of: Option<(String, Vec<(String, Expr)>)> = None;
+        let alias_dimensions: Vec<Expr> = Vec::new();
+        let alias_unit: Option<String> = None;
+        let enumeration: Vec<String> = Vec::new();
         let description = self.opt_string();
 
         let mut nested = Vec::new();
         let mut class_aliases = Vec::new();
         let mut imports = Vec::new();
         let mut components = Vec::new();
-        let mut extends = Vec::new();
+        let mut extends = inherited;
         let mut equations = Vec::new();
         let mut connects = Vec::new();
         let mut when_clauses = Vec::new();
@@ -298,26 +350,10 @@ impl Parser {
                     ClassItem::Alias(alias) => class_aliases.push(alias),
                 },
                 // `replaceable`/`redeclare` introduce either a nested
-                // class or a component; the next token decides.
-                Token::Replaceable | Token::Redeclare
-                    if matches!(
-                        self.peek_ahead(1),
-                        Token::Model
-                            | Token::Block
-                            | Token::Class
-                            | Token::Connector
-                            | Token::Record
-                            | Token::Function
-                            | Token::Package
-                            | Token::Type
-                            | Token::Partial
-                            | Token::Expandable
-                            | Token::Operator
-                            | Token::Encapsulated
-                            | Token::Pure
-                            | Token::Impure
-                    ) =>
-                {
+                // class or a component, and they may come together -
+                // `redeclare replaceable model extends B` - so what
+                // decides is the first word past the prefixes.
+                Token::Replaceable | Token::Redeclare if self.class_ahead() => {
                     match self.class_def()? {
                         ClassItem::Class(class) => nested.push(*class),
                         ClassItem::Alias(alias) => class_aliases.push(alias),
@@ -420,6 +456,42 @@ impl Parser {
         })))
     }
 
+    /// Whether what starts here is a class rather than a component.
+    /// The prefixes a class and a component share are stepped over -
+    /// `redeclare replaceable model` is three words before the one
+    /// that says which.
+    fn class_ahead(&self) -> bool {
+        let mut ahead = 0;
+        while matches!(
+            self.peek_ahead(ahead),
+            Token::Replaceable
+                | Token::Redeclare
+                | Token::Final
+                | Token::Inner
+                | Token::Outer
+                | Token::Each
+        ) {
+            ahead += 1;
+        }
+        matches!(
+            self.peek_ahead(ahead),
+            Token::Model
+                | Token::Block
+                | Token::Class
+                | Token::Connector
+                | Token::Record
+                | Token::Function
+                | Token::Package
+                | Token::Type
+                | Token::Partial
+                | Token::Expandable
+                | Token::Operator
+                | Token::Encapsulated
+                | Token::Pure
+                | Token::Impure
+        )
+    }
+
     /// `import A.B.C;` or `import D = A.B.C;`
     pub(super) fn import_clause(&mut self) -> Result<Vec<(String, String)>, ParseError> {
         self.expect(&Token::Import, "import")?;
@@ -495,6 +567,7 @@ impl Parser {
             modifiers,
             broken,
             redeclares,
+            from_base: false,
         })
     }
 
