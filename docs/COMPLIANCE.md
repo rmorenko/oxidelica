@@ -89,8 +89,11 @@ either side of the point (`13.`, `.13E2`), non-nesting block comments,
 Unicode in strings and comments and 7-bit ASCII in names all follow
 the specification. Two of the words are accepted and then ignored -
 `pure` and `impure` say how a function behaves, and nothing here acts
-on the difference - and `external` is refused by name rather than
-honoured, since a function needs a Modelica body.
+on the difference. `external` is read so that a file holding one such
+function alongside others still loads, and refused where such a
+function is called; the exception is `external "builtin" y = asin(u)`,
+which says the function is the operator the language already has, and
+a call to it becomes a call to the operator.
 
 ## Known gaps, largest first
 
@@ -185,8 +188,9 @@ has two elements indexed off `false`, `Real x[E]` one per enumeration
 literal - or a `:` that reads its length from the value the component
 is given.
 
-**Functions** (ch. 12): no external C/Fortran, no functions as
-arguments, no record constructors. A function is inlined symbolically
+**Functions** (ch. 12): no external C/Fortran bodies (they are read and
+refused where called), no functions as arguments, no record
+constructors. A function is inlined symbolically
 wherever it can be, which is what lets the compiler differentiate
 through one and fold it away where the arguments are known — and a
 skipped tuple slot still costs the work of computing that output's
@@ -221,8 +225,11 @@ the rule instead of taking the body apart, which is what lets a body
 the differentiator cannot read — one with `abs` in it — still carry a
 model that needs its constraint differentiated or its Jacobian built.
 The options the specification allows beside it (an order, a
-`noDerivative`, a `zeroDerivative`) are refused rather than skipped,
-since reading one wrong would give a wrong derivative and nothing
+`noDerivative`, a `zeroDerivative`) change which arguments the named
+function takes and what it answers, so an annotation carrying one is
+read past and not kept: the call stands with no derivative rule of its
+own rather than a wrong one, and a derivative asked of it is refused by
+name. Reading one wrong would give a wrong derivative and nothing
 downstream could catch it. `annotation(inverse(x = f_inv(y)))` is read
 and checked — the function has to exist, the input has to be one this
 one takes, the arguments have to be things it has to hand — and then
@@ -381,6 +388,15 @@ there is nothing to convert between until libraries are loaded by
 version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 `TestCase` the chapter leaves to the tool, and this one does not act on
 them.
+
+**The standard library** is the measure this map is checked against:
+of the Modelica Standard Library's 2674 files, 2590 parse, and 57 of
+its 625 example models flatten. What stands in the way of the rest is
+measured rather than guessed - `oxidelica library check` ranks the
+reasons - and the list is in [MSL.md](MSL.md). The largest of them:
+an array written on a component's type (`Foo[n] x`) or on a type alias
+(`type Orientation = Real[4]`), the media packages, external C bodies,
+matrices as values, and `StateSelect`.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

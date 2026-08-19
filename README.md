@@ -11,6 +11,7 @@ Russian version of this file: [README.ru.md](README.ru.md).
 ```bash
 cargo run -p oxidelica-cli -- simulate examples/pendulum.mo -o pendulum.csv
 cargo run -p oxidelica-cli -- parse examples/decay.mo
+cargo run -p oxidelica-cli -- library add modelica
 cargo run -p oxidelica-ide
 cargo test
 ```
@@ -30,11 +31,21 @@ the answers.
 
 A model does not have to live in this folder: the standard library is
 looked for as `lib` next to the model, next to the working directory or
-next to the binary. `OXIDELICA_LIB` names one outright and
-`MODELICAPATH` names several, separated the way your platform separates
-paths; either of them settles the matter, and the search stops looking
-around. A library may be a single file or a directory tree, each file
-saying with `within` where in the tree it sits.
+next to the binary, and among the libraries `library add` has fetched.
+`OXIDELICA_LIB` names one outright and `MODELICAPATH` names several,
+separated the way your platform separates paths; either of them settles
+the matter, and the search stops looking around. A library may be a
+single file or a directory tree, each file saying with `within` where in
+the tree it sits.
+
+## The Modelica Standard Library
+
+`oxidelica library add modelica` fetches
+[the standard library](https://github.com/modelica/ModelicaStandardLibrary)
+into the place the search already looks, and `oxidelica library check`
+reads a library and says how far this compiler got with it. How much of
+MSL that is, and what stands in the way of the rest:
+[docs/MSL.md](docs/MSL.md) ([Russian](docs/MSL.ru.md)).
 
 Linux needs the libraries Bevy links against — on Debian and Ubuntu
 `pkg-config libasound2-dev libudev-dev`; the Windows cross-build needs
@@ -62,7 +73,7 @@ Language rule: no Cyrillic anywhere except Markdown files with a `.ru.md` suffix
 
 - `crates/oxidelica-parser` — lexer, AST, recursive descent, instantiation and flattening
 - `crates/oxidelica-sim` — symbolic analysis of a flat model (sorting, index reduction, tearing) and the solvers: Dormand-Prince 5(4), BDF 1-5, RK4, with event location
-- `crates/oxidelica-cli` — the `oxidelica` binary (simulate / parse)
+- `crates/oxidelica-cli` — the `oxidelica` binary (simulate / parse / library)
 - `crates/oxidelica-ide` — the Bevy + egui IDE (menu, editor, plots, EN/RU, themes)
 - `docs/` — concept and roadmap (M0…M8)
 - `examples/` — models in honest Modelica syntax (they open in OpenModelica too)

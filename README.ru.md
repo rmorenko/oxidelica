@@ -11,6 +11,7 @@
 ```bash
 cargo run -p oxidelica-cli -- simulate examples/pendulum.mo -o pendulum.csv
 cargo run -p oxidelica-cli -- parse examples/decay.mo
+cargo run -p oxidelica-cli -- library add modelica
 cargo run -p oxidelica-ide
 cargo test
 ```
@@ -28,12 +29,22 @@ Docker, где ядро проходит тесты, а весь workspace чи�
 ответах.
 
 Модель не обязана лежать в этой папке: стандартная библиотека ищется как
-`lib` рядом с моделью, рядом с рабочим каталогом или рядом с бинарником.
-`OXIDELICA_LIB` задаёт одну напрямую, `MODELICAPATH` — сразу несколько,
-через разделитель путей вашей платформы; любая из этих переменных решает
-дело, и поиск наощупь больше не ведётся. Библиотекой может быть как один
-файл, так и дерево каталогов, где каждый файл говорит через `within`, где
-в этом дереве он стоит.
+`lib` рядом с моделью, рядом с рабочим каталогом или рядом с бинарником,
+а также среди библиотек, скачанных через `library add`. `OXIDELICA_LIB`
+задаёт одну напрямую, `MODELICAPATH` — сразу несколько, через разделитель
+путей вашей платформы; любая из этих переменных решает дело, и поиск
+наощупь больше не ведётся. Библиотекой может быть как один файл, так и
+дерево каталогов, где каждый файл говорит через `within`, где в этом
+дереве он стоит.
+
+## Modelica Standard Library
+
+`oxidelica library add modelica` скачивает
+[стандартную библиотеку](https://github.com/modelica/ModelicaStandardLibrary)
+туда, куда поиск и так смотрит, а `oxidelica library check` читает
+библиотеку и говорит, докуда с ней дошёл этот компилятор. Сколько это от
+MSL и что мешает остальному: [docs/MSL.ru.md](docs/MSL.ru.md)
+([English](docs/MSL.md)).
 
 Linux'у нужны библиотеки, с которыми линкуется Bevy: на Debian и Ubuntu
 `pkg-config libasound2-dev libudev-dev`; кросс-сборке под Windows нужен
@@ -61,7 +72,7 @@ make cov-report
 
 - `crates/oxidelica-parser` — лексер, AST, рекурсивный спуск, инстанцирование и раскрытие модели
 - `crates/oxidelica-sim` — символьный анализ плоской модели (сортировка, приведение индекса, tearing) и решатели: Dormand-Prince 5(4), BDF 1-5, RK4, с локализацией событий
-- `crates/oxidelica-cli` — бинарник `oxidelica` (simulate / parse)
+- `crates/oxidelica-cli` — бинарник `oxidelica` (simulate / parse / library)
 - `crates/oxidelica-ide` — IDE на Bevy + egui (меню, редактор, графики, EN/RU, темы)
 - `docs/` — концепция и дорожная карта (M0…M8)
 - `examples/` — модели на честном синтаксисе Modelica (открываются и в OpenModelica)
