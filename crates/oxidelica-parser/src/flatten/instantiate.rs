@@ -690,19 +690,6 @@ pub(super) fn instantiate(
     }
 
     // Equations: arrays expanded, subscripts resolved, calls inlined.
-    let resolve_here = |expr: &Expr| -> Result<Expr, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
-        resolve(
-            &prefix_expr(&expr, prefix, &outers),
-            &HashMap::new(),
-            &local_consts,
-            &sizes_here,
-            registry,
-            scope,
-            &imports,
-            0,
-        )
-    };
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
         let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
         let expr = prefix_expr(&expr, prefix, &outers);
@@ -714,6 +701,12 @@ pub(super) fn instantiate(
         };
         expand(&expr, &shapes, registry, scope, &imports, 0)
     };
+    // What has to come to one value - a condition, what a `when` gives
+    // a variable - still goes through the array layer to get there:
+    // `min({pre(y), u, pre(u)})` is one value made out of three, and
+    // only the array layer knows how to read it.
+    let resolve_here =
+        |expr: &Expr| -> Result<Expr, String> { expand_here(expr, &HashMap::new())?.scalar() };
     let no_loop_vars = HashMap::new();
     for equation in &class.equations {
         // `(a, , c) = f(...)`: one call fills several targets. The

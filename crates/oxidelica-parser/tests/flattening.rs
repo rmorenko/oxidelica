@@ -1047,7 +1047,7 @@ fn the_array_layer_says_what_it_cannot_do() {
             .contains("is used where a scalar is expected")
     );
     assert!(err("model M Real y; discrete Real d(start = 0); equation y = time; when 1:3 then d = 1; end when; end M;")
-        .contains("an array value cannot be used where a scalar is expected"));
+        .contains("is used where a scalar is expected"));
 
     assert!(err("model M Real v[2]; equation v = zeros({2}); end M;")
         .contains("is used where a scalar is expected"));
@@ -5805,4 +5805,20 @@ fn a_component_condition_may_compare_an_enumeration() {
     )
     .expect("an enumeration settles the component");
     assert!(!m.components.iter().any(|c| c.name == "shown"));
+}
+
+/// What a `when` gives a variable goes through the array layer.
+#[test]
+fn a_when_may_give_a_value_read_off_an_array() {
+    let m = parse_model(
+        "model M Real u; discrete Real y_min(start = 0, fixed = true); Real y; \
+         equation u = time; \
+         when sample(0.1, 0.1) then y_min = min({pre(y_min), u, pre(u)}); end when; \
+         y = y_min; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("the smallest of three at an event");
+    let given = format!("{:?}", m.when_clauses[0].branches[0].actions);
+    // Three values folded into two comparisons.
+    assert_eq!(given.matches("\"min\"").count(), 2, "{given}");
 }

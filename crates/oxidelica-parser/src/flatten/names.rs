@@ -716,20 +716,6 @@ pub(super) fn is_primitive(type_name: &str) -> bool {
     )
 }
 
-/// Pick one element out of a list written in full: `{1, 2, 3}[2]`, and
-/// a dimension at a time for a list of lists.
-fn pick_from_list(items: &[Expr], indices: &[i64]) -> Option<Expr> {
-    let (first, rest) = indices.split_first()?;
-    let item = items.get(usize::try_from(*first - 1).ok()?)?;
-    if rest.is_empty() {
-        return Some(item.clone());
-    }
-    match item {
-        Expr::Array(inner) => pick_from_list(inner, rest),
-        _ => None,
-    }
-}
-
 /// Flat scalar name of one array element: `T[2]`, `A[1,3]`.
 pub(super) fn element_name(base: &str, subscripts: &[i64]) -> String {
     let list: Vec<String> = subscripts.iter().map(|i| i.to_string()).collect();
@@ -790,14 +776,8 @@ pub(super) fn resolve(
             // A function body reads `table[i]` off whatever it was
             // handed, and what it was handed may be a list written out
             // in full rather than a name.
-            let name = match base.as_ref() {
-                Expr::Ref(name) => name.clone(),
-                Expr::Array(_) => "a list".to_string(),
-                other => {
-                    return Err(format!(
-                        "only variables can be subscripted, found {other:?}"
-                    ))
-                }
+            let Expr::Ref(name) = base.as_ref() else {
+                return Err(format!("only variables can be subscripted, found {base:?}"));
             };
             // Subscripts see both loop variables and parameters: they
             // must be constant at compile time.
@@ -825,15 +805,7 @@ pub(super) fn resolve(
                 }
                 indices.push(value as i64);
             }
-            match base.as_ref() {
-                Expr::Array(items) => {
-                    let picked = pick_from_list(items, &indices).ok_or_else(|| {
-                        format!("{indices:?} is not an element of a list of {}", items.len())
-                    })?;
-                    recur(&picked)?
-                }
-                _ => Expr::Ref(element_name(&name, &indices)),
-            }
+            Expr::Ref(element_name(name, &indices))
         }
         // A loop variable is a compile-time constant, not a model
         // variable: it is folded into the unrolled equations. Parameters
