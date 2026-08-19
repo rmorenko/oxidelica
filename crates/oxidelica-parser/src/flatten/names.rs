@@ -747,6 +747,7 @@ pub(super) fn resolve(
     expr: &Expr,
     loop_vars: &HashMap<String, f64>,
     consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
@@ -758,7 +759,18 @@ pub(super) fn resolve(
             sketch(expr)
         ));
     }
-    let recur = |e: &Expr| resolve(e, loop_vars, consts, registry, scope, imports, depth + 1);
+    let recur = |e: &Expr| {
+        resolve(
+            e,
+            loop_vars,
+            consts,
+            sizes,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+        )
+    };
     Ok(match expr {
         Expr::Index(base, subscripts) => {
             let Expr::Ref(name) = base.as_ref() else {
@@ -804,7 +816,17 @@ pub(super) fn resolve(
             let args = args?;
             match lookup(registry, name, scope, imports) {
                 Some(class) if class.kind == ClassKind::Function => {
-                    inline_function(class, &args, &[], consts, registry, depth + 1)?
+                    // A function may ask how long what it was handed
+                    // is - `size(x, 1)` of an input declared `[:]` -
+                    // and the answer is here rather than in the body.
+                    let shapes: Vec<Vec<i64>> = args
+                        .iter()
+                        .map(|arg| match arg {
+                            Expr::Ref(name) => sizes.get(name).cloned().unwrap_or_default(),
+                            _ => Vec::new(),
+                        })
+                        .collect();
+                    inline_function(class, &args, &shapes, consts, registry, depth + 1)?
                 }
                 // `noEvent(x)` and `smooth(n, x)` are hints about event
                 // generation and continuity; the value is the argument.

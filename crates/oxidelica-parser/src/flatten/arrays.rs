@@ -26,6 +26,7 @@ pub(super) fn expand(
             e,
             shapes.loop_vars,
             shapes.consts,
+            shapes.sizes,
             registry,
             scope,
             imports,
@@ -414,9 +415,12 @@ pub(super) fn expand_call(
         ("size", 2) => {
             let shape = recur(&args[0])?.shape();
             let dimension = constant(&args[1])?;
-            let length = shape
-                .get((dimension - 1).max(0) as usize)
-                .ok_or_else(|| format!("size(..., {dimension}): there is no such dimension"))?;
+            let length = shape.get((dimension - 1).max(0) as usize).ok_or_else(|| {
+                format!(
+                    "size(..., {dimension}): {} is of shape {shape:?}",
+                    crate::flatten::names::sketch(&args[0])
+                )
+            })?;
             Ok(Value::Scalar(Expr::Number(*length as f64)))
         }
         // Reductions.
@@ -849,6 +853,7 @@ pub(super) fn expand_call(
                     &Expr::Call(name.to_string(), scalars),
                     shapes.loop_vars,
                     shapes.consts,
+                    shapes.sizes,
                     registry,
                     scope,
                     imports,
@@ -890,6 +895,7 @@ pub(super) fn expand_call(
                         &Expr::Call(name.to_string(), args),
                         shapes.loop_vars,
                         shapes.consts,
+                        shapes.sizes,
                         registry,
                         scope,
                         imports,

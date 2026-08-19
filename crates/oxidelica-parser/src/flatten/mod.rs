@@ -665,6 +665,9 @@ struct Site<'a> {
 struct Level<'a> {
     /// Instance path prefix of the enclosing class.
     prefix: &'a str,
+    /// How long the arrays in view are, by the name an expression
+    /// written here would use: a declaration's value may ask.
+    sizes: &'a HashMap<String, Vec<i64>>,
     /// `outer` declaration name -> flat path of the `inner` instance.
     outers: &'a HashMap<String, String>,
     /// `inner` instances the components below can bind to.

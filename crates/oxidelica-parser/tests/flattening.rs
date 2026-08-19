@@ -3075,10 +3075,10 @@ fn arrays_refuse_what_does_not_fit() {
         err("model M parameter Real k[3] = {1, 2}; Real x; equation x = k[1]; end M;")
             .contains("element")
     );
-    // size of a missing dimension.
+    // size of a missing dimension, said with the shape it does have.
     assert!(
         err("model M Real v[2]; Real s; equation v = {1, 2}; s = size(v, 3); end M;")
-            .contains("no such dimension")
+            .contains("is of shape [2]")
     );
     // Elementwise between lengths that differ.
     assert!(
@@ -5360,4 +5360,32 @@ fn terminate_takes_the_message_it_is_given() {
     .expect_err("not a message")
     .message;
     assert!(error.contains("string message"), "{error}");
+}
+
+/// A function asked how long what it was handed is.
+#[test]
+fn a_function_measures_what_it_was_handed_by_either_name() {
+    // `quasiRMS(i)` where `i[m]` comes from a base class: the length
+    // is the caller's to give, and the body reads it by the caller's
+    // name once the argument is substituted in.
+    let m = parse_model(
+        "package P \
+           function meanOf input Real x[:]; output Real y; \
+           algorithm y := sum(x) / size(x, 1); end meanOf; \
+           partial model TwoPlug parameter Integer m = 3; Real i[m]; end TwoPlug; \
+           model Stray extends TwoPlug; Real iMean = meanOf(i); \
+           equation i = fill(time, m); end Stray; \
+         end P; \
+         model M P.Stray s; Real y; equation y = s.iMean; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a length the caller gives");
+    let mean = m
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "s.iMean"))
+        .expect("the mean");
+    let written = format!("{:?}", mean.rhs);
+    assert!(written.contains("s.i[3]"), "{written}");
+    assert!(written.contains("Number(3.0)"), "{written}");
 }

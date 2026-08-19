@@ -360,6 +360,7 @@ pub(super) fn execute(
                                 &c,
                                 &HashMap::new(),
                                 consts,
+                                sizes,
                                 registry,
                                 scope,
                                 imports,
@@ -1150,6 +1151,13 @@ fn inline_body(
                 if let Some(shape) = shapes.get(index) {
                     if !shape.is_empty() {
                         given_shapes.insert(input.name.clone(), shape.clone());
+                        // The body reads the argument by the caller's
+                        // name once the binding is substituted in, so
+                        // `size(x, 1)` becomes `size(s.i, 1)` and has
+                        // to find the length under that name too.
+                        if let Expr::Ref(given) = arg {
+                            given_shapes.insert(given.clone(), shape.clone());
+                        }
                     }
                 }
             }

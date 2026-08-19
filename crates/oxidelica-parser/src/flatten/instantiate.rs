@@ -196,8 +196,17 @@ pub(super) fn instantiate(
             // the inlining will not do leaves the parameter for a
             // later round, or for no round at all.
             let settled = const_eval(&expr, &env).or_else(|| {
-                let inlined =
-                    resolve(&expr, &HashMap::new(), &env, registry, scope, &imports, 0).ok()?;
+                let inlined = resolve(
+                    &expr,
+                    &HashMap::new(),
+                    &env,
+                    &HashMap::new(),
+                    registry,
+                    scope,
+                    &imports,
+                    0,
+                )
+                .ok()?;
                 const_eval(&inlined, &env)
             });
             if let Some(value) = settled {
@@ -522,6 +531,7 @@ pub(super) fn instantiate(
 
         let level = Level {
             prefix,
+            sizes: &sizes_here,
             outers: &outers,
             inners: &inners,
             overrides,
@@ -660,6 +670,7 @@ pub(super) fn instantiate(
             &prefix_expr(&expr, prefix, &outers),
             &HashMap::new(),
             &local_consts,
+            &sizes_here,
             registry,
             scope,
             &imports,
@@ -1282,6 +1293,7 @@ pub(super) fn instantiate_one(
     } = *site;
     let Level {
         prefix,
+        sizes,
         outers,
         inners,
         overrides,
@@ -1300,6 +1312,7 @@ pub(super) fn instantiate_one(
                     &prefix_expr(&e, prefix, outers),
                     &HashMap::new(),
                     local_consts,
+                    sizes,
                     registry,
                     scope,
                     imports,
