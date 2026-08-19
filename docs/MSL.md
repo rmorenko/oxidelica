@@ -40,8 +40,8 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2590 read, 84 not read
-classes: 4628; example models: 625, of which 57 flatten
+files: 2610 read, 64 not read
+classes: 4764; example models: 632, of which 73 flatten
 ```
 
 Two numbers, and they mean different things. **Read** is the parser:
@@ -72,28 +72,30 @@ end MslRc;
 
 ## What it does not
 
-The 84 files that will not parse, and the example models that will not
+The 64 files that will not parse, and the example models that will not
 flatten, are not a long tail of small things. They are a handful of
 features, each used widely:
 
-- **Arrays on a component's type** — `FixedHeatFlow[n] heat;` rather
-  than `FixedHeatFlow heat[n];`. 19 files.
-- **Array dimensions on a type alias** — `type Orientation = Real[4];`.
-  8 files.
+- **A subscript a parameter decides** — an array indexed by something
+  settled from the parameters rather than written as a literal. 48
+  models, the largest single refusal.
 - **Media** — `Modelica.Media` is built on replaceable packages and
   functions with `noDerivative` annotations, and reaches C for its
-  property tables.
+  property tables. 36 models between the two ways it is refused.
+- **A `:` whose length a modifier gives** — 26 models, all through the
+  visual shapes of `MultiBody.World`.
+- **`Clock` with named arguments** — 16 models of the clocked library
+  write `Clock(interval = 0.1)`.
+- **A call written as an equation** — `f(x);` among the equations
+  rather than `lhs = rhs`. 14 files.
 - **External C bodies** — the tables, the LAPACK bindings, the file
   reading. These parse and are refused where they are called, which is
   the honest answer: there is no C here to run.
-- **Matrices as values** — an equation between a `[3]` and a scalar,
-  which is what `Modelica.Mechanics.MultiBody` is written in.
-- **`StateSelect`** — the built-in enumeration a model uses to tell a
-  compiler which variables it would rather integrate.
 
 The list is measured rather than guessed: `library check` ranks the
 reasons by how often each came up, and that ranking is what the work
-follows.
+follows. `library check --list` names the models that flatten, which is
+what tells a step forward from a step sideways.
 
 ## Compatibility as a rule
 
@@ -101,5 +103,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "57 of 625" mean anything — without it, one unparsed file would
+like "73 of 632" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.
