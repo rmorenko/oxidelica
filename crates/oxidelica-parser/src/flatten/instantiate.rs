@@ -1054,6 +1054,42 @@ pub(super) fn instantiate(
                     WhenAction::Terminate(message) => {
                         actions.push(WhenAction::Terminate(message.clone()))
                     }
+                    // `for i in 1:n loop k[i] = ...; end for;` at an
+                    // event: the loop is unrolled the way one among
+                    // the equations is, and each round's equation
+                    // becomes an assignment of its own. It is unrolled
+                    // into the equations and taken straight back out,
+                    // there being one unroller and no reason for two.
+                    WhenAction::Loop(loop_eq) => {
+                        let boundary = acc.equations.len();
+                        let drawn = acc.connects.len();
+                        unroll(
+                            loop_eq,
+                            &HashMap::new(),
+                            &local_consts,
+                            prefix,
+                            &outers,
+                            &sizes_here,
+                            registry,
+                            scope,
+                            &imports,
+                            acc,
+                        )?;
+                        if acc.connects.len() != drawn {
+                            return Err("a loop inside `when` assigns variables, one per round; \
+                                        a connection is drawn once and for all, not at an event"
+                                .to_string());
+                        }
+                        for round in acc.equations.drain(boundary..).collect::<Vec<_>>() {
+                            let Expr::Ref(target) = round.lhs else {
+                                return Err(
+                                    "a loop inside `when` assigns variables, one per round"
+                                        .to_string(),
+                                );
+                            };
+                            actions.push(WhenAction::Assign(target, round.rhs));
+                        }
+                    }
                     // `(a, b) = f(x)` at an event: the call is inlined
                     // once per output, and each target gets an
                     // assignment of its own. A skipped slot costs its

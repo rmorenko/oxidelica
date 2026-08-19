@@ -435,6 +435,11 @@ pub enum WhenAction {
     /// the call and hands each target its own assignment, so nothing
     /// downstream meets this form.
     TupleAssign(Vec<Option<String>>, Expr),
+    /// `for i in 1:n loop k[i] = ...; end for;` inside a `when`. The
+    /// loop is unrolled while flattening, the variable being a
+    /// compile-time constant, and what comes out is one assignment per
+    /// round - so nothing downstream meets this form either.
+    Loop(ForEquation),
 }
 
 /// One branch of a `when` clause: `when c1 then … elsewhen c2 then …`.

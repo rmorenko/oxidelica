@@ -40,7 +40,7 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2614 read, 60 not read
+files: 2617 read, 57 not read
 classes: 4764; example models: 632, of which 141 flatten
 ```
 

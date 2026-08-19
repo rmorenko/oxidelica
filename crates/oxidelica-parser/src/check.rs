@@ -53,9 +53,10 @@ pub fn verify(model: &Model) -> Result<(), String> {
                     }
                     WhenAction::Terminate(_) => {}
                     // Flattening inlines the call and hands each
-                    // target its own assignment, so by here there is
-                    // no tuple left to check.
-                    WhenAction::TupleAssign(..) => {}
+                    // target its own assignment, and unrolls a loop
+                    // into one assignment per round, so by here there
+                    // is neither left to check.
+                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) => {}
                 }
             }
         }

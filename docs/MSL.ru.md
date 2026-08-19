@@ -40,7 +40,7 @@ oxidelica library add https://github.com/example/Library.git --version v2.0 --as
 против MSL 4.1.0:
 
 ```text
-files: 2614 read, 60 not read
+files: 2617 read, 57 not read
 classes: 4764; example models: 632, of which 141 flatten
 ```
 

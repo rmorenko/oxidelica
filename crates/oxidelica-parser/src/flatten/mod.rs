@@ -365,6 +365,8 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                             *value = resolve_streams(value, &context)?;
                         }
                         WhenAction::Terminate(_) => {}
+                        // Unrolled while flattening, so no loop is left.
+                        WhenAction::Loop(_) => {}
                     }
                 }
             }
@@ -497,6 +499,8 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                         *value = answer(value);
                     }
                     WhenAction::Terminate(_) => {}
+                    // Unrolled while flattening, so no loop is left.
+                    WhenAction::Loop(_) => {}
                 }
             }
         }

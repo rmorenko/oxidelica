@@ -356,6 +356,11 @@ impl Parser {
                 Token::Eof => return Err(self.err("unterminated when clause".into())),
                 _ => {}
             }
+            // A loop of assignments, one per round.
+            if self.peek() == &Token::For {
+                actions.push(WhenAction::Loop(self.for_equation()?));
+                continue;
+            }
             // `(a, b) = f(...)` fills several targets from one call.
             if self.peek() == &Token::LParen {
                 if let Some(targets) = self.tuple_targets() {

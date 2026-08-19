@@ -5161,3 +5161,47 @@ fn an_array_of_a_shape_may_be_asked_for_in_full() {
     let filled = m.components.iter().find(|c| c.name == "c[2,3]").unwrap();
     assert!(matches!(filled.binding, Some(Expr::Number(n)) if n == 7.0));
 }
+
+/// A loop of assignments inside a `when`, one per round.
+#[test]
+fn a_loop_may_stand_inside_a_when() {
+    // `for i in 1:n loop k[i] = ...; end for;` at an event is how the
+    // standard library's routing blocks pick a channel. The loop is
+    // unrolled the way one among the equations is, and each round
+    // becomes an assignment of its own.
+    let m = parse_model(
+        "model M parameter Integer n = 3; parameter Integer pick = 2; \
+         discrete Real k[n]; Real y; \
+         equation y = time; \
+         when time > 0.5 then \
+           for i in 1:n loop k[i] = if pick == i then 1 else 0; end for; \
+         end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a loop inside a when");
+    let actions = &m.when_clauses[0].branches[0].actions;
+    assert_eq!(actions.len(), 3);
+    let named: Vec<&str> = actions
+        .iter()
+        .map(|action| match action {
+            oxidelica_parser::WhenAction::Assign(name, _) => name.as_str(),
+            other => panic!("{other:?}"),
+        })
+        .collect();
+    assert_eq!(named, ["k[1]", "k[2]", "k[3]"]);
+    // The second round is the one the pick chose.
+    let written = format!("{actions:?}");
+    assert!(written.contains("Number(1.0)"), "{written}");
+
+    // What such a loop may hold is assignments: a `connect` draws a
+    // connection once and for all, not at an event.
+    let error = parse_model(
+        "connector Pin Real v; end Pin; \
+         model M Pin a[2]; Pin b[2]; Real y; equation y = time; \
+         when time > 0.5 then for i in 1:2 loop connect(a[i], b[i]); end for; end when; \
+         end M;",
+    )
+    .expect_err("no connections at an event")
+    .message;
+    assert!(error.contains("one per round"), "{error}");
+}
