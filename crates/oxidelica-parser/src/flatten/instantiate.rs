@@ -275,10 +275,14 @@ pub(super) fn instantiate(
     for component in &class.components {
         let fresh = taken < acc.sizes.len();
         while taken < acc.sizes.len() {
+            // Every array measured so far, whatever it belongs to: a
+            // modifier handed down is written in the terms of the
+            // class that wrote it, so a child asked to make sense of
+            // `lines[i, 2, :]` has to know how long `drawn.lines` is,
+            // and `drawn` is not below it but above. The names are
+            // full paths and cannot be mistaken for one another.
             let (name, shape) = &acc.sizes[taken];
-            if name.starts_with(prefix) {
-                sizes_here.insert(name.clone(), shape.clone());
-            }
+            sizes_here.insert(name.clone(), shape.clone());
             taken += 1;
         }
         // A parameter may be worth a number only once the
@@ -1521,12 +1525,12 @@ fn array_element(
     let Ok(measured) = expand(value, &shapes, registry, scope, imports, 0) else {
         return value.clone();
     };
-    let mut items = Vec::new();
-    measured.flatten_into(&mut items);
-    if items.len() == count {
-        items[position].clone()
-    } else {
-        value.clone()
+    // The slice is taken along the outermost dimension: an element of
+    // `cylinders[2]` gets one of the two values, and that value may
+    // itself be a vector of three.
+    match measured {
+        Value::Array(items) if items.len() == count => items[position].clone().into_expr(),
+        _ => value.clone(),
     }
 }
 

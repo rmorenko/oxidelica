@@ -416,12 +416,17 @@ impl Parser {
             }
         }
 
-        // The long form of a type extends the predefined type it is
-        // built on - `type TypeString extends String; ... end
-        // TypeString;`. Nothing can be inherited from a predefined
-        // type but the type itself, so this is the short form written
-        // out, and it is recorded as one.
-        if alias_of.is_none() && extends.len() == 1 && is_predefined(&extends[0].base) {
+        // The long form of a type extends the type it is built on -
+        // `type TypeString extends String; ... end TypeString;`, and
+        // `type Orientation extends TransformationMatrix; ... end
+        // Orientation;` where that one is `Real[3, 3]`. A type can
+        // inherit nothing from a type but the type itself, so this is
+        // the short form written out, and it is recorded as one.
+        if alias_of.is_none()
+            && extends.len() == 1
+            && (is_predefined(&extends[0].base)
+                || (kind == ClassKind::Type && components.is_empty()))
+        {
             let base = extends.remove(0);
             alias_of = Some((base.base, base.modifiers));
         }

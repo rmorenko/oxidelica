@@ -95,31 +95,40 @@ pub(super) fn expand(
             }
             Value::Array(out)
         }
-        // `[a, b; c, d]`: rows concatenated along the first dimension,
-        // the elements of a row along the second. A scalar element is a
-        // 1x1 block; vector elements lie along the row.
+        // `[a, b; c, d]`: every part is a matrix, and they are joined
+        // side by side within a row and one row under another. A
+        // scalar is one by one; a vector of n is n rows of one - a
+        // column, which is what makes `[v; 0]` a vector one longer
+        // rather than two rows of different widths.
         Expr::MatrixRows(rows) => {
-            let mut out_rows: Vec<Value> = Vec::new();
+            let mut out_rows: Vec<Vec<Expr>> = Vec::new();
             for row in rows {
-                let mut cells: Vec<Value> = Vec::new();
+                let mut blocks: Vec<Vec<Vec<Expr>>> = Vec::new();
                 for item in row {
-                    match recur(item)? {
-                        Value::Scalar(expr) => cells.push(Value::Scalar(expr)),
-                        Value::Array(items) => cells.extend(items),
+                    blocks.push(as_block(recur(item)?)?);
+                }
+                let height = blocks.first().map_or(0, |block| block.len());
+                if blocks.iter().any(|block| block.len() != height) {
+                    return Err("the parts of one row of a matrix must be equally tall".to_string());
+                }
+                for line in 0..height {
+                    let mut cells = Vec::new();
+                    for block in &blocks {
+                        cells.extend(block[line].iter().cloned());
                     }
-                }
-                out_rows.push(Value::Array(cells));
-            }
-            let width = out_rows
-                .first()
-                .map(|row| row.shape().first().copied().unwrap_or(0))
-                .unwrap_or(0);
-            for row in &out_rows {
-                if row.shape().first().copied().unwrap_or(0) != width {
-                    return Err("the rows of a matrix must be equally wide".to_string());
+                    out_rows.push(cells);
                 }
             }
-            Value::Array(out_rows)
+            let width = out_rows.first().map_or(0, |row| row.len());
+            if out_rows.iter().any(|row| row.len() != width) {
+                return Err("the rows of a matrix must be equally wide".to_string());
+            }
+            Value::Array(
+                out_rows
+                    .into_iter()
+                    .map(|row| Value::Array(row.into_iter().map(Value::Scalar).collect()))
+                    .collect(),
+            )
         }
         Expr::ColonSubscript | Expr::EndSubscript => {
             return Err("`:` and `end` make sense only inside a subscript".to_string())
@@ -273,6 +282,30 @@ pub(super) fn expand(
             _ => scalar(expr)?,
         },
         other => scalar(other)?,
+    })
+}
+
+/// One part of a `[ ]` as the matrix it stands for: a scalar is one by
+/// one, a vector of n is n rows of one, a matrix is itself.
+fn as_block(value: Value) -> Result<Vec<Vec<Expr>>, String> {
+    Ok(match value {
+        Value::Scalar(expr) => vec![vec![expr]],
+        Value::Array(items) => {
+            let mut rows = Vec::new();
+            for item in items {
+                match item {
+                    Value::Scalar(expr) => rows.push(vec![expr]),
+                    Value::Array(cells) => {
+                        let mut line = Vec::new();
+                        for cell in cells {
+                            line.push(cell.scalar()?);
+                        }
+                        rows.push(line);
+                    }
+                }
+            }
+            rows
+        }
     })
 }
 
@@ -510,6 +543,22 @@ pub(super) fn expand_call(
             Ok(Value::Scalar(reduced))
         }
         // Constructors.
+        // `vector(A)` reads an array with at most one dimension worth
+        // more than one as the values along it: `[v; 0]` is a column,
+        // and `vector` of it is the vector again, one longer.
+        ("vector", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            if shape.iter().filter(|length| **length > 1).count() > 1 {
+                return Err(format!(
+                    "`vector` reads an array with one dimension worth more than one, \
+                     and this is of shape {shape:?}"
+                ));
+            }
+            let mut items = Vec::new();
+            value.flatten_into(&mut items);
+            Ok(Value::Array(items.into_iter().map(Value::Scalar).collect()))
+        }
         // `zeros(n)`, `zeros(n, m)`, `zeros(n, m, k)` - as many
         // dimensions as it is given, and the same for `ones`.
         ("zeros", _) | ("ones", _) if !args.is_empty() => {

@@ -5389,3 +5389,65 @@ fn a_function_measures_what_it_was_handed_by_either_name() {
     assert!(written.contains("s.i[3]"), "{written}");
     assert!(written.contains("Number(3.0)"), "{written}");
 }
+
+/// `[ ]` puts its parts together the way the language says: a vector
+/// is a column, not a row.
+#[test]
+fn a_matrix_is_built_from_columns_and_rows() {
+    // `[v; 0]` with `v` of two is a column of three, which is what
+    // `vector` reads back. Written the other way it would be two rows
+    // of different widths and no matrix at all.
+    let m = parse_model(
+        "model M parameter Real a[2, 2] = {{1, 2}, {3, 4}}; Real v[3]; Real y; \
+         equation v = vector([a[1, :]; 0]); y = sum(v); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a vector as a column");
+    let rhs = |name: &str| rhs_of(&m, name);
+    assert_eq!(rhs("v[1]"), "Ref(\"a[1,1]\")");
+    assert_eq!(rhs("v[2]"), "Ref(\"a[1,2]\")");
+    assert_eq!(rhs("v[3]"), "Number(0.0)");
+
+    // Side by side within a row, one row under another.
+    let m = parse_model(
+        "model M parameter Real c[2] = {1, 2}; Real w[2, 2]; Real y; \
+         equation w = [c, c]; y = w[2, 2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("two columns side by side");
+    assert_eq!(rhs_of(&m, "w[2,1]"), "Ref(\"c[2]\")");
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    assert!(
+        err("model M Real v[2]; Real w[2,2]; equation v = {1,2}; w = [v, 1]; end M;")
+            .contains("equally tall")
+    );
+    assert!(
+        err("model M parameter Real a[2,2] = {{1,2},{3,4}}; Real v[4]; \
+         equation v = vector(a); end M;")
+        .contains("one dimension worth more than one")
+    );
+}
+
+/// A type may be written out at length, extending the one it is built
+/// on - and that one may be an array.
+#[test]
+fn a_type_may_be_written_out_at_length() {
+    let m = parse_model(
+        "type Matrix = Real[3, 3]; \
+         type Orientation \"a rotation\" extends Matrix; end Orientation; \
+         model M parameter Orientation r = fill(1, 3, 3); Real y; \
+         equation y = r[2, 2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a type extending an array type");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("r["))
+            .count(),
+        9
+    );
+    let corner = m.components.iter().find(|c| c.name == "r[3,3]").unwrap();
+    assert_eq!(corner.type_name, "Real");
+}
