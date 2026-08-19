@@ -5451,3 +5451,45 @@ fn a_type_may_be_written_out_at_length() {
     let corner = m.components.iter().find(|c| c.name == "r[3,3]").unwrap();
     assert_eq!(corner.type_name, "Real");
 }
+
+/// `ExternalObject` is the language's own, and a class extending it
+/// holds nothing of its own.
+#[test]
+fn an_external_object_is_a_handle_and_no_variables() {
+    // A table held outside Modelica: the class says how to make one
+    // and how to let it go, both in another language. A component of
+    // it is no variables at all.
+    let m = parse_model(
+        "model M class Table extends ExternalObject; \
+           function constructor input String name; output Table t; \
+             external \"C\" t = openTable(name); end constructor; \
+           function destructor input Table t; external \"C\" closeTable(t); end destructor; \
+         end Table; \
+         Table handle = Table(\"data.txt\"); Real y; equation y = time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a handle held outside");
+    assert!(!m.components.iter().any(|c| c.name.starts_with("handle")));
+
+    // What is done with the handle is done by calls this compiler
+    // refuses where they are made.
+    let error = parse_model(
+        "model M class Table extends ExternalObject; \
+           function constructor output Table t; external \"C\" t = openTable(); \
+             end constructor; \
+           function destructor input Table t; external \"C\" closeTable(t); end destructor; \
+         end Table; \
+         function readTable input Table t; output Real v; external \"C\" v = read(t); \
+           end readTable; \
+         Table handle = Table(); Real y; equation y = readTable(handle); end M;",
+    )
+    .expect_err("nothing here can read it")
+    .message;
+    assert!(error.contains("outside Modelica"), "{error}");
+
+    // And `ExternalObject` itself is a base and nothing more.
+    let error = parse_model("model M ExternalObject thing; Real y; equation y = 1; end M;")
+        .expect_err("a base only")
+        .message;
+    assert!(error.contains("partial"), "{error}");
+}

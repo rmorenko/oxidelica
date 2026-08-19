@@ -390,13 +390,13 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2618 parse, and 149 of
+of the Modelica Standard Library's 2674 files, 2618 parse, and 154 of
 its 650 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:
-the multibody library, a member read across an array of components in
-a `connect`, `ExternalObject`, `:` and `end` outside a subscript, and
-external C bodies.
+a class of `Blocks.Math` that is still not read, the multibody
+library's arrays, a clock whose interval comes from a count of ticks,
+and external C bodies.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

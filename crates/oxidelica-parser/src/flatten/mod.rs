@@ -136,15 +136,29 @@ fn annotation_says(said: &[Expr], wanted: &str) -> Option<String> {
 /// ordered from the least to the most insistent, which is the order
 /// the specification gives them and the order a comparison reads.
 fn built_in_classes() -> Vec<ClassDef> {
-    vec![ClassDef {
-        kind: ClassKind::Type,
-        name: "StateSelect".to_string(),
-        enumeration: ["never", "avoid", "default", "prefer", "always"]
-            .iter()
-            .map(|literal| literal.to_string())
-            .collect(),
-        ..ClassDef::empty()
-    }]
+    vec![
+        ClassDef {
+            kind: ClassKind::Type,
+            name: "StateSelect".to_string(),
+            enumeration: ["never", "avoid", "default", "prefer", "always"]
+                .iter()
+                .map(|literal| literal.to_string())
+                .collect(),
+            ..ClassDef::empty()
+        },
+        // `ExternalObject` is the handle a library keeps outside
+        // Modelica: a class extending it says how to make one and how
+        // to let it go, both in another language. It holds nothing of
+        // its own, so a component of such a class is no variables at
+        // all - and what is done with the handle is done by calls this
+        // compiler refuses where they are made.
+        ClassDef {
+            kind: ClassKind::Model,
+            name: "ExternalObject".to_string(),
+            partial: true,
+            ..ClassDef::empty()
+        },
+    ]
 }
 
 /// Flatten a model and everything it holds into one system of
