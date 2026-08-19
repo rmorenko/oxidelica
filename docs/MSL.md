@@ -40,8 +40,8 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2617 read, 57 not read
-classes: 4964; example models: 650, of which 142 flatten
+files: 2618 read, 56 not read
+classes: 4994; example models: 650, of which 146 flatten
 ```
 
 Two numbers, and they mean different things. **Read** is the parser:
@@ -97,5 +97,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "142 of 650" mean anything — without it, one unparsed file would
+like "146 of 650" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

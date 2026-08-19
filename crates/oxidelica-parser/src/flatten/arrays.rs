@@ -255,73 +255,102 @@ pub(super) fn expand(
         Expr::Index(base, subscripts) => {
             let base_value = recur(base)?;
             match base_value {
-                Value::Array(_) => {
-                    // A subscript picks one element; a range, a `:` or a
-                    // vector of indices takes a slice; `end` stands for
-                    // this dimension's length.
-                    let mut current = base_value;
-                    for subscript in subscripts {
-                        let Value::Array(items) = current else {
-                            return Err("more subscripts than dimensions".to_string());
-                        };
-                        let length = items.len();
-                        let one = |index: f64| -> Result<Value, String> {
-                            if index.fract() != 0.0 || index < 1.0 || index as usize > length {
-                                return Err(format!(
-                                    "subscript {index} is outside an array of {length}"
-                                ));
-                            }
-                            Ok(items[index as usize - 1].clone())
-                        };
-                        let with_end = substitute_end(subscript, length as f64);
-                        current = match &with_end {
-                            Expr::ColonSubscript => Value::Array(items.clone()),
-                            _ => match expand(
-                                &with_end,
-                                shapes,
-                                registry,
-                                scope,
-                                imports,
-                                depth + 1,
-                            )? {
-                                Value::Scalar(index) => {
-                                    let value = constant_here(&index).ok_or_else(|| {
-                                        "a subscript into an array value must be a                                          compile-time constant"
-                                            .to_string()
-                                    })?;
-                                    // A Boolean subscript indexes off its
-                                    // `false` lower bound: `false` is the
-                                    // first element, `true` the second.
-                                    let value = if is_boolean(&with_end) {
-                                        value + 1.0
-                                    } else {
-                                        value
-                                    };
-                                    one(value)?
-                                }
-                                Value::Array(picks) => {
-                                    // A vector subscript selects a slice.
-                                    let mut out = Vec::with_capacity(picks.len());
-                                    for pick in picks {
-                                        let index =
-                                            constant_here(&pick.scalar()?).ok_or_else(|| {
-                                                "a slicing subscript must be constant at                                                  compile time"
-                                                    .to_string()
-                                            })?;
-                                        out.push(one(index)?);
-                                    }
-                                    Value::Array(out)
-                                }
-                            },
-                        };
-                    }
-                    current
-                }
+                Value::Array(_) => index_into(
+                    base_value, subscripts, shapes, registry, scope, imports, depth,
+                )?,
                 _ => scalar(expr)?,
             }
         }
+        // `ac.pin[:].v` - a member read off each of the connectors a
+        // slice kept. The slice is an array of names, and the member
+        // goes on every one of them.
+        Expr::Member(base, path) => match recur(base)? {
+            array @ Value::Array(_) => map_value(&array, &|element| match element {
+                Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
+                other => Expr::Member(Box::new(other), path.clone()),
+            }),
+            _ => scalar(expr)?,
+        },
         other => scalar(other)?,
     })
+}
+
+/// Read subscripts into an array value.
+///
+/// A subscript picks one element; a range, a `:` or a vector of indices
+/// takes several. What matters is that the subscripts after a slice
+/// apply *inside* each element it kept, not to the slice as a whole:
+/// `a[:, 3]` is the third of every row, and reading the two in turn
+/// would take the third row instead. `end` stands for the length of
+/// the dimension it is written in.
+#[allow(clippy::too_many_arguments)]
+fn index_into(
+    value: Value,
+    subscripts: &[Expr],
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    if depth > MAX_DEPTH {
+        return Err(format!("subscripts {NO_BOTTOM}"));
+    }
+    let Some((subscript, rest)) = subscripts.split_first() else {
+        return Ok(value);
+    };
+    let Value::Array(items) = value else {
+        return Err("more subscripts than dimensions".to_string());
+    };
+    let length = items.len();
+    let constant_here = |e: &Expr| -> Option<f64> {
+        let mut env = shapes.consts.clone();
+        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+        const_eval(e, &env)
+    };
+    let inner = |item: Value| index_into(item, rest, shapes, registry, scope, imports, depth + 1);
+    let one = |index: f64| -> Result<Value, String> {
+        if index.fract() != 0.0 || index < 1.0 || index as usize > length {
+            return Err(format!("subscript {index} is outside an array of {length}"));
+        }
+        inner(items[index as usize - 1].clone())
+    };
+    let with_end = substitute_end(subscript, length as f64);
+    if let Expr::ColonSubscript = &with_end {
+        return Ok(Value::Array(
+            items
+                .into_iter()
+                .map(inner)
+                .collect::<Result<Vec<_>, String>>()?,
+        ));
+    }
+    match expand(&with_end, shapes, registry, scope, imports, depth + 1)? {
+        Value::Scalar(index) => {
+            let value = constant_here(&index).ok_or_else(|| {
+                "a subscript into an array value must be a compile-time constant".to_string()
+            })?;
+            // A Boolean subscript indexes off its `false` lower bound:
+            // `false` is the first element, `true` the second.
+            let value = if is_boolean(&with_end) {
+                value + 1.0
+            } else {
+                value
+            };
+            one(value)
+        }
+        Value::Array(picks) => {
+            // A vector subscript takes the elements it names, and what
+            // follows applies inside each of them.
+            let mut out = Vec::with_capacity(picks.len());
+            for pick in picks {
+                let index = constant_here(&pick.scalar()?).ok_or_else(|| {
+                    "a slicing subscript must be constant at compile time".to_string()
+                })?;
+                out.push(one(index)?);
+            }
+            Ok(Value::Array(out))
+        }
+    }
 }
 
 /// The array built-ins, and the ordinary ones applied to every element.

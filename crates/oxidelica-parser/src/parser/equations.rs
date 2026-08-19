@@ -399,14 +399,14 @@ impl Parser {
                 }
                 ("terminate", Token::LParen) => {
                     self.bump();
-                    let message = match self.bump() {
-                        Token::Str(message) => message,
-                        other => {
-                            return Err(self.err(format!(
-                                "terminate expects a string message, found `{other}`"
-                            )))
-                        }
-                    };
+                    // The message may be built rather than written out,
+                    // the way an `assert` message may: what is kept is
+                    // the text of it that stands before the run.
+                    let written = self.expr()?;
+                    if matches!(written, Expr::Number(_) | Expr::Bool(_)) {
+                        return Err(self.err("terminate expects a string message".to_string()));
+                    }
+                    let message = super::statements::message_text(&written);
                     self.expect(&Token::RParen, "closing parenthesis of terminate")?;
                     actions.push(WhenAction::Terminate(message));
                 }

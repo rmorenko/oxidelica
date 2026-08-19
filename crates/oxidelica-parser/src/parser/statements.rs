@@ -292,7 +292,7 @@ impl Parser {
 /// something only the run knows - has no text to give here. The
 /// message is diagnostic, so such a piece stands as `?` and the
 /// literal parts, which are what say what went wrong, are kept.
-fn message_text(expr: &Expr) -> String {
+pub(super) fn message_text(expr: &Expr) -> String {
     match expr {
         Expr::Str(text) => text.clone(),
         Expr::Bin(BinOp::Add, a, b) => message_text(a) + &message_text(b),

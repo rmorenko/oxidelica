@@ -5272,3 +5272,92 @@ fn a_parameter_is_settled_by_whatever_can_settle_it() {
         .unwrap();
     assert!(matches!(second.binding, Some(Expr::Number(v)) if v == 2.0));
 }
+
+/// A slice standing where a value is wanted.
+#[test]
+fn a_slice_may_stand_where_a_value_is_wanted() {
+    // `a[2, :]` is a row, `a[:, 3]` a column. What matters is that the
+    // subscripts after a slice apply inside each element it kept: read
+    // one after the other, `a[:, 3]` would take the third row.
+    let m = parse_model(
+        "model M parameter Real a[2, 3] = {{1, 2, 3}, {4, 5, 6}}; \
+         Real row[3]; Real col[2]; Real y; \
+         equation row = a[2, :]; col = a[:, 3]; y = sum(row) + sum(col); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a slice as a value");
+    let rhs = |name: &str| {
+        format!(
+            "{:?}",
+            m.equations
+                .iter()
+                .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == name))
+                .unwrap()
+                .rhs
+        )
+    };
+    assert_eq!(rhs("row[1]"), "Ref(\"a[2,1]\")");
+    assert_eq!(rhs("row[3]"), "Ref(\"a[2,3]\")");
+    assert_eq!(rhs("col[1]"), "Ref(\"a[1,3]\")");
+    assert_eq!(rhs("col[2]"), "Ref(\"a[2,3]\")");
+
+    // `ac.pin[:].v` - a member read off each of the connectors a slice
+    // kept, which is how the converter library reads its plug.
+    let m = parse_model(
+        "connector Pin Real v; end Pin; \
+         model Plug Pin pin[3]; end Plug; \
+         model M Plug ac; Real vAC[3]; Real y; \
+         equation vAC = ac.pin[:].v; ac.pin[:].v = {1, 2, 3}; y = vAC[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a member off a slice");
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("ac.pin[3].v"), "{written}");
+
+    // `end` still stands for the length of the dimension it is written
+    // in, and a slice may be taken with a vector of indices.
+    let m = parse_model(
+        "model M parameter Real v[4] = {1, 2, 3, 4}; Real last; Real picked[2]; Real y; \
+         equation last = v[end]; picked = v[{2, 4}]; y = last + sum(picked); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("end and a vector subscript");
+    assert_eq!(rhs_of(&m, "last"), "Ref(\"v[4]\")");
+    assert_eq!(rhs_of(&m, "picked[1]"), "Ref(\"v[2]\")");
+    assert_eq!(rhs_of(&m, "picked[2]"), "Ref(\"v[4]\")");
+}
+
+/// The right-hand side of the equation defining `name`.
+fn rhs_of(model: &oxidelica_parser::Model, name: &str) -> String {
+    format!(
+        "{:?}",
+        model
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == name))
+            .unwrap_or_else(|| panic!("no equation for {name}"))
+            .rhs
+    )
+}
+
+/// `terminate` may be given a message built rather than written out.
+#[test]
+fn terminate_takes_the_message_it_is_given() {
+    let m = parse_model(
+        "model M parameter String why = \"done\"; Real x; \
+         equation x = time; \
+         when x > 0.5 then terminate(\"stopped: \" + why); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a built message");
+    let said = format!("{:?}", m.when_clauses[0].branches[0].actions);
+    assert!(said.contains("stopped: "), "{said}");
+
+    // A number is not a message, and it says so.
+    let error = parse_model(
+        "model M Real x; equation x = 1; when x > 1 then terminate(42); end when; end M;",
+    )
+    .expect_err("not a message")
+    .message;
+    assert!(error.contains("string message"), "{error}");
+}
