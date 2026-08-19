@@ -603,7 +603,13 @@ pub(super) fn instantiate(
                         let bound = prefix_expr(bound, prefix, &outers);
                         dimension_value(&bound, &local_consts, &sizes_here)
                     };
-                    let value = const_eval(dimension, &local_consts)
+                    // A length may be a constant of a package the class
+                    // is written inside - `Xi[nXi]` of a medium counts
+                    // its substances - and that is a name no
+                    // environment holds.
+                    let named =
+                        substitute_class_constants(dimension, registry, scope, &imports, &shadow);
+                    let value = const_eval(&named, &local_consts)
                         .or_else(|| off_a_length().map(|length| length as f64))
                         .ok_or_else(|| {
                             format!("dimension of `{flat_name}` is not a compile-time constant")
@@ -1882,7 +1888,7 @@ type GivenBranch = (Option<Expr>, Vec<(String, Expr)>);
 /// redeclaring, since that is what it is called; what is wanted is the
 /// one it replaces, and that lives in a base of the class it is
 /// written in.
-fn inherited_class<'a>(
+pub(super) fn inherited_class<'a>(
     registry: &HashMap<&'a str, &'a ClassDef>,
     class: &ClassDef,
     wanted: &str,
@@ -2110,8 +2116,12 @@ pub(super) fn unroll(
                 consts,
                 records: no_records(),
             };
+            // The bounds may be constants of a package the class is
+            // written inside, and those are put in before the class's
+            // own prefix goes on: `1:nX` counts a medium's substances.
+            let range = substitute_class_constants(range, registry, scope, imports, &[]);
             let spread = expand(
-                &prefix_expr(range, prefix, outers),
+                &prefix_expr(&range, prefix, outers),
                 &shapes,
                 registry,
                 scope,

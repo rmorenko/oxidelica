@@ -2,7 +2,7 @@
 //! at the place they were called.
 
 use super::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 thread_local! {
     /// Checks set aside on the way out of an inlined function.
@@ -52,6 +52,31 @@ pub(super) fn checks_guarded(mark: usize, condition: &Expr, on_true: bool) {
 /// Take every check set aside since `mark`, in the order they came.
 pub(super) fn checks_taken(mark: usize) -> Vec<(Expr, String)> {
     SET_ASIDE.with(|aside| aside.borrow_mut().split_off(mark))
+}
+
+/// How far one call may be inlined inside another before the answer is
+/// that it did not come to an end here.
+const MAX_NESTED_CALLS: usize = 64;
+
+thread_local! {
+    /// How many calls are being inlined inside one another.
+    static INLINING: Cell<usize> = const { Cell::new(0) };
+}
+
+/// One step further into the nesting, undone when it goes out of view.
+struct Nested;
+
+impl Nested {
+    fn deeper() -> Self {
+        INLINING.with(|deep| deep.set(deep.get() + 1));
+        Nested
+    }
+}
+
+impl Drop for Nested {
+    fn drop(&mut self) {
+        INLINING.with(|deep| deep.set(deep.get() - 1));
+    }
 }
 
 /// How a body says it cannot be unrolled.
@@ -652,6 +677,14 @@ pub(super) fn inline_function(
     // halving m until it is odd, and with m a parameter every step of
     // that is decidable. So the unrolling is tried, and the depth
     // guard inside is what says it will not come to an end.
+    // A body is inlined into a body into a body: the media library
+    // asks a property of a property of a state, and each step starts
+    // its own count. What is nested this deep did not come to an end
+    // by inlining, so the call is left standing and the run walks it.
+    if INLINING.with(|deep| deep.get()) > MAX_NESTED_CALLS {
+        return Ok(Expr::Call(class.name.clone(), args.to_vec()));
+    }
+    let _nested = Nested::deeper();
     let standing = || Ok(Expr::Call(class.name.clone(), args.to_vec()));
     // Where a body leads back to itself the unrolling is a try rather
     // than a demand: the walk is waiting behind it, so anything the
@@ -1155,6 +1188,39 @@ pub(super) fn inline_function_checks(
     Ok(checks)
 }
 
+/// Every declaration of a function, its bases' first.
+///
+/// A function may say only what it does - `redeclare function extends
+/// bubbleEnthalpy` - and leave what it takes and answers with to the
+/// one it extends. The base's declarations come first, since that is
+/// the order the arguments are given in.
+fn function_components(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    depth: usize,
+) -> Vec<Component> {
+    let mut out = Vec::new();
+    if depth > MAX_DEPTH {
+        return out;
+    }
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        };
+        if let Some(base) = base {
+            out.extend(function_components(registry, base, depth + 1));
+        }
+    }
+    for component in &class.components {
+        // What the class writes for itself replaces what it inherited
+        // of that name rather than joining it.
+        out.retain(|kept: &Component| kept.name != component.name);
+        out.push(component.clone());
+    }
+    out
+}
+
 /// Run a function body and give back what each output came to, with
 /// the checks the body made collected into `checks`.
 fn inline_body(
@@ -1193,13 +1259,15 @@ fn inline_body(
             class.name
         ));
     }
-    let inputs: Vec<&Component> = class
-        .components
+    // What a function takes and answers with may be written in a base
+    // of it: `redeclare function extends bubbleEnthalpy` says only what
+    // the body is, and the base says what goes in and comes out.
+    let declared = function_components(registry, class, 0);
+    let inputs: Vec<&Component> = declared
         .iter()
         .filter(|c| c.causality == Causality::Input)
         .collect();
-    let outputs: Vec<&Component> = class
-        .components
+    let outputs: Vec<&Component> = declared
         .iter()
         .filter(|c| c.causality == Causality::Output)
         .collect();

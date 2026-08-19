@@ -6211,3 +6211,58 @@ fn a_body_reads_an_element_off_what_it_was_handed() {
     let written = format!("{:?}", m.equations);
     assert!(written.contains("r.T[2,1]"), "{written}");
 }
+
+/// A package handed to a class replaces the one it was written with,
+/// and what is reached through it is reached in full.
+#[test]
+fn a_package_may_be_handed_to_a_class() {
+    const PARTS: &str = "package P \
+        package Base \
+          constant String substances[:] = {\"water\", \"air\"}; \
+          constant Integer n = size(substances, 1); \
+          model Props Real T; Real x[n]; Real h; \
+            equation h = T; for i in 1:n loop x[i] = i * T; end for; end Props; \
+        end Base; \
+        package Warm extends P.Base; end Warm; \
+        partial model Source replaceable package Medium = P.Base; \
+          Medium.Props medium; end Source; \
+      end P; ";
+
+    // The package is handed down, and `Props` belongs to a base of it.
+    let m = parse_model(&format!(
+        "{PARTS} model M extends P.Source(redeclare package Medium = P.Warm); \
+         Real y; equation medium.T = time; y = medium.h; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .expect("a package handed to a class");
+    // Two substances counted off a list of names, so two elements and
+    // two equations for them.
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("medium.x["))
+            .count(),
+        2
+    );
+}
+
+/// A function may say only what it does and leave what it takes to the
+/// one it extends.
+#[test]
+fn a_function_may_take_what_its_base_declares() {
+    let m = parse_model(
+        "package P partial package Shape \
+           replaceable partial function area input Real side; output Real a; end area; \
+         end Shape; \
+         package Square extends P.Shape; \
+           redeclare function extends area algorithm a := side * side; end area; \
+         end Square; end P; \
+         model M Real y; equation y = P.Square.area(3); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a function taking what its base declares");
+    assert_eq!(
+        format!("{:?}", m.equations[0].rhs),
+        "Bin(Mul, Number(3.0), Number(3.0))"
+    );
+}

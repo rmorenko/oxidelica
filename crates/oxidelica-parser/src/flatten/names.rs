@@ -478,6 +478,15 @@ fn substitute_at(
                     }
                 }
             }
+            // A constant of a package this class is written inside is
+            // named without one: `nXi` inside `BaseProperties` is the
+            // medium's. Only packages are asked - what a model holds is
+            // not in view of what is written inside another class of it.
+            if !shadow.contains(&name.as_str()) {
+                if let Some(value) = enclosing_constant(registry, name, scope, depth) {
+                    return Expr::Number(value);
+                }
+            }
             expr.clone()
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
@@ -492,6 +501,24 @@ fn substitute_at(
         // A library gives the language's own operators a place in its
         // tree with `external "builtin" y = asin(u)`; a call to one of
         // those is a call to the operator.
+        // `size(substanceNames, 1)` where the list is a constant of the
+        // package: this is what a medium counts its substances with,
+        // and the length is in the declaration rather than anywhere a
+        // later pass would look.
+        Expr::Call(name, args)
+            if settle_calls
+                && name == "size"
+                && matches!(args.first(), Some(Expr::Ref(_)))
+                && depth <= MAX_CONSTANT_DEPTH =>
+        {
+            let Some(Expr::Ref(named)) = args.first() else {
+                unreachable!("just matched a name")
+            };
+            match enclosing_binding(registry, named, scope) {
+                Some(Expr::Array(items)) => Expr::Number(items.len() as f64),
+                _ => expr.clone(),
+            }
+        }
         Expr::Call(name, args) => {
             let args: Vec<Expr> = args.iter().map(recur).collect();
             let found = lookup(registry, name, scope, imports);
@@ -545,6 +572,97 @@ fn substitute_at(
                 .collect(),
         ),
     }
+}
+
+/// What a constant of an enclosing package was declared to be, before
+/// anything is made of it.
+///
+/// `constant Integer nS = size(substanceNames, 1)` asks how long a
+/// list of names is, and the list is a constant of the same package or
+/// of one it is written inside. Nothing later knows the name, so the
+/// length is read here.
+fn enclosing_binding(registry: &HashMap<&str, &ClassDef>, name: &str, scope: &str) -> Option<Expr> {
+    let mut prefix = scope;
+    loop {
+        if let Some(owner) = registry
+            .get(prefix)
+            .filter(|owner| owner.kind == ClassKind::Package)
+        {
+            let mut constants = Vec::new();
+            gather_package_constants(registry, owner, 0, &mut constants);
+            if let Some((_, binding)) = constants.iter().find(|(known, _)| known == name) {
+                return binding.clone();
+            }
+        }
+        let (head, _) = prefix.rsplit_once('.')?;
+        prefix = head;
+    }
+}
+
+/// A constant of a package the given scope is written inside.
+///
+/// `constant Integer nXi` belongs to the medium package, and
+/// `BaseProperties`, written inside it, names it as it stands. The
+/// walk goes out through the enclosing packages only: a model holding
+/// a component called `nXi` says nothing about what another class of
+/// it may write.
+fn enclosing_constant(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<f64> {
+    // Asked of every name written anywhere, and answered by gathering
+    // a package's constants and working out what each comes to. Where
+    // one registry stands the answer is the same every time, so it is
+    // worked out once.
+    if !REGISTRY_STANDS.with(|stands| stands.get()) {
+        return enclosing_constant_at(registry, name, scope, depth);
+    }
+    let key = (name.to_string(), scope.to_string());
+    if let Some(remembered) = NAMED.with(|named| named.borrow().get(&key).copied()) {
+        return remembered;
+    }
+    let found = enclosing_constant_at(registry, name, scope, depth);
+    NAMED.with(|named| named.borrow_mut().insert(key, found));
+    found
+}
+
+thread_local! {
+    /// What a name written inside a package came to, by name and by
+    /// where it was written.
+    static NAMED: RefCell<HashMap<(String, String), Option<f64>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// See [`enclosing_constant`]; this is the walk itself.
+fn enclosing_constant_at(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<f64> {
+    let mut prefix = scope;
+    while let Some((head, _)) = prefix.rsplit_once('.') {
+        if let Some(owner) = registry
+            .get(head)
+            .filter(|owner| owner.kind == ClassKind::Package)
+        {
+            let mut constants = Vec::new();
+            gather_package_constants(registry, owner, 0, &mut constants);
+            if constants.iter().any(|(known, _)| known == name) {
+                return class_constant_at(
+                    registry,
+                    &format!("{head}.{name}"),
+                    head,
+                    &owner.imports,
+                    depth,
+                );
+            }
+        }
+        prefix = head;
+    }
+    None
 }
 
 /// The class a short definition inside a package stands for.
@@ -673,7 +791,16 @@ fn named_import<'a>(
         Some(rest) => format!("{target}.{rest}"),
         None => target.clone(),
     };
-    registry.get(qualified.as_str()).copied()
+    // What the import names may itself name something else, and what
+    // is reached through it may be written in a base of it: `Medium`
+    // stands for `WaterIF97_ph`, and its `BaseProperties` belongs to
+    // `WaterIF97_base`. This is how a redeclared package is reached,
+    // so it has to see as far as an ordinary name does.
+    registry
+        .get(qualified.as_str())
+        .copied()
+        .or_else(|| through_alias(registry, &qualified, 0))
+        .or_else(|| member_of_base(registry, &qualified, 0))
 }
 
 /// Resolve a class name the way Modelica scoping does: an import
@@ -684,6 +811,30 @@ fn named_import<'a>(
 /// its parent - so that `connector Pin` declared inside `model Bus` is
 /// found by components of `Bus` itself.
 pub(super) fn lookup<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<&'a ClassDef> {
+    // A name may be a name for a name, and what it stands for may be
+    // written in a base of something else with a name of its own. Two
+    // libraries naming each other that way would send this round for
+    // ever, so the going round is counted.
+    if LOOKING.with(|deep| deep.get()) > MAX_DEPTH {
+        return None;
+    }
+    LOOKING.with(|deep| deep.set(deep.get() + 1));
+    let found = lookup_at(registry, name, scope, imports);
+    LOOKING.with(|deep| deep.set(deep.get() - 1));
+    found
+}
+
+thread_local! {
+    /// How deep the search for a name is into itself.
+    static LOOKING: Cell<usize> = const { Cell::new(0) };
+}
+
+fn lookup_at<'a>(
     registry: &HashMap<&'a str, &'a ClassDef>,
     name: &str,
     scope: &str,
@@ -745,6 +896,7 @@ impl StandingNames {
     /// Start remembering, forgetting whatever came before.
     pub(super) fn open() -> Self {
         WALKED.with(|walked| walked.borrow_mut().clear());
+        NAMED.with(|named| named.borrow_mut().clear());
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames
     }
@@ -754,6 +906,7 @@ impl Drop for StandingNames {
     fn drop(&mut self) {
         REGISTRY_STANDS.with(|stands| stands.set(false));
         WALKED.with(|walked| walked.borrow_mut().clear());
+        NAMED.with(|named| named.borrow_mut().clear());
     }
 }
 
