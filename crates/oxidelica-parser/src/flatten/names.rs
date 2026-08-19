@@ -2,6 +2,7 @@
 //! prefixes, constants, substitutions and lookups.
 
 use super::*;
+use std::cell::{Cell, RefCell};
 
 /// Prefix every component reference in an expression, resolving `outer`
 /// references to the instance that owns them.
@@ -703,10 +704,96 @@ pub(super) fn lookup<'a>(
     if let Some(class) = named_import(registry, head, rest, imports) {
         return Some(class);
     }
-    // Walk out of the enclosing packages: A.B.C -> A.B -> A -> global.
-    // An `encapsulated` class is a wall: its own scope is searched, and
-    // then the walk stops rather than reaching what encloses it, so a
-    // simple name has to be imported or built in.
+    // Walk out of the enclosing packages. What that walk finds depends
+    // on the name, where it is written and the classes themselves -
+    // never on the imports of whoever asked - so the answer is
+    // remembered and given again.
+    if let Some(class) = walked(registry, name, scope) {
+        return Some(class);
+    }
+    // Last of all, the packages opened wholesale: an unqualified
+    // import is outranked by everything with a name of its own, which
+    // is what keeps `import A.*;` from quietly shadowing a class the
+    // enclosing package already had.
+    imports
+        .iter()
+        .filter(|(local, _)| local == WILDCARD_IMPORT)
+        .find_map(|(_, target)| registry.get(format!("{target}.{name}").as_str()).copied())
+}
+
+thread_local! {
+    /// What the walk out of the enclosing packages found, by name and
+    /// by where the name was written. Classes are kept by name rather
+    /// than by reference, so the table outlives nothing it should not:
+    /// it is only ever read against the registry it was filled from.
+    static WALKED: RefCell<HashMap<(String, String), Option<String>>> =
+        RefCell::new(HashMap::new());
+    /// Whether a registry stands still for long enough to remember
+    /// anything about it.
+    static REGISTRY_STANDS: Cell<bool> = const { Cell::new(false) };
+}
+
+/// A registry that stands still, so what is found in it may be
+/// remembered.
+///
+/// Held for as long as one registry is in use and dropped with it.
+/// Outside one - a caller asking about a class on its own - nothing is
+/// remembered, since the next question may be about another library.
+pub(super) struct StandingNames;
+
+impl StandingNames {
+    /// Start remembering, forgetting whatever came before.
+    pub(super) fn open() -> Self {
+        WALKED.with(|walked| walked.borrow_mut().clear());
+        REGISTRY_STANDS.with(|stands| stands.set(true));
+        StandingNames
+    }
+}
+
+impl Drop for StandingNames {
+    fn drop(&mut self) {
+        REGISTRY_STANDS.with(|stands| stands.set(false));
+        WALKED.with(|walked| walked.borrow_mut().clear());
+    }
+}
+
+/// The walk out of the enclosing packages, answered from what it found
+/// last time where it can be.
+fn walked<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+) -> Option<&'a ClassDef> {
+    if !REGISTRY_STANDS.with(|stands| stands.get()) {
+        return walk_out(registry, name, scope);
+    }
+    let key = (name.to_string(), scope.to_string());
+    if let Some(remembered) = WALKED.with(|walked| walked.borrow().get(&key).cloned()) {
+        return remembered.and_then(|found| registry.get(found.as_str()).copied());
+    }
+    let found = walk_out(registry, name, scope);
+    WALKED.with(|walked| {
+        walked
+            .borrow_mut()
+            .insert(key, found.map(|class| class.name.clone()))
+    });
+    found
+}
+
+/// A.B.C -> A.B -> A -> global.
+///
+/// An `encapsulated` class is a wall: its own scope is searched, and
+/// then the walk stops rather than reaching what encloses it, so a
+/// simple name has to be imported or built in.
+fn walk_out<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+) -> Option<&'a ClassDef> {
+    let (head, rest) = match name.split_once('.') {
+        Some((head, rest)) => (head, Some(rest)),
+        None => (name, None),
+    };
     let mut prefix = scope.to_string();
     loop {
         let candidate = if prefix.is_empty() {
@@ -757,17 +844,6 @@ pub(super) fn lookup<'a>(
             None if prefix.is_empty() => break,
             None => prefix.clear(),
         }
-    }
-    // Last of all, the packages opened wholesale: an unqualified
-    // import is outranked by everything with a name of its own, which
-    // is what keeps `import A.*;` from quietly shadowing a class the
-    // enclosing package already had.
-    if let Some(class) = imports
-        .iter()
-        .filter(|(local, _)| local == WILDCARD_IMPORT)
-        .find_map(|(_, target)| registry.get(format!("{target}.{name}").as_str()).copied())
-    {
-        return Some(class);
     }
     None
 }
@@ -881,13 +957,23 @@ pub(super) fn resolve(
                 }
             };
             // Subscripts see both loop variables and parameters: they
-            // must be constant at compile time.
-            let mut subscript_env = consts.clone();
-            subscript_env.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+            // must be constant at compile time. Where there are no loop
+            // variables the parameters are read as they stand, since
+            // copying them to add nothing is what a model with a
+            // thousand of them cannot afford.
+            let subscript_env = match loop_vars.is_empty() {
+                true => None,
+                false => {
+                    let mut env = consts.clone();
+                    env.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    Some(env)
+                }
+            };
+            let subscript_env = subscript_env.as_ref().unwrap_or(consts);
             let mut indices = Vec::new();
             for subscript in subscripts {
                 let resolved = recur(subscript)?;
-                let value = const_eval(&resolved, &subscript_env).ok_or_else(|| {
+                let value = const_eval(&resolved, subscript_env).ok_or_else(|| {
                     format!("subscript of `{name}` is not constant: {subscript:?}")
                 })?;
                 // A Boolean subscript indexes a Boolean dimension, whose

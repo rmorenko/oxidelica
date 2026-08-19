@@ -203,6 +203,12 @@ pub(super) fn instantiate(
     let inherited = inherited_parameters(registry, class, 0);
     loop {
         let mut progress = false;
+        // What every declaration is read against: the model's numbers
+        // and this class's own. It is built once a round and kept up as
+        // values settle - building it per declaration is what a class
+        // with a thousand numbers below it cannot afford.
+        let mut env = acc.const_values.clone();
+        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
         for (component, from_extends) in class
             .components
             .iter()
@@ -237,10 +243,6 @@ pub(super) fn instantiate(
                         })
                 });
             let Some(expr) = binding else { continue };
-            let mut env = acc.const_values.clone();
-            for (name, value) in &local_consts {
-                env.insert(name.clone(), *value);
-            }
             // A parameter may be worked out by a function - the
             // standard library counts the base systems of an m-phase
             // winding that way - and a call is not something arithmetic
@@ -263,8 +265,10 @@ pub(super) fn instantiate(
             });
             if let Some(value) = settled {
                 local_consts.insert(component.name.clone(), value);
-                acc.const_values
-                    .insert(format!("{prefix}{}", component.name), value);
+                env.insert(component.name.clone(), value);
+                let named = format!("{prefix}{}", component.name);
+                env.insert(named.clone(), value);
+                acc.const_values.insert(named, value);
                 progress = true;
             }
         }

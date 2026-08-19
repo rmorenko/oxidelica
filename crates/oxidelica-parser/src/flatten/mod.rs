@@ -174,6 +174,11 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         .map(|c| (c.name.as_str(), c))
         .chain(classes.iter().map(|c| (c.name.as_str(), c)))
         .collect();
+    // The registry stands for as long as this flattening lasts, so
+    // what a name is found to mean in it is worth remembering: the
+    // walk out of the enclosing packages is asked the same question
+    // thousands of times over.
+    let _standing = names::StandingNames::open();
     let top_class = registry
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;

@@ -34,11 +34,7 @@ pub(super) fn expand(
         )?))
     };
 
-    let constant_here = |e: &Expr| -> Option<f64> {
-        let mut env = shapes.consts.clone();
-        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
-        const_eval(e, &env)
-    };
+    let constant_here = |e: &Expr| -> Option<f64> { settled_by(e, shapes) };
     Ok(match expr {
         Expr::Array(items) => Value::Array(
             items
@@ -402,11 +398,7 @@ fn index_into(
         return Err("more subscripts than dimensions".to_string());
     };
     let length = items.len();
-    let constant_here = |e: &Expr| -> Option<f64> {
-        let mut env = shapes.consts.clone();
-        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
-        const_eval(e, &env)
-    };
+    let constant_here = |e: &Expr| -> Option<f64> { settled_by(e, shapes) };
     let inner = |item: Value| index_into(item, rest, shapes, registry, scope, imports, depth + 1);
     let one = |index: f64| -> Result<Value, String> {
         if index.fract() != 0.0 || index < 1.0 || index as usize > length {
@@ -470,9 +462,7 @@ pub(super) fn expand_call(
     let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
     let constant = |e: &Expr| -> Result<i64, String> {
         let value = recur(e)?.scalar()?;
-        let mut env = shapes.consts.clone();
-        env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
-        let value = const_eval(&value, &env).ok_or_else(|| {
+        let value = settled_by(&value, shapes).ok_or_else(|| {
             format!(
                 "`{name}` needs a length the compiler can see: {}",
                 crate::flatten::names::sketch(&value)
@@ -1171,6 +1161,22 @@ fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>
         resolve_type(registry, &mut component, &class.name, &class.imports);
         !component.dimensions.is_empty()
     })
+}
+
+/// What an expression comes to, read against the parameters and the
+/// loop variables in view.
+///
+/// Where there are no loop variables - which is nearly always - the
+/// parameters are read as they stand. Copying them to add nothing to
+/// them is what a model with a thousand of them cannot afford, and
+/// this is asked once per subscript, length and condition.
+fn settled_by(expr: &Expr, shapes: &Shapes) -> Option<f64> {
+    if shapes.loop_vars.is_empty() {
+        return const_eval(expr, shapes.consts);
+    }
+    let mut env = shapes.consts.clone();
+    env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+    const_eval(expr, &env)
 }
 
 /// One column of a matrix given by rows, as a vector value.
