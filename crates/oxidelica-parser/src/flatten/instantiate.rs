@@ -189,7 +189,18 @@ pub(super) fn instantiate(
             for (name, value) in &local_consts {
                 env.insert(name.clone(), *value);
             }
-            if let Some(value) = const_eval(&expr, &env) {
+            // A parameter may be worked out by a function - the
+            // standard library counts the base systems of an m-phase
+            // winding that way - and a call is not something arithmetic
+            // alone can fold, so the call is inlined first. Anything
+            // the inlining will not do leaves the parameter for a
+            // later round, or for no round at all.
+            let settled = const_eval(&expr, &env).or_else(|| {
+                let inlined =
+                    resolve(&expr, &HashMap::new(), &env, registry, scope, &imports, 0).ok()?;
+                const_eval(&inlined, &env)
+            });
+            if let Some(value) = settled {
                 local_consts.insert(component.name.clone(), value);
                 acc.const_values
                     .insert(format!("{prefix}{}", component.name), value);
@@ -210,14 +221,18 @@ pub(super) fn instantiate(
             local_consts.insert(format!("{prefix}{name}"), value);
         }
     }
-    // And the parameters of this instance that another base already
-    // settled. `extends ConditionalHeatPort(T = fill(293.15, m))` is
-    // written in a class whose `m` comes from a base of its own, and
-    // by the time the second base is reached the first has said what
-    // `m` is - under the instance path, which is the only name the
-    // modifier still carries. What this class says itself wins.
+    // And every parameter the model has settled so far, by its full
+    // path. Two things need them. A base of this class may have
+    // settled one before another base was reached - `extends
+    // ConditionalHeatPort(T = fill(293.15, m))` is written in a class
+    // whose `m` comes from a base of its own. And a modifier handed
+    // down is written in the terms of the class that wrote it, so a
+    // child asked to make sense of `1:drawn.n` has to know what
+    // `drawn.n` is, and `drawn` is not below it but above. The names
+    // are full paths, so nothing here can be mistaken for anything
+    // else; what this class says itself still wins.
     for (name, value) in &acc.const_values {
-        if name.starts_with(prefix) && !local_consts.contains_key(name) {
+        if !local_consts.contains_key(name) {
             local_consts.insert(name.clone(), *value);
         }
     }
@@ -231,6 +246,11 @@ pub(super) fn instantiate(
     // into the table above. Each declaration brings its own, and the
     // one after it may be written with them.
     let mut taken = 0;
+    // Parameters the lengths settled: `n = size(lines, 1)` is a number
+    // by the time `lines` has been measured, and the declaration keeps
+    // the number rather than the question, since nothing after
+    // flattening knows how to measure an array.
+    let mut settled: HashMap<String, f64> = HashMap::new();
     // Which of this class's components are records, and of what: an
     // overloaded operator is chosen by the record its operands are of.
     let records_here: HashMap<String, String> = class
@@ -244,12 +264,47 @@ pub(super) fn instantiate(
         .collect();
 
     for component in &class.components {
+        let fresh = taken < acc.sizes.len();
         while taken < acc.sizes.len() {
             let (name, shape) = &acc.sizes[taken];
             if name.starts_with(prefix) {
                 sizes_here.insert(name.clone(), shape.clone());
             }
             taken += 1;
+        }
+        // A parameter may be worth a number only once the
+        // declarations before it have been measured: `Integer n =
+        // size(lines, 1)` is one as soon as `lines` is. So each time a
+        // declaration adds a length, the parameters still without a
+        // value are asked again.
+        if fresh {
+            for waiting in class
+                .components
+                .iter()
+                .chain(inherited.iter().map(|(component, _)| component))
+            {
+                if local_consts.contains_key(&waiting.name)
+                    || !matches!(
+                        waiting.variability,
+                        Variability::Parameter | Variability::Constant
+                    )
+                {
+                    continue;
+                }
+                let Some(binding) = waiting.binding.as_ref() else {
+                    continue;
+                };
+                let binding =
+                    substitute_class_constants(binding, registry, scope, &imports, &shadow);
+                let binding = prefix_expr(&binding, prefix, &outers);
+                if let Some(length) = dimension_value(&binding, &local_consts, &sizes_here) {
+                    local_consts.insert(waiting.name.clone(), length as f64);
+                    local_consts.insert(format!("{prefix}{}", waiting.name), length as f64);
+                    acc.const_values
+                        .insert(format!("{prefix}{}", waiting.name), length as f64);
+                    settled.insert(waiting.name.clone(), length as f64);
+                }
+            }
         }
         let flat_name = format!("{prefix}{}", component.name);
 
@@ -309,6 +364,9 @@ pub(super) fn instantiate(
             .or_else(|| component.binding.clone());
 
         let mut component = component.clone();
+        if let Some(value) = settled.get(&component.name) {
+            component.binding = Some(Expr::Number(*value));
+        }
 
         // A redeclaration from above replaces the type; its modifiers
         // come first so they win over the original declaration's.

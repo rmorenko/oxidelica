@@ -5205,3 +5205,70 @@ fn a_loop_may_stand_inside_a_when() {
     .message;
     assert!(error.contains("one per round"), "{error}");
 }
+
+/// Parameters settled by what stands around them: a function, a length
+/// measured a declaration earlier, and a name from the class above.
+#[test]
+fn a_parameter_is_settled_by_whatever_can_settle_it() {
+    // A parameter worked out by a function - the standard library
+    // counts the base systems of an m-phase winding that way.
+    let m = parse_model(
+        "model M function halves input Integer k; output Integer n; \
+         algorithm n := integer(k / 2); end halves; \
+         parameter Integer phases = 6; parameter Integer systems = halves(phases); \
+         Real v[systems]; Real y; equation v = fill(time, systems); y = v[3]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a parameter off a function");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("v["))
+            .count(),
+        3
+    );
+
+    // A length measured a declaration earlier, kept as the number:
+    // nothing after flattening knows how to measure an array.
+    let m = parse_model(
+        "model Lines input Real lines[:, 2] = zeros(0, 2); \
+         parameter Integer n = size(lines, 1); Real got[n]; \
+         equation got = {lines[i, 1] for i in 1:n}; end Lines; \
+         model M Lines drawn(lines = {{1, 2}, {3, 4}, {5, 6}}); Real y; \
+         equation y = drawn.got[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a length off an earlier declaration");
+    let n = m.components.iter().find(|c| c.name == "drawn.n").unwrap();
+    assert!(matches!(n.binding, Some(Expr::Number(v)) if v == 3.0));
+    assert_eq!(
+        format!(
+            "{:?}",
+            m.equations
+                .iter()
+                .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "drawn.got[2]"))
+                .unwrap()
+                .rhs
+        ),
+        "Ref(\"drawn.lines[2,1]\")"
+    );
+
+    // And a modifier handed down carries names of the class that wrote
+    // it: the child has to know what `drawn.n` is, and `drawn` is not
+    // below it but above.
+    let m = parse_model(
+        "model Cell parameter Real gain = 0; Real v; \
+         equation v = gain * time; end Cell; \
+         model Holder parameter Integer n = 2; \
+         Cell cells[2](gain = {i for i in 1:n}); end Holder; \
+         model M Holder h; Real y; equation y = h.cells[2].v; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a modifier written above");
+    let second = m
+        .components
+        .iter()
+        .find(|c| c.name == "h.cells[2].gain")
+        .unwrap();
+    assert!(matches!(second.binding, Some(Expr::Number(v)) if v == 2.0));
+}

@@ -50,7 +50,11 @@ pub(super) fn expand(
             let scalar_of = |e: &Expr| -> Result<f64, String> {
                 let resolved = recur(e)?.scalar()?;
                 constant_here(&resolved).ok_or_else(|| {
-                    format!("{UNDECIDABLE_LOOP}: a range needs bounds the compiler can see")
+                    format!(
+                        "{UNDECIDABLE_LOOP}: a range needs bounds the compiler can see, \
+                         and {} is not one",
+                        crate::flatten::names::sketch(&resolved)
+                    )
                 })
             };
             let (from, to) = (scalar_of(a)?, scalar_of(b)?);
