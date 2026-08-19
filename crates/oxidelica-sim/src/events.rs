@@ -44,6 +44,14 @@ impl EventRewrite<'_> {
     /// Rewrite one expression.
     pub(crate) fn expr(&mut self, expr: &Expr) -> Result<Expr, SimError> {
         Ok(match expr {
+            Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
+                Box::new(self.expr(value)?),
+                Box::new(self.expr(rule)?),
+                seeds
+                    .iter()
+                    .map(|(name, argument)| Ok((name.clone(), self.expr(argument)?)))
+                    .collect::<Result<Vec<_>, SimError>>()?,
+            ),
             Expr::Str(_) => expr.clone(),
             Expr::Call(name, args) => match (name.as_str(), args.len()) {
                 ("pre", 1) => self.pre_of(&args[0], "pre")?,

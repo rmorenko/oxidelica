@@ -157,7 +157,7 @@ impl Parser {
 
         let description = self.opt_string();
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Experiment::default())?;
+            self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after declaration")?;
 

@@ -85,7 +85,7 @@ impl Parser {
                     let value = self.expr()?;
                     self.opt_string();
                     if self.peek() == &Token::Annotation {
-                        self.annotation_body(&mut Experiment::default())?;
+                        self.annotation_body(&mut Annotated::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assignment")?;
                     out.push(Statement::Assign(target, subscripts, value));
@@ -114,7 +114,7 @@ impl Parser {
                     let value = self.expr()?;
                     self.opt_string();
                     if self.peek() == &Token::Annotation {
-                        self.annotation_body(&mut Experiment::default())?;
+                        self.annotation_body(&mut Annotated::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assignment")?;
                     out.push(Statement::TupleAssign(targets, value));

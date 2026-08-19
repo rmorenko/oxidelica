@@ -73,6 +73,11 @@ pub(super) fn prefix_expr_under(
         ),
         Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
+        // A call kept whole for its derivative is made while an
+        // expression is expanded, and expanding is the last thing that
+        // happens to one - so none can be here, where the names are
+        // still being given their instance paths.
+        Expr::WithDerivative(..) => expr.clone(),
         // The keyword names an input of the function, not a component.
         Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value))),
         Expr::Tuple(targets) => Expr::Tuple(
@@ -194,6 +199,14 @@ pub(super) fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr 
     match expr {
         Expr::Ref(name) => map.get(name).cloned().unwrap_or_else(|| expr.clone()),
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
+        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
+            Box::new(substitute_refs(value, map)),
+            Box::new(substitute_refs(rule, map)),
+            seeds
+                .iter()
+                .map(|(name, arg)| (name.clone(), substitute_refs(arg, map)))
+                .collect(),
+        ),
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
             args.iter().map(|a| substitute_refs(a, map)).collect(),
@@ -394,6 +407,14 @@ pub(super) fn substitute_class_constants(
             expr.clone()
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
+        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
+            Box::new(recur(value)),
+            Box::new(recur(rule)),
+            seeds
+                .iter()
+                .map(|(name, arg)| (name.clone(), recur(arg)))
+                .collect(),
+        ),
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
@@ -696,6 +717,14 @@ pub(super) fn resolve(
             return Err("`:` and `end` make sense only inside a subscript".to_string())
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
+        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
+            Box::new(recur(value)?),
+            Box::new(recur(rule)?),
+            seeds
+                .iter()
+                .map(|(name, arg)| Ok((name.clone(), recur(arg)?)))
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
         Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value)?)),
         Expr::Tuple(_) => {
             return Err("a tuple may only stand on the left of `=` or `:=`".to_string())

@@ -81,7 +81,7 @@ impl Parser {
             }
             self.opt_string();
             if self.peek() == &Token::Annotation {
-                self.annotation_body(&mut Experiment::default())?;
+                self.annotation_body(&mut Annotated::default())?;
             }
             self.expect(&Token::Semi, "semicolon after the class alias")?;
             return Ok(ClassItem::Alias(ClassAlias {
@@ -115,7 +115,7 @@ impl Parser {
             }
             self.opt_string();
             if self.peek() == &Token::Annotation {
-                self.annotation_body(&mut Experiment::default())?;
+                self.annotation_body(&mut Annotated::default())?;
             }
             self.expect(&Token::Semi, "semicolon after the type alias")?;
             return Ok(ClassItem::Class(Box::new(ClassDef {
@@ -140,6 +140,8 @@ impl Parser {
                 connects: Vec::new(),
                 when_clauses: Vec::new(),
                 experiment: Experiment::default(),
+                derivative: None,
+                inverse: Vec::new(),
                 class_aliases: Vec::new(),
                 asserts: Vec::new(),
                 transitions: Vec::new(),
@@ -166,7 +168,7 @@ impl Parser {
         let mut connection_graph = Vec::new();
         let mut algorithm = Vec::new();
         let mut initial_equations = Vec::new();
-        let mut experiment = Experiment::default();
+        let mut annotated = Annotated::default();
         let mut in_equations = false;
         // `initial equation` holds equations that describe the state the
         // model starts from rather than how it moves.
@@ -209,7 +211,7 @@ impl Parser {
                     if_equations.push(self.if_equation()?);
                 }
                 Token::Annotation => {
-                    self.parse_annotation(&mut experiment)?;
+                    self.parse_annotation(&mut annotated)?;
                 }
                 Token::When => {
                     when_clauses.push(self.when_clause()?);
@@ -285,7 +287,7 @@ impl Parser {
                     self.bump();
                     let (condition, message) = self.assert_arguments()?;
                     if self.peek() == &Token::Annotation {
-                        self.annotation_body(&mut Experiment::default())?;
+                        self.annotation_body(&mut Annotated::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assert")?;
                     asserts.push((condition, message));
@@ -304,7 +306,7 @@ impl Parser {
                     initial_state = Some(named);
                     self.expect(&Token::RParen, "closing parenthesis of initialState")?;
                     if self.peek() == &Token::Annotation {
-                        self.annotation_body(&mut Experiment::default())?;
+                        self.annotation_body(&mut Annotated::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after initialState")?;
                 }
@@ -350,7 +352,9 @@ impl Parser {
             algorithm,
             connects,
             when_clauses,
-            experiment,
+            experiment: annotated.experiment,
+            derivative: annotated.derivative,
+            inverse: annotated.inverse,
             class_aliases,
             asserts,
             transitions,
@@ -426,7 +430,7 @@ impl Parser {
             (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Experiment::default())?;
+            self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after extends")?;
         Ok(Extend {
@@ -505,11 +509,8 @@ impl Parser {
     }
 
     /// A class-level `annotation ( ... ) ;`.
-    pub(super) fn parse_annotation(
-        &mut self,
-        experiment: &mut Experiment,
-    ) -> Result<(), ParseError> {
-        self.annotation_body(experiment)?;
+    pub(super) fn parse_annotation(&mut self, into: &mut Annotated) -> Result<(), ParseError> {
+        self.annotation_body(into)?;
         self.expect(&Token::Semi, "semicolon after annotation")?;
         Ok(())
     }
@@ -519,10 +520,7 @@ impl Parser {
     /// semicolon. Parsed tolerantly: only
     /// `experiment(StopTime=…, Interval=…, Tolerance=…)` is extracted,
     /// everything else is skipped by balancing parentheses.
-    pub(super) fn annotation_body(
-        &mut self,
-        experiment: &mut Experiment,
-    ) -> Result<(), ParseError> {
+    pub(super) fn annotation_body(&mut self, into: &mut Annotated) -> Result<(), ParseError> {
         self.expect(&Token::Annotation, "annotation")?;
         self.expect(&Token::LParen, "parenthesis after annotation")?;
         let mut depth = 1usize;
@@ -537,6 +535,54 @@ impl Parser {
                     depth -= 1;
                     self.bump();
                 }
+                // `derivative = f_der` names the function that gives
+                // this one's derivative. The options the specification
+                // allows alongside it - an order, a `noDerivative` or a
+                // `zeroDerivative` - are refused rather than skipped:
+                // reading them wrong would give a wrong derivative,
+                // which nothing downstream could catch.
+                Token::Ident(name) if depth == 1 && name == "derivative" => {
+                    self.bump();
+                    if self.peek() == &Token::LParen {
+                        return Err(self.err(
+                            "`derivative` with options is more than this compiler reads; \
+                             it takes `derivative = f_der` and nothing else"
+                                .to_string(),
+                        ));
+                    }
+                    self.expect(&Token::Assign, "`=` after derivative")?;
+                    into.derivative = Some(self.dotted_name("the derivative function")?);
+                }
+                // `inverse(x = f_inv(y, z))` says this function can be
+                // solved for `x` by calling `f_inv`.
+                Token::Ident(name) if depth == 1 && name == "inverse" => {
+                    self.bump();
+                    self.expect(&Token::LParen, "parenthesis after inverse")?;
+                    loop {
+                        let solved_for = self.ident("the input the inverse solves for")?;
+                        self.expect(&Token::Assign, "`=` in inverse")?;
+                        let called = self.dotted_name("the inverse function")?;
+                        self.expect(&Token::LParen, "parenthesis after the inverse function")?;
+                        let mut arguments = Vec::new();
+                        while self.peek() != &Token::RParen {
+                            arguments.push(self.ident("an argument of the inverse")?);
+                            if self.peek() == &Token::Comma {
+                                self.bump();
+                            }
+                        }
+                        self.bump();
+                        into.inverse.push((solved_for, called, arguments));
+                        match self.bump() {
+                            Token::Comma => continue,
+                            Token::RParen => break,
+                            other => {
+                                return Err(self.err(format!(
+                                    "expected `,` or `)` in inverse, found `{other}`"
+                                )))
+                            }
+                        }
+                    }
+                }
                 Token::Ident(name) if depth == 1 && name == "experiment" => {
                     self.bump();
                     self.expect(&Token::LParen, "parenthesis after experiment")?;
@@ -545,9 +591,9 @@ impl Parser {
                         self.expect(&Token::Assign, "`=` in experiment")?;
                         let value = self.number_literal()?;
                         match key.as_str() {
-                            "StopTime" => experiment.stop_time = Some(value),
-                            "Interval" => experiment.interval = Some(value),
-                            "Tolerance" => experiment.tolerance = Some(value),
+                            "StopTime" => into.experiment.stop_time = Some(value),
+                            "Interval" => into.experiment.interval = Some(value),
+                            "Tolerance" => into.experiment.tolerance = Some(value),
                             "StartTime" if value != 0.0 => {
                                 return Err(self.err("M0: StartTime must be 0".into()));
                             }

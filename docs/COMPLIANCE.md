@@ -186,13 +186,28 @@ literal - or a `:` that reads its length from the value the component
 is given.
 
 **Functions** (ch. 12): no recursion, no external C/Fortran, no
-`derivative`/`inverse` annotations, no functions as arguments, no
-record constructors. Functions are inlined symbolically, which is also
-what rules recursion out — and a skipped tuple slot still costs the
-work of computing that output's expression. `while` runs at compile
-time, so its condition must be decidable there: the trip count cannot
-depend on a simulated variable, and a `break` or `return` behind an
-undecidable `if` is an error.
+functions as arguments, no record constructors. Functions are inlined
+symbolically, which is also what rules recursion out — and a skipped
+tuple slot still costs the work of computing that output's expression.
+`while` runs at compile time, so its condition must be decidable there:
+the trip count cannot depend on a simulated variable, and a `break` or
+`return` behind an undecidable `if` is an error.
+
+A function may say how to differentiate itself:
+`annotation(derivative = f_der)` names a function taking what this one
+takes and then one derivative for each, and the call is inlined for its
+value while keeping that rule beside it. Differentiation reaches for
+the rule instead of taking the body apart, which is what lets a body
+the differentiator cannot read — one with `abs` in it — still carry a
+model that needs its constraint differentiated or its Jacobian built.
+The options the specification allows beside it (an order, a
+`noDerivative`, a `zeroDerivative`) are refused rather than skipped,
+since reading one wrong would give a wrong derivative and nothing
+downstream could catch it. `annotation(inverse(x = f_inv(y)))` is read
+and checked — the function has to exist, the input has to be one this
+one takes, the arguments have to be things it has to hand — and then
+set aside: the nonlinear corrector already solves `f(x) = u` for `x`,
+so an inverse would save work rather than make anything possible.
 
 **Stream connectors** (ch. 15) are complete: `stream` variables - one
 `flow` beside them, as the chapter requires - `inStream` and

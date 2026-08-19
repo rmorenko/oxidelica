@@ -27,6 +27,9 @@ pub(crate) fn truth(yes: bool) -> f64 {
 pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     use oxidelica_parser::BinOp::*;
     Ok(match expr {
+        // A call kept whole for its derivative is worth what it works
+        // out to; the rule beside it is for differentiation alone.
+        Expr::WithDerivative(value, _, _) => eval(value, ctx)?,
         Expr::Str(text) => {
             return err(format!(
                 "`\"{text}\"` is a String, and a String has no value a step can carry; \
@@ -352,6 +355,7 @@ impl SlotTable {
     /// variable or a function the model does not have.
     pub(crate) fn compile(&self, expr: &Expr) -> Result<Code, SimError> {
         Ok(match expr {
+            Expr::WithDerivative(value, _, _) => self.compile(value)?,
             Expr::Str(text) => {
                 return err(format!(
                     "`\"{text}\"` is a String, and a String has no value a step can carry; \

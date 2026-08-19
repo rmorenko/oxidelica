@@ -1564,6 +1564,108 @@ fn a_clock_left_unsaid_runs_like_the_one_written_out() {
 }
 
 #[test]
+fn a_supplied_derivative_carries_a_model_the_compiler_could_not() {
+    // `f(x) = |x| * 2`, which the differentiator cannot take apart. The
+    // model needs it differentiated twice over: once to reduce the
+    // index of the constraint, once for the Jacobian.
+    let with_rule = "function f input Real x; output Real y; \
+         algorithm y := abs(x) * 2; annotation(derivative = fd); end f; \
+         function fd input Real x; input Real x_der; output Real y_der; \
+         algorithm y_der := (if x >= 0 then 2 else -2) * x_der; end fd; ";
+
+    // `|x| * 2 = 4 + t` with x positive is `x = 2 + t/2`, so the run
+    // must reach 2.5 with a rate of a half - which is the answer the
+    // same model gives with `abs` taken out.
+    let result = run(&format!(
+        "model M {with_rule} Real x(start = 2, fixed = true); Real v; \
+         equation der(x) = v; f(x) = 4 + time; \
+         annotation(experiment(StopTime = 1, Interval = 0.25)); end M;"
+    ));
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[index("x")] - 2.5).abs() < 1e-9,
+        "{}",
+        last[index("x")]
+    );
+    assert!(
+        (last[index("v")] - 0.5).abs() < 1e-9,
+        "{}",
+        last[index("v")]
+    );
+
+    // The same call among the statements of a model, where what an
+    // algorithm has assigned so far is substituted into it.
+    let assigned = run(&format!(
+        "model M {with_rule} Real x(start = 2, fixed = true); Real v; Real w; \
+         algorithm w := f(x) + 1; \
+         equation der(x) = v; f(x) = 4 + time; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    let w = assigned.columns.iter().position(|c| c == "w").unwrap();
+    let reached = assigned.rows.last().unwrap()[w];
+    assert!((reached - 6.0).abs() < 1e-6, "{reached}");
+
+    // Without the rule the same model is refused, which is what makes
+    // the annotation worth having: the constraint has to be
+    // differentiated to reduce the index, and `abs` is not something
+    // the differentiator can take apart.
+    let refused = compile_err(
+        "model M function f input Real x; output Real y; algorithm y := abs(x) * 2; end f; \
+         Real x(start = 2, fixed = true); Real v; \
+         equation der(x) = v; f(x) = 4 + time; \
+         annotation(experiment(StopTime = 1, Interval = 0.25)); end M;",
+    );
+    assert!(refused.contains("structurally singular"), "{refused}");
+
+    // A rule of any shape survives the road to the differentiator, and
+    // the call may stand anywhere an expression may - in a parameter
+    // worked out before the run, in an equation, in a `when`.
+    let all_over = run("model M function g input Real x; output Real y; \
+         algorithm y := abs(x) + sqrt(x * x + 1); annotation(derivative = gd); end g; \
+         function gd input Real x; input Real x_der; output Real y_der; \
+         algorithm y_der := (if x >= 0 and not (x < 0) or false then 1 else -1) * x_der \
+         + x / sqrt(x * x + 1) * x_der; end gd; \
+         parameter Real p = g(2); Real x(start = 1, fixed = true); Real w; \
+         discrete Real k(start = 0); \
+         equation der(x) = 1; w = g(x) + p; \
+         when time > 0.4 then k = g(x); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let at = |name: &str| all_over.columns.iter().position(|c| c == name).unwrap();
+    let g = |x: f64| x.abs() + (x * x + 1.0).sqrt();
+    let end = all_over.rows.last().unwrap();
+    assert!(
+        (end[at("w")] - (g(2.0) + g(2.0))).abs() < 1e-9,
+        "{}",
+        end[at("w")]
+    );
+    // The `when` fired where the condition turned, so `k` is `g` of
+    // where `x` was then rather than of where it ended.
+    assert!((end[at("k")] - g(1.4)).abs() < 1e-6, "{}", end[at("k")]);
+
+    // And the same rule serves the Jacobian: `der(x) = -f(x)/4` is
+    // `der(x) = -x/2` for positive x, whose answer at t = 1 is
+    // `exp(-1/2)`. The implicit solver is the one that needs it.
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let decayed = run_on(
+            &format!(
+                "model M {with_rule} Real x(start = 1, fixed = true); \
+                 equation der(x) = -f(x) / 4; \
+                 annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+            ),
+            method,
+        )
+        .expect("runs");
+        let x = decayed.columns.iter().position(|c| c == "x").unwrap();
+        let reached = decayed.rows.last().unwrap()[x];
+        assert!(
+            (reached - (-0.5f64).exp()).abs() < 1e-6,
+            "{method:?} reached {reached}"
+        );
+    }
+}
+
+#[test]
 fn every_form_of_loop_comes_out_at_the_right_numbers() {
     // A set, a stepped range, a range the body is left to work out, and
     // two indices at once - all four unrolled and run.

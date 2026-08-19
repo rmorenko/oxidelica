@@ -1627,6 +1627,15 @@ pub(crate) fn compile_at(
 /// the functions whose sign changes mark an event.
 pub(crate) fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
     match expr {
+        // Only what the run evaluates can turn: the rule beside it is
+        // an ordinary expression by the time differentiation has used
+        // it, and is collected from there.
+        Expr::WithDerivative(value, _, seeds) => {
+            collect_relations(value, out);
+            seeds
+                .iter()
+                .for_each(|(_, argument)| collect_relations(argument, out));
+        }
         // A string holds no relation, and cannot become one.
         Expr::Str(_) => {}
         Expr::Rel(_, l, r) => {

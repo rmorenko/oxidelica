@@ -13,6 +13,14 @@ use crate::*;
 pub(crate) fn simplify(expr: &Expr) -> Expr {
     use oxidelica_parser::BinOp::*;
     match expr {
+        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
+            Box::new(simplify(value)),
+            Box::new(simplify(rule)),
+            seeds
+                .iter()
+                .map(|(name, argument)| (name.clone(), simplify(argument)))
+                .collect(),
+        ),
         // Nothing to fold: a string is already as simple as it gets.
         Expr::Str(_) => expr.clone(),
         Expr::Neg(inner) => match simplify(inner) {
@@ -77,9 +85,39 @@ pub(crate) fn simplify(expr: &Expr) -> Expr {
     }
 }
 
+/// Put each argument's derivative where a rule left a name for it.
+///
+/// The search stops at any call that carries a rule of its own: that
+/// rule speaks about its own arguments, and the names two functions
+/// happened to give their parameters mean nothing to each other.
+fn seeded(rule: &Expr, given: &HashMap<String, Expr>) -> Expr {
+    let recur = |inner: &Expr| seeded(inner, given);
+    match rule {
+        Expr::WithDerivative(..) => rule.clone(),
+        Expr::Ref(name) => given.get(name).cloned().unwrap_or_else(|| rule.clone()),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        _ => rule.clone(),
+    }
+}
+
 /// Replace every reference to `var` with `value`.
 pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
     match expr {
+        Expr::WithDerivative(worth, rule, seeds) => Expr::WithDerivative(
+            Box::new(substitute(worth, var, value)),
+            Box::new(substitute(rule, var, value)),
+            seeds
+                .iter()
+                .map(|(name, argument)| (name.clone(), substitute(argument, var, value)))
+                .collect(),
+        ),
         Expr::Ref(name) if name == var => Expr::Number(value),
         Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
         Expr::Call(name, args) => Expr::Call(
@@ -282,6 +320,18 @@ pub(crate) fn differentiate_at(
             Box::new(d(then_branch)?),
             Box::new(d(else_branch)?),
         ),
+        // A call that said how to differentiate itself: the rule takes
+        // the place of taking the body apart, with each argument's own
+        // derivative put where the rule left a name for it. The chain
+        // rule is already in the rule - that is what the annotation
+        // means - so there is nothing to multiply by here.
+        Expr::WithDerivative(_, rule, seeds) => {
+            let mut given = HashMap::new();
+            for (name, argument) in seeds {
+                given.insert(name.clone(), differentiate_at(argument, target, depth + 1)?);
+            }
+            return Ok(seeded(rule, &given));
+        }
         _ => return Err("cannot differentiate this expression".to_string()),
     })
 }

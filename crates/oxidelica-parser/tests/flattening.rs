@@ -1733,8 +1733,19 @@ fn a_loop_runs_over_whatever_the_values_are() {
         "{stepped}"
     );
     // `for i loop` among statements reads the range off the array the
-    // body assigns through it.
+    // body assigns through it - through an `if` around the assignment,
+    // through a `while` around it, or off the value being assigned.
     assert!(value("for i loop a[i] := i; end for; y := a[4];").contains("4.0"));
+    assert!(value(
+        "for i loop if x > 0 then a[i] := i; else a[i] := 0; end if; end for; y := a[4];"
+    )
+    .contains("4.0"));
+    // A `while` that never runs still says what the range is: the scan
+    // reads the body as written rather than as executed.
+    assert!(
+        value("y := 0; for i loop while false loop y := a[i]; end while; end for; y := 7;")
+            .contains("7.0")
+    );
 
     // The body may say the range from a `connect` rather than from an
     // equation, and an outer loop may hear it from an inner one's body.
@@ -1770,6 +1781,77 @@ fn a_loop_runs_over_whatever_the_values_are() {
             "{section}"
         );
     }
+}
+
+/// A function whose body the differentiator cannot read, and the
+/// derivative the model supplies for it.
+const NOT_SMOOTH: &str = "function f input Real x; output Real y; \
+     algorithm y := abs(x) * 2; annotation(derivative = fd); end f; \
+     function fd input Real x; input Real x_der; output Real y_der; \
+     algorithm y_der := (if x >= 0 then 2 else -2) * x_der; end fd; ";
+
+#[test]
+fn a_function_may_say_how_to_differentiate_itself() {
+    // The call is inlined for its value as before, and keeps the rule
+    // beside it. Nothing that reads the expression for what it is worth
+    // sees the difference; only differentiation reaches for the rule.
+    let m = parse_model(&format!(
+        "model M {NOT_SMOOTH} Real x(start = 2, fixed = true); Real v; \
+         equation der(x) = v; f(x) = 4 + time; end M;"
+    ))
+    .unwrap();
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("WithDerivative"), "{written}");
+    // The rule was inlined with a name of the compiler's own standing
+    // in for the argument's derivative, so nothing a model writes can
+    // collide with it.
+    assert!(written.contains("$seed0"), "{written}");
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // A derivative that is not there, and one of the wrong shape.
+    assert!(err(&format!(
+        "model M {} Real x(start = 2, fixed = true); Real v; \
+         equation der(x) = v; f(x) = 4 + time; end M;",
+        NOT_SMOOTH.replace("derivative = fd", "derivative = nope")
+    ))
+    .contains("there is no such function"));
+    assert!(err(&format!(
+        "model M {} Real x(start = 2, fixed = true); Real v; \
+         equation der(x) = v; f(x) = 4 + time; end M;",
+        NOT_SMOOTH.replace("input Real x_der;", "")
+    ))
+    .contains("what `M.f` takes, and then one derivative for each"));
+    // The options the specification allows beside it are refused rather
+    // than skipped: reading one wrong gives a wrong derivative.
+    assert!(err(&format!(
+        "model M {} Real x(start = 2, fixed = true); Real v; \
+         equation der(x) = v; f(x) = 4 + time; end M;",
+        NOT_SMOOTH.replace("derivative = fd", "derivative(order = 2) = fd")
+    ))
+    .contains("more than this compiler reads"));
+}
+
+#[test]
+fn what_a_function_says_about_its_inverse_is_checked() {
+    // The inverse is recorded and checked, and then set aside: the
+    // nonlinear corrector already solves `f(x) = u` for `x`. What the
+    // check is for is an annotation naming something that is not there.
+    let inverse = |clause: &str| {
+        format!(
+            "model M function f input Real x; output Real y; algorithm y := x * x; \
+             annotation(inverse({clause})); end f; \
+             function g input Real y; output Real x; algorithm x := sqrt(y); end g; \
+             Real w; equation w = f(2); end M;"
+        )
+    };
+    assert!(parse_model(&inverse("x = g(y)")).is_ok());
+    // Several entries, and an inverse handed more than one thing.
+    assert!(parse_model(&inverse("x = g(y, x), x = g(y)")).is_ok());
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    assert!(err(&inverse("x = nope(y)")).contains("inverts it, and there is no such function"));
+    assert!(err(&inverse("z = g(y)")).contains("which is not one of its inputs"));
+    assert!(err(&inverse("x = g(q)")).contains("neither takes nor gives"));
+    assert!(err(&inverse("x = g(y) x = g(y)")).contains("expected `,` or `)` in inverse"));
 }
 
 #[test]

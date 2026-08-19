@@ -296,6 +296,12 @@ pub struct ClassDef {
     pub when_clauses: Vec<WhenClause>,
     /// Experiment settings.
     pub experiment: Experiment,
+    /// `annotation(derivative = f_der)`: the function that gives this
+    /// one's derivative, so a tool need not work it out from the body.
+    pub derivative: Option<String>,
+    /// `annotation(inverse(x = f_inv(y, z)))`: which input this class
+    /// can be solved for, by which function, given which arguments.
+    pub inverse: Vec<(String, String, Vec<String>)>,
 }
 
 /// What a `when` clause does when its condition becomes true.
@@ -542,6 +548,15 @@ pub enum Expr {
     Ref(String),
     /// The built-in `time` variable.
     Time,
+    /// A call to a function that said how to differentiate itself: what
+    /// it works out to, the rule its `derivative` annotation gives, and
+    /// a name standing in for each argument's own derivative.
+    ///
+    /// The value is what a run computes; the rule is what
+    /// differentiation reaches for instead of taking the body apart.
+    /// Keeping both is what lets a body the differentiator cannot read -
+    /// one with `abs` in it, say - still be differentiated.
+    WithDerivative(Box<Expr>, Box<Expr>, Vec<(String, Expr)>),
     /// Function call, including `der(x)`.
     Call(String, Vec<Expr>),
     /// Unary minus.
@@ -615,6 +630,11 @@ impl Expr {
             Expr::Index(base, subscripts) => {
                 base.contains_der() || subscripts.iter().any(Expr::contains_der)
             }
+            // The rule is not part of what the expression is worth, so
+            // a `der` can only be in the value or in an argument.
+            Expr::WithDerivative(value, _, seeds) => {
+                value.contains_der() || seeds.iter().any(|(_, arg)| arg.contains_der())
+            }
             Expr::Member(base, _) => base.contains_der(),
             Expr::Array(items) => items.iter().any(Expr::contains_der),
             Expr::Elementwise(_, l, r) => l.contains_der() || r.contains_der(),
@@ -650,6 +670,13 @@ impl Expr {
             Expr::Index(base, subscripts) => {
                 base.collect_refs(out);
                 subscripts.iter().for_each(|s| s.collect_refs(out));
+            }
+            // What the call reads is in its value and its arguments;
+            // the rule names the same variables and, besides those, only
+            // the compiler's own stand-ins for their derivatives.
+            Expr::WithDerivative(value, _, seeds) => {
+                value.collect_refs(out);
+                seeds.iter().for_each(|(_, arg)| arg.collect_refs(out));
             }
             Expr::Member(base, _) => base.collect_refs(out),
             Expr::Array(items) => items.iter().for_each(|item| item.collect_refs(out)),

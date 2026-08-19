@@ -193,6 +193,19 @@ enum ClassItem {
     Alias(ClassAlias),
 }
 
+/// What reading an annotation is worth keeping: the experiment
+/// settings, and what a function says about its own derivative and
+/// inverse. Everything else in an annotation is skipped.
+#[derive(Default)]
+pub(super) struct Annotated {
+    experiment: Experiment,
+    /// `annotation(derivative = f_der)` on a function.
+    derivative: Option<String>,
+    /// `annotation(inverse(x = f_inv(y, z)))` on a function: which
+    /// input, which function, and the arguments it is given.
+    inverse: Vec<(String, String, Vec<String>)>,
+}
+
 /// The contents of one branch of an `if` equation.
 type BranchBody = (Vec<EquationItem>, Vec<(Expr, Expr)>);
 

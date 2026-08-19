@@ -17,7 +17,7 @@ impl Parser {
         let rhs = self.expr()?;
         self.opt_string();
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Experiment::default())?;
+            self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after equation")?;
         Ok(EquationItem { lhs, rhs })
@@ -200,7 +200,7 @@ impl Parser {
         let right = self.connect_ref()?;
         self.expect(&Token::RParen, "closing parenthesis of connect")?;
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Experiment::default())?;
+            self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after connect")?;
         Ok((left, right))
@@ -319,7 +319,7 @@ impl Parser {
             }
             self.opt_string();
             if self.peek() == &Token::Annotation {
-                self.annotation_body(&mut Experiment::default())?;
+                self.annotation_body(&mut Annotated::default())?;
             }
             self.expect(&Token::Semi, "semicolon after the action")?;
         }
@@ -367,7 +367,7 @@ impl Parser {
         }
         self.expect(&Token::RParen, "closing parenthesis of transition")?;
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Experiment::default())?;
+            self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after transition")?;
         Ok(Transition {
@@ -421,7 +421,7 @@ impl Parser {
             "closing parenthesis of a Connections clause",
         )?;
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Experiment::default())?;
+            self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after a Connections clause")?;
         Ok(clause)

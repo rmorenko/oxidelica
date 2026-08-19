@@ -457,7 +457,120 @@ pub(super) fn inline_function(
     depth: usize,
 ) -> Result<Expr, String> {
     let mut outputs = inline_function_outputs(class, args, shapes, consts, registry, depth)?;
-    Ok(outputs.remove(0).1)
+    let value = outputs.remove(0).1;
+    // What a function says about its own inverse is checked and then
+    // set aside. The nonlinear corrector already solves `f(x) = u` for
+    // `x` where an inverse would have said the answer outright, so
+    // reaching for one would save work rather than make anything
+    // possible - and an annotation nobody reads is still worth
+    // refusing when it names something that is not there.
+    check_inverse(class, registry)?;
+    // A function that said how to differentiate itself is inlined for
+    // its value like any other, and keeps its rule beside it - so a
+    // body the differentiator could not read is still differentiable.
+    match &class.derivative {
+        None => Ok(value),
+        Some(named) => {
+            let rule = derivative_rule(class, named, args, shapes, consts, registry, depth)?;
+            Ok(Expr::WithDerivative(
+                Box::new(value),
+                Box::new(rule.0),
+                rule.1,
+            ))
+        }
+    }
+}
+
+/// Check what a function says about its own inverse: the function it
+/// names has to be there, the input it claims to solve for has to be
+/// one of its own, and what it hands the inverse has to be something it
+/// has to hand.
+fn check_inverse(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> Result<(), String> {
+    let named = |wanted: &str, causality: Causality| {
+        class
+            .components
+            .iter()
+            .any(|component| component.name == wanted && component.causality == causality)
+    };
+    for (solved_for, called, arguments) in &class.inverse {
+        if lookup(registry, called, &class.name, &class.imports).is_none() {
+            return Err(format!(
+                "`{}` says `{called}` inverts it, and there is no such function",
+                class.name
+            ));
+        }
+        if !named(solved_for, Causality::Input) {
+            return Err(format!(
+                "`{}` says its inverse solves for `{solved_for}`, which is not one of its \
+                 inputs",
+                class.name
+            ));
+        }
+        for argument in arguments {
+            if !named(argument, Causality::Input) && !named(argument, Causality::Output) {
+                return Err(format!(
+                    "the inverse of `{}` is handed `{argument}`, which `{}` neither takes \
+                     nor gives",
+                    class.name, class.name
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Inline the function a `derivative` annotation names, leaving a name
+/// where each argument's own derivative belongs.
+///
+/// The derivative function takes what the original takes and then one
+/// more for each of those, in the same order - so the second half of
+/// its inputs is what the rule is a rule about.
+#[allow(clippy::too_many_arguments)]
+fn derivative_rule(
+    class: &ClassDef,
+    named: &str,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    depth: usize,
+) -> Result<(Expr, Vec<(String, Expr)>), String> {
+    let of = lookup(registry, named, &class.name, &class.imports).ok_or_else(|| {
+        format!(
+            "`{}` says its derivative is `{named}`, and there is no such function",
+            class.name
+        )
+    })?;
+    let inputs = |class: &ClassDef| {
+        class
+            .components
+            .iter()
+            .filter(|component| component.causality == Causality::Input)
+            .count()
+    };
+    let (given, wanted) = (inputs(of), 2 * args.len());
+    if given != wanted {
+        return Err(format!(
+            "`{named}` is the derivative of `{}`, so it takes {wanted} inputs - what `{}` \
+             takes, and then one derivative for each - but it takes {given}",
+            class.name, class.name
+        ));
+    }
+    // The names standing in for the derivatives are the compiler's own,
+    // so nothing a model can write collides with them.
+    let seeds: Vec<(String, Expr)> = args
+        .iter()
+        .enumerate()
+        .map(|(index, argument)| (format!("$seed{index}"), argument.clone()))
+        .collect();
+    let handed: Vec<Expr> = args
+        .iter()
+        .cloned()
+        .chain(seeds.iter().map(|(name, _)| Expr::Ref(name.clone())))
+        .collect();
+    let shapes: Vec<Vec<i64>> = shapes.iter().chain(shapes.iter()).cloned().collect();
+    let rule = inline_function(of, &handed, &shapes, consts, registry, depth + 1)?;
+    Ok((rule, seeds))
 }
 
 /// Execute a function body symbolically and return every output, in

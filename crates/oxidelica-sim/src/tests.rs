@@ -126,6 +126,59 @@ fn differentiates_every_elementary_function() {
 }
 
 #[test]
+fn a_call_carrying_its_own_rule_is_worked_on_through_the_value() {
+    // `f(a)` worth `a * a`, with the model's own rule for its
+    // derivative: `2 * a` times whatever `a`'s derivative is. Nothing
+    // here could have been worked out from the value - that is the
+    // point of a rule - so the answers below can only come from it.
+    let node = |argument: Expr| {
+        Expr::WithDerivative(
+            Box::new(Expr::Bin(
+                oxidelica_parser::BinOp::Mul,
+                Box::new(argument.clone()),
+                Box::new(argument.clone()),
+            )),
+            Box::new(expr_of(
+                "(if a >= 0 and not (a < 0) or false then 1 else -1) * 2 * a * seed0",
+            )),
+            vec![("seed0".to_string(), argument)],
+        )
+    };
+    let call = node(expr_of("a"));
+
+    // Differentiating by `a` seeds the rule with `da/da`, which is one.
+    let by_a = simplify(&differentiate(&call, &DiffTarget::Variable("a")).unwrap());
+    assert_eq!(value_of(&by_a, &[("a", 3.0)]), 6.0);
+    // By anything else the seed is zero, and the rule multiplies out.
+    let by_b = simplify(&differentiate(&call, &DiffTarget::Variable("b")).unwrap());
+    assert_eq!(value_of(&by_b, &[("a", 3.0), ("b", 1.0)]), 0.0);
+
+    // Folding reaches inside without losing the rule, and so does
+    // putting a number in the place of a variable.
+    let folded = simplify(&node(expr_of("a * 1")));
+    assert!(matches!(folded, Expr::WithDerivative(..)));
+    assert_eq!(value_of(&folded, &[("a", 4.0)]), 16.0);
+    let pinned = substitute(&call, "a", 5.0);
+    assert_eq!(value_of(&pinned, &[]), 25.0);
+    assert_eq!(
+        value_of(
+            &simplify(&differentiate(&pinned, &DiffTarget::Variable("a")).unwrap()),
+            &[]
+        ),
+        0.0
+    );
+
+    // A rule of an inner call is left alone where an outer one is
+    // seeded: the two functions' parameter names mean nothing to each
+    // other, and `seed0` in one is not `seed0` in the other.
+    let nested = node(call.clone());
+    let outer = simplify(&differentiate(&nested, &DiffTarget::Variable("a")).unwrap());
+    // At a = 2 the inner rule gives 2a = 4, and the outer one takes
+    // that as its seed: 2a * 4 = 16.
+    assert_eq!(value_of(&outer, &[("a", 2.0)]), 16.0);
+}
+
+#[test]
 fn nonlinear_equations_are_not_solved_symbolically() {
     // x * x = 4 is not linear in x, so no closed form is offered.
     let expr = expr_of("a * a");
