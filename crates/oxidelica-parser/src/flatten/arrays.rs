@@ -157,11 +157,14 @@ pub(super) fn expand(
             let of = registry
                 .get(shapes.records[name].as_str())
                 .ok_or_else(|| format!("`{name}` is a record of a class that is not here"))?;
+            // A field may be an array of its own - a rotation is a
+            // three by three and a rate of three - so each is worked
+            // out rather than named.
             Value::Array(
                 record_fields(of)
                     .into_iter()
-                    .map(|field| Value::Scalar(Expr::Ref(format!("{name}.{field}"))))
-                    .collect(),
+                    .map(|field| recur(&Expr::Ref(format!("{name}.{field}"))))
+                    .collect::<Result<Vec<_>, String>>()?,
             )
         }
         Expr::Neg(inner) => {
@@ -868,6 +871,13 @@ pub(super) fn expand_call(
                     .collect(),
             ))
         }
+        _ if name.starts_with("Connections.") => {
+            // `Connections.rooted(frame_a.R)` asks the connection graph
+            // about a node, and the node is the name itself rather than
+            // the values under it. The question is answered once the
+            // graph is drawn, so the call stands as it was written.
+            Ok(Value::Scalar(Expr::Call(name.to_string(), args.to_vec())))
+        }
         _ => {
             // `Complex(1, 2)` builds a record. A declared
             // `'constructor'` is called if the record has one; failing
@@ -889,8 +899,11 @@ pub(super) fn expand_call(
                     );
                 }
                 if class.kind == ClassKind::Record {
+                    // Given in order rather than by name, a record is
+                    // built from exactly its fields.
+                    let named = args.iter().any(|a| matches!(a, Expr::NamedArg(..)));
                     let fields = record_fields(class);
-                    if fields.len() != args.len() {
+                    if !named && fields.len() != args.len() {
                         return Err(format!(
                             "`{}` is built from {} field(s), {} given",
                             class.name,
@@ -898,11 +911,7 @@ pub(super) fn expand_call(
                             args.len()
                         ));
                     }
-                    return Ok(Value::Array(args.iter().map(&recur).collect::<Result<
-                        Vec<_>,
-                        String,
-                    >>(
-                    )?));
+                    return record_written_out(class, args, &recur);
                 }
             }
             // A user function that takes or returns an array is inlined
@@ -1087,17 +1096,66 @@ pub(super) fn combine(
     }
 }
 
-/// Whether any argument or answer of a function is an array.
+/// A record written out: `Complex(1, 2)`, `Orientation(T = ..., w =
+/// ...)`.
+///
+/// A record instance already comes out of the array layer as its
+/// members in the order they were declared, so one written out comes
+/// out the same way and the equation between them lines up member by
+/// member. Members may be given in order or by name, and one nobody
+/// gave stands on the value its declaration gives it.
+fn record_written_out(
+    class: &ClassDef,
+    args: &[Expr],
+    recur: &dyn Fn(&Expr) -> Result<Value, String>,
+) -> Result<Value, String> {
+    let mut members = Vec::new();
+    let mut position = 0;
+    for member in &class.components {
+        let given = args.iter().find_map(|arg| match arg {
+            Expr::NamedArg(name, value) if name == &member.name => Some((**value).clone()),
+            _ => None,
+        });
+        let given = given.or_else(|| {
+            let taken = args
+                .get(position)
+                .filter(|arg| !matches!(arg, Expr::NamedArg(..)))
+                .cloned();
+            if taken.is_some() {
+                position += 1;
+            }
+            taken
+        });
+        let value = given.or_else(|| member.binding.clone()).ok_or_else(|| {
+            format!(
+                "`{}` written out says nothing about its member `{}`, and the declaration \
+                 gives it no value either",
+                class.name, member.name
+            )
+        })?;
+        members.push(recur(&value)?);
+    }
+    Ok(Value::Array(members))
+}
+
+/// Whether any argument or answer of a function is more than one value.
 ///
 /// The dimensions may be written on the declaration - `input Real
 /// u[3]` - or come with its type, as they do for `input Orientation T`
-/// where `type Orientation = Real[3, 3]`. Both count: a function that
-/// deals in arrays is inlined with them intact rather than applied to
-/// one element at a time.
+/// where `type Orientation = Real[3, 3]`. A record counts too: it
+/// comes out of this layer as its members, which is more than one
+/// value however each of them is shaped. All of them mean the same
+/// thing here - the function is inlined with what it deals in intact,
+/// rather than applied to one element at a time.
 fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
     class.components.iter().any(|component| {
         if component.causality == Causality::None {
             return false;
+        }
+        if lookup(registry, &component.type_name, &class.name, &class.imports)
+            .is_some_and(|of| of.kind == ClassKind::Record)
+        {
+            return true;
         }
         let mut component = component.clone();
         resolve_type(registry, &mut component, &class.name, &class.imports);
@@ -1245,13 +1303,25 @@ pub(super) fn collect_shapes(
     out: &mut HashMap<String, Vec<i64>>,
     depth: usize,
 ) {
+    collect_shapes_under(registry, class, "", consts, out, depth)
+}
+
+/// The same, for the members of a record below a name.
+fn collect_shapes_under(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    consts: &HashMap<String, f64>,
+    out: &mut HashMap<String, Vec<i64>>,
+    depth: usize,
+) {
     if depth > MAX_DEPTH {
         return;
     }
     let scope = class.name.as_str();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
-            collect_shapes(registry, base, consts, out, depth + 1);
+            collect_shapes_under(registry, base, prefix, consts, out, depth + 1);
         }
     }
     for component in &class.components {
@@ -1261,6 +1331,14 @@ pub(super) fn collect_shapes(
         let mut component = component.clone();
         resolve_type(registry, &mut component, scope, &class.imports);
         let component = &component;
+        // A record's members are shaped too, and a body handed one -
+        // `input Orientation R` - reads `R.T` off it.
+        if let Some(of) = lookup(registry, &component.type_name, scope, &class.imports)
+            .filter(|of| of.kind == ClassKind::Record)
+        {
+            let below = format!("{prefix}{}.", component.name);
+            collect_shapes_under(registry, of, &below, consts, out, depth + 1);
+        }
         if component.dimensions.is_empty() {
             continue;
         }
@@ -1288,7 +1366,7 @@ pub(super) fn collect_shapes(
             })
             .collect();
         if let Some(sizes) = sizes {
-            out.insert(component.name.clone(), sizes);
+            out.insert(format!("{prefix}{}", component.name), sizes);
         }
     }
 }

@@ -5877,3 +5877,86 @@ fn a_branch_may_hold_an_event_and_a_call() {
     )
     .contains("a call standing on its own"));
 }
+
+/// A record is a value: a function may answer with one, and an
+/// equation between two of them is one equation per member.
+#[test]
+fn a_function_may_answer_with_a_record() {
+    let m = parse_model(
+        "package P record Orient Real T[3, 3]; Real w[3]; end Orient; \
+           function turn input Real e[3]; input Real angle; output Orient R; \
+           algorithm R := Orient(T = identity(3) * angle, w = e * angle); end turn; \
+         end P; \
+         model M parameter Real e[3] = {0, 0, 1}; P.Orient R; Real y; \
+         equation R = P.turn(e, time); y = R.T[1, 1]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a record answered by a function");
+    // Nine of the matrix and three of the rate, one equation each.
+    assert_eq!(
+        m.equations
+            .iter()
+            .filter(|e| format!("{:?}", e.lhs).contains("R.T["))
+            .count(),
+        9
+    );
+    assert_eq!(
+        m.equations
+            .iter()
+            .filter(|e| format!("{:?}", e.lhs).contains("R.w["))
+            .count(),
+        3
+    );
+
+    // Members may be given by name in any order, and one nobody gives
+    // stands on what its declaration says.
+    let m = parse_model(
+        "model M record Pair Real a; Real b; end Pair; \
+         function make input Real u; output Pair p; algorithm p := Pair(b = u, a = 2 * u); \
+         end make; \
+         Pair one; Real y; \
+         equation one = make(time); y = one.a + one.b; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a record written out by name");
+    let given = |member: &str| {
+        format!(
+            "{:?}",
+            m.equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref({member:?})"))
+                .expect(member)
+                .rhs
+        )
+    };
+    assert_eq!(given("one.a"), "Bin(Mul, Number(2.0), Time)");
+    assert_eq!(given("one.b"), "Time");
+
+    // A member nobody gives stands on what its declaration says. Here
+    // that is a second equation for `one.b`, since the declaration
+    // makes one of its own - which is what a model doing this really
+    // is, and the balance check says so further on.
+    let m = parse_model(
+        "model M record Pair Real a; Real b = 7; end Pair; \
+         function spare input Real u; output Pair p; algorithm p := Pair(a = u); end spare; \
+         Pair one; Real y; equation one = spare(time); y = one.a; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a member nobody gave");
+    let for_b: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| format!("{:?}", e.lhs) == "Ref(\"one.b\")")
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(for_b, ["Number(7.0)", "Number(7.0)"]);
+
+    // Given in order rather than by name, the count still has to match.
+    let error = parse_model(
+        "model M record Pair Real a; Real b; end Pair; Pair p; \
+         equation p = Pair(1); end M;",
+    )
+    .expect_err("too few fields")
+    .message;
+    assert!(error.contains("2 field(s), 1 given"), "{error}");
+}

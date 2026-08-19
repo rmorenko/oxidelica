@@ -468,7 +468,23 @@ pub(super) fn execute(
             // to the model with whatever the section has assigned so
             // far already substituted into it.
             Statement::Assert(condition, message) => {
-                asserts.push((substitute_refs(condition, bindings), message.clone()));
+                // The check is worked out here, where the names it was
+                // written with mean what they meant to whoever wrote
+                // them: a body that says `length(n)` with `length`
+                // imported is asking for that function, and the place
+                // the check ends up has never heard of the import.
+                let condition = substitute_class_constants(condition, registry, scope, imports, &[]);
+                let condition = substitute_refs(&condition, bindings);
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
+                    sizes,
+                    loop_vars: &no_loop_vars,
+                    consts,
+                    records: no_records(),
+                };
+                let condition = expand(&condition, &shapes, registry, scope, imports, depth + 1)?
+                    .into_expr();
+                asserts.push((substitute_refs(&condition, bindings), message.clone()));
             }
             // A call on its own: nothing takes its outputs, so what it
             // was written for is the checks its body makes, and those

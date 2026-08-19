@@ -268,15 +268,16 @@ pub(super) fn instantiate(
     let mut settled: HashMap<String, f64> = HashMap::new();
     // Which of this class's components are records, and of what: an
     // overloaded operator is chosen by the record its operands are of.
-    let records_here: HashMap<String, String> = class
-        .components
-        .iter()
-        .filter_map(|component| {
-            let of = lookup(registry, &component.type_name, scope, &imports)?;
-            (of.kind == ClassKind::Record)
-                .then(|| (format!("{prefix}{}", component.name), of.name.clone()))
-        })
-        .collect();
+    let mut records_here: HashMap<String, String> = HashMap::new();
+    collect_records(
+        registry,
+        class,
+        prefix,
+        scope,
+        &imports,
+        &mut records_here,
+        0,
+    );
 
     for component in &class.components {
         let fresh = taken < acc.sizes.len();
@@ -1401,6 +1402,57 @@ pub(super) fn instantiate(
     }
     acc.origin = stamped;
     Ok(())
+}
+
+/// Which of the instances below a class are records, and of what.
+///
+/// An overloaded operator is chosen by the record its operands are of,
+/// and an equation between records is one equation per member - both
+/// need to know a record when they see one. The walk goes down through
+/// the whole tree because a record is as often a member of something
+/// as a component outright: a frame of a multibody model carries its
+/// orientation as `frame_b.R`.
+fn collect_records(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    out: &mut HashMap<String, String>,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, imports) {
+            collect_records(
+                registry,
+                base,
+                prefix,
+                &base.name,
+                &base.imports,
+                out,
+                depth + 1,
+            );
+        }
+    }
+    for component in &class.components {
+        let Some(of) = lookup(registry, &component.type_name, scope, imports) else {
+            continue;
+        };
+        let name = format!("{prefix}{}", component.name);
+        if of.kind == ClassKind::Record {
+            out.insert(name.clone(), of.name.clone());
+        }
+        if matches!(
+            of.kind,
+            ClassKind::Record | ClassKind::Model | ClassKind::Connector
+        ) {
+            let below = format!("{name}.");
+            collect_records(registry, of, &below, &of.name, &of.imports, out, depth + 1);
+        }
+    }
 }
 
 /// Instantiate one component element (a scalar, or one element of an
