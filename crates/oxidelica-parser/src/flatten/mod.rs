@@ -114,6 +114,20 @@ fn collect_members(
     }
 }
 
+/// What an annotation said under a given name, where it said anything:
+/// the string it carries, or an empty one where it is a bare word or
+/// carries something else.
+fn annotation_says(said: &[Expr], wanted: &str) -> Option<String> {
+    said.iter().find_map(|entry| match entry {
+        Expr::NamedArg(name, value) if name == wanted => Some(match value.as_ref() {
+            Expr::Str(text) => text.clone(),
+            _ => String::new(),
+        }),
+        Expr::Ref(name) if name == wanted => Some(String::new()),
+        _ => None,
+    })
+}
+
 /// Flatten the class named `top` into a flat model.
 pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     let registry: HashMap<&str, &ClassDef> = classes.iter().map(|c| (c.name.as_str(), c)).collect();
@@ -364,6 +378,56 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             *connected.entry(port.clone()).or_insert(0.0) += 1.0;
         }
     }
+    // What a connector's declaration asked of the connections to it.
+    // The chapter says these make it an error rather than leaving it to
+    // the tool, so they are checked here, where how often each port was
+    // named is already known.
+    for (port, said) in &acc.connect_rules {
+        let times = connected.get(port).copied().unwrap_or(0.0);
+        if let Some(why) = annotation_says(said, "mustBeConnected") {
+            if times == 0.0 {
+                return Err(match why.is_empty() {
+                    true => format!("`{port}` must be connected, and nothing connects to it"),
+                    false => format!("`{port}` must be connected: {why}"),
+                });
+            }
+        }
+        if let Some(why) = annotation_says(said, "mayOnlyConnectOnce") {
+            if times > 1.0 {
+                return Err(match why.is_empty() {
+                    true => format!(
+                        "`{port}` may only be connected once, and {times} \
+                                     connections name it"
+                    ),
+                    false => format!("`{port}` may only be connected once: {why}"),
+                });
+            }
+        }
+    }
+
+    // `Evaluate = true` says the parameter has to be one the compiler
+    // settles rather than one the run carries. Where it cannot be
+    // settled the declaration is asking for something that did not
+    // happen, and saying so beats letting it pass as though it had.
+    for component in &model.components {
+        if !matches!(component.variability, Variability::Parameter)
+            || annotation_says(&component.annotations, "Evaluate").is_none()
+        {
+            continue;
+        }
+        let asked = component.annotations.iter().any(|entry| {
+            matches!(entry, Expr::NamedArg(name, value)
+                if name == "Evaluate" && matches!(value.as_ref(), Expr::Bool(true)))
+        });
+        if asked && !acc.const_values.contains_key(&component.name) {
+            return Err(format!(
+                "`{}` asks to be evaluated before the run, and its value is not one the \
+                 compiler can work out",
+                component.name
+            ));
+        }
+    }
+
     let answer = |expr: &Expr| answer_graph_queries(expr, &roots, &connected);
     for equation in model
         .equations
@@ -464,6 +528,10 @@ struct Flat {
     connection_graph: Vec<GraphClause>,
     /// Connector instance path -> connector class name.
     connectors: HashMap<String, String>,
+    /// What a connector's declaration said about how it must be
+    /// connected: `mustBeConnected` and `mayOnlyConnectOnce` of 18.8,
+    /// by the port's flat path, with the message each carries.
+    connect_rules: Vec<(String, Vec<Expr>)>,
     /// Connect statements with fully prefixed paths.
     connects: Vec<(String, String)>,
     /// Values of parameters already instantiated, by flat name: array

@@ -360,14 +360,27 @@ is stepped over rather than refused, and the rest of the annotation is
 still read - an annotation says things to tools, and one a tool does
 not understand must not stop it.
 
-Two of them do something. `experiment` says how long a run is and how
-often it writes; `HideResult` leaves a variable out of the results and
-changes nothing else about it. The rest are carried and not acted on:
-`Evaluate` asks for a parameter to be settled before the run, which
-every parameter here already is; `Inline`, `LateInline` and
-`smoothOrder` are advice about work this compiler does differently; and
-`Protection` is carried without being enforced, which is the one gap
-worth naming - `protected` is not enforced either.
+Everything the chapter calls an error is one. `mustBeConnected` refuses
+a port nothing connects to and `mayOnlyConnectOnce` a port named twice,
+each with the message its declaration wrote; `Evaluate = true` refuses
+a parameter whose value the compiler cannot settle, since asking to be
+evaluated and not being is not a thing to pass over. `experiment` says
+how long a run is and how often it writes, and `HideResult` leaves a
+variable out of the results while changing nothing else about it -
+which the chapter leaves to the tool and this one does.
+
+What is left is not the language's half but the tool's, and it is one
+thing said three ways: the chapter requires a tool to draw `Icon`,
+`Diagram` and `Placement`, to build a dialog from `Dialog`, `choices`
+and `connectorSizing`, and to enforce `Protection`. All three are read
+and carried and reachable - `class_info` hands a class's annotations to
+whatever draws it - and none is acted on, because what would act on
+them is the editor rather than the compiler. The editor draws symbols
+written by hand today. `uses` and `conversion` are the same shape:
+there is nothing to convert between until libraries are loaded by
+version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
+`TestCase` the chapter leaves to the tool, and this one does not act on
+them.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

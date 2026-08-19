@@ -974,6 +974,13 @@ pub(super) fn instantiate_one(
             if child.kind == ClassKind::Connector {
                 acc.connectors
                     .insert(flat_name.to_string(), child.name.clone());
+                // What the declaration said about how it must be
+                // connected travels with the port, since that is the
+                // last place the two are seen together.
+                if !component.annotations.is_empty() {
+                    acc.connect_rules
+                        .push((flat_name.to_string(), component.annotations.clone()));
+                }
             }
             // Child modifiers, outermost first so they win: dotted
             // overrides handed down, then a redeclaration's, then the

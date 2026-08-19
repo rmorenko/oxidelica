@@ -1893,6 +1893,54 @@ fn an_annotation_is_read_rather_than_stepped_over() {
 }
 
 #[test]
+fn an_annotation_that_the_chapter_calls_an_error_is_one() {
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    let wired = |said: &str, connections: &str| {
+        format!(
+            "model M connector Pin Real v; flow Real i; end Pin; \
+             model Node Pin p{said}; Real x; equation p.i = 0; x = p.v; end Node; \
+             model Src Pin p; equation p.v = 5; end Src; \
+             Node a; Src b; Src c; equation {connections} end M;"
+        )
+    };
+    // `mustBeConnected`: 18.8 says it makes it an error, and the
+    // message the declaration wrote is what the error says.
+    assert!(err(&wired(
+        " annotation(mustBeConnected = \"a node has to be wired in\")",
+        "a.x = 1;"
+    ))
+    .contains("must be connected: a node has to be wired in"));
+    assert!(parse_model(&wired(
+        " annotation(mustBeConnected = \"wired\")",
+        "connect(a.p, b.p);"
+    ))
+    .is_ok());
+    // `mayOnlyConnectOnce`: the same, counted the other way.
+    assert!(err(&wired(
+        " annotation(mayOnlyConnectOnce = \"one wire to a node\")",
+        "connect(a.p, b.p); connect(a.p, c.p);"
+    ))
+    .contains("may only be connected once: one wire to a node"));
+    assert!(parse_model(&wired(
+        " annotation(mayOnlyConnectOnce = \"one wire\")",
+        "connect(a.p, b.p);"
+    ))
+    .is_ok());
+
+    // `Evaluate = true` asks for a parameter the compiler settles.
+    assert!(parse_model(
+        "model M parameter Real p = 3 annotation(Evaluate = true); Real y; \
+         equation y = p; end M;"
+    )
+    .is_ok());
+    assert!(err("model M function f input Real x; output Real y; \
+         algorithm y := x; if x > 0 then y := f(x - 1); end if; end f; \
+         parameter Real p = f(2) annotation(Evaluate = true); Real y; \
+         equation y = p; end M;")
+    .contains("asks to be evaluated before the run"));
+}
+
+#[test]
 fn what_cannot_be_inlined_travels_with_the_model() {
     // A recursive function is carried whole, with everything it calls,
     // and named the way the registry knows it so the walk finds it.
