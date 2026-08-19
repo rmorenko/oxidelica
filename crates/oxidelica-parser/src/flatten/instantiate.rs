@@ -200,6 +200,17 @@ pub(super) fn instantiate(
             local_consts.insert(format!("{prefix}{name}"), value);
         }
     }
+    // And the parameters of this instance that another base already
+    // settled. `extends ConditionalHeatPort(T = fill(293.15, m))` is
+    // written in a class whose `m` comes from a base of its own, and
+    // by the time the second base is reached the first has said what
+    // `m` is - under the instance path, which is the only name the
+    // modifier still carries. What this class says itself wins.
+    for (name, value) in &acc.const_values {
+        if name.starts_with(prefix) && !local_consts.contains_key(name) {
+            local_consts.insert(name.clone(), *value);
+        }
+    }
 
     // What each array component of this class - and of its bases - is
     // shaped like, so a value may name one as a whole.

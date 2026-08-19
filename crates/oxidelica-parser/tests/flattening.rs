@@ -4859,3 +4859,42 @@ fn a_recursion_unrolls_as_far_as_the_compiler_can_decide() {
         m.equations.last().unwrap().rhs
     );
 }
+
+/// A modifier on one base written with a parameter another base
+/// brought: by the time the second is reached, the first has said what
+/// the parameter is worth.
+#[test]
+fn a_base_may_be_modified_with_what_another_base_settled() {
+    // `extends Heat(T = fill(20, m))` in a class whose `m` comes from
+    // `Phases`. The length is not in either base's own text, and it is
+    // known all the same.
+    let m = parse_model(
+        "model Phases parameter Integer m = 3; end Phases; \
+         model Heat parameter Integer mh = 1; parameter Real T[mh] = zeros(mh); end Heat; \
+         model Diode extends Phases; extends Heat(final mh = m, final T = fill(20, m)); \
+         end Diode; \
+         model M Diode d(m = 4); Real y; equation y = d.T[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a modifier reaching across bases");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("d.T["))
+            .count(),
+        4
+    );
+    let second = m.components.iter().find(|c| c.name == "d.T[2]").unwrap();
+    assert!(matches!(second.binding, Some(Expr::Number(n)) if n == 20.0));
+
+    // And a length nothing can see is still said to be one, with the
+    // expression that was asked for.
+    let error = parse_model("model M Real n; Real v[3]; equation n = time; v = fill(1, n); end M;")
+        .expect_err("a length the run holds")
+        .message;
+    assert!(
+        error.contains("needs a length the compiler can see"),
+        "{error}"
+    );
+    assert!(error.contains("Ref(\"n\")"), "{error}");
+}

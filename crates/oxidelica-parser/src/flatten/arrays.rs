@@ -336,8 +336,12 @@ pub(super) fn expand_call(
         let value = recur(e)?.scalar()?;
         let mut env = shapes.consts.clone();
         env.extend(shapes.loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
-        let value = const_eval(&value, &env)
-            .ok_or_else(|| format!("`{name}` needs a length the compiler can see"))?;
+        let value = const_eval(&value, &env).ok_or_else(|| {
+            format!(
+                "`{name}` needs a length the compiler can see: {}",
+                crate::flatten::names::sketch(&value)
+            )
+        })?;
         if value.fract() != 0.0 || value < 0.0 {
             return Err(format!(
                 "`{name}`: a length must be a whole number, got {value}"
