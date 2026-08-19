@@ -4718,3 +4718,80 @@ fn a_member_may_be_read_across_an_array_of_components() {
         2
     );
 }
+
+/// Every relational operator a record may declare, spelled the way the
+/// record spells it.
+#[test]
+fn a_record_may_declare_every_comparison() {
+    // One operator per relation, each answering with the same rule, so
+    // what a comparison comes to says which one was reached.
+    const V: &str = "operator record V Real x; \
+         encapsulated operator function 'constructor' input Real a; output V v; \
+         algorithm v.x := a; end 'constructor'; \
+         encapsulated operator function '<' input V a; input V b; output Boolean r; \
+         algorithm r := a.x < b.x; end '<'; \
+         encapsulated operator function '<=' input V a; input V b; output Boolean r; \
+         algorithm r := a.x <= b.x; end '<='; \
+         encapsulated operator function '>' input V a; input V b; output Boolean r; \
+         algorithm r := a.x > b.x; end '>'; \
+         encapsulated operator function '>=' input V a; input V b; output Boolean r; \
+         algorithm r := a.x >= b.x; end '>='; \
+         encapsulated operator function '==' input V a; input V b; output Boolean r; \
+         algorithm r := a.x == b.x; end '=='; \
+         encapsulated operator function '<>' input V a; input V b; output Boolean r; \
+         algorithm r := a.x <> b.x; end '<>'; end V; ";
+    let m = parse_model(&format!(
+        "{V} model M Real lt; Real le; Real gt; Real ge; Real eq; Real ne; \
+         equation \
+           lt = if V(1) < V(2) then 1 else 0; le = if V(2) <= V(2) then 1 else 0; \
+           gt = if V(3) > V(2) then 1 else 0; ge = if V(2) >= V(2) then 1 else 0; \
+           eq = if V(2) == V(2) then 1 else 0; ne = if V(1) <> V(2) then 1 else 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .expect("every comparison");
+    // Each comparison reached the record's own operator, which is what
+    // the inlined body of it looks like: the fields compared, not the
+    // records. Every one of them held.
+    for (name, sign) in [
+        ("lt", "Lt"),
+        ("le", "Le"),
+        ("gt", "Gt"),
+        ("ge", "Ge"),
+        ("eq", "Eq"),
+        ("ne", "Ne"),
+    ] {
+        let equation = m
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == name))
+            .unwrap_or_else(|| panic!("no equation for {name}"));
+        let written = format!("{:?}", equation.rhs);
+        assert!(written.contains(sign), "{name}: {written}");
+    }
+}
+
+/// What an `initial algorithm` and a tuple inside `when` are refused
+/// for when they ask for more than a section can give.
+#[test]
+fn the_initial_section_and_a_tuple_at_an_event_say_their_limits() {
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+
+    // `break` and `return` belong to a loop and to a function; an
+    // initial section is neither.
+    assert!(
+        err("model M Real x; initial algorithm break; equation der(x) = 1; end M;")
+            .contains("`break` outside of a loop")
+    );
+    assert!(
+        err("model M Real x; initial algorithm return; equation der(x) = 1; end M;")
+            .contains("not a model algorithm")
+    );
+
+    // A tuple may not ask for more values than the call gives back.
+    assert!(err(
+        "model M function one input Real u; output Real a; algorithm a := u; end one; \
+         discrete Real p; discrete Real q; Real y; equation y = time; \
+         when time > 0.5 then (p, q) = one(1); end when; end M;"
+    )
+    .contains("the tuple asks for"));
+}
