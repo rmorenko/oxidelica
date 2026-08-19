@@ -5493,3 +5493,32 @@ fn an_external_object_is_a_handle_and_no_variables() {
         .message;
     assert!(error.contains("partial"), "{error}");
 }
+
+/// A call written for what it does outside the model rather than for
+/// what it gives back.
+#[test]
+fn a_call_that_only_acts_outside_the_model_does_nothing_here() {
+    // `Streams.print(...)` writes a line on a terminal. There is none
+    // here and no value to miss, so the call does nothing and the run
+    // is the same run.
+    let m = parse_model(
+        "model M impure function print input String s; \
+           external \"C\" ModelicaInternal_print(s); end print; \
+         Real y; equation print(\"working\"); y = time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a call that only acts outside");
+    assert_eq!(m.equations.len(), 1);
+    assert!(m.asserts.is_empty());
+
+    // A body written outside that does answer is another matter: its
+    // value is wanted, and there is nothing here to produce it.
+    let error = parse_model(
+        "model M function measure input Real u; output Real v; \
+           external \"C\" v = measure_c(u); end measure; \
+         Real y; equation y = measure(1); end M;",
+    )
+    .expect_err("no value to be had")
+    .message;
+    assert!(error.contains("outside Modelica"), "{error}");
+}

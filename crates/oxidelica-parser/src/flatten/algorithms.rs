@@ -1057,6 +1057,20 @@ pub(super) fn inline_function_checks(
     registry: &HashMap<&str, &ClassDef>,
     depth: usize,
 ) -> Result<Vec<(Expr, String)>, String> {
+    // A body written outside Modelica that answers with nothing is
+    // there for what it does rather than for what it says:
+    // `Streams.print(...)` writes a line on the terminal. There is no
+    // terminal here and no value to miss, so the call does nothing and
+    // the run is the same run. A body that does answer is another
+    // matter - its value is wanted, and it is refused below.
+    if class.external
+        && !class
+            .components
+            .iter()
+            .any(|c| c.causality == Causality::Output)
+    {
+        return Ok(Vec::new());
+    }
     let mut checks = Vec::new();
     inline_body(class, args, shapes, consts, registry, depth, &mut checks)?;
     Ok(checks)

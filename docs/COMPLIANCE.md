@@ -408,6 +408,11 @@ a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.
 
+A call whose body is written outside Modelica and which answers with
+nothing is read and dropped: `Streams.print(...)` writes a line on a
+terminal, there is none here, and no value goes missing. One that does
+answer is refused where it is called, its value being wanted.
+
 **Semantics**: `StateSelect` is the language's own enumeration and a
 model may declare with it and read its literals, but what it asks for
 is not acted on: `never` and `always` are demands about which variables
