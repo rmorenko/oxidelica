@@ -2396,5 +2396,6 @@ pub(super) fn blank_component() -> Component {
         redeclaration: false,
         is_final: false,
         each_modifiers: Vec::new(),
+        annotations: Vec::new(),
     }
 }

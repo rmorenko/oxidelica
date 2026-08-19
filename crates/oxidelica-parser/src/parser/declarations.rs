@@ -156,8 +156,9 @@ impl Parser {
         }
 
         let description = self.opt_string();
+        let mut annotated = Annotated::default();
         if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut Annotated::default())?;
+            self.annotation_body(&mut annotated)?;
         }
         self.expect(&Token::Semi, "semicolon after declaration")?;
 
@@ -185,6 +186,7 @@ impl Parser {
             redeclaration,
             is_final,
             each_modifiers,
+            annotations: annotated.kept,
         })
     }
 

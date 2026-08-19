@@ -129,6 +129,10 @@ pub struct Component {
     /// component, `each` spreads a value over every element rather than
     /// handing the elements the slices of it.
     pub each_modifiers: Vec<String>,
+    /// What the declaration's annotation said: where a diagram puts it,
+    /// which dialog group it belongs to, whether its value is worth
+    /// writing down.
+    pub annotations: Vec<Expr>,
 }
 
 /// A single equation `lhs = rhs`.
@@ -318,6 +322,11 @@ pub struct ClassDef {
     /// `annotation(inverse(x = f_inv(y, z)))`: which input this class
     /// can be solved for, by which function, given which arguments.
     pub inverse: Vec<(String, String, Vec<String>)>,
+    /// Everything else the class annotation said, as written: the
+    /// drawing of an `Icon`, a `Documentation`, a `version`. None of it
+    /// changes what a run does, and all of it is what a tool around the
+    /// run reads.
+    pub annotations: Vec<Expr>,
 }
 
 /// What a `when` clause does when its condition becomes true.

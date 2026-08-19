@@ -1514,10 +1514,21 @@ pub(crate) fn compile_at(
         selection_monitor.push((own, alternatives));
     }
 
+    // A declaration may ask for its value not to be written down, which
+    // is what 18.3's `HideResult` says. Nothing else about the variable
+    // changes: it is solved for and read like any other.
+    let hidden = |name: &str| {
+        model
+            .components
+            .iter()
+            .find(|component| component.name == name)
+            .is_some_and(|component| asks_to_hide(&component.annotations))
+    };
     let output_algebraics: Vec<(String, Slot)> = ordered_algs
         .iter()
         .zip(&algebraic_slots)
         .filter(|(name, _)| !dummies.values().any(|dummy| dummy == *name))
+        .filter(|(name, _)| !hidden(name))
         .map(|(name, &slot)| (name.clone(), slot))
         .collect();
 
@@ -1650,6 +1661,17 @@ pub(crate) fn compile_at(
 /// Differentiating through an algebraic unknown or a non-smooth
 /// function is reported as an error (dummy derivatives arrive with the
 /// full M3).
+/// Whether a declaration's annotation asks for its value to be left
+/// out of the results: `annotation(HideResult = true)`.
+pub(crate) fn asks_to_hide(annotations: &[Expr]) -> bool {
+    annotations.iter().any(|entry| match entry {
+        Expr::NamedArg(name, value) => {
+            name == "HideResult" && matches!(value.as_ref(), Expr::Bool(true))
+        }
+        _ => false,
+    })
+}
+
 /// Collect `lhs - rhs` for every relation in an expression: these are
 /// the functions whose sign changes mark an event.
 pub(crate) fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {

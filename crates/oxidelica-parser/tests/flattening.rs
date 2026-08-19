@@ -1851,6 +1851,48 @@ const NOT_SMOOTH: &str = "function f input Real x; output Real y; \
      algorithm y_der := (if x >= 0 then 2 else -2) * x_der; end fd; ";
 
 #[test]
+fn an_annotation_is_read_rather_than_stepped_over() {
+    // An annotation is a tree of `name = value`, and a value is an
+    // expression - a number, a string, a list, a call with named
+    // arguments - so what is kept is what the expression parser reads.
+    let classes = oxidelica_parser::parse_file(
+        "model M \
+         parameter Real k = 2 annotation(Dialog(group = \"Main\"), Evaluate = true); \
+         Real y; equation y = k; \
+         annotation(Icon(graphics = {Line(points = {{0, 0}, {1, 1}}), \
+         Text(extent = {{-1, -1}, {1, 1}}, textString = \"%name\")}), \
+         Documentation(info = \"<html>what it does</html>\"), version = \"1.0\"); end M;",
+    )
+    .unwrap();
+    let info = oxidelica_parser::class_info(&classes, "M").unwrap();
+    let written = format!("{:?}", info.annotations);
+    for part in ["Icon", "Line", "Text", "%name", "Documentation", "version"] {
+        assert!(written.contains(part), "{part} in {written}");
+    }
+    // On a declaration too.
+    let k = classes[0]
+        .components
+        .iter()
+        .find(|component| component.name == "k")
+        .unwrap();
+    let said = format!("{:?}", k.annotations);
+    assert!(said.contains("Dialog") && said.contains("Main"), "{said}");
+    assert!(said.contains("Evaluate"), "{said}");
+
+    // What the expression parser cannot read is stepped over rather
+    // than refused: an annotation says things to tools, and one it does
+    // not understand must not stop it. The rest of the annotation is
+    // still read.
+    let odd = oxidelica_parser::parse_file(
+        "model M Real y; equation y = 1; \
+         annotation(__vendor(thing = = ), version = \"2.0\"); end M;",
+    )
+    .unwrap();
+    let kept = format!("{:?}", odd[0].annotations);
+    assert!(kept.contains("version") && kept.contains("2.0"), "{kept}");
+}
+
+#[test]
 fn what_cannot_be_inlined_travels_with_the_model() {
     // A recursive function is carried whole, with everything it calls,
     // and named the way the registry knows it so the walk finds it.

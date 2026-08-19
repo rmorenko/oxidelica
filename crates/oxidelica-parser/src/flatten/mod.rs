@@ -58,6 +58,9 @@ pub struct ClassInfo {
     pub description: Option<String>,
     /// Whether the class can be instantiated as a component.
     pub instantiable: bool,
+    /// What the class annotation said, as written: the drawing of its
+    /// `Icon`, its `Documentation`, whatever else a tool reads.
+    pub annotations: Vec<Expr>,
 }
 
 /// Summarize a class for tooling (the diagram editor).
@@ -66,6 +69,7 @@ pub fn class_info(classes: &[ClassDef], name: &str) -> Option<ClassInfo> {
     let class = registry.get(name)?;
     let mut info = ClassInfo {
         description: class.description.clone(),
+        annotations: class.annotations.clone(),
         instantiable: !class.partial && matches!(class.kind, ClassKind::Model | ClassKind::Record),
         ..ClassInfo::default()
     };

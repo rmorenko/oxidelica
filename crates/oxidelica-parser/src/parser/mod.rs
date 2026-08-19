@@ -204,6 +204,11 @@ pub(super) struct Annotated {
     /// `annotation(inverse(x = f_inv(y, z)))` on a function: which
     /// input, which function, and the arguments it is given.
     inverse: Vec<(String, String, Vec<String>)>,
+    /// Everything the annotation said, as written. An annotation is a
+    /// tree of `name = value`, and a value is an expression - a number,
+    /// a string, a list, or a call with named arguments - so what the
+    /// expression parser already reads is what is kept.
+    kept: Vec<Expr>,
 }
 
 /// The contents of one branch of an `if` equation.

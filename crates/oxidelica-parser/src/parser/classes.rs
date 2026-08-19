@@ -142,6 +142,7 @@ impl Parser {
                 experiment: Experiment::default(),
                 derivative: None,
                 inverse: Vec::new(),
+                annotations: Vec::new(),
                 class_aliases: Vec::new(),
                 asserts: Vec::new(),
                 transitions: Vec::new(),
@@ -355,6 +356,7 @@ impl Parser {
             experiment: annotated.experiment,
             derivative: annotated.derivative,
             inverse: annotated.inverse,
+            annotations: annotated.kept,
             class_aliases,
             asserts,
             transitions,
@@ -611,11 +613,73 @@ impl Parser {
                         }
                     }
                 }
+                // Anything else is read as what it is - `Icon(graphics
+                // = {Line(points = {{0, 0}})})` is a call with named
+                // arguments, which the expression parser already knows.
+                // What it cannot read is skipped rather than refused:
+                // an annotation says things to tools, and a tool that
+                // does not understand one has to carry on regardless.
+                Token::Ident(_) if depth == 1 => {
+                    let saved = self.pos;
+                    match self.annotation_entry() {
+                        Ok(entry) => into.kept.push(entry),
+                        Err(_) => {
+                            self.pos = saved;
+                            self.skip_entry(&mut depth);
+                        }
+                    }
+                }
                 _ => {
                     self.bump();
                 }
             }
         }
         Ok(())
+    }
+
+    /// One `name`, `name = value` or `name(...)` of an annotation.
+    fn annotation_entry(&mut self) -> Result<Expr, ParseError> {
+        let name = self.dotted_name("the name of an annotation")?;
+        match self.peek() {
+            Token::Assign => {
+                self.bump();
+                let value = self.expr()?;
+                Ok(Expr::NamedArg(name, Box::new(value)))
+            }
+            Token::LParen => {
+                self.pos -= 1;
+                let Expr::Call(called, args) = self.primary()? else {
+                    return Err(self.err(format!("`{name}` is not an annotation this reads")));
+                };
+                Ok(Expr::Call(called, args))
+            }
+            // A bare word says something by being there at all.
+            _ => Ok(Expr::Ref(name)),
+        }
+    }
+
+    /// Step over one entry of an annotation, whatever it is made of.
+    fn skip_entry(&mut self, depth: &mut usize) {
+        let outside = *depth;
+        loop {
+            match self.peek() {
+                Token::Eof => return,
+                Token::LParen | Token::LBrace | Token::LBracket => {
+                    *depth += 1;
+                    self.bump();
+                }
+                Token::RParen | Token::RBrace | Token::RBracket => {
+                    if *depth == outside {
+                        return;
+                    }
+                    *depth -= 1;
+                    self.bump();
+                }
+                Token::Comma if *depth == outside => return,
+                _ => {
+                    self.bump();
+                }
+            }
+        }
     }
 }

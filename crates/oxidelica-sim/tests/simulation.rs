@@ -1628,6 +1628,19 @@ fn an_arrow_may_wait_a_tick_and_may_ask_for_a_reset_of_its_own() {
 }
 
 #[test]
+fn a_declaration_may_ask_not_to_be_written_down() {
+    // `HideResult` leaves a variable out of the results and changes
+    // nothing else: it is solved for and read like any other, and what
+    // reads it still gets the right number.
+    let result = run("model M Real y; Real noise annotation(HideResult = true); \
+         equation y = noise / 2; noise = 4 * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    assert_eq!(result.columns, vec!["time", "y"]);
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows.last().unwrap()[y], 2.0);
+}
+
+#[test]
 fn what_several_states_say_about_one_variable_is_one_definition() {
     // `v` is declared outside the states and written inside them. Each
     // has its say while it is the state in force, and where a state has

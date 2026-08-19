@@ -23,7 +23,7 @@ under a chapter works as specified for the subset this project covers.
 | 15  | Stream connectors             | Full    |
 | 16  | Synchronous language elements | Full    |
 | 17  | State machines                | Full    |
-| 18  | Annotations                   | Partial |
+| 18  | Annotations                   | Mostly  |
 | 19  | Unit expressions              | Full    |
 
 ## What works
@@ -348,6 +348,26 @@ the instance it was written inside, which is what tells one state's say
 from another's when what they define lives outside them both.
 
 Chapter 17 is complete.
+
+**Annotations** (ch. 18) are read rather than stepped over. An
+annotation is a tree of `name = value` where a value is an expression -
+a number, a string, a list, a call with named arguments - which is what
+the expression parser already reads, so that is what is kept: the
+drawing of an `Icon`, a `Documentation`, a `Dialog` group, a `version`.
+They travel with the class and with the declaration, and `class_info`
+hands the class's out to whatever draws it. What the parser cannot read
+is stepped over rather than refused, and the rest of the annotation is
+still read - an annotation says things to tools, and one a tool does
+not understand must not stop it.
+
+Two of them do something. `experiment` says how long a run is and how
+often it writes; `HideResult` leaves a variable out of the results and
+changes nothing else about it. The rest are carried and not acted on:
+`Evaluate` asks for a parameter to be settled before the run, which
+every parameter here already is; `Inline`, `LateInline` and
+`smoothOrder` are advice about work this compiler does differently; and
+`Protection` is carried without being enforced, which is the one gap
+worth naming - `protected` is not enforced either.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's
