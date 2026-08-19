@@ -10,21 +10,26 @@
 #     with the machine. No Acquire setting touches that one, so it gets
 #     its own bound, and `timeout` sits outside both as the backstop;
 #   - a mirror that is up but useless. This is the one that cost two
-#     runs. The runner is pointed at a mirror near it, and when that
-#     mirror stops serving, apt does not fail - it says `Ign` for every
-#     index file in turn, each after its own retries and timeouts. Two
-#     dozen files of that is minutes, and the attempt is killed before
-#     it ever reaches the mirror that would have answered. The log shows
-#     the canonical archive answering in the same breath.
+#     runs. The runner is given several mirrors in /etc/apt/apt-mirrors.txt
+#     and prefers the one near it; when that one stops serving, apt does
+#     not fail over quickly - it says `Ign` for each index file in turn,
+#     each after its own retries and timeouts, and two dozen files of
+#     that is minutes. The attempt is killed before apt reaches the
+#     mirror that would have answered, and the log shows that mirror
+#     answering in the same breath.
 #
-# So the mirror the runner was given is put behind the canonical one
-# rather than trusted, and apt is told not to retry a URL at all: this
-# script's own loop is the retry, and it starts over from the top rather
-# than grinding through a mirror that has already gone quiet.
+# The cure is to make the fall-through cheap rather than to choose the
+# mirror: `Acquire::Retries=0` and a short timeout, so a mirror gone
+# quiet costs one timeout per file instead of three, and this script's
+# own loop starts over from the top.
+#
+# Choosing the mirror was tried and does not work from here. That file
+# is read by priority, not by order - its lines carry `priority:1`,
+# `priority:2` - so a line put at the top without one loses to the very
+# mirror it was meant to replace. Said here so it is not tried twice.
 set -uo pipefail
 
 readonly PACKAGES=(pkg-config libasound2-dev libudev-dev)
-readonly MIRRORS=/etc/apt/apt-mirrors.txt
 readonly OPTIONS=(
   # One try per URL. Retrying inside apt only lengthens the wait on a
   # mirror that is not going to answer; the loop below is the retry.
@@ -37,15 +42,6 @@ readonly OPTIONS=(
   # The lock the boot-time upgrade holds: wait a minute, not forever.
   -o DPkg::Lock::Timeout=60
 )
-
-# Ask the canonical archive first, and keep whatever the runner was
-# pointed at as the fallback behind it.
-if [ -f "$MIRRORS" ]; then
-  preferred=$(printf 'http://archive.ubuntu.com/ubuntu\n%s\n' "$(cat "$MIRRORS")")
-  printf '%s\n' "$preferred" | sudo tee "$MIRRORS" >/dev/null
-  echo "mirrors, canonical first:" >&2
-  sed 's/^/  /' "$MIRRORS" >&2
-fi
 
 for attempt in 1 2 3 4; do
   if sudo timeout 120 apt-get "${OPTIONS[@]}" update &&
