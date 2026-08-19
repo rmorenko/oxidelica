@@ -257,6 +257,10 @@ struct BranchBody {
     asserts: Vec<(Expr, String)>,
     /// `for` equations written in the branch.
     loops: Vec<ForEquation>,
+    /// `when` clauses written in the branch.
+    whens: Vec<WhenClause>,
+    /// Calls standing on their own in the branch.
+    calls: Vec<Expr>,
     /// How many warning-level checks were read and dropped. A branch
     /// that held only those is empty now and was not as written, which
     /// is the difference between an empty `if` and a mistake.

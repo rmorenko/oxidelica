@@ -5822,3 +5822,58 @@ fn a_when_may_give_a_value_read_off_an_array() {
     // Three values folded into two comparisons.
     assert_eq!(given.matches("\"min\"").count(), 2, "{given}");
 }
+
+/// A branch of an `if` equation may hold a `when` and a bare call.
+#[test]
+fn a_branch_may_hold_an_event_and_a_call() {
+    let m = parse_model(
+        "model M function check input Real u; algorithm assert(u > 0, \"positive\"); \
+         end check; \
+         parameter Boolean resettable = true; parameter Real level = 2; \
+         Boolean reset; Real y(start = 0, fixed = true); \
+         equation reset = time > 0.5; der(y) = 1; \
+         if resettable then \
+           check(level); \
+           when reset then reinit(y, 0); end when; \
+         end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an event and a call in a branch the compiler picks");
+    assert_eq!(m.when_clauses.len(), 1);
+    assert_eq!(m.asserts.len(), 1);
+    assert_eq!(m.asserts[0].1, "positive");
+
+    // The branch nobody takes contributes neither.
+    let m = parse_model(
+        "model M function check input Real u; algorithm assert(u > 0, \"positive\"); \
+         end check; \
+         parameter Boolean resettable = false; parameter Real level = -1; \
+         Boolean reset; Real y(start = 0, fixed = true); \
+         equation reset = time > 0.5; der(y) = 1; \
+         if resettable then \
+           check(level); \
+           when reset then reinit(y, 0); end when; \
+         end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a branch nobody takes");
+    assert!(m.when_clauses.is_empty());
+    assert!(m.asserts.is_empty());
+
+    // Neither may sit behind a condition only the run decides.
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    assert!(
+        err("model M Boolean high; Real y(start = 0, fixed = true); \
+         equation high = time > 0.5; der(y) = 1; \
+         if high then when time > 0.7 then reinit(y, 0); end when; \
+         else der(y) = 1; end if; end M;")
+        .contains("what happens at an event")
+    );
+    assert!(err(
+        "model M function check input Real u; algorithm assert(u > 0, \"positive\"); \
+         end check; Boolean high; Real y; \
+         equation high = time > 0.5; y = time; \
+         if high then check(1); else check(2); end if; end M;"
+    )
+    .contains("a call standing on its own"));
+}

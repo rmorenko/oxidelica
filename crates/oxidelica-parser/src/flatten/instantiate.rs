@@ -992,7 +992,7 @@ pub(super) fn instantiate(
     // it calls, so what it is there for is the checks the body makes.
     // They become the model's, carrying this instance's prefix like
     // everything else it says.
-    for call in &class.calls {
+    let take_checks = |call: &Expr, acc: &mut Flat| -> Result<(), String> {
         let call = substitute_class_constants(call, registry, scope, &imports, &shadow);
         let call = prefix_expr(&call, prefix, &outers);
         let Expr::Call(name, args) = &call else {
@@ -1022,6 +1022,10 @@ pub(super) fn instantiate(
             0,
         )?;
         acc.asserts.extend(checks);
+        Ok(())
+    };
+    for call in &class.calls {
+        take_checks(call, acc)?;
     }
 
     // `for` equations are unrolled: the loop variable is a constant.
@@ -1040,6 +1044,11 @@ pub(super) fn instantiate(
         )?;
     }
 
+    // What a branch the compiler picked says about events joins what
+    // the class says outright: `if use_reset then when reset then
+    // reinit(y, y_start); end when; end if;` is how the standard
+    // library gives a block a reset it can be built without.
+    let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
     // `if` equations: the branch that holds contributes its equations,
     // the others contribute nothing. Conditions are structural, so they
     // must be constant at compile time.
@@ -1100,9 +1109,12 @@ pub(super) fn instantiate(
         let Some(branch) = chosen else { continue };
         // The branch is the one taken, so its checks hold outright.
         for (condition, message) in &branch.asserts {
-            let _ = "BRANCH";
             acc.asserts
                 .push((resolve_here(condition)?, message.clone()));
+        }
+        whens_from_branches.extend(branch.whens.iter());
+        for call in &branch.calls {
+            take_checks(call, acc)?;
         }
         for loop_eq in &branch.loops {
             unroll(
@@ -1138,7 +1150,7 @@ pub(super) fn instantiate(
         }
     }
 
-    for clause in &class.when_clauses {
+    for clause in class.when_clauses.iter().chain(whens_from_branches) {
         let mut branches = Vec::new();
         for branch in &clause.branches {
             let mut actions = Vec::new();
@@ -1171,6 +1183,8 @@ pub(super) fn instantiate(
                             if !branch.connects.is_empty()
                                 || !branch.loops.is_empty()
                                 || !branch.asserts.is_empty()
+                                || !branch.whens.is_empty()
+                                || !branch.calls.is_empty()
                             {
                                 return Err(
                                     "an `if` inside `when` gives values to variables".to_string()
@@ -2013,6 +2027,20 @@ where
                 "a `for` equation in `{class_name}` sits in an `if` branch whose condition is \
                  not known at compile time; how many equations a loop makes is settled before \
                  the run"
+            ));
+        }
+        if !branch.calls.is_empty() {
+            return Err(format!(
+                "a call standing on its own in `{class_name}` sits in an `if` branch whose \
+                 condition is not known at compile time; what it is written for is what its \
+                 body checks, and a check has nowhere to go from here"
+            ));
+        }
+        if !branch.whens.is_empty() {
+            return Err(format!(
+                "a `when` in `{class_name}` sits in an `if` branch whose condition is not known \
+                 at compile time; what happens at an event is part of the model rather than a \
+                 value it works out"
             ));
         }
         let mut scalars = Vec::new();

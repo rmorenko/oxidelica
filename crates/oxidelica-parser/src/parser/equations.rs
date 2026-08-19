@@ -213,6 +213,8 @@ impl Parser {
                     && b.connects.is_empty()
                     && b.asserts.is_empty()
                     && b.loops.is_empty()
+                    && b.whens.is_empty()
+                    && b.calls.is_empty()
             })
         {
             return Err(self.err("if equation has no equations".into()));
@@ -229,6 +231,8 @@ impl Parser {
         let mut nested = Vec::new();
         let mut asserts = Vec::new();
         let mut loops = Vec::new();
+        let mut whens = Vec::new();
+        let mut calls = Vec::new();
         let mut dropped = 0;
         loop {
             match self.peek() {
@@ -237,6 +241,7 @@ impl Parser {
                 Token::Connect => connects.push(self.connect_clause()?),
                 Token::If => nested.push(self.if_equation()?),
                 Token::For => loops.push(self.for_equation()?),
+                Token::When => whens.push(self.when_clause()?),
                 // A check written among the equations of a branch: it
                 // is one of them for the purpose of being read here,
                 // and none of them for the purpose of counting.
@@ -248,7 +253,10 @@ impl Parser {
                     }
                     self.expect(&Token::Semi, "semicolon after assert")?;
                 }
-                _ => equations.push(self.equation_item()?),
+                _ => match self.equation_line()? {
+                    EquationLine::Equation(equation) => equations.push(equation),
+                    EquationLine::Call(call) => calls.push(call),
+                },
             }
         }
         Ok(BranchBody {
@@ -257,6 +265,8 @@ impl Parser {
             nested,
             asserts,
             loops,
+            whens,
+            calls,
             dropped,
         })
     }
@@ -555,6 +565,8 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
         connects: body.connects,
         asserts: body.asserts,
         loops: body.loops,
+        whens: body.whens,
+        calls: body.calls,
     }];
     for inner in body.nested {
         let mut leaves = inner.branches;
@@ -565,6 +577,8 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
                 connects: Vec::new(),
                 asserts: Vec::new(),
                 loops: Vec::new(),
+                whens: Vec::new(),
+                calls: Vec::new(),
             });
         }
         let mut next = Vec::new();
@@ -585,12 +599,18 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
                 asserts.extend(leaf.asserts.iter().cloned());
                 let mut loops = outer.loops.clone();
                 loops.extend(leaf.loops.iter().cloned());
+                let mut whens = outer.whens.clone();
+                whens.extend(leaf.whens.iter().cloned());
+                let mut calls = outer.calls.clone();
+                calls.extend(leaf.calls.iter().cloned());
                 next.push(IfBranch {
                     condition,
                     equations,
                     connects,
                     asserts,
                     loops,
+                    whens,
+                    calls,
                 });
             }
         }

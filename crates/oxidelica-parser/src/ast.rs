@@ -500,6 +500,15 @@ pub struct IfBranch {
     /// equations, so it can only be part of a branch the compiler
     /// picks: how many equations it makes is settled before the run.
     pub loops: Vec<ForEquation>,
+    /// `when` clauses written in the branch. What happens at an event
+    /// is part of the model rather than a value it works out, so this
+    /// too can only be part of a branch the compiler picks - the
+    /// standard library resets an integrator `if use_reset` that way.
+    pub whens: Vec<WhenClause>,
+    /// Calls standing on their own in the branch. Nothing takes their
+    /// outputs, so what they are written for is what their bodies
+    /// check - `Streams.error("...")` where a setting makes no sense.
+    pub calls: Vec<Expr>,
 }
 
 /// A statement about the overconstrained connection graph.
