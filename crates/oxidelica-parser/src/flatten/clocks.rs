@@ -434,14 +434,30 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         // it, so it is asked before this pass gives up.
         return build_state_machines(model, &Clocks::default(), &mut HashMap::new());
     }
-    let parameters: HashMap<String, f64> = model
-        .components
-        .iter()
-        .filter_map(|component| {
-            let value = component.binding.as_ref()?;
-            const_eval(value, &HashMap::new()).map(|number| (component.name.clone(), number))
-        })
-        .collect();
+    // Parameters may be built on one another - the standard library's
+    // exact clock reads its factor out of a table of constants - so
+    // they are worked out until nothing new settles rather than in one
+    // pass against nothing.
+    let mut parameters: HashMap<String, f64> = HashMap::new();
+    loop {
+        let before = parameters.len();
+        for component in &model.components {
+            if parameters.contains_key(&component.name) {
+                continue;
+            }
+            let Some(value) = component
+                .binding
+                .as_ref()
+                .and_then(|value| const_eval(value, &parameters))
+            else {
+                continue;
+            };
+            parameters.insert(component.name.clone(), value);
+        }
+        if parameters.len() == before {
+            break;
+        }
+    }
 
     // A clock says what it is either in its declaration or in an
     // equation of its own, and it may say it in terms of another -

@@ -1153,6 +1153,25 @@ pub(super) fn instantiate_one(
                     });
                 }
             }
+            // A parameter or constant whose value comes out as a
+            // number is worth one from here on. The table a class
+            // builds before it instantiates anything knows a whole
+            // array by one name and cannot say what an element of it
+            // is; here each element is its own declaration, and
+            // `conversionTable[6]` is a number the next declaration
+            // may be written with.
+            if matches!(
+                flat.variability,
+                Variability::Parameter | Variability::Constant
+            ) {
+                if let Some(value) = flat
+                    .binding
+                    .as_ref()
+                    .and_then(|expr| const_eval(expr, &acc.const_values))
+                {
+                    acc.const_values.insert(flat.name.clone(), value);
+                }
+            }
             // A connector that is one value is still a connector: a
             // `connect` naming it joins the values themselves.
             if let Some(class_name) = value_connector {

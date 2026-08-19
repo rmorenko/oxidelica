@@ -1933,9 +1933,11 @@ fn an_annotation_that_the_chapter_calls_an_error_is_one() {
          equation y = p; end M;"
     )
     .is_ok());
-    assert!(err("model M function f input Real x; output Real y; \
-         algorithm y := x; if x > 0 then y := f(x - 1); end if; end f; \
-         parameter Real p = f(2) annotation(Evaluate = true); Real y; \
+    // A parameter with nothing to take its value from cannot be
+    // settled, so asking for it to be is asking for what did not
+    // happen.
+    assert!(err("model M parameter Real q; \
+         parameter Real p = q annotation(Evaluate = true); Real y; \
          equation y = p; end M;")
     .contains("asks to be evaluated before the run"));
 }
@@ -4897,4 +4899,46 @@ fn a_base_may_be_modified_with_what_another_base_settled() {
         "{error}"
     );
     assert!(error.contains("Ref(\"n\")"), "{error}");
+}
+
+/// A parameter built on an element of a constant array, and a clock
+/// whose factor is one.
+#[test]
+fn a_parameter_may_be_built_on_an_element_of_a_table() {
+    // The table a class builds before it instantiates anything knows a
+    // whole array by one name; an element of it is worth a number only
+    // once the elements are declarations of their own. `Evaluate` says
+    // it has to be worth one.
+    let m = parse_model(
+        "model M type Resolution = enumeration(s, ms); \
+         parameter Resolution resolution = Resolution.ms annotation(Evaluate = true); \
+         constant Integer table[2] = {1, 1000}; \
+         parameter Integer factor = table[Integer(resolution)] annotation(Evaluate = true); \
+         Real y; equation y = factor * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a parameter off a table");
+    // The binding is the element by name; what `Evaluate` asked for is
+    // that it be worth a number, and reaching this far says it is.
+    let factor = m.components.iter().find(|c| c.name == "factor").unwrap();
+    assert_eq!(
+        format!("{:?}", factor.binding.as_ref().unwrap()),
+        "Ref(\"table[2]\")"
+    );
+
+    // And a clock built the same way: the interval is a factor read
+    // out of the table, over a resolution read out of it too.
+    let m = parse_model(
+        "model M constant Integer table[2] = {1, 1000}; \
+         parameter Integer resolutionFactor = table[2]; \
+         Clock c = Clock(2, resolutionFactor); \
+         Real u; Real s; Real acc; Real out; \
+         equation u = time; s = sample(u, c); \
+         acc = previous(acc) + s * interval(c); out = hold(acc); end M;",
+    )
+    .expect("a clock off a table");
+    // Two thousandths of a second: `interval(c)` comes out as the
+    // number, and reaching this far is what says the factor was read.
+    let ticks = format!("{:?}", m.when_clauses);
+    assert!(ticks.contains("0.002"), "{ticks}");
 }
