@@ -23,7 +23,7 @@ Usage:
   oxidelica library list
   oxidelica library add <name|git-url> [--version TAG] [--as NAME]
                             names: modelica (the Modelica Standard Library)
-  oxidelica library check [<directory>]
+  oxidelica library check [<directory>] [--list]
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -195,7 +195,7 @@ fn library(args: &[String]) -> Result<(), String> {
     match args.first().map(String::as_str) {
         Some("list") => library_list(),
         Some("add") => library_add(&args[1..]),
-        Some("check") => library_check(args.get(1).map(String::as_str)),
+        Some("check") => library_check(&args[1..]),
         _ => Err(USAGE.to_string()),
     }
 }
@@ -286,12 +286,15 @@ fn name_of_repository(url: &str) -> String {
         .to_string()
 }
 
-/// `library check [<directory>]`: read every file of a library and
-/// every model in it, and say how far each got. What it prints is a
+/// `library check [<directory>] [--list]`: read every file of a library
+/// and every model in it, and say how far each got. What it prints is a
 /// count and the reasons that came up most, so that the distance
 /// between this compiler and a library is a number rather than an
-/// impression.
-fn library_check(directory: Option<&str>) -> Result<(), String> {
+/// impression. `--list` names the models that flatten, which is what
+/// tells a step forward from a step sideways.
+fn library_check(args: &[String]) -> Result<(), String> {
+    let list = args.iter().any(|arg| arg == "--list");
+    let directory = args.iter().find(|arg| !arg.starts_with("--"));
     let files = match directory {
         Some(path) => oxidelica_parser::library_files_in(std::path::Path::new(path)),
         None => oxidelica_parser::library_files(None),
@@ -325,19 +328,27 @@ fn library_check(directory: Option<&str>) -> Result<(), String> {
         .filter(|c| c.name.contains(".Examples.") || c.name.contains(".Test"))
         .map(|c| c.name.clone())
         .collect();
-    let mut flat = 0usize;
+    let mut flat: Vec<&String> = Vec::new();
     let mut why_not: Vec<String> = Vec::new();
     for name in &models {
         match oxidelica_parser::flatten_named(&classes, name) {
-            Ok(_) => flat += 1,
+            Ok(_) => flat.push(name),
             Err(why) => why_not.push(why),
         }
     }
     println!(
-        "classes: {}; example models: {}, of which {flat} flatten",
+        "classes: {}; example models: {}, of which {} flatten",
         classes.len(),
-        models.len()
+        models.len(),
+        flat.len()
     );
+    if list {
+        let mut named: Vec<&&String> = flat.iter().collect();
+        named.sort();
+        for name in named {
+            println!("  flat  {name}");
+        }
+    }
     report(&why_not, "  ");
     Ok(())
 }

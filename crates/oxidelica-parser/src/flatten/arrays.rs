@@ -1021,6 +1021,12 @@ pub(super) fn collect_shapes(
         }
     }
     for component in &class.components {
+        // A type may be an array of its own - `type Axis = Real[3]` -
+        // and then the declaration is that shape whether or not it
+        // wrote any dimensions itself.
+        let mut component = component.clone();
+        resolve_type(registry, &mut component, scope, &class.imports);
+        let component = &component;
         if component.dimensions.is_empty() {
             continue;
         }

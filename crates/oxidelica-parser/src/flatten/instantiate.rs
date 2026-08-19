@@ -251,6 +251,45 @@ pub(super) fn instantiate(
             .map(|(_, e)| e.clone())
             .or_else(|| component.binding.clone());
 
+        let mut component = component.clone();
+
+        // A redeclaration from above replaces the type; its modifiers
+        // come first so they win over the original declaration's.
+        let mut extra_modifiers = Vec::new();
+        let mut child_redeclares = Vec::new();
+        if let Some(redeclare) = redeclares.iter().find(|r| r.name == component.name) {
+            check_redeclare(registry, class, &component, redeclare)?;
+            component.type_name = redeclare.type_name.clone();
+            extra_modifiers.extend(redeclare.modifiers.iter().cloned());
+        }
+        // Redeclarations aimed at a component of this child travel on,
+        // with the child's name stripped off the front.
+        for redeclare in &redeclares {
+            if let Some(rest) = redeclare
+                .name
+                .strip_prefix(&format!("{}.", component.name))
+                .map(str::to_string)
+            {
+                child_redeclares.push(Redeclare {
+                    name: rest,
+                    ..redeclare.clone()
+                });
+            }
+        }
+        for redeclare in &component.redeclares {
+            child_redeclares.push(qualify_redeclare(
+                redeclare, registry, class, prefix, &outers,
+            )?);
+        }
+
+        // A `type` alias stands for a primitive plus attribute
+        // defaults, and an enumeration for an `Integer`; substitute
+        // before instantiating. This has to happen before the
+        // dimensions are counted: a type may be an array of its own -
+        // `type Axis = Real[3]` - and a redeclaration may have just
+        // replaced the type with one of a different shape.
+        resolve_type(registry, &mut component, scope, &imports);
+
         // Array dimensions expand into scalar elements. A dimension may
         // be a number, but also a type - `Real x[Boolean]` has two
         // elements, `Real x[E]` one per enumeration literal - or a `:`
@@ -308,42 +347,6 @@ pub(super) fn instantiate(
         if !sizes.is_empty() && element_names.is_empty() {
             continue;
         }
-
-        let mut component = component.clone();
-
-        // A redeclaration from above replaces the type; its modifiers
-        // come first so they win over the original declaration's.
-        let mut extra_modifiers = Vec::new();
-        let mut child_redeclares = Vec::new();
-        if let Some(redeclare) = redeclares.iter().find(|r| r.name == component.name) {
-            check_redeclare(registry, class, &component, redeclare)?;
-            component.type_name = redeclare.type_name.clone();
-            extra_modifiers.extend(redeclare.modifiers.iter().cloned());
-        }
-        // Redeclarations aimed at a component of this child travel on,
-        // with the child's name stripped off the front.
-        for redeclare in &redeclares {
-            if let Some(rest) = redeclare
-                .name
-                .strip_prefix(&format!("{}.", component.name))
-                .map(str::to_string)
-            {
-                child_redeclares.push(Redeclare {
-                    name: rest,
-                    ..redeclare.clone()
-                });
-            }
-        }
-        for redeclare in &component.redeclares {
-            child_redeclares.push(qualify_redeclare(
-                redeclare, registry, class, prefix, &outers,
-            )?);
-        }
-
-        // A `type` alias stands for a primitive plus attribute defaults,
-        // and an enumeration for an `Integer`; substitute before
-        // instantiating.
-        resolve_type(registry, &mut component, scope, &imports);
 
         let level = Level {
             prefix,
@@ -1811,6 +1814,12 @@ pub(super) fn resolve_type(
             return;
         };
         component.type_name = base;
+        // A type that is an array gives its dimensions to whatever is
+        // declared with it, after that declaration's own: `Orientation
+        // o[2]` with `type Orientation = Real[4]` is `[2, 4]`.
+        component
+            .dimensions
+            .extend(class.alias_dimensions.iter().cloned());
         if component.unit.is_none() {
             component.unit = class.alias_unit.clone();
         }

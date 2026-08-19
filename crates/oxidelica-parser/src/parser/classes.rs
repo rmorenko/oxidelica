@@ -89,6 +89,7 @@ impl Parser {
             // that a component declared with one resolves down to the
             // primitive it holds.
             if is_predefined(&target) {
+                let alias_dimensions = self.type_dimensions()?;
                 let (attributes, unit) = if self.peek() == &Token::LParen {
                     self.type_attributes()?
                 } else {
@@ -106,6 +107,7 @@ impl Parser {
                     encapsulated,
                     expandable,
                     alias_of: Some((target, attributes)),
+                    alias_dimensions,
                     alias_unit: unit,
                     ..ClassDef::empty()
                 })));
@@ -140,6 +142,7 @@ impl Parser {
         // `type Voltage = Real(start = 0);` or
         // `type Init = enumeration(NoInit, SteadyState);`
         let mut alias_of = None;
+        let mut alias_dimensions = Vec::new();
         let mut alias_unit = None;
         let mut enumeration = Vec::new();
         // A `type` is usually the short form, `type Voltage = Real(...)`,
@@ -154,6 +157,7 @@ impl Parser {
                 enumeration = self.enumeration_literals()?;
             } else {
                 let base = self.dotted_name("aliased type")?;
+                alias_dimensions = self.type_dimensions()?;
                 let modifiers = if self.peek() == &Token::LParen {
                     let (modifiers, unit) = self.type_attributes()?;
                     alias_unit = unit;
@@ -175,6 +179,7 @@ impl Parser {
                 encapsulated,
                 expandable,
                 alias_of,
+                alias_dimensions,
                 alias_unit,
                 enumeration,
                 ..ClassDef::empty()
@@ -362,7 +367,7 @@ impl Parser {
                     } else if in_equations {
                         equations.push(self.equation_item()?);
                     } else {
-                        components.push(self.declaration()?);
+                        components.extend(self.declaration()?);
                     }
                 }
             }
@@ -385,6 +390,7 @@ impl Parser {
             encapsulated,
             expandable,
             alias_of,
+            alias_dimensions,
             alias_unit,
             enumeration,
             nested,
@@ -731,6 +737,29 @@ impl Parser {
             // A bare word says something by being there at all.
             _ => Ok(Expr::Ref(name)),
         }
+    }
+
+    /// `[4]` after the type a short definition names: a type that is
+    /// an array rather than a value.
+    fn type_dimensions(&mut self) -> Result<Vec<Expr>, ParseError> {
+        let mut dimensions = Vec::new();
+        if self.peek() != &Token::LBracket {
+            return Ok(dimensions);
+        }
+        self.bump();
+        loop {
+            dimensions.push(self.subscript()?);
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RBracket => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `]` in the dimensions of a type, found `{other}`"
+                    )))
+                }
+            }
+        }
+        Ok(dimensions)
     }
 
     /// `external "C" y = f(x) annotation(Library = "m");` — the

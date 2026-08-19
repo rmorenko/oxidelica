@@ -3,7 +3,15 @@
 use super::*;
 
 impl Parser {
-    pub(super) fn declaration(&mut self) -> Result<Component, ParseError> {
+    /// One declaration clause: prefixes, a type, and the components
+    /// declared with it.
+    ///
+    /// The clause is what the grammar calls a `component_clause`, and
+    /// it may declare several: `parameter Real a = 1, b = 2;`. The
+    /// dimensions may be written on the type rather than on the name -
+    /// `FixedHeatFlow[n] heat` is `FixedHeatFlow heat[n]` - and where
+    /// both are written they stack, the clause's first.
+    pub(super) fn declaration(&mut self) -> Result<Vec<Component>, ParseError> {
         // Declaration prefixes may come in any order the specification
         // allows: `inner replaceable parameter Real k`.
         let mut variability = Variability::Continuous;
@@ -38,156 +46,179 @@ impl Parser {
         }
 
         let type_name = self.dotted_name("component type")?;
-        let name = self.ident("component name")?;
         // `Real T[N, 3]` — dimensions are constant expressions, except
         // for `Real v[:]`, where a colon leaves the length to whatever
         // the argument at the call site turns out to be.
-        let mut dimensions = Vec::new();
-        if self.peek() == &Token::LBracket {
-            self.bump();
-            loop {
-                dimensions.push(self.subscript()?);
-                match self.bump() {
-                    Token::Comma => continue,
-                    Token::RBracket => break,
-                    other => {
-                        return Err(self.err(format!(
-                            "expected `,` or `]` in array dimensions, found `{other}`"
-                        )))
-                    }
-                }
-            }
-        }
+        let shared_dimensions = self.array_dimensions()?;
 
-        let mut start = None;
-        let mut fixed = None;
-        let mut unit = None;
-        let (mut min, mut max) = (None, None);
-        let mut modifiers = Vec::new();
-        let mut redeclares = Vec::new();
-        let mut each_modifiers = Vec::new();
-        if self.peek() == &Token::LParen {
-            if matches!(
-                type_name.as_str(),
-                "Real" | "Integer" | "Boolean" | "String"
-            ) {
-                self.bump();
-                loop {
-                    while matches!(self.peek(), Token::Final | Token::Each) {
-                        self.bump();
-                    }
-                    let attr = self.ident("attribute name")?;
-                    self.expect(&Token::Assign, "`=` in attribute")?;
-                    match attr.as_str() {
-                        "start" => start = Some(self.expr()?),
-                        "min" => min = Some(self.expr()?),
-                        "max" => max = Some(self.expr()?),
-                        "fixed" => {
-                            fixed = Some(match self.bump() {
-                                Token::True => true,
-                                Token::False => false,
-                                other => {
-                                    return Err(self
-                                        .err(format!("fixed expects true/false, found `{other}`")))
-                                }
-                            });
-                        }
-                        "unit" => match self.bump() {
-                            Token::Str(text) => unit = Some(text),
-                            other => {
-                                return Err(
-                                    self.err(format!("unit expects a string, found `{other}`"))
-                                )
-                            }
-                        },
-                        // The remaining attributes (nominal, quantity,
-                        // stateSelect, …) describe the variable rather
-                        // than the equations: parsed and dropped.
-                        _ => {
-                            self.modifier_value()?;
-                        }
-                    }
-                    match self.peek() {
-                        Token::Comma => {
-                            self.bump();
-                        }
-                        Token::RParen => {
-                            self.bump();
-                            break;
-                        }
-                        other => {
-                            return Err(self.err(format!(
-                                "expected `,` or `)` in attributes, found `{other}`"
-                            )))
-                        }
-                    }
-                }
-            } else {
-                (modifiers, redeclares, each_modifiers, _) = self.modifier_list()?;
-            }
-        }
-
-        let binding = if self.peek() == &Token::Assign {
-            self.bump();
-            Some(self.expr()?)
-        } else {
-            None
-        };
-
-        // `constrainedby Interface(...)` and the condition `if expr` may
-        // follow the declaration, in either order.
-        let mut constrained_by = None;
-        let mut condition = None;
+        let mut declared = Vec::new();
         loop {
-            match self.peek() {
-                Token::ConstrainedBy => {
+            let name = self.ident("component name")?;
+            let mut dimensions = shared_dimensions.clone();
+            dimensions.extend(self.array_dimensions()?);
+
+            let mut start = None;
+            let mut fixed = None;
+            let mut unit = None;
+            let (mut min, mut max) = (None, None);
+            let mut modifiers = Vec::new();
+            let mut redeclares = Vec::new();
+            let mut each_modifiers = Vec::new();
+            if self.peek() == &Token::LParen {
+                if matches!(
+                    type_name.as_str(),
+                    "Real" | "Integer" | "Boolean" | "String"
+                ) {
                     self.bump();
-                    constrained_by = Some(self.dotted_name("constraining type")?);
-                    if self.peek() == &Token::LParen {
-                        self.modifier_list()?;
+                    loop {
+                        while matches!(self.peek(), Token::Final | Token::Each) {
+                            self.bump();
+                        }
+                        let attr = self.ident("attribute name")?;
+                        self.expect(&Token::Assign, "`=` in attribute")?;
+                        match attr.as_str() {
+                            "start" => start = Some(self.expr()?),
+                            "min" => min = Some(self.expr()?),
+                            "max" => max = Some(self.expr()?),
+                            "fixed" => {
+                                fixed = Some(match self.bump() {
+                                    Token::True => true,
+                                    Token::False => false,
+                                    other => {
+                                        return Err(self.err(format!(
+                                            "fixed expects true/false, found `{other}`"
+                                        )))
+                                    }
+                                });
+                            }
+                            "unit" => match self.bump() {
+                                Token::Str(text) => unit = Some(text),
+                                other => {
+                                    return Err(
+                                        self.err(format!("unit expects a string, found `{other}`"))
+                                    )
+                                }
+                            },
+                            // The remaining attributes (nominal, quantity,
+                            // stateSelect, …) describe the variable rather
+                            // than the equations: parsed and dropped.
+                            _ => {
+                                self.modifier_value()?;
+                            }
+                        }
+                        match self.peek() {
+                            Token::Comma => {
+                                self.bump();
+                            }
+                            Token::RParen => {
+                                self.bump();
+                                break;
+                            }
+                            other => {
+                                return Err(self.err(format!(
+                                    "expected `,` or `)` in attributes, found `{other}`"
+                                )))
+                            }
+                        }
                     }
+                } else {
+                    (modifiers, redeclares, each_modifiers, _) = self.modifier_list()?;
                 }
-                Token::If => {
-                    self.bump();
-                    condition = Some(self.expr()?);
+            }
+
+            let binding = if self.peek() == &Token::Assign {
+                self.bump();
+                Some(self.expr()?)
+            } else {
+                None
+            };
+
+            // `constrainedby Interface(...)` and the condition `if expr` may
+            // follow the declaration, in either order.
+            let mut constrained_by = None;
+            let mut condition = None;
+            loop {
+                match self.peek() {
+                    Token::ConstrainedBy => {
+                        self.bump();
+                        constrained_by = Some(self.dotted_name("constraining type")?);
+                        if self.peek() == &Token::LParen {
+                            self.modifier_list()?;
+                        }
+                    }
+                    Token::If => {
+                        self.bump();
+                        condition = Some(self.expr()?);
+                    }
+                    _ => break,
                 }
-                _ => break,
+            }
+
+            let description = self.opt_string();
+            let mut annotated = Annotated::default();
+            if self.peek() == &Token::Annotation {
+                self.annotation_body(&mut annotated)?;
+            }
+
+            declared.push(Component {
+                name,
+                type_name: type_name.clone(),
+                flow,
+                stream,
+                dimensions,
+                causality,
+                modifiers,
+                variability,
+                start,
+                fixed,
+                unit,
+                min,
+                max,
+                binding,
+                description,
+                scope,
+                replaceable,
+                constrained_by,
+                condition,
+                redeclares,
+                redeclaration,
+                is_final,
+                each_modifiers,
+                annotations: annotated.kept,
+            });
+            match self.bump() {
+                Token::Comma => continue,
+                Token::Semi => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `;` after a declaration, found `{other}`"
+                    )))
+                }
             }
         }
+        Ok(declared)
+    }
 
-        let description = self.opt_string();
-        let mut annotated = Annotated::default();
-        if self.peek() == &Token::Annotation {
-            self.annotation_body(&mut annotated)?;
+    /// `[N, 3]` after a type or a name, when one is written there.
+    fn array_dimensions(&mut self) -> Result<Vec<Expr>, ParseError> {
+        let mut dimensions = Vec::new();
+        if self.peek() != &Token::LBracket {
+            return Ok(dimensions);
         }
-        self.expect(&Token::Semi, "semicolon after declaration")?;
-
-        Ok(Component {
-            name,
-            type_name,
-            flow,
-            stream,
-            dimensions,
-            causality,
-            modifiers,
-            variability,
-            start,
-            fixed,
-            unit,
-            min,
-            max,
-            binding,
-            description,
-            scope,
-            replaceable,
-            constrained_by,
-            condition,
-            redeclares,
-            redeclaration,
-            is_final,
-            each_modifiers,
-            annotations: annotated.kept,
-        })
+        self.bump();
+        loop {
+            dimensions.push(self.subscript()?);
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RBracket => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `]` in array dimensions, found `{other}`"
+                    )))
+                }
+            }
+        }
+        Ok(dimensions)
     }
 
     /// `( name = expr, sub(name = expr), redeclare Type name, ... )` —

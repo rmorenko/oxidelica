@@ -4544,3 +4544,72 @@ fn the_new_forms_are_refused_by_shape() {
         "Bin(Add, Number(4.0), Number(1.0))"
     );
 }
+
+/// Where the dimensions of an array may be written: on the name, on
+/// the type of the declaration, and on the type itself.
+#[test]
+fn an_array_may_take_its_shape_from_its_type() {
+    // `Foo[n] x` is `Foo x[n]` - the standard library writes both.
+    let m = parse_model(
+        "model Cell Real k = 2; end Cell; \
+         model M Cell[3] cells; Real y; equation y = cells[2].k; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("dimensions on the type of a declaration");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("cells["))
+            .count(),
+        3
+    );
+
+    // One clause may declare several, each with its own dimensions and
+    // its own value.
+    let m = parse_model(
+        "model M parameter Real a = 1, b[2] = {2, 3}, c = 4; Real y; \
+         equation y = a + b[2] + c; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("several components in one clause");
+    assert!(m.components.iter().any(|c| c.name == "b[2]"));
+    assert_eq!(m.components.iter().filter(|c| c.name == "c").count(), 1);
+
+    // A type that is an array lends its shape to whatever is declared
+    // with it, and a chain of them still ends at the primitive.
+    let m = parse_model(
+        "type Row = Real[3](each unit = \"1\"); type Axis = Row; \
+         model M parameter Axis n = {0, -1, 0}; Real y; equation y = n[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a type that is an array");
+    let second = m.components.iter().find(|c| c.name == "n[2]").unwrap();
+    assert_eq!(second.type_name, "Real");
+    assert_eq!(second.unit.as_deref(), Some("1"));
+
+    // The declaration's own dimensions come first: `Axis o[2]` is a
+    // pair of axes, not three pairs.
+    let m = parse_model(
+        "type Axis = Real[3]; \
+         model M parameter Axis o[2] = {{1, 2, 3}, {4, 5, 6}}; Real y; \
+         equation y = o[2, 3]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an array of arrays");
+    assert!(m.components.iter().any(|c| c.name == "o[2,3]"));
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("o["))
+            .count(),
+        6
+    );
+
+    // A malformed dimension list says so, in either place.
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    assert!(err("model M Real[2; 3] v; end M;").contains("array dimensions"));
+    assert!(err("model M Real v[2; 3]; end M;").contains("array dimensions"));
+    assert!(err("type T = Real[2; 3]; model M T v; end M;").contains("dimensions of a type"));
+    // And a clause that ends in neither a comma nor a semicolon.
+    assert!(err("model M Real a = 1 Real b; end M;").contains("after a declaration"));
+}

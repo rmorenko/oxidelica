@@ -285,6 +285,11 @@ pub struct ClassDef {
     /// For `type` aliases: the primitive being named, plus attribute
     /// defaults (`type Voltage = Real(start = 0)`).
     pub alias_of: Option<(String, Vec<(String, Expr)>)>,
+    /// Dimensions of a type that is an array: `type Orientation =
+    /// Real[4]`. A component declared with one is that many values,
+    /// and its own dimensions come first: `Orientation o[2]` is
+    /// `[2, 4]`.
+    pub alias_dimensions: Vec<Expr>,
     /// The `unit` attribute of a type alias:
     /// `type Voltage = Real(unit = "V")`.
     pub alias_unit: Option<String>,
@@ -371,6 +376,7 @@ impl ClassDef {
             encapsulated: false,
             expandable: false,
             alias_of: None,
+            alias_dimensions: Vec::new(),
             alias_unit: None,
             enumeration: Vec::new(),
             nested: Vec::new(),

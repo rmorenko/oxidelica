@@ -803,7 +803,10 @@ pub(super) fn resolve(
         | Expr::Range(_, _, _)
         | Expr::Comprehension(_, _, _)
         | Expr::MatrixRows(_) => {
-            return Err("an array value cannot be used where a scalar is expected".to_string())
+            return Err(format!(
+                "an array value cannot be used where a scalar is expected: {}",
+                sketch(expr)
+            ))
         }
         Expr::ColonSubscript | Expr::EndSubscript => {
             return Err("`:` and `end` make sense only inside a subscript".to_string())
@@ -840,5 +843,15 @@ pub(super) fn substitute_end(expr: &Expr, length: f64) -> Expr {
             Box::new(substitute_end(b, length)),
         ),
         other => other.clone(),
+    }
+}
+
+/// A short rendering of an expression, for a message that has to say
+/// which one it means without printing a tree.
+fn sketch(expr: &Expr) -> String {
+    let text = format!("{expr:?}");
+    match text.char_indices().nth(70) {
+        Some((cut, _)) => format!("{}...", &text[..cut]),
+        None => text,
     }
 }
