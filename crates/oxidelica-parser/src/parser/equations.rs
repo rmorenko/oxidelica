@@ -335,7 +335,8 @@ impl Parser {
         let to = self.dotted_name("the state a transition arrives at")?;
         self.expect(&Token::Comma, "comma before the transition condition")?;
         let condition = self.expr()?;
-        let (mut reset, mut priority, mut immediate) = (true, 1, true);
+        let (mut reset, mut priority) = (true, 1);
+        let (mut immediate, mut synchronize) = (true, false);
         while self.peek() == &Token::Comma {
             self.bump();
             let name = self.ident("the name of a transition setting")?;
@@ -355,10 +356,7 @@ impl Parser {
                     }
                 },
                 "immediate" => immediate = truth(&value),
-                // An arrow that waits for the other machines to finish
-                // needs machines to wait for, which is a state holding
-                // one - and a state holds equations here, not a machine.
-                "synchronize" if !truth(&value) => {}
+                "synchronize" => synchronize = truth(&value),
                 other => {
                     return Err(self.err(format!(
                         "`{other}` is not a transition setting this compiler knows how to honour"
@@ -377,6 +375,7 @@ impl Parser {
             condition,
             reset,
             immediate,
+            synchronize,
             priority,
         })
     }

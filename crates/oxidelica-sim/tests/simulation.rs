@@ -1628,6 +1628,67 @@ fn an_arrow_may_wait_a_tick_and_may_ask_for_a_reset_of_its_own() {
 }
 
 #[test]
+fn a_state_may_hold_a_machine_of_its_own() {
+    // An outer machine of two states, one of which holds a machine of
+    // two more. `work.out` says where the inner one is; the outer's
+    // return arrow waits for it to have finished.
+    let source = |arrow: &str| {
+        format!(
+            "model M block Leaf Real n(start = 0); equation n = previous(n) + 1; end Leaf; \
+             block Inner Leaf p; Leaf q; Real out; \
+             equation initialState(p); transition(p, q, p.n >= 2); \
+             out = if activeState(p) then 1 else 2; end Inner; \
+             block Idle Real n(start = 0); equation n = previous(n) + 1; end Idle; \
+             Clock c = Clock(1); Idle rest; Inner work; Real hi; \
+             equation initialState(rest); transition(rest, work, rest.n >= 2); \
+             transition(work, rest, true{arrow}); \
+             hi = hold(work.out); \
+             annotation(experiment(StopTime = 12, Interval = 1)); end M;"
+        )
+    };
+    let where_it_sat = |arrow: &str| {
+        let result = run(&source(arrow));
+        let outer = result.columns.iter().position(|c| c == "$state0").unwrap();
+        let mut seen = Vec::new();
+        let mut out = String::new();
+        for row in &result.rows {
+            if seen.contains(&row[0].to_bits()) {
+                continue;
+            }
+            seen.push(row[0].to_bits());
+            out.push(if row[outer] == 0.0 { 'r' } else { 'w' });
+        }
+        out
+    };
+    // The return arrow's condition is simply `true`, so without waiting
+    // the outer machine leaves after one tick, over and over.
+    assert_eq!(where_it_sat(""), "rrrrwrrrwrrrw");
+    // Waiting, it stays until the machine inside has reached a state no
+    // arrow leaves - four ticks rather than one.
+    assert_eq!(where_it_sat(", synchronize = true"), "rrrrwwwwrrrww");
+
+    // And the machine inside holds still while the state holding it is
+    // not the one in force: before the first arrival it is nowhere at
+    // all, and after the outer leaves it keeps where it got to.
+    let result = run(&source(", synchronize = true"));
+    let inner = result.columns.iter().position(|c| c == "$state1").unwrap();
+    let at = |t: f64| {
+        result
+            .rows
+            .iter()
+            .find(|row| row[0] == t)
+            .map(|row| row[inner])
+            .unwrap()
+    };
+    assert_eq!(
+        at(0.0),
+        -1.0,
+        "nowhere before the state holding it is in force"
+    );
+    assert_eq!(at(12.0), 1.0, "kept where it got to after the outer left");
+}
+
+#[test]
 fn a_body_nothing_could_inline_is_walked_by_the_run() {
     // Two things inlining cannot do. A function that leads back to
     // itself has no bottom to unroll to; `5!` is the plainest example

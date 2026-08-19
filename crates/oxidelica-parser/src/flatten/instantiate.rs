@@ -576,6 +576,7 @@ pub(super) fn instantiate(
             condition: resolve_here(&transition.condition)?,
             reset: transition.reset,
             immediate: transition.immediate,
+            synchronize: transition.synchronize,
             priority: transition.priority,
         });
     }

@@ -323,10 +323,25 @@ later. `reset` belongs to the arrow rather than to the state it arrives
 at, so a state reached by two arrows starts over by the one that asked
 and carries on by the one that did not. Two arrows out of one state
 saying the same thing about which goes first are refused, as the
-chapter requires. What is missing: there is one machine to a model,
-running on its one clock, and `synchronize` and hierarchical states are
-not supported — which are one thing, since a machine to synchronize
-with is a state holding a machine.
+chapter requires.
+
+A model may hold several machines, and a state of one may hold others:
+the arrows say which, since a machine is a set of states joined by
+arrows and nothing joins one machine to another. A machine whose states
+all live under one state of another is inside it, and runs only while
+that state is in force — nowhere at all before its first arrival,
+starting over where the arrow that reached it asked, and keeping where
+it got to after the state is left. That is 17.3.3's `active` input, and
+it is the whole of what makes a machine hierarchical. `synchronize`
+follows from it: the arrow waits until every machine inside the state
+it leaves has reached one no arrow leaves, and asks about the tick
+before — asking about this one would be asking the machine inside about
+an answer that waits on the machine outside, which waits on it.
+
+What is missing is the merging of definitions across states (17.3.5):
+a variable declared outside and written by several of them, with
+`last()` to say that a state which does not write it keeps it. A state's
+own variables are already held that way; an `outer output` is not.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

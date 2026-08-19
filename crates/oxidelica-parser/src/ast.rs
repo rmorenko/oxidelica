@@ -388,6 +388,9 @@ pub struct Transition {
     /// Whether the arrow is taken on this tick's condition, which is
     /// the default, or waits a tick and is taken on the one before.
     pub immediate: bool,
+    /// Whether the arrow waits for the machines inside the state it
+    /// leaves to have reached a state no arrow leaves.
+    pub synchronize: bool,
     /// Which arrow wins when several could be taken; lower goes first.
     pub priority: i64,
 }

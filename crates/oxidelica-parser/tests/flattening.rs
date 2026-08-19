@@ -1146,7 +1146,7 @@ fn a_state_machine_inside_a_component_still_works() {
     )
     .unwrap();
     // The machine's own variables were made under the instance.
-    assert!(m.components.iter().any(|c| c.name == "$state"));
+    assert!(m.components.iter().any(|c| c.name == "$state0"));
     let text = format!("{:?}", m.when_clauses);
     for asked in ["activeState", "ticksInState", "timeInState"] {
         assert!(!text.contains(asked), "{asked} survived");
@@ -1279,7 +1279,7 @@ fn a_state_machine_becomes_equations_on_its_clock() {
 
     // The machine keeps two variables of its own, and they change
     // only at a tick.
-    for name in ["$state", "$ticks"] {
+    for name in ["$state0", "$ticks0"] {
         let component = m.components.iter().find(|c| c.name == name).unwrap();
         assert_eq!(
             component.variability,
@@ -1289,7 +1289,7 @@ fn a_state_machine_becomes_equations_on_its_clock() {
     }
     // It starts nowhere, so the first tick is an arrival at the
     // initial state like any other.
-    let state = m.components.iter().find(|c| c.name == "$state").unwrap();
+    let state = m.components.iter().find(|c| c.name == "$state0").unwrap();
     assert_eq!(state.start, Some(Expr::Number(-1.0)));
 
     // Everything the machine does happens on the clock.
@@ -1302,7 +1302,7 @@ fn a_state_machine_becomes_equations_on_its_clock() {
             _ => "",
         })
         .collect();
-    for wanted in ["$state", "$ticks", "a.n", "b.n"] {
+    for wanted in ["$state0", "$ticks0", "a.n", "b.n"] {
         assert!(assigned.contains(&wanted), "{wanted} in {assigned:?}");
     }
     // `activeState`, `ticksInState` and `timeInState` are gone,
@@ -1323,12 +1323,24 @@ fn state_machine_error_paths() {
         "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; Clock c = Clock(0.5); S a; S b; equation initialState(a); initialState(b); end M;"
     )
     .contains("one initial state too many"));
-    // And one model holds one machine, however many classes bring
-    // one along.
-    assert!(err(
+    // A model may hold several machines: nothing joins one to
+    // another, so the arrows say where one ends and the next begins.
+    let two = parse_model(
         "model Machine block S Real n(start = 0); equation n = previous(n) + 1; end S; S a; equation initialState(a); end Machine; model M Clock c = Clock(0.5); Machine one; Machine two; end M;"
     )
-    .contains("only one state machine"));
+    .unwrap();
+    for name in ["$state0", "$state1"] {
+        assert!(two.components.iter().any(|c| c.name == name), "{name}");
+    }
+    // Asked outside every state, a question about "the machine" has no
+    // machine to be about where a model holds more than one.
+    assert!(err(
+        "model Machine block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+         S a; equation initialState(a); end Machine; \
+         model M Clock c = Clock(0.5); Machine one; Machine two; Real y; \
+         equation y = ticksInState(); end M;"
+    )
+    .contains("ask them among a state's own equations"));
     // A machine with no clock to run on, or with several.
     assert!(err(
         "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
@@ -1341,7 +1353,7 @@ fn state_machine_error_paths() {
          Clock c = Clock(0.5); S a; S b; \
          equation transition(a, b, a.n >= 1); end M;"
     )
-    .contains("`initialState(...)`"));
+    .contains("none of them is where the machine starts"));
     // An arrow to a state the machine does not have is caught by
     // the numbering, which only knows the states it was given.
     assert!(err("model M Clock c = Clock(0.5); Real y; \
@@ -1378,12 +1390,21 @@ fn state_machine_error_paths() {
         .find(|component| component.name.starts_with("$arm"))
         .expect("a delayed arrow keeps its answer");
     assert_eq!(kept.type_name, "Boolean");
-    // A setting this compiler will not pretend to honour.
+    // An arrow that waits for the machines inside the state it leaves,
+    // where that state holds none.
     assert!(err(
         "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
          Clock c = Clock(0.5); S a; S b; \
          equation initialState(a); \
          transition(a, b, a.n >= 1, synchronize = true); end M;"
+    )
+    .contains("there are none there to wait for"));
+    // A setting this compiler does not know.
+    assert!(err(
+        "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+         Clock c = Clock(0.5); S a; S b; \
+         equation initialState(a); \
+         transition(a, b, a.n >= 1, nonsense = true); end M;"
     )
     .contains("not a transition setting"));
 }
