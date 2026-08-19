@@ -1767,6 +1767,44 @@ fn a_model_with_nothing_to_integrate_still_finds_where_a_relation_turns() {
             "{method:?} found {found}, not 0.3"
         );
     }
+
+    // The same, for a model that does have something to integrate: the
+    // stepping solvers read the relation off the step they interpolate
+    // rather than by asking, and the awkward case is the same one.
+    let stepped = |condition: &str, method: SolverMethod| {
+        let result = run_on(
+            &format!(
+                "model M Real x(start = 1, fixed = true); discrete Real k(start = 0); \
+                 equation der(x) = 1; \
+                 when {condition} then k = x; end when; \
+                 annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+            ),
+            method,
+        )
+        .expect("runs");
+        let index = result.columns.iter().position(|c| c == "k").unwrap();
+        result
+            .rows
+            .iter()
+            .find(|row| row[index] > 0.5)
+            .map(|row| row[0])
+            .expect("the condition turns inside the run")
+    };
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        // `time > 0.5` turns exactly on an output point, where the
+        // relation is still false and its indicator exactly zero.
+        let found = stepped("time > 0.5", method);
+        assert!(
+            (found - 0.5).abs() < 1e-6,
+            "{method:?} found {found}, not 0.5"
+        );
+        // And one that turns between two of them.
+        let found = stepped("time > 0.7", method);
+        assert!(
+            (found - 0.7).abs() < 1e-6,
+            "{method:?} found {found}, not 0.7"
+        );
+    }
 }
 
 #[test]

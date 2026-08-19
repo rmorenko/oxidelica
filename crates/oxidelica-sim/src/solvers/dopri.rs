@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::{Segment, SegmentStart};
+use super::{turned, Segment, SegmentStart};
 
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
@@ -106,6 +106,9 @@ impl CompiledModel {
             mut last_out_t,
             mut terminated,
         } = segment;
+        // Where the last event was handled, so a relation left standing
+        // on its threshold there is not taken for one turning here.
+        let mut handled_at = f64::NAN;
         let t0 = self.start_time;
 
         let mut k: Vec<Vec<f64>> = vec![vec![0.0; n]; 7];
@@ -282,14 +285,28 @@ impl CompiledModel {
                 };
 
                 // Did any event indicator change sign across the step?
-                // An indicator sitting on zero (we just handled an event
-                // there) is re-baselined instead of firing again.
                 let indicators_new = self.indicator_values(t + h, &values);
+                // A reading of exactly zero where the step begins is a
+                // relation standing on its threshold: it turns as the
+                // step leaves, and there is nothing to search for.
+                // Reading it as an indicator to leave alone is what used
+                // to lose a condition turning on an output point.
+                const HAIR: f64 = 1e-9;
                 let mut event_theta: Option<f64> = None;
                 for (index, (&before, &after)) in
                     indicators_prev.iter().zip(&indicators_new).enumerate()
                 {
-                    if before.abs() <= 1e-12 || before * after >= 0.0 {
+                    if !turned(before, after) {
+                        continue;
+                    }
+                    if before == 0.0 {
+                        // Unless this is the instant an event was just
+                        // handled at: the reading there is zero because
+                        // the crossing is behind, not ahead, and taking
+                        // it would leave the run standing still.
+                        if t != handled_at {
+                            event_theta = Some(event_theta.map_or(HAIR, |c: f64| c.min(HAIR)));
+                        }
                         continue;
                     }
                     let (mut lo, mut hi) = (0.0f64, 1.0f64);
@@ -355,6 +372,7 @@ impl CompiledModel {
                     t = t_event;
                     or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
+                    handled_at = t;
                     if let Some(message) = outcome.terminated {
                         or_stall!(self.record_row(
                             t,
@@ -455,6 +473,7 @@ impl CompiledModel {
                     ));
                     or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
+                    handled_at = t;
                     if outcome.changed {
                         // The discrete values jumped here, so the point
                         // is recorded twice: before and after the event.

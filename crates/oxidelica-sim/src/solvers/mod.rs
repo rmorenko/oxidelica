@@ -7,6 +7,17 @@ mod bdf;
 mod dopri;
 mod rk4;
 
+/// Whether a relation turned between two readings of its indicator.
+///
+/// A reading of exactly zero is a relation standing on its threshold,
+/// and it has turned if the next reading is off it. The product alone
+/// would call that no crossing, which is how a condition turning
+/// exactly on an output point - `time > 0.5` on a grid of halves - used
+/// to be missed until the grid noticed it a whole step later.
+pub(crate) fn turned(was: f64, now: f64) -> bool {
+    was * now < 0.0 || (was == 0.0 && now != 0.0)
+}
+
 /// Everything a segment carries that has nothing to do with how the
 /// stepping is done: the run's own bookkeeping.
 ///
@@ -155,29 +166,24 @@ impl CompiledModel {
         if self.indicators.is_empty() || to <= from + 1e-12 {
             return Ok(None);
         }
-        // What the relations read a hair past where the walk stands.
-        // This, and not what they read at that instant itself, is the
-        // truth being carried forward: an instant already walked to has
-        // had its events handled, and a relation that turns there turns
-        // for the step ahead rather than the one behind.
+        // A reading of exactly zero where the walk stands is a relation
+        // standing on its threshold: it turns as the walk leaves, and
+        // there is nothing to search for. Reading it as an indicator to
+        // leave alone is what used to lose a crossing that landed on an
+        // output point.
         let hair = from + (to - from) * 1e-9;
-        self.eval_point(hair, y, values, scratch, alg_guess)?;
-        let carried = self.indicator_values(hair, values);
-        if before
-            .iter()
-            .zip(&carried)
-            .any(|(&start, &now)| start * now < 0.0)
-        {
-            return Ok(Some(hair));
-        }
         self.eval_point(to, y, values, scratch, alg_guess)?;
         let after = self.indicator_values(to, values);
         let mut earliest: Option<f64> = None;
-        for (index, (&start, &end)) in carried.iter().zip(&after).enumerate() {
-            if start * end >= 0.0 {
+        for (index, (&start, &end)) in before.iter().zip(&after).enumerate() {
+            if !turned(start, end) {
                 continue;
             }
-            let (mut lo, mut hi) = (hair, to);
+            if start == 0.0 {
+                earliest = Some(earliest.map_or(hair, |so_far: f64| so_far.min(hair)));
+                continue;
+            }
+            let (mut lo, mut hi) = (from, to);
             for _ in 0..40 {
                 let mid = 0.5 * (lo + hi);
                 self.eval_point(mid, y, values, scratch, alg_guess)?;
