@@ -40,7 +40,7 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2612 read, 62 not read
+files: 2614 read, 60 not read
 classes: 4764; example models: 632, of which 141 flatten
 ```
 
@@ -76,14 +76,12 @@ The 64 files that will not parse, and the example models that will not
 flatten, are not a long tail of small things. They are a handful of
 features, each used widely:
 
-- **The fluid library** — 29 models, on classes of `Modelica.Fluid`
-  that are still not read.
 - **A `:` whose length a modifier gives** — 26 models, all through the
   visual shapes of `MultiBody.World`.
 - **`Clock` with named arguments** — 16 models of the clocked library
   write `Clock(interval = 0.1)`.
-- **A call written as an equation** — `f(x);` among the equations
-  rather than `lhs = rhs`. 14 files.
+- **A member read across an array of components in a `connect`** — 20
+  models of the power-converter library.
 - **External C bodies** — the tables, the LAPACK bindings, the file
   reading. These parse and are refused where they are called, which is
   the honest answer: there is no C here to run.

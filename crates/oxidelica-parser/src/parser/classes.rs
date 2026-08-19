@@ -251,6 +251,7 @@ impl Parser {
         let mut for_equations = Vec::new();
         let mut if_equations = Vec::new();
         let mut asserts = Vec::new();
+        let mut calls = Vec::new();
         let mut transitions = Vec::new();
         let mut initial_state = None;
         let mut connection_graph = Vec::new();
@@ -399,9 +400,15 @@ impl Parser {
                 }
                 _ => {
                     if in_initial {
-                        initial_equations.push(self.equation_item()?);
+                        match self.equation_line()? {
+                            EquationLine::Equation(equation) => initial_equations.push(equation),
+                            EquationLine::Call(call) => calls.push(call),
+                        }
                     } else if in_equations {
-                        equations.push(self.equation_item()?);
+                        match self.equation_line()? {
+                            EquationLine::Equation(equation) => equations.push(equation),
+                            EquationLine::Call(call) => calls.push(call),
+                        }
                     } else {
                         components.extend(self.declaration()?);
                     }
@@ -450,6 +457,7 @@ impl Parser {
             annotations: annotated.kept,
             class_aliases,
             asserts,
+            calls,
             transitions,
             initial_state,
             connection_graph,

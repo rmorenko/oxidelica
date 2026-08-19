@@ -331,6 +331,10 @@ pub struct ClassDef {
     pub initial_equations: Vec<EquationItem>,
     /// `assert(condition, "message")` checks of the equation section.
     pub asserts: Vec<(Expr, String)>,
+    /// Calls written among the equations without an equals sign.
+    /// Nothing receives their outputs, so what they are written for is
+    /// the checks their bodies make.
+    pub calls: Vec<Expr>,
     /// The arrows of a state machine declared in this class.
     pub transitions: Vec<Transition>,
     /// The state a machine starts in, from `initialState(s)`.
@@ -397,6 +401,7 @@ impl ClassDef {
             equations: Vec::new(),
             initial_equations: Vec::new(),
             asserts: Vec::new(),
+            calls: Vec::new(),
             transitions: Vec::new(),
             initial_state: None,
             connection_graph: Vec::new(),
@@ -450,6 +455,9 @@ pub enum ForBody {
     Connect(Expr, Expr),
     /// A nested loop.
     Nested(ForEquation),
+    /// `assert(condition, "message");` — one check per round, with the
+    /// loop variable folded in.
+    Assert(Expr, String),
 }
 
 /// A `for <var> in <lo>:<hi> loop <body> end for;` clause.

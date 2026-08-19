@@ -6,6 +6,23 @@ use super::*;
 
 impl Parser {
     pub(super) fn equation_item(&mut self) -> Result<EquationItem, ParseError> {
+        match self.equation_line()? {
+            EquationLine::Equation(equation) => Ok(equation),
+            EquationLine::Call(call) => Err(self.err(format!(
+                "`{}` stands on its own where an equation is wanted",
+                sketch_call(&call)
+            ))),
+        }
+    }
+
+    /// One line of an equation section: an equation, or a call standing
+    /// on its own.
+    ///
+    /// Nothing receives such a call's outputs, so what it is written
+    /// for is the checks its body makes - the standard library's fluid
+    /// boundaries say `checkBoundary(...)` among their equations and
+    /// take nothing back from it.
+    pub(super) fn equation_line(&mut self) -> Result<EquationLine, ParseError> {
         // `(a, b) = f(...)` fills several targets from one call. Only
         // a top-level comma tells it from a parenthesised expression,
         // so the tuple is tried first and abandoned without a trace.
@@ -13,6 +30,20 @@ impl Parser {
             Some(targets) => Expr::Tuple(targets),
             None => self.expr()?,
         };
+        if self.peek() != &Token::Assign {
+            let Expr::Call(..) = &lhs else {
+                return Err(self.err(format!(
+                    "expected `=` in an equation, found `{}`",
+                    self.peek()
+                )));
+            };
+            self.opt_string();
+            if self.peek() == &Token::Annotation {
+                self.annotation_body(&mut Annotated::default())?;
+            }
+            self.expect(&Token::Semi, "semicolon after the call")?;
+            return Ok(EquationLine::Call(lhs));
+        }
         self.expect(&Token::Assign, "`=` in equation")?;
         let rhs = self.expr()?;
         self.opt_string();
@@ -20,11 +51,11 @@ impl Parser {
             self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after equation")?;
-        Ok(EquationItem {
+        Ok(EquationLine::Equation(EquationItem {
             lhs,
             rhs,
             origin: String::new(),
-        })
+        }))
     }
 
     /// Try to read `(a, , c)` followed by `=`: the targets of a tuple
@@ -111,6 +142,15 @@ impl Parser {
                 Token::Connect => {
                     let (a, b) = self.connect_clause()?;
                     body.push(ForBody::Connect(a, b));
+                }
+                // A check written inside a loop is one per round.
+                Token::Ident(name) if name == "assert" && self.peek_at(1) == &Token::LParen => {
+                    self.bump();
+                    let held = self.assert_arguments()?;
+                    self.expect(&Token::Semi, "semicolon after assert")?;
+                    if let Some((condition, message)) = held {
+                        body.push(ForBody::Assert(condition, message));
+                    }
                 }
                 _ => body.push(ForBody::Equation(self.equation_item()?)),
             }
@@ -547,4 +587,12 @@ fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
         out = next;
     }
     out
+}
+
+/// The name of a call, for a message that has to say which one.
+fn sketch_call(call: &Expr) -> String {
+    match call {
+        Expr::Call(name, _) => format!("{name}(...)"),
+        other => format!("{other:?}"),
+    }
 }

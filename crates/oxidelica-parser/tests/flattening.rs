@@ -5002,3 +5002,67 @@ fn a_class_may_redeclare_the_one_it_inherited_by_extending_it() {
          model M Lib.Standard.Cell c; Real y; equation y = c.v; end M;")
     .contains("unknown type"));
 }
+
+/// A call written among the equations, and a check written inside a
+/// loop of them.
+#[test]
+fn a_call_may_stand_among_the_equations() {
+    // `checkBoundary(...)` is written among the equations of every
+    // fluid boundary in the standard library, and nothing takes what
+    // it gives back: what it is there for is the check inside it.
+    let m = parse_model(
+        "model M function guard input Real u; output Real ok; \
+         algorithm assert(u > 0, \"the boundary must be positive\"); ok := u; end guard; \
+         parameter Real p = 2; Real y; \
+         equation guard(p); y = p * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a call among the equations");
+    assert_eq!(m.asserts.len(), 1);
+    assert_eq!(m.asserts[0].1, "the boundary must be positive");
+    // And it added no equation of its own.
+    assert_eq!(m.equations.len(), 1);
+
+    // A check inside a `for` equation is one per round, with the loop
+    // variable folded in.
+    let m = parse_model(
+        "model M parameter Real k[3] = {1, 2, 3}; Real v[3]; \
+         equation for i in 1:3 loop assert(k[i] > 0, \"every gain is positive\"); \
+         v[i] = k[i] * time; end for; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a check inside a loop");
+    assert_eq!(m.asserts.len(), 3);
+    let rounds = format!("{:?}", m.asserts);
+    assert!(rounds.contains("Number(3.0)"), "{rounds}");
+
+    // A call may stand among the initial equations too, and a `for i
+    // loop` may read its range off the check inside it.
+    let m = parse_model(
+        "model M function guard input Real u; output Real ok; \
+         algorithm assert(u > -1, \"not too small\"); ok := u; end guard; \
+         parameter Real k[3] = {1, 2, 3}; Real x; \
+         initial equation guard(k[1]); \
+         equation der(x) = 1; \
+         for i loop assert(k[i] > 0, \"positive\"); end for; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a call among the initial equations");
+    assert_eq!(m.asserts.len(), 4);
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // A line that is neither an equation nor a call says so.
+    assert!(err("model M Real y; equation y; end M;").contains("expected `=` in an equation"));
+    // And a call that names something that is not a function.
+    assert!(
+        err("model M Real g; Real y; equation g(1); y = 1; end M;").contains("is not a function")
+    );
+    // A call among the equations of a `for` is not one this reads: the
+    // loop unrolls into equations, and a call is not one.
+    assert!(err(
+        "model M function guard input Real u; output Real ok; algorithm ok := u; end guard; \
+         parameter Real k[2] = {1, 2}; Real y; \
+         equation for i in 1:2 loop guard(k[i]); end for; y = 1; end M;"
+    )
+    .contains("stands on its own where an equation is wanted"));
+}

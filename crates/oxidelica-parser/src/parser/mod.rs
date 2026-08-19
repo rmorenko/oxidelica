@@ -236,6 +236,15 @@ pub(super) struct Annotated {
     kept: Vec<Expr>,
 }
 
+/// One line of an equation section.
+enum EquationLine {
+    /// `lhs = rhs;`
+    Equation(EquationItem),
+    /// `f(x);` — a call standing on its own, written for the checks
+    /// its body makes rather than for anything it gives back.
+    Call(Expr),
+}
+
 /// The contents of one branch of an `if` equation, as read.
 struct BranchBody {
     equations: Vec<EquationItem>,

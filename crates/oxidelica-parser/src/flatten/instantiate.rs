@@ -840,6 +840,42 @@ pub(super) fn instantiate(
         acc.initial_equations.extend(written);
     }
 
+    // A call written among the equations takes nothing back from what
+    // it calls, so what it is there for is the checks the body makes.
+    // They become the model's, carrying this instance's prefix like
+    // everything else it says.
+    for call in &class.calls {
+        let call = substitute_class_constants(call, registry, scope, &imports, &shadow);
+        let call = prefix_expr(&call, prefix, &outers);
+        let Expr::Call(name, args) = &call else {
+            return Err("a line of an equation section that is not an equation is a call".into());
+        };
+        let called = lookup(registry, name, scope, &imports)
+            .filter(|c| c.kind == ClassKind::Function)
+            .ok_or_else(|| format!("`{name}` is not a function"))?;
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+            records: &records_here,
+        };
+        let values = args
+            .iter()
+            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+            .collect::<Result<Vec<_>, String>>()?;
+        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+        let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
+        let checks = inline_function_checks(
+            called,
+            &arguments,
+            &argument_shapes,
+            &local_consts,
+            registry,
+            0,
+        )?;
+        acc.asserts.extend(checks);
+    }
+
     // `for` equations are unrolled: the loop variable is a constant.
     for loop_eq in &class.for_equations {
         unroll(
@@ -1475,6 +1511,7 @@ pub(super) fn implied_range(
                         .map(|values| values.len() as i64);
                 }
             }
+            ForBody::Assert(condition, _) => look(condition),
         }
     }
     let Some(extent) = found else {
@@ -1626,6 +1663,13 @@ pub(super) fn unroll(
                 ForBody::Nested(inner) => unroll(
                     inner, &loop_vars, consts, prefix, outers, sizes, registry, scope, imports, acc,
                 )?,
+                ForBody::Assert(condition, message) => {
+                    let condition = substitute_refs(condition, &folded);
+                    let condition =
+                        substitute_class_constants(&condition, registry, scope, imports, &[]);
+                    acc.asserts
+                        .push((prefix_expr(&condition, prefix, outers), message.clone()));
+                }
             }
         }
     }
