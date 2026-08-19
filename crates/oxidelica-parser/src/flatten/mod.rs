@@ -736,7 +736,16 @@ impl Value {
     fn scalar(self) -> Result<Expr, String> {
         match self {
             Value::Scalar(expr) => Ok(expr),
-            Value::Array(_) => Err("an array is used where a scalar is expected".to_string()),
+            Value::Array(_) => {
+                let shape = self.shape();
+                let mut items = Vec::new();
+                self.flatten_into(&mut items);
+                Err(format!(
+                    "an array of shape {shape:?} is used where a scalar is expected, \
+                     beginning {:?}",
+                    items.first()
+                ))
+            }
         }
     }
 

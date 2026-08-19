@@ -1044,13 +1044,13 @@ fn the_array_layer_says_what_it_cannot_do() {
     );
     assert!(
         err("model M Real y; equation y = if 1:3 then 1 else 0; end M;")
-            .contains("an array is used where a scalar is expected")
+            .contains("is used where a scalar is expected")
     );
     assert!(err("model M Real y; discrete Real d(start = 0); equation y = time; when 1:3 then d = 1; end when; end M;")
         .contains("an array value cannot be used where a scalar is expected"));
 
     assert!(err("model M Real v[2]; equation v = zeros({2}); end M;")
-        .contains("an array is used where a scalar is expected"));
+        .contains("is used where a scalar is expected"));
     assert!(err("model M Real y; equation y = {i for i in 3}; end M;")
         .contains("needs an array to iterate over"));
     assert!(
@@ -5564,4 +5564,28 @@ fn an_if_may_stand_inside_a_when() {
     .expect_err("no connections at an event")
     .message;
     assert!(error.contains("gives values to variables"), "{error}");
+}
+
+/// A clock drawn from one block to another by a connection.
+#[test]
+fn a_clock_may_arrive_through_a_connection() {
+    // `connect(src.y, use.clock)` between two clock connectors is an
+    // equation between two clocks, and it comes out with whichever
+    // name sorts first on the left. The one being said is the one
+    // nothing has said yet.
+    let m = parse_model(
+        "connector ClockOutput = output Clock; connector ClockInput = input Clock; \
+         block Source ClockOutput y; equation y = Clock(0.1); end Source; \
+         block Use ClockInput clock; Real u; Real y; \
+         equation u = time; y = sample(u, clock); end Use; \
+         model M Source src; Use use; Real out; \
+         equation connect(src.y, use.clock); out = hold(use.y); \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a clock through a connection");
+    // Neither clock is a variable of the run, and what runs on it is
+    // one partition firing every tenth of a second.
+    assert!(!m.components.iter().any(|c| c.name.ends_with(".clock")));
+    let ticks = format!("{:?}", m.when_clauses);
+    assert!(ticks.contains("0.1"), "{ticks}");
 }

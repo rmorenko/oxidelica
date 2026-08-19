@@ -471,11 +471,34 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         .collect();
     let mut kept = Vec::new();
     for equation in model.equations.drain(..) {
-        match &equation.lhs {
-            Expr::Ref(target) if declared.contains(target) => {
-                definitions.push((target.clone(), equation.rhs));
+        // Either side may be the clock being said: a connection
+        // between two of them - a clock signal drawn from one block to
+        // another - comes out with whichever name sorts first on the
+        // left, and that one may be the one already known.
+        let spoken_for = |name: &String| definitions.iter().any(|(known, _)| known == name);
+        let said = match (&equation.lhs, &equation.rhs) {
+            // Where both are clocks - a clock signal drawn from one
+            // block to another is exactly that - the one being said is
+            // the one nothing has said yet.
+            (Expr::Ref(left), Expr::Ref(right))
+                if declared.contains(left) && declared.contains(right) =>
+            {
+                match spoken_for(left) {
+                    true => Some((right.clone(), equation.lhs.clone())),
+                    false => Some((left.clone(), equation.rhs.clone())),
+                }
             }
-            _ => kept.push(equation),
+            (Expr::Ref(target), _) if declared.contains(target) => {
+                Some((target.clone(), equation.rhs.clone()))
+            }
+            (_, Expr::Ref(target)) if declared.contains(target) => {
+                Some((target.clone(), equation.lhs.clone()))
+            }
+            _ => None,
+        };
+        match said {
+            Some(said) => definitions.push(said),
+            None => kept.push(equation),
         }
     }
     model.equations = kept;
