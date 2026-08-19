@@ -81,9 +81,13 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      # Pinned: an unpinned linter turns a green commit red on a
+      # release that has nothing to do with it, and an unpinned
+      # coverage tool moves the number the threshold is checked
+      # against. Raise these deliberately, not by waking up to them.
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov,taplo-cli,typos-cli,cargo-machete
+          tool: cargo-llvm-cov@0.9.0,taplo-cli@0.10.0,typos-cli@1.49.0,cargo-machete@0.9.2
 
       - name: Core coverage, the project threshold is 95% of lines
         run: ./scripts/coverage.sh --summary-only
@@ -94,10 +98,10 @@ jobs:
           taplo check
 
       - name: Markdown, JSON and YAML
-        run: npx --yes prettier --check "**/*.{md,json,yaml,yml}" --log-level warn
+        run: npx --yes prettier@3.9.6 --check "**/*.{md,json,yaml,yml}" --log-level warn
 
       - name: Markdown rules
-        run: npx --yes markdownlint-cli2 "**/*.md" "!target"
+        run: npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target"
 
       - name: Spelling
         run: typos

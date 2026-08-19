@@ -5,9 +5,14 @@
 #   make check     — everything in check mode: formats, linters, spelling,
 #                    tests, coverage
 #
-# Tools: rustfmt, clippy, taplo, prettier (npx), markdownlint-cli2,
-# yamllint (uvx), jq, xmllint, typos, codespell (uvx), cargo-audit,
-# cargo-machete, cargo-llvm-cov.
+# Tools: rustfmt, clippy, taplo, prettier (npx), markdownlint-cli2
+# (npx), yamllint (uvx), jq, xmllint, typos, codespell (uvx),
+# cargo-audit, cargo-machete, cargo-llvm-cov.
+#
+# The ones fetched rather than installed carry their version. A linter
+# left to float turns a green commit red on a release that has nothing
+# to do with it, and the same versions are named in the workflow, so
+# what passes here passes there. Raise them deliberately.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -27,13 +32,13 @@ help: ## show this list
 fmt: ## apply all formatters
 	cargo fmt --all
 	taplo fmt
-	npx --yes prettier --write "**/*.{md,json,yaml,yml}" --log-level warn
+	npx --yes prettier@3.9.6 --write "**/*.{md,json,yaml,yml}" --log-level warn
 
 .PHONY: fmt-check
 fmt-check: ## verify formatting without changes
 	cargo fmt --all -- --check
 	taplo fmt --check --diff
-	npx --yes prettier --check "**/*.{md,json,yaml,yml}" --log-level warn
+	npx --yes prettier@3.9.6 --check "**/*.{md,json,yaml,yml}" --log-level warn
 
 # ---------- linters ----------
 
@@ -50,12 +55,12 @@ lint-toml: ## TOML validation (taplo)
 
 .PHONY: lint-md
 lint-md: ## markdownlint
-	markdownlint-cli2 "**/*.md" "!target"
+	npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target"
 
 .PHONY: lint-yaml
 lint-yaml: ## yamllint (when yaml files exist)
 	@files=$$($(FIND) \( -name '*.yaml' -o -name '*.yml' \) -print); \
-	if [ -n "$$files" ]; then uvx yamllint -s $$files; else echo "yaml: no files"; fi
+	if [ -n "$$files" ]; then uvx yamllint@1.38.0 -s $$files; else echo "yaml: no files"; fi
 
 .PHONY: lint-json
 lint-json: ## JSON validation (jq)
@@ -78,12 +83,12 @@ lint-cyrillic: ## language rule: no Cyrillic outside *.ru.md and locales/ru.conf
 .PHONY: spell
 spell: ## spell check (typos + codespell)
 	typos
-	uvx codespell --config .codespellrc
+	uvx codespell@2.4.3 --config .codespellrc
 
 .PHONY: spell-fix
 spell-fix: ## auto-fix typos
 	typos --write-changes
-	uvx codespell --config .codespellrc --write-changes
+	uvx codespell@2.4.3 --config .codespellrc --write-changes
 
 # ---------- dependencies ----------
 
