@@ -359,7 +359,12 @@ pub(super) fn instantiate(
         if let Some(condition) = &component.condition {
             let mut env = acc.const_values.clone();
             env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
-            let value = const_eval(condition, &env).ok_or_else(|| {
+            // As with an `if` equation, the condition may compare
+            // against an enumeration literal - `gravityType ==
+            // GravityTypes.UniformGravity` - which no environment holds
+            // as a name of its own.
+            let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
+            let value = const_eval(&named, &env).ok_or_else(|| {
                 format!("condition of component `{flat_name}` is not a compile-time constant")
             })?;
             if value == 0.0 {

@@ -892,12 +892,7 @@ pub(super) fn expand_call(
             // with the arrays intact - vectorizing it element by element
             // would compute something else entirely.
             if let Some(class) = lookup(registry, name, scope, imports) {
-                if class.kind == ClassKind::Function
-                    && class
-                        .components
-                        .iter()
-                        .any(|c| c.causality != Causality::None && !c.dimensions.is_empty())
-                {
+                if class.kind == ClassKind::Function && takes_or_gives_an_array(class, registry) {
                     let values = args
                         .iter()
                         .map(&recur)
@@ -1073,6 +1068,24 @@ pub(super) fn combine(
         }
         _ => zip_values(left, right, &apply),
     }
+}
+
+/// Whether any argument or answer of a function is an array.
+///
+/// The dimensions may be written on the declaration - `input Real
+/// u[3]` - or come with its type, as they do for `input Orientation T`
+/// where `type Orientation = Real[3, 3]`. Both count: a function that
+/// deals in arrays is inlined with them intact rather than applied to
+/// one element at a time.
+fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
+    class.components.iter().any(|component| {
+        if component.causality == Causality::None {
+            return false;
+        }
+        let mut component = component.clone();
+        resolve_type(registry, &mut component, &class.name, &class.imports);
+        !component.dimensions.is_empty()
+    })
 }
 
 /// One column of a matrix given by rows, as a vector value.

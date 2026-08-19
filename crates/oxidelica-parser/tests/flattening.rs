@@ -5743,3 +5743,41 @@ fn a_function_with_no_output_is_called_for_its_checks() {
     .message;
     assert!(error.contains("declares no output"), "{error}");
 }
+
+/// A function deals in arrays when its type says so, not only when its
+/// declaration does.
+#[test]
+fn a_function_takes_arrays_from_its_type() {
+    let m = parse_model(
+        "model M type Orient = Real[3, 3]; \
+         function turn input Orient a; input Orient b; output Orient c; \
+         algorithm c := b * a; end turn; \
+         parameter Orient one = identity(3); \
+         Orient both = turn(one, one); Real y; \
+         equation y = both[1, 1] * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a matrix that comes with the type");
+    // Nine elements rather than a call applied to each of three rows.
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("both["))
+            .count(),
+        9
+    );
+}
+
+/// The condition on a component may compare against an enumeration.
+#[test]
+fn a_component_condition_may_compare_an_enumeration() {
+    let m = parse_model(
+        "model M type Kind = enumeration(Uniform, Point); \
+         parameter Kind gravity = Kind.Point; \
+         Real shown = 1 if gravity == Kind.Uniform; \
+         Real y; equation y = time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an enumeration settles the component");
+    assert!(!m.components.iter().any(|c| c.name == "shown"));
+}
