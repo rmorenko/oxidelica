@@ -718,13 +718,104 @@ fn split_equations(
             }
             continue;
         }
+        algebraic_eqs.push((lhs.clone(), rhs.clone()));
+    }
+
+    // What is left may still hold a derivative. Where an equation is
+    // the only thing saying what one comes to - `i = C * der(v)`, which
+    // is how a library states the relation - it is rearranged into the
+    // form a solver steps with. An equation that merely *uses* a
+    // derivative another equation already defines is not touched:
+    // `y = der(x) + 1` alongside `der(x) = 1` says what `y` is, and
+    // reading it the other way would claim a second definition of
+    // `der(x)`. Equations are taken in the order they were written, so
+    // which one defines a derivative is settled and repeatable.
+    let mut left_over = Vec::new();
+    for (lhs, rhs) in std::mem::take(&mut algebraic_eqs) {
+        let taken = isolate_der(&lhs, &rhs)
+            .filter(|(state, value)| !state_rhs.contains_key(state) && !value.contains_der());
+        match taken {
+            Some((state, value)) => {
+                if !continuous.contains(&state.as_str()) {
+                    return err(format!(
+                        "der({state}): {state} is not a continuous variable"
+                    ));
+                }
+                state_rhs.insert(state, value);
+            }
+            None => left_over.push((lhs, rhs)),
+        }
+    }
+    for (lhs, rhs) in left_over {
         if lhs.contains_der() || rhs.contains_der() {
             return err("der() must appear alone on one side of an equation".to_string());
         }
-        algebraic_eqs.push((lhs.clone(), rhs.clone()));
+        algebraic_eqs.push((lhs, rhs));
     }
     Ok((state_rhs, algebraic_eqs))
 }
+
+/// Get the derivative out of an equation that states it in place:
+/// `i = C * der(v)` is the same equation as `der(v) = i / C`, and the
+/// second is the one an explicit solver can step with.
+///
+/// The derivative has to occur once, on one side and nowhere on the
+/// other. Then the operations between it and the top of that side are
+/// undone one at a time, each moving to the other side as its
+/// opposite. Only the ones that can be undone without a case analysis
+/// are tried: sums, differences, products, quotients and negation.
+/// Anything else - a derivative under a power, inside a call, or on
+/// both sides - is left alone and refused where it was.
+fn isolate_der(lhs: &Expr, rhs: &Expr) -> Option<(String, Expr)> {
+    let (mut held, mut other) = match (lhs.contains_der(), rhs.contains_der()) {
+        (true, false) => (lhs.clone(), rhs.clone()),
+        (false, true) => (rhs.clone(), lhs.clone()),
+        _ => return None,
+    };
+    for _ in 0..MAX_ISOLATION {
+        if let Some(state) = held.as_der_of() {
+            return Some((state.to_string(), other));
+        }
+        let (next, moved) = match held {
+            // `-a = other` is `a = -other`.
+            Expr::Neg(inner) => (*inner, Expr::Neg(Box::new(other))),
+            Expr::Bin(op, a, b) => {
+                let left = a.contains_der();
+                // The side without the derivative is what moves, so
+                // exactly one of them may hold it.
+                if left == b.contains_der() {
+                    return None;
+                }
+                match (op, left) {
+                    // a + b = other  ->  a = other - b
+                    (BinOp::Add, true) => (*a, Expr::Bin(BinOp::Sub, Box::new(other), b)),
+                    (BinOp::Add, false) => (*b, Expr::Bin(BinOp::Sub, Box::new(other), a)),
+                    // a - b = other  ->  a = other + b  |  b = a - other
+                    (BinOp::Sub, true) => (*a, Expr::Bin(BinOp::Add, Box::new(other), b)),
+                    (BinOp::Sub, false) => (*b, Expr::Bin(BinOp::Sub, a, Box::new(other))),
+                    // a * b = other  ->  a = other / b
+                    (BinOp::Mul, true) => (*a, Expr::Bin(BinOp::Div, Box::new(other), b)),
+                    (BinOp::Mul, false) => (*b, Expr::Bin(BinOp::Div, Box::new(other), a)),
+                    // a / b = other  ->  a = other * b  |  b = a / other
+                    (BinOp::Div, true) => (*a, Expr::Bin(BinOp::Mul, Box::new(other), b)),
+                    (BinOp::Div, false) => (*b, Expr::Bin(BinOp::Div, a, Box::new(other))),
+                    // A derivative under a power would need a root,
+                    // and which root depends on the exponent.
+                    (BinOp::Pow, _) => return None,
+                }
+            }
+            _ => return None,
+        };
+        held = next;
+        other = moved;
+    }
+    None
+}
+
+/// How many operations deep a derivative may sit and still be got out.
+/// A physical relation states it within a few; a longer chain is a
+/// sign that this is not the shape being looked for.
+const MAX_ISOLATION: usize = 8;
 
 /// The states, and the algebraic unknowns left over.
 fn unknowns_of(
@@ -1191,6 +1282,14 @@ pub(crate) fn compile_at(
                         WhenAction::Reinit(state.clone(), rewrite.expr(value)?)
                     }
                     WhenAction::Terminate(message) => WhenAction::Terminate(message.clone()),
+                    // Flattening inlines the call and hands each
+                    // target an assignment of its own, so no tuple
+                    // reaches this far.
+                    WhenAction::TupleAssign(..) => {
+                        return err("a tuple inside `when` should have been taken apart while \
+                                    flattening"
+                            .to_string())
+                    }
                 });
             }
             branches.push(WhenBranch {
@@ -1483,6 +1582,11 @@ pub(crate) fn compile_at(
                             .position(|discrete| discrete == name)
                             .expect("when targets were collected from these");
                         CompiledAction::Assign(index, table.compile(value)?)
+                    }
+                    WhenAction::TupleAssign(..) => {
+                        return err("a tuple inside `when` should have been taken apart while \
+                                    flattening"
+                            .to_string())
                     }
                 });
             }

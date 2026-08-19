@@ -2028,14 +2028,21 @@ fn a_function_may_say_how_to_differentiate_itself() {
         NOT_SMOOTH.replace("input Real x_der;", "")
     ))
     .contains("what `M.f` takes, and then one derivative for each"));
-    // The options the specification allows beside it are refused rather
-    // than skipped: reading one wrong gives a wrong derivative.
-    assert!(err(&format!(
+    // The options the specification allows beside it change what the
+    // named function takes and answers, so an annotation carrying one
+    // is read past and not kept: the call stands with no derivative
+    // rule of its own rather than a wrong one.
+    let m = parse_model(&format!(
         "model M {} Real x(start = 2, fixed = true); Real v; \
          equation der(x) = v; f(x) = 4 + time; end M;",
         NOT_SMOOTH.replace("derivative = fd", "derivative(order = 2) = fd")
     ))
-    .contains("more than this compiler reads"));
+    .unwrap();
+    assert!(
+        !format!("{:?}", m.equations).contains("WithDerivative"),
+        "{:?}",
+        m.equations
+    );
 }
 
 #[test]
@@ -2086,13 +2093,21 @@ fn a_check_may_be_written_where_the_statements_are() {
          algorithm assert(x > 0, \"positive\"); y := x; end f; \
          Real y; equation y = f(2); end M;")
     .contains("has nowhere to go"));
-    // A call standing on its own cannot do anything: every function
-    // here is pure, so its answer has to go somewhere.
-    assert!(err(
-        "model M function f input Real x; output Real y; algorithm y := x; end f; \
-         Real y; algorithm f(1); y := 1; end M;"
+    // A call standing on its own takes nothing from its outputs; what
+    // it is written for is the checks its body makes, and here they
+    // have somewhere to go.
+    let m = parse_model(
+        "model M function f input Real x; output Real y; \
+         algorithm assert(x > 0, \"positive\"); y := x; end f; \
+         Real y; algorithm f(1); y := 1; end M;",
     )
-    .contains("on its own does nothing"));
+    .unwrap();
+    assert_eq!(m.asserts.len(), 1);
+    assert_eq!(m.asserts[0].1, "positive");
+    // A name that is not a function cannot be called that way.
+    assert!(
+        err("model M Real g; Real y; algorithm g(1); y := 1; end M;").contains("is not a function")
+    );
     assert!(
         err("model M Real y; algorithm terminate(\"now\"); y := 1; end M;")
             .contains("belongs in a `when`")
@@ -3095,11 +3110,12 @@ fn the_new_expression_forms_travel_through_every_walker() {
         .unwrap();
     assert!(format!("{:?}", gate.rhs).contains("edge_case[3]"));
 
-    // A class alias at the top level of a file is refused.
-    let error = oxidelica_parser::parse_file("package P = Q;")
-        .unwrap_err()
-        .to_string();
-    assert!(error.contains("full definition"), "{error}");
+    // A class alias may be a whole file: a library with one class to a
+    // file writes short definitions that way, and what comes out is a
+    // class standing for the other.
+    let read = oxidelica_parser::parse_file("package P = Q;").unwrap();
+    assert_eq!(read.len(), 1);
+    assert_eq!(read[0].alias_of.as_ref().unwrap().0, "Q");
 
     // A range with a step, and one in a for loop with a step.
     let stepped = parse_model("model M Real v[3]; equation v = 1:3:7; end M;").unwrap();
@@ -3499,16 +3515,17 @@ fn the_reserved_words_are_reserved() {
         ));
     }
 
-    // `external` is a word this compiler knows and cannot honour, so it
-    // says which rather than failing further in.
-    let error = parse_model(
-        "model M function f input Real a; output Real b; external \"C\"; end f; \
-         Real y; equation y = 1; \
-         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
-    )
-    .expect_err("no external bodies")
-    .message;
-    assert!(error.contains("must have a Modelica body"), "{error}");
+    // A body written outside Modelica is read, so that a file holding
+    // one alongside other classes still loads, and refused where such
+    // a function is called.
+    let with_external = "model M function f input Real a; output Real b; \
+                         external \"C\"; end f; Real y; equation y = ";
+    let tail = "; annotation(experiment(StopTime = 1, Interval = 1)); end M;";
+    parse_model(&format!("{with_external}1{tail}")).expect("a file with one loads");
+    let error = parse_model(&format!("{with_external}f(2){tail}"))
+        .expect_err("no external bodies")
+        .message;
+    assert!(error.contains("outside Modelica"), "{error}");
 }
 
 #[test]
@@ -3998,4 +4015,532 @@ fn a_dimension_may_be_a_type_or_read_from_a_value() {
     )
     .expect_err("nothing to size from");
     assert!(error.message.contains("flexible size"), "{}", error.message);
+}
+
+/// The forms the standard library is written in that a smaller slice of
+/// the language does without: the long shape of `type`, a connector
+/// that is a predefined type, checks written inside a branch, and an
+/// `if` equation with another one inside it.
+#[test]
+fn the_shapes_the_standard_library_is_written_in() {
+    // `type X ... extends Real; ... end X;` - the long form, which is
+    // what the standard library's icon package uses. It names a type
+    // exactly as `type X = Real(...)` does.
+    let model = parse_model(
+        "type Level \"a level\" extends Real; annotation(Icon()); end Level; \
+         model M Level x(start = 3); Real y; equation y = x; der(x) = 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("the long form of a type");
+    let x = model.components.iter().find(|c| c.name == "x").unwrap();
+    assert_eq!(x.type_name, "Real");
+    assert!(matches!(x.start, Some(Expr::Number(n)) if n == 3.0));
+
+    // `connector RealInput = input Real` - a connector that holds one
+    // predefined value, which is how every signal in the standard
+    // library is carried. `final` and `each` on an attribute belong to
+    // the declaration and change nothing about the value.
+    let model = parse_model(
+        "connector Signal = input Real(final unit = \"V\", each min = -1); \
+         model M Signal u; Real y; equation u = 2; y = u; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a connector of a predefined type");
+    let u = model.components.iter().find(|c| c.name == "u").unwrap();
+    assert_eq!(u.type_name, "Real");
+    assert_eq!(u.unit.as_deref(), Some("V"));
+
+    // An `if` equation inside another one. The branches are read into
+    // one chain, with the conditions of the two joined: `k == 2` picks
+    // the inner `else`, so y is 20 and not 10 or 30.
+    let model = parse_model(
+        "model M constant Integer k = 2; Real y; equation \
+         if k == 1 then y = 1; elseif k == 2 then \
+           if false then y = 10; else y = 20; end if; \
+         else y = 30; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an if inside an if");
+    assert_eq!(model.equations.len(), 1);
+    assert_eq!(format!("{:?}", model.equations[0].rhs), "Number(20.0)");
+
+    // An inner chain with no `else` covers only part of the branch it
+    // is written in: with the inner condition false, nothing is
+    // defined by it, and the branch after must not be reached.
+    let model = parse_model(
+        "model M constant Integer k = 2; Real y; equation \
+         if k == 1 then y = 1; elseif k == 2 then \
+           if false then y = 10; end if; y = 20; \
+         else y = 30; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an inner chain with no else");
+    assert_eq!(model.equations.len(), 1);
+    assert_eq!(format!("{:?}", model.equations[0].rhs), "Number(20.0)");
+
+    // A `for` equation inside a branch the compiler picks.
+    let model = parse_model(
+        "model M constant Boolean wide = true; Real v[3]; equation \
+         if wide then for i in 1:3 loop v[i] = i; end for; \
+         else for i in 1:3 loop v[i] = 0; end for; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a for inside an if");
+    assert_eq!(model.equations.len(), 3);
+    assert_eq!(format!("{:?}", model.equations[2].rhs), "Number(3.0)");
+}
+
+/// Checks written inside an `if` equation, and the message one carries.
+#[test]
+fn a_check_inside_a_branch_holds_only_while_the_branch_does() {
+    // The condition is one only the run holds, so no branch is picked
+    // here and each check comes out guarded. The `else` branch's check
+    // is guarded by the denial of the first condition, which is what
+    // keeps it from firing while the first branch holds.
+    let model = parse_model(
+        "model M Real y; equation \
+         if time > 0.5 then assert(time > -1, \"while loaded\"); y = 1; \
+         else assert(time < -1, \"while idle\"); y = 2; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("checks in branches");
+    assert_eq!(model.asserts.len(), 2);
+    let idle = model
+        .asserts
+        .iter()
+        .find(|(_, message)| message == "while idle")
+        .expect("the check of the else branch");
+    // `not (not loaded) or time < -1` - written as the denial of the
+    // guard, which is itself the denial of the first condition.
+    let written = format!("{:?}", idle.0);
+    assert!(written.starts_with("Or(Not(Not("), "{written}");
+
+    // A message built by joining pieces keeps the parts that are text.
+    // A warning is read and dropped: the language says the run carries
+    // on, and there is nowhere here to put the text.
+    let model = parse_model(
+        "model M Real y; equation y = 1; \
+         assert(y > 0, \"y is \" + String(y) + \", which is wrong\"); \
+         assert(y > 2, \"only a warning\", AssertionLevel.warning); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a built message");
+    assert_eq!(model.asserts.len(), 1);
+    assert_eq!(model.asserts[0].1, "y is ?, which is wrong");
+}
+
+/// `initial algorithm` runs once and settles where the model starts.
+#[test]
+fn an_initial_algorithm_says_where_the_model_starts() {
+    // `count` is worked out once, at the start, from the parameters;
+    // `x` integrates from it. At t = 0 the value is 3 * 2 = 6, and it
+    // is an initial equation rather than one that holds throughout, so
+    // the derivative is free to move it.
+    let model = parse_model(
+        "model M parameter Real gain = 3; Real x; Real count; \
+         initial algorithm count := gain * 2; x := count; \
+         equation der(x) = 1; count = gain * 2; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an initial algorithm");
+    let starts: Vec<String> = model
+        .initial_equations
+        .iter()
+        .map(|e| format!("{:?} = {:?}", e.lhs, e.rhs))
+        .collect();
+    assert!(
+        starts.iter().any(|line| line.starts_with("Ref(\"x\")")),
+        "{starts:?}"
+    );
+    assert!(
+        starts.iter().any(|line| line.starts_with("Ref(\"count\")")),
+        "{starts:?}"
+    );
+}
+
+/// Names written from the top of the tree, and bodies written outside
+/// Modelica - the two things a library needs to reach the operators the
+/// language already has.
+#[test]
+fn a_name_may_be_written_from_the_top_of_the_tree() {
+    // `.asin` inside a function of that very name is the operator and
+    // not the function: without the dot it would call itself.
+    let m = parse_model(
+        "package Math function asin input Real u; output Real y; \
+         algorithm y := .asin(u); end asin; end Math; \
+         model M Real y; equation y = Math.asin(1); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a global name");
+    // What is left is the operator, not the function that wrote it:
+    // had the dot been dropped, the body would have called itself.
+    let value = format!("{:?}", m.equations[0].rhs);
+    assert_eq!(value, "Call(\".asin\", [Number(1.0)])");
+
+    // A declaration may name its type the same way.
+    let m = parse_model(
+        "package P model Inner Real k = 3; end Inner; end P; \
+         model M .P.Inner part; Real y; equation y = part.k; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a global type name");
+    assert!(m.components.iter().any(|c| c.name == "part.k"));
+
+    // `external "builtin" y = asin(u)` says the function is the
+    // operator of that name, given a place in a library's tree.
+    let m = parse_model(
+        "package Math function acos input Real u; output Real y; \
+         external \"builtin\" y = acos(u); end acos; end Math; \
+         model M Real y; equation y = Math.acos(1); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a builtin body");
+    assert_eq!(
+        format!("{:?}", m.equations[0].rhs),
+        "Call(\"acos\", [Number(1.0)])"
+    );
+
+    // A body in any other language is read, so a file holding one
+    // alongside other classes still loads, and refused where it is
+    // called - which is where it would have to run.
+    let error = parse_model(
+        "package L function f input Real u; output Real y; \
+         external \"C\" y = cfun(u) annotation(Library = \"m\"); end f; end L; \
+         model M Real y; equation y = L.f(1); end M;",
+    )
+    .expect_err("no C bodies")
+    .message;
+    assert!(error.contains("outside Modelica"), "{error}");
+
+    // A constant may be built on one of another package, and on a
+    // function the run never sees: both are settled here.
+    let m = parse_model(
+        "package Machine constant Real eps = 0.5; end Machine; \
+         package Math function twice input Real u; output Real y; \
+         algorithm y := 2 * u; end twice; end Math; \
+         package Where constant Real k = Machine.eps; \
+         constant Real doubled = Math.twice(k); end Where; \
+         model M Real y; equation y = Where.doubled; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("constants reaching through others");
+    assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(1.0)");
+}
+
+/// A tuple filled at an event, and one that asks for part of an array.
+#[test]
+fn a_call_may_fill_several_targets_at_an_event() {
+    // `(a, b) = f(x)` inside `when`: the call is inlined once per
+    // output and each target gets an assignment of its own.
+    let m = parse_model(
+        "model M function split input Real u; output Real lo; output Real hi; \
+         algorithm lo := u - 1; hi := u + 1; end split; \
+         discrete Real a; discrete Real b; Real y; \
+         equation y = time; \
+         when time > 0.5 then (a, b) = split(4); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a tuple at an event");
+    let actions = format!("{:?}", m.when_clauses[0].branches[0].actions);
+    assert!(
+        actions.contains("Assign(\"a\", Bin(Sub, Number(4.0)"),
+        "{actions}"
+    );
+    assert!(
+        actions.contains("Assign(\"b\", Bin(Add, Number(4.0)"),
+        "{actions}"
+    );
+
+    // A skipped slot costs its output nothing.
+    let m = parse_model(
+        "model M function split input Real u; output Real lo; output Real hi; \
+         algorithm lo := u - 1; hi := u + 1; end split; \
+         discrete Real b; Real y; \
+         equation y = time; \
+         when time > 0.5 then (, b) = split(4); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a skipped slot");
+    assert_eq!(m.when_clauses[0].branches[0].actions.len(), 1);
+
+    // Filling part of an array from a call is more than this does, and
+    // it says so where such a call is made.
+    let error = parse_model(
+        "model M function split input Real u; output Real lo; output Real hi; \
+         algorithm lo := u; hi := u; end split; \
+         Real v[2]; Real y; \
+         algorithm (v[1], y) := split(1); end M;",
+    )
+    .expect_err("part of an array")
+    .message;
+    assert!(error.contains("part of an array"), "{error}");
+}
+
+/// The forms a library writes that a smaller slice of the language did
+/// without, and what each of them is refused for when it cannot be
+/// honoured.
+#[test]
+fn the_library_forms_are_read_and_their_limits_named() {
+    // A short class definition may repeat any of the prefixes a
+    // declaration carries; none of them changes the type itself.
+    for prefix in ["input", "output", "flow", "stream", "discrete"] {
+        let m = parse_model(&format!(
+            "connector Signal = {prefix} Real; model M Signal u; Real y; \
+             equation u = 2; y = u; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+        ))
+        .unwrap_or_else(|e| panic!("`{prefix}`: {e}"));
+        assert!(m.components.iter().any(|c| c.name == "u"));
+    }
+
+    // An `initial algorithm` settles where the model starts; a `when`
+    // among its statements would be an event, and there are none
+    // before the run begins.
+    let error = parse_model(
+        "model M Real x; initial algorithm when time > 1 then x := 1; end when; \
+         equation der(x) = 1; end M;",
+    )
+    .expect_err("no events before the start")
+    .message;
+    assert!(error.contains("not an initial one"), "{error}");
+
+    // A `for` equation in a branch the run decides would make the
+    // model a different size depending on the run.
+    let error = parse_model(
+        "model M Real v[2]; equation if time > 1 then for i in 1:2 loop v[i] = i; end for; \
+         else for i in 1:2 loop v[i] = 0; end for; end if; end M;",
+    )
+    .expect_err("a loop in an undecided branch")
+    .message;
+    assert!(error.contains("settled before the run"), "{error}");
+
+    // A `connect` in one is structural in the same way.
+    let error = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model Part Pin p; equation p.i = 0; end Part; \
+         model M Part a; Part b; equation if time > 1 then connect(a.p, b.p); \
+         else connect(a.p, b.p); end if; end M;",
+    )
+    .expect_err("a connection in an undecided branch")
+    .message;
+    assert!(error.contains("connections are structural"), "{error}");
+
+    // A call standing on its own has to name a function.
+    let error = parse_model("model M Real y; algorithm sqrt(2); y := 1; end M;")
+        .expect_err("not a function")
+        .message;
+    assert!(error.contains("is not a function"), "{error}");
+
+    // An assertion level other than a warning is held as written.
+    let m = parse_model(
+        "model M Real y; equation y = 1; \
+         assert(y > 0, \"positive\", level = AssertionLevel.error); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an error-level check");
+    assert_eq!(m.asserts.len(), 1);
+
+    // A library file that will not parse is set aside rather than made
+    // everyone's problem: the model beside it still loads, and what
+    // was not read is said.
+    let (model, unread) = oxidelica_parser::parse_model_reading(
+        &["package Broken model B Real x @ 1; end B; end Broken;".to_string()],
+        "model M Real y; equation y = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(model.is_ok());
+    assert_eq!(unread.len(), 1);
+    assert!(unread[0].contains("line"), "{}", unread[0]);
+}
+
+/// A tuple equation written inside a component, so that its targets
+/// travel through every pass that carries a name.
+#[test]
+fn a_tuple_equation_inside_a_component_carries_its_prefix() {
+    let m = parse_model(
+        "function split input Real u; output Real lo; output Real hi; \
+         algorithm lo := u - 1; hi := u + 1; end split; \
+         model Part parameter Real k = 4; Real lo; Real hi; Real skipped; \
+         equation (lo, hi) = split(k); (, skipped) = split(k + 10); end Part; \
+         model M Part p; Real y; equation y = p.lo + p.hi; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a tuple inside a component");
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("p.lo"), "{written}");
+    assert!(written.contains("p.hi"), "{written}");
+    // The skipped slot took the first output and left the second.
+    assert!(written.contains("p.skipped"), "{written}");
+}
+
+/// Attribute modifiers written on a component whose type is an alias,
+/// and flow control that leaves a body from inside a loop.
+#[test]
+fn an_alias_takes_the_attributes_written_on_the_declaration() {
+    // `min` and `max` written as modifiers on an aliased type mean
+    // what the attribute form means, and they belong to the
+    // declaration, so they outrank anything the alias says.
+    let m = parse_model(
+        "type Bounded = Real(min = -10, max = 10, start = 0, fixed = true); \
+         model M Bounded x(min = -1, max = 1, start = 0.5, fixed = false); \
+         equation der(x) = 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("attributes on an aliased declaration");
+    let x = m.components.iter().find(|c| c.name == "x").unwrap();
+    assert!(matches!(x.min, Some(Expr::Neg(_)) | Some(Expr::Number(_))));
+    assert!(matches!(x.max, Some(Expr::Number(n)) if n == 1.0));
+    assert!(matches!(x.start, Some(Expr::Number(n)) if n == 0.5));
+    assert_eq!(x.fixed, Some(false));
+
+    // A `return` inside a loop leaves the whole body, not the loop.
+    let m = parse_model(
+        "model M function upto input Real n; output Real y; \
+         algorithm y := 0; \
+         for i in 1:10 loop if i > n then return; end if; y := y + 1; end for; \
+         end upto; \
+         Real y; equation y = upto(4); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a return inside a loop");
+    // Four rounds ran before the fifth left the body.
+    let counted = format!("{:?}", m.equations[0].rhs);
+    assert_eq!(counted.matches("Number(1.0)").count(), 4, "{counted}");
+
+    // Subscripts of more than one dimension, assigned to and filled
+    // from a call that hands back several values.
+    let error = parse_model(
+        "model M function pair input Real u; output Real a; output Real b; \
+         algorithm a := u; b := u; end pair; \
+         Real g[2, 2]; Real y; \
+         algorithm g[1, 2] := 3; (g[2, 1], y) := pair(1); end M;",
+    )
+    .expect_err("part of an array from a call")
+    .message;
+    assert!(error.contains("part of an array"), "{error}");
+}
+
+/// Arrays chosen by a condition the run holds, and the shapes a body
+/// may build on the way to a number.
+#[test]
+fn an_array_may_be_chosen_by_a_condition_the_run_holds() {
+    // `if time > t then a else b` over arrays: neither branch is
+    // picked here, so the choice is made element by element.
+    let m = parse_model(
+        "model M Real a[2]; Real b[2]; Real v[2]; \
+         equation a = {1, 2}; b = {3, 4}; v = if time > 0.5 then a else b; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    )
+    .expect("arrays under a condition");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("v["))
+            .count(),
+        2
+    );
+    let written = format!("{:?}", m.equations);
+    assert_eq!(written.matches("If(").count(), 2, "{written}");
+
+    // A matrix literal and a named argument, both standing where an
+    // earlier statement has already bound what they are built on.
+    let m = parse_model(
+        "model M function blend input Real k; input Real scale = 1; output Real y; \
+         algorithm y := (k + k) * scale; end blend; \
+         Real y; equation y = blend(sum({{1, 2}, {3, 4}}), scale = 2); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a matrix and a named argument");
+    // (1+2+3+4) doubled and scaled by 2 is 40; what is left standing
+    // is the sum written out, which comes to the same.
+    let written = format!("{:?}", m.equations[0].rhs);
+    assert_eq!(written.matches("Number(4.0)").count(), 2, "{written}");
+    assert!(written.ends_with("Number(2.0))"), "{written}");
+}
+
+/// The corners of the new forms: annotations where they may sit, and
+/// what each malformed shape is refused for.
+#[test]
+fn the_new_forms_are_refused_by_shape() {
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+
+    // An annotation may follow a short class definition of either kind.
+    parse_model(
+        "connector Signal = input Real annotation(Icon()); \
+         package Alias = Other annotation(Icon()); package Other end Other; \
+         model M Signal u; Real y; equation u = 1; y = u; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("annotations on short definitions");
+
+    // And one after `initialState`: the clause is read with it, and
+    // what the model is then refused for is having no clock to run a
+    // machine on - which is a complaint from further in.
+    assert!(err("model M model Idle Real k = 0; end Idle; Idle s; \
+         equation initialState(s) annotation(Line()); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;")
+    .contains("runs on a clock"));
+
+    // `derivative` options may hold a call of their own; the whole of
+    // it is read past.
+    parse_model(
+        "model M function fd input Real x; input Real x_der; output Real y; \
+         algorithm y := x_der; end fd; \
+         function f input Real x; output Real y; algorithm y := x * x; \
+         annotation(derivative(noDerivative = size(x, 1)) = fd); end f; \
+         Real y; equation y = f(2); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("derivative options holding a call");
+
+    // A subscript list has to be separated by commas and closed.
+    assert!(
+        err("model M Real g[2]; Real y; algorithm g[1; 2] := 3; y := 1; end M;")
+            .contains("in a subscript")
+    );
+    assert!(err(
+        "model M function pair input Real u; output Real a; output Real b; \
+         algorithm a := u; b := u; end pair; Real g[2]; Real y; \
+         algorithm (g[1; 2], y) := pair(1); end M;"
+    )
+    .contains("in a subscript"));
+
+    // A bare word in an annotation says something by being there;
+    // a nested list of them is stepped over whole.
+    let m = parse_model(
+        "model M Real y = 1 annotation(Evaluate, Dialog(group = \"Gains\", \
+         tab = {\"one\", \"two\"})); Real z; equation z = y; \
+         annotation(experiment(StopTime = 1, Interval = 1), preferredView); end M;",
+    )
+    .expect("bare words in annotations");
+    assert!(m.components.iter().any(|c| c.name == "y"));
+
+    // A `for` statement over two indices at once is two loops, one
+    // inside the other.
+    let m = parse_model(
+        "model M Real g[2, 2]; Real y; \
+         algorithm for i, j in 1:2 loop g[i, j] := i * j; end for; y := g[2, 2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a loop over two indices");
+    assert_eq!(
+        format!("{:?}", m.equations.last().unwrap().rhs),
+        "Bin(Mul, Number(2.0), Number(2.0))"
+    );
+
+    // A name that is not a call at all, followed by a parenthesis.
+    assert!(err("model M Real y; algorithm time(1); y := 1; end M;").contains("is not a call"));
+
+    // A skipped slot may come first in an algorithm's tuple as well.
+    let m = parse_model(
+        "model M function pair input Real u; output Real a; output Real b; \
+         algorithm a := u - 1; b := u + 1; end pair; \
+         Real y; algorithm (, y) := pair(4); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a skipped first slot");
+    assert_eq!(
+        format!("{:?}", m.equations[0].rhs),
+        "Bin(Add, Number(4.0), Number(1.0))"
+    );
 }

@@ -132,7 +132,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     return crate::walk::walk(programs, name, &vals, ctx.time, ctx.depth + 1);
                 }
             }
-            match name.as_str() {
+            match operator_name(name) {
                 "der" => return err("der() outside a state equation is not supported in M0"),
                 "sin" => {
                     arity(1)?;
@@ -442,7 +442,7 @@ impl SlotTable {
                     .collect::<Result<Vec<_>, SimError>>()?,
             ));
         }
-        let unary = match name {
+        let unary = match operator_name(name) {
             "ceil" => Some(Unary::Ceil),
             "floor" => Some(Unary::Floor),
             "integer" => Some(Unary::IntegerPart),
@@ -469,7 +469,7 @@ impl SlotTable {
             }
             return Ok(Code::Unary(function, Box::new(self.compile(&args[0])?)));
         }
-        let binary = match name {
+        let binary = match operator_name(name) {
             "atan2" => Some(Binary::Atan2),
             "nthRoot" => Some(Binary::NthRoot),
             "min" => Some(Binary::Min),

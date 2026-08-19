@@ -4,24 +4,39 @@ use super::*;
 
 impl Parser {
     /// `(condition, "message")` after the word `assert`, wherever it
-    /// was written. An optional third argument names the assertion
-    /// level; it is accepted and not distinguished.
-    pub(super) fn assert_arguments(&mut self) -> Result<(Expr, String), ParseError> {
+    /// was written.
+    ///
+    /// A third argument names the assertion level. At
+    /// `AssertionLevel.warning` the language says the run carries on,
+    /// and there is nowhere here to put the text of a warning - the
+    /// solver has no channel for one - so such a check is read and
+    /// dropped, which is what `None` says. Holding it as an error
+    /// would stop runs the language says should continue.
+    pub(super) fn assert_arguments(&mut self) -> Result<Option<(Expr, String)>, ParseError> {
         self.expect(&Token::LParen, "parenthesis after assert")?;
         let condition = self.expr()?;
         self.expect(&Token::Comma, "comma before the assert message")?;
-        let message = match self.bump() {
-            Token::Str(message) => message,
-            other => {
-                return Err(self.err(format!("assert expects a string message, found `{other}`")))
-            }
-        };
+        let written = self.expr()?;
+        if matches!(written, Expr::Number(_) | Expr::Bool(_)) {
+            return Err(self.err("assert expects a string message".to_string()));
+        }
+        let message = message_text(&written);
+        let mut warning = false;
         if self.peek() == &Token::Comma {
             self.bump();
-            self.dotted_name("assertion level")?;
+            // `assert(c, "m", level = AssertionLevel.warning)` - the
+            // keyword is optional, the level is what matters.
+            if matches!(self.peek(), Token::Ident(name) if name == "level")
+                && self.peek_at(1) == &Token::Assign
+            {
+                self.bump();
+                self.bump();
+            }
+            let level = self.dotted_name("assertion level")?;
+            warning = level.ends_with(".warning") || level == "warning";
         }
         self.expect(&Token::RParen, "closing parenthesis of assert")?;
-        Ok((condition, message))
+        Ok((!warning).then_some((condition, message)))
     }
 
     /// An algorithm section: assignments, `if` and `for` statements, up
@@ -30,40 +45,44 @@ impl Parser {
         let mut out = Vec::new();
         loop {
             match self.peek() {
-                // A name followed by a parenthesis is a call standing on
-                // its own, not something being assigned to.
-                Token::Ident(name) if self.peek_at(1) == &Token::LParen => {
-                    let called = name.clone();
+                // Inside a loop this is one check per round, with the
+                // loop variable already folded in.
+                Token::Ident(name) if name == "assert" && self.peek_at(1) == &Token::LParen => {
                     self.bump();
-                    match called.as_str() {
-                        // Inside a loop this is one check per round,
-                        // with the loop variable already folded in.
-                        "assert" => {
-                            let (condition, message) = self.assert_arguments()?;
-                            self.expect(&Token::Semi, "semicolon after assert")?;
-                            out.push(Statement::Assert(condition, message));
-                        }
-                        "terminate" => {
-                            return Err(self.err(
-                                "`terminate` among the statements would end the run the moment \
-                                 the section is reached; it belongs in a `when`"
-                                    .to_string(),
-                            ))
-                        }
-                        // Every function here is pure, so a call whose
-                        // outputs go nowhere cannot do anything, and
-                        // writing one is a mistake rather than an intent.
-                        _ => {
-                            return Err(self.err(format!(
-                                "`{called}(...)` on its own does nothing: a function here has \
-                                 no way to act but through its outputs, so its answer has to \
-                                 go somewhere"
-                            )))
-                        }
+                    let held = self.assert_arguments()?;
+                    self.expect(&Token::Semi, "semicolon after assert")?;
+                    if let Some((condition, message)) = held {
+                        out.push(Statement::Assert(condition, message));
                     }
                 }
+                Token::Ident(name) if name == "terminate" && self.peek_at(1) == &Token::LParen => {
+                    return Err(self.err(
+                        "`terminate` among the statements would end the run the moment \
+                         the section is reached; it belongs in a `when`"
+                            .to_string(),
+                    ))
+                }
                 Token::Ident(_) => {
+                    let saved = self.pos;
                     let target = self.component_ref()?;
+                    // A name followed by a parenthesis is a call
+                    // standing on its own, not something being
+                    // assigned to. Nothing receives its outputs, so
+                    // what such a call is written for is the checks
+                    // its body makes - which is where they go.
+                    if self.peek() == &Token::LParen {
+                        self.pos = saved;
+                        let Expr::Call(name, args) = self.expr()? else {
+                            return Err(self.err(format!("`{target}` is not a call")));
+                        };
+                        self.opt_string();
+                        if self.peek() == &Token::Annotation {
+                            self.annotation_body(&mut Annotated::default())?;
+                        }
+                        self.expect(&Token::Semi, "semicolon after the call")?;
+                        out.push(Statement::Call(name, args));
+                        continue;
+                    }
                     // `c[i] := ...` assigns one element of an array.
                     let mut subscripts = Vec::new();
                     if self.peek() == &Token::LBracket {
@@ -98,7 +117,31 @@ impl Parser {
                     loop {
                         match self.peek() {
                             Token::Comma | Token::RParen => targets.push(None),
-                            _ => targets.push(Some(self.ident("target of a tuple assignment")?)),
+                            _ => {
+                                let name = self.ident("target of a tuple assignment")?;
+                                // `(v[:, 1], info) := f(...)` fills part
+                                // of an array; the subscripts are read
+                                // here and weighed where the assignment
+                                // is carried out.
+                                let mut subscripts = Vec::new();
+                                if self.peek() == &Token::LBracket {
+                                    self.bump();
+                                    loop {
+                                        subscripts.push(self.subscript()?);
+                                        match self.bump() {
+                                            Token::Comma => continue,
+                                            Token::RBracket => break,
+                                            other => {
+                                                return Err(self.err(format!(
+                                                    "expected `,` or `]` in a subscript, \
+                                                     found `{other}`"
+                                                )))
+                                            }
+                                        }
+                                    }
+                                }
+                                targets.push(Some((name, subscripts)));
+                            }
                         }
                         match self.bump() {
                             Token::Comma => continue,
@@ -241,5 +284,18 @@ impl Parser {
             ));
         }
         Ok(built.expect("a loop has at least one index"))
+    }
+}
+
+/// The text of an `assert` message. Modelica builds one by joining
+/// pieces with `+`, and a piece that is not a literal - `String(x)` of
+/// something only the run knows - has no text to give here. The
+/// message is diagnostic, so such a piece stands as `?` and the
+/// literal parts, which are what say what went wrong, are kept.
+fn message_text(expr: &Expr) -> String {
+    match expr {
+        Expr::Str(text) => text.clone(),
+        Expr::Bin(BinOp::Add, a, b) => message_text(a) + &message_text(b),
+        _ => "?".to_string(),
     }
 }

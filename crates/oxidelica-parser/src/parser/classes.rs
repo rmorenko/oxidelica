@@ -65,7 +65,51 @@ impl Parser {
         // name for another class, replaceable when marked so.
         if kind != ClassKind::Type && self.peek() == &Token::Assign {
             self.bump();
+            // `connector RealInput = input Real "'input Real' as
+            // connector";` - a short definition may repeat the prefixes
+            // of a declaration. They restrict what the name may be used
+            // for and change nothing about the class itself.
+            while matches!(
+                self.peek(),
+                Token::Input
+                    | Token::Output
+                    | Token::Flow
+                    | Token::Stream
+                    | Token::Discrete
+                    | Token::Parameter
+                    | Token::Constant
+            ) {
+                self.bump();
+            }
             let target = self.dotted_name("aliased class")?;
+            // A short definition of a predefined type declares a type
+            // of its own rather than a second name for a class: the
+            // standard library's signal connectors are `connector
+            // RealInput = input Real`. Recorded the way `type` is, so
+            // that a component declared with one resolves down to the
+            // primitive it holds.
+            if is_predefined(&target) {
+                let (attributes, unit) = if self.peek() == &Token::LParen {
+                    self.type_attributes()?
+                } else {
+                    (Vec::new(), None)
+                };
+                self.opt_string();
+                if self.peek() == &Token::Annotation {
+                    self.annotation_body(&mut Annotated::default())?;
+                }
+                self.expect(&Token::Semi, "semicolon after the class alias")?;
+                return Ok(ClassItem::Class(Box::new(ClassDef {
+                    kind,
+                    name,
+                    partial,
+                    encapsulated,
+                    expandable,
+                    alias_of: Some((target, attributes)),
+                    alias_unit: unit,
+                    ..ClassDef::empty()
+                })));
+            }
             if self.peek() == &Token::LParen {
                 // Modifiers on the target are parsed and set aside: the
                 // alias itself carries no component to modify.
@@ -98,8 +142,14 @@ impl Parser {
         let mut alias_of = None;
         let mut alias_unit = None;
         let mut enumeration = Vec::new();
-        if kind == ClassKind::Type {
-            self.expect(&Token::Assign, "`=` in a type alias")?;
+        // A `type` is usually the short form, `type Voltage = Real(...)`,
+        // but the long one is a class body like any other - the standard
+        // library writes its icons that way, `type TypeReal "..." extends
+        // Real; annotation(...); end TypeReal;`. Only the short form is
+        // handled here; without the `=` it falls through to the body
+        // below.
+        if kind == ClassKind::Type && self.peek() == &Token::Assign {
+            self.bump();
             if self.peek() == &Token::Enumeration {
                 enumeration = self.enumeration_literals()?;
             } else {
@@ -127,27 +177,7 @@ impl Parser {
                 alias_of,
                 alias_unit,
                 enumeration,
-                nested: Vec::new(),
-                imports: Vec::new(),
-                description: None,
-                components: Vec::new(),
-                extends: Vec::new(),
-                equations: Vec::new(),
-                initial_equations: Vec::new(),
-                for_equations: Vec::new(),
-                if_equations: Vec::new(),
-                algorithm: Vec::new(),
-                connects: Vec::new(),
-                when_clauses: Vec::new(),
-                experiment: Experiment::default(),
-                derivative: None,
-                inverse: Vec::new(),
-                annotations: Vec::new(),
-                class_aliases: Vec::new(),
-                asserts: Vec::new(),
-                transitions: Vec::new(),
-                initial_state: None,
-                connection_graph: Vec::new(),
+                ..ClassDef::empty()
             })));
         }
 
@@ -168,6 +198,9 @@ impl Parser {
         let mut initial_state = None;
         let mut connection_graph = Vec::new();
         let mut algorithm = Vec::new();
+        let mut initial_algorithm = Vec::new();
+        let mut external = false;
+        let mut builtin = None;
         let mut initial_equations = Vec::new();
         let mut annotated = Annotated::default();
         let mut in_equations = false;
@@ -201,6 +234,11 @@ impl Parser {
                     in_equations = true;
                     in_initial = true;
                 }
+                Token::Initial if self.peek_ahead(1) == &Token::Algorithm => {
+                    self.bump();
+                    self.bump();
+                    initial_algorithm.extend(self.statements()?);
+                }
                 Token::Algorithm => {
                     self.bump();
                     algorithm.extend(self.statements()?);
@@ -226,13 +264,13 @@ impl Parser {
                 Token::Protected | Token::Public => {
                     self.bump();
                 }
-                // An implementation outside Modelica: better to say so
-                // than to fail somewhere further in.
+                // An implementation outside Modelica. The class is read
+                // so that the file it shares with others still loads;
+                // what cannot be done is to run it, and that is said
+                // where such a function is called.
                 Token::External => {
-                    return Err(self.err(
-                        "`external` is not supported: a function must have a Modelica body"
-                            .to_string(),
-                    ))
+                    builtin = self.external_body()?;
+                    external = true;
                 }
                 Token::Import => {
                     imports.extend(self.import_clause()?);
@@ -282,16 +320,14 @@ impl Parser {
                 }
                 Token::Eof => return Err(self.err("unexpected end of file: missing end".into())),
                 // `assert(condition, "message")` is a runtime check.
-                // An optional third argument names the assertion level;
-                // it is accepted and not distinguished.
                 Token::Ident(name) if in_equations && name == "assert" => {
                     self.bump();
-                    let (condition, message) = self.assert_arguments()?;
+                    let held = self.assert_arguments()?;
                     if self.peek() == &Token::Annotation {
                         self.annotation_body(&mut Annotated::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assert")?;
-                    asserts.push((condition, message));
+                    asserts.extend(held);
                 }
                 // `initialState(s);` and
                 // `transition(from, to, condition, ...);` draw a state
@@ -332,6 +368,16 @@ impl Parser {
             }
         }
 
+        // The long form of a type extends the predefined type it is
+        // built on - `type TypeString extends String; ... end
+        // TypeString;`. Nothing can be inherited from a predefined
+        // type but the type itself, so this is the short form written
+        // out, and it is recorded as one.
+        if alias_of.is_none() && extends.len() == 1 && is_predefined(&extends[0].base) {
+            let base = extends.remove(0);
+            alias_of = Some((base.base, base.modifiers));
+        }
+
         Ok(ClassItem::Class(Box::new(ClassDef {
             kind,
             name,
@@ -351,6 +397,9 @@ impl Parser {
             for_equations,
             if_equations,
             algorithm,
+            initial_algorithm,
+            external,
+            builtin,
             connects,
             when_clauses,
             experiment: annotated.experiment,
@@ -471,6 +520,13 @@ impl Parser {
         let mut out = Vec::new();
         let mut unit = None;
         loop {
+            // `type Angle = Real(final unit = "rad")` - `final` forbids
+            // anyone downstream from setting the attribute again, and
+            // `each` spreads one value over an array. Neither changes
+            // the value, so both are read and dropped.
+            while matches!(self.peek(), Token::Final | Token::Each) {
+                self.bump();
+            }
             let name = self.ident("attribute name")?;
             self.expect(&Token::Assign, "`=` in a type attribute")?;
             // The unit string feeds the dimensional check; the other
@@ -540,17 +596,36 @@ impl Parser {
                 // `derivative = f_der` names the function that gives
                 // this one's derivative. The options the specification
                 // allows alongside it - an order, a `noDerivative` or a
-                // `zeroDerivative` - are refused rather than skipped:
-                // reading them wrong would give a wrong derivative,
-                // which nothing downstream could catch.
+                // `zeroDerivative` - change which arguments the named
+                // function takes and what it answers. Reading them
+                // wrong would give a wrong derivative, which nothing
+                // downstream could catch, so an annotation carrying any
+                // of them is read past and not kept: a function with no
+                // derivative anyone here can use is one whose
+                // derivative is refused where it is asked for, which
+                // says so instead of being quietly wrong.
                 Token::Ident(name) if depth == 1 && name == "derivative" => {
                     self.bump();
                     if self.peek() == &Token::LParen {
-                        return Err(self.err(
-                            "`derivative` with options is more than this compiler reads; \
-                             it takes `derivative = f_der` and nothing else"
-                                .to_string(),
-                        ));
+                        let mut inner = 0usize;
+                        loop {
+                            match self.bump() {
+                                Token::LParen => inner += 1,
+                                Token::RParen => {
+                                    inner -= 1;
+                                    if inner == 0 {
+                                        break;
+                                    }
+                                }
+                                Token::Eof => {
+                                    return Err(self.err("unterminated derivative options".into()))
+                                }
+                                _ => {}
+                            }
+                        }
+                        self.expect(&Token::Assign, "`=` after derivative")?;
+                        self.dotted_name("the derivative function")?;
+                        continue;
                     }
                     self.expect(&Token::Assign, "`=` after derivative")?;
                     into.derivative = Some(self.dotted_name("the derivative function")?);
@@ -658,6 +733,60 @@ impl Parser {
         }
     }
 
+    /// `external "C" y = f(x) annotation(Library = "m");` — the
+    /// language, the call and the annotation that says where to find
+    /// the object code.
+    ///
+    /// The one language this compiler can honour is `"builtin"`, which
+    /// says the function is an operator the language already has:
+    /// `external "builtin" y = asin(u);` is how the standard library
+    /// gives `asin` a place in its tree. The operator's name comes back
+    /// where that is what was written. Everything else is read only far
+    /// enough to get past it, and refused where such a function is
+    /// called.
+    fn external_body(&mut self) -> Result<Option<String>, ParseError> {
+        self.expect(&Token::External, "external")?;
+        let language = self.opt_string();
+        // `y = asin(u)` or `asin(u)`: a name, and the name of what it
+        // calls if the result is assigned.
+        let mut called = None;
+        if matches!(self.peek(), Token::Ident(_)) {
+            let first = self.ident("the external function or its result")?;
+            called = Some(match self.peek() {
+                Token::Assign => {
+                    self.bump();
+                    self.ident("the external function")?
+                }
+                _ => first,
+            });
+        }
+        let mut depth = 0usize;
+        loop {
+            match self.peek() {
+                Token::Eof => return Err(self.err("unterminated external clause".into())),
+                Token::Semi if depth == 0 => {
+                    self.bump();
+                    break;
+                }
+                Token::LParen | Token::LBrace | Token::LBracket => {
+                    depth += 1;
+                    self.bump();
+                }
+                Token::RParen | Token::RBrace | Token::RBracket => {
+                    depth = depth.saturating_sub(1);
+                    self.bump();
+                }
+                _ => {
+                    self.bump();
+                }
+            }
+        }
+        Ok(match (language.as_deref(), called) {
+            (Some("builtin"), Some(name)) => Some(name),
+            _ => None,
+        })
+    }
+
     /// Step over one entry of an annotation, whatever it is made of.
     fn skip_entry(&mut self, depth: &mut usize) {
         let outside = *depth;
@@ -682,4 +811,11 @@ impl Parser {
             }
         }
     }
+}
+
+/// The types the language itself defines. A short class definition
+/// naming one of them - `connector RealInput = input Real` - is a type
+/// of its own rather than another name for a class.
+fn is_predefined(name: &str) -> bool {
+    matches!(name, "Real" | "Integer" | "Boolean" | "String" | "Clock")
 }

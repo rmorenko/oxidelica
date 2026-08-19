@@ -66,7 +66,9 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
             branch.condition = fold(&branch.condition, &values, &numbers)?;
             for action in &mut branch.actions {
                 match action {
-                    WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => {
+                    WhenAction::Assign(_, value)
+                    | WhenAction::Reinit(_, value)
+                    | WhenAction::TupleAssign(_, value) => {
                         *value = fold(value, &values, &numbers)?;
                     }
                     WhenAction::Terminate(_) => {}

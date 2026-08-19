@@ -317,7 +317,9 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 branch.condition = resolve_streams(&branch.condition, &context)?;
                 for action in &mut branch.actions {
                     match action {
-                        WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => {
+                        WhenAction::Assign(_, value)
+                        | WhenAction::Reinit(_, value)
+                        | WhenAction::TupleAssign(_, value) => {
                             *value = resolve_streams(value, &context)?;
                         }
                         WhenAction::Terminate(_) => {}
@@ -447,7 +449,9 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             branch.condition = answer(&branch.condition);
             for action in &mut branch.actions {
                 match action {
-                    WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => {
+                    WhenAction::Assign(_, value)
+                    | WhenAction::Reinit(_, value)
+                    | WhenAction::TupleAssign(_, value) => {
                         *value = answer(value);
                     }
                     WhenAction::Terminate(_) => {}

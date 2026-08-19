@@ -20,10 +20,20 @@ Usage:
   oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [-o result.csv]
                             solvers: auto (default), dopri45, bdf (stiff), rk4
   oxidelica parse <file.mo>
+  oxidelica library list
+  oxidelica library add <name|git-url> [--version TAG] [--as NAME]
+                            names: modelica (the Modelica Standard Library)
+  oxidelica library check [<directory>]
 
 The standard library is looked for as `lib` next to the model, next to
-the working directory or next to the binary; OXIDELICA_LIB names it
-outright.";
+the working directory or next to the binary, and among the libraries
+`library add` has fetched; OXIDELICA_LIB names one outright and
+MODELICAPATH names a list.";
+
+/// Where the Modelica Standard Library is fetched from, and the release
+/// fetched when none is asked for.
+const MSL_REPOSITORY: &str = "https://github.com/modelica/ModelicaStandardLibrary.git";
+const MSL_VERSION: &str = "v4.1.0";
 
 /// Dispatch the command line to a subcommand.
 fn run() -> Result<(), String> {
@@ -33,6 +43,7 @@ fn run() -> Result<(), String> {
     match command {
         Some("simulate") => simulate(&args[1..]),
         Some("parse") => parse(&args[1..]),
+        Some("library") => library(&args[1..]),
         _ => Err(USAGE.to_string()),
     }
 }
@@ -176,4 +187,176 @@ fn simulate(args: &[String]) -> Result<(), String> {
         eprintln!("final point: {}", summary.join(", "));
     }
     Ok(())
+}
+
+/// `library` subcommand: fetch a library, say which are here, or
+/// measure how much of one this compiler can read.
+fn library(args: &[String]) -> Result<(), String> {
+    match args.first().map(String::as_str) {
+        Some("list") => library_list(),
+        Some("add") => library_add(&args[1..]),
+        Some("check") => library_check(args.get(1).map(String::as_str)),
+        _ => Err(USAGE.to_string()),
+    }
+}
+
+/// The libraries in view, and where each was found.
+fn library_list() -> Result<(), String> {
+    let directories = oxidelica_parser::library_directories(None);
+    if directories.is_empty() {
+        println!("no libraries in view");
+        if let Some(root) = oxidelica_parser::download_root() {
+            println!(
+                "`oxidelica library add modelica` would put one in {}",
+                root.display()
+            );
+        }
+        return Ok(());
+    }
+    for directory in directories {
+        let files = oxidelica_parser::library_files_in(&directory);
+        println!("{} ({} file(s))", directory.display(), files.len());
+    }
+    Ok(())
+}
+
+/// `library add <name|url> [--version TAG] [--as NAME]`: clone a
+/// library into the place the search already looks.
+///
+/// The fetching is `git clone --depth 1`, run as a command rather than
+/// spoken over HTTP from here: a library is a git repository, `git`
+/// checks what it downloads against the tag it was asked for, and this
+/// compiler stays free of a network stack of its own.
+fn library_add(args: &[String]) -> Result<(), String> {
+    let what = args.first().ok_or(USAGE)?;
+    let (mut url, mut name, mut version) = match what.as_str() {
+        "modelica" | "msl" => (
+            MSL_REPOSITORY.to_string(),
+            "Modelica".to_string(),
+            MSL_VERSION.to_string(),
+        ),
+        url => (url.to_string(), name_of_repository(url), "main".to_string()),
+    };
+    let mut i = 1;
+    while i < args.len() {
+        let value = |i: &mut usize| -> Result<String, String> {
+            *i += 1;
+            args.get(*i)
+                .cloned()
+                .ok_or_else(|| format!("{} requires a value", args[*i - 1]))
+        };
+        match args[i].as_str() {
+            "--version" => version = value(&mut i)?,
+            "--as" => name = value(&mut i)?,
+            "--from" => url = value(&mut i)?,
+            other => return Err(format!("unknown flag `{other}`\n\n{USAGE}")),
+        }
+        i += 1;
+    }
+    let root = oxidelica_parser::download_root()
+        .ok_or("no home directory to keep libraries in; set MODELICAPATH instead")?;
+    let target = root.join(&name);
+    if target.exists() {
+        return Err(format!(
+            "{} is already there; remove it to fetch again",
+            target.display()
+        ));
+    }
+    std::fs::create_dir_all(&root).map_err(|e| format!("cannot make {}: {e}", root.display()))?;
+    println!("fetching {url} at {version} into {}", target.display());
+    let status = std::process::Command::new("git")
+        .args(["clone", "--depth", "1", "--branch", &version, &url])
+        .arg(&target)
+        .status()
+        .map_err(|e| format!("cannot run git: {e}"))?;
+    if !status.success() {
+        return Err(format!("git could not fetch {url} at {version}"));
+    }
+    println!("{name} is in {}", target.display());
+    Ok(())
+}
+
+/// The last part of a repository URL, without the `.git`.
+fn name_of_repository(url: &str) -> String {
+    url.trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or("library")
+        .trim_end_matches(".git")
+        .to_string()
+}
+
+/// `library check [<directory>]`: read every file of a library and
+/// every model in it, and say how far each got. What it prints is a
+/// count and the reasons that came up most, so that the distance
+/// between this compiler and a library is a number rather than an
+/// impression.
+fn library_check(directory: Option<&str>) -> Result<(), String> {
+    let files = match directory {
+        Some(path) => oxidelica_parser::library_files_in(std::path::Path::new(path)),
+        None => oxidelica_parser::library_files(None),
+    };
+    if files.is_empty() {
+        return Err("no Modelica files to read".to_string());
+    }
+    let mut classes = Vec::new();
+    let (mut read, mut unread) = (0usize, 0usize);
+    let mut refusals: Vec<String> = Vec::new();
+    for file in &files {
+        let Ok(source) = std::fs::read_to_string(file) else {
+            continue;
+        };
+        match oxidelica_parser::parse_file(&source) {
+            Ok(mut found) => {
+                read += 1;
+                classes.append(&mut found);
+            }
+            Err(why) => {
+                unread += 1;
+                refusals.push(why.message);
+            }
+        }
+    }
+    println!("files: {read} read, {unread} not read");
+    report(&refusals, "  ");
+    let models: Vec<String> = classes
+        .iter()
+        .filter(|c| c.kind == oxidelica_parser::ClassKind::Model && !c.partial)
+        .filter(|c| c.name.contains(".Examples.") || c.name.contains(".Test"))
+        .map(|c| c.name.clone())
+        .collect();
+    let mut flat = 0usize;
+    let mut why_not: Vec<String> = Vec::new();
+    for name in &models {
+        match oxidelica_parser::flatten_named(&classes, name) {
+            Ok(_) => flat += 1,
+            Err(why) => why_not.push(why),
+        }
+    }
+    println!(
+        "classes: {}; example models: {}, of which {flat} flatten",
+        classes.len(),
+        models.len()
+    );
+    report(&why_not, "  ");
+    Ok(())
+}
+
+/// The reasons that came up most, with how often each did.
+fn report(reasons: &[String], indent: &str) {
+    let mut counted: std::collections::BTreeMap<&str, usize> = std::collections::BTreeMap::new();
+    for reason in reasons {
+        // The head of the message is what groups them: the tail names
+        // the class or the token, and would make every one its own.
+        let head = &reason[..reason.len().min(60)];
+        *counted.entry(head).or_default() += 1;
+    }
+    let mut ranked: Vec<(&&str, &usize)> = counted.iter().collect();
+    ranked.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+    for (reason, count) in ranked.iter().take(10) {
+        println!("{indent}{count:5}  {reason}");
+    }
+    if ranked.len() > 10 {
+        println!("{indent}       and {} more kind(s)", ranked.len() - 10);
+    }
 }

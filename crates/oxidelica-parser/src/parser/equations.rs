@@ -140,27 +140,25 @@ impl Parser {
     pub(super) fn if_equation(&mut self) -> Result<IfEquation, ParseError> {
         self.expect(&Token::If, "if")?;
         let mut branches = Vec::new();
+        // Whether the `if` said anything at all, warning-level checks
+        // included: they are read and dropped, so a branch that held
+        // only those leaves nothing behind and is still not a mistake.
+        let mut said_something = false;
         loop {
             let condition = self.expr()?;
             self.expect(&Token::Then, "then after the condition of an if equation")?;
-            let (equations, connects) = self.branch_body()?;
-            branches.push(IfBranch {
-                condition: Some(condition),
-                equations,
-                connects,
-            });
+            let body = self.branch_body()?;
+            said_something |= body.dropped > 0;
+            branches.extend(flatten_branch(Some(condition), body));
             match self.peek() {
                 Token::ElseIf => {
                     self.bump();
                 }
                 Token::Else => {
                     self.bump();
-                    let (equations, connects) = self.branch_body()?;
-                    branches.push(IfBranch {
-                        condition: None,
-                        equations,
-                        connects,
-                    });
+                    let body = self.branch_body()?;
+                    said_something |= body.dropped > 0;
+                    branches.extend(flatten_branch(None, body));
                     break;
                 }
                 _ => break,
@@ -169,29 +167,58 @@ impl Parser {
         self.expect(&Token::End, "end if")?;
         self.expect(&Token::If, "if after end")?;
         self.expect(&Token::Semi, "semicolon after end if")?;
-        if branches
-            .iter()
-            .all(|b| b.equations.is_empty() && b.connects.is_empty())
+        if !said_something
+            && branches.iter().all(|b| {
+                b.equations.is_empty()
+                    && b.connects.is_empty()
+                    && b.asserts.is_empty()
+                    && b.loops.is_empty()
+            })
         {
             return Err(self.err("if equation has no equations".into()));
         }
         Ok(IfEquation { branches })
     }
 
-    /// Equations and `connect` statements of one branch, up to the next
-    /// `elseif`, `else` or `end`.
+    /// What one branch holds, up to the next `elseif`, `else` or `end`:
+    /// equations, `connect` statements, and the `if` equations written
+    /// among them.
     pub(super) fn branch_body(&mut self) -> Result<BranchBody, ParseError> {
         let mut equations = Vec::new();
         let mut connects = Vec::new();
+        let mut nested = Vec::new();
+        let mut asserts = Vec::new();
+        let mut loops = Vec::new();
+        let mut dropped = 0;
         loop {
             match self.peek() {
                 Token::ElseIf | Token::Else | Token::End => break,
                 Token::Eof => return Err(self.err("unterminated if equation".into())),
                 Token::Connect => connects.push(self.connect_clause()?),
+                Token::If => nested.push(self.if_equation()?),
+                Token::For => loops.push(self.for_equation()?),
+                // A check written among the equations of a branch: it
+                // is one of them for the purpose of being read here,
+                // and none of them for the purpose of counting.
+                Token::Ident(name) if name == "assert" && self.peek_at(1) == &Token::LParen => {
+                    self.bump();
+                    match self.assert_arguments()? {
+                        Some(held) => asserts.push(held),
+                        None => dropped += 1,
+                    }
+                    self.expect(&Token::Semi, "semicolon after assert")?;
+                }
                 _ => equations.push(self.equation_item()?),
             }
         }
-        Ok((equations, connects))
+        Ok(BranchBody {
+            equations,
+            connects,
+            nested,
+            asserts,
+            loops,
+            dropped,
+        })
     }
 
     /// `connect(a.b, c.d) annotation(...);` — the references may carry
@@ -288,6 +315,30 @@ impl Parser {
                 Token::End | Token::ElseWhen => break,
                 Token::Eof => return Err(self.err("unterminated when clause".into())),
                 _ => {}
+            }
+            // `(a, b) = f(...)` fills several targets from one call.
+            if self.peek() == &Token::LParen {
+                if let Some(targets) = self.tuple_targets() {
+                    let named = targets
+                        .iter()
+                        .map(|slot| match slot {
+                            Some(Expr::Ref(name)) => Ok(Some(name.clone())),
+                            None => Ok(None),
+                            Some(other) => Err(self.err(format!(
+                                "a target of a tuple inside `when` is a variable, found `{other:?}`"
+                            ))),
+                        })
+                        .collect::<Result<Vec<_>, ParseError>>()?;
+                    self.expect(&Token::Assign, "`=` after the tuple of targets")?;
+                    let value = self.expr()?;
+                    self.opt_string();
+                    if self.peek() == &Token::Annotation {
+                        self.annotation_body(&mut Annotated::default())?;
+                    }
+                    self.expect(&Token::Semi, "semicolon after the action")?;
+                    actions.push(WhenAction::TupleAssign(named, value));
+                    continue;
+                }
             }
             let target = self.component_ref()?;
             match (target.as_str(), self.peek()) {
@@ -431,4 +482,69 @@ impl Parser {
         self.expect(&Token::Semi, "semicolon after a Connections clause")?;
         Ok(clause)
     }
+}
+
+/// One branch of an `if` equation, with the `if` equations written
+/// inside it folded into the chain it belongs to.
+///
+/// An inner chain is spread over the outer branch by conjunction:
+/// `if A then e1; elseif B then if C then e2; else e3; end if; end if;`
+/// becomes the three branches `A`, `B and C`, `B` - the last standing
+/// for `B and not C`, which is what testing them in order means. The
+/// equations the branch holds of its own go on every leaf: exactly one
+/// of them is chosen, so each such equation is still stated once.
+///
+/// An inner chain with no `else` covers only part of the branch, so an
+/// empty leaf is added to carry the rest of it; without that, a false
+/// inner condition would fall through to the branch after the one it
+/// was written in.
+fn flatten_branch(condition: Option<Expr>, body: BranchBody) -> Vec<IfBranch> {
+    let mut out = vec![IfBranch {
+        condition,
+        equations: body.equations,
+        connects: body.connects,
+        asserts: body.asserts,
+        loops: body.loops,
+    }];
+    for inner in body.nested {
+        let mut leaves = inner.branches;
+        if leaves.iter().all(|leaf| leaf.condition.is_some()) {
+            leaves.push(IfBranch {
+                condition: None,
+                equations: Vec::new(),
+                connects: Vec::new(),
+                asserts: Vec::new(),
+                loops: Vec::new(),
+            });
+        }
+        let mut next = Vec::new();
+        for outer in &out {
+            for leaf in &leaves {
+                let condition = match (&outer.condition, &leaf.condition) {
+                    (None, inner) => inner.clone(),
+                    (outer, None) => outer.clone(),
+                    (Some(outer), Some(inner)) => {
+                        Some(Expr::And(Box::new(outer.clone()), Box::new(inner.clone())))
+                    }
+                };
+                let mut equations = outer.equations.clone();
+                equations.extend(leaf.equations.iter().cloned());
+                let mut connects = outer.connects.clone();
+                connects.extend(leaf.connects.iter().cloned());
+                let mut asserts = outer.asserts.clone();
+                asserts.extend(leaf.asserts.iter().cloned());
+                let mut loops = outer.loops.clone();
+                loops.extend(leaf.loops.iter().cloned());
+                next.push(IfBranch {
+                    condition,
+                    equations,
+                    connects,
+                    asserts,
+                    loops,
+                });
+            }
+        }
+        out = next;
+    }
+    out
 }

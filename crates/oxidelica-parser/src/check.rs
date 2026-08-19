@@ -12,7 +12,7 @@
 //! `x + 1` or `x = 5` never complain, mirroring how models are
 //! actually written.
 
-use crate::ast::{BinOp, Component, Expr, Model, RelOp, WhenAction};
+use crate::ast::{operator_name, BinOp, Component, Expr, Model, RelOp, WhenAction};
 use crate::flatten::const_eval;
 use std::collections::HashMap;
 
@@ -52,6 +52,10 @@ pub fn verify(model: &Model) -> Result<(), String> {
                         units.assignment(name, value)?;
                     }
                     WhenAction::Terminate(_) => {}
+                    // Flattening inlines the call and hands each
+                    // target its own assignment, so by here there is
+                    // no tuple left to check.
+                    WhenAction::TupleAssign(..) => {}
                 }
             }
         }
@@ -362,7 +366,7 @@ impl TypeLayer {
         let one = |layer: &TypeLayer| -> Result<Ty, String> {
             args.first().map_or(Ok(Ty::Unknown), |a| layer.infer(a))
         };
-        match name {
+        match operator_name(name) {
             "der" | "sqrt" | "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "sinh" | "cosh"
             | "tanh" | "exp" | "log" | "log10" | "atan2" | "floor" | "ceil" => {
                 for arg in args {
@@ -741,7 +745,7 @@ impl UnitLayer {
         let one = |layer: &UnitLayer| -> Result<Units, String> {
             args.first().map_or(Ok(Units::Any), |a| layer.infer(a))
         };
-        match name {
+        match operator_name(name) {
             "der" => Ok(match one(self)? {
                 Units::Of(dim) => {
                     let mut seconds = [0; BASES];

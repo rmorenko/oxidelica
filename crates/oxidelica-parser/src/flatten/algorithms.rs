@@ -236,7 +236,13 @@ pub(super) fn execute(
                     ));
                 }
                 for (slot, (_, output)) in targets.iter().zip(outputs) {
-                    let Some(target) = slot else { continue };
+                    let Some((target, subscripts)) = slot else { continue };
+                    if !subscripts.is_empty() {
+                        return Err(format!(
+                            "`{target}` takes part of an array from a call filling several \
+                             targets, which is more than this compiler does"
+                        ));
+                    }
                     if !assigned.contains(target) {
                         assigned.push(target.clone());
                     }
@@ -374,6 +380,39 @@ pub(super) fn execute(
             // far already substituted into it.
             Statement::Assert(condition, message) => {
                 asserts.push((substitute_refs(condition, bindings), message.clone()));
+            }
+            // A call on its own: nothing takes its outputs, so what it
+            // was written for is the checks its body makes, and those
+            // join the section's.
+            Statement::Call(name, args) => {
+                let called = lookup(registry, name, scope, imports)
+                    .filter(|c| c.kind == ClassKind::Function)
+                    .ok_or_else(|| format!("`{name}` is not a function"))?;
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
+                    sizes,
+                    loop_vars: &no_loop_vars,
+                    consts,
+                    records: no_records(),
+                };
+                let values = args
+                    .iter()
+                    .map(|arg| expand(arg, &shapes, registry, scope, imports, depth + 1))
+                    .collect::<Result<Vec<_>, String>>()?;
+                let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                let arguments: Vec<Expr> = values
+                    .into_iter()
+                    .map(|value| substitute_refs(&value.into_expr(), bindings))
+                    .collect();
+                let checks = inline_function_checks(
+                    called,
+                    &arguments,
+                    &argument_shapes,
+                    consts,
+                    registry,
+                    depth + 1,
+                )?;
+                asserts.extend(checks);
             }
             Statement::For(variable, range, body) => {
                 let values = match range {
@@ -562,7 +601,9 @@ pub(super) fn programs_used(
             look(&branch.condition);
             for action in &branch.actions {
                 match action {
-                    WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => look(value),
+                    WhenAction::Assign(_, value)
+                    | WhenAction::Reinit(_, value)
+                    | WhenAction::TupleAssign(_, value) => look(value),
                     WhenAction::Terminate(_) => {}
                 }
             }
@@ -616,6 +657,12 @@ fn qualified_calls(
             Statement::Assert(condition, message) => {
                 Statement::Assert(expr(condition), message.clone())
             }
+            Statement::Call(name, args) => Statement::Call(
+                lookup(registry, name, scope, imports)
+                    .map(|class| class.name.clone())
+                    .unwrap_or_else(|| name.clone()),
+                args.iter().map(&expr).collect(),
+            ),
             Statement::If(branches) => Statement::If(rebranch(branches, &expr, &inner)),
             Statement::When(branches) => Statement::When(rebranch(branches, &expr, &inner)),
             Statement::For(variable, range, body) => {
@@ -744,6 +791,13 @@ fn gather_calls_in_statements(
             Statement::TupleAssign(_, value) => gather_calls(value, registry, scope, imports, out),
             Statement::Assert(condition, _) => {
                 gather_calls(condition, registry, scope, imports, out)
+            }
+            Statement::Call(name, args) => {
+                if let Some(class) = lookup(registry, name, scope, imports) {
+                    out.push(class.name.clone());
+                }
+                args.iter()
+                    .for_each(|arg| gather_calls(arg, registry, scope, imports, out));
             }
             Statement::If(branches) | Statement::When(branches) => {
                 for branch in branches {
@@ -913,8 +967,75 @@ pub(super) fn inline_function_outputs(
     registry: &HashMap<&str, &ClassDef>,
     depth: usize,
 ) -> Result<Vec<(String, Expr)>, String> {
+    let mut checks = Vec::new();
+    let outputs = inline_body(class, args, shapes, consts, registry, depth, &mut checks)?;
+    // An `assert` in a function body would have to travel out through
+    // the expression the call becomes, and expressions have nowhere to
+    // carry one.
+    if !checks.is_empty() {
+        return Err(format!(
+            "`assert` in function `{}` has nowhere to go: a call becomes an expression, and \
+             an expression carries no checks - one written among a model's own statements does",
+            class.name
+        ));
+    }
+    Ok(outputs)
+}
+
+/// The checks a call makes, for a call that stands on its own as a
+/// statement. Nothing receives its outputs, so what is left of it is
+/// what its body asserted - and here, unlike in an expression, there
+/// is somewhere for that to go.
+pub(super) fn inline_function_checks(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    depth: usize,
+) -> Result<Vec<(Expr, String)>, String> {
+    let mut checks = Vec::new();
+    inline_body(class, args, shapes, consts, registry, depth, &mut checks)?;
+    Ok(checks)
+}
+
+/// Run a function body and give back what each output came to, with
+/// the checks the body made collected into `checks`.
+fn inline_body(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    depth: usize,
+    checks: &mut Vec<(Expr, String)>,
+) -> Result<Vec<(String, Expr)>, String> {
     if depth > MAX_DEPTH {
         return Err(format!("recursive function `{}`", class.name));
+    }
+    // `external "builtin" y = asin(u)` says the function is the
+    // operator the language already has, given a place in a library's
+    // tree. The call becomes a call to the operator, arguments in the
+    // order they were written.
+    if let Some(builtin) = &class.builtin {
+        let output = class
+            .components
+            .iter()
+            .find(|c| c.causality == Causality::Output)
+            .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
+        return Ok(vec![(
+            output.name.clone(),
+            Expr::Call(builtin.clone(), args.to_vec()),
+        )]);
+    }
+    // A function whose body is written in C is read as far as its
+    // declaration and no further: there is nothing here to inline, and
+    // nothing to walk at run time either.
+    if class.external {
+        return Err(format!(
+            "`{}` has a body written outside Modelica, which this compiler cannot run",
+            class.name
+        ));
     }
     let inputs: Vec<&Component> = class
         .components
@@ -1029,15 +1150,11 @@ pub(super) fn inline_function_outputs(
     collect_shapes(registry, class, consts, &mut sizes, 0);
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
-    // An `assert` in a function body would have to travel out through
-    // the expression the call becomes, and expressions have nowhere to
-    // carry one; a model's own section is where it works.
-    let mut inner_asserts = Vec::new();
     if execute(
         &class.algorithm,
         &mut bindings,
         &mut assigned,
-        &mut inner_asserts,
+        checks,
         consts,
         &sizes,
         registry,
@@ -1049,13 +1166,6 @@ pub(super) fn inline_function_outputs(
     {
         return Err(format!(
             "`break` outside of a loop in function `{}`",
-            class.name
-        ));
-    }
-    if !inner_asserts.is_empty() {
-        return Err(format!(
-            "`assert` in function `{}` has nowhere to go: a call becomes an expression, and \
-             an expression carries no checks - one written among a model's own statements does",
             class.name
         ));
     }

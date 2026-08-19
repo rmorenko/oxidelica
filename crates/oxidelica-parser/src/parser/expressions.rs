@@ -383,6 +383,19 @@ impl Parser {
                     Ok(Expr::Ref(name))
                 }
             }
+            // `.asin(u)` - a name looked up from the top of the tree
+            // rather than from here. A library writing its own `asin`
+            // says `.asin` inside it for the language's operator, and
+            // the dot is what tells the two apart. It is kept on the
+            // name and read where the name is resolved.
+            Token::Dot if matches!(self.peek_at(1), Token::Ident(_)) => {
+                self.bump();
+                Ok(match self.primary()? {
+                    Expr::Ref(name) => Expr::Ref(format!(".{name}")),
+                    Expr::Call(name, args) => Expr::Call(format!(".{name}"), args),
+                    other => other,
+                })
+            }
             other => Err(self.err(format!("unexpected token in expression: `{other}`"))),
         }
     }
@@ -405,7 +418,17 @@ impl Parser {
 
     /// A dotted class name: `Modelica.Electrical.Analog.Basic.Resistor`.
     pub(super) fn dotted_name(&mut self, context: &str) -> Result<String, ParseError> {
-        let mut name = self.ident(context)?;
+        // A leading dot says the name is looked up from the top of the
+        // tree: `inner .Modelica.Blocks.Noise.GlobalSeed seed;` reaches
+        // the library's class and not whatever the enclosing packages
+        // happen to call the same thing. The dot stays on the name and
+        // is read where the name is resolved.
+        let mut name = if self.peek() == &Token::Dot {
+            self.bump();
+            format!(".{}", self.ident(context)?)
+        } else {
+            self.ident(context)?
+        };
         while self.peek() == &Token::Dot {
             self.bump();
             name.push('.');

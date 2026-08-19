@@ -702,6 +702,62 @@ pub(super) fn instantiate(
         }
     }
 
+    // `initial algorithm` runs once, before the simulation starts. It
+    // is executed the same way, and what it assigns is an equation of
+    // the initial system: the statements are what decide where the
+    // variables begin rather than how they move.
+    if class.kind != ClassKind::Function && !class.initial_algorithm.is_empty() {
+        if class
+            .initial_algorithm
+            .iter()
+            .any(|s| matches!(s, Statement::When(_)))
+        {
+            return Err(
+                "a `when` belongs in an algorithm that runs, not an initial one".to_string(),
+            );
+        }
+        let mut bindings: HashMap<String, Expr> = HashMap::new();
+        let mut assigned: Vec<String> = Vec::new();
+        let mut section_asserts: Vec<(Expr, String)> = Vec::new();
+        match execute(
+            &class.initial_algorithm,
+            &mut bindings,
+            &mut assigned,
+            &mut section_asserts,
+            &local_consts,
+            &sizes,
+            registry,
+            scope,
+            &imports,
+            depth,
+            false,
+        )? {
+            Flow::Normal => {}
+            Flow::Break => return Err("`break` outside of a loop".to_string()),
+            Flow::Return => {
+                return Err("`return` belongs in a function, not a model algorithm".to_string())
+            }
+        }
+        for (condition, message) in section_asserts {
+            acc.asserts.push((resolve_here(&condition)?, message));
+        }
+        // `push_equations` writes where ordinary equations go; what it
+        // wrote here is the initial system, so it is moved across.
+        let boundary = acc.equations.len();
+        for name in assigned {
+            let value = bindings.get(&name).ok_or_else(|| {
+                format!("`{name}` is assigned by the initial algorithm but has no value")
+            })?;
+            push_equations(
+                &expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?,
+                &expand_here(value, &no_loop_vars)?,
+                acc,
+            )?;
+        }
+        let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
+        acc.initial_equations.extend(written);
+    }
+
     // `for` equations are unrolled: the loop variable is a constant.
     for loop_eq in &class.for_equations {
         unroll(
@@ -768,6 +824,25 @@ pub(super) fn instantiate(
             }
         }
         let Some(branch) = chosen else { continue };
+        // The branch is the one taken, so its checks hold outright.
+        for (condition, message) in &branch.asserts {
+            acc.asserts
+                .push((resolve_here(condition)?, message.clone()));
+        }
+        for loop_eq in &branch.loops {
+            unroll(
+                loop_eq,
+                &HashMap::new(),
+                &local_consts,
+                prefix,
+                &outers,
+                &sizes_here,
+                registry,
+                scope,
+                &imports,
+                acc,
+            )?;
+        }
         for equation in &branch.equations {
             push_equations(
                 &expand_here(&equation.lhs, &no_loop_vars)?,
@@ -791,21 +866,81 @@ pub(super) fn instantiate(
     for clause in &class.when_clauses {
         let mut branches = Vec::new();
         for branch in &clause.branches {
-            let actions = branch
-                .actions
-                .iter()
-                .map(|action| match action {
-                    WhenAction::Reinit(state, value) => Ok(WhenAction::Reinit(
+            let mut actions = Vec::new();
+            for action in &branch.actions {
+                match action {
+                    WhenAction::Reinit(state, value) => actions.push(WhenAction::Reinit(
                         flat_name(state, prefix, &outers),
                         resolve_here(value)?,
                     )),
-                    WhenAction::Assign(target, value) => Ok(WhenAction::Assign(
+                    WhenAction::Assign(target, value) => actions.push(WhenAction::Assign(
                         flat_name(target, prefix, &outers),
                         resolve_here(value)?,
                     )),
-                    WhenAction::Terminate(message) => Ok(WhenAction::Terminate(message.clone())),
-                })
-                .collect::<Result<Vec<_>, String>>()?;
+                    WhenAction::Terminate(message) => {
+                        actions.push(WhenAction::Terminate(message.clone()))
+                    }
+                    // `(a, b) = f(x)` at an event: the call is inlined
+                    // once per output, and each target gets an
+                    // assignment of its own. A skipped slot costs its
+                    // output nothing, since it is never used.
+                    WhenAction::TupleAssign(targets, value) => {
+                        // Not through `resolve_here`: that would inline
+                        // the call into the one value an expression can
+                        // carry, and what is wanted here is the call
+                        // itself, to be inlined once per target.
+                        let value =
+                            substitute_class_constants(value, registry, scope, &imports, &shadow);
+                        let value = prefix_expr(&value, prefix, &outers);
+                        let Expr::Call(name, raw_args) = &value else {
+                            return Err(
+                                "the right side of a tuple inside `when` must be a function call"
+                                    .to_string(),
+                            );
+                        };
+                        let function = lookup(registry, name, scope, &imports)
+                            .filter(|c| c.kind == ClassKind::Function)
+                            .ok_or_else(|| {
+                                format!("`{name}` is not a function, so it cannot fill a tuple")
+                            })?;
+                        let shapes = Shapes {
+                            sizes: &sizes_here,
+                            loop_vars: &no_loop_vars,
+                            consts: &local_consts,
+                            records: &records_here,
+                        };
+                        let values = raw_args
+                            .iter()
+                            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+                            .collect::<Result<Vec<_>, String>>()?;
+                        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                        let arguments: Vec<Expr> =
+                            values.into_iter().map(|value| value.into_expr()).collect();
+                        let outputs = inline_function_outputs(
+                            function,
+                            &arguments,
+                            &argument_shapes,
+                            &local_consts,
+                            registry,
+                            0,
+                        )?;
+                        if outputs.len() < targets.len() {
+                            return Err(format!(
+                                "`{name}` has {} output(s) and the tuple asks for {}",
+                                outputs.len(),
+                                targets.len()
+                            ));
+                        }
+                        for (target, (_, worth)) in targets.iter().zip(outputs) {
+                            let Some(target) = target else { continue };
+                            actions.push(WhenAction::Assign(
+                                flat_name(target, prefix, &outers),
+                                worth,
+                            ));
+                        }
+                    }
+                }
+            }
             branches.push(WhenBranch {
                 condition: resolve_here(&branch.condition)?,
                 actions,
@@ -1307,6 +1442,13 @@ where
                  known at compile time; connections are structural"
             ));
         }
+        if !branch.loops.is_empty() {
+            return Err(format!(
+                "a `for` equation in `{class_name}` sits in an `if` branch whose condition is \
+                 not known at compile time; how many equations a loop makes is settled before \
+                 the run"
+            ));
+        }
         let mut scalars = Vec::new();
         for equation in &branch.equations {
             let lhs = expand_here(&equation.lhs, no_loop_vars)?;
@@ -1339,6 +1481,42 @@ where
             branches[odd].len(),
             odd + 1
         ));
+    }
+    // A check written in a branch holds only while that branch is the
+    // one taken, and which one that is the run decides. So each check
+    // becomes one that always holds and says nothing where the branch
+    // is not taken: `not guard or condition`. The guard is the branch's
+    // own condition together with the denial of every condition before
+    // it, which is what testing a chain in order comes to.
+    for (position, branch) in if_equation.branches.iter().enumerate() {
+        if branch.asserts.is_empty() {
+            continue;
+        }
+        let mut guard: Option<Expr> = None;
+        for earlier in conditions.iter().take(position) {
+            let denied = Expr::Not(Box::new(earlier.clone()));
+            guard = Some(match guard {
+                None => denied,
+                Some(built) => Expr::And(Box::new(built), Box::new(denied)),
+            });
+        }
+        if let Some(own) = conditions.get(position) {
+            guard = Some(match guard {
+                None => own.clone(),
+                Some(built) => Expr::And(Box::new(built), Box::new(own.clone())),
+            });
+        }
+        for (condition, message) in &branch.asserts {
+            let condition = resolve_here(condition)?;
+            let held = match &guard {
+                None => condition,
+                Some(guard) => Expr::Or(
+                    Box::new(Expr::Not(Box::new(guard.clone()))),
+                    Box::new(condition),
+                ),
+            };
+            acc.asserts.push((held, message.clone()));
+        }
     }
     acc.conditional.push(ConditionalEquations {
         conditions,

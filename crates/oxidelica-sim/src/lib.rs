@@ -9,8 +9,8 @@
 #![deny(missing_docs)]
 
 use oxidelica_parser::{
-    BinOp, Causality, ClassDef, Component, EquationItem, Expr, Model, RelOp, Statement,
-    Variability, WhenAction, WhenBranch, WhenClause,
+    operator_name, BinOp, Causality, ClassDef, Component, EquationItem, Expr, Model, RelOp,
+    Statement, Variability, WhenAction, WhenBranch, WhenClause,
 };
 use std::collections::HashMap;
 use std::fmt;

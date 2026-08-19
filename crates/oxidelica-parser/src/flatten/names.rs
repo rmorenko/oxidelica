@@ -144,7 +144,7 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
                     const_eval(args.get(1)?, env)?,
                 ))
             };
-            match name.as_str() {
+            match operator_name(name) {
                 "abs" => one()?.abs(),
                 "sqrt" => one()?.sqrt(),
                 "exp" => one()?.exp(),
@@ -287,17 +287,27 @@ pub(super) fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr 
     }
 }
 
+/// How far a constant may reach through others before this gives up.
+/// A chain of a few is ordinary; a longer one is a sign of a circle.
+const MAX_CONSTANT_DEPTH: usize = 8;
+
 /// Value of a constant declared inside a class: `Constants.pi`.
 ///
 /// Package constants are compile-time values, so a reference to one is
 /// replaced by its number before any prefixing happens - otherwise the
 /// dotted name would be mistaken for a component of the instance.
-pub(super) fn class_constant(
+/// `depth` counts how many constants deep the question already is: one
+/// may be built on another, and on one of another package.
+fn class_constant_at(
     registry: &HashMap<&str, &ClassDef>,
     name: &str,
     scope: &str,
     imports: &[(String, String)],
+    depth: usize,
 ) -> Option<f64> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
     let (class_path, member) = name.rsplit_once('.')?;
     let class = lookup(registry, class_path, scope, imports)?;
     // An enumeration literal is the position it was declared at.
@@ -312,6 +322,28 @@ pub(super) fn class_constant(
     if !constants.iter().any(|(n, _)| n == member) {
         return None;
     }
+    // A constant may be built on one of another package - the standard
+    // library's `eps` is the machine's - and on the operators a library
+    // has given a place in its tree. Both are settled in the binding
+    // before it is asked for a number, and the depth counter is what
+    // stops two packages naming each other from going round for ever.
+    let constants: Vec<(String, Option<Expr>)> = constants
+        .into_iter()
+        .map(|(name, binding)| {
+            let binding = binding.map(|expr| {
+                substitute_at(
+                    &expr,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    &[],
+                    depth + 1,
+                    true,
+                )
+            });
+            (name, binding)
+        })
+        .collect();
     // Constants of one package may build on each other, so resolve the
     // whole set to a fixpoint before reading the one asked for.
     let mut values: HashMap<String, f64> = HashMap::new();
@@ -373,10 +405,42 @@ pub(super) fn substitute_class_constants(
     imports: &[(String, String)],
     shadow: &[&str],
 ) -> Expr {
-    let recur = |e: &Expr| substitute_class_constants(e, registry, scope, imports, shadow);
+    substitute_class_constants_at(expr, registry, scope, imports, shadow, 0)
+}
+
+/// See [`substitute_class_constants`]; `depth` counts how many
+/// constants deep the question already is.
+fn substitute_class_constants_at(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    depth: usize,
+) -> Expr {
+    substitute_at(expr, registry, scope, imports, shadow, depth, false)
+}
+
+/// See [`substitute_class_constants`]. `settle_calls` says whether a
+/// call to a library function is to be worked out here as well, which
+/// is what a constant's own binding needs - `2*Modelica.Math.asin(1)`
+/// is a number, and nothing later would make it one. Ordinary
+/// expressions leave their calls standing: inlining them is the job of
+/// the pass that knows the shapes involved.
+#[allow(clippy::too_many_arguments)]
+fn substitute_at(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    depth: usize,
+    settle_calls: bool,
+) -> Expr {
+    let recur = |e: &Expr| substitute_at(e, registry, scope, imports, shadow, depth, settle_calls);
     match expr {
         Expr::Ref(name) if name.contains('.') => {
-            match class_constant(registry, name, scope, imports) {
+            match class_constant_at(registry, name, scope, imports, depth) {
                 Some(value) => Expr::Number(value),
                 None => expr.clone(),
             }
@@ -387,7 +451,7 @@ pub(super) fn substitute_class_constants(
             if let Some(value) = imports
                 .iter()
                 .find(|(local, _)| local == name)
-                .and_then(|(_, target)| class_constant(registry, target, scope, imports))
+                .and_then(|(_, target)| class_constant_at(registry, target, scope, imports, depth))
             {
                 return Expr::Number(value);
             }
@@ -397,9 +461,13 @@ pub(super) fn substitute_class_constants(
             // name that is not one is looked for among them.
             if !shadow.contains(&name.as_str()) {
                 for (_, target) in imports.iter().filter(|(local, _)| local == WILDCARD_IMPORT) {
-                    if let Some(value) =
-                        class_constant(registry, &format!("{target}.{name}"), scope, imports)
-                    {
+                    if let Some(value) = class_constant_at(
+                        registry,
+                        &format!("{target}.{name}"),
+                        scope,
+                        imports,
+                        depth,
+                    ) {
                         return Expr::Number(value);
                     }
                 }
@@ -415,7 +483,24 @@ pub(super) fn substitute_class_constants(
                 .map(|(name, arg)| (name.clone(), recur(arg)))
                 .collect(),
         ),
-        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        // A library gives the language's own operators a place in its
+        // tree with `external "builtin" y = asin(u)`; a call to one of
+        // those is a call to the operator.
+        Expr::Call(name, args) => {
+            let args: Vec<Expr> = args.iter().map(recur).collect();
+            let found = lookup(registry, name, scope, imports);
+            if let Some(builtin) = found.and_then(|class| class.builtin.clone()) {
+                return Expr::Call(builtin, args);
+            }
+            match found.filter(|_| settle_calls && depth <= MAX_CONSTANT_DEPTH) {
+                Some(class) if class.kind == ClassKind::Function => {
+                    let shapes: Vec<Vec<i64>> = args.iter().map(|_| Vec::new()).collect();
+                    inline_function(class, &args, &shapes, &HashMap::new(), registry, depth)
+                        .unwrap_or_else(|_| Expr::Call(name.clone(), args))
+                }
+                _ => Expr::Call(name.clone(), args),
+            }
+        }
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
         Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
@@ -489,6 +574,13 @@ pub(super) fn lookup<'a>(
     scope: &str,
     imports: &[(String, String)],
 ) -> Option<&'a ClassDef> {
+    // A name written with a leading dot is looked up from the top of
+    // the tree and nowhere else. That is what lets a library write its
+    // own `asin` and still reach the language's operator from inside
+    // it: `.asin` is never the function being written.
+    if let Some(global) = name.strip_prefix('.') {
+        return registry.get(global).copied();
+    }
     // `import Basic = Electrical.Analog.Basic;` then `Basic.Resistor`.
     let (head, rest) = match name.split_once('.') {
         Some((head, rest)) => (head, Some(rest)),

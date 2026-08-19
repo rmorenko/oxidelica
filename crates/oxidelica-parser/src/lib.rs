@@ -10,9 +10,15 @@ pub mod library;
 pub mod parser;
 
 pub use ast::{
-    BinOp, Causality, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, RelOp,
-    Statement, StatementBranch, Variability, WhenAction, WhenBranch, WhenClause,
+    operator_name, BinOp, Causality, ClassDef, ClassKind, Component, EquationItem, Experiment,
+    Expr, Model, RelOp, Statement, StatementBranch, Variability, WhenAction, WhenBranch,
+    WhenClause,
 };
-pub use flatten::{class_info, ClassInfo};
-pub use library::{library_directory, library_sources, LIBRARY_VARIABLE};
-pub use parser::{parse_file, parse_model, parse_model_with_libraries, ParseError};
+pub use flatten::{class_info, flatten as flatten_named, ClassInfo};
+pub use library::{
+    download_root, downloaded_libraries, library_directories, library_directory, library_files,
+    library_files_in, library_sources, LIBRARY_VARIABLE, MODELICA_PATH,
+};
+pub use parser::{
+    parse_file, parse_model, parse_model_reading, parse_model_with_libraries, ParseError,
+};

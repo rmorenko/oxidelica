@@ -60,7 +60,48 @@ pub fn library_directories(near: Option<&Path>) -> Vec<PathBuf> {
         if let Some(one) = climbed_library(near) {
             remember(&mut found, one);
         }
+        for downloaded in downloaded_libraries() {
+            remember(&mut found, downloaded);
+        }
     }
+    found
+}
+
+/// Where `oxidelica library add` puts what it fetches: one directory
+/// per library, under the user's data directory. `XDG_DATA_HOME` names
+/// it where it is set, which is what a Linux desktop expects; elsewhere
+/// it is `~/.local/share`, the same path on every platform so that a
+/// library added on one machine is looked for in the same place on the
+/// next.
+pub fn download_root() -> Option<PathBuf> {
+    let base = match std::env::var_os("XDG_DATA_HOME") {
+        Some(named) if !named.is_empty() => PathBuf::from(named),
+        _ => home()?.join(".local/share"),
+    };
+    Some(base.join("oxidelica/libraries"))
+}
+
+/// The home directory, by the variable each platform names it with.
+fn home() -> Option<PathBuf> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .filter(|home| !home.is_empty())
+        .map(PathBuf::from)
+}
+
+/// The libraries `oxidelica library add` has fetched, by name.
+pub fn downloaded_libraries() -> Vec<PathBuf> {
+    let Some(root) = download_root() else {
+        return Vec::new();
+    };
+    let mut found: Vec<PathBuf> = std::fs::read_dir(&root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|entry| entry.path())
+        .filter(|path| path.is_dir())
+        .collect();
+    found.sort();
     found
 }
 
@@ -133,10 +174,24 @@ fn model_files(directory: &Path, depth: usize) -> Vec<PathBuf> {
 /// with `within` where in the tree it sits. An empty result means no
 /// library was found, which is fine for a model that needs none.
 pub fn library_sources(near: Option<&Path>) -> Vec<String> {
+    library_files(near)
+        .iter()
+        .filter_map(|path| std::fs::read_to_string(path).ok())
+        .collect()
+}
+
+/// Every Modelica file of one directory tree, in the same order.
+pub fn library_files_in(directory: &Path) -> Vec<PathBuf> {
+    model_files(directory, 0)
+}
+
+/// The files [`library_sources`] reads, in the order it reads them.
+/// What a name is worth knowing for is saying which file a complaint
+/// about a library came from.
+pub fn library_files(near: Option<&Path>) -> Vec<PathBuf> {
     library_directories(near)
         .iter()
         .flat_map(|directory| model_files(directory, 0))
-        .filter_map(|path| std::fs::read_to_string(path).ok())
         .collect()
 }
 
@@ -169,6 +224,25 @@ mod tests {
     impl Drop for Sandbox {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn with_no_home_there_is_nowhere_to_keep_a_library() {
+        let _guard = ENVIRONMENT
+            .lock()
+            .unwrap_or_else(|poison| poison.into_inner());
+        let (home, profile) = (std::env::var_os("HOME"), std::env::var_os("USERPROFILE"));
+        std::env::remove_var("XDG_DATA_HOME");
+        std::env::remove_var("HOME");
+        std::env::remove_var("USERPROFILE");
+        assert!(download_root().is_none());
+        assert!(downloaded_libraries().is_empty());
+        if let Some(home) = home {
+            std::env::set_var("HOME", home);
+        }
+        if let Some(profile) = profile {
+            std::env::set_var("USERPROFILE", profile);
         }
     }
 

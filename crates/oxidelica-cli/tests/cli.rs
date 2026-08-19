@@ -229,3 +229,276 @@ fn output_write_error_is_reported() {
     assert!(!out.status.success());
     assert!(stderr(&out).contains("cannot write"));
 }
+
+/// A throwaway directory, removed on drop.
+struct TempDir(PathBuf);
+
+impl TempDir {
+    fn new(name: &str) -> TempDir {
+        let path =
+            std::env::temp_dir().join(format!("oxidelica-lib-test-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        std::fs::create_dir_all(&path).unwrap();
+        TempDir(path)
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+#[test]
+fn a_library_is_measured_by_reading_it() {
+    let library = TempDir::new("check");
+    std::fs::write(
+        library.0.join("Good.mo"),
+        "package Good package Examples model Run Real x(start = 1); \
+         equation der(x) = -x; end Run; end Examples; end Good;",
+    )
+    .unwrap();
+    std::fs::write(library.0.join("Bad.mo"), "model B Real x @ 1; end B;").unwrap();
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("1 read, 1 not read"), "{text}");
+    assert!(text.contains("1, of which 1 flatten"), "{text}");
+}
+
+#[test]
+fn checking_nothing_says_so() {
+    let empty = TempDir::new("empty");
+    let out = bin()
+        .args(["library", "check", empty.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("no Modelica files"),
+        "{}",
+        stderr(&out)
+    );
+}
+
+#[test]
+fn adding_a_library_that_is_already_there_is_refused() {
+    let home = TempDir::new("home");
+    let already = home.0.join("oxidelica/libraries/Modelica");
+    std::fs::create_dir_all(&already).unwrap();
+    let out = bin()
+        .args(["library", "add", "modelica"])
+        .env("XDG_DATA_HOME", &home.0)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("already there"), "{}", stderr(&out));
+}
+
+#[test]
+fn the_libraries_in_view_are_listed() {
+    let library = TempDir::new("list");
+    std::fs::write(library.0.join("Tiny.mo"), "package Tiny end Tiny;").unwrap();
+    let out = bin()
+        .args(["library", "list"])
+        .env("OXIDELICA_LIB", &library.0)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("1 file(s)"), "{}", stdout(&out));
+
+    // An unknown word after `library` prints the usage.
+    let out = bin().args(["library", "frobnicate"]).output().unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("Usage:"));
+}
+
+#[test]
+fn a_library_is_fetched_into_the_place_the_search_looks() {
+    // A local repository stands in for a remote one: the fetching is
+    // `git clone`, and git does not care which of the two it is.
+    let source = TempDir::new("repo");
+    std::fs::write(
+        source.0.join("Tiny.mo"),
+        "package Tiny model Run Real x(start = 1); equation der(x) = -x; end Run; end Tiny;",
+    )
+    .unwrap();
+    let git = |args: &[&str]| {
+        let done = Command::new("git")
+            .args(args)
+            .current_dir(&source.0)
+            .env("GIT_AUTHOR_NAME", "test")
+            .env("GIT_AUTHOR_EMAIL", "test@example.com")
+            .env("GIT_COMMITTER_NAME", "test")
+            .env("GIT_COMMITTER_EMAIL", "test@example.com")
+            .output()
+            .unwrap();
+        assert!(done.status.success(), "git {args:?}: {}", stderr(&done));
+    };
+    git(&["-c", "init.defaultBranch=main", "init", "-q"]);
+    git(&["add", "Tiny.mo"]);
+    git(&["commit", "-qm", "a library"]);
+
+    let home = TempDir::new("home-add");
+    let out = bin()
+        .args([
+            "library",
+            "add",
+            source.0.to_str().unwrap(),
+            "--version",
+            "main",
+            "--as",
+            "Tiny",
+        ])
+        .env("XDG_DATA_HOME", &home.0)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(home.0.join("oxidelica/libraries/Tiny/Tiny.mo").exists());
+
+    // And a model that uses it now finds it without being told where.
+    let model = TempFile::new("uses-tiny.mo", "model M Tiny.Run r; end M;");
+    let out = bin()
+        .args(["parse", model.path()])
+        .env("XDG_DATA_HOME", &home.0)
+        .env_remove("OXIDELICA_LIB")
+        .env_remove("MODELICAPATH")
+        .current_dir(&home.0)
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("r.x"), "{}", stdout(&out));
+
+    // A version that is not there is a failure of the fetching, said
+    // as one.
+    let again = TempDir::new("home-again");
+    let out = bin()
+        .args([
+            "library",
+            "add",
+            "anything",
+            "--from",
+            source.0.to_str().unwrap(),
+            "--version",
+            "no-such-tag",
+        ])
+        .env("XDG_DATA_HOME", &again.0)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("could not fetch"), "{}", stderr(&out));
+}
+
+#[test]
+fn adding_a_library_reads_its_flags() {
+    // A flag nobody knows, and one with nothing after it.
+    let out = bin()
+        .args(["library", "add", "x", "--wat"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("unknown flag"), "{}", stderr(&out));
+    let out = bin()
+        .args(["library", "add", "x", "--version"])
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("requires a value"),
+        "{}",
+        stderr(&out)
+    );
+
+    // With no name given, the last part of the URL is the library's.
+    let home = TempDir::new("home-named");
+    let out = bin()
+        .args(["library", "add", "https://example.invalid/Tiny.git"])
+        .env("XDG_DATA_HOME", &home.0)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let said = stdout(&out) + &stderr(&out);
+    assert!(said.contains("libraries/Tiny"), "{said}");
+}
+
+#[test]
+fn checking_a_library_ranks_what_it_could_not_read() {
+    // More kinds of trouble than the report prints, so the tail is
+    // counted rather than dropped in silence.
+    let library = TempDir::new("many");
+    for (index, source) in [
+        "model A Real x @ 1; end A;",
+        "model B Real x; equation x = ; end B;",
+        "model C Real x[; end C;",
+        "model D Real x; equation x = 1 end D;",
+        "model E Real x; equation x = 1; end Z;",
+        "package F model G Real x; end H; end F;",
+        "model I Real x(unit = 3); end I;",
+        "model J Real x; algorithm x = 1; end J;",
+        "model K import L.{A B}; end K;",
+        "model L Real x; equation assert(x > 0, 1); end L;",
+        "model N Real x(start = 1 fixed = true); end N;",
+        "model O connector Pin end Q; end O;",
+    ]
+    .iter()
+    .enumerate()
+    {
+        std::fs::write(library.0.join(format!("B{index}.mo")), source).unwrap();
+    }
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("0 read, 12 not read"), "{text}");
+    assert!(text.contains("more kind(s)"), "{text}");
+}
+
+#[test]
+fn checking_with_no_directory_reads_what_is_in_view() {
+    // No directory named: the library the search already finds.
+    let out = bin().args(["library", "check"]).output().unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert!(stdout(&out).contains("files:"), "{}", stdout(&out));
+
+    // An example that will not flatten is counted and its reason
+    // ranked alongside the rest.
+    let library = TempDir::new("examples");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Good Real x(start = 1); equation der(x) = -x; end Good; \
+         model Bad Missing m; Real x; equation x = m.k; end Bad; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("2, of which 1 flatten"), "{text}");
+    assert!(text.contains("unknown type `Missing`"), "{text}");
+}
+
+#[test]
+fn with_no_home_there_is_nowhere_to_keep_a_library() {
+    let out = bin()
+        .args(["library", "add", "modelica"])
+        .env_remove("HOME")
+        .env_remove("USERPROFILE")
+        .env_remove("XDG_DATA_HOME")
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(
+        stderr(&out).contains("no home directory"),
+        "{}",
+        stderr(&out)
+    );
+}

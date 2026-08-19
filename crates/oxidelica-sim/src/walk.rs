@@ -136,6 +136,18 @@ fn run(
                     return err(message.clone());
                 }
             }
+            // A call on its own: nothing takes its outputs, so it is
+            // walked for the checks its body makes and for nothing
+            // else. Reading its value is what runs those checks.
+            Statement::Call(name, args) => {
+                number_of(
+                    &Expr::Call(name.clone(), args.clone()),
+                    frame,
+                    programs,
+                    time,
+                    depth,
+                )?;
+            }
             Statement::If(branches) => {
                 for branch in branches {
                     let taken = match &branch.condition {

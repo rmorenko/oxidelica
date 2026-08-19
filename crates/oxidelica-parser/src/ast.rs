@@ -135,6 +135,17 @@ pub struct Component {
     pub annotations: Vec<Expr>,
 }
 
+/// The operator a call names, with the leading dot of a global
+/// reference taken off.
+///
+/// `.asin(u)` is the language's own `asin` looked up from the top of
+/// the tree - which is how a library that writes its own `asin` reaches
+/// past it. Once nothing in the tree has answered to the name, the dot
+/// has said all it had to say and the two spellings are one operator.
+pub fn operator_name(name: &str) -> &str {
+    name.strip_prefix('.').unwrap_or(name)
+}
+
 /// A single equation `lhs = rhs`.
 #[derive(Debug, Clone)]
 pub struct EquationItem {
@@ -188,8 +199,10 @@ pub enum Statement {
     /// target, and hold the indices of `c[i] := value;`.
     Assign(String, Vec<Expr>, Expr),
     /// `(a, , c) := f(...);` — one function call fills several
-    /// targets, `None` where an output is skipped.
-    TupleAssign(Vec<Option<String>>, Expr),
+    /// targets, `None` where an output is skipped. A target may carry
+    /// subscripts, as `(v[1], info) := f(...)` does, where only part
+    /// of an array is being filled.
+    TupleAssign(Vec<Option<(String, Vec<Expr>)>>, Expr),
     /// `if c then … elseif … else … end if;`
     If(Vec<StatementBranch>),
     /// `for i in lo:hi loop … end for;` — the range is whatever the
@@ -208,6 +221,9 @@ pub enum Statement {
     /// `assert(condition, "message");` — a check written where the
     /// statements are rather than among the equations.
     Assert(Expr, String),
+    /// `f(x);` — a call standing on its own. Nothing receives its
+    /// outputs, so what is left of it is the checks its body makes.
+    Call(String, Vec<Expr>),
 }
 
 /// The kind of a class definition.
@@ -283,6 +299,15 @@ pub struct ClassDef {
     pub imports: Vec<(String, String)>,
     /// Optional description string.
     pub description: Option<String>,
+    /// A body written outside Modelica: `external "C" ...`. The class
+    /// is read so that the file holding it loads, and a call to it is
+    /// refused where the call is made.
+    pub external: bool,
+    /// `external "builtin" y = asin(u);` — the function is the
+    /// language's own operator of that name, spelled out so that a
+    /// library can give it a place in its tree. The name is kept and a
+    /// call becomes a call to the operator.
+    pub builtin: Option<String>,
     /// Component declarations.
     pub components: Vec<Component>,
     /// `extends` clauses.
@@ -307,6 +332,10 @@ pub struct ClassDef {
     /// Statements of an `algorithm` section: the body of a function, or
     /// a block of a model that is executed into equations.
     pub algorithm: Vec<Statement>,
+    /// Statements of an `initial algorithm` section: they run once,
+    /// before the simulation starts, and what they assign belongs to
+    /// the initial system rather than holding throughout.
+    pub initial_algorithm: Vec<Statement>,
     /// `connect(a, b);` statements. Each side is an expression so that
     /// a reference may carry subscripts (`pins[i]`, `a[2].p`) or name a
     /// whole array of connectors; flattening resolves both to instance
@@ -329,6 +358,49 @@ pub struct ClassDef {
     pub annotations: Vec<Expr>,
 }
 
+impl ClassDef {
+    /// A class with nothing in it, to be filled in field by field. The
+    /// short forms - a type alias, an enumeration - are a name and one
+    /// or two fields against two dozen empty ones, and this is what
+    /// spares them from spelling every one of those out.
+    pub fn empty() -> Self {
+        ClassDef {
+            kind: ClassKind::Model,
+            name: String::new(),
+            partial: false,
+            encapsulated: false,
+            expandable: false,
+            alias_of: None,
+            alias_unit: None,
+            enumeration: Vec::new(),
+            nested: Vec::new(),
+            class_aliases: Vec::new(),
+            imports: Vec::new(),
+            description: None,
+            external: false,
+            builtin: None,
+            components: Vec::new(),
+            extends: Vec::new(),
+            equations: Vec::new(),
+            initial_equations: Vec::new(),
+            asserts: Vec::new(),
+            transitions: Vec::new(),
+            initial_state: None,
+            connection_graph: Vec::new(),
+            for_equations: Vec::new(),
+            if_equations: Vec::new(),
+            algorithm: Vec::new(),
+            initial_algorithm: Vec::new(),
+            connects: Vec::new(),
+            when_clauses: Vec::new(),
+            experiment: Experiment::default(),
+            derivative: None,
+            inverse: Vec::new(),
+            annotations: Vec::new(),
+        }
+    }
+}
+
 /// What a `when` clause does when its condition becomes true.
 #[derive(Debug, Clone)]
 pub enum WhenAction {
@@ -340,6 +412,11 @@ pub enum WhenAction {
     /// `x = expr` — the new value of a discrete variable. It holds that
     /// value until another event assigns it.
     Assign(String, Expr),
+    /// `(a, , c) = f(...);` — one call fills several targets at the
+    /// event, `None` where an output is skipped. Flattening inlines
+    /// the call and hands each target its own assignment, so nothing
+    /// downstream meets this form.
+    TupleAssign(Vec<Option<String>>, Expr),
 }
 
 /// One branch of a `when` clause: `when c1 then … elsewhen c2 then …`.
@@ -384,6 +461,14 @@ pub struct IfBranch {
     pub equations: Vec<EquationItem>,
     /// `connect` statements the branch contributes.
     pub connects: Vec<(Expr, Expr)>,
+    /// `assert(condition, "message")` checks written in the branch.
+    /// They hold only while the branch is the one taken, so what
+    /// flattening emits for them carries that guard.
+    pub asserts: Vec<(Expr, String)>,
+    /// `for` equations written in the branch. A loop unrolls into
+    /// equations, so it can only be part of a branch the compiler
+    /// picks: how many equations it makes is settled before the run.
+    pub loops: Vec<ForEquation>,
 }
 
 /// A statement about the overconstrained connection graph.

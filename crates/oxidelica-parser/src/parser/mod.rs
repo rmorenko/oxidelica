@@ -79,15 +79,18 @@ fn parse_file_within(source: &str) -> Result<(Vec<ClassDef>, Option<String>), Pa
         }
         let class = match parser.class_def()? {
             ClassItem::Class(class) => *class,
-            ClassItem::Alias(alias) => {
-                return Err(ParseError {
-                    message: format!(
-                        "`{}` is a class alias; the top level of a file needs a full definition",
-                        alias.name
-                    ),
-                    line: 1,
-                })
-            }
+            // A library laid out one class to a file writes a short
+            // definition as a whole file - `connector ComplexOutput =
+            // output Complex;`. There is no enclosing class to hold the
+            // local name, so it becomes a class of its own that stands
+            // for the other: a component declared with it resolves
+            // through the alias the way a `type` does.
+            ClassItem::Alias(alias) => ClassDef {
+                kind: ClassKind::Model,
+                name: alias.name,
+                alias_of: Some((alias.target, Vec::new())),
+                ..ClassDef::empty()
+            },
         };
         // A package contributes its members to the registry under
         // qualified names, alongside the package itself.
@@ -128,10 +131,32 @@ pub fn parse_model(source: &str) -> Result<Model, ParseError> {
 /// contribute class definitions, the top-level model comes from
 /// `source`.
 pub fn parse_model_with_libraries(libraries: &[String], source: &str) -> Result<Model, ParseError> {
+    parse_model_reading(libraries, source).0
+}
+
+/// As [`parse_model_with_libraries`], and what the libraries could not
+/// be read for. A library the size of the standard one holds more than
+/// this compiler reads, and a model uses a corner of it, so a file that
+/// will not parse is set aside rather than made everyone's problem: a
+/// model that needed something from it fails by name further in, and
+/// one that did not runs.
+pub fn parse_model_reading(
+    libraries: &[String],
+    source: &str,
+) -> (Result<Model, ParseError>, Vec<String>) {
     let mut classes = Vec::new();
+    let mut unread = Vec::new();
     for library in libraries {
-        classes.extend(parse_file(library)?);
+        match parse_file(library) {
+            Ok(read) => classes.extend(read),
+            Err(why) => unread.push(why.to_string()),
+        }
     }
+    (parse_model_among(classes, source), unread)
+}
+
+/// The model of a source file, in the company of classes already read.
+fn parse_model_among(mut classes: Vec<ClassDef>, source: &str) -> Result<Model, ParseError> {
     let (own, within) = parse_file_within(source)?;
     // The model to simulate is the last one written at the top level of
     // the file; models nested inside other classes are components' types,
@@ -211,8 +236,23 @@ pub(super) struct Annotated {
     kept: Vec<Expr>,
 }
 
-/// The contents of one branch of an `if` equation.
-type BranchBody = (Vec<EquationItem>, Vec<(Expr, Expr)>);
+/// The contents of one branch of an `if` equation, as read.
+struct BranchBody {
+    equations: Vec<EquationItem>,
+    connects: Vec<(Expr, Expr)>,
+    /// `if` equations written inside the branch. They are folded into
+    /// the enclosing chain rather than kept, so that what comes out of
+    /// the parser is always one flat list of branches.
+    nested: Vec<IfEquation>,
+    /// `assert(...)` checks written in the branch.
+    asserts: Vec<(Expr, String)>,
+    /// `for` equations written in the branch.
+    loops: Vec<ForEquation>,
+    /// How many warning-level checks were read and dropped. A branch
+    /// that held only those is empty now and was not as written, which
+    /// is the difference between an empty `if` and a mistake.
+    dropped: usize,
+}
 
 mod classes;
 mod declarations;

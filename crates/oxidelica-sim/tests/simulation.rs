@@ -2657,3 +2657,189 @@ fn a_port_of_the_model_pushes_the_other_way() {
         result.rows.last().unwrap()[index]
     );
 }
+
+/// An `initial algorithm` settles where the run starts, and a check
+/// written inside an `if` branch fires only while that branch holds.
+#[test]
+fn an_initial_algorithm_and_a_guarded_check_run() {
+    // `x` starts where the initial algorithm put it, gain * 2 = 6, and
+    // rises at 1 a second: x(2) = 8.
+    let result = run("model M parameter Real gain = 3; Real x; \
+         initial algorithm x := gain * 2; \
+         equation der(x) = 1; \
+         annotation(experiment(StopTime = 2, Interval = 0.1, Tolerance = 1e-10)); end M;");
+    let last = result.rows.last().unwrap();
+    assert!((last[0] - 2.0).abs() < 1e-12);
+    assert!((last[1] - 8.0).abs() < 1e-9, "x(2) = {}", last[1]);
+
+    // The check of the second branch would fail at every moment the
+    // first branch holds; guarded by the denial of the first
+    // condition, it says nothing there and the run gets through.
+    let result = run("model M Real y; equation \
+         if time > 1 then assert(time > 0.5, \"late\"); y = 1; \
+         else assert(time < 1.5, \"early\"); y = 2; end if; \
+         annotation(experiment(StopTime = 2, Interval = 0.1, Tolerance = 1e-10)); end M;");
+    assert!((result.rows.last().unwrap()[0] - 2.0).abs() < 1e-12);
+}
+
+/// A library states a relation the way physics does, `i = C * der(v)`,
+/// and the solver needs the derivative on its own. The two are the
+/// same equation, and getting from one to the other is undoing what
+/// stands between them.
+#[test]
+fn a_derivative_is_got_out_of_the_equation_that_states_it() {
+    // `i = C * der(v)` with `i` fixed: v rises at i/C = 2 a second, so
+    // v(3) = 6.
+    let result = run(
+        "model M parameter Real c = 0.5; Real v(start = 0, fixed = true); Real i; \
+         equation i = 1; i = c * der(v); \
+         annotation(experiment(StopTime = 3, Interval = 0.1, Tolerance = 1e-10)); end M;",
+    );
+    let v = result.columns.iter().position(|n| n == "v").unwrap();
+    assert!(
+        (result.rows.last().unwrap()[v] - 6.0).abs() < 1e-9,
+        "v(3) = {}",
+        result.rows.last().unwrap()[v]
+    );
+
+    // Each way of writing it comes to the same thing. Every one of
+    // these says the derivative is 2, and every one is a different
+    // operation to undo: a sum, a difference either way round, a
+    // product, a quotient either way round, and a negation.
+    for equation in [
+        "der(x) + 1 = 3",
+        "1 + der(x) = 3",
+        "der(x) - 1 = 1",
+        "4 - der(x) = 2",
+        "2 * der(x) = 4",
+        "der(x) * 2 = 4",
+        "der(x) / 2 = 1",
+        "8 / der(x) = 4",
+        "-der(x) = -2",
+        "2 * (der(x) + 1) = 6",
+    ] {
+        let result = run(&format!(
+            "model M Real x(start = 0, fixed = true); equation {equation}; \
+             annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;"
+        ));
+        let last = result.rows.last().unwrap()[1];
+        assert!((last - 2.0).abs() < 1e-9, "{equation} gave x(1) = {last}");
+    }
+
+    // A derivative another equation already defines is left where it
+    // was: `y = der(x) + 1` says what `y` is, and reading it the other
+    // way would claim a second definition of `der(x)`. Using one as a
+    // value is still more than this compiler does, and what it says is
+    // that - not that the model defines the derivative twice.
+    let refusal = refused(
+        "model M Real x(start = 0, fixed = true); Real y; \
+         equation der(x) = 3; y = der(x) + 1; end M;",
+    );
+    assert!(refusal.contains("appear alone"), "{refusal}");
+
+    // A derivative under a power would need a root, and which root
+    // depends on the exponent; one on both sides is not a shape this
+    // gets anything out of either.
+    assert!(
+        refused("model M Real x(start = 1); equation der(x)^2 = 4; end M;")
+            .contains("appear alone")
+    );
+    assert!(refused(
+        "model M Real x(start = 1); Real y(start = 1); \
+         equation der(x) + der(y) = 4; der(x) - der(y) = 0; end M;"
+    )
+    .contains("appear alone"));
+    // One inside a call has no operation to undo, and one further down
+    // than this looks is not the shape being looked for either.
+    assert!(
+        refused("model M Real x(start = 1); equation abs(der(x)) = 2; end M;")
+            .contains("appear alone")
+    );
+    let deep = "der(x) + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1";
+    assert!(refused(&format!(
+        "model M Real x(start = 1); equation {deep} = 11; end M;"
+    ))
+    .contains("appear alone"));
+    // A derivative got out of an equation still has to be one of a
+    // variable that moves.
+    let said = refused("model M parameter Real p = 1; equation 2 * der(p) = 4; end M;");
+    assert!(said.contains("not a continuous variable"), "{said}");
+}
+
+/// A call standing on its own inside a body the run walks: nothing
+/// takes its outputs, so what it is there for is the checks it makes.
+#[test]
+fn a_call_on_its_own_is_walked_for_its_checks() {
+    // `counted` cannot be unrolled - how many rounds it runs is the
+    // model's to decide - so it stays a call and the run walks it. The
+    // walk meets `guard(n);`, which nothing receives, and carries out
+    // the check inside it.
+    let source = "model M \
+         function guard input Real u; output Real ok; \
+         algorithm assert(u > -1, \"not too small\"); ok := u; end guard; \
+         function counted input Real n; output Real y; \
+         algorithm y := 0; guard(n); while y < n loop y := y + 1; end while; end counted; \
+         Real y; equation y = counted(3 * time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;";
+    let result = run(source);
+    let last = result.rows.last().unwrap();
+    // At t = 1 the loop counts to 3.
+    assert!((last[1] - 3.0).abs() < 1e-12, "y(1) = {}", last[1]);
+
+    // The same check, failing: the walk stops the run and says what
+    // the body said.
+    let failing = source.replace("u > -1", "u < -1");
+    let model = parse_model(&failing).unwrap();
+    let error = compile(&model).unwrap().simulate().unwrap_err().to_string();
+    assert!(error.contains("not too small"), "{error}");
+}
+
+/// `der(x)` written in an initial equation is the right-hand side the
+/// model gives that state, wherever in the expression it stands.
+#[test]
+fn an_initial_equation_may_hold_a_derivative_anywhere_in_it() {
+    // The condition is written the long way round on purpose: the
+    // derivative has to be found under a call, a relation, a negation,
+    // an `and`, an `or` and a choice, and it means the same in each.
+    let result = run("model M Real x; Real y; \
+         equation der(x) = 3 - x; y = x; \
+         initial equation \
+         0 = if abs(der(x)) > 100 or not (der(x) < 0) and true then der(x) else -der(x); \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;");
+    // A start where nothing moves: der(x) = 0 puts x at 3.
+    let first = result.rows.first().unwrap();
+    assert!((first[1] - 3.0).abs() < 1e-9, "x(0) = {}", first[1]);
+    let last = result.rows.last().unwrap();
+    assert!((last[1] - 3.0).abs() < 1e-9, "x(1) = {}", last[1]);
+}
+
+/// A bound is a check on the value, and the message names the bound
+/// the way the model wrote it.
+#[test]
+fn a_bound_is_named_the_way_the_model_wrote_it() {
+    // A bound written as a negative number, and one written as a
+    // parameter: each is said back as it stands rather than as a
+    // number the model never wrote.
+    let error = run_err(
+        "model M parameter Real ceiling = 1; Real x(start = 0, fixed = true, min = -0.5); \
+         equation der(x) = -1; \
+         annotation(experiment(StopTime = 2, Interval = 0.1, Tolerance = 1e-10)); end M;",
+    );
+    assert!(error.contains("-0.5"), "{error}");
+    let error = run_err(
+        "model M parameter Real ceiling = 1; Real x(start = 0, fixed = true, max = ceiling); \
+         equation der(x) = 1; \
+         annotation(experiment(StopTime = 2, Interval = 0.1, Tolerance = 1e-10)); end M;",
+    );
+    assert!(error.contains("ceiling"), "{error}");
+}
+
+/// Compile a model, run it, and give back what stopped it.
+fn run_err(source: &str) -> String {
+    let model = parse_model(source).expect("parses");
+    compile(&model)
+        .expect("compiles")
+        .simulate()
+        .expect_err("should have been stopped")
+        .to_string()
+}
