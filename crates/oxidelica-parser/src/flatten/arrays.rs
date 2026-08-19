@@ -981,10 +981,16 @@ pub(super) fn combine(
                 // Vector times vector is their scalar product.
                 (1, 1) => {
                     if a.len() != b.len() {
+                        let (mut left_items, mut right_items) = (Vec::new(), Vec::new());
+                        left.flatten_into(&mut left_items);
+                        right.flatten_into(&mut right_items);
                         return Err(format!(
-                            "a scalar product needs equal lengths, got {} and {}",
+                            "a scalar product needs equal lengths, got {} and {}: \
+                             {:?} against {:?}",
                             a.len(),
-                            b.len()
+                            b.len(),
+                            left_items.first(),
+                            right_items.first()
                         ));
                     }
                     let products = zip_values(left, right, &apply)?;

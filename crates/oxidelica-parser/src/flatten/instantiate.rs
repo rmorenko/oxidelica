@@ -475,8 +475,12 @@ pub(super) fn instantiate(
                     };
                     sizing_binding.as_ref().and_then(measured).ok_or_else(|| {
                         format!(
-                            "the flexible size `:` of `{flat_name}` needs a value \
-                                 to read its length from"
+                            "the flexible size `:` of `{flat_name}` needs a value to read \
+                             its length from, and {} is not one",
+                            sizing_binding.as_ref().map_or_else(
+                                || "nothing".to_string(),
+                                crate::flatten::names::sketch
+                            )
                         )
                     })?
                 }
