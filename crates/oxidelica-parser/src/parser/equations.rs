@@ -20,7 +20,11 @@ impl Parser {
             self.annotation_body(&mut Annotated::default())?;
         }
         self.expect(&Token::Semi, "semicolon after equation")?;
-        Ok(EquationItem { lhs, rhs })
+        Ok(EquationItem {
+            lhs,
+            rhs,
+            origin: String::new(),
+        })
     }
 
     /// Try to read `(a, , c)` followed by `=`: the targets of a tuple

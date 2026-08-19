@@ -695,7 +695,7 @@ fn split_equations(
     let mut state_rhs: HashMap<String, Expr> = HashMap::new();
     let mut algebraic_eqs: Vec<(Expr, Expr)> = Vec::new();
 
-    for EquationItem { lhs, rhs } in equations {
+    for EquationItem { lhs, rhs, .. } in equations {
         // der(v) = expr  |  expr = der(v)
         let (target, value) = if let Some(v) = lhs.as_der_of() {
             (Some(v), rhs)
@@ -991,6 +991,7 @@ fn with_transport_equations(model: &Model) -> Model {
                 transport.in0.clone(),
                 read(format!("$carried_at_zero{index}")),
             ),
+            origin: String::new(),
         });
         out.equations.push(EquationItem {
             lhs: Expr::Ref(transport.out1.clone()),
@@ -998,6 +999,7 @@ fn with_transport_equations(model: &Model) -> Model {
                 read(format!("$carried_at_one{index}")),
                 transport.in1.clone(),
             ),
+            origin: String::new(),
         });
     }
     out
@@ -1158,6 +1160,7 @@ pub(crate) fn compile_at(
             Ok(EquationItem {
                 lhs: rewrite.expr(&equation.lhs)?,
                 rhs: rewrite.expr(&equation.rhs)?,
+                origin: String::new(),
             })
         })
         .collect::<Result<Vec<_>, SimError>>()?;
@@ -1204,6 +1207,7 @@ pub(crate) fn compile_at(
             Ok(EquationItem {
                 lhs: rewrite.expr(&equation.lhs)?,
                 rhs: rewrite.expr(&equation.rhs)?,
+                origin: String::new(),
             })
         })
         .collect::<Result<Vec<_>, SimError>>()?;

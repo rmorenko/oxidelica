@@ -22,7 +22,7 @@ under a chapter works as specified for the subset this project covers.
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
 | 16  | Synchronous language elements | Full    |
-| 17  | State machines                | Partial |
+| 17  | State machines                | Full    |
 | 18  | Annotations                   | Partial |
 | 19  | Unit expressions              | Full    |
 
@@ -338,10 +338,16 @@ it leaves has reached one no arrow leaves, and asks about the tick
 before — asking about this one would be asking the machine inside about
 an answer that waits on the machine outside, which waits on it.
 
-What is missing is the merging of definitions across states (17.3.5):
-a variable declared outside and written by several of them, with
-`last()` to say that a state which does not write it keeps it. A state's
-own variables are already held that way; an `outer output` is not.
+A variable declared outside the states and written by several of them
+is one definition of it (17.3.5): whichever state is in force has its
+say, and where none does the variable keeps what it held - which is
+what `last()` says there and what the value from the tick before says
+here. Writing it both inside a state and outside every state is
+refused, since a variable has one definition. Every equation carries
+the instance it was written inside, which is what tells one state's say
+from another's when what they define lives outside them both.
+
+Chapter 17 is complete.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

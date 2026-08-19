@@ -1628,6 +1628,51 @@ fn an_arrow_may_wait_a_tick_and_may_ask_for_a_reset_of_its_own() {
 }
 
 #[test]
+fn what_several_states_say_about_one_variable_is_one_definition() {
+    // `v` is declared outside the states and written inside them. Each
+    // has its say while it is the state in force, and where a state has
+    // none - `Mute` writes nothing - the variable keeps what it held.
+    let source = |second: &str| {
+        format!(
+            "model M block Sig outer output Real v; Real n(start = 0); \
+             equation n = previous(n) + 1; v = n * 10; end Sig; \
+             {second} \
+             Clock c = Clock(1); inner Real v; Sig a; Other b; Real hv; \
+             equation initialState(a); transition(a, b, a.n >= 2); \
+             hv = hold(v); \
+             annotation(experiment(StopTime = 5, Interval = 1)); end M;"
+        )
+    };
+    let held = |second: &str| {
+        let result = run(&source(second));
+        let index = result.columns.iter().position(|c| c == "hv").unwrap();
+        let mut seen = Vec::new();
+        let mut out = Vec::new();
+        for row in &result.rows {
+            if seen.contains(&row[0].to_bits()) {
+                continue;
+            }
+            seen.push(row[0].to_bits());
+            out.push(row[index]);
+        }
+        out
+    };
+    // The second state says `-1` while it is in force.
+    assert_eq!(
+        held(
+            "block Other outer output Real v; Real n(start = 0); \
+             equation n = previous(n) + 1; v = -1; end Other;"
+        ),
+        vec![0.0, 0.0, 10.0, 20.0, -1.0, -1.0]
+    );
+    // Saying nothing, it leaves the variable at what the first left.
+    assert_eq!(
+        held("block Other Real n(start = 0); equation n = previous(n) + 1; end Other;"),
+        vec![0.0, 0.0, 10.0, 20.0, 20.0, 20.0]
+    );
+}
+
+#[test]
 fn a_state_may_hold_a_machine_of_its_own() {
     // An outer machine of two states, one of which holds a machine of
     // two more. `work.out` says where the inner one is; the outer's

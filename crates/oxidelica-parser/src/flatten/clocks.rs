@@ -1670,6 +1670,10 @@ pub(super) fn collect_immediate_refs<'a>(expr: &'a Expr, out: &mut Vec<&'a str>)
     }
 }
 
+/// What the states of a machine say about a variable declared outside
+/// them: which machine, which of its states, and the value it gives.
+type SaidInStates = Vec<(usize, usize, Expr)>;
+
 /// One state machine: its states, its arrows, and where it sits.
 #[derive(Clone)]
 pub(super) struct Machine {
@@ -2144,6 +2148,23 @@ pub(super) fn build_state_machines(
         .iter()
         .filter_map(|component| Some((component.name.clone(), component.start.clone()?)))
         .collect();
+    // Which state an equation was written inside, for one whose target
+    // lives outside every state: `outer output v` written by several of
+    // them is one definition of `v`, merged here.
+    let written_in = |origin: &str| -> Option<(usize, usize)> {
+        let mut best: Option<(usize, usize, usize)> = None;
+        for (tag, machine) in machines.iter().enumerate() {
+            for (at, state) in machine.states.iter().enumerate() {
+                if (origin == state || origin.starts_with(&format!("{state}.")))
+                    && best.is_none_or(|(_, _, deep)| state.len() > deep)
+                {
+                    best = Some((tag, at, state.len()));
+                }
+            }
+        }
+        best.map(|(tag, at, _)| (tag, at))
+    };
+    let mut shared: Vec<(String, SaidInStates)> = Vec::new();
     let mut kept = Vec::new();
     for equation in model.equations.drain(..) {
         let Expr::Ref(target) = &equation.lhs else {
@@ -2151,7 +2172,20 @@ pub(super) fn build_state_machines(
             continue;
         };
         let Some((tag, state)) = owner(target) else {
-            kept.push(equation);
+            // Not one of a state's own variables. Written inside one,
+            // it is that state's say in what the variable holds, and
+            // the says are merged into one definition below.
+            match written_in(&equation.origin) {
+                Some((tag, at)) => {
+                    let name = target.clone();
+                    let rhs = equation.rhs.clone();
+                    match shared.iter_mut().find(|(known, _)| known == &name) {
+                        Some((_, says)) => says.push((tag, at, rhs)),
+                        None => shared.push((name, vec![(tag, at, rhs)])),
+                    }
+                }
+                None => kept.push(equation),
+            }
             continue;
         };
         let (active, resetting) = (state_var(tag), reset_var(tag));
@@ -2183,9 +2217,40 @@ pub(super) fn build_state_machines(
         kept.push(EquationItem {
             lhs: equation.lhs,
             rhs: value,
+            origin: String::new(),
         });
     }
     model.equations = kept;
+    // What several states say about one variable is one definition of
+    // it: whichever state is in force has its say, and where none does
+    // the variable keeps what it held. That is 17.3.5, with `last` here
+    // being simply the value from the tick before.
+    for (target, says) in shared {
+        if model
+            .equations
+            .iter()
+            .any(|equation| equation.lhs == Expr::Ref(target.clone()))
+        {
+            return Err(format!(
+                "`{target}` is written both inside a state and outside every state, and \
+                 a variable has one definition"
+            ));
+        }
+        let mut value = previous_of(&target);
+        for (tag, at, rhs) in says.iter().rev() {
+            value = Expr::If(
+                Box::new(is(&state_var(*tag), *at)),
+                Box::new(rhs.clone()),
+                Box::new(value),
+            );
+        }
+        clock_of.insert(target.clone(), clock);
+        model.equations.push(EquationItem {
+            lhs: Expr::Ref(target),
+            rhs: value,
+            origin: String::new(),
+        });
+    }
 
     // `activeState`, `ticksInState` and `timeInState` say what they
     // mean once the machines have variables to say it with. Which
@@ -2232,6 +2297,7 @@ pub(super) fn build_state_machines(
         model.equations.push(EquationItem {
             lhs: Expr::Ref(target),
             rhs: value,
+            origin: String::new(),
         });
     }
     model.transitions.clear();

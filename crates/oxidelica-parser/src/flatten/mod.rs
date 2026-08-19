@@ -234,6 +234,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                     acc.equations.push(EquationItem {
                         lhs: Expr::Ref(var(members[0])),
                         rhs: Expr::Number(0.0),
+                        origin: String::new(),
                     });
                 } else {
                     // Kirchhoff sum over the set.
@@ -245,6 +246,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                     acc.equations.push(EquationItem {
                         lhs: sum,
                         rhs: Expr::Number(0.0),
+                        origin: String::new(),
                     });
                 }
             } else if members.len() > 1 {
@@ -253,6 +255,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                     acc.equations.push(EquationItem {
                         lhs: Expr::Ref(var(other)),
                         rhs: Expr::Ref(var(members[0])),
+                        origin: String::new(),
                     });
                 }
             }
@@ -434,6 +437,10 @@ struct StreamContext<'a> {
 #[derive(Default)]
 struct Flat {
     components: Vec<Component>,
+    /// The instance whose equations are being gathered, by flat path.
+    /// Every equation that goes in is stamped with it, which is what
+    /// tells a state's own equations apart later on.
+    origin: String,
     /// Connectors that were a class's own port where a `connect` named
     /// them - "outside" connectors, whose flow points into the node
     /// rather than out of it.

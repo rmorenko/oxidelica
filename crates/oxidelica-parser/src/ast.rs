@@ -138,6 +138,22 @@ pub struct EquationItem {
     pub lhs: Expr,
     /// Right-hand side expression.
     pub rhs: Expr,
+    /// The instance this equation was written inside, by its flat path.
+    /// Empty for one the compiler made up, and for the top-level model
+    /// itself. It is what tells a state's own equations apart when what
+    /// they define lives outside the state.
+    pub origin: String,
+}
+
+impl EquationItem {
+    /// An equation belonging to nothing in particular.
+    pub fn new(lhs: Expr, rhs: Expr) -> EquationItem {
+        EquationItem {
+            lhs,
+            rhs,
+            origin: String::new(),
+        }
+    }
 }
 
 /// Direction of a function argument.

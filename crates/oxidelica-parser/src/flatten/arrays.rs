@@ -1111,7 +1111,8 @@ pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result
     lhs.flatten_into(&mut left);
     rhs.flatten_into(&mut right);
     for (lhs, rhs) in left.into_iter().zip(right) {
-        acc.equations.push(EquationItem { lhs, rhs });
+        let origin = acc.origin.clone();
+        acc.equations.push(EquationItem { lhs, rhs, origin });
     }
     Ok(())
 }

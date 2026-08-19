@@ -1107,7 +1107,7 @@ fn the_rest_of_the_refusals_are_named_too() {
             .unwrap();
     assert_eq!(
         format!("{:?}", twice.equations),
-        "[EquationItem { lhs: Ref(\"y\"), rhs: Number(2.0) }]"
+        "[EquationItem { lhs: Ref(\"y\"), rhs: Number(2.0), origin: \"\" }]"
     );
     // A tuple filled by something that is not a function.
     assert!(err(
@@ -1332,6 +1332,15 @@ fn state_machine_error_paths() {
     for name in ["$state0", "$state1"] {
         assert!(two.components.iter().any(|c| c.name == name), "{name}");
     }
+    // A variable both merged from the states and defined outside them
+    // has two definitions, and a variable has one.
+    assert!(
+        err("model M block Sig outer output Real v; Real n(start = 0); \
+         equation n = previous(n) + 1; v = n; end Sig; \
+         Clock c = Clock(1); inner Real v; Sig a; Real y; \
+         equation initialState(a); v = 99; y = hold(v); end M;")
+        .contains("written both inside a state and outside every state")
+    );
     // Asked outside every state, a question about "the machine" has no
     // machine to be about where a model holds more than one.
     assert!(err(

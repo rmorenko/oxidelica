@@ -20,6 +20,10 @@ pub(super) fn instantiate(
     }
 
     let scope = class.name.as_str();
+    // Every equation this class puts in is stamped with the instance it
+    // belongs to; a class instantiated inside it stamps its own, and
+    // this one is put back afterwards.
+    let stamped = std::mem::replace(&mut acc.origin, prefix.trim_end_matches('.').to_string());
 
     // `inner` declarations of this class and of its bases own the
     // instances that `outer` declarations inside it refer to. They are
@@ -607,7 +611,11 @@ pub(super) fn instantiate(
             return Err("an initial equation between shapes that do not match".to_string());
         }
         for (lhs, rhs) in left.into_iter().zip(right) {
-            acc.initial_equations.push(EquationItem { lhs, rhs });
+            acc.initial_equations.push(EquationItem {
+                lhs,
+                rhs,
+                origin: String::new(),
+            });
         }
     }
 
@@ -845,6 +853,7 @@ pub(super) fn instantiate(
             }
         });
     }
+    acc.origin = stamped;
     Ok(())
 }
 
@@ -932,6 +941,7 @@ pub(super) fn instantiate_one(
                     acc.equations.push(EquationItem {
                         lhs: Expr::Ref(flat.name.clone()),
                         rhs: value,
+                        origin: String::new(),
                     });
                 }
             }
@@ -1305,7 +1315,11 @@ where
                 ));
             }
             for (lhs, rhs) in left.into_iter().zip(right) {
-                scalars.push(EquationItem { lhs, rhs });
+                scalars.push(EquationItem {
+                    lhs,
+                    rhs,
+                    origin: String::new(),
+                });
             }
         }
         branches.push(scalars);
@@ -1409,15 +1423,19 @@ pub(super) fn collect_inners(
         }
     }
     for component in class.components.iter().filter(|c| c.scope == Scope::Inner) {
-        if let Some(declared) = lookup(registry, &component.type_name, scope, &class.imports) {
-            out.insert(
-                component.name.clone(),
-                InnerInstance {
-                    path: format!("{prefix}{}", component.name),
-                    class: declared.name.clone(),
-                },
-            );
-        }
+        // A shared instance may be a plain variable as readily as a
+        // class: `inner Real v` is what a set of states writes between
+        // them, and it is filed under the type it was written with.
+        let named = lookup(registry, &component.type_name, scope, &class.imports)
+            .map(|declared| declared.name.clone())
+            .unwrap_or_else(|| component.type_name.clone());
+        out.insert(
+            component.name.clone(),
+            InnerInstance {
+                path: format!("{prefix}{}", component.name),
+                class: named,
+            },
+        );
     }
 }
 
@@ -1437,14 +1455,13 @@ pub(super) fn bind_outers(
                 component.type_name, component.name, class.name
             )
         })?;
-        let declared =
-            lookup(registry, &component.type_name, scope, &class.imports).ok_or_else(|| {
-                format!(
-                    "unknown type `{}` of outer component `{}`",
-                    component.type_name, component.name
-                )
-            })?;
-        if !extends_class(registry, &inner.class, &declared.name, 0) {
+        // A primitive has no class to look up, and matches by the name
+        // it was written with.
+        let declared = match lookup(registry, &component.type_name, scope, &class.imports) {
+            Some(declared) => declared.name.clone(),
+            None => component.type_name.clone(),
+        };
+        if !extends_class(registry, &inner.class, &declared, 0) {
             return Err(format!(
                 "`outer {} {}` does not match the `inner` instance, which is a `{}`",
                 component.type_name, component.name, inner.class
