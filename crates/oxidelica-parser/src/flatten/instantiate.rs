@@ -317,7 +317,27 @@ pub(super) fn instantiate(
                 let binding =
                     substitute_class_constants(binding, registry, scope, &imports, &shadow);
                 let binding = prefix_expr(&binding, prefix, &outers);
-                if let Some(length) = dimension_value(&binding, &local_consts, &sizes_here) {
+                // A length may be arithmetic over `size(...)`, which
+                // measures on its own, or written over arrays -
+                // `max([size(a, 1); size(b, 1)])` stacks the lengths of
+                // four signals and takes the longest - which only the
+                // array layer can read.
+                let measured =
+                    dimension_value(&binding, &local_consts, &sizes_here).or_else(|| {
+                        let no_loop_vars = HashMap::new();
+                        let shapes = Shapes {
+                            sizes: &sizes_here,
+                            loop_vars: &no_loop_vars,
+                            consts: &local_consts,
+                            records: no_records(),
+                        };
+                        let mark = checks_mark();
+                        let worked = expand(&binding, &shapes, registry, scope, &imports, 0);
+                        checks_rewind(mark);
+                        let value = const_eval(&worked.ok()?.into_expr(), &local_consts)?;
+                        (value.fract() == 0.0).then_some(value as i64)
+                    });
+                if let Some(length) = measured {
                     local_consts.insert(waiting.name.clone(), length as f64);
                     local_consts.insert(format!("{prefix}{}", waiting.name), length as f64);
                     acc.const_values
@@ -1490,18 +1510,28 @@ pub(super) fn instantiate_one(
             let mut flat = component.clone();
             flat.name = flat_name.to_string();
             flat.dimensions = Vec::new();
+            // What a declaration says about itself has to come to one
+            // value, but may be written over arrays to get there:
+            // `nout = max([size(q_begin, 1); size(q_end, 1)])` counts
+            // the longest of four by stacking their lengths.
             let resolve_value = |e: &Expr| -> Result<Expr, String> {
                 let e = substitute_class_constants(e, registry, scope, imports, &[]);
-                resolve(
-                    &prefix_expr(&e, prefix, outers),
-                    &HashMap::new(),
-                    local_consts,
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
                     sizes,
+                    loop_vars: &no_loop_vars,
+                    consts: local_consts,
+                    records: no_records(),
+                };
+                expand(
+                    &prefix_expr(&e, prefix, outers),
+                    &shapes,
                     registry,
                     scope,
                     imports,
                     0,
-                )
+                )?
+                .scalar()
             };
             flat.start = match site.start {
                 Some(expr) => Some(expr.clone()),

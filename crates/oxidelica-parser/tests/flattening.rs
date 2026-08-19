@@ -5960,3 +5960,24 @@ fn a_function_may_answer_with_a_record() {
     .message;
     assert!(error.contains("2 field(s), 1 given"), "{error}");
 }
+
+/// A declaration may be written over arrays to come to one value.
+#[test]
+fn a_length_may_be_counted_over_arrays() {
+    let m = parse_model(
+        "model M parameter Real a[:] = {1, 2}; parameter Real b[:] = {1, 2, 3, 4}; \
+         parameter Integer nout = max([size(a, 1); size(b, 1)]); \
+         Real q[nout]; Real y; \
+         equation for i in 1:nout loop q[i] = i * time; end for; y = q[nout]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("the longest of two, counted by stacking");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("q["))
+            .count(),
+        4
+    );
+    assert!(format!("{:?}", m.equations).contains("q[4]"));
+}
