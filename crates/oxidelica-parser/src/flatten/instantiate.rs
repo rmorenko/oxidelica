@@ -89,6 +89,51 @@ pub(super) fn instantiate(
         .map(|component| component.name.as_str())
         .collect();
 
+    // A base's parameter may be given a value this class declares:
+    // `extends MIMO(final nin = m)` with `m` written below the
+    // `extends`, which is how the standard library gives a block as
+    // many inputs as it has phases. The bases are instantiated first,
+    // so what this class says about itself has to be worth something
+    // before that happens. Only what folds on its own is settled here;
+    // anything that needs a base's value waits for the round below.
+    let mut settled_early: HashMap<String, f64> = HashMap::new();
+    loop {
+        let mut progress = false;
+        for component in &class.components {
+            let named = format!("{prefix}{}", component.name);
+            if !matches!(
+                component.variability,
+                Variability::Parameter | Variability::Constant
+            ) || settled_early.contains_key(&named)
+            {
+                continue;
+            }
+            let binding = env
+                .overrides
+                .iter()
+                .find(|(n, _)| n == &component.name)
+                .map(|(_, e)| e.clone())
+                .or_else(|| {
+                    component.binding.as_ref().map(|e| {
+                        let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
+                        prefix_expr(&e, prefix, &outers)
+                    })
+                });
+            let Some(binding) = binding else { continue };
+            let mut env = acc.const_values.clone();
+            env.extend(settled_early.iter().map(|(k, v)| (k.clone(), *v)));
+            if let Some(value) = const_eval(&binding, &env) {
+                settled_early.insert(named.clone(), value);
+                acc.const_values.insert(named.clone(), value);
+                acc.numbers.push((named, value));
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+
     // Bases first, with their modifiers (already parent-scoped).
     for extend in &class.extends {
         let base = match extend.from_base {

@@ -1,3 +1,6 @@
 [codespell]
 skip = ./target,./.git,./Cargo.lock
 quiet-level = 3
+# `nin` and `nout` are what the standard library calls the number of
+# inputs and outputs of a block.
+ignore-words-list = nin

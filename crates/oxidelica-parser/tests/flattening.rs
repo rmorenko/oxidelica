@@ -6089,3 +6089,45 @@ fn the_graph_is_drawn_before_it_is_asked() {
     .expect("a body that is the root");
     assert!(format!("{:?}", m.equations).contains("Call(\"der\""));
 }
+
+/// A base's parameter may be given a value the class extending it
+/// declares below the `extends`.
+#[test]
+fn a_base_may_be_sized_by_what_comes_after_it() {
+    let m = parse_model(
+        "package P partial block MIMO parameter Integer nin = 1; parameter Integer nout = 1; \
+           input Real u[nin]; output Real y[nout]; end MIMO; \
+         block Conv extends P.MIMO(final nin = m, final nout = 2); \
+           parameter Integer m = 3; \
+         protected parameter Real T[2, m] = {{1, 2, 3}, {4, 5, 6}}; \
+           equation y = T * u; end Conv; \
+         end P; \
+         model M P.Conv c; Real z; \
+         equation c.u = {time, 2 * time, 3 * time}; z = c.y[1]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a base sized from below the extends");
+    // Three inputs rather than the base's one, and two outputs.
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("c.u["))
+            .count(),
+        3
+    );
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("c.y["))
+            .count(),
+        2
+    );
+    // The first row against the input: 1u1 + 2u2 + 3u3.
+    let first = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"c.y[1]\")")
+        .expect("c.y[1]");
+    let written = format!("{:?}", first.rhs);
+    assert!(written.contains("c.u[3]"), "{written}");
+}

@@ -5,3 +5,6 @@ extend-exclude = ["target/", "Cargo.lock"]
 [default.extend-words]
 # The JetBrains theme really is named Darcula (a deliberate pun).
 Darcula = "Darcula"
+# `nin` is what the standard library calls the number of inputs of a
+# block, as `nout` is the number of outputs.
+nin = "nin"
