@@ -335,7 +335,7 @@ impl Parser {
         let to = self.dotted_name("the state a transition arrives at")?;
         self.expect(&Token::Comma, "comma before the transition condition")?;
         let condition = self.expr()?;
-        let (mut reset, mut priority) = (true, 1);
+        let (mut reset, mut priority, mut immediate) = (true, 1, true);
         while self.peek() == &Token::Comma {
             self.bump();
             let name = self.ident("the name of a transition setting")?;
@@ -354,9 +354,10 @@ impl Parser {
                     )))
                     }
                 },
-                // An arrow that waits for the next tick, or one that
-                // waits for the other machines, is not supported.
-                "immediate" if truth(&value) => {}
+                "immediate" => immediate = truth(&value),
+                // An arrow that waits for the other machines to finish
+                // needs machines to wait for, which is a state holding
+                // one - and a state holds equations here, not a machine.
                 "synchronize" if !truth(&value) => {}
                 other => {
                     return Err(self.err(format!(
@@ -375,6 +376,7 @@ impl Parser {
             to,
             condition,
             reset,
+            immediate,
             priority,
         })
     }

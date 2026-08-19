@@ -1774,51 +1774,93 @@ pub(super) fn build_state_machines(
             .position(|state| name.starts_with(&format!("{state}.")))
     };
 
+    // Two arrows out of one state must say which goes first, and the
+    // specification asks that they never say the same thing.
+    for (index, one) in model.transitions.iter().enumerate() {
+        for other in model.transitions.iter().skip(index + 1) {
+            if one.from == other.from && one.priority == other.priority {
+                return Err(format!(
+                    "two arrows leave `{}` with priority {}, and the one to take is then \
+                     nobody's decision",
+                    one.from, one.priority
+                ));
+            }
+        }
+    }
+
     let active = "$state".to_string();
     let ticks = "$ticks".to_string();
+    let resetting = "$reset".to_string();
     let previous_of = |name: &str| Expr::Call("previous".to_string(), vec![Expr::Ref(name.into())]);
 
     // Where the machine goes next, arrows in priority order.
-    let mut arrows: Vec<&Transition> = model.transitions.iter().collect();
-    arrows.sort_by_key(|transition| (transition.priority, transition.from.clone()));
-    // Before the first tick the machine is nowhere, so the first tick
-    // is an arrival at the initial state like any other - which is
-    // what makes its variables start from their start values.
-    let mut next = previous_of(&active);
-    for transition in arrows.iter().rev() {
-        let (from, to) = (index_of(&transition.from), index_of(&transition.to));
-        // The condition is judged on the values from the tick before:
-        // this tick's belong to whichever state the machine settles
-        // on, which is what is being decided.
-        let condition = Expr::And(
+    let mut arrows: Vec<(usize, &Transition)> = model.transitions.iter().enumerate().collect();
+    arrows.sort_by_key(|(_, transition)| (transition.priority, transition.from.clone()));
+    // An arrow is ready when the machine is where it leaves from and
+    // its condition holds. An immediate arrow is taken on that at once;
+    // a delayed one keeps the answer for a tick and is taken on what it
+    // kept, which is the whole of `immediate = false`.
+    let mut armed: Vec<(String, Expr)> = Vec::new();
+    let mut guards: Vec<(Expr, &Transition)> = Vec::new();
+    for (index, transition) in &arrows {
+        let ready = Expr::And(
             Box::new(Expr::Rel(
                 crate::ast::RelOp::Eq,
                 Box::new(previous_of(&active)),
-                Box::new(Expr::Number(from)),
+                Box::new(Expr::Number(index_of(&transition.from))),
             )),
             Box::new(look_back(&transition.condition, &owner)),
         );
+        let guard = if transition.immediate {
+            ready
+        } else {
+            let kept = format!("$arm{index}");
+            armed.push((kept.clone(), ready));
+            previous_of(&kept)
+        };
+        guards.push((guard, transition));
+    }
+    let mut next = previous_of(&active);
+    let mut resets_now = Expr::Number(0.0);
+    for (guard, transition) in guards.iter().rev() {
         next = Expr::If(
-            Box::new(condition),
-            Box::new(Expr::Number(to)),
+            Box::new(guard.clone()),
+            Box::new(Expr::Number(index_of(&transition.to))),
             Box::new(next),
+        );
+        // Only the arrow taken decides whether what it arrives at is
+        // put back to its start values.
+        resets_now = Expr::If(
+            Box::new(guard.clone()),
+            Box::new(Expr::Number(if transition.reset { 1.0 } else { 0.0 })),
+            Box::new(resets_now),
         );
     }
 
     // The machine's own variables, and the arrival counter behind
     // `ticksInState` and `timeInState`.
     let nowhere = -1.0;
+    let first_tick = Expr::Rel(
+        crate::ast::RelOp::Lt,
+        Box::new(previous_of(&active)),
+        Box::new(Expr::Number(0.0)),
+    );
+    // Before the first tick the machine is nowhere, so the first tick
+    // is an arrival at the initial state like any other - which is what
+    // makes its variables start from their start values.
     let next = Expr::If(
-        Box::new(Expr::Rel(
-            crate::ast::RelOp::Lt,
-            Box::new(previous_of(&active)),
-            Box::new(Expr::Number(0.0)),
-        )),
+        Box::new(first_tick.clone()),
         Box::new(Expr::Number(number(&start).unwrap_or(0.0))),
         Box::new(next),
     );
+    let resets_now = Expr::If(
+        Box::new(first_tick),
+        Box::new(Expr::Number(1.0)),
+        Box::new(resets_now),
+    );
     let mut machine = vec![
         (active.clone(), next),
+        (resetting.clone(), resets_now),
         (
             ticks.clone(),
             Expr::If(
@@ -1836,29 +1878,30 @@ pub(super) fn build_state_machines(
             ),
         ),
     ];
-    for (name, start) in [(&active, nowhere), (&ticks, 0.0)] {
+    machine.extend(armed.iter().cloned());
+    // What a delayed arrow keeps for a tick is a truth, not a number.
+    let bookkeeping = [
+        (active.clone(), "Real", Expr::Number(nowhere)),
+        (ticks.clone(), "Real", Expr::Number(0.0)),
+        (resetting.clone(), "Real", Expr::Number(0.0)),
+    ]
+    .into_iter()
+    .chain(
+        armed
+            .iter()
+            .map(|(name, _)| (name.clone(), "Boolean", Expr::Bool(false))),
+    );
+    for (name, of, start) in bookkeeping {
         model.components.push(Component {
             name: name.clone(),
-            type_name: "Real".to_string(),
+            type_name: of.to_string(),
             variability: Variability::Discrete,
-            start: Some(Expr::Number(start)),
+            start: Some(start),
             description: Some("state machine bookkeeping".to_string()),
             ..blank_component()
         });
         clock_of.insert(name.clone(), clock);
     }
-
-    // Which states are entered with their variables put back to their
-    // start values, as `reset = true` asks.
-    let resets: Vec<bool> = states
-        .iter()
-        .map(|state| {
-            model
-                .transitions
-                .iter()
-                .any(|transition| &transition.to == state && transition.reset)
-        })
-        .collect();
 
     // The states' equations, guarded by the state being in force.
     let starts: HashMap<String, Expr> = model
@@ -1887,18 +1930,27 @@ pub(super) fn build_state_machines(
             Box::new(equation.rhs),
             Box::new(holding),
         );
-        if resets[state] {
-            let entered = Expr::And(
-                Box::new(in_force),
-                Box::new(Expr::Not(Box::new(Expr::Rel(
-                    crate::ast::RelOp::Eq,
-                    Box::new(previous_of(&active)),
-                    Box::new(Expr::Number(state as f64)),
-                )))),
-            );
-            let back_to = starts.get(target).cloned().unwrap_or(Expr::Number(0.0));
-            value = Expr::If(Box::new(entered), Box::new(back_to), Box::new(value));
-        }
+        // Arriving here puts this state's variables back to their start
+        // values where the arrow taken asked for it - the arrow, not
+        // the state: one leading here may ask and another not.
+        let entered = Expr::And(
+            Box::new(in_force),
+            Box::new(Expr::Not(Box::new(Expr::Rel(
+                crate::ast::RelOp::Eq,
+                Box::new(previous_of(&active)),
+                Box::new(Expr::Number(state as f64)),
+            )))),
+        );
+        let asked = Expr::And(
+            Box::new(entered),
+            Box::new(Expr::Rel(
+                crate::ast::RelOp::Gt,
+                Box::new(Expr::Ref(resetting.clone())),
+                Box::new(Expr::Number(0.5)),
+            )),
+        );
+        let back_to = starts.get(target).cloned().unwrap_or(Expr::Number(0.0));
+        value = Expr::If(Box::new(asked), Box::new(back_to), Box::new(value));
         clock_of.insert(target.clone(), clock);
         kept.push(EquationItem {
             lhs: equation.lhs,

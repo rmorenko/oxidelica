@@ -1352,6 +1352,32 @@ fn state_machine_error_paths() {
         "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; Clock c = Clock(0.5); S a; S b; equation initialState(a); transition(a, b, a.n >= 1, priority = 0.5); end M;"
     )
     .contains("whole number from 1"));
+    // Two arrows out of one state saying the same thing about which
+    // goes first: the specification asks that they never do.
+    assert!(err(
+        "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+         Clock c = Clock(0.5); S a; S b; \
+         equation initialState(a); \
+         transition(a, b, a.n >= 1, priority = 1); \
+         transition(a, b, a.n >= 3, priority = 1); end M;"
+    )
+    .contains("nobody's decision"));
+    // A delayed arrow keeps its answer for a tick, which takes a
+    // variable of its own to keep it in.
+    let delayed = parse_model(
+        "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+         Clock c = Clock(0.5); S a; S b; Real out; \
+         equation initialState(a); \
+         transition(a, b, a.n >= 1, immediate = false); \
+         out = if activeState(a) then 1 else 2; end M;",
+    )
+    .unwrap();
+    let kept = delayed
+        .components
+        .iter()
+        .find(|component| component.name.starts_with("$arm"))
+        .expect("a delayed arrow keeps its answer");
+    assert_eq!(kept.type_name, "Boolean");
     // A setting this compiler will not pretend to honour.
     assert!(err(
         "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \

@@ -575,6 +575,7 @@ pub(super) fn instantiate(
             to: flat_name(&transition.to, prefix, &outers),
             condition: resolve_here(&transition.condition)?,
             reset: transition.reset,
+            immediate: transition.immediate,
             priority: transition.priority,
         });
     }

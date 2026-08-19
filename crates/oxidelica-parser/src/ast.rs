@@ -385,6 +385,9 @@ pub struct Transition {
     pub condition: Expr,
     /// Whether the arrival's variables go back to their start values.
     pub reset: bool,
+    /// Whether the arrow is taken on this tick's condition, which is
+    /// the default, or waits a tick and is taken on the one before.
+    pub immediate: bool,
     /// Which arrow wins when several could be taken; lower goes first.
     pub priority: i64,
 }

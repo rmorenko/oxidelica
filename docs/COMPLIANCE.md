@@ -315,12 +315,18 @@ machine on an event clock is refused it and keeps `ticksInState`. A
 state's equations count only while it is in force, the rest hold what
 they had, and an arrival puts a state's variables back to their start
 values as `reset = true` asks.
-What is missing, and it matters: a transition is judged on the values
-from the tick before and takes effect at the next tick, so what the
-spec calls `immediate = true` — the default — behaves as
-`immediate = false` does. There is one machine to a model, running on
-its one clock; `synchronize` and hierarchical states are not
-supported, and a `reset` is taken per state rather than per arrow.
+A transition is judged on this tick's condition and the state it names
+takes over at the next tick, which is what 17.3.4 calls
+`immediate = true` — the default; `immediate = false` keeps the answer
+for a tick and is taken on what it kept, so everything happens one tick
+later. `reset` belongs to the arrow rather than to the state it arrives
+at, so a state reached by two arrows starts over by the one that asked
+and carries on by the one that did not. Two arrows out of one state
+saying the same thing about which goes first are refused, as the
+chapter requires. What is missing: there is one machine to a model,
+running on its one clock, and `synchronize` and hierarchical states are
+not supported — which are one thing, since a machine to synchronize
+with is a state holding a machine.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

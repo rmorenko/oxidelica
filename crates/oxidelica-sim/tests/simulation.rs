@@ -1564,6 +1564,70 @@ fn a_clock_left_unsaid_runs_like_the_one_written_out() {
 }
 
 #[test]
+fn an_arrow_may_wait_a_tick_and_may_ask_for_a_reset_of_its_own() {
+    // Which state the machine is in at each tick, read off the run.
+    let states = |source: &str, column: &str| {
+        let result = run(source);
+        let index = result.columns.iter().position(|c| c == column).unwrap();
+        let mut seen = Vec::new();
+        let mut out = Vec::new();
+        for row in &result.rows {
+            if seen.contains(&row[0].to_bits()) {
+                continue;
+            }
+            seen.push(row[0].to_bits());
+            out.push(row[index]);
+        }
+        out
+    };
+    let machine = |arrow: &str| {
+        format!(
+            "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+             Clock c = Clock(1); S a; S b; Real u; Real lamp; Real hl; \
+             equation u = time; initialState(a); \
+             transition(a, b, sample(u, c) > 2.5{arrow}); \
+             lamp = if activeState(a) then 1 else 2; hl = hold(lamp); \
+             annotation(experiment(StopTime = 6, Interval = 1)); end M;"
+        )
+    };
+    // The condition turns at the tick where `u` reaches 3, and the
+    // state it names takes over at the next one - that is what 17.3.4
+    // calls an immediate arrow, and it is the default.
+    assert_eq!(
+        states(&machine(""), "hl"),
+        vec![1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 2.0]
+    );
+    // A delayed one keeps the answer for a tick and is taken on what it
+    // kept, so everything happens one tick later and nothing else
+    // changes.
+    assert_eq!(
+        states(&machine(", immediate = false"), "hl"),
+        vec![1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0]
+    );
+
+    // `reset` belongs to the arrow, not to the state it arrives at:
+    // `k` is reached from `a` by an arrow that asks and from `b` by one
+    // that does not, so its counter starts over the first time and
+    // carries on the second.
+    let reached = states(
+        "model M block S Real n(start = 0); equation n = previous(n) + 1; end S; \
+         Clock c = Clock(1); S a; S b; S k; Real hk; \
+         equation initialState(a); \
+         transition(a, k, a.n >= 1, reset = true); \
+         transition(k, b, k.n >= 2, reset = true); \
+         transition(b, k, b.n >= 1, reset = false); \
+         hk = hold(k.n); \
+         annotation(experiment(StopTime = 9, Interval = 1)); end M;",
+        "hk",
+    );
+    assert_eq!(
+        reached,
+        vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 2.0, 2.0, 3.0, 3.0],
+        "k was reset where the arrow did not ask"
+    );
+}
+
+#[test]
 fn a_body_nothing_could_inline_is_walked_by_the_run() {
     // Two things inlining cannot do. A function that leads back to
     // itself has no bottom to unroll to; `5!` is the plainest example
