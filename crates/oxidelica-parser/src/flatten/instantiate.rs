@@ -1076,6 +1076,9 @@ pub(super) fn instantiate(
     // the class says outright: `if use_reset then when reset then
     // reinit(y, y_start); end when; end if;` is how the standard
     // library gives a block a reset it can be built without.
+    // The roots of the overconstrained graph, as the pass before this
+    // one worked them out. Empty means the graph has not been drawn.
+    let known_roots = acc.roots.clone();
     let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
     let mut graph_from_branches: Vec<&GraphClause> = Vec::new();
     // `if` equations: the branch that holds contributes its equations,
@@ -1092,10 +1095,21 @@ pub(super) fn instantiate(
         // A condition is read with the constants of the classes it
         // names put in first: `smoothness == Smoothness.LinearSegments`
         // compares a parameter against an enumeration literal, and
-        // neither is a name the environment holds on its own.
+        // neither is a name the environment holds on its own. A
+        // question about the connection graph is answered from the
+        // roots, which are in hand on the pass that follows the one
+        // that drew them.
         let settle = |condition: &Expr| {
             let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
-            const_eval(&named, &env)
+            if let Some(value) = const_eval(&named, &env) {
+                return Some(value);
+            }
+            if known_roots.is_empty() {
+                return None;
+            }
+            let asked = prefix_expr(&named, prefix, &outers);
+            let answered = answer_graph_queries(&asked, &known_roots, &HashMap::new());
+            const_eval(&answered, &env)
         };
         let decidable = if_equation.branches.iter().all(|branch| {
             branch
@@ -1103,6 +1117,15 @@ pub(super) fn instantiate(
                 .as_ref()
                 .is_none_or(|condition| settle(condition).is_some())
         });
+        // A condition that asks the graph where the graph has not been
+        // drawn cannot be answered here, and the branches of such an
+        // `if` are not balanced - a body that is a root carries states
+        // and one that is not carries none. So it is set aside, and
+        // the whole model is built again once the graph is in.
+        if !decidable && known_roots.is_empty() && asks_the_graph(if_equation) {
+            acc.graph_asked = true;
+            continue;
+        }
         if !decidable {
             push_conditional(
                 if_equation,
@@ -1450,6 +1473,25 @@ pub(super) fn instantiate(
     }
     acc.origin = stamped;
     Ok(())
+}
+
+/// Whether an `if` equation asks the connection graph a question.
+///
+/// `Connections.isRoot(frame_a.R)` and `Connections.rooted(...)` are
+/// answered from the roots the graph was broken open at, and until
+/// that is done there is nothing to answer with.
+fn asks_the_graph(if_equation: &IfEquation) -> bool {
+    if_equation.branches.iter().any(|branch| {
+        branch.condition.as_ref().is_some_and(|condition| {
+            let mut found = false;
+            walk_calls(condition, &mut |name| {
+                if name == "Connections.isRoot" || name == "Connections.rooted" {
+                    found = true;
+                }
+            });
+            found
+        })
+    })
 }
 
 /// Which of the instances below a class are records, and of what.

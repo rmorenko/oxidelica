@@ -385,9 +385,56 @@ pub(super) fn choose_roots(
             _ => None,
         })
         .collect();
+    // Two multibody frames are connected as frames, and it is the
+    // orientation inside each that the graph is drawn over: a
+    // `connect` between two connectors holding one is a branch between
+    // the two of them. The member is read off the nodes the clauses
+    // named - `frame_a.R` says the member is `R` - and a connection
+    // brings its other side into the graph only where one side is
+    // already there, so a connection between signals never invents a
+    // node of its own. That spreads a step at a time, so it goes round
+    // until nothing more joins.
+    let members: Vec<String> = nodes
+        .iter()
+        .filter_map(|node| node.rsplit_once('.').map(|(_, member)| member.to_string()))
+        .fold(Vec::new(), |mut seen, member| {
+            if !seen.contains(&member) {
+                seen.push(member);
+            }
+            seen
+        });
+    loop {
+        let mut joined = false;
+        for (a, b) in connects {
+            for member in &members {
+                let (left, right) = (format!("{a}.{member}"), format!("{b}.{member}"));
+                match (nodes.contains(&left), nodes.contains(&right)) {
+                    (true, false) => {
+                        nodes.push(right);
+                        joined = true;
+                    }
+                    (false, true) => {
+                        nodes.push(left);
+                        joined = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        if !joined {
+            break;
+        }
+    }
     for (a, b) in connects {
         if nodes.contains(a) && nodes.contains(b) {
             edges.push((a.clone(), b.clone()));
+            continue;
+        }
+        for member in &members {
+            let (left, right) = (format!("{a}.{member}"), format!("{b}.{member}"));
+            if nodes.contains(&left) && nodes.contains(&right) {
+                edges.push((left, right));
+            }
         }
     }
 

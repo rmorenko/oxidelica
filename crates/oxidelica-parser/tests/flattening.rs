@@ -6045,3 +6045,47 @@ fn a_branch_may_say_where_the_graph_is_rooted() {
     .message;
     assert!(error.contains("drawn once and for all"), "{error}");
 }
+
+/// A question about the connection graph is answered by building the
+/// model twice: once to draw the graph, once with the answer in hand.
+#[test]
+fn the_graph_is_drawn_before_it_is_asked() {
+    // A body that is a root carries its own orientation and the states
+    // for it; one that is not takes the orientation from what it is
+    // connected to and carries none. The two branches are of different
+    // lengths, which only holds together because the condition is one
+    // the compiler settles.
+    const PARTS: &str = "package P \
+        connector Frame Real r; Real o; flow Real f; end Frame; \
+        model Ground Frame frame_b; \
+          equation Connections.root(frame_b.o); frame_b.o = 0; frame_b.f = 0; \
+        end Ground; \
+        model Body Frame frame_a; Real phi; Real w; \
+          equation Connections.potentialRoot(frame_a.o); frame_a.f = 0; \
+          if not Connections.isRoot(frame_a.o) then phi = frame_a.o; w = 0; \
+          else frame_a.o = phi; w = der(phi); der(w) = 0; end if; \
+        end Body; \
+      end P; ";
+    let m = parse_model(&format!(
+        "{PARTS} model M P.Ground ground; P.Body body; Real y; \
+         equation connect(ground.frame_b, body.frame_a); \
+         body.frame_a.r = 0; ground.frame_b.r = 0; y = body.phi; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .expect("a body that is not the root");
+    // The ground is the root, so the body took the branch with no
+    // states: two equations rather than three, and `w` is nailed to
+    // nothing rather than being a derivative.
+    let written = format!("{:?}", m.equations);
+    assert!(!written.contains("Call(\"der\""), "{written}");
+
+    // On its own the body is the only root there is, so it takes the
+    // other branch and the states with it.
+    let m = parse_model(&format!(
+        "{PARTS} model M P.Body body; Real y; \
+         equation body.frame_a.r = 0; body.frame_a.o = 0; y = body.phi; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .expect("a body that is the root");
+    assert!(format!("{:?}", m.equations).contains("Call(\"der\""));
+}

@@ -209,6 +209,23 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     };
     instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
 
+    // `Connections.isRoot(frame_a.R)` is a question about the model as
+    // a whole: a multibody body has states when nothing else settles
+    // its orientation, and which body that is comes out of the graph
+    // the connections draw. A class asking it cannot be built until
+    // the graph is drawn, and the graph is drawn from what building
+    // gathers - so the first pass sets those `if` equations aside and
+    // is kept only for its graph, and everything is built again with
+    // the answers in hand.
+    if acc.graph_asked {
+        let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
+        acc = Flat {
+            roots,
+            ..Flat::default()
+        };
+        instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
+    }
+
     // An expandable connector holds whatever the connections to it
     // name, so its members exist only once every `connect` is in.
     expand_buses(&registry, &mut acc)?;
@@ -433,6 +450,17 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // `connect` equations named a port. Both are questions about the
     // connections, and this is the last moment the answers are known.
     let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
+    // The second pass was built on the roots the first pass's graph
+    // gave. If building on them drew a different graph, the model asks
+    // the graph a question whose answer changes the graph, and there is
+    // no answer to give.
+    if !acc.roots.is_empty() && roots != acc.roots {
+        return Err(
+            "the model asks `Connections.isRoot` where the answer changes the graph it is \
+             asked about"
+                .to_string(),
+        );
+    }
     let mut connected: HashMap<String, f64> = HashMap::new();
     for (a, b) in &acc.connects {
         for port in [a, b] {
@@ -619,6 +647,13 @@ struct Flat {
     disabled: Vec<String>,
     /// `if` equations whose condition is only known while running.
     conditional: Vec<ConditionalEquations>,
+    /// Which nodes of the overconstrained graph turned out to be
+    /// roots. Empty while the graph has not been drawn - which is to
+    /// say, on the first pass.
+    roots: HashMap<String, bool>,
+    /// Whether an `if` equation was set aside because its condition
+    /// asks the graph a question the first pass cannot answer.
+    graph_asked: bool,
 }
 
 impl Flat {
