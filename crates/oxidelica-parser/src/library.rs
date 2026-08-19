@@ -202,6 +202,12 @@ mod tests {
     /// Tests that touch the environment take turns.
     static ENVIRONMENT: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    /// Keep a test's search to what the test made: a data directory
+    /// with nothing in it means no fetched library joins the answer.
+    fn without_fetched_libraries(root: &Path) {
+        std::env::set_var("XDG_DATA_HOME", root.join("no-libraries"));
+    }
+
     /// A throwaway tree with a library in it.
     struct Sandbox(PathBuf);
 
@@ -252,6 +258,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
         let sandbox = Sandbox::new("above");
+        without_fetched_libraries(&sandbox.0);
         let model = sandbox.0.join("deep/nested/model.mo");
         let found = library_directory(Some(&model)).expect("found by climbing");
         assert_eq!(
@@ -270,6 +277,7 @@ mod tests {
             .lock()
             .unwrap_or_else(|poison| poison.into_inner());
         let sandbox = Sandbox::new("tree");
+        without_fetched_libraries(&sandbox.0);
         let root = sandbox.0.join("lib");
         std::fs::create_dir_all(root.join("Demo/Electrical")).unwrap();
         std::fs::write(

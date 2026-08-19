@@ -420,8 +420,15 @@ fn adding_a_library_reads_its_flags() {
         .output()
         .unwrap();
     assert!(!out.status.success());
+    // The last part of the URL is the name, and the name is the last
+    // part of where it goes - said without spelling a separator, which
+    // is not the same character everywhere.
     let said = stdout(&out) + &stderr(&out);
-    assert!(said.contains("libraries/Tiny"), "{said}");
+    let line = said
+        .lines()
+        .find(|line| line.starts_with("fetching"))
+        .unwrap_or_else(|| panic!("{said}"));
+    assert!(line.trim_end().ends_with("Tiny"), "{line}");
 }
 
 #[test]
