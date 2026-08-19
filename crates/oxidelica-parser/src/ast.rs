@@ -498,6 +498,11 @@ pub struct Model {
     pub connection_graph: Vec<GraphClause>,
     /// Experiment settings (defaults when absent).
     pub experiment: Experiment,
+    /// The functions the run has to walk for itself, because inlining
+    /// them was not possible: a recursive one has no bottom to inline
+    /// to, and a loop whose trip count the model decides has no length.
+    /// Everything they call is here too.
+    pub functions: Vec<ClassDef>,
 }
 
 /// Binary arithmetic operator.

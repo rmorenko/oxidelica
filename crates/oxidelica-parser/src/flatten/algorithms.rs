@@ -3,6 +3,45 @@
 
 use super::*;
 
+/// How a body says it cannot be unrolled.
+///
+/// The one place that can answer this differently - by leaving the call
+/// standing for the run to walk - looks for these words, so they are
+/// written once and matched against rather than repeated.
+pub(super) const UNDECIDABLE_LOOP: &str = "the trip count of a loop is not settled here";
+
+/// Whether a function's calls lead back to itself, directly or through
+/// others. Such a call has no bottom to inline to.
+pub(super) fn recursive(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
+    let mut seen: Vec<String> = Vec::new();
+    let mut wanted: Vec<String> = Vec::new();
+    gather_calls_in_statements(
+        &class.algorithm,
+        registry,
+        &class.name,
+        &class.imports,
+        &mut wanted,
+    );
+    while let Some(name) = wanted.pop() {
+        if name == class.name {
+            return true;
+        }
+        if seen.contains(&name) {
+            continue;
+        }
+        seen.push(name.clone());
+        let called = registry[name.as_str()];
+        gather_calls_in_statements(
+            &called.algorithm,
+            registry,
+            &called.name,
+            &called.imports,
+            &mut wanted,
+        );
+    }
+    false
+}
+
 /// Whether flow control could fire at this nesting level: a `break` or
 /// `return` here or in an `if` here, or a `return` inside a loop here -
 /// loops consume their own breaks but a return passes through them.
@@ -396,10 +435,10 @@ pub(super) fn execute(
                 loop {
                     let now = substitute_refs(condition, bindings);
                     let truth = const_eval(&now, consts).ok_or_else(|| {
-                        "a `while` condition must be decidable at compile time: algorithms \
-                         are executed symbolically, so the trip count cannot depend on a \
-                         simulated variable"
-                            .to_string()
+                        format!(
+                            "{UNDECIDABLE_LOOP}: a `while` here is unrolled, so the trip \
+                             count cannot depend on a simulated variable"
+                        )
                     })?;
                     if truth == 0.0 {
                         break;
@@ -456,7 +495,21 @@ pub(super) fn inline_function(
     registry: &HashMap<&str, &ClassDef>,
     depth: usize,
 ) -> Result<Expr, String> {
-    let mut outputs = inline_function_outputs(class, args, shapes, consts, registry, depth)?;
+    // A call nothing can inline is left standing, and the run walks the
+    // body for itself. Two things cannot be inlined: a function that
+    // leads back to itself, which has no bottom to unroll to, and a
+    // loop whose trip count the model decides rather than the compiler.
+    // The first is known by looking; the second only by trying.
+    if recursive(class, registry) {
+        return Ok(Expr::Call(class.name.clone(), args.to_vec()));
+    }
+    let mut outputs = match inline_function_outputs(class, args, shapes, consts, registry, depth) {
+        Ok(outputs) => outputs,
+        Err(why) if why.starts_with(UNDECIDABLE_LOOP) => {
+            return Ok(Expr::Call(class.name.clone(), args.to_vec()))
+        }
+        Err(why) => return Err(why),
+    };
     let value = outputs.remove(0).1;
     // What a function says about its own inverse is checked and then
     // set aside. The nonlinear corrector already solves `f(x) = u` for
@@ -479,6 +532,281 @@ pub(super) fn inline_function(
             ))
         }
     }
+}
+
+/// The functions a flat model still calls, and everything they call in
+/// turn.
+///
+/// A call standing in a flat model is one nothing could inline, so its
+/// body has to travel with the model for the run to walk. What such a
+/// body may hold is narrower than what an inlined one may: the run
+/// carries numbers and nothing else, so an array or a string inside one
+/// is refused here rather than at the first step of a simulation.
+pub(super) fn programs_used(
+    model: &Model,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Result<Vec<ClassDef>, String> {
+    let mut wanted: Vec<String> = Vec::new();
+    // What the flat model itself calls is named the way the registry
+    // knows it: flattening qualified it on the way out.
+    let mut look = |expr: &Expr| gather_calls(expr, registry, "", &[], &mut wanted);
+    for equation in model.equations.iter().chain(&model.initial_equations) {
+        look(&equation.lhs);
+        look(&equation.rhs);
+    }
+    for (condition, _) in &model.asserts {
+        look(condition);
+    }
+    for clause in &model.when_clauses {
+        for branch in &clause.branches {
+            look(&branch.condition);
+            for action in &branch.actions {
+                match action {
+                    WhenAction::Assign(_, value) | WhenAction::Reinit(_, value) => look(value),
+                    WhenAction::Terminate(_) => {}
+                }
+            }
+        }
+    }
+    // Everything those call, and everything that calls in turn.
+    let mut out: Vec<ClassDef> = Vec::new();
+    while let Some(name) = wanted.pop() {
+        if out.iter().any(|already| already.name == name) {
+            continue;
+        }
+        let class = registry[name.as_str()];
+        walkable(class)?;
+        // A body names what it calls the way it was written there; the
+        // walk looks names up in one table, so they are made to agree.
+        let mut carried = (*class).clone();
+        carried.algorithm =
+            qualified_calls(&class.algorithm, registry, &class.name, &class.imports);
+        out.push(carried);
+        gather_calls_in_statements(
+            &class.algorithm,
+            registry,
+            &class.name,
+            &class.imports,
+            &mut wanted,
+        );
+    }
+    Ok(out)
+}
+
+/// The same statements with every call to a user function named the
+/// way the registry knows it.
+fn qualified_calls(
+    body: &[Statement],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Vec<Statement> {
+    let inner = |body: &[Statement]| qualified_calls(body, registry, scope, imports);
+    let expr = |e: &Expr| qualified_in(e, registry, scope, imports);
+    body.iter()
+        .map(|statement| match statement {
+            Statement::Assign(target, subscripts, value) => Statement::Assign(
+                target.clone(),
+                subscripts.iter().map(&expr).collect(),
+                expr(value),
+            ),
+            Statement::TupleAssign(targets, value) => {
+                Statement::TupleAssign(targets.clone(), expr(value))
+            }
+            Statement::Assert(condition, message) => {
+                Statement::Assert(expr(condition), message.clone())
+            }
+            Statement::If(branches) => Statement::If(rebranch(branches, &expr, &inner)),
+            Statement::When(branches) => Statement::When(rebranch(branches, &expr, &inner)),
+            Statement::For(variable, range, body) => {
+                Statement::For(variable.clone(), range.as_ref().map(&expr), inner(body))
+            }
+            Statement::While(condition, body) => Statement::While(expr(condition), inner(body)),
+            Statement::Break => Statement::Break,
+            Statement::Return => Statement::Return,
+        })
+        .collect()
+}
+
+/// The branches of an `if` or a `when`, rebuilt through the same two
+/// rewrites.
+fn rebranch(
+    branches: &[StatementBranch],
+    expr: &impl Fn(&Expr) -> Expr,
+    inner: &impl Fn(&[Statement]) -> Vec<Statement>,
+) -> Vec<StatementBranch> {
+    branches
+        .iter()
+        .map(|branch| StatementBranch {
+            condition: branch.condition.as_ref().map(expr),
+            body: inner(&branch.body),
+        })
+        .collect()
+}
+
+/// The same expression with every call to a user function named the way
+/// the registry knows it.
+fn qualified_in(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    let recur = |inner: &Expr| qualified_in(inner, registry, scope, imports);
+    match expr {
+        Expr::Call(name, args) => {
+            let named = lookup(registry, name, scope, imports)
+                .filter(|class| class.kind == ClassKind::Function)
+                .map(|class| class.name.clone())
+                .unwrap_or_else(|| name.clone());
+            Expr::Call(named, args.iter().map(recur).collect())
+        }
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Range(a, step, b) => Expr::Range(
+            Box::new(recur(a)),
+            step.as_ref().map(|s| Box::new(recur(s))),
+            Box::new(recur(b)),
+        ),
+        Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
+        _ => expr.clone(),
+    }
+}
+
+/// Every user function an expression calls.
+fn gather_calls(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    out: &mut Vec<String>,
+) {
+    // A body names what it calls the way it was written there, so the
+    // name is resolved where it was written before it is filed under
+    // the one the registry knows it by.
+    if let Expr::Call(name, _) = expr {
+        if let Some(class) = lookup(registry, name, scope, imports) {
+            if class.kind == ClassKind::Function {
+                out.push(class.name.clone());
+            }
+        }
+    }
+    match expr {
+        Expr::Call(_, args) => args
+            .iter()
+            .for_each(|arg| gather_calls(arg, registry, scope, imports, out)),
+        Expr::WithDerivative(value, rule, seeds) => {
+            gather_calls(value, registry, scope, imports, out);
+            gather_calls(rule, registry, scope, imports, out);
+            seeds
+                .iter()
+                .for_each(|(_, arg)| gather_calls(arg, registry, scope, imports, out));
+        }
+        Expr::Neg(inner) | Expr::Not(inner) => gather_calls(inner, registry, scope, imports, out),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => {
+            gather_calls(l, registry, scope, imports, out);
+            gather_calls(r, registry, scope, imports, out);
+        }
+        Expr::If(c, a, b) => {
+            gather_calls(c, registry, scope, imports, out);
+            gather_calls(a, registry, scope, imports, out);
+            gather_calls(b, registry, scope, imports, out);
+        }
+        _ => {}
+    }
+}
+
+/// Every user function the statements of a body call.
+fn gather_calls_in_statements(
+    body: &[Statement],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    out: &mut Vec<String>,
+) {
+    for statement in body {
+        match statement {
+            Statement::Assign(_, subscripts, value) => {
+                subscripts
+                    .iter()
+                    .for_each(|s| gather_calls(s, registry, scope, imports, out));
+                gather_calls(value, registry, scope, imports, out);
+            }
+            Statement::TupleAssign(_, value) => gather_calls(value, registry, scope, imports, out),
+            Statement::Assert(condition, _) => {
+                gather_calls(condition, registry, scope, imports, out)
+            }
+            Statement::If(branches) | Statement::When(branches) => {
+                for branch in branches {
+                    if let Some(condition) = &branch.condition {
+                        gather_calls(condition, registry, scope, imports, out);
+                    }
+                    gather_calls_in_statements(&branch.body, registry, scope, imports, out);
+                }
+            }
+            Statement::For(_, range, inner) => {
+                if let Some(range) = range {
+                    gather_calls(range, registry, scope, imports, out);
+                }
+                gather_calls_in_statements(inner, registry, scope, imports, out);
+            }
+            Statement::While(condition, inner) => {
+                gather_calls(condition, registry, scope, imports, out);
+                gather_calls_in_statements(inner, registry, scope, imports, out);
+            }
+            Statement::Break | Statement::Return => {}
+        }
+    }
+}
+
+/// What a body the run walks may be made of. The run carries numbers,
+/// so anything shaped otherwise is refused here rather than left to
+/// fail at the first step.
+fn walkable(class: &ClassDef) -> Result<(), String> {
+    for component in &class.components {
+        if !component.dimensions.is_empty() {
+            return Err(format!(
+                "`{}` is called where nothing could inline it, so the run walks its body - \
+                 and `{}` is an array, which a body walked at run time cannot hold",
+                class.name, component.name
+            ));
+        }
+        if component.type_name == "String" {
+            return Err(format!(
+                "`{}` is called where nothing could inline it, so the run walks its body - \
+                 and `{}` is a String, which no step carries",
+                class.name, component.name
+            ));
+        }
+    }
+    if class
+        .components
+        .iter()
+        .filter(|c| c.causality == Causality::Output)
+        .count()
+        != 1
+    {
+        return Err(format!(
+            "`{}` is called where nothing could inline it, so the run walks its body - \
+             and a body walked at run time gives one output, not {}",
+            class.name,
+            class
+                .components
+                .iter()
+                .filter(|c| c.causality == Causality::Output)
+                .count()
+        ));
+    }
+    Ok(())
 }
 
 /// Check what a function says about its own inverse: the function it

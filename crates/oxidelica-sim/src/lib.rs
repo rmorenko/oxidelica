@@ -9,7 +9,8 @@
 #![deny(missing_docs)]
 
 use oxidelica_parser::{
-    BinOp, EquationItem, Expr, Model, RelOp, Variability, WhenAction, WhenBranch, WhenClause,
+    BinOp, Causality, ClassDef, Component, EquationItem, Expr, Model, RelOp, Statement,
+    Variability, WhenAction, WhenBranch, WhenClause,
 };
 use std::collections::HashMap;
 use std::fmt;
@@ -24,6 +25,7 @@ mod solvers;
 mod symbolic;
 #[cfg(test)]
 mod tests;
+mod walk;
 
 pub use compile::compile;
 
@@ -313,6 +315,9 @@ pub struct CompiledModel {
     /// `when` clauses, compiled: conditions and the values they assign,
     /// with every target already resolved to its place.
     when_clauses: Vec<CompiledWhen>,
+    /// The bodies this run walks, and where a walk leaves its reason
+    /// when one fails.
+    walked: std::sync::Arc<Walked>,
     /// Event indicators: expressions whose sign change marks an event.
     /// Built from every relation in the model, so switching branches of
     /// an `if` expression are located exactly, not stepped over.
@@ -413,6 +418,13 @@ const MAX_DEFINITION_PASSES: usize = 16;
 struct EvalCtx<'a> {
     vars: &'a HashMap<String, f64>,
     time: f64,
+    /// The bodies the run walks for itself, where there are any: a call
+    /// to one of these is answered by walking it rather than by any
+    /// built-in rule.
+    programs: Option<&'a HashMap<String, ClassDef>>,
+    /// How deep the walking has gone, so a function calling itself for
+    /// ever is stopped rather than running the stack out.
+    depth: usize,
 }
 
 /// Where a variable sits in the value array a run carries.
@@ -483,6 +495,9 @@ enum Code {
     Or(Box<Code>, Box<Code>),
     /// Conditional; only the branch taken is evaluated.
     If(Box<Code>, Box<Code>, Box<Code>),
+    /// A call to a body the run walks, by the name the model knows it
+    /// by, with the arguments to work out first.
+    Program(std::sync::Arc<Walked>, String, Vec<Code>),
     /// A one-argument built-in.
     Unary(Unary, Box<Code>),
     /// A two-argument built-in.
@@ -490,9 +505,31 @@ enum Code {
 }
 
 /// Names of the variables of a model, each with the slot it occupies.
+/// The bodies a run walks, and the first thing that went wrong while
+/// walking one.
+///
+/// `Code::run` answers with a number and has no way to say "this went
+/// wrong", so a walk that fails leaves its reason here and answers with
+/// a number that is not one. Whoever evaluated the point reads the
+/// reason back out and stops the run with it.
+#[derive(Debug)]
+pub(crate) struct Walked {
+    pub(crate) programs: HashMap<String, ClassDef>,
+    pub(crate) trouble: std::sync::Mutex<Option<String>>,
+}
+
+impl Walked {
+    /// Take the reason a walk failed, if one did.
+    pub(crate) fn complaint(&self) -> Option<String> {
+        self.trouble.lock().ok().and_then(|mut held| held.take())
+    }
+}
+
 struct SlotTable {
     /// Slot of every known name.
     index: HashMap<String, Slot>,
+    /// The bodies the run walks, shared with every call compiled.
+    walked: std::sync::Arc<Walked>,
     /// The value array as a run starts it: parameters already in place,
     /// everything else zero.
     template: Vec<f64>,

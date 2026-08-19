@@ -87,6 +87,8 @@ impl EventRewrite<'_> {
                         &EvalCtx {
                             vars: self.params,
                             time: 0.0,
+                            programs: None,
+                            depth: 0,
                         },
                     )?;
                     if seconds <= 0.0 || seconds.is_nan() {
@@ -99,6 +101,8 @@ impl EventRewrite<'_> {
                     let ctx = EvalCtx {
                         vars: self.params,
                         time: 0.0,
+                        programs: None,
+                        depth: 0,
                     };
                     let start = eval(&args[0], &ctx)?;
                     let interval = eval(&args[1], &ctx)?;

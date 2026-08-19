@@ -124,6 +124,14 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     ))
                 }
             };
+            // A body the run walks answers before any built-in rule is
+            // looked for: it is the model's own function, and its name
+            // is its own.
+            if let Some(programs) = ctx.programs {
+                if programs.contains_key(name.as_str()) {
+                    return crate::walk::walk(programs, name, &vals, ctx.time, ctx.depth + 1);
+                }
+            }
             match name.as_str() {
                 "der" => return err("der() outside a state equation is not supported in M0"),
                 "sin" => {
@@ -247,6 +255,21 @@ impl Code {
     pub(crate) fn run(&self, values: &[f64], time: f64) -> f64 {
         match self {
             Code::Const(value) => *value,
+            // A body the run walks: work the arguments out, walk it,
+            // and where the walk fails leave the reason behind and
+            // answer with a number that is not one.
+            Code::Program(walked, name, args) => {
+                let given: Vec<f64> = args.iter().map(|arg| arg.run(values, time)).collect();
+                match crate::walk::walk(&walked.programs, name, &given, time, 0) {
+                    Ok(worth) => worth,
+                    Err(SimError(why)) => {
+                        if let Ok(mut held) = walked.trouble.lock() {
+                            held.get_or_insert(why);
+                        }
+                        f64::NAN
+                    }
+                }
+            }
             Code::Slot(slot) => values[*slot],
             Code::Time => time,
             Code::Neg(inner) => -inner.run(values, time),
@@ -326,10 +349,14 @@ impl Code {
 
 impl SlotTable {
     /// An empty table.
-    pub(crate) fn new() -> SlotTable {
+    pub(crate) fn new(programs: HashMap<String, ClassDef>) -> SlotTable {
         SlotTable {
             index: HashMap::new(),
             template: Vec::new(),
+            walked: std::sync::Arc::new(Walked {
+                programs,
+                trouble: std::sync::Mutex::new(None),
+            }),
         }
     }
 
@@ -404,6 +431,17 @@ impl SlotTable {
     /// The built-in behind a call, with its arity checked here rather
     /// than on every evaluation.
     pub(crate) fn compile_call(&self, name: &str, args: &[Expr]) -> Result<Code, SimError> {
+        // A body this run walks answers to its own name before any
+        // built-in rule is looked for.
+        if self.walked.programs.contains_key(name) {
+            return Ok(Code::Program(
+                self.walked.clone(),
+                name.to_string(),
+                args.iter()
+                    .map(|arg| self.compile(arg))
+                    .collect::<Result<Vec<_>, SimError>>()?,
+            ));
+        }
         let unary = match name {
             "ceil" => Some(Unary::Ceil),
             "floor" => Some(Unary::Floor),

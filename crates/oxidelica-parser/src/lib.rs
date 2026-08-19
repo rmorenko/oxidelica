@@ -10,8 +10,8 @@ pub mod library;
 pub mod parser;
 
 pub use ast::{
-    BinOp, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, RelOp, Statement,
-    StatementBranch, Variability, WhenAction, WhenBranch, WhenClause,
+    BinOp, Causality, ClassDef, ClassKind, Component, EquationItem, Experiment, Expr, Model, RelOp,
+    Statement, StatementBranch, Variability, WhenAction, WhenBranch, WhenClause,
 };
 pub use flatten::{class_info, ClassInfo};
 pub use library::{library_directory, library_sources, LIBRARY_VARIABLE};

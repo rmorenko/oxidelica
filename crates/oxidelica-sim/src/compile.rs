@@ -607,6 +607,8 @@ fn reduce_index(
                         &EvalCtx {
                             vars: start_env,
                             time: at_time,
+                            programs: None,
+                            depth: 0,
                         },
                     )
                     .ok()
@@ -800,6 +802,8 @@ fn settle_modes(
                 &EvalCtx {
                     vars: &mode_env,
                     time: mode_time,
+                    programs: None,
+                    depth: 0,
                 },
             ) {
                 if mode_env.insert(name.clone(), value) != Some(value) {
@@ -814,6 +818,8 @@ fn settle_modes(
     let start_ctx = EvalCtx {
         vars: &mode_env,
         time: mode_time,
+        programs: None,
+        depth: 0,
     };
     let mut modes: Vec<usize> = Vec::new();
     for conditional in &model.conditional {
@@ -861,6 +867,8 @@ fn values_at_this_point(
                             &EvalCtx {
                                 vars: params,
                                 time: 0.0,
+                                programs: None,
+                                depth: 0,
                             },
                         )
                         .ok()
@@ -940,6 +948,8 @@ fn discrete_layer(
                             &EvalCtx {
                                 vars: params,
                                 time: 0.0,
+                                programs: None,
+                                depth: 0,
                             },
                         )
                         .ok()
@@ -1051,6 +1061,8 @@ fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> 
                 &EvalCtx {
                     vars: &params,
                     time: 0.0,
+                    programs: None,
+                    depth: 0,
                 },
             ) {
                 Ok(v) => {
@@ -1262,6 +1274,8 @@ pub(crate) fn compile_at(
     let ctx0 = EvalCtx {
         vars: &params,
         time: 0.0,
+        programs: None,
+        depth: 0,
     };
     let mut initial = Vec::new();
     for s in &states {
@@ -1365,7 +1379,15 @@ pub(crate) fn compile_at(
     // Everything a run reads gets a place in one array, and every
     // expression is resolved against it: after this point the solvers
     // never look a variable up by name.
-    let mut table = SlotTable::new();
+    // The bodies nothing could inline travel with the model; a call to
+    // one of them is compiled into a walk rather than into arithmetic.
+    let mut table = SlotTable::new(
+        model
+            .functions
+            .iter()
+            .map(|class| (class.name.clone(), class.clone()))
+            .collect(),
+    );
     for (name, value) in &parameters {
         table.constant(name, *value);
     }
@@ -1593,6 +1615,7 @@ pub(crate) fn compile_at(
         discretes,
         samples,
         when_clauses: compiled_whens,
+        walked: table.walked.clone(),
         indicators: compiled_indicators,
     };
     // States the model pins down itself: `fixed = true` says the start

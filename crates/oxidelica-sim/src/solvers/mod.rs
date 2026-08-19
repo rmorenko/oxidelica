@@ -423,7 +423,13 @@ impl CompiledModel {
         for code in &self.derivatives {
             derivatives_out.push(code.run(values, t));
         }
-        Ok(())
+        // A body the run walks answers with a number, so a walk that
+        // failed left its reason behind rather than raising one. This is
+        // where it is read back out.
+        match self.walked.complaint() {
+            Some(why) => Err(SimError(format!("at t = {t:.6}: {why}"))),
+            None => Ok(()),
+        }
     }
 
     /// Solve one implicit algebraic block by damped-free Newton

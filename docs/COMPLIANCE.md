@@ -185,13 +185,33 @@ has two elements indexed off `false`, `Real x[E]` one per enumeration
 literal - or a `:` that reads its length from the value the component
 is given.
 
-**Functions** (ch. 12): no recursion, no external C/Fortran, no
-functions as arguments, no record constructors. Functions are inlined
-symbolically, which is also what rules recursion out — and a skipped
-tuple slot still costs the work of computing that output's expression.
-`while` runs at compile time, so its condition must be decidable there:
-the trip count cannot depend on a simulated variable, and a `break` or
-`return` behind an undecidable `if` is an error.
+**Functions** (ch. 12): no external C/Fortran, no functions as
+arguments, no record constructors. A function is inlined symbolically
+wherever it can be, which is what lets the compiler differentiate
+through one and fold it away where the arguments are known — and a
+skipped tuple slot still costs the work of computing that output's
+expression.
+
+Where inlining cannot reach, the call is left standing and the run
+walks the body for itself, one number at a time. Two things cannot be
+inlined: a function that leads back to itself, directly or through
+others, which has no bottom to unroll to; and a `while` whose trip
+count the model decides rather than the compiler. So recursion and a
+data-dependent loop both run, and `5!` written the obvious way comes
+out at 120.
+
+What a walked body may hold is narrower than what an inlined one may,
+because a walk carries numbers: an array or a `String` inside one is
+refused, as is a body giving more than one answer, and a `when` has no
+meaning there since there is no event inside a call. A walk that will
+not end is stopped and named — 64 calls deep, or ten million rounds of
+one loop. And a walked body is opaque to everything the symbolic layer
+does: it cannot be differentiated except through a `derivative`
+annotation, and it is not folded where its arguments are known.
+
+Among a model's own statements a `while` is still unrolled where it
+stands, so its trip count has to be settled there: only a call can be
+left for the run to walk.
 
 A function may say how to differentiate itself:
 `annotation(derivative = f_der)` names a function taking what this one

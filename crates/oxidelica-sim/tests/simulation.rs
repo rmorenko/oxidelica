@@ -1564,6 +1564,121 @@ fn a_clock_left_unsaid_runs_like_the_one_written_out() {
 }
 
 #[test]
+fn a_body_nothing_could_inline_is_walked_by_the_run() {
+    // Two things inlining cannot do. A function that leads back to
+    // itself has no bottom to unroll to; `5!` is the plainest example
+    // there is, and it comes out at 120.
+    let factorial = run("model M function fact input Real n; output Real y; \
+         algorithm if n <= 1 then y := 1; else y := n * fact(n - 1); end if; end fact; \
+         Real y; equation y = fact(5); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;");
+    let index =
+        |result: &SimResult, name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert_eq!(
+        factorial.rows.last().unwrap()[index(&factorial, "y")],
+        120.0
+    );
+
+    // And a loop whose trip count the model decides rather than the
+    // compiler: `u` counts up with time, and the body counts with it.
+    let counted = run("model M function count input Real x; output Real y; \
+         algorithm y := 0; while y < x loop y := y + 1; end while; end count; \
+         Real u; Real y; equation u = time * 3; y = count(u); \
+         annotation(experiment(StopTime = 2, Interval = 1)); end M;");
+    let y = index(&counted, "y");
+    // At t = 0 nothing to count to, at 1 up to 3, at 2 up to 6.
+    assert_eq!(counted.rows[0][y], 0.0);
+    assert_eq!(counted.rows.last().unwrap()[y], 6.0);
+
+    // Everything a walked body may hold, in one body: a loop whose
+    // range the model decides, a `break` out of it, a set written out,
+    // a check, an early `return`, and the call that made it walked at
+    // all. Worked out by hand: 0, 31, 64, 100, 136, 172.
+    let broad = run(
+        "model M function walkme input Real n; output Real y; protected Real acc; \
+         algorithm acc := 0; \
+         for i in 1:n loop if i > 3 then break; end if; acc := acc + i; end for; \
+         for j in {10, 20} loop acc := acc + j; end for; \
+         assert(acc > 0, \"the sum must be positive\"); \
+         if n <= 0 then y := 0; return; end if; \
+         y := acc + walkme(n - 1); end walkme; \
+         Real y; equation y = walkme(5); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;",
+    );
+    assert_eq!(broad.rows.last().unwrap()[index(&broad, "y")], 172.0);
+
+    let runaway = |source: &str| {
+        compile(&parse_model(source).unwrap())
+            .expect("builds")
+            .simulate()
+            .expect_err("does not end")
+            .to_string()
+    };
+
+    // A walk that will not end is stopped and told about, rather than
+    // left to run the stack or the clock out.
+    assert!(runaway(
+        "model M function loops input Real a; output Real b; algorithm b := loops(a); end loops; \
+         Real y; equation y = loops(1); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;"
+    )
+    .contains("called itself 64 deep"));
+    // A range with a step, worked out where it stands: 1 + 3 + 5 twice
+    // over, once for each round of the recursion.
+    let stepped = run(
+        "model M function f input Real a; output Real b; protected Real acc; \
+         algorithm acc := 0; for i in 1:2:5 loop acc := acc + i; end for; b := acc; \
+         if a > 0 then b := b + f(a - 1); end if; end f; \
+         Real y; equation y = f(1); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;",
+    );
+    assert_eq!(stepped.rows.last().unwrap()[index(&stepped, "y")], 18.0);
+
+    // What a `for` in a walked body cannot run over: a range the body
+    // was meant to read off an array, and a single value.
+    let walked = |body: &str| {
+        runaway(&format!(
+            "model M function f input Real a; output Real b; protected Real acc; \
+             algorithm acc := 0; {body} \
+             if a > 0 then b := b + f(a - 1); end if; end f; \
+             Real y; equation y = f(1); \
+             annotation(experiment(StopTime = 0, Interval = 1)); end M;"
+        ))
+    };
+    assert!(walked("for i loop acc := acc + i; end for; b := acc;")
+        .contains("a walked body holds no arrays"));
+    assert!(
+        walked("for i in acc loop acc := acc + i; end for; b := acc;")
+            .contains("runs over a range or a set written out")
+    );
+    // And a call given more than the body takes.
+    assert!(runaway(
+        "model M function f input Real a; output Real b; \
+         algorithm b := a; if a > 0 then b := f(a - 1); end if; end f; \
+         Real y; equation y = f(1, 2); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;"
+    )
+    .contains("takes 1 argument(s), given 2"));
+
+    // A `when` has no meaning inside a call: there is no event there,
+    // and the walk says so where it meets one.
+    assert!(runaway(
+        "model M function w input Real a; output Real b; \
+         algorithm when a > 0 then b := 1; end when; b := b + w(a - 1); end w; \
+         Real y; equation y = w(1); \
+         annotation(experiment(StopTime = 0, Interval = 1)); end M;"
+    )
+    .contains("no event inside a call"));
+    assert!(runaway(
+        "model M function away input Real a; output Real b; \
+         algorithm b := 0; while b < a loop b := b - 1; end while; end away; \
+         Real u; Real y; equation u = time + 1; y = away(u); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    )
+    .contains("without its condition turning false"));
+}
+
+#[test]
 fn a_supplied_derivative_carries_a_model_the_compiler_could_not() {
     // `f(x) = |x| * 2`, which the differentiator cannot take apart. The
     // model needs it differentiated twice over: once to reduce the

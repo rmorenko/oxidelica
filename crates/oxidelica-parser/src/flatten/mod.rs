@@ -338,6 +338,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         when_clauses: acc.when_clauses,
         conditional: Vec::new(),
         experiment: top_class.experiment.clone(),
+        functions: Vec::new(),
     };
     for conditional in &acc.conditional {
         for branch in &conditional.branches {
@@ -403,6 +404,10 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // is in the model: what they leave behind is a Boolean where one
     // was compared, and nothing where one was declared.
     resolve_strings(&mut model)?;
+    // Whatever calls are still standing in the flat model are calls
+    // nothing could inline. The bodies behind them travel with the
+    // model, so the run can walk them for itself.
+    model.functions = programs_used(&model, &registry)?;
     Ok(model)
 }
 

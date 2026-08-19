@@ -31,6 +31,8 @@ fn value_of(expr: &Expr, bindings: &[(&str, f64)]) -> f64 {
         &EvalCtx {
             vars: &vars,
             time: 0.0,
+            programs: None,
+            depth: 0,
         },
     )
     .unwrap()

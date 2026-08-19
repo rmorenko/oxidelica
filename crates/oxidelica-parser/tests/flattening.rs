@@ -1114,9 +1114,13 @@ fn the_rest_of_the_refusals_are_named_too() {
         "model Sub Real a; end Sub; model M Real p; Real q; Sub s; equation (p, q) = s.a; end M;"
     )
     .contains("must be a function call"));
-    // A function that calls itself has no bottom.
-    assert!(err("function loops input Real a; output Real b; algorithm b := loops(a); end loops; model M Real y; equation y = loops(1); end M;")
-        .contains("nested deeper than the instantiation limit"));
+    // A function that calls itself has no bottom to inline to, so it
+    // is carried whole and the run walks it - where a call with no way
+    // out is a runaway rather than a refusal.
+    let carried = parse_model("function loops input Real a; output Real b; algorithm b := loops(a); end loops; model M Real y; equation y = loops(1); end M;")
+        .unwrap();
+    assert_eq!(carried.functions.len(), 1);
+    assert_eq!(carried.functions[0].name, "loops");
 }
 
 #[test]
@@ -1789,6 +1793,63 @@ const NOT_SMOOTH: &str = "function f input Real x; output Real y; \
      algorithm y := abs(x) * 2; annotation(derivative = fd); end f; \
      function fd input Real x; input Real x_der; output Real y_der; \
      algorithm y_der := (if x >= 0 then 2 else -2) * x_der; end fd; ";
+
+#[test]
+fn what_cannot_be_inlined_travels_with_the_model() {
+    // A recursive function is carried whole, with everything it calls,
+    // and named the way the registry knows it so the walk finds it.
+    let m = parse_model(
+        "model M function even input Real n; output Real y; \
+         algorithm if n <= 0 then y := 1; else y := odd(n - 1); end if; end even; \
+         function odd input Real n; output Real y; \
+         algorithm if n <= 0 then y := 0; else y := even(n - 1); end if; end odd; \
+         Real y; equation y = even(4); end M;",
+    )
+    .unwrap();
+    let carried: Vec<&str> = m
+        .functions
+        .iter()
+        .map(|class| class.name.as_str())
+        .collect();
+    assert!(
+        carried.contains(&"M.even") && carried.contains(&"M.odd"),
+        "{carried:?}"
+    );
+    assert_eq!(
+        format!("{:?}", m.equations[0].rhs),
+        "Call(\"M.even\", [Number(4.0)])"
+    );
+    let inside = format!("{:?}", m.functions[0].algorithm);
+    assert!(
+        inside.contains("M.odd") || inside.contains("M.even"),
+        "{inside}"
+    );
+
+    // A function inlines as before where it can, and then nothing
+    // travels: the model carries only what the run has to walk.
+    let plain = parse_model(
+        "model M function twice input Real x; output Real y; algorithm y := x * 2; end twice; \
+         Real y; equation y = twice(3); end M;",
+    )
+    .unwrap();
+    assert!(plain.functions.is_empty());
+
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // What a walked body may hold is narrower than what an inlined one
+    // may: a walk carries numbers, one at a time.
+    let recursive = |extra: &str, body: &str| {
+        format!(
+            "model M function f input Real a; output Real b; {extra} \
+             algorithm {body} if a > 0 then b := f(a - 1); end if; end f; \
+             Real y; equation y = f(1); end M;"
+        )
+    };
+    assert!(
+        err(&recursive("protected Real v[3];", "v[1] := a; b := v[1];"))
+            .contains("`v` is an array")
+    );
+    assert!(err(&recursive("protected String s;", "b := a;")).contains("`s` is a String"));
+}
 
 #[test]
 fn a_function_may_say_how_to_differentiate_itself() {
@@ -2701,10 +2762,12 @@ fn algorithm_error_paths() {
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm y := 0; for i in 1:u loop y := y + i; end for; end M;")
     .contains("a range needs bounds the compiler can see"));
-    // A `while` whose trip count depends on a simulated variable.
+    // A `while` among a model's own statements is unrolled where it
+    // stands, so its trip count has to be settled: only a call can be
+    // left standing for the run to walk.
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm y := 0; while y < u loop y := y + 1; end while; end M;")
-    .contains("decidable at compile time"));
+    .contains("the trip count of a loop is not settled here"));
     // An empty loop body.
     assert!(err("model M Real y; algorithm for i in 1:2 loop end for; end M;").contains("no body"));
 }
