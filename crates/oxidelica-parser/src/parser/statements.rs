@@ -118,7 +118,9 @@ impl Parser {
                         match self.peek() {
                             Token::Comma | Token::RParen => targets.push(None),
                             _ => {
-                                let name = self.ident("target of a tuple assignment")?;
+                                // A target may be a field of a record:
+                                // `(next, token.integer) := scan(...)`.
+                                let name = self.component_ref()?;
                                 // `(v[:, 1], info) := f(...)` fills part
                                 // of an array; the subscripts are read
                                 // here and weighed where the assignment

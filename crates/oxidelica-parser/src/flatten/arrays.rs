@@ -233,14 +233,33 @@ pub(super) fn expand(
             // can decide is part of the structure being built; outside
             // one it is a value the model may be re-run with.
             if shapes.loop_vars.is_empty() {
-                let (then, otherwise) = (recur(then)?, recur(otherwise)?);
-                return zip_values(&then, &otherwise, &|a, b| {
-                    Expr::If(
-                        Box::new(condition.clone()),
-                        Box::new(a.clone()),
-                        Box::new(b.clone()),
-                    )
-                });
+                let (taken, left) = (recur(then)?, recur(otherwise)?);
+                // Two branches of the same shape are one value chosen
+                // as the run goes. Two of different shapes are not a
+                // value at all but a structure - the standard library
+                // builds a table one way or another way depending on
+                // whether there is anything in it - and a structure
+                // has to be settled here.
+                if taken.shape() == left.shape() {
+                    return zip_values(&taken, &left, &|a, b| {
+                        Expr::If(
+                            Box::new(condition.clone()),
+                            Box::new(a.clone()),
+                            Box::new(b.clone()),
+                        )
+                    });
+                }
+                let Some(truth) = constant_here(&condition) else {
+                    return Err(format!(
+                        "an `if` whose branches are of shapes {:?} and {:?} decides the \
+                         shape of what it stands for, so its condition has to be one the \
+                         compiler can settle: {}",
+                        taken.shape(),
+                        left.shape(),
+                        crate::flatten::names::sketch(&condition)
+                    ));
+                };
+                return Ok(if truth != 0.0 { taken } else { left });
             }
             if let Some(truth) = constant_here(&condition) {
                 return if truth != 0.0 {

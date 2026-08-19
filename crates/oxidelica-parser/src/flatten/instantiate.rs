@@ -370,11 +370,14 @@ pub(super) fn instantiate(
 
         // The value that fixes a flexible `:` size, if the component has
         // one: an override handed down, else the declaration's own.
+        // A value handed down is already written in the terms of the
+        // class that handed it down; only the declaration's own still
+        // needs this class's prefix put on it.
         let sizing_binding = overrides
             .iter()
             .find(|(name, _)| name == &component.name)
-            .map(|(_, e)| e.clone())
-            .or_else(|| component.binding.clone());
+            .map(|(_, e)| (e.clone(), true))
+            .or_else(|| component.binding.clone().map(|e| (e, false)));
 
         let mut component = component.clone();
         if let Some(value) = settled.get(&component.name) {
@@ -450,7 +453,7 @@ pub(super) fn instantiate(
                     // factor, which is how the standard library draws
                     // its axis labels - has to be worked out before it
                     // can be measured.
-                    let measured = |binding: &Expr| -> Option<i64> {
+                    let measured = |(binding, prefixed): &(Expr, bool)| -> Option<i64> {
                         if let Some(length) = flexible_size(binding, axis) {
                             return Some(length);
                         }
@@ -460,17 +463,16 @@ pub(super) fn instantiate(
                             consts: &local_consts,
                             records: no_records(),
                         };
-                        let binding =
-                            substitute_class_constants(binding, registry, scope, &imports, &shadow);
-                        let value = expand(
-                            &prefix_expr(&binding, prefix, &outers),
-                            &shapes,
-                            registry,
-                            scope,
-                            &imports,
-                            0,
-                        )
-                        .ok()?;
+                        let binding = match prefixed {
+                            true => binding.clone(),
+                            false => {
+                                let binding = substitute_class_constants(
+                                    binding, registry, scope, &imports, &shadow,
+                                );
+                                prefix_expr(&binding, prefix, &outers)
+                            }
+                        };
+                        let value = expand(&binding, &shapes, registry, scope, &imports, 0).ok()?;
                         value.shape().get(axis).map(|length| *length as i64)
                     };
                     sizing_binding.as_ref().and_then(measured).ok_or_else(|| {
@@ -479,7 +481,7 @@ pub(super) fn instantiate(
                              its length from, and {} is not one",
                             sizing_binding.as_ref().map_or_else(
                                 || "nothing".to_string(),
-                                crate::flatten::names::sketch
+                                |(binding, _)| crate::flatten::names::sketch(binding)
                             )
                         )
                     })?

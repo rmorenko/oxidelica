@@ -5589,3 +5589,72 @@ fn a_clock_may_arrive_through_a_connection() {
     let ticks = format!("{:?}", m.when_clauses);
     assert!(ticks.contains("0.1"), "{ticks}");
 }
+
+/// An `if` whose branches are of different shapes decides a structure
+/// rather than a value.
+#[test]
+fn an_if_between_shapes_is_settled_before_the_run() {
+    // A table built one way when there is something in it and another
+    // when there is not: the two are of different shapes, so which one
+    // stands is not something a run can be left to choose.
+    let m = parse_model(
+        "package P \
+           block Held parameter Real t[:, 2] = fill(0.0, 0, 2); Real y; \
+             equation y = t[1, 1] * time; end Held; \
+           block Table parameter Real points[:] = {0, 1}; \
+             Held held(final t = if n > 0 then [points[1], 0.0; points, {1.0, 0.0}] \
+                                 else [0.0, 0.0]); \
+             Real y; \
+           protected parameter Integer n = size(points, 1); \
+             equation y = held.y; end Table; \
+         end P; \
+         model M P.Table t; Real z; equation z = t.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a table chosen by a condition");
+    // Two points and a row in front of them: three rows of two.
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("t.held.t["))
+            .count(),
+        6
+    );
+
+    // Where the branches are of one shape it stays a choice the run
+    // makes, so the parameter is still one to re-run with.
+    let m = parse_model(
+        "model M parameter Boolean high = true; Real v[2]; Real y; \
+         equation v = if high then {1, 2} else {3, 4}; y = v[1]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a choice of one shape");
+    assert!(format!("{:?}", m.equations).contains("If("));
+
+    // And where it decides a shape and cannot be settled, it says so.
+    let error = parse_model(
+        "model M Real v[2]; Real y; equation y = time; \
+         v = if y > 0 then {1, 2} else {3}; end M;",
+    )
+    .expect_err("a shape the run would choose")
+    .message;
+    assert!(error.contains("decides the shape"), "{error}");
+}
+
+/// A tuple assignment may fill a field of a record.
+#[test]
+fn a_tuple_may_fill_a_field() {
+    let m = parse_model(
+        "model M record Token Real value; Real kind; end Token; \
+         function scan input Real u; output Real next; output Real found; \
+         algorithm next := u + 1; found := u * 2; end scan; \
+         function read input Real u; output Real y; protected Real next; Token token; \
+         algorithm (next, token.value) := scan(u); y := next + token.value; end read; \
+         Real y; equation y = read(3); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a field filled from a tuple");
+    // 3 + 1 and 3 * 2 make ten.
+    let written = format!("{:?}", m.equations[0].rhs);
+    assert!(written.contains("Number(3.0)"), "{written}");
+}

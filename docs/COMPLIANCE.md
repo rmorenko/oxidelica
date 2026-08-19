@@ -390,8 +390,8 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2624 parse, and 182 of
-its 650 example models flatten. What stands in the way of the rest is
+of the Modelica Standard Library's 2674 files, 2628 parse, and 183 of
+its 670 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:
 a class of `Blocks.Math` that is still not read, the multibody
