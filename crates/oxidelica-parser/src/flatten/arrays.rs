@@ -473,14 +473,24 @@ pub(super) fn expand_call(
             Ok(Value::Scalar(reduced))
         }
         // Constructors.
-        ("zeros", 1) | ("ones", 1) => {
-            let length = constant(&args[0])?;
+        // `zeros(n)`, `zeros(n, m)`, `zeros(n, m, k)` - as many
+        // dimensions as it is given, and the same for `ones`.
+        ("zeros", _) | ("ones", _) if !args.is_empty() => {
             let value = if name == "ones" { 1.0 } else { 0.0 };
-            Ok(Value::Array(
-                (0..length)
-                    .map(|_| Value::Scalar(Expr::Number(value)))
-                    .collect(),
-            ))
+            let lengths = args
+                .iter()
+                .map(&constant)
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(nested(&lengths, &Expr::Number(value)))
+        }
+        // `fill(v, n, m, ...)` - the value, then the dimensions.
+        ("fill", _) if args.len() > 2 => {
+            let filler = recur(&args[0])?.scalar()?;
+            let lengths = args[1..]
+                .iter()
+                .map(&constant)
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(nested(&lengths, &filler))
         }
         ("fill", 2) => {
             let filler = recur(&args[0])?.scalar()?;
@@ -493,7 +503,10 @@ pub(super) fn expand_call(
             let value = recur(&args[0])?;
             let shape = value.shape();
             if shape.len() != 2 {
-                return Err("transpose works on a matrix".to_string());
+                return Err(format!(
+                    "transpose works on a matrix, and {} is of shape {shape:?}",
+                    crate::flatten::names::sketch(&args[0])
+                ));
             }
             let Value::Array(rows) = &value else {
                 return Err("transpose works on a matrix".to_string());
@@ -1108,6 +1121,14 @@ pub(super) fn collect_shapes(
         if let Some(sizes) = sizes {
             out.insert(component.name.clone(), sizes);
         }
+    }
+}
+
+/// An array of the given shape, every element the same.
+fn nested(lengths: &[i64], value: &Expr) -> Value {
+    match lengths.split_first() {
+        None => Value::Scalar(value.clone()),
+        Some((&length, rest)) => Value::Array((0..length).map(|_| nested(rest, value)).collect()),
     }
 }
 

@@ -226,7 +226,11 @@ pub(super) fn instantiate(
     // shaped like, so a value may name one as a whole.
     let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
     collect_shapes(registry, class, &local_consts, &mut sizes, 0);
-    let sizes_here = prefixed_sizes(&sizes, prefix);
+    let mut sizes_here = prefixed_sizes(&sizes, prefix);
+    // How much of the growing list of measured arrays has been taken
+    // into the table above. Each declaration brings its own, and the
+    // one after it may be written with them.
+    let mut taken = 0;
     // Which of this class's components are records, and of what: an
     // overloaded operator is chosen by the record its operands are of.
     let records_here: HashMap<String, String> = class
@@ -240,6 +244,13 @@ pub(super) fn instantiate(
         .collect();
 
     for component in &class.components {
+        while taken < acc.sizes.len() {
+            let (name, shape) = &acc.sizes[taken];
+            if name.starts_with(prefix) {
+                sizes_here.insert(name.clone(), shape.clone());
+            }
+            taken += 1;
+        }
         let flat_name = format!("{prefix}{}", component.name);
 
         // An `outer` declaration owns nothing: its references were bound
@@ -363,21 +374,65 @@ pub(super) fn instantiate(
                         .len() as i64
                 }
                 Expr::ColonSubscript => {
-                    let shape = sizing_binding
-                        .as_ref()
-                        .and_then(|binding| flexible_size(binding, axis))
-                        .ok_or_else(|| {
-                            format!(
-                                "the flexible size `:` of `{flat_name}` needs a value \
+                    // A value written out says its length by being
+                    // written out. Anything else - a list scaled by a
+                    // factor, which is how the standard library draws
+                    // its axis labels - has to be worked out before it
+                    // can be measured.
+                    let measured = |binding: &Expr| -> Option<i64> {
+                        if let Some(length) = flexible_size(binding, axis) {
+                            return Some(length);
+                        }
+                        let shapes = Shapes {
+                            sizes: &sizes_here,
+                            loop_vars: &HashMap::new(),
+                            consts: &local_consts,
+                            records: no_records(),
+                        };
+                        let binding =
+                            substitute_class_constants(binding, registry, scope, &imports, &shadow);
+                        let value = expand(
+                            &prefix_expr(&binding, prefix, &outers),
+                            &shapes,
+                            registry,
+                            scope,
+                            &imports,
+                            0,
+                        )
+                        .ok()?;
+                        value.shape().get(axis).map(|length| *length as i64)
+                    };
+                    sizing_binding.as_ref().and_then(measured).ok_or_else(|| {
+                        format!(
+                            "the flexible size `:` of `{flat_name}` needs a value \
                                  to read its length from"
-                            )
-                        })?;
-                    shape
+                        )
+                    })?
                 }
                 _ => {
-                    let value = const_eval(dimension, &local_consts).ok_or_else(|| {
-                        format!("dimension of `{flat_name}` is not a compile-time constant")
-                    })?;
+                    // `Shape cylinders[n]` where `n = size(lines, 1)`:
+                    // the length was written with one that only the
+                    // declarations before it can give, and by now they
+                    // have given it.
+                    let off_a_length = || -> Option<i64> {
+                        let Expr::Ref(name) = dimension else {
+                            return dimension_value(dimension, &local_consts, &sizes_here);
+                        };
+                        let bound = class
+                            .components
+                            .iter()
+                            .chain(inherited.iter().map(|(component, _)| component))
+                            .find(|c| &c.name == name)?
+                            .binding
+                            .as_ref()?;
+                        let bound = prefix_expr(bound, prefix, &outers);
+                        dimension_value(&bound, &local_consts, &sizes_here)
+                    };
+                    let value = const_eval(dimension, &local_consts)
+                        .or_else(|| off_a_length().map(|length| length as f64))
+                        .ok_or_else(|| {
+                            format!("dimension of `{flat_name}` is not a compile-time constant")
+                        })?;
                     if value.fract() != 0.0 || value < 0.0 {
                         return Err(format!(
                             "dimension of `{flat_name}` must be a whole number that is not \
@@ -391,7 +446,7 @@ pub(super) fn instantiate(
         }
         if !sizes.is_empty() {
             acc.sizes
-                .insert(format!("{prefix}{}", component.name), sizes.clone());
+                .push((format!("{prefix}{}", component.name), sizes.clone()));
         }
         // A dimension of zero is legal and means there is nothing
         // there: the declaration contributes no variables at all.
@@ -532,11 +587,12 @@ pub(super) fn instantiate(
     // The class's own declarations are in by now, and so are the
     // declarations of everything they hold: an equation may name an
     // array that belongs to a component rather than to this class.
-    let mut sizes_here = sizes_here;
-    for (name, shape) in &acc.sizes {
+    while taken < acc.sizes.len() {
+        let (name, shape) = &acc.sizes[taken];
         if name.starts_with(prefix) {
             sizes_here.insert(name.clone(), shape.clone());
         }
+        taken += 1;
     }
 
     // Equations: arrays expanded, subscripts resolved, calls inlined.

@@ -394,9 +394,9 @@ of the Modelica Standard Library's 2674 files, 2614 parse, and 141 of
 its 632 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:
-the fluid library, a `:` whose length a modifier gives, a member read
-across an array of components in a `connect`, a call written as an
-equation, and external C bodies.
+the multibody library, a member read across an array of components in
+a `connect`, `ExternalObject`, `:` and `end` outside a subscript, and
+external C bodies.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's

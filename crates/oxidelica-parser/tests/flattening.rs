@@ -5066,3 +5066,98 @@ fn a_call_may_stand_among_the_equations() {
     )
     .contains("stands on its own where an equation is wanted"));
 }
+
+/// A flexible `:` takes its length from whatever the declaration is
+/// given, written out or worked out.
+#[test]
+fn a_flexible_size_is_measured_from_the_value_it_is_given() {
+    // A list written out says its length by being written out; a list
+    // scaled by a factor - which is how the standard library draws its
+    // axis labels - has to be worked out before it can be measured.
+    let m = parse_model(
+        "model Lines parameter Real scale = 1; \
+         input Real lines[:, 2] = zeros(0, 2); Real total; \
+         equation total = sum(lines); end Lines; \
+         model M parameter Real k = 2; \
+         Lines drawn(lines = k * {{0, 0}, {1, 1}, {2, 2}}); \
+         Real y; equation y = drawn.total; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a length worked out");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("drawn.lines["))
+            .count(),
+        6
+    );
+
+    // And the declaration's own value still says it where nothing
+    // else does: `zeros(0, 2)` is no rows at all.
+    let m = parse_model(
+        "model Lines input Real lines[:, 2] = zeros(0, 2); Real total; \
+         equation total = sum(lines); end Lines; \
+         model M Lines drawn; Real y; equation y = drawn.total; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a length of nothing");
+    assert!(!m
+        .components
+        .iter()
+        .any(|c| c.name.starts_with("drawn.lines[")));
+
+    // A length may be read off an array measured a declaration
+    // earlier: `Shape cylinders[n]` with `n = size(lines, 1)`.
+    let m = parse_model(
+        "model Cell Real v; equation v = time; end Cell; \
+         model Lines input Real lines[:, 2] = zeros(0, 2); \
+         parameter Integer n = size(lines, 1); Cell cells[n]; \
+         Real total; equation total = cells[1].v; end Lines; \
+         model M Lines drawn(lines = {{0, 0}, {1, 1}, {2, 2}}); \
+         Real y; equation y = drawn.total; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a length off another array");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("drawn.cells["))
+            .count(),
+        3
+    );
+
+    // A `:` with nothing to measure is still said to be one.
+    let error = parse_model(
+        "model Lines input Real lines[:, 2]; Real total; \
+         equation total = sum(lines); end Lines; \
+         model M Lines drawn; Real y; equation y = drawn.total; end M;",
+    )
+    .expect_err("nothing to measure")
+    .message;
+    assert!(error.contains("flexible size `:`"), "{error}");
+}
+
+/// `zeros`, `ones` and `fill` take as many dimensions as they are
+/// given, not one.
+#[test]
+fn an_array_of_a_shape_may_be_asked_for_in_full() {
+    let m = parse_model(
+        "model M parameter Real a[3, 2] = zeros(3, 2); \
+         parameter Real b[2, 2, 2] = ones(2, 2, 2); \
+         parameter Real c[2, 3] = fill(7, 2, 3); Real y; \
+         equation y = a[3, 2] + b[2, 2, 2] + c[2, 3]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("arrays of a shape");
+    let count = |head: &str| {
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with(head))
+            .count()
+    };
+    assert_eq!(count("a["), 6);
+    assert_eq!(count("b["), 8);
+    assert_eq!(count("c["), 6);
+    let filled = m.components.iter().find(|c| c.name == "c[2,3]").unwrap();
+    assert!(matches!(filled.binding, Some(Expr::Number(n)) if n == 7.0));
+}

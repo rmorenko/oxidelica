@@ -76,8 +76,8 @@ The 64 files that will not parse, and the example models that will not
 flatten, are not a long tail of small things. They are a handful of
 features, each used widely:
 
-- **A `:` whose length a modifier gives** — 26 models, all through the
-  visual shapes of `MultiBody.World`.
+- **The multibody library** — 27 models, on a chain of lengths and
+  shapes its visual parts are drawn with.
 - **`Clock` with named arguments** — 16 models of the clocked library
   write `Clock(interval = 0.1)`.
 - **A member read across an array of components in a `connect`** — 20

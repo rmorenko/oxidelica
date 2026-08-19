@@ -551,12 +551,14 @@ struct StreamContext<'a> {
 #[derive(Default)]
 struct Flat {
     components: Vec<Component>,
-    /// How long every array instantiated so far is, by flat path. A
-    /// class's own declarations are measured before its equations are
-    /// read, so by the time an equation names `plug.pin.v` the length
-    /// of `plug.pin` is here - which no table built from the class's
-    /// own text could say, since `pin` belongs to another class.
-    sizes: HashMap<String, Vec<i64>>,
+    /// How long every array instantiated so far is, by flat path, in
+    /// the order they were instantiated. A class's own declarations
+    /// are measured as it goes, so by the time an expression names
+    /// `plug.pin.v` the length of `plug.pin` is here - which no table
+    /// built from the class's own text could say, since `pin` belongs
+    /// to another class. The order is what lets a reader take only
+    /// what is new to it rather than sweeping the whole list again.
+    sizes: Vec<(String, Vec<i64>)>,
     /// The instance whose equations are being gathered, by flat path.
     /// Every equation that goes in is stamped with it, which is what
     /// tells a state's own equations apart later on.
