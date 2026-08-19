@@ -1288,9 +1288,9 @@ pub(crate) fn compile_at(
                     // Flattening inlines the call and hands each
                     // target an assignment of its own, so no tuple
                     // reaches this far.
-                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) => {
-                        return err("a tuple or a loop inside `when` should have been taken \
-                                    apart while flattening"
+                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) | WhenAction::Choice(_) => {
+                        return err("a tuple, a loop or a choice inside `when` should have \
+                                    been taken apart while flattening"
                             .to_string())
                     }
                 });
@@ -1586,9 +1586,11 @@ pub(crate) fn compile_at(
                             .expect("when targets were collected from these");
                         CompiledAction::Assign(index, table.compile(value)?)
                     }
-                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) => {
-                        return err("a tuple or a loop inside `when` should have been taken \
-                                    apart while flattening"
+                    WhenAction::TupleAssign(..)
+                    | WhenAction::Loop(_)
+                    | WhenAction::Choice(_) => {
+                        return err("a tuple, a loop or a choice inside `when` should have \
+                                    been taken apart while flattening"
                             .to_string())
                     }
                 });

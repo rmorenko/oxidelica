@@ -5522,3 +5522,46 @@ fn a_call_that_only_acts_outside_the_model_does_nothing_here() {
     .message;
     assert!(error.contains("outside Modelica"), "{error}");
 }
+
+/// A choice between assignments at an event.
+#[test]
+fn an_if_may_stand_inside_a_when() {
+    // What a variable is given depends on the condition, so it gets
+    // one assignment whose value is the choice.
+    let m = parse_model(
+        "model M discrete Real low; discrete Real high; Real y; \
+         equation y = time; \
+         when time > 0.5 then \
+           if y > 1 then low = 1; high = 2; else low = 3; high = 4; end if; \
+         end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a choice at an event");
+    let actions = &m.when_clauses[0].branches[0].actions;
+    assert_eq!(actions.len(), 2);
+    let written = format!("{actions:?}");
+    assert!(written.contains("If(Rel(Gt"), "{written}");
+    assert!(written.contains("Number(3.0)"), "{written}");
+
+    // A branch that says nothing about a variable leaves it what it
+    // had, which is what `pre` of it is.
+    let m = parse_model(
+        "model M discrete Real kept; Real y; \
+         equation y = time; \
+         when time > 0.5 then if y > 1 then kept = 1; end if; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end M;",
+    )
+    .expect("a branch that says nothing");
+    let written = format!("{:?}", m.when_clauses[0].branches[0].actions);
+    assert!(written.contains("Call(\"pre\""), "{written}");
+
+    // What such a choice may hold is values for variables.
+    let error = parse_model(
+        "connector Pin Real v; end Pin; \
+         model M Pin a; Pin b; Real y; equation y = time; \
+         when time > 0.5 then if y > 1 then connect(a, b); end if; end when; end M;",
+    )
+    .expect_err("no connections at an event")
+    .message;
+    assert!(error.contains("gives values to variables"), "{error}");
+}

@@ -361,6 +361,11 @@ impl Parser {
                 actions.push(WhenAction::Loop(self.for_equation()?));
                 continue;
             }
+            // A choice between assignments.
+            if self.peek() == &Token::If {
+                actions.push(WhenAction::Choice(self.if_equation()?));
+                continue;
+            }
             // `(a, b) = f(...)` fills several targets from one call.
             if self.peek() == &Token::LParen {
                 if let Some(targets) = self.tuple_targets() {

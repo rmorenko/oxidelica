@@ -440,6 +440,11 @@ pub enum WhenAction {
     /// compile-time constant, and what comes out is one assignment per
     /// round - so nothing downstream meets this form either.
     Loop(ForEquation),
+    /// `if c then x = a; else x = b; end if;` inside a `when`. What a
+    /// variable is given depends on the condition, so flattening gives
+    /// it one assignment whose value is the choice - and a variable a
+    /// branch says nothing about keeps what it had.
+    Choice(IfEquation),
 }
 
 /// One branch of a `when` clause: `when c1 then … elsewhen c2 then …`.

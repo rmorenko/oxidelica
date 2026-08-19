@@ -666,8 +666,9 @@ pub(super) fn programs_used(
                     | WhenAction::Reinit(_, value)
                     | WhenAction::TupleAssign(_, value) => look(value),
                     WhenAction::Terminate(_) => {}
-                    // Unrolled while flattening, so no loop is left.
-                    WhenAction::Loop(_) => {}
+                    // Taken apart while flattening, so neither a loop
+                    // nor a choice is left.
+                    WhenAction::Loop(_) | WhenAction::Choice(_) => {}
                 }
             }
         }

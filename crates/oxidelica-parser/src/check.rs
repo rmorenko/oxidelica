@@ -56,7 +56,7 @@ pub fn verify(model: &Model) -> Result<(), String> {
                     // target its own assignment, and unrolls a loop
                     // into one assignment per round, so by here there
                     // is neither left to check.
-                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) => {}
+                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) | WhenAction::Choice(_) => {}
                 }
             }
         }

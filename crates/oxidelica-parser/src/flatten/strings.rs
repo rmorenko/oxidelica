@@ -72,8 +72,9 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
                         *value = fold(value, &values, &numbers)?;
                     }
                     WhenAction::Terminate(_) => {}
-                    // Unrolled while flattening, so no loop is left.
-                    WhenAction::Loop(_) => {}
+                    // Taken apart while flattening, so neither a loop
+                    // nor a choice is left.
+                    WhenAction::Loop(_) | WhenAction::Choice(_) => {}
                 }
             }
         }

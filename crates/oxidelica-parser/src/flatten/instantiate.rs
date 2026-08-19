@@ -1127,6 +1127,66 @@ pub(super) fn instantiate(
                     WhenAction::Terminate(message) => {
                         actions.push(WhenAction::Terminate(message.clone()))
                     }
+                    // `if c then x = a; else x = b; end if;` at an
+                    // event: what `x` is given depends on the
+                    // condition, so it gets one assignment whose value
+                    // is the choice. A branch that says nothing about
+                    // a variable leaves it what it had, which is what
+                    // `pre` of it is.
+                    WhenAction::Choice(chosen) => {
+                        let mut targets: Vec<String> = Vec::new();
+                        let mut branches: Vec<GivenBranch> = Vec::new();
+                        for branch in &chosen.branches {
+                            // A connection is drawn once and for all,
+                            // and a check has nowhere to go from here;
+                            // what an `if` at an event holds is values.
+                            if !branch.connects.is_empty()
+                                || !branch.loops.is_empty()
+                                || !branch.asserts.is_empty()
+                            {
+                                return Err(
+                                    "an `if` inside `when` gives values to variables".to_string()
+                                );
+                            }
+                            let mut given = Vec::new();
+                            for equation in &branch.equations {
+                                let Expr::Ref(target) = &equation.lhs else {
+                                    return Err("an `if` inside `when` gives values to variables"
+                                        .to_string());
+                                };
+                                let target = flat_name(target, prefix, &outers);
+                                if !targets.contains(&target) {
+                                    targets.push(target.clone());
+                                }
+                                given.push((target, resolve_here(&equation.rhs)?));
+                            }
+                            let condition =
+                                branch.condition.as_ref().map(&resolve_here).transpose()?;
+                            branches.push((condition, given));
+                        }
+                        for target in targets {
+                            // Built from the last branch back, so the
+                            // conditions are tested in the order they
+                            // were written.
+                            let mut value =
+                                Expr::Call("pre".to_string(), vec![Expr::Ref(target.clone())]);
+                            for (condition, given) in branches.iter().rev() {
+                                let Some(chosen) = given.iter().find(|(name, _)| name == &target)
+                                else {
+                                    continue;
+                                };
+                                value = match condition {
+                                    None => chosen.1.clone(),
+                                    Some(condition) => Expr::If(
+                                        Box::new(condition.clone()),
+                                        Box::new(chosen.1.clone()),
+                                        Box::new(value),
+                                    ),
+                                };
+                            }
+                            actions.push(WhenAction::Assign(target, value));
+                        }
+                    }
                     // `for i in 1:n loop k[i] = ...; end for;` at an
                     // event: the loop is unrolled the way one among
                     // the equations is, and each round's equation
@@ -1533,6 +1593,10 @@ fn array_element(
         _ => value.clone(),
     }
 }
+
+/// One branch of an `if` at an event: its condition, where it has one,
+/// and what each variable it names is given.
+type GivenBranch = (Option<Expr>, Vec<(String, Expr)>);
 
 /// What a class written `redeclare X extends Name` extends: the `Name`
 /// that a base of the class enclosing it declared.
