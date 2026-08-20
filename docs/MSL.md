@@ -41,7 +41,7 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2649 read, 25 not read
-classes: 6544; example models: 734, of which 338 flatten
+classes: 6544; example models: 734, of which 339 flatten
 ```
 
 Two numbers, and they mean different things. **Read** is the parser:
@@ -93,8 +93,9 @@ features, each used widely:
   change.
 - **A local assigned in one branch only** — 41 models, the water
   properties of the media library among them.
-- **A record handed to a function that wants its fields** — 17
-  models, through `Modelica.ComplexMath`.
+- **A record component's declaration value** — `Complex v[m] = ...`
+  says nothing to the model, where an equation of the same shape
+  does.
 - **The multibody library** — on a chain of lengths and shapes its
   visual parts are drawn with.
 - **`Clock` with named arguments** — the clocked library writes
@@ -116,5 +117,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "338 of 734" mean anything — without it, one unparsed file would
+like "339 of 734" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

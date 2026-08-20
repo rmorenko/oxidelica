@@ -6629,3 +6629,113 @@ fn cardinality_decides_a_branch_before_the_run() {
         .iter()
         .any(|e| e.contains("b.p.v") && e.contains("2.0")));
 }
+
+/// Sources with an operator record, the way `Complex` is written: two
+/// fields, a constructor whose second argument has a default, and a
+/// subtraction of its own.
+const OPERATOR_RECORD: &str = "operator record C Real re; Real im; \
+     encapsulated operator 'constructor' \
+       function fromReal input Real re; input Real im = 0; \
+       output .C c(re = re, im = im); algorithm end fromReal; \
+     end 'constructor'; \
+     encapsulated operator function '-' input .C a; input .C b; output .C c; \
+       algorithm c := .C(a.re - b.re, a.im - b.im); end '-'; \
+     end C; ";
+
+#[test]
+fn a_function_written_for_one_record_takes_a_whole_array_of_them() {
+    // `Modelica.ComplexMath.abs(v)` of a `Complex[3]`: the function
+    // was written for one, so it is called once per element.
+    let m = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         function amp input C c; output Real y; algorithm y := c.re + c.im; end amp; \
+         model M C v[3]; Real a[3]; \
+         equation a = amp(v); \
+         for i in 1:3 loop v[i].re = i * time; v[i].im = 0; end for; end M;"
+    ))
+    .unwrap();
+    let said: Vec<String> = m
+        .equations
+        .iter()
+        .map(|e| format!("{:?} = {:?}", e.lhs, e.rhs))
+        .collect();
+    for element in 1..=3 {
+        assert!(
+            said.iter()
+                .any(|e| e.contains(&format!("a[{element}]"))
+                    && e.contains(&format!("v[{element}].re"))),
+            "{said:?}"
+        );
+    }
+
+    // The same where the array is reached through a connector, which
+    // is how the standard library's sensors read a plug, and where the
+    // whole thing is a declaration's value rather than an equation.
+    let through = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         function amp input C c; output Real y; algorithm y := c.re + c.im; end amp; \
+         connector Pin C v; end Pin; \
+         model Plug Pin pin[2]; end Plug; \
+         model M Plug plug; Real a[2] = amp(plug.pin.v); \
+         equation for i in 1:2 loop plug.pin[i].v.re = i * time; \
+         plug.pin[i].v.im = 0; end for; end M;"
+    ))
+    .unwrap();
+    assert!(through.equations.iter().any(|e| {
+        format!("{:?} = {:?}", e.lhs, e.rhs).contains("plug.pin[2].v.re")
+            && matches!(&e.lhs, Expr::Ref(name) if name == "a[2]")
+    }));
+
+    // An operator the record declares for itself spreads the same way:
+    // `v1 - v2` of two arrays is one subtraction per element, and each
+    // answers with a record, so the equation is one per field.
+    let operated = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         model M C x[2]; C y[2]; C d[2]; \
+         equation d = x - y; \
+         for i in 1:2 loop x[i].re = i * time; x[i].im = 0; \
+         y[i].re = 1; y[i].im = 2; end for; end M;"
+    ))
+    .unwrap();
+    assert_eq!(operated.equations.len(), 12);
+    assert!(operated.components.iter().any(|c| c.name == "d[2].im"));
+
+    // A scalar travels unchanged to every round, and an array beside
+    // the records goes down with them element by element.
+    let beside = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         function amp input C c; input Real k; input Real b; output Real y; \
+         algorithm y := k * c.re + b; end amp; \
+         model M C v[2]; Real k[2]; Real a[2]; \
+         equation a = amp(v, k, 2); \
+         for i in 1:2 loop v[i].re = i * time; v[i].im = 0; k[i] = i; end for; end M;"
+    ))
+    .unwrap();
+    assert!(beside.equations.iter().any(|e| {
+        let said = format!("{:?}", e.rhs);
+        said.contains("k[2]") && said.contains("v[2].re") && said.contains("2.0")
+    }));
+
+    // Two arrays of records of different lengths do not say how many
+    // times the call spreads, so nothing spreads and the mismatch is
+    // said where the body is written out.
+    assert!(parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         function gap input C a; input C b; output Real y; \
+         algorithm y := a.re - b.re; end gap; \
+         model M C u[2]; C w[3]; Real d[2]; \
+         equation d = gap(u, w); \
+         for i in 1:2 loop u[i].re = i * time; u[i].im = 0; end for; \
+         for i in 1:3 loop w[i].re = i; w[i].im = 0; end for; end M;"
+    ))
+    .is_err());
+
+    // `fill` repeats a whole record, not just a number.
+    let filled = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         model M C v[2]; Real y; \
+         equation v = fill(C(0), 2); y = v[1].re + time; end M;"
+    ))
+    .unwrap();
+    assert_eq!(filled.equations.len(), 5);
+}

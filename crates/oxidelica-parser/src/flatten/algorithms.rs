@@ -1302,7 +1302,7 @@ pub(super) fn outside_this_language(class: &ClassDef) -> String {
 /// bubbleEnthalpy` - and leave what it takes and answers with to the
 /// one it extends. The base's declarations come first, since that is
 /// the order the arguments are given in.
-fn function_components(
+pub(super) fn function_components(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     depth: usize,

@@ -705,7 +705,7 @@ pub(super) fn instantiate(
                 sizes: &sizes_here,
                 loop_vars: &HashMap::new(),
                 consts: &local_consts,
-                records: no_records(),
+                records: &records_here,
             };
             // A modifier arrives already written in the terms of the
             // class that supplied it; only a declaration's own value
@@ -840,7 +840,10 @@ pub(super) fn instantiate(
             consts: &local_consts,
             records: &records_here,
         };
-        expand(&expr, &shapes, registry, scope, &imports, 0)
+        let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
+        records_written_out(value, &shapes, registry, &|e| {
+            expand(e, &shapes, registry, scope, &imports, 0)
+        })
     };
     // What has to come to one value - a condition, what a `when` gives
     // a variable - still goes through the array layer to get there:
@@ -1166,6 +1169,7 @@ pub(super) fn instantiate(
             prefix,
             &outers,
             &sizes_here,
+            &records_here,
             registry,
             scope,
             &imports,
@@ -1283,6 +1287,7 @@ pub(super) fn instantiate(
                 prefix,
                 &outers,
                 &sizes_here,
+                &records_here,
                 registry,
                 scope,
                 &imports,
@@ -1423,6 +1428,7 @@ pub(super) fn instantiate(
                             prefix,
                             &outers,
                             &sizes_here,
+                            &records_here,
                             registry,
                             scope,
                             &imports,
@@ -2160,6 +2166,7 @@ pub(super) fn unroll(
     prefix: &str,
     outers: &HashMap<String, String>,
     sizes: &HashMap<String, Vec<i64>>,
+    records: &HashMap<String, String>,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
@@ -2227,19 +2234,22 @@ pub(super) fn unroll(
                         sizes,
                         loop_vars: &loop_vars,
                         consts,
-                        records: no_records(),
+                        records,
                     };
                     let side = |expr: &Expr| -> Result<Value, String> {
                         let expr = substitute_refs(expr, &folded);
                         let expr = substitute_class_constants(&expr, registry, scope, imports, &[]);
-                        expand(
+                        let value = expand(
                             &prefix_expr(&expr, prefix, outers),
                             &shapes,
                             registry,
                             scope,
                             imports,
                             0,
-                        )
+                        )?;
+                        records_written_out(value, &shapes, registry, &|e| {
+                            expand(e, &shapes, registry, scope, imports, 0)
+                        })
                     };
                     push_equations(&side(&equation.lhs)?, &side(&equation.rhs)?, acc)?;
                 }
@@ -2248,7 +2258,7 @@ pub(super) fn unroll(
                         sizes,
                         loop_vars: &loop_vars,
                         consts,
-                        records: no_records(),
+                        records,
                     };
                     let (a, b) = (substitute_refs(a, &folded), substitute_refs(b, &folded));
                     push_connects(
@@ -2256,7 +2266,8 @@ pub(super) fn unroll(
                     )?;
                 }
                 ForBody::Nested(inner) => unroll(
-                    inner, &loop_vars, consts, prefix, outers, sizes, registry, scope, imports, acc,
+                    inner, &loop_vars, consts, prefix, outers, sizes, records, registry, scope,
+                    imports, acc,
                 )?,
                 // An `if` inside a loop: the branch that holds gives
                 // its equations to the round, and the others give
@@ -2267,7 +2278,7 @@ pub(super) fn unroll(
                         sizes,
                         loop_vars: &loop_vars,
                         consts,
-                        records: no_records(),
+                        records,
                     };
                     // Everything inside the loop is read with this
                     // round's value of the loop variable already put
@@ -2276,14 +2287,17 @@ pub(super) fn unroll(
                     let side = |expr: &Expr| -> Result<Value, String> {
                         let expr = substitute_refs(expr, &folded);
                         let expr = substitute_class_constants(&expr, registry, scope, imports, &[]);
-                        expand(
+                        let value = expand(
                             &prefix_expr(&expr, prefix, outers),
                             &shapes,
                             registry,
                             scope,
                             imports,
                             0,
-                        )
+                        )?;
+                        records_written_out(value, &shapes, registry, &|e| {
+                            expand(e, &shapes, registry, scope, imports, 0)
+                        })
                     };
                     let mut settling = consts.clone();
                     settling.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
@@ -2371,8 +2385,8 @@ pub(super) fn unroll(
                     }
                     for inner in &branch.loops {
                         unroll(
-                            inner, &loop_vars, consts, prefix, outers, sizes, registry, scope,
-                            imports, acc,
+                            inner, &loop_vars, consts, prefix, outers, sizes, records, registry,
+                            scope, imports, acc,
                         )?;
                     }
                     for equation in &branch.equations {

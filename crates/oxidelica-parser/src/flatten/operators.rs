@@ -43,13 +43,35 @@ pub(super) fn apply_operator(
             args.len()
         ));
     };
-    let mut arguments = Vec::new();
-    let mut argument_shapes = Vec::new();
-    for arg in args {
-        let value = expand(arg, shapes, registry, scope, imports, depth + 1)?;
-        argument_shapes.push(shape_i64(&value));
-        arguments.push(value.into_expr());
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let values = args
+        .iter()
+        .map(&recur)
+        .collect::<Result<Vec<_>, String>>()?;
+    // An operator written for one record and handed a whole array of
+    // them works on each in turn: `v1 - v2` of two `Complex[3]` is
+    // three subtractions. The language vectorizes a function this way
+    // and an operator is one.
+    if let Some(spread) = spread_of_records(function, registry, shapes, &values) {
+        let elements = (0..spread)
+            .map(|index| {
+                let each = one_of_each(&values, spread, index, shapes, registry, &recur)?;
+                apply_operator(
+                    record,
+                    symbol,
+                    &each,
+                    shapes,
+                    registry,
+                    scope,
+                    imports,
+                    depth + 1,
+                )
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        return Ok(Value::Array(elements));
     }
+    let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+    let arguments: Vec<Expr> = values.into_iter().map(Value::into_expr).collect();
     let result = inline_function_outputs(
         function,
         &arguments,

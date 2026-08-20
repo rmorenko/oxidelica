@@ -630,19 +630,17 @@ pub(super) fn expand_call(
         }
         // `fill(v, n, m, ...)` - the value, then the dimensions.
         ("fill", _) if args.len() > 2 => {
-            let filler = recur(&args[0])?.scalar()?;
+            let filler = recur(&args[0])?;
             let lengths = args[1..]
                 .iter()
                 .map(&constant)
                 .collect::<Result<Vec<_>, String>>()?;
-            Ok(nested(&lengths, &filler))
+            Ok(nested_value(&lengths, &filler))
         }
         ("fill", 2) => {
-            let filler = recur(&args[0])?.scalar()?;
+            let filler = recur(&args[0])?;
             let length = constant(&args[1])?;
-            Ok(Value::Array(
-                (0..length).map(|_| Value::Scalar(filler.clone())).collect(),
-            ))
+            Ok(nested_value(&[length], &filler))
         }
         ("transpose", 1) => {
             let value = recur(&args[0])?;
@@ -923,6 +921,30 @@ pub(super) fn expand_call(
                         .iter()
                         .map(&recur)
                         .collect::<Result<Vec<_>, String>>()?;
+                    // A function written for one record handed a whole
+                    // array of them is called once per element, which
+                    // is the vectorization the language gives every
+                    // function. It has to be seen before the body is
+                    // written out, because the body reads the fields by
+                    // name and there is no name for the fields of three
+                    // records at once.
+                    if let Some(spread) = spread_of_records(class, registry, shapes, &values) {
+                        let elements = (0..spread)
+                            .map(|index| {
+                                let args =
+                                    one_of_each(&values, spread, index, shapes, registry, &recur)?;
+                                expand(
+                                    &Expr::Call(name.to_string(), args),
+                                    shapes,
+                                    registry,
+                                    scope,
+                                    imports,
+                                    depth + 1,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, String>>()?;
+                        return Ok(Value::Array(elements));
+                    }
                     // The shape each argument turned out to have is
                     // what a `[:]` input takes its length from.
                     let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
@@ -1180,6 +1202,162 @@ fn record_written_out(
 /// value however each of them is shaped. All of them mean the same
 /// thing here - the function is inlined with what it deals in intact,
 /// rather than applied to one element at a time.
+/// One round of a spreading call: the arguments with each spreading
+/// array taken down to its `index`th record, written out as fields,
+/// and everything else travelling unchanged.
+pub(super) fn one_of_each(
+    values: &[Value],
+    spread: usize,
+    index: usize,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    recur: &impl Fn(&Expr) -> Result<Value, String>,
+) -> Result<Vec<Expr>, String> {
+    values
+        .iter()
+        .map(|value| match value {
+            Value::Array(items) if items.len() == spread => {
+                let one = items[index].clone();
+                match written_out(&one, shapes, registry, recur)? {
+                    Some(fields) => Ok(fields.into_expr()),
+                    None => Ok(one.into_expr()),
+                }
+            }
+            other => Ok(other.clone().into_expr()),
+        })
+        .collect()
+}
+
+/// The class of the record a value stands for, where it stands for a
+/// whole one rather than a field of one.
+///
+/// One element of an array of records is named rather than written
+/// out: `v[1]` where `v` is `Complex[3]`. What says it is a record is
+/// the array it is an element of.
+fn whole_record<'a>(
+    value: &Value,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &'a ClassDef>,
+) -> Option<&'a ClassDef> {
+    let Value::Scalar(Expr::Ref(path)) = value else {
+        return None;
+    };
+    // A subscript is what says this is one of an array rather than the
+    // array itself: `v` of a record type has already been written out
+    // as its fields by the time anything looks here.
+    if !path.contains('[') {
+        return None;
+    }
+    // A declaration is written once however many of it there are, so
+    // the table is keyed without the subscripts of what is asked for -
+    // but the path an instance sits at may carry subscripts of its
+    // own, and those are part of the key. So the subscripts come off
+    // from the right, and the first name the table knows is the one.
+    let mut shortened = path.to_string();
+    while let Some(open) = shortened.rfind('[') {
+        let close = shortened[open..].find(']')?;
+        shortened = format!("{}{}", &shortened[..open], &shortened[open + close + 1..]);
+        if let Some(of) = shapes.records.get(&shortened) {
+            return registry.get(of.as_str()).copied();
+        }
+    }
+    None
+}
+
+/// Every record an array names written out as its fields.
+///
+/// One element of an array of records is a name - `v[1]` of a
+/// `Complex[3]` - and a name is not something an equation can stand
+/// between: what the model holds is `v[1].re` and `v[1].im`. So an
+/// equation side is written out before the two are put together, and
+/// an array of records and an array of their fields become the same
+/// thing.
+pub(super) fn records_written_out(
+    value: Value,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    recur: &impl Fn(&Expr) -> Result<Value, String>,
+) -> Result<Value, String> {
+    Ok(match value {
+        Value::Scalar(_) => match written_out(&value, shapes, registry, recur)? {
+            Some(fields) => fields,
+            None => value,
+        },
+        Value::Array(items) => Value::Array(
+            items
+                .into_iter()
+                .map(|item| records_written_out(item, shapes, registry, recur))
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
+    })
+}
+
+/// A value that names a whole record, written out as its fields in the
+/// order the record declared them, each worked out where it stands.
+/// `None` where the value does not name one.
+fn written_out(
+    value: &Value,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    recur: &impl Fn(&Expr) -> Result<Value, String>,
+) -> Result<Option<Value>, String> {
+    let Some(of) = whole_record(value, shapes, registry) else {
+        return Ok(None);
+    };
+    let Value::Scalar(Expr::Ref(path)) = value else {
+        return Ok(None);
+    };
+    Ok(Some(Value::Array(
+        record_fields(of)
+            .into_iter()
+            .map(|field| recur(&Expr::Ref(format!("{path}.{field}"))))
+            .collect::<Result<Vec<_>, String>>()?,
+    )))
+}
+
+/// How many times a call spreads, where an input written for one
+/// record was handed an array of them.
+///
+/// A record arrives written as an array of its fields, so one
+/// `Complex` and three of them are both arrays. What tells them apart
+/// is depth: the fields of one record are values, and three records
+/// are three arrays. Nothing spreads unless an input asked for a
+/// record and got that, and every spreading argument has to spread the
+/// same number of times.
+pub(super) fn spread_of_records(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    shapes: &Shapes,
+    values: &[Value],
+) -> Option<usize> {
+    let inputs: Vec<Component> = function_components(registry, class, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    let mut spread = None;
+    for (input, value) in inputs.iter().zip(values) {
+        if !input.dimensions.is_empty() || record_input_fields(registry, class, input).is_none() {
+            continue;
+        }
+        let Value::Array(items) = value else { continue };
+        // One record of an array is named rather than written out, so
+        // an array of names is an array of records and an array of
+        // values is the fields of one.
+        if items.is_empty()
+            || !items
+                .iter()
+                .all(|item| whole_record(item, shapes, registry).is_some())
+        {
+            continue;
+        }
+        if spread.is_some_and(|already| already != items.len()) {
+            return None;
+        }
+        spread = Some(items.len());
+    }
+    spread
+}
+
 fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
     class.components.iter().any(|component| {
         if component.causality == Causality::None {
@@ -1422,9 +1600,17 @@ fn collect_shapes_under(
 
 /// An array of the given shape, every element the same.
 fn nested(lengths: &[i64], value: &Expr) -> Value {
+    nested_value(lengths, &Value::Scalar(value.clone()))
+}
+
+/// The same, where what is repeated is a whole value: `fill(Complex(0),
+/// m)` fills with a record, and a record is its fields.
+fn nested_value(lengths: &[i64], value: &Value) -> Value {
     match lengths.split_first() {
-        None => Value::Scalar(value.clone()),
-        Some((&length, rest)) => Value::Array((0..length).map(|_| nested(rest, value)).collect()),
+        None => value.clone(),
+        Some((&length, rest)) => {
+            Value::Array((0..length).map(|_| nested_value(rest, value)).collect())
+        }
     }
 }
 

@@ -262,7 +262,11 @@ comparison of records dispatches and returns a Boolean; `String(a)` is
 what the record's own `'String'` makes of it; and `sum` over an array
 of records adds them with `'+'` starting from `'0'`, or from the first
 element where no `'0'` is declared. An operator function may build its
-record output field by field. The record a value belongs to is still
+record output field by field. An operator written for one record and
+handed a whole array of them works on each in turn - `v1 - v2` of two
+`Complex[3]` is three subtractions - which is the same vectorization
+an ordinary function gets, and it reaches functions taking records
+too: `abs(v)` of a `Complex[m]` is `m` calls. The record a value belongs to is still
 worked out from the expression rather than from a type of its own, so
 an operator whose result is a different record than its operands would
 be misread.
@@ -394,13 +398,13 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2649 parse, and 338 of
+of the Modelica Standard Library's 2674 files, 2649 parse, and 339 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:
 external C bodies, the table functions above all; a local a body
-assigns in one branch only; a record handed to a function that wants
-its fields; the multibody library's arrays; and a clock whose interval
+assigns in one branch only; a record component's declaration
+value; the multibody library's arrays; and a clock whose interval
 comes from a count of ticks.
 
 **Structure**: no `operator` classes (`block` parses as a model,
