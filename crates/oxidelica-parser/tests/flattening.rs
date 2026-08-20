@@ -6340,3 +6340,31 @@ fn a_condition_leaves_out_a_whole_array() {
     assert!(!m.components.iter().any(|c| c.name.contains("parts")));
     assert!(m.components.iter().any(|c| c.name == "many.v[1]"));
 }
+
+/// A condition may be written on what a `String` parameter says, and
+/// the value may come from a modifier.
+#[test]
+fn a_condition_may_read_a_string() {
+    let m = parse_model(
+        "package P model Box parameter String how(start = \"Y\"); \
+           Real star = 1 if how <> \"D\"; Real delta = 2 if how == \"D\"; Real y; \
+           equation y = time; end Box; end P; \
+         model M P.Box b(how = \"Y\"); Real z; equation z = b.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a machine wired in star");
+    assert!(m.components.iter().any(|c| c.name == "b.star"));
+    assert!(!m.components.iter().any(|c| c.name == "b.delta"));
+
+    // And the other way round, so it really is the value that decides.
+    let m = parse_model(
+        "package P model Box parameter String how(start = \"Y\"); \
+           Real star = 1 if how <> \"D\"; Real delta = 2 if how == \"D\"; Real y; \
+           equation y = time; end Box; end P; \
+         model M P.Box b(how = \"D\"); Real z; equation z = b.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a machine wired in delta");
+    assert!(m.components.iter().any(|c| c.name == "b.delta"));
+    assert!(!m.components.iter().any(|c| c.name == "b.star"));
+}

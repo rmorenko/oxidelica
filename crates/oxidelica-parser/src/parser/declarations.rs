@@ -317,10 +317,6 @@ impl Parser {
     /// The value of one modifier. `None` means the value was a string:
     /// the compiler has no use for it, so the modifier is dropped.
     pub(super) fn modifier_value(&mut self) -> Result<Option<Expr>, ParseError> {
-        if matches!(self.peek(), Token::Str(_)) {
-            self.bump();
-            return Ok(None);
-        }
         Ok(Some(self.expr()?))
     }
 

@@ -89,6 +89,42 @@ pub(super) fn instantiate(
         .map(|component| component.name.as_str())
         .collect();
 
+    // What the `String` parameters of this class are worth. A
+    // condition may be written on one - `Star star if
+    // terminalConnection <> "D"` is how a machine is wired - and
+    // strings are otherwise settled at the very end of flattening,
+    // long after a condition has to be decided.
+    let mut local_texts: HashMap<String, String> = HashMap::new();
+    for _ in 0..MAX_DEPTH {
+        let mut progress = false;
+        for component in class.components.iter().chain(
+            inherited_parameters(registry, class, 0)
+                .iter()
+                .map(|(c, _)| c),
+        ) {
+            if component.type_name != "String" || local_texts.contains_key(&component.name) {
+                continue;
+            }
+            let said = env
+                .overrides
+                .iter()
+                .find(|(name, _)| name == &component.name)
+                .map(|(_, value)| value.clone())
+                .or_else(|| component.binding.clone())
+                .or_else(|| component.start.clone());
+            let Some(said) = said else { continue };
+            let said = substitute_class_constants(&said, registry, scope, &imports, &shadow);
+            if let Some(text) = strings::text_of(&said, &local_texts, &HashMap::new()) {
+                local_texts.insert(component.name.clone(), text.clone());
+                local_texts.insert(format!("{prefix}{}", component.name), text);
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+
     // A base's parameter may be given a value this class declares:
     // `extends MIMO(final nin = m)` with `m` written below the
     // `extends`, which is how the standard library gives a block as
@@ -452,9 +488,15 @@ pub(super) fn instantiate(
             // GravityTypes.UniformGravity` - which no environment holds
             // as a name of its own.
             let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
-            let value = const_eval(&named, &env).ok_or_else(|| {
-                format!("condition of component `{flat_name}` is not a compile-time constant")
-            })?;
+            let value = const_eval(&named, &env)
+                .or_else(|| {
+                    // The condition may be a comparison of strings.
+                    let folded = strings::fold(&named, &local_texts, &env).ok()?;
+                    const_eval(&folded, &env)
+                })
+                .ok_or_else(|| {
+                    format!("condition of component `{flat_name}` is not a compile-time constant")
+                })?;
             if value == 0.0 {
                 acc.disabled.push(flat_name.clone());
                 continue;

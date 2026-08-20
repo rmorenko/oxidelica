@@ -164,7 +164,7 @@ fn settle(
 }
 
 /// What an expression comes to as text, if it comes to text at all.
-fn text_of(
+pub(super) fn text_of(
     expr: &Expr,
     values: &HashMap<String, String>,
     numbers: &HashMap<String, f64>,
@@ -201,7 +201,7 @@ fn text_of(
 
 /// Replace a comparison of two strings with what it comes to, and
 /// refuse a string that is standing anywhere else.
-fn fold(
+pub(super) fn fold(
     expr: &Expr,
     values: &HashMap<String, String>,
     numbers: &HashMap<String, f64>,
