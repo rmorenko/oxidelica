@@ -87,6 +87,11 @@ features, each used widely:
   what was asked for. [EXTERNAL.md](EXTERNAL.md) says how that is to
   change.
 
+Two groups of models, 73 between them, are refused for none of those
+reasons: working them out does not finish. What was measured about that,
+and what two measurements said wrongly, is in
+[EXPANSION.md](EXPANSION.md).
+
 The list is measured rather than guessed: `library check` ranks the
 reasons by how often each came up, and that ranking is what the work
 follows. `library check --list` names the models that flatten, which is
