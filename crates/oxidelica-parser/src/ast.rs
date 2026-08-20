@@ -76,6 +76,10 @@ pub struct ClassAlias {
     pub redeclaration: bool,
     /// The interface a replacement must extend, when given.
     pub constrained_by: Option<String>,
+    /// Whether the short definition said `connector`: `connector
+    /// ComplexOutput = output Complex` gives a record a name that a
+    /// `connect` may join, and the record itself says nothing of that.
+    pub connector: bool,
 }
 
 /// A component (variable) declaration.

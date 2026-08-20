@@ -1428,19 +1428,45 @@ fn inline_body(
             if let Some(record) = lookup(registry, &output.type_name, &class.name, &class.imports)
                 .filter(|c| c.kind == ClassKind::Record)
             {
+                // A field the body never assigned may have been given
+                // on the declaration instead: `output Complex result(re
+                // = re, im = im)` is how a record says what it is made
+                // of without an algorithm at all.
+                let declared = |field: &str| -> Option<Expr> {
+                    let (_, value) = output.modifiers.iter().find(|(given, _)| given == field)?;
+                    let value = substitute_class_constants(
+                        value,
+                        registry,
+                        &class.name,
+                        &class.imports,
+                        &[],
+                    );
+                    Some(substitute_refs(&value, &bindings))
+                };
                 let fields = record_fields(record)
                     .into_iter()
                     .map(|field| {
                         let member = format!("{name}.{field}");
-                        bindings.get(&member).cloned().ok_or_else(|| {
-                            format!(
-                                "function `{}` never assigns `{member}` of its output",
-                                class.name
-                            )
-                        })
+                        bindings
+                            .get(&member)
+                            .cloned()
+                            .or_else(|| declared(&field))
+                            .ok_or_else(|| {
+                                format!(
+                                    "function `{}` never assigns `{member}` of its output, and \
+                                     its declaration says nothing about it either",
+                                    class.name
+                                )
+                            })
                     })
                     .collect::<Result<Vec<_>, String>>()?;
                 return Ok((name.clone(), Expr::Array(fields)));
+            }
+            // The one value a declaration may give outright.
+            if let Some(value) = &output.binding {
+                let value =
+                    substitute_class_constants(value, registry, &class.name, &class.imports, &[]);
+                return Ok((name.clone(), substitute_refs(&value, &bindings)));
             }
             Err(format!(
                 "function `{}` never assigns its output `{name}`",

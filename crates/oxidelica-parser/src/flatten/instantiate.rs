@@ -512,7 +512,10 @@ pub(super) fn instantiate(
         // leaves the primitive behind, so what class it came from is
         // noted first - a connection to it is still a connection.
         let value_connector = lookup(registry, &component.type_name, scope, &imports)
-            .filter(|class| class.kind == ClassKind::Connector && class.alias_of.is_some())
+            .filter(|class| {
+                (class.kind == ClassKind::Connector && class.alias_of.is_some())
+                    || names_a_connector(registry, &component.type_name, scope, &imports)
+            })
             .map(|class| class.name.clone());
 
         // A `type` alias stands for a primitive plus attribute
@@ -1584,6 +1587,11 @@ fn collect_records(
         }
     }
     for component in &class.components {
+        // A type may be a name for a record - `connector ComplexOutput
+        // = output Complex` - and a declaration of it is a record all
+        // the same.
+        let mut component = component.clone();
+        resolve_type(registry, &mut component, scope, imports);
         let Some(of) = lookup(registry, &component.type_name, scope, imports) else {
             continue;
         };
@@ -1758,7 +1766,14 @@ pub(super) fn instantiate_one(
                     }
                 ));
             }
-            if child.kind == ClassKind::Connector {
+            // A connector may be a name for a record - `connector
+            // ComplexOutput = output Complex` carries a complex signal
+            // the way `RealOutput` carries a real one. Resolving the
+            // type leaves the record behind, so what it came from was
+            // noted before; a connection to it joins the record's
+            // members, which is what a connection to any connector
+            // does.
+            if child.kind == ClassKind::Connector || value_connector.is_some() {
                 acc.connectors
                     .insert(flat_name.to_string(), child.name.clone());
                 // What the declaration said about how it must be

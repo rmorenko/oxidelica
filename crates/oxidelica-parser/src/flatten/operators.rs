@@ -124,13 +124,17 @@ pub(super) fn operator_function<'a>(
     arity: usize,
 ) -> Option<&'a ClassDef> {
     let named = registry.get(format!("{record}.'{symbol}'").as_str())?;
+    // An input with a value of its own may be left out: `Complex(1)`
+    // calls a constructor that takes a real part and an imaginary one
+    // that stands at zero unless it is given.
     let takes = |class: &ClassDef| {
-        class
+        let inputs: Vec<&Component> = class
             .components
             .iter()
             .filter(|c| c.causality == Causality::Input)
-            .count()
-            == arity
+            .collect();
+        let wanted = inputs.iter().filter(|c| c.binding.is_none()).count();
+        (wanted..=inputs.len()).contains(&arity)
     };
     if named.kind == ClassKind::Function {
         return takes(named).then_some(*named);

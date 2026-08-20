@@ -6266,3 +6266,53 @@ fn a_function_may_take_what_its_base_declares() {
         "Bin(Mul, Number(3.0), Number(3.0))"
     );
 }
+
+/// A record given a name by a short `connector` definition is one a
+/// `connect` may join, and what a function answers with may be written
+/// on its declaration.
+#[test]
+fn a_record_may_be_carried_by_a_connector() {
+    const PARTS: &str = "package P \
+        record Pair Real re; Real im; \
+          encapsulated operator 'constructor' \
+            function fromReal input Real re; input Real im = 0; \
+              output P.Pair result(re = re, im = im); \
+            algorithm end fromReal; \
+          end 'constructor'; \
+        end Pair; \
+        connector PairOutput = output P.Pair; \
+        connector PairInput = input P.Pair; \
+        block Make PairOutput y; equation y = P.Pair(time); end Make; \
+        block Take PairInput u; Real r; equation r = u.re; end Take; \
+      end P; ";
+    let m = parse_model(&format!(
+        "{PARTS} model M P.Make make; P.Take take; Real z; \
+         equation connect(make.y, take.u); z = take.r; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .expect("a record carried by a connector");
+    // The connection joins the record's members, and the imaginary
+    // part stands at what the constructor leaves it.
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("make.y.re"), "{written}");
+    assert!(written.contains("take.u.im"), "{written}");
+    let given = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"make.y.im\")")
+        .expect("make.y.im");
+    assert_eq!(format!("{:?}", given.rhs), "Number(0.0)");
+
+    // The one value a declaration may give outright, with no algorithm
+    // at all.
+    let m = parse_model(
+        "model M function twice input Real u; output Real y = 2 * u; algorithm end twice; \
+         Real z; equation z = twice(3); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an answer given on the declaration");
+    assert_eq!(
+        format!("{:?}", m.equations[0].rhs),
+        "Bin(Mul, Number(2.0), Number(3.0))"
+    );
+}

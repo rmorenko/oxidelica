@@ -86,7 +86,13 @@ fn parse_file_within(source: &str) -> Result<(Vec<ClassDef>, Option<String>), Pa
             // for the other: a component declared with it resolves
             // through the alias the way a `type` does.
             ClassItem::Alias(alias) => ClassDef {
-                kind: ClassKind::Model,
+                // What the definition said it was is kept: `connector
+                // ComplexOutput = output Complex` gives a record a name
+                // a `connect` may join, and nothing else would say so.
+                kind: match alias.connector {
+                    true => ClassKind::Connector,
+                    false => ClassKind::Model,
+                },
                 name: alias.name,
                 alias_of: Some((alias.target, Vec::new())),
                 ..ClassDef::empty()

@@ -711,6 +711,45 @@ fn through_alias<'a>(
     }
 }
 
+/// Whether a name is one a short `connector` definition gave to a
+/// class of its own: `connector ComplexOutput = output Complex`.
+///
+/// The record it names says nothing about being connectable, so the
+/// name is what has to be asked. A dotted name is asked of the class
+/// holding it; a plain one, of every class the scope is written
+/// inside.
+pub(super) fn names_a_connector(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> bool {
+    let told = |owner: &ClassDef, member: &str| {
+        owner
+            .class_aliases
+            .iter()
+            .any(|alias| alias.name == member && alias.connector)
+    };
+    if let Some((holder, member)) = name.rsplit_once('.') {
+        return plain_lookup(registry, holder, scope).is_some_and(|owner| told(owner, member));
+    }
+    if let Some((_, target)) = imports.iter().find(|(local, _)| local == name) {
+        if let Some((holder, member)) = target.rsplit_once('.') {
+            return plain_lookup(registry, holder, scope).is_some_and(|owner| told(owner, member));
+        }
+    }
+    let mut prefix = scope;
+    loop {
+        if registry.get(prefix).is_some_and(|owner| told(owner, name)) {
+            return true;
+        }
+        match prefix.rsplit_once('.') {
+            Some((head, _)) => prefix = head,
+            None => return false,
+        }
+    }
+}
+
 /// A class by name, without asking what anything inherits.
 ///
 /// This is the walk out of the enclosing packages and nothing else. It

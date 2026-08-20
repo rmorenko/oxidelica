@@ -166,6 +166,7 @@ impl Parser {
                 replaceable,
                 redeclaration,
                 constrained_by,
+                connector: kind == ClassKind::Connector,
             }));
         }
 
