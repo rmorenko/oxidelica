@@ -224,8 +224,11 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // the answers in hand.
     if acc.graph_asked {
         let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
+        let counts = tally(&acc.connects);
         acc = Flat {
             roots,
+            counts,
+            answered: true,
             ..Flat::default()
         };
         instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
@@ -466,12 +469,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 .to_string(),
         );
     }
-    let mut connected: HashMap<String, f64> = HashMap::new();
-    for (a, b) in &acc.connects {
-        for port in [a, b] {
-            *connected.entry(port.clone()).or_insert(0.0) += 1.0;
-        }
-    }
+    let connected = tally(&acc.connects);
     // What a connector's declaration asked of the connections to it.
     // The chapter says these make it an error rather than leaving it to
     // the tool, so they are checked here, where how often each port was
@@ -656,9 +654,30 @@ struct Flat {
     /// roots. Empty while the graph has not been drawn - which is to
     /// say, on the first pass.
     roots: HashMap<String, bool>,
+    /// How many `connect` equations named each connector, as the pass
+    /// before gathered them. This is what `cardinality` is answered
+    /// from where the answer decides whether an equation exists at
+    /// all. Empty on the first pass, along with `roots`.
+    counts: HashMap<String, f64>,
+    /// Whether the roots and the counts above are the pass before's
+    /// rather than nothing at all. `roots` may be empty in earnest -
+    /// a model with no overconstrained loop has none - so emptiness
+    /// is not what says which pass this is.
+    answered: bool,
     /// Whether an `if` equation was set aside because its condition
-    /// asks the graph a question the first pass cannot answer.
+    /// asks the connections a question the first pass cannot answer.
     graph_asked: bool,
+}
+
+/// How many `connect` equations name each connector.
+fn tally(connects: &[(String, String)]) -> HashMap<String, f64> {
+    let mut counted: HashMap<String, f64> = HashMap::new();
+    for (a, b) in connects {
+        for port in [a, b] {
+            *counted.entry(port.clone()).or_insert(0.0) += 1.0;
+        }
+    }
+    counted
 }
 
 impl Flat {

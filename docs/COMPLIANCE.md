@@ -175,7 +175,11 @@ which is settled while the connections are still in hand. The
 specification deprecates it and says it will be removed in a coming
 release, so a model is better off without it - but while it is defined
 it is answered, including in the assertion it is nearly always asked
-inside.
+inside and in the `if` that decides whether an equation exists at all.
+That last one is a question about the model as a whole asked while the
+model is being built, so the first pass is kept for its connections
+alone and everything is built again with the counts in hand - the same
+two passes `Connections.isRoot` already needed.
 
 Chapter 3 is complete.
 
@@ -390,7 +394,7 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2649 parse, and 325 of
+of the Modelica Standard Library's 2674 files, 2649 parse, and 338 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:

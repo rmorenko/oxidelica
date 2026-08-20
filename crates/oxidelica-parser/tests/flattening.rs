@@ -6589,3 +6589,43 @@ fn a_settled_branch_inside_a_loop_carries_what_it_holds() {
     .to_string()
     .contains("reads none of them"));
 }
+
+#[test]
+fn cardinality_decides_a_branch_before_the_run() {
+    // How many connections name a port is a question about the model
+    // as a whole, so the first pass gathers them and the model is
+    // built again with the answer in hand. The standard library's
+    // state graph writes exactly this: a port nobody connected gets a
+    // default equation, and one that is connected does not.
+    let m = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model Part Pin p[2]; equation for i in 1:2 loop \
+         if cardinality(p[i]) == 0 then p[i].v = 0; end if; end for; end Part; \
+         model M Part a; Pin q; equation connect(a.p[1], q); q.v = time; end M;",
+    )
+    .unwrap();
+    let sides: Vec<String> = m.equations.iter().map(|e| format!("{:?}", e.lhs)).collect();
+    assert!(sides.iter().any(|lhs| lhs.contains("a.p[2].v")));
+    assert!(!sides.iter().any(|lhs| lhs.contains("a.p[1].v")));
+
+    // The same question asked among the equations of a class rather
+    // than inside a loop.
+    let plain = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model Part Pin p; equation \
+         if cardinality(p) == 0 then p.v = 0; else p.v = 2; end if; end Part; \
+         model M Part a; Part b; Pin q; equation connect(b.p, q); q.v = time; end M;",
+    )
+    .unwrap();
+    let said: Vec<String> = plain
+        .equations
+        .iter()
+        .map(|e| format!("{:?} = {:?}", e.lhs, e.rhs))
+        .collect();
+    assert!(said
+        .iter()
+        .any(|e| e.contains("a.p.v") && e.contains("0.0")));
+    assert!(said
+        .iter()
+        .any(|e| e.contains("b.p.v") && e.contains("2.0")));
+}

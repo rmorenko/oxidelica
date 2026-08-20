@@ -1177,9 +1177,14 @@ pub(super) fn instantiate(
     // the class says outright: `if use_reset then when reset then
     // reinit(y, y_start); end when; end if;` is how the standard
     // library gives a block a reset it can be built without.
-    // The roots of the overconstrained graph, as the pass before this
-    // one worked them out. Empty means the graph has not been drawn.
+    // What the pass before this one gathered about the connections:
+    // the roots of the overconstrained graph, and how many `connect`
+    // equations named each port. `answered` is what says a pass has
+    // been made - a model with no overconstrained loop has no roots in
+    // earnest, so emptiness says nothing.
     let known_roots = acc.roots.clone();
+    let known_counts = acc.counts.clone();
+    let answered = acc.answered;
     let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
     let mut graph_from_branches: Vec<&GraphClause> = Vec::new();
     // `if` equations: the branch that holds contributes its equations,
@@ -1205,12 +1210,12 @@ pub(super) fn instantiate(
             if let Some(value) = const_eval(&named, &env) {
                 return Some(value);
             }
-            if known_roots.is_empty() {
+            if !answered {
                 return None;
             }
             let asked = prefix_expr(&named, prefix, &outers);
-            let answered = answer_graph_queries(&asked, &known_roots, &HashMap::new());
-            const_eval(&answered, &env)
+            let told = answer_graph_queries(&asked, &known_roots, &known_counts);
+            const_eval(&told, &env)
         };
         let decidable = if_equation.branches.iter().all(|branch| {
             branch
@@ -1223,7 +1228,7 @@ pub(super) fn instantiate(
         // `if` are not balanced - a body that is a root carries states
         // and one that is not carries none. So it is set aside, and
         // the whole model is built again once the graph is in.
-        if !decidable && known_roots.is_empty() && asks_the_graph(if_equation) {
+        if !decidable && !answered && asks_the_graph(if_equation) {
             acc.graph_asked = true;
             continue;
         }
@@ -1576,23 +1581,29 @@ pub(super) fn instantiate(
     Ok(())
 }
 
-/// Whether an `if` equation asks the connection graph a question.
+/// Whether a condition asks the connections a question.
 ///
 /// `Connections.isRoot(frame_a.R)` and `Connections.rooted(...)` are
-/// answered from the roots the graph was broken open at, and until
-/// that is done there is nothing to answer with.
+/// answered from the roots the graph was broken open at, and
+/// `cardinality(port)` from how many `connect` equations named the
+/// port. Both are gathered by building the model, so until one pass
+/// has been made there is nothing to answer with.
+fn asks_the_connections(condition: &Expr) -> bool {
+    let mut found = false;
+    walk_calls(condition, &mut |name| {
+        if name == "Connections.isRoot" || name == "Connections.rooted" || name == "cardinality" {
+            found = true;
+        }
+    });
+    found
+}
+
+/// Whether an `if` equation asks the connections a question.
 fn asks_the_graph(if_equation: &IfEquation) -> bool {
-    if_equation.branches.iter().any(|branch| {
-        branch.condition.as_ref().is_some_and(|condition| {
-            let mut found = false;
-            walk_calls(condition, &mut |name| {
-                if name == "Connections.isRoot" || name == "Connections.rooted" {
-                    found = true;
-                }
-            });
-            found
-        })
-    })
+    if_equation
+        .branches
+        .iter()
+        .any(|branch| branch.condition.as_ref().is_some_and(asks_the_connections))
 }
 
 /// Which of the instances below a class are records, and of what.
@@ -2276,11 +2287,26 @@ pub(super) fn unroll(
                     };
                     let mut settling = consts.clone();
                     settling.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    // A condition that asks the connections is read
+                    // the long way round: the array layer has to run
+                    // first, since `cardinality(port[i])` is a
+                    // question about one port of an array and it is
+                    // the array layer that names it.
+                    let (roots, counts, answered) =
+                        (acc.roots.clone(), acc.counts.clone(), acc.answered);
                     let settle = |condition: &Expr| {
-                        let condition = substitute_refs(condition, &folded);
-                        let condition =
-                            substitute_class_constants(&condition, registry, scope, imports, &[]);
-                        const_eval(&condition, &settling)
+                        let plain = substitute_refs(condition, &folded);
+                        let plain =
+                            substitute_class_constants(&plain, registry, scope, imports, &[]);
+                        if let Some(value) = const_eval(&plain, &settling) {
+                            return Some(value);
+                        }
+                        if !answered {
+                            return None;
+                        }
+                        let asked = side(condition).ok()?.scalar().ok()?;
+                        let told = answer_graph_queries(&asked, &roots, &counts);
+                        const_eval(&told, &settling)
                     };
                     let decidable = if_equation.branches.iter().all(|branch| {
                         branch
@@ -2288,6 +2314,18 @@ pub(super) fn unroll(
                             .as_ref()
                             .is_none_or(|condition| settle(condition).is_some())
                     });
+                    // Undecidable only because nothing has looked at
+                    // the connections yet: the whole model is built
+                    // again once one pass has gathered them.
+                    if !decidable
+                        && !answered
+                        && if_equation.branches.iter().any(|branch| {
+                            branch.condition.as_ref().is_some_and(asks_the_connections)
+                        })
+                    {
+                        acc.graph_asked = true;
+                        continue;
+                    }
                     // A condition the run decides makes the same `if`
                     // it would make among the equations of a class -
                     // one equation per position, choosing its residual
