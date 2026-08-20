@@ -129,7 +129,19 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
             // is its own.
             if let Some(programs) = ctx.programs {
                 if programs.contains_key(name.as_str()) {
-                    return crate::walk::walk(programs, name, &vals, ctx.time, ctx.depth + 1);
+                    // Inside a walked body one call hands another
+                    // numbers it has already worked out, and a name
+                    // that stands for several is written out as an
+                    // array before it gets here.
+                    let lengths = vec![0; vals.len()];
+                    return crate::walk::walk(
+                        programs,
+                        name,
+                        &vals,
+                        &lengths,
+                        ctx.time,
+                        ctx.depth + 1,
+                    );
                 }
             }
             match operator_name(name) {
@@ -264,9 +276,9 @@ impl Code {
             // A body the run walks: work the arguments out, walk it,
             // and where the walk fails leave the reason behind and
             // answer with a number that is not one.
-            Code::Program(walked, name, args) => {
+            Code::Program(walked, name, args, lengths) => {
                 let given: Vec<f64> = args.iter().map(|arg| arg.run(values, time)).collect();
-                match crate::walk::walk(&walked.programs, name, &given, time, 0) {
+                match crate::walk::walk(&walked.programs, name, &given, lengths, time, 0) {
                     Ok(worth) => worth,
                     Err(SimError(why)) => {
                         if let Ok(mut held) = walked.trouble.lock() {
@@ -445,12 +457,29 @@ impl SlotTable {
         // A body this run walks answers to its own name before any
         // built-in rule is looked for.
         if self.walked.programs.contains_key(name) {
+            // An argument written out as an array is handed over as its
+            // elements, and how many there were is kept so the body can
+            // put them back together under the name it knows.
+            let (mut given, mut lengths) = (Vec::new(), Vec::new());
+            for arg in args {
+                match arg {
+                    Expr::Array(items) => {
+                        for item in items {
+                            given.push(self.compile(item)?);
+                        }
+                        lengths.push(items.len());
+                    }
+                    one => {
+                        given.push(self.compile(one)?);
+                        lengths.push(0);
+                    }
+                }
+            }
             return Ok(Code::Program(
                 self.walked.clone(),
                 name.to_string(),
-                args.iter()
-                    .map(|arg| self.compile(arg))
-                    .collect::<Result<Vec<_>, SimError>>()?,
+                given,
+                lengths,
             ));
         }
         let unary = match operator_name(name) {

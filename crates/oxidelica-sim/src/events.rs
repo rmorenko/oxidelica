@@ -124,10 +124,21 @@ impl EventRewrite<'_> {
                     };
                     Expr::Ref(format!("$sample{index}"))
                 }
+                // A call the run walks is handed arrays written out;
+                // the elements are ordinary expressions and are looked
+                // through, but the array around them stays as it is.
                 _ => Expr::Call(
                     name.clone(),
                     args.iter()
-                        .map(|a| self.expr(a))
+                        .map(|arg| match arg {
+                            Expr::Array(items) => Ok(Expr::Array(
+                                items
+                                    .iter()
+                                    .map(|item| self.expr(item))
+                                    .collect::<Result<Vec<_>, SimError>>()?,
+                            )),
+                            one => self.expr(one),
+                        })
                         .collect::<Result<Vec<_>, SimError>>()?,
                 ),
             },

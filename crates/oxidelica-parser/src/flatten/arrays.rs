@@ -942,12 +942,14 @@ pub(super) fn expand_call(
                     // there is nothing else to do with it here, since
                     // what stands in for an un-inlined call is a walk,
                     // and a walk carries numbers rather than arrays.
+                    // A call that could not be inlined comes back as
+                    // itself, and the run walks it. The walk takes
+                    // arrays and answers with one number, so a call
+                    // standing here is a number - and one that would
+                    // answer otherwise is refused where the body is
+                    // gathered, by name.
                     if matches!(&result, Expr::Call(called, _) if called == &class.name) {
-                        return Err(format!(
-                            "`{}` gives back an array and cannot be worked out here: a call \
-                             left standing is walked at run time, and a walk carries numbers",
-                            class.name
-                        ));
+                        return Ok(Value::Scalar(result));
                     }
                     return expand(&result, shapes, registry, scope, imports, depth + 1);
                 }

@@ -1003,10 +1003,14 @@ fn gather_calls_in_statements(
 /// fail at the first step.
 fn walkable(class: &ClassDef) -> Result<(), String> {
     for component in &class.components {
-        if !component.dimensions.is_empty() {
+        // An array goes in and is held while the walk runs; what comes
+        // back is one number, because that is all a call standing in an
+        // equation can be.
+        if !component.dimensions.is_empty() && component.causality == Causality::Output {
             return Err(format!(
                 "`{}` is called where nothing could inline it, so the run walks its body - \
-                 and `{}` is an array, which a body walked at run time cannot hold",
+                 and it answers with `{}`, which is an array, and a walk answers with one \
+                 number",
                 class.name, component.name
             ));
         }

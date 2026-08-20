@@ -498,8 +498,10 @@ enum Code {
     /// Conditional; only the branch taken is evaluated.
     If(Box<Code>, Box<Code>, Box<Code>),
     /// A call to a body the run walks, by the name the model knows it
-    /// by, with the arguments to work out first.
-    Program(std::sync::Arc<Walked>, String, Vec<Code>),
+    /// by, with the arguments to work out first and how many numbers
+    /// each of them is: zero for one number, otherwise the length of
+    /// the array it was written out as.
+    Program(std::sync::Arc<Walked>, String, Vec<Code>, Vec<usize>),
     /// A one-argument built-in.
     Unary(Unary, Box<Code>),
     /// A two-argument built-in.

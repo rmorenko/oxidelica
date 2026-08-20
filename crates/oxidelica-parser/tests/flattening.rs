@@ -2010,9 +2010,22 @@ fn what_cannot_be_inlined_travels_with_the_model() {
              Real y; equation y = f(time); end M;"
         )
     };
+    // An array the body holds while it runs is carried: the walk keeps
+    // each element under its own name, the way the flat model does.
+    let m = parse_model(&recursive("protected Real v[3];", "v[1] := a; b := v[1];"))
+        .expect("an array held while the walk runs");
+    assert_eq!(m.functions.len(), 1);
+    // What comes back is still one number, since that is all a call
+    // standing in an equation can be.
+    let answered_with_an_array = "model M function f input Real a; output Real b[2]; \
+         algorithm b[1] := a; if a > 0 then b := f(a - 1); end if; end f; \
+         Real y[2]; equation y = f(time); end M;";
+    // The refusal is by shape here: a standing call is one number, and
+    // a two-long answer does not fit against it.
     assert!(
-        err(&recursive("protected Real v[3];", "v[1] := a; b := v[1];"))
-            .contains("`v` is an array")
+        err(answered_with_an_array).contains("shapes [2] and []"),
+        "{}",
+        err(answered_with_an_array)
     );
     assert!(err(&recursive("protected String s;", "b := a;")).contains("`s` is a String"));
 }

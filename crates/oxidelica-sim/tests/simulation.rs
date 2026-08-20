@@ -2894,3 +2894,110 @@ fn the_ordinal_of_an_enumeration_is_not_a_truncation() {
     // The second literal is the 1000, and `integer(-1.5)` is -2.
     assert_eq!(result.rows.last().unwrap()[index], 998.0);
 }
+
+#[test]
+fn a_walked_body_carries_arrays() {
+    // A length worked out by a `while` whose rounds the model decides,
+    // over an array handed in. Nothing here can be unrolled while
+    // flattening, so the run walks the body - and now it may be handed
+    // an array and hold one while it goes. Three and four make five.
+    let result = run(
+        "model M function norm input Real v[:]; input Real a; output Real n; \
+         protected Real acc; Integer k; \
+         algorithm acc := 0; k := 1; \
+         while k <= size(v, 1) and a > 0 loop acc := acc + v[k] * v[k]; k := k + 1; end while; \
+         n := sqrt(acc); end norm; \
+         Real y; equation y = norm({3 * time, 4 * time}, time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    let y = result.rows.last().unwrap()[column];
+    assert!((y - 5.0).abs() < 1e-12, "y(1)={y}, expected 5");
+
+    // The same over a scalar product and a fold, which the walk writes
+    // out element by element rather than one number at a time.
+    let result = run(
+        "model M function power input Real v[:]; input Real i[size(v, 1)]; input Real a; \
+         output Real p; \
+         protected Integer rounds; \
+         algorithm rounds := 0; \
+         while rounds < 1 and a > 0 loop p := v * i; rounds := rounds + 1; end while; end power; \
+         Real y; equation y = power({1, 2 * time}, {3, 4}, time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    let y = result.rows.last().unwrap()[column];
+    assert!((y - 11.0).abs() < 1e-12, "y(1)={y}, expected 1*3 + 2*4");
+
+    // An array the body declares for itself: as long as what it was
+    // handed, filled in a loop, then folded. Sum, product and the
+    // smallest of them are all written out element by element.
+    let result = run(
+        "model M function shape input Real v[:]; input Real a; output Real p;          protected Real w[size(v, 1)]; Real doubled[2]; Integer k;          algorithm k := 1;          while k <= size(v, 1) and a > 0 loop w[k] := v[k] + 1; k := k + 1; end while;          doubled := 2 .* w;          p := sum(w) + product(w) + min(w) + max(w) + sum(doubled) + sum({a, 0}) - a; end shape;          Real y; equation y = shape({1 * time, 2 * time}, time);          annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    let y = result.rows.last().unwrap()[column];
+    // w = {2, 3}: 5 + 6 + 2 + 3, and twice w sums to 10.
+    assert!((y - 26.0).abs() < 1e-12, "y(1)={y}, expected 26");
+}
+
+#[test]
+fn a_walked_body_says_what_it_cannot_carry() {
+    // A subscript the model decides, and decides badly: the loop runs
+    // as long as `time` says, so nothing could have been settled while
+    // flattening. What the walk cannot do it says, and the answer that
+    // comes back is not a number.
+    let model = parse_model(
+        "model M function odd input Real v[:]; input Real a; output Real y; \
+         protected Integer k; \
+         algorithm k := 0; while k < a loop y := v[k]; k := k + 1; end while; end odd; \
+         Real y; equation y = odd({1, 2}, time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    let trouble = compile(&model)
+        .expect("compiles")
+        .simulate()
+        .expect_err("a subscript the model decided badly");
+    assert!(
+        trouble.to_string().contains("a whole number from one"),
+        "{trouble}"
+    );
+
+    // An array given a value of the wrong length.
+    let model = parse_model(
+        "model M function odd input Real v[:]; input Real a; output Real y; \
+         protected Real w[3]; Integer k; \
+         algorithm k := 0; while k < a loop w := 2 .* v; k := k + 1; end while; y := w[1]; \
+         end odd; \
+         Real y; equation y = odd({1, 2}, time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    let trouble = compile(&model)
+        .expect("compiles")
+        .simulate()
+        .expect_err("three long, given two");
+    assert!(trouble.to_string().contains("was given 2"), "{trouble}");
+}
+
+#[test]
+fn a_walked_body_decides_over_arrays() {
+    // Conditions, choices and negation over what was handed in, all
+    // written out element by element on the way to one answer.
+    let result = run(
+        "model M function pick input Real v[:]; input Real a; output Real y; \
+         protected Integer k; Real best; \
+         algorithm best := -1e30; k := 1; \
+         while k <= size(v, 1) and a > 0 loop \
+           if v[k] > best and not (v[k] > 100) then best := v[k]; end if; \
+           k := k + 1; end while; \
+         y := if sum(v) > 0 then best else -best; end pick; \
+         Real y; equation y = pick({1, 5 * time, 200}, time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    let y = result.rows.last().unwrap()[column];
+    // The two hundred is passed over, so the largest kept is five.
+    assert!((y - 5.0).abs() < 1e-12, "y(1)={y}, expected 5");
+}

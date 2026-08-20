@@ -37,6 +37,7 @@ pub(crate) fn walk(
     programs: &HashMap<String, ClassDef>,
     name: &str,
     args: &[f64],
+    lengths: &[usize],
     time: f64,
     depth: usize,
 ) -> Result<f64, SimError> {
@@ -53,21 +54,50 @@ pub(crate) fn walk(
         .iter()
         .filter(|component| component.causality == Causality::Input)
         .collect();
-    if inputs.len() != args.len() {
+    if inputs.len() != lengths.len() {
         return err(format!(
             "`{name}` takes {} argument(s), given {}",
             inputs.len(),
-            args.len()
+            lengths.len()
         ));
     }
     // The frame: the arguments under the names the body knows them by,
     // and everything else it declared starting where it was told to.
-    let mut frame: HashMap<String, f64> = HashMap::new();
-    for (input, value) in inputs.iter().zip(args) {
-        frame.insert(input.name.clone(), *value);
+    // An array is held the way the flat model holds one - each element
+    // under its own name, `v[1]`, `v[2]` - and how long it is is kept
+    // beside it, since that is what `size` and a loop over it ask for.
+    let mut frame = Frame::default();
+    let mut taken = 0;
+    for (input, count) in inputs.iter().zip(lengths) {
+        match count {
+            0 => {
+                frame.numbers.insert(input.name.clone(), args[taken]);
+                taken += 1;
+            }
+            length => {
+                for index in 1..=*length {
+                    frame
+                        .numbers
+                        .insert(format!("{}[{index}]", input.name), args[taken]);
+                    taken += 1;
+                }
+                frame.lengths.insert(input.name.clone(), *length);
+            }
+        }
     }
     for component in &class.components {
         if component.causality == Causality::Input {
+            continue;
+        }
+        // A declaration of its own length is one the body may read
+        // before it writes, so it is laid out before anything runs.
+        if let Some(length) = declared_length(component, &frame) {
+            frame.lengths.insert(component.name.clone(), length);
+            for index in 1..=length {
+                frame
+                    .numbers
+                    .insert(format!("{}[{index}]", component.name), 0.0);
+            }
             continue;
         }
         let start = component
@@ -77,7 +107,7 @@ pub(crate) fn walk(
             .map(|expr| number_of(expr, &frame, programs, time, depth))
             .transpose()?
             .unwrap_or(0.0);
-        frame.insert(component.name.clone(), start);
+        frame.numbers.insert(component.name.clone(), start);
     }
     run(&class.algorithm, &mut frame, programs, time, depth)?;
     // Both of these were settled before the model was compiled: a body
@@ -88,22 +118,51 @@ pub(crate) fn walk(
         .iter()
         .find(|component| component.causality == Causality::Output)
         .expect("a walked body gives one answer");
-    Ok(frame[&output.name])
+    Ok(frame.numbers[&output.name])
+}
+
+/// What a body carries while it is walked: numbers by name, and how
+/// long each array among them is.
+#[derive(Default)]
+struct Frame {
+    /// Every number the body holds, an array's elements under their
+    /// own names.
+    numbers: HashMap<String, f64>,
+    /// How long each array is, by the name the body knows it by.
+    lengths: HashMap<String, usize>,
+}
+
+/// How long a declaration is, where it says so in numbers the body
+/// already holds. A length written as anything else - `size(v, 1)` of
+/// something handed in - is read from what was handed in instead.
+fn declared_length(component: &Component, frame: &Frame) -> Option<usize> {
+    let [dimension] = component.dimensions.as_slice() else {
+        return None;
+    };
+    match dimension {
+        Expr::Number(length) => Some(*length as usize),
+        Expr::Call(name, args) if name == "size" && args.len() == 2 => {
+            let Expr::Ref(of) = &args[0] else { return None };
+            frame.lengths.get(of).copied()
+        }
+        _ => None,
+    }
 }
 
 /// What an expression is worth inside a frame, calls to other walked
 /// bodies included.
 fn number_of(
     expr: &Expr,
-    frame: &HashMap<String, f64>,
+    frame: &Frame,
     programs: &HashMap<String, ClassDef>,
     time: f64,
     depth: usize,
 ) -> Result<f64, SimError> {
+    let scalar = to_scalar(expr, frame, programs, time, depth)?;
     code::eval(
-        expr,
+        &scalar,
         &EvalCtx {
-            vars: frame,
+            vars: &frame.numbers,
             time,
             programs: Some(programs),
             depth,
@@ -111,10 +170,194 @@ fn number_of(
     )
 }
 
+/// What an expression written over arrays comes to as one number.
+///
+/// The answer of a walked body is one number, so an array can only
+/// appear on its way to becoming one: subscripted, measured, folded by
+/// `sum` and its like, or multiplied by another array. Each of those is
+/// written out here in terms of the elements, and everything else is
+/// left as it stands for the ordinary evaluation to do.
+fn to_scalar(
+    expr: &Expr,
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<Expr, SimError> {
+    let recur = |e: &Expr| to_scalar(e, frame, programs, time, depth);
+    Ok(match expr {
+        // `v[i]` where the body decides `i`: the element's own name.
+        Expr::Index(base, subscripts) => {
+            let Expr::Ref(name) = base.as_ref() else {
+                return err(format!(
+                    "only a name is subscripted in a walked body, not {base:?}"
+                ));
+            };
+            let mut indices = Vec::new();
+            for subscript in subscripts {
+                indices.push(index_of(subscript, frame, programs, time, depth)?.to_string());
+            }
+            Expr::Ref(format!("{name}[{}]", indices.join(",")))
+        }
+        // `size(v, 1)` of what was handed in.
+        Expr::Call(name, args) if name == "size" && args.len() == 2 => {
+            let Expr::Ref(of) = &args[0] else {
+                return err("`size` in a walked body asks about a name".to_string());
+            };
+            let length = frame
+                .lengths
+                .get(of)
+                .ok_or_else(|| SimError(format!("`{of}` is not an array this walk was given")))?;
+            Expr::Number(*length as f64)
+        }
+        // A fold over an array is the fold over its elements.
+        Expr::Call(name, args)
+            if matches!(name.as_str(), "sum" | "product" | "min" | "max") && args.len() == 1 =>
+        {
+            match elements_of(&args[0], frame, programs, time, depth)? {
+                None => Expr::Call(name.clone(), vec![recur(&args[0])?]),
+                Some(items) => fold(name, items)?,
+            }
+        }
+        // Two arrays multiplied are their scalar product.
+        Expr::Bin(BinOp::Mul, a, b) => {
+            match (
+                elements_of(a, frame, programs, time, depth)?,
+                elements_of(b, frame, programs, time, depth)?,
+            ) {
+                (Some(left), Some(right)) => {
+                    if left.len() != right.len() {
+                        return err(format!(
+                            "a scalar product needs equal lengths, got {} and {}",
+                            left.len(),
+                            right.len()
+                        ));
+                    }
+                    let terms = left
+                        .into_iter()
+                        .zip(right)
+                        .map(|(a, b)| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+                        .collect();
+                    fold("sum", terms)?
+                }
+                _ => Expr::Bin(BinOp::Mul, Box::new(recur(a)?), Box::new(recur(b)?)),
+            }
+        }
+        Expr::Bin(op, a, b) => Expr::Bin(*op, Box::new(recur(a)?), Box::new(recur(b)?)),
+        Expr::Rel(op, a, b) => Expr::Rel(*op, Box::new(recur(a)?), Box::new(recur(b)?)),
+        Expr::And(a, b) => Expr::And(Box::new(recur(a)?), Box::new(recur(b)?)),
+        Expr::Or(a, b) => Expr::Or(Box::new(recur(a)?), Box::new(recur(b)?)),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
+        Expr::If(condition, then, otherwise) => Expr::If(
+            Box::new(recur(condition)?),
+            Box::new(recur(then)?),
+            Box::new(recur(otherwise)?),
+        ),
+        Expr::Call(name, args) => Expr::Call(
+            name.clone(),
+            args.iter()
+                .map(recur)
+                .collect::<Result<Vec<_>, SimError>>()?,
+        ),
+        other => other.clone(),
+    })
+}
+
+/// The elements an expression stands for, where it stands for several.
+fn elements_of(
+    expr: &Expr,
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<Option<Vec<Expr>>, SimError> {
+    Ok(match expr {
+        Expr::Ref(name) => frame.lengths.get(name).map(|length| {
+            (1..=*length)
+                .map(|index| Expr::Ref(format!("{name}[{index}]")))
+                .collect()
+        }),
+        Expr::Array(items) => Some(
+            items
+                .iter()
+                .map(|item| to_scalar(item, frame, programs, time, depth))
+                .collect::<Result<Vec<_>, SimError>>()?,
+        ),
+        // `v .* i` and its like: one operation per element. One side
+        // may be a single number, which then goes with every element.
+        Expr::Elementwise(op, a, b) => {
+            let (left, right) = (
+                elements_of(a, frame, programs, time, depth)?,
+                elements_of(b, frame, programs, time, depth)?,
+            );
+            let spread = |one: &Expr, many: Vec<Expr>, first: bool| {
+                let one = to_scalar(one, frame, programs, time, depth);
+                one.map(|one| {
+                    many.into_iter()
+                        .map(|item| match first {
+                            true => Expr::Bin(*op, Box::new(one.clone()), Box::new(item)),
+                            false => Expr::Bin(*op, Box::new(item), Box::new(one.clone())),
+                        })
+                        .collect()
+                })
+            };
+            match (left, right) {
+                (Some(left), Some(right)) if left.len() == right.len() => Some(
+                    left.into_iter()
+                        .zip(right)
+                        .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                        .collect(),
+                ),
+                (Some(left), None) => Some(spread(b, left, false)?),
+                (None, Some(right)) => Some(spread(a, right, true)?),
+                _ => None,
+            }
+        }
+        _ => None,
+    })
+}
+
+/// A fold written out: `sum` of nothing is nothing, of one is itself.
+fn fold(name: &str, items: Vec<Expr>) -> Result<Expr, SimError> {
+    let joined = match name {
+        "sum" => items
+            .into_iter()
+            .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+            .unwrap_or(Expr::Number(0.0)),
+        "product" => items
+            .into_iter()
+            .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+            .unwrap_or(Expr::Number(1.0)),
+        _ => items
+            .into_iter()
+            .reduce(|a, b| Expr::Call(name.to_string(), vec![a, b]))
+            .ok_or_else(|| SimError(format!("`{name}` of an array with nothing in it")))?,
+    };
+    Ok(joined)
+}
+
+/// A subscript as the whole number it has to be.
+fn index_of(
+    expr: &Expr,
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<i64, SimError> {
+    let value = number_of(expr, frame, programs, time, depth)?;
+    if value.fract() != 0.0 || value < 1.0 {
+        return err(format!(
+            "a subscript must be a whole number from one, got {value}"
+        ));
+    }
+    Ok(value as i64)
+}
+
 /// Walk a run of statements.
 fn run(
     body: &[Statement],
-    frame: &mut HashMap<String, f64>,
+    frame: &mut Frame,
     programs: &HashMap<String, ClassDef>,
     time: f64,
     depth: usize,
@@ -122,14 +365,41 @@ fn run(
     for statement in body {
         match statement {
             Statement::Assign(target, subscripts, value) => {
+                // `q[i] := ...` lands on the element's own name, which
+                // is how an array is held here.
+                let mut named = target.clone();
                 if !subscripts.is_empty() {
-                    return err(format!(
-                        "`{target}` is subscripted in a body the run walks, and a walk \
-                         carries numbers rather than arrays"
-                    ));
+                    let mut indices = Vec::new();
+                    for subscript in subscripts {
+                        indices
+                            .push(index_of(subscript, frame, programs, time, depth)?.to_string());
+                    }
+                    named = format!("{target}[{}]", indices.join(","));
+                }
+                // A whole array assigned at once - `w := 2 .* v` -
+                // lands on the elements, since that is how one is held.
+                if subscripts.is_empty() {
+                    if let (Some(length), Some(items)) = (
+                        frame.lengths.get(target).copied(),
+                        elements_of(value, frame, programs, time, depth)?,
+                    ) {
+                        if items.len() != length {
+                            return err(format!(
+                                "`{target}` is {length} long and was given {}",
+                                items.len()
+                            ));
+                        }
+                        for (index, item) in items.iter().enumerate() {
+                            let worth = number_of(item, frame, programs, time, depth)?;
+                            frame
+                                .numbers
+                                .insert(format!("{target}[{}]", index + 1), worth);
+                        }
+                        continue;
+                    }
                 }
                 let worth = number_of(value, frame, programs, time, depth)?;
-                frame.insert(target.clone(), worth);
+                frame.numbers.insert(named, worth);
             }
             Statement::Assert(condition, message) => {
                 if number_of(condition, frame, programs, time, depth)? == 0.0 {
@@ -187,7 +457,7 @@ fn run(
             }
             Statement::For(variable, range, inner) => {
                 for value in loop_over(range.as_ref(), frame, programs, time, depth)? {
-                    frame.insert(variable.clone(), value);
+                    frame.numbers.insert(variable.clone(), value);
                     match run(inner, frame, programs, time, depth)? {
                         Flow::Onwards => {}
                         Flow::Broke => break,
@@ -221,7 +491,7 @@ fn run(
 /// good as one the compiler could have seen.
 fn loop_over(
     range: Option<&Expr>,
-    frame: &HashMap<String, f64>,
+    frame: &Frame,
     programs: &HashMap<String, ClassDef>,
     time: f64,
     depth: usize,
