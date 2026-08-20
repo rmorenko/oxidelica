@@ -796,8 +796,14 @@ pub(super) fn programs_used(
         // A body names what it calls the way it was written there; the
         // walk looks names up in one table, so they are made to agree.
         let mut carried = (*class).clone();
-        carried.algorithm =
-            qualified_calls(&class.algorithm, registry, &class.name, &class.imports);
+        let renamed = records_as_arrays(&mut carried, registry);
+        carried.algorithm = qualified_calls(
+            &class.algorithm,
+            registry,
+            &class.name,
+            &class.imports,
+            &renamed,
+        );
         out.push(carried);
         gather_calls_in_statements(
             &class.algorithm,
@@ -810,6 +816,48 @@ pub(super) fn programs_used(
     Ok(out)
 }
 
+/// Every record a body deals in written as an array of its members.
+///
+/// A walk carries numbers under names, and an array is those names
+/// subscripted - `v[2]`. A record is the same thing under another
+/// spelling, so it is given that spelling here: `bpro.cp` becomes
+/// `bpro[7]`, in the order the record declared its members. Nothing in
+/// the walk then has to know what a record is.
+///
+/// Only a record of plain numbers, though. One holding an array or
+/// another record would need more than a name and a subscript, and is
+/// left as it was for the walk to refuse by name.
+fn records_as_arrays(
+    class: &mut ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> HashMap<String, Expr> {
+    let mut renamed: HashMap<String, Expr> = HashMap::new();
+    for component in &mut class.components {
+        let Some(of) = lookup(registry, &component.type_name, &class.name, &class.imports)
+            .filter(|of| of.kind == ClassKind::Record)
+        else {
+            continue;
+        };
+        let members = record_fields(of);
+        let plain = of
+            .components
+            .iter()
+            .all(|member| member.dimensions.is_empty() && is_primitive(&member.type_name));
+        if !plain || members.is_empty() {
+            continue;
+        }
+        for (index, member) in members.iter().enumerate() {
+            renamed.insert(
+                format!("{}.{member}", component.name),
+                Expr::Ref(format!("{}[{}]", component.name, index + 1)),
+            );
+        }
+        component.type_name = "Real".to_string();
+        component.dimensions = vec![Expr::Number(members.len() as f64)];
+    }
+    renamed
+}
+
 /// The same statements with every call to a user function named the
 /// way the registry knows it.
 fn qualified_calls(
@@ -817,19 +865,33 @@ fn qualified_calls(
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
+    renamed: &HashMap<String, Expr>,
 ) -> Vec<Statement> {
-    let inner = |body: &[Statement]| qualified_calls(body, registry, scope, imports);
-    let expr = |e: &Expr| qualified_in(e, registry, scope, imports);
+    let inner = |body: &[Statement]| qualified_calls(body, registry, scope, imports, renamed);
+    let expr = |e: &Expr| substitute_refs(&qualified_in(e, registry, scope, imports), renamed);
+    // A member of a record is written as an element of an array, and a
+    // statement may be filling one.
+    let target = |name: &String| match renamed.get(name) {
+        Some(Expr::Ref(instead)) => instead.clone(),
+        _ => name.clone(),
+    };
     body.iter()
         .map(|statement| match statement {
-            Statement::Assign(target, subscripts, value) => Statement::Assign(
-                target.clone(),
+            Statement::Assign(name, subscripts, value) => Statement::Assign(
+                target(name),
                 subscripts.iter().map(&expr).collect(),
                 expr(value),
             ),
-            Statement::TupleAssign(targets, value) => {
-                Statement::TupleAssign(targets.clone(), expr(value))
-            }
+            Statement::TupleAssign(targets, value) => Statement::TupleAssign(
+                targets
+                    .iter()
+                    .map(|slot| {
+                        slot.as_ref()
+                            .map(|(name, subs)| (target(name), subs.clone()))
+                    })
+                    .collect(),
+                expr(value),
+            ),
             Statement::Assert(condition, message) => {
                 Statement::Assert(expr(condition), message.clone())
             }

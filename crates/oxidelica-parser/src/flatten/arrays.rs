@@ -959,6 +959,13 @@ pub(super) fn expand_call(
                             .find(|c| c.causality == Causality::Output);
                         let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
                             [Expr::Number(length)] => Some(*length as i64),
+                            // A record answers with its members, in the
+                            // order it declared them: the walk is
+                            // handed it written that way.
+                            [] => lookup(registry, &answer.type_name, &class.name, imports)
+                                .filter(|of| of.kind == ClassKind::Record)
+                                .map(|of| record_fields(of).len() as i64)
+                                .filter(|members| *members > 0),
                             _ => None,
                         });
                         return Ok(match length {

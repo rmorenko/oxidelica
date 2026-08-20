@@ -3006,7 +3006,7 @@ fn a_walked_body_decides_over_arrays() {
          protected Integer k; Real best; \
          algorithm best := -1e30; k := 1; \
          while k <= size(v, 1) and a > 0 loop \
-           if v[k] > best and not (v[k] > 100) then best := v[k]; end if; \
+           if v[k] > best and not (v[k] > 100 or v[k] < -100) then best := v[k]; end if; \
            k := k + 1; end while; \
          y := if sum(v) > 0 then best else -best; end pick; \
          Real y; equation y = pick({1, 5 * time, 200}, time); \
@@ -3016,6 +3016,23 @@ fn a_walked_body_decides_over_arrays() {
     let y = result.rows.last().unwrap()[column];
     // The two hundred is passed over, so the largest kept is five.
     assert!((y - 5.0).abs() < 1e-12, "y(1)={y}, expected 5");
+
+    // Two arrays multiplied are their scalar product, and a single
+    // number goes with every element whichever side it is written on.
+    let result = run(
+        "model M function paired input Real v[:]; input Real w[size(v, 1)]; input Real a; \
+         output Real y; protected Real scaled[size(v, 1)]; Integer k; \
+         algorithm k := 0; \
+         while k < 1 and a > 0 loop scaled := v .* 2; y := scaled * w + sum(3 .* w); \
+           k := k + 1; end while; end paired; \
+         Real y; equation y = paired({1, 2 * time}, {3, 4}, time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    let y = result.rows.last().unwrap()[column];
+    // Twice {1, 2} against {3, 4} is 22, and three times {3, 4} sums
+    // to 21.
+    assert!((y - 43.0).abs() < 1e-12, "y(1)={y}, expected 43");
 }
 
 #[test]
@@ -3042,4 +3059,69 @@ fn a_walked_body_answers_with_several_numbers() {
             last[column]
         );
     }
+}
+
+#[test]
+fn a_walked_body_answers_with_a_record() {
+    // The shape the standard library's water is written in: a body
+    // that cannot be unrolled fills one member of a record in one
+    // branch and another in the other, and whoever reads a member
+    // knows which branch it was. What no branch filled is nothing.
+    let result = run(
+        "package P record Props Real a; Real b; Real c; end Props; end P; \
+         model M function boundary input Real p; input Real go; output P.Props pro; \
+         protected Integer k; \
+         algorithm k := 0; \
+         while k < go loop \
+           if p > 1 then pro.a := p; pro.b := 2 * p; \
+           else pro.a := -p; pro.c := 3 * p; end if; \
+           k := k + 1; end while; end boundary; \
+         P.Props q; Real y; \
+         equation q = boundary(2 * time, time); y = q.a + q.b + q.c; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // Two at the end, so the first branch: 2 and 4, and nothing for
+    // the member the other branch would have filled.
+    assert!((last[at("q.a")] - 2.0).abs() < 1e-12);
+    assert!((last[at("q.b")] - 4.0).abs() < 1e-12);
+    assert_eq!(last[at("q.c")], 0.0);
+    assert!((last[at("y")] - 6.0).abs() < 1e-12);
+
+    // The other branch, and with it the other member.
+    let result = run(
+        "package P record Props Real a; Real b; Real c; end Props; end P; \
+         model M function boundary input Real p; input Real go; output P.Props pro; \
+         protected Integer k; \
+         algorithm k := 0; \
+         while k < go loop \
+           if p > 1 then pro.a := p; pro.b := 2 * p; \
+           else pro.a := -p; pro.c := 3 * p; end if; \
+           k := k + 1; end while; end boundary; \
+         P.Props q; Real y; \
+         equation q = boundary(0.5 * time, time); y = q.a + q.b + q.c; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!((last[at("q.a")] + 0.5).abs() < 1e-12);
+    assert_eq!(last[at("q.b")], 0.0);
+    assert!((last[at("q.c")] - 1.5).abs() < 1e-12);
+
+    // A record of more than plain numbers is left as it was written:
+    // a name and a subscript are not enough for it, and the model is
+    // told what does not add up rather than given a guess.
+    let model = parse_model(
+        "package P record Deep Real a; Real v[2]; end Deep; end P; \
+         model M function boundary input Real p; input Real go; output P.Deep pro; \
+         protected Integer k; \
+         algorithm k := 0; while k < go loop pro.a := p; k := k + 1; end while; \
+         end boundary; \
+         P.Deep q; Real y; equation q = boundary(time, time); y = q.a; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    let trouble = compile(&model).expect_err("a record of more than numbers");
+    assert!(trouble.to_string().contains("unbalanced"), "{trouble}");
 }

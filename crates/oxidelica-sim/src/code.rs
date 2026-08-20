@@ -286,13 +286,12 @@ impl Code {
             // answer with a number that is not one.
             Code::Program(walked, name, args, lengths, which) => {
                 let given: Vec<f64> = args.iter().map(|arg| arg.run(values, time)).collect();
-                match crate::walk::walk(&walked.programs, name, &given, lengths, time, 0).and_then(
-                    |answer| {
-                        answer.get(*which).copied().ok_or_else(|| {
-                            SimError(format!("`{name}` gave no answer number {}", which + 1))
-                        })
-                    },
-                ) {
+                // Which number of the answer this stands for was
+                // settled where the call was laid out, against what the
+                // body declares it answers with.
+                match crate::walk::walk(&walked.programs, name, &given, lengths, time, 0)
+                    .map(|answer| answer[*which])
+                {
                     Ok(worth) => worth,
                     Err(SimError(why)) => {
                         if let Ok(mut held) = walked.trouble.lock() {
