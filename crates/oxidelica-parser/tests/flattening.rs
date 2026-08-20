@@ -6316,3 +6316,27 @@ fn a_record_may_be_carried_by_a_connector() {
         "Bin(Mul, Number(2.0), Number(3.0))"
     );
 }
+
+/// A condition that leaves out an array of components leaves out its
+/// elements, and the connections to them.
+#[test]
+fn a_condition_leaves_out_a_whole_array() {
+    let m = parse_model(
+        "package P connector Sig = input Real; connector Out = output Real; \
+         block Src Out y; equation y = time; end Src; \
+         block Sink Sig u; Real r; equation r = u; end Sink; \
+         block Many parameter Boolean useThem = false; parameter Integer m = 2; \
+           Sig v[m]; Sink parts[m] if useThem; Real s; \
+           equation for i in 1:m loop connect(v[i], parts[i].u); end for; \
+           s = v[1]; end Many; \
+         end P; \
+         model M P.Src src; P.Many many; Real y; \
+         equation connect(src.y, many.v[1]); many.v[2] = 0; y = many.s; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an array of components nobody asked for");
+    // Nothing of `parts` is there, and the connection to it fell away
+    // with it - what is left is the signal reaching the model.
+    assert!(!m.components.iter().any(|c| c.name.contains("parts")));
+    assert!(m.components.iter().any(|c| c.name == "many.v[1]"));
+}

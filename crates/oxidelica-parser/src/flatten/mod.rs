@@ -665,9 +665,14 @@ impl Flat {
     /// Whether a path names a component left out by its condition, or
     /// anything inside one.
     fn is_disabled(&self, path: &str) -> bool {
-        self.disabled
-            .iter()
-            .any(|left_out| path == left_out || path.starts_with(&format!("{left_out}.")))
+        self.disabled.iter().any(|left_out| {
+            // An array of components is left out by the name of the
+            // array, and what a `connect` names is an element of it:
+            // `filter[1].u` where the whole of `filter` is not there.
+            path == left_out
+                || path.starts_with(&format!("{left_out}."))
+                || path.starts_with(&format!("{left_out}["))
+        })
     }
 }
 
