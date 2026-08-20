@@ -40,8 +40,8 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2643 read, 31 not read
-classes: 6409; example models: 699, of which 342 flatten
+files: 2649 read, 25 not read
+classes: 6544; example models: 734, of which 325 flatten
 ```
 
 Two numbers, and they mean different things. **Read** is the parser:
@@ -49,6 +49,16 @@ the file was understood as Modelica. **Flatten** is the whole front end:
 the model was instantiated, its connections resolved, its arrays and
 functions expanded, and what came out is a flat system of equations. A
 model that flattens is a model this compiler can go on to simulate.
+
+Both numbers move as files start to parse, and not always upwards. A
+file nobody could read holds classes nobody could name, and a call to a
+name nothing defines is left standing rather than refused — so a model
+that reached into an unread file could flatten while quietly carrying a
+call to nothing. When the file starts parsing, the call finds its
+declaration, the declaration says `external "C"`, and the model is
+refused by name. That is the honest number arriving rather than a step
+back: 26 models moved that way when `Modelica/Blocks/Tables.mo` began
+to parse.
 
 A worked example — an RC circuit built entirely from MSL components:
 
@@ -72,20 +82,23 @@ end MslRc;
 
 ## What it does not
 
-The 31 files that will not parse, and the example models that will not
+The 25 files that will not parse, and the example models that will not
 flatten, are not a long tail of small things. They are a handful of
 features, each used widely:
 
-- **The multibody library** — 27 models, on a chain of lengths and
-  shapes its visual parts are drawn with.
-- **`Clock` with named arguments** — 16 models of the clocked library
-  write `Clock(interval = 0.1)`.
-- **A member read across an array of components in a `connect`** — 20
-  models of the power-converter library.
-- **External C bodies** — the tables, the LAPACK bindings, the file
+- **External C bodies** — the tables above all, then the string
+  handling, the random generators, the LAPACK bindings, the file
   reading. These parse and are refused where they are called, naming
   what was asked for. [EXTERNAL.md](EXTERNAL.md) says how that is to
   change.
+- **A local assigned in one branch only** — 41 models, the water
+  properties of the media library among them.
+- **A record handed to a function that wants its fields** — 17
+  models, through `Modelica.ComplexMath`.
+- **The multibody library** — on a chain of lengths and shapes its
+  visual parts are drawn with.
+- **`Clock` with named arguments** — the clocked library writes
+  `Clock(interval = 0.1)`.
 
 Two groups of models, 73 between them, are refused for none of those
 reasons: working them out does not finish. What was measured about that,
@@ -103,5 +116,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "342 of 699" mean anything — without it, one unparsed file would
+like "325 of 734" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

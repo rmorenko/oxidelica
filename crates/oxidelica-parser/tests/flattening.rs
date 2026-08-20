@@ -6444,3 +6444,148 @@ fn an_outside_body_names_itself() {
     .expect("an operator the language already has");
     assert!(format!("{:?}", m.equations[0].rhs).contains("asin"));
 }
+
+#[test]
+fn a_branch_inside_a_loop_gives_the_round_its_equations() {
+    // Settled before the run: the branch that holds is the only one
+    // that leaves anything behind, once per round.
+    let m = parse_model(
+        "model M parameter Boolean detailed = true; Real v[3]; \
+         equation for i in 1:3 loop \
+         if detailed then v[i] = i * time; else v[i] = 0; end if; \
+         end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(m.equations.len(), 3);
+    assert!(m
+        .equations
+        .iter()
+        .all(|e| !matches!(e.rhs, Expr::Number(0.0))));
+
+    // The far branch, and a loop written inside one.
+    let plain = parse_model(
+        "model M parameter Boolean detailed = false; Real v[2]; Real w[2]; \
+         equation for i in 1:2 loop \
+         if detailed then v[i] = time; w[i] = time; \
+         else v[i] = 0; for j in 1:1 loop w[i] = j; end for; end if; \
+         end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(plain.equations.len(), 4);
+
+    // A branch with nothing to choose from leaves the round empty.
+    let empty = parse_model(
+        "model M parameter Boolean detailed = false; Real x; \
+         equation x = time; for i in 1:2 loop \
+         if detailed then x = 0; end if; end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(empty.equations.len(), 1);
+
+    // Only the run decides: the round makes one equation per position
+    // that chooses its own side, the way an `if` among the equations
+    // of a class does.
+    let run = parse_model(
+        "model M Real u; Real v[2]; \
+         equation u = time; for i in 1:2 loop \
+         if u > 1 then v[i] = i * u; else v[i] = 0; end if; \
+         end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(run.equations.len(), 1);
+    // One `if` per round, each balanced at one equation a side.
+    assert_eq!(run.conditional.len(), 2);
+    assert!(run
+        .conditional
+        .iter()
+        .all(|held| held.branches.len() == 2 && held.branches[0].len() == 1));
+
+    // A `connect` inside such a branch is structural: a connection is
+    // drawn once and for all, whichever way the run falls.
+    assert!(parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model P Pin p; end P; \
+         model M Real u; P a[2]; P b[2]; \
+         equation u = time; for i in 1:2 loop \
+         if u > 1 then connect(a[i].p, b[i].p); \
+         else connect(a[i].p, b[i].p); end if; end for; end M;",
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("structural"));
+}
+
+#[test]
+fn a_loop_holding_only_a_warning_is_not_an_empty_loop() {
+    // A check written at warning level is read and dropped, so a loop
+    // that held only those leaves nothing behind - and is still not a
+    // loop with no body.
+    let m = parse_model(
+        "model M parameter Real v[2] = {1, 2}; Real x; \
+         equation x = time; for i in 1:2 loop \
+         assert(v[i] > 0, \"positive\", AssertionLevel.warning); end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(m.equations.len(), 1);
+    assert!(
+        parse_model("model M Real x; equation x = time; for i in 1:2 loop end for; end M;")
+            .unwrap_err()
+            .to_string()
+            .contains("no body")
+    );
+}
+
+#[test]
+fn a_settled_branch_inside_a_loop_carries_what_it_holds() {
+    // A connection drawn in the branch that holds, once per round.
+    let m = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model P Pin p; equation p.v = time; end P; \
+         model M parameter Boolean joined = true; P a[2]; P b[2]; \
+         equation for i in 1:2 loop \
+         if joined then connect(a[i].p, b[i].p); end if; end for; end M;",
+    )
+    .unwrap();
+    // Four equations of the parts, and a pair per connection drawn.
+    assert_eq!(m.equations.len(), 8);
+
+    // A check written in the branch that holds is a check of the model.
+    let checked = parse_model(
+        "model M parameter Boolean guarded = true; Real x; \
+         equation x = time; for i in 1:2 loop \
+         if guarded then assert(x > -1, \"low\"); end if; end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(checked.asserts.len(), 2);
+
+    // A loop inside the branch is unrolled here, and what it cannot
+    // settle is said here too.
+    assert!(parse_model(
+        "model M parameter Boolean guarded = true; Real x; \
+         equation x = time; for i in 1:2 loop if guarded then \
+         for j in 1:x loop x = j; end for; end if; end for; end M;",
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("the trip count of a loop is not settled here"));
+
+    // The loop's extent is read through the branch when the loop does
+    // not say it: `v[i]` inside an `if` is what says how far it goes.
+    let implied = parse_model(
+        "model M parameter Boolean lit = true; Real v[3]; \
+         equation for i loop if lit then v[i] = i * time; end if; end for; end M;",
+    )
+    .unwrap();
+    assert_eq!(implied.equations.len(), 3);
+
+    // A `when` there is part of the model rather than a value, and
+    // this compiler says so rather than dropping it.
+    assert!(parse_model(
+        "model M parameter Boolean lit = true; Real v[2]; discrete Real k; \
+         equation for i in 1:2 loop v[i] = time; if lit then \
+         when time > 1 then k = i; end when; end if; end for; end M;",
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("reads none of them"));
+}

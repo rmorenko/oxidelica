@@ -135,10 +135,15 @@ impl Parser {
         let indices = self.for_indices()?;
         self.expect(&Token::Loop, "loop after the range")?;
         let mut body = Vec::new();
+        // Whether the loop said anything at all, warning-level checks
+        // included: those are read and dropped, so a loop that held
+        // only them leaves nothing behind and is still not a mistake.
+        let mut dropped = 0;
         while self.peek() != &Token::End {
             match self.peek() {
                 Token::Eof => return Err(self.err("unterminated for equation".into())),
                 Token::For => body.push(ForBody::Nested(self.for_equation()?)),
+                Token::If => body.push(ForBody::Branch(self.if_equation()?)),
                 Token::Connect => {
                     let (a, b) = self.connect_clause()?;
                     body.push(ForBody::Connect(a, b));
@@ -148,8 +153,11 @@ impl Parser {
                     self.bump();
                     let held = self.assert_arguments()?;
                     self.expect(&Token::Semi, "semicolon after assert")?;
-                    if let Some((condition, message)) = held {
-                        body.push(ForBody::Assert(condition, message));
+                    match held {
+                        Some((condition, message)) => {
+                            body.push(ForBody::Assert(condition, message))
+                        }
+                        None => dropped += 1,
                     }
                 }
                 _ => body.push(ForBody::Equation(self.equation_item()?)),
@@ -158,7 +166,7 @@ impl Parser {
         self.expect(&Token::End, "end for")?;
         self.expect(&Token::For, "for after end")?;
         self.expect(&Token::Semi, "semicolon after end for")?;
-        if body.is_empty() {
+        if body.is_empty() && dropped == 0 {
             return Err(self.err("for equation has no body".into()));
         }
         let mut built: Option<ForEquation> = None;

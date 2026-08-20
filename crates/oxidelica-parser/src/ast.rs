@@ -503,6 +503,10 @@ pub enum ForBody {
     /// `assert(condition, "message");` — one check per round, with the
     /// loop variable folded in.
     Assert(Expr, String),
+    /// An `if` equation written inside the loop: the standard library
+    /// gives a vessel its port equations one way or another way
+    /// depending on what the vessel was told about its ports.
+    Branch(IfEquation),
 }
 
 /// A `for <var> in <lo>:<hi> loop <body> end for;` clause.

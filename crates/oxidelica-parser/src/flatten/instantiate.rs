@@ -2075,6 +2075,15 @@ pub(super) fn implied_range(
                 look(a);
                 look(b);
             }
+            // A branch says what it holds the same way the loop does.
+            ForBody::Branch(if_equation) => {
+                for branch in &if_equation.branches {
+                    for equation in &branch.equations {
+                        look(&equation.lhs);
+                        look(&equation.rhs);
+                    }
+                }
+            }
             ForBody::Nested(inner) => {
                 if found.is_none() {
                     found = implied_range(&inner.body, variable, prefix, outers, sizes)
@@ -2238,6 +2247,104 @@ pub(super) fn unroll(
                 ForBody::Nested(inner) => unroll(
                     inner, &loop_vars, consts, prefix, outers, sizes, registry, scope, imports, acc,
                 )?,
+                // An `if` inside a loop: the branch that holds gives
+                // its equations to the round, and the others give
+                // nothing. What decides it is settled here, as it is
+                // for an `if` written among the equations of a class.
+                ForBody::Branch(if_equation) => {
+                    let shapes = Shapes {
+                        sizes,
+                        loop_vars: &loop_vars,
+                        consts,
+                        records: no_records(),
+                    };
+                    // Everything inside the loop is read with this
+                    // round's value of the loop variable already put
+                    // in, so what comes out is one round's worth of
+                    // this branch and nothing about any other round.
+                    let side = |expr: &Expr| -> Result<Value, String> {
+                        let expr = substitute_refs(expr, &folded);
+                        let expr = substitute_class_constants(&expr, registry, scope, imports, &[]);
+                        expand(
+                            &prefix_expr(&expr, prefix, outers),
+                            &shapes,
+                            registry,
+                            scope,
+                            imports,
+                            0,
+                        )
+                    };
+                    let mut settling = consts.clone();
+                    settling.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    let settle = |condition: &Expr| {
+                        let condition = substitute_refs(condition, &folded);
+                        let condition =
+                            substitute_class_constants(&condition, registry, scope, imports, &[]);
+                        const_eval(&condition, &settling)
+                    };
+                    let decidable = if_equation.branches.iter().all(|branch| {
+                        branch
+                            .condition
+                            .as_ref()
+                            .is_none_or(|condition| settle(condition).is_some())
+                    });
+                    // A condition the run decides makes the same `if`
+                    // it would make among the equations of a class -
+                    // one equation per position, choosing its residual
+                    // as it goes - only written once per round.
+                    if !decidable {
+                        push_conditional(
+                            if_equation,
+                            scope,
+                            |expr: &Expr| side(expr)?.scalar(),
+                            |expr: &Expr, _: &HashMap<String, f64>| side(expr),
+                            &HashMap::new(),
+                            acc,
+                        )?;
+                        continue;
+                    }
+                    let mut chosen = None;
+                    for branch in &if_equation.branches {
+                        let Some(condition) = &branch.condition else {
+                            chosen = Some(branch);
+                            break;
+                        };
+                        if settle(condition) != Some(0.0) {
+                            chosen = Some(branch);
+                            break;
+                        }
+                    }
+                    let Some(branch) = chosen else { continue };
+                    if !branch.whens.is_empty()
+                        || !branch.calls.is_empty()
+                        || !branch.graph.is_empty()
+                    {
+                        return Err(format!(
+                            "a `when`, a call on its own or a `Connections` clause sits in an \
+                             `if` inside a `for` in `{scope}`, and this compiler reads none of \
+                             them there"
+                        ));
+                    }
+                    for (a, b) in &branch.connects {
+                        let (a, b) = (substitute_refs(a, &folded), substitute_refs(b, &folded));
+                        push_connects(
+                            &a, &b, &shapes, prefix, outers, registry, scope, imports, acc,
+                        )?;
+                    }
+                    for inner in &branch.loops {
+                        unroll(
+                            inner, &loop_vars, consts, prefix, outers, sizes, registry, scope,
+                            imports, acc,
+                        )?;
+                    }
+                    for equation in &branch.equations {
+                        push_equations(&side(&equation.lhs)?, &side(&equation.rhs)?, acc)?;
+                    }
+                    for (condition, message) in &branch.asserts {
+                        acc.asserts
+                            .push((side(condition)?.scalar()?, message.clone()));
+                    }
+                }
                 ForBody::Assert(condition, message) => {
                     let condition = substitute_refs(condition, &folded);
                     let condition =

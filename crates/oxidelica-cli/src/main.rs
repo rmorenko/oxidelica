@@ -321,7 +321,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
         }
     }
     println!("files: {read} read, {unread} not read");
-    report(&refusals, "  ");
+    report(&refusals, "  ", list);
     let models: Vec<String> = classes
         .iter()
         .filter(|c| c.kind == oxidelica_parser::ClassKind::Model && !c.partial)
@@ -349,13 +349,13 @@ fn library_check(args: &[String]) -> Result<(), String> {
             println!("  flat  {name}");
         }
     }
-    report(&why_not, "  ");
+    report(&why_not, "  ", list);
     Ok(())
 }
 
 /// The reasons that came up most, with how often each did and one of
 /// the things it came up on - which is where to start reading.
-fn report(reasons: &[(String, String)], indent: &str) {
+fn report(reasons: &[(String, String)], indent: &str, all: bool) {
     let mut counted: std::collections::BTreeMap<&str, (usize, &str)> =
         std::collections::BTreeMap::new();
     for (reason, what) in reasons {
@@ -367,11 +367,18 @@ fn report(reasons: &[(String, String)], indent: &str) {
     }
     let mut ranked: Vec<(&&str, &(usize, &str))> = counted.iter().collect();
     ranked.sort_by(|a, b| b.1 .0.cmp(&a.1 .0).then(a.0.cmp(b.0)));
-    for (reason, (count, what)) in ranked.iter().take(10) {
+    // Ten is enough to say what to work on next; the whole of it is
+    // what says how long the tail is, and `--list` is the flag for
+    // wanting everything.
+    let shown = match all {
+        true => ranked.len(),
+        false => 10,
+    };
+    for (reason, (count, what)) in ranked.iter().take(shown) {
         println!("{indent}{count:5}  {reason}");
         println!("{indent}       first on {what}");
     }
-    if ranked.len() > 10 {
-        println!("{indent}       and {} more kind(s)", ranked.len() - 10);
+    if ranked.len() > shown {
+        println!("{indent}       and {} more kind(s)", ranked.len() - shown);
     }
 }
