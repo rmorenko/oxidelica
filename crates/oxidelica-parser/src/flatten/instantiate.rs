@@ -341,7 +341,14 @@ pub(super) fn instantiate(
     // What each array component of this class - and of its bases - is
     // shaped like, so a value may name one as a whole.
     let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
-    collect_shapes(registry, class, &local_consts, &mut sizes, 0);
+    collect_shapes(
+        registry,
+        class,
+        &local_consts,
+        &HashMap::new(),
+        &mut sizes,
+        0,
+    );
     let mut sizes_here = prefixed_sizes(&sizes, prefix);
     // How much of the growing list of measured arrays has been taken
     // into the table above. Each declaration brings its own, and the
@@ -1502,10 +1509,39 @@ pub(super) fn instantiate(
                         }
                         for (target, (_, worth)) in targets.iter().zip(outputs) {
                             let Some(target) = target else { continue };
-                            actions.push(WhenAction::Assign(
-                                flat_name(target, prefix, &outers),
-                                worth,
-                            ));
+                            let target = flat_name(target, prefix, &outers);
+                            // An output of several numbers lands on
+                            // several names: a generator answers with
+                            // the state it moved to, and the model
+                            // holds one number per name.
+                            let placed = expand(
+                                &Expr::Ref(target.clone()),
+                                &shapes,
+                                registry,
+                                scope,
+                                &imports,
+                                0,
+                            )?;
+                            let (mut names, mut worths) = (Vec::new(), Vec::new());
+                            placed.flatten_into(&mut names);
+                            expand(&worth, &shapes, registry, scope, &imports, 0)?
+                                .flatten_into(&mut worths);
+                            if names.len() != worths.len() {
+                                return Err(format!(
+                                    "`{target}` is {} name(s) and what it is given at the \
+                                     event is {} value(s)",
+                                    names.len(),
+                                    worths.len()
+                                ));
+                            }
+                            for (name, worth) in names.into_iter().zip(worths) {
+                                let Expr::Ref(name) = name else {
+                                    return Err(format!(
+                                        "`{target}` is not a name an event can assign"
+                                    ));
+                                };
+                                actions.push(WhenAction::Assign(name, worth));
+                            }
                         }
                     }
                 }

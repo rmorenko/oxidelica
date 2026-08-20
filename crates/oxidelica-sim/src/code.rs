@@ -301,6 +301,15 @@ impl Code {
                     }
                 }
             }
+            // A body written here in Rust: the numbers in, the
+            // numbers out, and the place of the answer this stands
+            // for. The shape was checked where the call was laid out.
+            Code::Outside(called, args, which) => {
+                let given: Vec<f64> = args.iter().map(|arg| arg.run(values, time)).collect();
+                oxidelica_parser::outside::answer(called, &given)
+                    .and_then(|answer| answer.get(*which).copied())
+                    .unwrap_or(f64::NAN)
+            }
             Code::Slot(slot) => values[*slot],
             Code::Time => time,
             Code::Neg(inner) => -inner.run(values, time),
@@ -453,6 +462,18 @@ impl SlotTable {
             // how a body answering with an array reaches a model, which
             // holds one number per name.
             Expr::Index(base, subscripts) => match (base.as_ref(), subscripts.as_slice()) {
+                // `f(x)[2]` of a body written here: the same call,
+                // asked for the second number of what it answers with.
+                (Expr::Call(name, args), [Expr::Number(which)])
+                    if oxidelica_parser::outside::written_here(name) && *which >= 1.0 =>
+                {
+                    match self.compile_call(name, args)? {
+                        Code::Outside(name, given, _) => {
+                            Code::Outside(name, given, *which as usize - 1)
+                        }
+                        other => other,
+                    }
+                }
                 (Expr::Call(name, args), [Expr::Number(which)])
                     if self.walked.programs.contains_key(name) && *which >= 1.0 =>
                 {
@@ -487,6 +508,33 @@ impl SlotTable {
     /// The built-in behind a call, with its arity checked here rather
     /// than on every evaluation.
     pub(crate) fn compile_call(&self, name: &str, args: &[Expr]) -> Result<Code, SimError> {
+        // A body written here in Rust answers to the name it is called
+        // by outside. An array argument was handed over written out,
+        // and the body takes the numbers in the order they were
+        // written, so there is nothing to keep about the grouping.
+        if let Some((takes, _)) = oxidelica_parser::outside::written_here(name)
+            .then(|| oxidelica_parser::outside::answers(name))
+            .flatten()
+        {
+            let mut given = Vec::new();
+            for arg in args {
+                match arg {
+                    Expr::Array(items) => {
+                        for item in items {
+                            given.push(self.compile(item)?);
+                        }
+                    }
+                    one => given.push(self.compile(one)?),
+                }
+            }
+            if given.len() != takes {
+                return err(format!(
+                    "`{name}` takes {takes} number(s), and it was handed {}",
+                    given.len()
+                ));
+            }
+            return Ok(Code::Outside(name.to_string(), given, 0));
+        }
         // A body this run walks answers to its own name before any
         // built-in rule is looked for.
         if self.walked.programs.contains_key(name) {

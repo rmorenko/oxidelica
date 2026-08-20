@@ -262,6 +262,51 @@ pub(super) fn execute(
                 // which may itself be bound by an earlier statement - so
                 // the bindings are applied once more.
                 let value = substitute_refs(&value, bindings);
+                // `state[1:2] := aux` names a run of elements, and what
+                // it is given is that many values: the standard library
+                // fills a generator's state two at a time that way.
+                // Each element is assigned its own, which is what the
+                // run of names comes to.
+                if let [Expr::Range(from, step, to)] = subscripts.as_slice() {
+                    let settled = |e: &Expr| const_eval(&substitute_refs(e, bindings), consts);
+                    let (Some(from), Some(to)) = (settled(from), settled(to)) else {
+                        return Err(format!(
+                            "`{target}` is given a run of elements whose bounds this compiler \
+                             cannot see"
+                        ));
+                    };
+                    let step = match step {
+                        None => 1.0,
+                        Some(step) => settled(step).unwrap_or(1.0),
+                    };
+                    let named: Vec<i64> = std::iter::successors(Some(from), |at| {
+                        Some(at + step).filter(|next| (next - to) * step <= 0.0)
+                    })
+                    .map(|at| at as i64)
+                    .collect();
+                    let Expr::Array(items) = &value else {
+                        return Err(format!(
+                            "`{target}` is given a run of {} element(s), and what it is given \
+                             is not that many",
+                            named.len()
+                        ));
+                    };
+                    if items.len() != named.len() {
+                        return Err(format!(
+                            "`{target}` is given a run of {} element(s) and {} value(s)",
+                            named.len(),
+                            items.len()
+                        ));
+                    }
+                    for (index, item) in named.into_iter().zip(items) {
+                        let one = element_name(target, &[index]);
+                        if !assigned.contains(&one) {
+                            assigned.push(one.clone());
+                        }
+                        bindings.insert(one, item.clone());
+                    }
+                    continue;
+                }
                 // `c[i] := ...` lands on the element's own name.
                 let target = if subscripts.is_empty() {
                     target.clone()
@@ -1314,6 +1359,77 @@ pub(super) fn outside_this_language(class: &ClassDef) -> String {
     )
 }
 
+/// The outputs of a body written here, each taking its own place of
+/// what the call answers with.
+///
+/// The answer is one flat list of numbers, in the order the outputs
+/// were declared and each written out: an output of two numbers takes
+/// two places. A scalar output is one place, and a call asked for one
+/// place is written `f(...)[k]` - the same shape a walked body's
+/// answer takes, so nothing downstream needs a second rule.
+fn numbered_outputs(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    consts: &HashMap<String, f64>,
+    made: &Expr,
+    answers: usize,
+) -> Result<Vec<(String, Expr)>, String> {
+    let place = |which: usize| {
+        Expr::Index(
+            Box::new(made.clone()),
+            vec![Expr::Number(which as f64 + 1.0)],
+        )
+    };
+    let mut outputs = Vec::new();
+    let mut taken = 0;
+    for output in function_components(registry, class, 0)
+        .iter()
+        .filter(|c| c.causality == Causality::Output)
+    {
+        // A length is nearly always a constant of the package the
+        // function is written in - `stateOut[nState]` of a generator -
+        // and that is a name no environment holds on its own.
+        let length = match output.dimensions.as_slice() {
+            [] => None,
+            [dimension] => {
+                let named = substitute_class_constants(
+                    dimension,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    &[],
+                );
+                Some(const_eval(&named, consts).ok_or_else(|| {
+                    format!(
+                        "`{}` answers with `{}`, whose length this compiler cannot see",
+                        class.name, output.name
+                    )
+                })? as usize)
+            }
+            _ => {
+                return Err(format!(
+                    "`{}` answers with `{}`, whose shape this compiler cannot see",
+                    class.name, output.name
+                ))
+            }
+        };
+        let said = match length {
+            None => place(taken),
+            Some(length) => Expr::Array((0..length).map(|step| place(taken + step)).collect()),
+        };
+        taken += length.unwrap_or(1);
+        outputs.push((output.name.clone(), said));
+    }
+    if taken != answers {
+        return Err(format!(
+            "`{}` answers with {taken} number(s), and the body written here answers with \
+             {answers}",
+            class.name
+        ));
+    }
+    Ok(outputs)
+}
+
 /// Whether a declaration is of `Real`, following the aliases a library
 /// wraps it in: `SI.Voltage` is a `Real` and so is `Modelica.Units.SI
 /// .Time`, while an `Integer`, a `Boolean` or an `ExternalObject` is
@@ -1409,22 +1525,25 @@ fn inline_body(
     // standing for whoever can work it out; where nobody answers, the
     // refusal says which name was wanted.
     if class.external {
-        let Some(call) = class
-            .external_call
-            .as_ref()
-            .filter(|call| external::answered_here(&call.called))
-        else {
+        let Some(call) = class.external_call.as_ref().filter(|call| {
+            external::answered_here(&call.called) || crate::outside::written_here(&call.called)
+        }) else {
             return Err(outside_this_language(class));
         };
+        let made = Expr::Call(call.called.clone(), args.to_vec());
+        // A body written here in Rust answers with numbers rather than
+        // with a string, and may answer with several: the generators
+        // give a value and the state they moved to. Each output takes
+        // its own place of that answer, the way a walked body's does.
+        if let Some((_, answers)) = crate::outside::answers(&call.called) {
+            return numbered_outputs(class, registry, consts, &made, answers);
+        }
         let output = class
             .components
             .iter()
             .find(|c| c.causality == Causality::Output)
             .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
-        return Ok(vec![(
-            output.name.clone(),
-            Expr::Call(call.called.clone(), args.to_vec()),
-        )]);
+        return Ok(vec![(output.name.clone(), made)]);
     }
     // What a function takes and answers with may be written in a base
     // of it: `redeclare function extends bubbleEnthalpy` says only what
@@ -1542,7 +1661,14 @@ fn inline_body(
     // that is a colon measures nothing on its own, and a result sized
     // `size(v, 1)` reads its length back out of here.
     let mut sizes: HashMap<String, Vec<i64>> = given_shapes;
-    collect_shapes(registry, class, consts, &mut sizes, 0);
+    // What the call handed over as numbers: a result declared
+    // `Integer[nState]` takes its length from the `nState` it was
+    // given, and nowhere else says what that is.
+    let given: HashMap<String, f64> = bindings
+        .iter()
+        .filter_map(|(name, value)| Some((name.clone(), const_eval(value, consts)?)))
+        .collect();
+    collect_shapes(registry, class, consts, &given, &mut sizes, 0);
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
     if execute(

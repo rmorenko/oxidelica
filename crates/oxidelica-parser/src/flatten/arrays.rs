@@ -477,6 +477,19 @@ pub(super) fn expand_call(
     };
 
     match (name, args.len()) {
+        // A body written here in Rust takes what it was handed as it
+        // was handed it - an array stays an array, so the run knows
+        // how many numbers went into which argument - and answers with
+        // one flat list, which a subscript takes a place of. Nothing
+        // spreads over the elements: the body was written for the
+        // whole.
+        (_, _) if crate::outside::written_here(name) => {
+            let handed = args
+                .iter()
+                .map(|arg| Ok(recur(arg)?.into_expr()))
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Scalar(Expr::Call(name.to_string(), handed)))
+        }
         // `String(a, ...)` on a record is what the record's `'String'`
         // operator makes of it; on a number it stays for the string
         // pass to fold.
@@ -1538,18 +1551,21 @@ pub(super) fn collect_shapes(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     consts: &HashMap<String, f64>,
+    given: &HashMap<String, f64>,
     out: &mut HashMap<String, Vec<i64>>,
     depth: usize,
 ) {
-    collect_shapes_under(registry, class, "", consts, out, depth)
+    collect_shapes_under(registry, class, "", consts, given, out, depth)
 }
 
 /// The same, for the members of a record below a name.
+#[allow(clippy::too_many_arguments)]
 fn collect_shapes_under(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     prefix: &str,
     consts: &HashMap<String, f64>,
+    given: &HashMap<String, f64>,
     out: &mut HashMap<String, Vec<i64>>,
     depth: usize,
 ) {
@@ -1559,7 +1575,7 @@ fn collect_shapes_under(
     let scope = class.name.as_str();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
-            collect_shapes_under(registry, base, prefix, consts, out, depth + 1);
+            collect_shapes_under(registry, base, prefix, consts, given, out, depth + 1);
         }
     }
     for component in &class.components {
@@ -1575,7 +1591,7 @@ fn collect_shapes_under(
             .filter(|of| of.kind == ClassKind::Record)
         {
             let below = format!("{prefix}{}.", component.name);
-            collect_shapes_under(registry, of, &below, consts, out, depth + 1);
+            collect_shapes_under(registry, of, &below, consts, given, out, depth + 1);
         }
         if component.dimensions.is_empty() {
             continue;
@@ -1592,6 +1608,14 @@ fn collect_shapes_under(
             .enumerate()
             .map(|(axis, dimension)| match dimension {
                 Expr::Ref(name) if name == "Boolean" => Some(2),
+                // A length the call decided: `output Integer[nState]
+                // state` of a function whose `nState` is an input. The
+                // caller's number is what says how long it is, and it
+                // is only ever a handful of names, so it is asked
+                // first and costs nothing.
+                _ if !given.is_empty() && const_eval(dimension, given).is_some() => {
+                    const_eval(dimension, given).map(|length| length as i64)
+                }
                 Expr::Ref(name) => lookup(registry, name, scope, &class.imports)
                     .filter(|c| !c.enumeration.is_empty())
                     .map(|c| c.enumeration.len() as i64)

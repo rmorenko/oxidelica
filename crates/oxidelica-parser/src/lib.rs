@@ -7,6 +7,7 @@ pub mod check;
 pub mod flatten;
 pub mod lexer;
 pub mod library;
+pub mod outside;
 pub mod parser;
 
 pub use ast::{

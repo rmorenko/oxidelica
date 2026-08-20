@@ -3125,3 +3125,37 @@ fn a_walked_body_answers_with_a_record() {
     let trouble = compile(&model).expect_err("a record of more than numbers");
     assert!(trouble.to_string().contains("unbalanced"), "{trouble}");
 }
+
+#[test]
+fn a_body_written_here_takes_the_numbers_it_was_written_for() {
+    // Two scalars rather than one array: the body takes the numbers in
+    // the order they were written, whichever way the declaration
+    // grouped them.
+    let result = run(
+        "model M function draw input Integer low; input Integer high; output Real r; \
+         output Integer nextLow; output Integer nextHigh; \
+         external \"C\" ModelicaRandom_xorshift64star(low, high, r, nextLow, nextHigh); \
+         end draw; \
+         discrete Real r(start = 0, fixed = true); \
+         equation when time > 0.5 then r = draw(126247697, 0); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    let r = result.columns.iter().position(|c| c == "r").unwrap();
+    let last = result.rows.last().unwrap()[r];
+    assert!((last - 0.554353923013482).abs() < 1e-15, "{last}");
+
+    // Handed more numbers than the body was written for, the compiler
+    // says so rather than reading past the end of them.
+    let refusal = refused(
+        "model M function draw input Integer state[3]; output Real r; \
+         output Integer nextState[2]; \
+         external \"C\" ModelicaRandom_xorshift64star(state, nextState, r); end draw; \
+         discrete Real r(start = 0, fixed = true); \
+         equation when time > 0.5 then r = draw({1, 2, 3}); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    assert!(
+        refusal.contains("takes 2 number(s), and it was handed 3"),
+        "{refusal}"
+    );
+}

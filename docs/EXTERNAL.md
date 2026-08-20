@@ -85,6 +85,19 @@ and where each answer goes.
 **4. What is written here.** Random first (smallest and exactly
 specified), then strings, then the tables.
 
+The generators are done, the one-dimensional tables, and the strings.
+
+`ModelicaRandom_xorshift64star` is written again in `outside.rs`, which
+sits where both the compiler and the run can reach it - numbers in,
+numbers out, and the answer the function's outputs in the order it
+declared them. Flattening folds a call whose arguments are all settled,
+which is how the standard library's ten rounds from a seed come to two
+numbers before the run starts; the run answers the rest, so a state
+carried across events works the way a `when` does. A model drawing from
+it gets the same stream any other tool would: `examples/random_draw.mo`
+is checked against the algorithm's own definition rather than against
+this compiler's copy of it.
+
 The one-dimensional tables are done, and the strings. A table block
 keeps its data in a handle - an `ExternalObject` built from the matrix
 the model wrote - and asks C for a value at every step. Where the

@@ -504,6 +504,12 @@ enum Code {
     /// The last field is which number of the answer this stands for:
     /// a body answering with an array is asked once for each.
     Program(std::sync::Arc<Walked>, String, Vec<Code>, Vec<usize>, usize),
+    /// A call to a body written outside Modelica and answered here in
+    /// Rust: the name it is called by outside, the arguments to work
+    /// out first, and which number of the answer this stands for.
+    /// Nothing can go wrong that is not a mistake in this compiler, so
+    /// unlike a walk there is no reason to leave behind.
+    Outside(String, Vec<Code>, usize),
     /// A one-argument built-in.
     Unary(Unary, Box<Code>),
     /// A two-argument built-in.

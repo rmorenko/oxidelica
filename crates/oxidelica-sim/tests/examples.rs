@@ -1110,3 +1110,52 @@ fn a_replaceable_medium_changes_what_the_tank_holds() {
         last[temperature]
     );
 }
+
+#[test]
+fn random_draw_draws_the_stream_the_algorithm_defines() {
+    let result = compile(&parse_model(&example("random_draw.mo")).unwrap())
+        .unwrap()
+        .simulate()
+        .unwrap();
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let (r, low, high) = (column("r"), column("state[1]"), column("state[2]"));
+
+    // The same stream, worked out here from the algorithm's own
+    // definition rather than from this compiler's copy of it: three
+    // shifts and three exclusive-ors move the state, and the number is
+    // the state times a fixed odd multiplier, scaled into (0, 1].
+    let mut state: u64 = 126247697;
+    let mut drawn = Vec::new();
+    for _ in 0..4 {
+        state ^= state >> 12;
+        state ^= state << 25;
+        state ^= state >> 27;
+        let value = state.wrapping_mul(2685821657736338717) as f64 * 5.421_010_862_427_522e-20;
+        let half = |value: u64| ((value & 0xffff_ffff) as u32 as i32) as f64;
+        drawn.push((value, half(state), half(state >> 32)));
+    }
+
+    // Each draw lands at its sample and holds until the next.
+    for (step, (value, low_half, high_half)) in drawn.iter().enumerate() {
+        // The first sample is at zero, so draw `k` lands at `0.25k`.
+        let at = 0.25 * step as f64;
+        let row = result
+            .rows
+            .iter()
+            .rev()
+            .find(|row| row[0] <= at + 1e-9)
+            .unwrap();
+        assert!(
+            (row[r] - value).abs() < 1e-12,
+            "at {at}: {} vs {value}",
+            row[r]
+        );
+        assert_eq!(row[low], *low_half, "at {at}");
+        assert_eq!(row[high], *high_half, "at {at}");
+    }
+
+    // Every number a generator of this kind draws is in (0, 1].
+    for row in &result.rows {
+        assert!(row[r] >= 0.0 && row[r] <= 1.0, "{}", row[r]);
+    }
+}

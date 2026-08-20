@@ -7069,3 +7069,170 @@ fn a_table_reads_what_the_model_settled_around_it() {
     .to_string();
     assert!(periodic.contains("periodic extrapolation"), "{periodic}");
 }
+
+/// A generator of the shape the standard library declares one: the
+/// state carried as two `Integer`s, a body written outside Modelica,
+/// and an answer of a value and the state it moved to.
+const GENERATOR: &str = "package Gen constant Integer nState = 2; \
+     pure function random input Integer stateIn[nState]; output Real result; \
+       output Integer stateOut[nState]; \
+       external \"C\" ModelicaRandom_xorshift64star(stateIn, stateOut, result); end random; \
+     function initialState input Integer localSeed; input Integer globalSeed; \
+       output Integer state[nState]; protected Real r; constant Integer p = 3; \
+       algorithm \
+       if localSeed == 0 and globalSeed == 0 then state := {126247697, globalSeed}; \
+       else state := {localSeed, globalSeed}; end if; \
+       for i in 1:p loop (r, state) := random(state); end for; end initialState; \
+     function withN input Integer localSeed; input Integer globalSeed; input Integer n; \
+       output Integer state[n]; protected Integer aux[2]; algorithm \
+       aux := initialState(localSeed, globalSeed); state[1:2] := aux; end withN; \
+   end Gen; ";
+
+#[test]
+fn a_body_written_here_answers_with_as_many_numbers_as_it_declares() {
+    // Every seed settled: the ten-line algorithm runs while the model
+    // is being built, and what is left is two numbers.
+    let m = parse_model(&format!(
+        "{GENERATOR} model M parameter Integer s[2] = Gen.initialState(7, 3); \
+         Real y; equation y = s[1] * time; end M;"
+    ))
+    .unwrap();
+    let value = |name: &str| {
+        m.components
+            .iter()
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
+    };
+    // Three rounds, each the outside call asked for its own place of
+    // the answer: the first for the value it drew, the second and
+    // third for the halves of the state it moved to.
+    let written = format!("{:?}", value("s[1]"));
+    assert_eq!(written.matches("ModelicaRandom_xorshift64star").count(), 7);
+    assert!(written.contains("Number(7.0), Number(3.0)"), "{written}");
+    assert!(written.ends_with("[Number(2.0)]))"), "{written}");
+    let second = format!("{:?}", value("s[2]"));
+    assert!(second.ends_with("[Number(3.0)]))"), "{second}");
+
+    // A run of elements assigned at once: `state[1:2] := aux` is what
+    // the standard library fills a longer state with.
+    let sliced = parse_model(&format!(
+        "{GENERATOR} model M parameter Integer s[2] = Gen.withN(7, 3, 2); \
+         Real y; equation y = s[2] * time; end M;"
+    ))
+    .unwrap();
+    assert_eq!(
+        format!(
+            "{:?}",
+            sliced
+                .components
+                .iter()
+                .find(|c| c.name == "s[2]")
+                .and_then(|c| c.binding.clone())
+        ),
+        second
+    );
+
+    // A run given the wrong number of values is said, not guessed.
+    let mismatched = parse_model(&format!(
+        "{GENERATOR} model M function odd output Integer s[3]; \
+         protected Integer aux[2] = {{1, 2}}; algorithm s[1:3] := aux; end odd; \
+         parameter Integer s[3] = odd(); Real y; equation y = s[1] * time; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        mismatched.contains("run of 3 element(s) and 2 value(s)"),
+        "{mismatched}"
+    );
+}
+
+#[test]
+fn a_generator_draws_at_an_event_and_carries_its_state() {
+    // The whole of what a noise block does: a state held across
+    // events, one draw per sample, and the state the draw moved to
+    // landing on the names the state is held in.
+    let m = parse_model(&format!(
+        "{GENERATOR} model M Integer state[2](start = {{7, 3}}, each fixed = true); \
+         discrete Real r(start = 0, fixed = true); \
+         equation when sample(0, 1) then (r, state) = Gen.random(pre(state)); end when; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ))
+    .unwrap();
+    let actions = &m.when_clauses[0].branches[0].actions;
+    // Three names assigned: the number drawn and the two halves of the
+    // state, each taking its own place of what the body answers with.
+    assert_eq!(actions.len(), 3);
+    let said = format!("{actions:?}");
+    assert!(
+        said.contains("state[1]") && said.contains("state[2]"),
+        "{said}"
+    );
+    assert!(said.contains("ModelicaRandom_xorshift64star"), "{said}");
+}
+
+#[test]
+fn a_body_written_here_is_held_to_what_it_declares() {
+    // A run of elements whose bounds only the run would know.
+    let loose = parse_model(
+        "model M function fill3 input Real u; output Integer s[3]; \
+         protected Integer aux[2] = {1, 2}; Integer n; \
+         algorithm n := integer(u); s[1:n] := aux; end fill3; \
+         Integer v[3]; Real y; equation v = fill3(time); y = v[1] * time; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(loose.contains("bounds this compiler cannot see"), "{loose}");
+
+    // A run given one value rather than a list of them.
+    let one = parse_model(
+        "model M function fill2 output Integer s[2]; algorithm s[1:2] := 7; end fill2; \
+         parameter Integer s[2] = fill2(); Real y; equation y = s[1] * time; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(one.contains("is not that many"), "{one}");
+
+    // An answer whose length nothing says.
+    let lengthless = parse_model(&format!(
+        "{GENERATOR} model M function odd input Integer a[2]; output Real v; \
+         output Integer w[:]; \
+         external \"C\" ModelicaRandom_xorshift64star(a, w, v); end odd; \
+         Real y; equation y = odd({{1, 2}}) * time; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        lengthless.contains("whose length this compiler cannot see"),
+        "{lengthless}"
+    );
+
+    // An answer of more than one dimension: a body written here gives
+    // one flat list, and nothing says how to fold it into a matrix.
+    let shapeless = parse_model(&format!(
+        "{GENERATOR} model M function odd input Integer a[2]; output Real v; \
+         output Integer w[2, 2]; \
+         external \"C\" ModelicaRandom_xorshift64star(a, w, v); end odd; \
+         Real y; equation y = odd({{1, 2}}) * time; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        shapeless.contains("whose shape this compiler cannot see"),
+        "{shapeless}"
+    );
+
+    // An answer of the wrong number of numbers: the body written here
+    // gives three, and this declaration asks for four.
+    let mismatched = parse_model(&format!(
+        "{GENERATOR} model M function odd input Integer a[2]; output Real v; \
+         output Integer w[3]; \
+         external \"C\" ModelicaRandom_xorshift64star(a, w, v); end odd; \
+         Real y; equation y = odd({{1, 2}}) * time; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        mismatched.contains("answers with 4 number(s), and the body written here answers with 3"),
+        "{mismatched}"
+    );
+}

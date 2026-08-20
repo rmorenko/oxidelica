@@ -135,6 +135,29 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
                 Pow => a.powf(b),
             }
         }
+        // A body written here in Rust folds where everything it is
+        // handed is settled: the standard library builds a generator's
+        // first state by drawing ten numbers from a seed, and all ten
+        // fold into the two numbers the state is.
+        Expr::Index(base, subscripts) => {
+            let (Expr::Call(called, args), [which]) = (base.as_ref(), subscripts.as_slice()) else {
+                return None;
+            };
+            let mut given = Vec::new();
+            for arg in args {
+                match arg {
+                    Expr::Array(items) => {
+                        for item in items {
+                            given.push(const_eval(item, env)?);
+                        }
+                    }
+                    one => given.push(const_eval(one, env)?),
+                }
+            }
+            let which = const_eval(which, env)?;
+            let place = (which as usize).checked_sub(1)?;
+            *crate::outside::answer(called, &given)?.get(place)?
+        }
         // The numeric builtins fold too: a `while` iterating Newton's
         // method or an AGM lives on `abs` and `sqrt` in its condition.
         Expr::Call(name, args) => {
@@ -1128,6 +1151,24 @@ pub(super) fn resolve(
         )
     };
     Ok(match expr {
+        // A body written here in Rust takes what it was handed as it
+        // was handed it: an array argument stays whole, so the run
+        // knows how many numbers went into which of them.
+        Expr::Call(name, args) if crate::outside::written_here(name) => Expr::Call(
+            name.clone(),
+            args.iter()
+                .map(|arg| match arg {
+                    Expr::Array(items) => {
+                        Ok(Expr::Array(items.iter().map(&recur).collect::<Result<
+                            Vec<_>,
+                            String,
+                        >>(
+                        )?))
+                    }
+                    one => recur(one),
+                })
+                .collect::<Result<Vec<_>, String>>()?,
+        ),
         Expr::Index(base, subscripts) => {
             // A function body reads `table[i]` off whatever it was
             // handed, and what it was handed may be a list written out
@@ -1135,6 +1176,20 @@ pub(super) fn resolve(
             // read off a subscripted component - `medium[i].Xi[1]` -
             // which is a name once the subscript in the middle is
             // settled.
+            // A body written here answers with one flat list, and a
+            // subscript takes a place of it. There is nothing to look
+            // into: the call stands, and the run reads the place.
+            if let Expr::Call(called, _) = base.as_ref() {
+                if crate::outside::written_here(called) {
+                    return Ok(Expr::Index(
+                        Box::new(recur(base)?),
+                        subscripts
+                            .iter()
+                            .map(&recur)
+                            .collect::<Result<Vec<_>, String>>()?,
+                    ));
+                }
+            }
             let base = match base.as_ref() {
                 Expr::Ref(_) | Expr::Array(_) => (**base).clone(),
                 other => recur(other)?,
