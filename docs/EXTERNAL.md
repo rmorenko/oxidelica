@@ -19,12 +19,15 @@ something outside - and the answer may come from either of two places:
 
 - **Written here, in Rust.** Compiled in, present always, the same on
   every machine, covered by tests.
-- **Bound to the library's own C.** Found and built where the library
-  was fetched, behind a feature that is off by default.
+- **The library's own C, run in a sandbox.** Compiled to WebAssembly
+  once, when this compiler is released, and run inside it. Behind a
+  feature that is off by default.
 
 Where both could answer, **the one written here wins**. It is the one
-this project can promise something about; the other is a way to reach
-what has not been written yet.
+this project can promise something about; the sandbox is how to reach
+what nobody has written yet, and neither has to wait for the other.
+Part of a library written here and the rest delegated is the ordinary
+case, not a special one.
 
 ## Why not simply bind to the C and be done
 
@@ -52,11 +55,15 @@ reaching for it:
 | `ModelicaStandardTables`    | interpolation the specification sets out in full |
 | `ModelicaIO`, MatIO, LAPACK | reaching for it wins: the work is real           |
 
-What is written here needs no compiler on the machine that runs a model,
-no `unsafe`, and behaves the same on every platform. What is bound to
-brings its own toolchain, its own platform matrix, and a fault in it
-takes the whole tool down rather than saying what went wrong - which is
-against how everything else here fails.
+What is written here needs nothing brought along, and it can be read.
+The sandbox costs a dependency and a call that is not free; what it does
+not cost is a C compiler on the machine running the model, `unsafe` in
+this codebase, or a build of its own on each of three operating systems.
+
+That last part is why the C is run rather than linked to. Linked, a
+fault in it takes the whole tool down without a word - which is against
+how everything else here fails. Sandboxed, a fault is a trap the host
+catches and says out loud, by the name of the function that trapped.
 
 ## The plan, in the order it has to happen
 
@@ -78,13 +85,35 @@ and where each answer goes.
 **4. What is written here.** Random first (smallest and exactly
 specified), then strings, then the tables.
 
-**5. Binding, behind a feature.** Off by default, so the ordinary build
-keeps no C toolchain and no `unsafe`. Turned on, it finds
-`Modelica/Resources/C-Sources` where the library was fetched, builds it
-once, and fills in whatever step 4 has not covered.
+**5. The sandbox, behind a feature.** The library's C compiled to
+WebAssembly - by us, at release, so nothing is built on the machine
+running a model - and run with `wasmtime`. It fills in whatever step 4
+has not, and step 4 may stop wherever it likes.
+
+Off by default: `wasmtime` is a large dependency and a slow one to
+build, and a model that never reaches outside Modelica should pay for
+neither. Turned on, the calls into it look the same as the ones written
+here, because the mechanism in front of both is the same.
+
+`wasmtime` rather than an interpreter because a table is asked for a
+value at every step of the run, and an interpreter would be felt there.
+The price is build time and megabytes in the binary, which is what the
+feature flag is for.
 
 Steps 1 and 2 are independent of each other; everything after 3 may be
 done in any order, or not at all.
+
+## What the sandbox is allowed to touch
+
+`ModelicaStandardTables` can read a table out of a file, and models do
+that. `ModelicaIO` reads `.mat` files; `ModelicaInternal` reads the
+file system and the environment. Under WebAssembly none of that happens
+unless a directory is handed over, which means the question - what may
+a model read - has to be answered rather than inherited.
+
+The answer here: the directory the model was loaded from and the
+libraries in view, and nothing else, unless one is named outright. It is
+a decision that costs nothing to make now and is awkward to make later.
 
 ## What a model sees while this is unfinished
 
