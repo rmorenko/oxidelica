@@ -1358,11 +1358,28 @@ fn inline_body(
             Expr::Call(builtin.clone(), args.to_vec()),
         )]);
     }
-    // A function whose body is written in C is read as far as its
-    // declaration and no further: there is nothing here to inline, and
-    // nothing to walk at run time either.
+    // A function whose body is written outside Modelica is read as far
+    // as its declaration and no further. Where this compiler answers
+    // for the name itself, the call is written as that name and left
+    // standing for whoever can work it out; where nobody answers, the
+    // refusal says which name was wanted.
     if class.external {
-        return Err(outside_this_language(class));
+        let Some(call) = class
+            .external_call
+            .as_ref()
+            .filter(|call| external::answered_here(&call.called))
+        else {
+            return Err(outside_this_language(class));
+        };
+        let output = class
+            .components
+            .iter()
+            .find(|c| c.causality == Causality::Output)
+            .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
+        return Ok(vec![(
+            output.name.clone(),
+            Expr::Call(call.called.clone(), args.to_vec()),
+        )]);
     }
     // What a function takes and answers with may be written in a base
     // of it: `redeclare function extends bubbleEnthalpy` says only what

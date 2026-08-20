@@ -25,6 +25,7 @@ mod algorithms;
 mod arrays;
 mod clocks;
 mod connections;
+mod external;
 mod instantiate;
 mod names;
 mod operators;

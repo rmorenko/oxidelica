@@ -85,6 +85,15 @@ and where each answer goes.
 **4. What is written here.** Random first (smallest and exactly
 specified), then strings, then the tables.
 
+The strings are done. `ModelicaStrings_length`, `_substring` and
+`_compare` are answered in `flatten/external.rs`, which is the one
+place that says which outside names this compiler answers for itself.
+A function whose outside name is one of those is not refused: the call
+is written as that name and left standing, and the string layer - which
+already settles every string at the end of flattening - works it out.
+That is how the standard library's transformers pick a ratio out of the
+letters of a vector group.
+
 **5. The sandbox, behind a feature.** The library's C compiled to
 WebAssembly - by us, at release, so nothing is built on the machine
 running a model - and run with `wasmtime`. It fills in whatever step 4

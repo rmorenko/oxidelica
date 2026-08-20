@@ -187,6 +187,16 @@ pub(super) fn text_of(
                 _ => return None,
             })
         }
+        // A body written outside Modelica that this compiler answers
+        // for itself: the call was left standing by the inliner, and
+        // this is where the string ones are worked out.
+        Expr::Call(name, args) if name == "ModelicaStrings_substring" && args.len() == 3 => {
+            Some(external::substring(
+                &text_of(&args[0], values, numbers)?,
+                const_eval(&args[1], numbers)?,
+                const_eval(&args[2], numbers)?,
+            ))
+        }
         Expr::Call(name, args) if name == "String" && args.len() == 1 => {
             let number = const_eval(&args[0], numbers)?;
             Some(if number.fract() == 0.0 {
@@ -227,6 +237,13 @@ pub(super) fn fold(
         return Err(format!(
             "`{text}` is a String, and a String has no value an equation can hold"
         ));
+    }
+    // The same, where what an outside call comes to is a number: the
+    // length of a string, or how two of them compare.
+    if let Expr::Call(name, args) = expr {
+        if let Some(number) = external::number_of(name, args, values, numbers) {
+            return Ok(Expr::Number(number));
+        }
     }
     let recur = |e: &Expr| fold(e, values, numbers);
     Ok(match expr {

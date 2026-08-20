@@ -6413,15 +6413,28 @@ fn an_alias_answers_with_a_name_that_carries() {
 #[test]
 fn an_outside_body_names_itself() {
     let error = parse_model(
+        "model M function sort input Real u[3]; output Real y[3]; \
+         external \"C\" ModelicaSpecial_sort(u, y); end sort; \
+         Real y[3]; equation y = sort({3, 1, 2}); end M;",
+    )
+    .expect_err("a body written outside")
+    .message;
+    assert!(error.contains("ModelicaSpecial_sort(u, y)"), "{error}");
+    assert!(error.contains("in C"), "{error}");
+    assert!(error.contains("no outside library was given"), "{error}");
+
+    // A name this compiler answers for itself is not refused: the call
+    // is left standing as that name, and the string layer works it out.
+    let answered = parse_model(
         "model M function length input String s; output Integer n; \
          external \"C\" n = ModelicaStrings_length(s); end length; \
          Real y; equation y = length(\"abc\"); end M;",
     )
-    .expect_err("a body written outside")
-    .message;
-    assert!(error.contains("ModelicaStrings_length(s)"), "{error}");
-    assert!(error.contains("in C"), "{error}");
-    assert!(error.contains("no outside library was given"), "{error}");
+    .expect("a name answered here");
+    assert!(matches!(
+        answered.equations.first().map(|e| &e.rhs),
+        Some(Expr::Number(three)) if *three == 3.0
+    ));
 
     // A declaration that names no language still names the call.
     let error = parse_model(
@@ -6738,4 +6751,76 @@ fn a_function_written_for_one_record_takes_a_whole_array_of_them() {
     ))
     .unwrap();
     assert_eq!(filled.equations.len(), 5);
+}
+
+#[test]
+fn the_string_bodies_written_outside_are_answered_here() {
+    // `Modelica.Electrical.Machines` picks a transformer's ratio from
+    // the letters of its vector group: `substring(VectorGroup, 1, 1)`
+    // held in a constant and compared further down. Both the cut and
+    // the comparison are settled before the run.
+    const CUT: &str = "function substring input String s; input Integer i1; \
+         input Integer i2; output String r; \
+         external \"C\" r = ModelicaStrings_substring(s, i1, i2); end substring; \
+         function length input String s; output Integer n; \
+         external \"C\" n = ModelicaStrings_length(s); end length; \
+         function compare input String a; input String b; input Boolean cased; \
+         output Integer r; \
+         external \"C\" r = ModelicaStrings_compare(a, b, cased); end compare; ";
+    let m = parse_model(&format!(
+        "model M {CUT} constant String group = \"Dyn\"; \
+         constant String first = substring(group, 1, 1); \
+         Real ratio; Real n; Real same; \
+         equation ratio = if first == \"D\" then 1 else 3; \
+         n = length(group); same = compare(\"a\", \"A\", false); end M;"
+    ))
+    .unwrap();
+    let value = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(said) if said == name))
+            .map(|e| format!("{:?}", e.rhs))
+    };
+    // The comparison came to a truth before the run; what the branch
+    // makes of it is the solver's business.
+    assert_eq!(
+        value("ratio").as_deref(),
+        Some("If(Bool(true), Number(1.0), Number(3.0))")
+    );
+    assert_eq!(value("n").as_deref(), Some("Number(3.0)"));
+    // Equal, told to ignore case: `Types.Compare.Equal` is 2.
+    assert_eq!(value("same").as_deref(), Some("Number(2.0)"));
+
+    // The edges the specification sets out: a start below one is one,
+    // an end past the text is its end, and an end before the start is
+    // nothing at all.
+    let edges = parse_model(&format!(
+        "model M {CUT} constant String s = \"abc\"; \
+         Real a; Real b; Real c; \
+         equation a = if substring(s, -2, 2) == \"ab\" then 1 else 0; \
+         b = if substring(s, 2, 9) == \"bc\" then 1 else 0; \
+         c = if substring(s, 3, 1) == \"\" then 1 else 0; end M;"
+    ))
+    .unwrap();
+    assert!(
+        edges
+            .equations
+            .iter()
+            .all(|e| format!("{:?}", e.rhs).starts_with("If(Bool(true)")),
+        "{:?}",
+        edges.equations
+    );
+
+    // Case that matters, and the two ways round.
+    let ordered = parse_model(&format!(
+        "model M {CUT} Real less; Real more; \
+         equation less = compare(\"a\", \"b\", true); \
+         more = compare(\"b\", \"a\", true); end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", ordered.equations);
+    assert!(
+        said.contains("Number(1.0)") && said.contains("Number(3.0)"),
+        "{said}"
+    );
 }
