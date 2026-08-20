@@ -6387,3 +6387,40 @@ fn an_alias_answers_with_a_name_that_carries() {
     assert!(m.components.iter().any(|c| c.name == "gap.L0.q"));
     assert!(format!("{:?}", m.equations).contains("gap.L0.d"));
 }
+
+/// A body written outside Modelica says what it is: the name called,
+/// what it is handed, and in what language.
+#[test]
+fn an_outside_body_names_itself() {
+    let error = parse_model(
+        "model M function length input String s; output Integer n; \
+         external \"C\" n = ModelicaStrings_length(s); end length; \
+         Real y; equation y = length(\"abc\"); end M;",
+    )
+    .expect_err("a body written outside")
+    .message;
+    assert!(error.contains("ModelicaStrings_length(s)"), "{error}");
+    assert!(error.contains("in C"), "{error}");
+    assert!(error.contains("no outside library was given"), "{error}");
+
+    // A declaration that names no language still names the call.
+    let error = parse_model(
+        "model M function twice input Real u; output Real y; \
+         external twice_it(u, 2); end twice; \
+         Real y; equation y = twice(1); end M;",
+    )
+    .expect_err("a body written outside with no language")
+    .message;
+    assert!(error.contains("twice_it(u, Number(2.0))"), "{error}");
+
+    // `external \"builtin\"` is the language's own operator given a
+    // place in a library's tree, and is answered rather than refused.
+    let m = parse_model(
+        "model M package Math function arcsin input Real u; output Real y; \
+         external \"builtin\" y = asin(u); end arcsin; end Math; \
+         Real y; equation y = Math.arcsin(1); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an operator the language already has");
+    assert!(format!("{:?}", m.equations[0].rhs).contains("asin"));
+}

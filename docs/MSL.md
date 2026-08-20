@@ -83,8 +83,9 @@ features, each used widely:
 - **A member read across an array of components in a `connect`** — 20
   models of the power-converter library.
 - **External C bodies** — the tables, the LAPACK bindings, the file
-  reading. These parse and are refused where they are called, which is
-  the honest answer: there is no C here to run.
+  reading. These parse and are refused where they are called, naming
+  what was asked for. [EXTERNAL.md](EXTERNAL.md) says how that is to
+  change.
 
 The list is measured rather than guessed: `library check` ranks the
 reasons by how often each came up, and that ranking is what the work

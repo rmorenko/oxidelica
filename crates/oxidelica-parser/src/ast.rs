@@ -82,6 +82,26 @@ pub struct ClassAlias {
     pub connector: bool,
 }
 
+/// A body written outside Modelica, as the declaration wrote it.
+///
+/// Nothing here says who answers the call - only what is called, what
+/// it is handed and where its answer goes. That is enough to say what
+/// is missing when nobody answers, and it is what an implementation
+/// would be given.
+#[derive(Debug, Clone)]
+pub struct ExternalCall {
+    /// `"C"`, `"FORTRAN 77"`, `"builtin"`, or nothing where the
+    /// declaration named no language.
+    pub language: Option<String>,
+    /// The output the answer lands in, where the declaration wrote
+    /// `y = f(...)` rather than `f(...)`.
+    pub answer: Option<String>,
+    /// The name outside: `ModelicaStrings_length`.
+    pub called: String,
+    /// What it is handed, as written.
+    pub arguments: Vec<Expr>,
+}
+
 /// A component (variable) declaration.
 #[derive(Debug, Clone)]
 pub struct Component {
@@ -327,6 +347,8 @@ pub struct ClassDef {
     /// is read so that the file holding it loads, and a call to it is
     /// refused where the call is made.
     pub external: bool,
+    /// What the `external` clause named, where it named anything.
+    pub external_call: Option<ExternalCall>,
     /// `external "builtin" y = asin(u);` — the function is the
     /// language's own operator of that name, spelled out so that a
     /// library can give it a place in its tree. The name is kept and a
@@ -407,6 +429,7 @@ impl ClassDef {
             imports: Vec::new(),
             description: None,
             external: false,
+            external_call: None,
             builtin: None,
             components: Vec::new(),
             extends: Vec::new(),

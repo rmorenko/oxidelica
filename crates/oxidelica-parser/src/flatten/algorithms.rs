@@ -1188,6 +1188,42 @@ pub(super) fn inline_function_checks(
     Ok(checks)
 }
 
+/// What to say about a function whose body is written outside
+/// Modelica and which nobody here answers for.
+///
+/// The declaration says what is called and what it is handed, so the
+/// refusal says it too: a name to look for is worth more than the fact
+/// that there is one.
+pub(super) fn outside_this_language(class: &ClassDef) -> String {
+    let Some(call) = &class.external_call else {
+        return format!(
+            "`{}` has a body written outside Modelica, which this compiler cannot run",
+            class.name
+        );
+    };
+    // An argument is nearly always a name, and a name reads better as
+    // itself than as the shape it is held in.
+    let handed: Vec<String> = call
+        .arguments
+        .iter()
+        .map(|argument| match argument {
+            Expr::Ref(name) => name.clone(),
+            other => names::sketch(other),
+        })
+        .collect();
+    format!(
+        "`{}` is `{}({})`{}, written outside Modelica; this compiler has none of its own for \
+         that name, and no outside library was given",
+        class.name,
+        call.called,
+        handed.join(", "),
+        match &call.language {
+            Some(language) => format!(" in {language}"),
+            None => String::new(),
+        }
+    )
+}
+
 /// Every declaration of a function, its bases' first.
 ///
 /// A function may say only what it does - `redeclare function extends
@@ -1254,10 +1290,7 @@ fn inline_body(
     // declaration and no further: there is nothing here to inline, and
     // nothing to walk at run time either.
     if class.external {
-        return Err(format!(
-            "`{}` has a body written outside Modelica, which this compiler cannot run",
-            class.name
-        ));
+        return Err(outside_this_language(class));
     }
     // What a function takes and answers with may be written in a base
     // of it: `redeclare function extends bubbleEnthalpy` says only what

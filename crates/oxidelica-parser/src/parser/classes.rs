@@ -259,6 +259,7 @@ impl Parser {
         let mut algorithm = Vec::new();
         let mut initial_algorithm = Vec::new();
         let mut external = false;
+        let mut external_call = None;
         let mut builtin = None;
         let mut initial_equations = Vec::new();
         let mut annotated = Annotated::default();
@@ -328,7 +329,15 @@ impl Parser {
                 // what cannot be done is to run it, and that is said
                 // where such a function is called.
                 Token::External => {
-                    builtin = self.external_body()?;
+                    let named = self.external_body()?;
+                    // `external "builtin" y = asin(u)` says the
+                    // function is an operator the language already has,
+                    // given a place in a library's tree.
+                    builtin = named
+                        .as_ref()
+                        .filter(|call| call.language.as_deref() == Some("builtin"))
+                        .map(|call| call.called.clone());
+                    external_call = named;
                     external = true;
                 }
                 Token::Import => {
@@ -454,6 +463,7 @@ impl Parser {
             algorithm,
             initial_algorithm,
             external,
+            external_call,
             builtin,
             connects,
             when_clauses,
@@ -880,21 +890,59 @@ impl Parser {
     /// where that is what was written. Everything else is read only far
     /// enough to get past it, and refused where such a function is
     /// called.
-    fn external_body(&mut self) -> Result<Option<String>, ParseError> {
+    fn external_body(&mut self) -> Result<Option<ExternalCall>, ParseError> {
         self.expect(&Token::External, "external")?;
         let language = self.opt_string();
         // `y = asin(u)` or `asin(u)`: a name, and the name of what it
         // calls if the result is assigned.
-        let mut called = None;
+        let (mut answer, mut called) = (None, None);
         if matches!(self.peek(), Token::Ident(_)) {
             let first = self.ident("the external function or its result")?;
             called = Some(match self.peek() {
                 Token::Assign => {
                     self.bump();
+                    answer = Some(first);
                     self.ident("the external function")?
                 }
                 _ => first,
             });
+        }
+        // What it is handed, as written. A declaration this compiler
+        // cannot read the arguments of is still a declaration it can
+        // read past, so the reading is a try: what it does not manage
+        // is left as nothing, and the clause is stepped over as before.
+        let mut arguments = Vec::new();
+        if called.is_some() && self.peek() == &Token::LParen {
+            let saved = self.pos;
+            self.bump();
+            loop {
+                if self.peek() == &Token::RParen {
+                    self.bump();
+                    break;
+                }
+                match self.expr() {
+                    Ok(argument) => arguments.push(argument),
+                    Err(_) => {
+                        arguments.clear();
+                        self.pos = saved;
+                        break;
+                    }
+                }
+                match self.peek() {
+                    Token::Comma => {
+                        self.bump();
+                    }
+                    Token::RParen => {
+                        self.bump();
+                        break;
+                    }
+                    _ => {
+                        arguments.clear();
+                        self.pos = saved;
+                        break;
+                    }
+                }
+            }
         }
         let mut depth = 0usize;
         loop {
@@ -917,10 +965,12 @@ impl Parser {
                 }
             }
         }
-        Ok(match (language.as_deref(), called) {
-            (Some("builtin"), Some(name)) => Some(name),
-            _ => None,
-        })
+        Ok(called.map(|called| ExternalCall {
+            language,
+            answer,
+            called,
+            arguments,
+        }))
     }
 
     /// Step over one entry of an annotation, whatever it is made of.
