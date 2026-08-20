@@ -6824,3 +6824,34 @@ fn the_string_bodies_written_outside_are_answered_here() {
         "{said}"
     );
 }
+
+#[test]
+fn a_derivative_is_handed_a_rate_only_for_what_has_one() {
+    // The standard library asks a table for a value by `(tableID,
+    // column, u)` and declares the derivative of that as a function of
+    // four: the three it was given, and `der_u` alone. Neither a handle
+    // nor a column number has a rate of change.
+    let m = parse_model(
+        "model M function look input Integer column; input Real u; output Real y; \
+         algorithm y := column * u * u; annotation(derivative = dlook); end look; \
+         function dlook input Integer column; input Real u; input Real der_u; \
+         output Real der_y; algorithm der_y := 2 * column * u * der_u; end dlook; \
+         Real x; Real v; equation x = look(2, time); v = der(x); end M;",
+    )
+    .unwrap();
+    let said = format!("{:?}", m.equations);
+    assert!(said.contains("Number(2.0)"), "{said}");
+
+    // A derivative that wants a rate for what has none is still wrong,
+    // and says how many it should take.
+    let error = parse_model(
+        "model M function look input Integer column; input Real u; output Real y; \
+         algorithm y := column * u; annotation(derivative = dlook); end look; \
+         function dlook input Integer column; input Real u; input Real dc; \
+         input Real du; output Real dy; algorithm dy := du; end dlook; \
+         Real x; Real v; equation x = look(2, time); v = der(x); end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(error.contains("so it takes 3 inputs"), "{error}");
+}

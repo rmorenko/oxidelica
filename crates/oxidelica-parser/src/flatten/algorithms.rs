@@ -1178,7 +1178,18 @@ fn derivative_rule(
             .filter(|component| component.causality == Causality::Input)
             .count()
     };
-    let (given, wanted) = (inputs(of), 2 * args.len());
+    // Only what can be differentiated gets a derivative handed to it.
+    // A table is asked for a value by `(tableID, column, u)`, and
+    // neither the table nor the column has a rate of change: the
+    // derivative function takes the three and then `der_u` alone.
+    let differentiable: Vec<bool> = class
+        .components
+        .iter()
+        .filter(|component| component.causality == Causality::Input)
+        .map(|component| is_real(registry, component, &class.name, &class.imports))
+        .collect();
+    let seeded = differentiable.iter().filter(|real| **real).count();
+    let (given, wanted) = (inputs(of), args.len() + seeded);
     if given != wanted {
         return Err(format!(
             "`{named}` is the derivative of `{}`, so it takes {wanted} inputs - what `{}` \
@@ -1191,6 +1202,7 @@ fn derivative_rule(
     let seeds: Vec<(String, Expr)> = args
         .iter()
         .enumerate()
+        .filter(|(index, _)| differentiable.get(*index).copied().unwrap_or(true))
         .map(|(index, argument)| (format!("$seed{index}"), argument.clone()))
         .collect();
     let handed: Vec<Expr> = args
@@ -1198,7 +1210,13 @@ fn derivative_rule(
         .cloned()
         .chain(seeds.iter().map(|(name, _)| Expr::Ref(name.clone())))
         .collect();
-    let shapes: Vec<Vec<i64>> = shapes.iter().chain(shapes.iter()).cloned().collect();
+    let seeded_shapes: Vec<Vec<i64>> = args
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| differentiable.get(*index).copied().unwrap_or(true))
+        .filter_map(|(index, _)| shapes.get(index).cloned())
+        .collect();
+    let shapes: Vec<Vec<i64>> = shapes.iter().cloned().chain(seeded_shapes).collect();
     let rule = inline_function(of, &handed, &shapes, consts, registry, depth + 1)?;
     Ok((rule, seeds))
 }
@@ -1294,6 +1312,33 @@ pub(super) fn outside_this_language(class: &ClassDef) -> String {
             None => String::new(),
         }
     )
+}
+
+/// Whether a declaration is of `Real`, following the aliases a library
+/// wraps it in: `SI.Voltage` is a `Real` and so is `Modelica.Units.SI
+/// .Time`, while an `Integer`, a `Boolean` or an `ExternalObject` is
+/// not. What this decides is which inputs of a function have a rate of
+/// change to be handed alongside them.
+fn is_real(
+    registry: &HashMap<&str, &ClassDef>,
+    component: &Component,
+    scope: &str,
+    imports: &[(String, String)],
+) -> bool {
+    let mut named = component.type_name.clone();
+    for _ in 0..MAX_DEPTH {
+        if named == "Real" {
+            return true;
+        }
+        let Some(of) = lookup(registry, &named, scope, imports) else {
+            return false;
+        };
+        let Some(alias) = &of.alias_of else {
+            return false;
+        };
+        named = alias.0.clone();
+    }
+    false
 }
 
 /// Every declaration of a function, its bases' first.

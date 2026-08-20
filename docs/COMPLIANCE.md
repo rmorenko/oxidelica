@@ -223,8 +223,10 @@ left for the run to walk.
 
 A function may say how to differentiate itself:
 `annotation(derivative = f_der)` names a function taking what this one
-takes and then one derivative for each, and the call is inlined for its
-value while keeping that rule beside it. Differentiation reaches for
+takes and then one derivative for each input that has one - a `Real`,
+or a library's alias of one, and neither an `Integer` nor a handle to
+something outside - and the call is inlined for its value while keeping
+that rule beside it. Differentiation reaches for
 the rule instead of taking the body apart, which is what lets a body
 the differentiator cannot read — one with `abs` in it — still carry a
 model that needs its constraint differentiated or its Jacobian built.
