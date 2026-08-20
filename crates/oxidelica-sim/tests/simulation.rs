@@ -2982,6 +2982,22 @@ fn a_walked_body_says_what_it_cannot_carry() {
 }
 
 #[test]
+fn a_walked_body_lays_out_what_it_answers_with() {
+    // What a body answers with is laid out before it runs, so an
+    // element it never fills is nothing rather than a name with no
+    // value - which is what the language says an unassigned local is.
+    let result = run("model M function half input Real a; output Real w[2]; \
+         protected Integer k; \
+         algorithm k := 0; while k < a loop w[1] := a; k := k + 1; end while; end half; \
+         Real y[2]; equation y = half(time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!((last[at("y[1]")] - 1.0).abs() < 1e-12);
+    assert_eq!(last[at("y[2]")], 0.0);
+}
+
+#[test]
 fn a_walked_body_decides_over_arrays() {
     // Conditions, choices and negation over what was handed in, all
     // written out element by element on the way to one answer.
@@ -3000,4 +3016,30 @@ fn a_walked_body_decides_over_arrays() {
     let y = result.rows.last().unwrap()[column];
     // The two hundred is passed over, so the largest kept is five.
     assert!((y - 5.0).abs() < 1e-12, "y(1)={y}, expected 5");
+}
+
+#[test]
+fn a_walked_body_answers_with_several_numbers() {
+    // Nothing here can be unrolled while flattening, so the run walks
+    // the body - and it answers with three numbers rather than one.
+    // The model takes them one at a time, by the subscript Modelica
+    // would write. v = {1, 2, 3} scaled by position is {1, 4, 9}.
+    let result = run(
+        "model M function scaled input Real v[3]; input Real a; output Real w[3]; \
+         protected Integer k; \
+         algorithm k := 1; \
+         while k <= 3 and a > 0 loop w[k] := v[k] * k; k := k + 1; end while; end scaled; \
+         Real y[3]; Real z; equation y = scaled({1, 2, 3 * time}, time); z = y[3]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let last = result.rows.last().unwrap();
+    for (name, want) in [("y[1]", 1.0), ("y[2]", 4.0), ("y[3]", 9.0), ("z", 9.0)] {
+        assert!(result.columns.iter().any(|c| c == name), "{name} is there");
+        let column = result.columns.iter().position(|c| c == name).unwrap();
+        assert!(
+            (last[column] - want).abs() < 1e-12,
+            "{name} = {}, expected {want}",
+            last[column]
+        );
+    }
 }

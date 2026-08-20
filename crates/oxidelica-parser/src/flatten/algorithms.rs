@@ -944,6 +944,9 @@ fn gather_calls(
             gather_calls(a, registry, scope, imports, out);
             gather_calls(b, registry, scope, imports, out);
         }
+        // `f(x)[2]` - a call answering with several numbers, asked for
+        // one of them. The call is under the subscript.
+        Expr::Index(base, _) => gather_calls(base, registry, scope, imports, out),
         _ => {}
     }
 }
@@ -1003,16 +1006,19 @@ fn gather_calls_in_statements(
 /// fail at the first step.
 fn walkable(class: &ClassDef) -> Result<(), String> {
     for component in &class.components {
-        // An array goes in and is held while the walk runs; what comes
-        // back is one number, because that is all a call standing in an
-        // equation can be.
-        if !component.dimensions.is_empty() && component.causality == Causality::Output {
-            return Err(format!(
-                "`{}` is called where nothing could inline it, so the run walks its body - \
-                 and it answers with `{}`, which is an array, and a walk answers with one \
-                 number",
-                class.name, component.name
-            ));
+        // An array goes in, is held while the walk runs, and may come
+        // back: a body answering with several numbers is asked once for
+        // each of them. Only a length the compiler can see, though -
+        // the model has to name every element it takes.
+        if component.causality == Causality::Output && !component.dimensions.is_empty() {
+            let [Expr::Number(_)] = component.dimensions.as_slice() else {
+                return Err(format!(
+                    "`{}` is called where nothing could inline it, so the run walks its body \
+                     - and it answers with `{}`, whose length is not one the compiler can \
+                     see",
+                    class.name, component.name
+                ));
+            };
         }
         if component.type_name == "String" {
             return Err(format!(

@@ -153,8 +153,13 @@ impl EventRewrite<'_> {
                 Box::new(self.expr(a)?),
                 Box::new(self.expr(b)?),
             ),
-            Expr::Index(_, _)
-            | Expr::Member(_, _)
+            // `f(x)[2]` of a body the run walks: the call is looked
+            // through and the subscript kept, since it says which
+            // number of the answer this is.
+            Expr::Index(base, subscripts) => {
+                Expr::Index(Box::new(self.expr(base)?), subscripts.clone())
+            }
+            Expr::Member(_, _)
             | Expr::Array(_)
             | Expr::Elementwise(_, _, _)
             | Expr::Range(_, _, _)

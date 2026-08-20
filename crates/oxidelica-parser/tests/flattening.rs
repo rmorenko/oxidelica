@@ -2015,18 +2015,25 @@ fn what_cannot_be_inlined_travels_with_the_model() {
     let m = parse_model(&recursive("protected Real v[3];", "v[1] := a; b := v[1];"))
         .expect("an array held while the walk runs");
     assert_eq!(m.functions.len(), 1);
-    // What comes back is still one number, since that is all a call
-    // standing in an equation can be.
-    let answered_with_an_array = "model M function f input Real a; output Real b[2]; \
+    // What comes back may be several numbers: the model takes them one
+    // at a time, by the subscript Modelica would write.
+    let m = parse_model(
+        "model M function f input Real a; output Real b[2]; \
          algorithm b[1] := a; if a > 0 then b := f(a - 1); end if; end f; \
-         Real y[2]; equation y = f(time); end M;";
-    // The refusal is by shape here: a standing call is one number, and
-    // a two-long answer does not fit against it.
-    assert!(
-        err(answered_with_an_array).contains("shapes [2] and []"),
-        "{}",
-        err(answered_with_an_array)
-    );
+         Real y[2]; equation y = f(time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an answer of two numbers");
+    let written = format!("{:?}", m.equations);
+    assert!(written.contains("Index(Call(\"M.f\""), "{written}");
+
+    // A length the compiler cannot see is another matter: nothing
+    // knows how many numbers to take, so the answer stands as one and
+    // does not fit against what it was put beside.
+    assert!(err("model M function f input Real a; output Real b[:]; \
+         algorithm b[1] := a; if a > 0 then b := f(a - 1); end if; end f; \
+         Real y[2]; equation y = f(time); end M;")
+    .contains("shapes [2] and []"));
     assert!(err(&recursive("protected String s;", "b := a;")).contains("`s` is a String"));
 }
 

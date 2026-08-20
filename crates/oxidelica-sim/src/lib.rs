@@ -501,7 +501,9 @@ enum Code {
     /// by, with the arguments to work out first and how many numbers
     /// each of them is: zero for one number, otherwise the length of
     /// the array it was written out as.
-    Program(std::sync::Arc<Walked>, String, Vec<Code>, Vec<usize>),
+    /// The last field is which number of the answer this stands for:
+    /// a body answering with an array is asked once for each.
+    Program(std::sync::Arc<Walked>, String, Vec<Code>, Vec<usize>, usize),
     /// A one-argument built-in.
     Unary(Unary, Box<Code>),
     /// A two-argument built-in.

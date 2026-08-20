@@ -32,7 +32,8 @@ enum Flow {
     Returned,
 }
 
-/// Walk a function body and give back what its output holds.
+/// Walk a function body and give back what its output holds: one
+/// number, or the elements of an array in turn.
 pub(crate) fn walk(
     programs: &HashMap<String, ClassDef>,
     name: &str,
@@ -40,7 +41,7 @@ pub(crate) fn walk(
     lengths: &[usize],
     time: f64,
     depth: usize,
-) -> Result<f64, SimError> {
+) -> Result<Vec<f64>, SimError> {
     if depth > MAX_WALK {
         return err(format!(
             "`{name}` called itself {MAX_WALK} deep without reaching an end"
@@ -110,15 +111,24 @@ pub(crate) fn walk(
         frame.numbers.insert(component.name.clone(), start);
     }
     run(&class.algorithm, &mut frame, programs, time, depth)?;
-    // Both of these were settled before the model was compiled: a body
-    // the run walks was checked to give exactly one answer, and every
-    // name it declares was put in the frame above.
+    // The answer, in the order the flat model asks for it: one number
+    // for a plain output, and the elements in turn for an array. What
+    // a body may answer with at all was settled before the run began.
     let output = class
         .components
         .iter()
         .find(|component| component.causality == Causality::Output)
-        .expect("a walked body gives one answer");
-    Ok(frame.numbers[&output.name])
+        .expect("a walked body gives an answer");
+    // What a body answers with was laid out before it ran, so an
+    // element it never filled stands at nothing - which is what the
+    // language says an unassigned local is worth.
+    let want = |named: &str| frame.numbers.get(named).copied().unwrap_or(0.0);
+    Ok(match frame.lengths.get(&output.name).copied() {
+        None => vec![want(&output.name)],
+        Some(length) => (1..=length)
+            .map(|index| want(&format!("{}[{index}]", output.name)))
+            .collect(),
+    })
 }
 
 /// What a body carries while it is walked: numbers by name, and how

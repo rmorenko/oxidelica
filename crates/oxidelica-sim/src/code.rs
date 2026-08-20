@@ -134,6 +134,8 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     // that stands for several is written out as an
                     // array before it gets here.
                     let lengths = vec![0; vals.len()];
+                    // A call inside a walked body asks for the one
+                    // number a body written that way answers with.
                     return crate::walk::walk(
                         programs,
                         name,
@@ -141,7 +143,13 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                         &lengths,
                         ctx.time,
                         ctx.depth + 1,
-                    );
+                    )
+                    .and_then(|answer| {
+                        answer
+                            .first()
+                            .copied()
+                            .ok_or_else(|| SimError(format!("`{name}` gave nothing back")))
+                    });
                 }
             }
             match operator_name(name) {
@@ -276,9 +284,15 @@ impl Code {
             // A body the run walks: work the arguments out, walk it,
             // and where the walk fails leave the reason behind and
             // answer with a number that is not one.
-            Code::Program(walked, name, args, lengths) => {
+            Code::Program(walked, name, args, lengths, which) => {
                 let given: Vec<f64> = args.iter().map(|arg| arg.run(values, time)).collect();
-                match crate::walk::walk(&walked.programs, name, &given, lengths, time, 0) {
+                match crate::walk::walk(&walked.programs, name, &given, lengths, time, 0).and_then(
+                    |answer| {
+                        answer.get(*which).copied().ok_or_else(|| {
+                            SimError(format!("`{name}` gave no answer number {}", which + 1))
+                        })
+                    },
+                ) {
                     Ok(worth) => worth,
                     Err(SimError(why)) => {
                         if let Ok(mut held) = walked.trouble.lock() {
@@ -435,8 +449,28 @@ impl SlotTable {
                 Box::new(self.compile(otherwise)?),
             ),
             Expr::Call(name, args) => self.compile_call(name, args)?,
-            Expr::Index(_, _)
-            | Expr::Member(_, _)
+            // `f(x)[2]` of a body the run walks: the same call, asked
+            // for the second number of what it answers with. That is
+            // how a body answering with an array reaches a model, which
+            // holds one number per name.
+            Expr::Index(base, subscripts) => match (base.as_ref(), subscripts.as_slice()) {
+                (Expr::Call(name, args), [Expr::Number(which)])
+                    if self.walked.programs.contains_key(name) && *which >= 1.0 =>
+                {
+                    match self.compile_call(name, args)? {
+                        Code::Program(walked, name, given, lengths, _) => {
+                            Code::Program(walked, name, given, lengths, *which as usize - 1)
+                        }
+                        other => other,
+                    }
+                }
+                _ => {
+                    return err(
+                        "subscripts and arrays survive flattening only as scalars".to_string()
+                    )
+                }
+            },
+            Expr::Member(_, _)
             | Expr::Array(_)
             | Expr::Elementwise(_, _, _)
             | Expr::Range(_, _, _)
@@ -480,6 +514,7 @@ impl SlotTable {
                 name.to_string(),
                 given,
                 lengths,
+                0,
             ));
         }
         let unary = match operator_name(name) {

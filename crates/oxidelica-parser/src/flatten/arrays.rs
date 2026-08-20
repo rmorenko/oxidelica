@@ -949,7 +949,31 @@ pub(super) fn expand_call(
                     // answer otherwise is refused where the body is
                     // gathered, by name.
                     if matches!(&result, Expr::Call(called, _) if called == &class.name) {
-                        return Ok(Value::Scalar(result));
+                        // A call left standing is walked, and a walk
+                        // may answer with several numbers. The model
+                        // takes them one at a time, by the subscript
+                        // Modelica would write.
+                        let answer = class
+                            .components
+                            .iter()
+                            .find(|c| c.causality == Causality::Output);
+                        let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
+                            [Expr::Number(length)] => Some(*length as i64),
+                            _ => None,
+                        });
+                        return Ok(match length {
+                            None => Value::Scalar(result),
+                            Some(length) => Value::Array(
+                                (1..=length)
+                                    .map(|index| {
+                                        Value::Scalar(Expr::Index(
+                                            Box::new(result.clone()),
+                                            vec![Expr::Number(index as f64)],
+                                        ))
+                                    })
+                                    .collect(),
+                            ),
+                        });
                     }
                     return expand(&result, shapes, registry, scope, imports, depth + 1);
                 }
