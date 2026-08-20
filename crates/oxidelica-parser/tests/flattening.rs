@@ -6368,3 +6368,22 @@ fn a_condition_may_read_a_string() {
     assert!(m.components.iter().any(|c| c.name == "b.delta"));
     assert!(!m.components.iter().any(|c| c.name == "b.star"));
 }
+
+/// A chain of class aliases ends at a name written where the last one
+/// was, and whoever asked is somewhere else.
+#[test]
+fn an_alias_answers_with_a_name_that_carries() {
+    let m = parse_model(
+        "package P package Types record Pair Real d; Real q; end Pair; \
+           record Inductance = P.Types.Pair; end Types; \
+         model Gap parameter P.Types.Inductance L0(d = 2, q = 3); Real y; \
+           equation y = L0.d * time; end Gap; end P; \
+         model M P.Gap gap; Real z; equation z = gap.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a record named through an alias in another package");
+    // The record is reached at all, which is what the alias had to
+    // carry; the value comes down the modifier as it would anywhere.
+    assert!(m.components.iter().any(|c| c.name == "gap.L0.q"));
+    assert!(format!("{:?}", m.equations).contains("gap.L0.d"));
+}

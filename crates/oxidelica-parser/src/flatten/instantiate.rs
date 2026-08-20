@@ -2667,6 +2667,7 @@ pub(super) fn resolve_type(
     }
     let mut scope = scope.to_string();
     let mut imports = imports.to_vec();
+    let mut followed = false;
     for _ in 0..MAX_DEPTH {
         if is_primitive(&component.type_name) {
             return;
@@ -2679,8 +2680,21 @@ pub(super) fn resolve_type(
             return;
         }
         let Some((base, attributes)) = class.alias_of.clone() else {
+            // The name a chain of aliases ends at was written in the
+            // terms of whoever wrote the last one - `record
+            // SalientInductance = Salient(...)` names a record beside
+            // it - and whoever asked is somewhere else entirely. So
+            // once an alias has been followed, what comes back is the
+            // class's own full name. A name that was never an alias is
+            // left as it was written, since the way it was reached -
+            // an import through an encapsulated wall - may be the only
+            // way there is.
+            if followed {
+                component.type_name = class.name.clone();
+            }
             return;
         };
+        followed = true;
         component.type_name = base;
         // A type that is an array gives its dimensions to whatever is
         // declared with it, after that declaration's own: `Orientation
