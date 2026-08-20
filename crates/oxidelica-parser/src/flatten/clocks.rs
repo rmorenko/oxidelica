@@ -1633,6 +1633,15 @@ pub(super) fn walk_calls(expr: &Expr, seen: &mut impl FnMut(&str)) {
             walk_calls(a, seen);
             walk_calls(b, seen);
         }
+        // A call the run walks carries its own rule for
+        // differentiating it, and that rule is calls too.
+        Expr::WithDerivative(value, rule, seeds) => {
+            walk_calls(value, seen);
+            walk_calls(rule, seen);
+            for (_, seed) in seeds {
+                walk_calls(seed, seen);
+            }
+        }
         _ => {}
     }
 }

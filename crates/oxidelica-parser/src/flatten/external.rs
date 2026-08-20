@@ -27,8 +27,51 @@ use super::*;
 pub(super) fn answered_here(called: &str) -> bool {
     matches!(
         called,
-        "ModelicaStrings_length" | "ModelicaStrings_substring" | "ModelicaStrings_compare"
+        "ModelicaStrings_length"
+            | "ModelicaStrings_substring"
+            | "ModelicaStrings_compare"
+            | "ModelicaStrings_skipWhiteSpace"
+            | "ModelicaStandardTables_CombiTable1D_minimumAbscissa"
+            | "ModelicaStandardTables_CombiTable1D_maximumAbscissa"
+            | "ModelicaStandardTables_CombiTable1D_getValue"
+            | "ModelicaStandardTables_CombiTable1D_getDerValue"
     )
+}
+
+/// Refuse anything this compiler said it answers for and then did not.
+///
+/// A name in `answered_here` is not refused where the call is made, on
+/// the promise that something further on works it out. Where nothing
+/// did - a table whose data is in a file rather than in the model -
+/// the promise was not kept, and a call standing in a flat model with
+/// nobody to run it would be worse than a refusal.
+pub(super) fn nothing_left_unanswered(model: &Model) -> Result<(), String> {
+    let mut standing = None;
+    let mut look = |expr: &Expr| {
+        walk_calls(expr, &mut |name| {
+            if answered_here(name) && standing.is_none() {
+                standing = Some(name.to_string());
+            }
+        });
+    };
+    for equation in model.equations.iter().chain(model.initial_equations.iter()) {
+        look(&equation.lhs);
+        look(&equation.rhs);
+    }
+    for component in &model.components {
+        for said in [&component.binding, &component.start].into_iter().flatten() {
+            look(said);
+        }
+    }
+    for (condition, _) in &model.asserts {
+        look(condition);
+    }
+    match standing {
+        None => Ok(()),
+        Some(name) => Err(format!(
+            "`{name}` is written outside Modelica. This compiler answers for that name where              what it needs is in the model - a table written as a matrix, a string it can              read - and this call is not one of those"
+        )),
+    }
 }
 
 /// The substring of `text` from `first` to `last`, both counted from
@@ -85,6 +128,18 @@ pub(super) fn number_of(
     let text = |position: usize| strings::text_of(args.get(position)?, values, numbers);
     match (name, args.len()) {
         ("ModelicaStrings_length", 1) => Some(text(0)?.chars().count() as f64),
+        // Where the white space at `startIndex` ends, counted from
+        // one; past the end of the text where there is nothing else.
+        ("ModelicaStrings_skipWhiteSpace", 2) => {
+            let text = text(0)?;
+            let from = const_eval(&args[1], numbers)?.max(1.0) as usize;
+            let past = text
+                .chars()
+                .skip(from - 1)
+                .take_while(|letter| letter.is_whitespace())
+                .count();
+            Some((from + past) as f64)
+        }
         ("ModelicaStrings_compare", 3) => {
             let case_matters = const_eval(&args[2], numbers)? != 0.0;
             Some(compare(&text(0)?, &text(1)?, case_matters))

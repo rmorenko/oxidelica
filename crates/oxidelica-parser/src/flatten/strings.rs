@@ -14,8 +14,17 @@
 
 use super::*;
 
+/// What a pass over the strings settled, for whoever comes after: the
+/// text of every `String` name, and what every number-valued name is
+/// worth. The tables want both - a file name is a string and a
+/// smoothness a number.
+pub(super) struct Settled {
+    pub texts: HashMap<String, String>,
+    pub numbers: HashMap<String, f64>,
+}
+
 /// Work out every string in the model and take it out of the equations.
-pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
+pub(super) fn resolve_strings(model: &mut Model) -> Result<Settled, String> {
     let named: Vec<String> = model
         .components
         .iter()
@@ -82,6 +91,27 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
     for (condition, _) in &mut model.asserts {
         *condition = fold(condition, &values, &numbers)?;
     }
+    // A declaration's value reaches the strings too: the table blocks
+    // decide from a file name whether they read a file at all. What
+    // will not fold is left as it was - a declaration is not an
+    // equation, and something further on may still make sense of it.
+    for component in &mut model.components {
+        if component.type_name == "String" {
+            continue;
+        }
+        if let Some(binding) = &component.binding {
+            let taken = branch_taken(binding, &values, &numbers);
+            if let Ok(said) = fold(&taken, &values, &numbers) {
+                component.binding = Some(said);
+            }
+        }
+        if let Some(start) = &component.start {
+            let taken = branch_taken(start, &values, &numbers);
+            if let Ok(said) = fold(&taken, &values, &numbers) {
+                component.start = Some(said);
+            }
+        }
+    }
     // A run-time `if` keeps its conditions and branches of its own,
     // and a string chooses a branch as readily as a number does.
     for conditional in &mut model.conditional {
@@ -104,7 +134,10 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<(), String> {
     model
         .components
         .retain(|component| component.type_name != "String");
-    Ok(())
+    Ok(Settled {
+        texts: values,
+        numbers,
+    })
 }
 
 /// The text of every `String` component, worked out in dependency
@@ -206,6 +239,46 @@ pub(super) fn text_of(
             })
         }
         _ => None,
+    }
+}
+
+/// Take the branch of every `if` in a declaration's value that is
+/// settled, and drop the others.
+///
+/// A branch nobody takes says nothing, strings included: a table block
+/// asks about a file name only `if tableOnFile`, and where that is
+/// false there is no file name to ask about - and nothing to refuse
+/// for not being able to read one. Only a declaration's value is read
+/// this way; an equation keeps the choice it wrote.
+pub(super) fn branch_taken(
+    expr: &Expr,
+    values: &HashMap<String, String>,
+    numbers: &HashMap<String, f64>,
+) -> Expr {
+    let recur = |e: &Expr| branch_taken(e, values, numbers);
+    match expr {
+        Expr::If(condition, then, otherwise) => {
+            let settled = fold(&recur(condition), values, numbers)
+                .ok()
+                .and_then(|condition| const_eval(&condition, numbers));
+            match settled {
+                Some(truth) if truth != 0.0 => recur(then),
+                Some(_) => recur(otherwise),
+                None => Expr::If(
+                    Box::new(recur(condition)),
+                    Box::new(recur(then)),
+                    Box::new(recur(otherwise)),
+                ),
+            }
+        }
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        other => other.clone(),
     }
 }
 

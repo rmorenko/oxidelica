@@ -30,6 +30,7 @@ mod instantiate;
 mod names;
 mod operators;
 mod strings;
+mod tables;
 #[cfg(test)]
 mod tests;
 
@@ -572,12 +573,81 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // Strings are settled last, once every branch that could hold one
     // is in the model: what they leave behind is a Boolean where one
     // was compared, and nothing where one was declared.
-    resolve_strings(&mut model)?;
+    // A `size` written where the array had not been declared yet -
+    // `extends SIMO(final nout = size(columns, 1))`, with `columns`
+    // further down the same class - could not be settled there. Every
+    // shape is in hand now, so it is settled here.
+    settle_sizes(&mut model, &acc.sizes);
+    let settled = resolve_strings(&mut model)?;
+    // A table the model wrote as a matrix is written out here, where
+    // everything that could stand in it is settled - a file name is a
+    // string, a smoothness a number - and what it leaves behind is
+    // arithmetic with nothing outside Modelica left to run.
+    tables::resolve_tables(&mut model, &acc.handles, &settled)?;
+    external::nothing_left_unanswered(&model)?;
     // Whatever calls are still standing in the flat model are calls
     // nothing could inline. The bodies behind them travel with the
     // model, so the run can walk them for itself.
     model.functions = programs_used(&model, &registry)?;
     Ok(model)
+}
+
+/// Answer every `size` still standing in the model from the shapes
+/// flattening gathered.
+fn settle_sizes(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
+    let known: HashMap<&str, &Vec<i64>> = shapes
+        .iter()
+        .map(|(name, shape)| (name.as_str(), shape))
+        .collect();
+    if known.is_empty() {
+        return;
+    }
+    fn answer(expr: &Expr, known: &HashMap<&str, &Vec<i64>>) -> Expr {
+        if let Expr::Call(name, args) = expr {
+            if name == "size" && args.len() == 2 {
+                if let (Expr::Ref(of), Expr::Number(axis)) = (&args[0], &args[1]) {
+                    if let Some(length) = known
+                        .get(of.as_str())
+                        .and_then(|shape| shape.get(*axis as usize - 1))
+                    {
+                        return Expr::Number(*length as f64);
+                    }
+                }
+            }
+        }
+        let recur = |e: &Expr| answer(e, known);
+        match expr {
+            Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+            Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+            Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+            Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+            Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+            Expr::If(c, a, b) => {
+                Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b)))
+            }
+            other => other.clone(),
+        }
+    }
+    for component in &mut model.components {
+        if let Some(binding) = &component.binding {
+            component.binding = Some(answer(binding, &known));
+        }
+    }
+    for equation in model
+        .equations
+        .iter_mut()
+        .chain(model.initial_equations.iter_mut())
+    {
+        equation.lhs = answer(&equation.lhs, &known);
+        equation.rhs = answer(&equation.rhs, &known);
+    }
+    // A check is where a `size` is most often written: the table
+    // blocks assert that their matrix is not empty.
+    for (condition, _) in &mut model.asserts {
+        *condition = answer(condition, &known);
+    }
 }
 
 /// The regularisation floor of a stream mix: a port whose flow points
@@ -668,6 +738,12 @@ struct Flat {
     /// Whether an `if` equation was set aside because its condition
     /// asks the connections a question the first pass cannot answer.
     graph_asked: bool,
+    /// What each handle to something outside Modelica was built from:
+    /// the instance path of the declaration, and the constructor call
+    /// with everything it was handed worked out. A table block keeps
+    /// its data behind one of these, and this is where what is behind
+    /// it can still be reached.
+    handles: HashMap<String, Expr>,
 }
 
 /// How many `connect` equations name each connector.

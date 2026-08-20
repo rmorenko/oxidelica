@@ -85,6 +85,16 @@ and where each answer goes.
 **4. What is written here.** Random first (smallest and exactly
 specified), then strings, then the tables.
 
+The one-dimensional tables are done, and the strings. A table block
+keeps its data in a handle - an `ExternalObject` built from the matrix
+the model wrote - and asks C for a value at every step. Where the
+matrix is in the model, none of that needs C: `flatten/tables.rs`
+turns the handle into an expression, a chain of `if`s over the abscissa
+with one branch per interval, each the line or the level that interval
+carries. What comes out is differentiable, foldable and readable, and
+there is nothing left to run. A table read from a file is a different
+question - the data is not in the model - and is refused, by name.
+
 The strings are done. `ModelicaStrings_length`, `_substring` and
 `_compare` are answered in `flatten/external.rs`, which is the one
 place that says which outside names this compiler answers for itself.

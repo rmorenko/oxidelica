@@ -896,6 +896,17 @@ pub(super) fn expand_call(
                         depth,
                     );
                 }
+                // A handle to something outside Modelica is built,
+                // not called: what it is handed says what it stands
+                // for, and nothing spreads over an array of it.
+                if descends_from_external_object(registry, class, 0) {
+                    return Ok(Value::Scalar(Expr::Call(
+                        class.name.clone(),
+                        args.iter()
+                            .map(|arg| Ok(recur(arg)?.into_expr()))
+                            .collect::<Result<Vec<_>, String>>()?,
+                    )));
+                }
                 if class.kind == ClassKind::Record {
                     // Given in order rather than by name, a record is
                     // built from exactly its fields.

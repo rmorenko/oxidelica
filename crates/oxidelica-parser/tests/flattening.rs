@@ -3079,8 +3079,13 @@ fn the_expression_walkers_cover_the_long_tail() {
     )
     .unwrap();
     let q = m.components.iter().find(|c| c.name == "q").unwrap();
-    // The condition folded: wide and the package constant are known.
-    assert!(format!("{:?}", q.binding).contains("If"), "{:?}", q.binding);
+    // The condition folded and its branch was taken with it: `wide`
+    // and the package constant are both known before the run.
+    assert!(
+        format!("{:?}", q.binding) == "Some(Number(1.0))",
+        "{:?}",
+        q.binding
+    );
     assert_eq!(m.equations.len(), 4);
 
     // Functions with array-aware bodies still inline per element,
@@ -6766,7 +6771,9 @@ fn the_string_bodies_written_outside_are_answered_here() {
          external \"C\" n = ModelicaStrings_length(s); end length; \
          function compare input String a; input String b; input Boolean cased; \
          output Integer r; \
-         external \"C\" r = ModelicaStrings_compare(a, b, cased); end compare; ";
+         external \"C\" r = ModelicaStrings_compare(a, b, cased); end compare; \
+         function skip input String s; input Integer from; output Integer next; \
+         external \"C\" next = ModelicaStrings_skipWhiteSpace(s, from); end skip; ";
     let m = parse_model(&format!(
         "model M {CUT} constant String group = \"Dyn\"; \
          constant String first = substring(group, 1, 1); \
@@ -6809,6 +6816,21 @@ fn the_string_bodies_written_outside_are_answered_here() {
             .all(|e| format!("{:?}", e.rhs).starts_with("If(Bool(true)")),
         "{:?}",
         edges.equations
+    );
+
+    // Where the white space after a position ends, counted from one:
+    // `Strings.isEmpty` is written on this, and a name that is nothing
+    // but spaces is empty.
+    let skipped = parse_model(&format!(
+        "model M {CUT} constant String pad = \"  a\"; \
+         Real first; Real none; \
+         equation first = skip(pad, 1); none = skip(\"abc\", 1); end M;"
+    ))
+    .unwrap();
+    let told = format!("{:?}", skipped.equations);
+    assert!(
+        told.contains("Number(3.0)") && told.contains("Number(1.0)"),
+        "{told}"
     );
 
     // Case that matters, and the two ways round.
@@ -6854,4 +6876,196 @@ fn a_derivative_is_handed_a_rate_only_for_what_has_one() {
     .unwrap_err()
     .to_string();
     assert!(error.contains("so it takes 3 inputs"), "{error}");
+}
+
+/// A table block of the shape the standard library gives one: the data
+/// in a handle built from a matrix, and the value asked for by a call
+/// to a body written in C.
+const TABLE_BLOCK: &str = "package Blocks \
+     class Handle extends ExternalObject; \
+       function constructor input String tableName; input String fileName; \
+         input Real table[:, :]; input Integer columns[:]; input Integer smoothness; \
+         input Integer extrapolation; output Handle h; \
+         external \"C\" h = ModelicaStandardTables_CombiTable1D_init(tableName, fileName, \
+           table, size(table, 1), size(table, 2), columns, size(columns, 1), smoothness, \
+           extrapolation); end constructor; \
+       function destructor input Handle h; \
+         external \"C\" ModelicaStandardTables_CombiTable1D_close(h); end destructor; \
+     end Handle; \
+     function getValue input Handle h; input Integer column; input Real u; output Real y; \
+       external \"C\" y = ModelicaStandardTables_CombiTable1D_getValue(h, column, u); \
+       annotation(derivative = getDerValue); end getValue; \
+     function getDerValue input Handle h; input Integer column; input Real u; \
+       input Real der_u; output Real der_y; \
+       external \"C\" der_y = ModelicaStandardTables_CombiTable1D_getDerValue(h, column, u, \
+         der_u); end getDerValue; \
+     function umin input Handle h; output Real u; \
+       external \"C\" u = ModelicaStandardTables_CombiTable1D_minimumAbscissa(h); end umin; \
+     function umax input Handle h; output Real u; \
+       external \"C\" u = ModelicaStandardTables_CombiTable1D_maximumAbscissa(h); end umax; \
+   end Blocks; ";
+
+#[test]
+fn a_table_the_model_wrote_is_written_out_rather_than_run() {
+    // Straight lines between the rows, carried on beyond the ends -
+    // which is what `LastTwoPoints` means. The table is 0, 2, 6 at 0,
+    // 1, 2, so the slopes are 2 and 4.
+    let m = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         parameter Real data[3, 2] = [0, 0; 1, 2; 2, 6]; \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 1, 2); \
+         Real u; Real y; Real low; Real high; \
+         equation u = time; y = Blocks.getValue(h, 1, u); \
+         low = Blocks.umin(h); high = Blocks.umax(h); end M;"
+    ))
+    .unwrap();
+    let said = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    assert_eq!(said("low"), "Number(0.0)");
+    assert_eq!(said("high"), "Number(2.0)");
+    // Nothing outside Modelica is left in the model.
+    let written = said("y");
+    assert!(!written.contains("ModelicaStandardTables"), "{written}");
+    assert!(
+        written.contains("Rel(Lt, Ref(\"u\"), Number(1.0))"),
+        "{written}"
+    );
+
+    // Constant segments hold the value of the row they start at.
+    let held = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 5; 1, 7], {{2}}, 3, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap();
+    let written = format!("{:?}", held.equations[0].rhs);
+    // Five below the second row and seven at or past it, with no line
+    // between them: a level has no `u` in it.
+    assert!(
+        written.contains("If(Rel(Lt, Time, Number(1.0)), Number(5.0), Number(7.0))"),
+        "{written}"
+    );
+
+    // A table read from a file is not one this compiler holds, so the
+    // call stands and is refused by the name it was written with.
+    let outside = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"t\", \"t.txt\", [0, 0; 1, 1], {{2}}, 1, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        outside.contains("ModelicaStandardTables_CombiTable1D_getValue"),
+        "{outside}"
+    );
+
+    // Spline interpolation is not written out, and says so.
+    let spline = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1], {{2}}, 2, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(spline.contains("spline interpolation"), "{spline}");
+}
+
+#[test]
+fn a_table_reads_what_the_model_settled_around_it() {
+    // The handle a table block builds is written for the general case:
+    // a file name chosen by an `if`, a smoothness held in a parameter,
+    // and the matrix itself a parameter rather than digits. All of it
+    // is settled before the table is read.
+    let m = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         parameter Boolean onFile = false; \
+         parameter String fileName = \"NoName\"; \
+         parameter Real data[2, 3] = [0, 1, 10; 4, 3, 30]; \
+         parameter Integer how = 1; \
+         Blocks.Handle h = Blocks.Handle( \
+           if onFile then fileName else \"NoName\", \
+           if not (fileName == \"NoName\") or onFile then fileName else \"NoName\", \
+           data, {{2, 3}}, how, 1); \
+         Real a; Real b; Real low; Real high; \
+         Real held(start = Blocks.umax(h)); \
+         equation a = Blocks.getValue(h, 1, time); b = Blocks.getValue(h, 2, time); \
+         low = Blocks.umin(h); high = Blocks.umax(h); der(held) = 0; \
+         assert(Blocks.getValue(h, 1, time) > -100, \"in range\"); end M;"
+    ))
+    .unwrap();
+    let said = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    assert_eq!(said("low"), "Number(0.0)");
+    assert_eq!(said("high"), "Number(4.0)");
+    // The second output reads the third column: 10 to 30 over 0 to 4
+    // is a slope of five.
+    assert!(said("b").contains("Number(5.0)"), "{}", said("b"));
+    // Holding the ends: below the first row and past the last, the
+    // value is the row's own rather than a line carried on.
+    assert!(
+        said("a").contains("If(Rel(Lt, Time, Number(0.0)), Number(1.0)"),
+        "{}",
+        said("a")
+    );
+    assert!(said("a").contains("Number(3.0)"), "{}", said("a"));
+
+    // A table call stands wherever an expression may: under an
+    // operator, inside a branch, beside a comparison.
+    let among = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1; 1, 3], {{2}}, 1, 2); \
+         Real y; Boolean over; \
+         equation y = 2 * (-Blocks.getValue(h, 1, time)) + \
+           (if time > 0 and not (time > 5) then 1 else 0); \
+         over = Blocks.getValue(h, 1, time) > 2 or time < 0; end M;"
+    ))
+    .unwrap();
+    let written = format!("{:?}", among.equations);
+    assert!(!written.contains("ModelicaStandardTables"), "{written}");
+
+    // A table of one row says nothing to interpolate between, so the
+    // call stands and the refusal names it.
+    let single = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1], {{2}}, 1, 2); \
+         Real y(start = Blocks.umin(h)); equation der(y) = 0; \
+         assert(Blocks.umax(h) > 0, \"a table\"); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        single.contains("ModelicaStandardTables_CombiTable1D_minimumAbscissa"),
+        "{single}"
+    );
+
+    // An output the table has no column for is said, not guessed.
+    let missing = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1; 1, 2], {{2}}, 1, 2); \
+         Real y; equation y = Blocks.getValue(h, 2, time); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(missing.contains("has no output 2"), "{missing}");
+
+    // So is a periodic table, which this compiler does not write out.
+    let periodic = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1; 1, 2], {{2}}, 1, 3); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(periodic.contains("periodic extrapolation"), "{periodic}");
 }

@@ -41,7 +41,7 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2649 read, 25 not read
-classes: 6544; example models: 734, of which 339 flatten
+classes: 6544; example models: 734, of which 341 flatten
 ```
 
 Two numbers, and they mean different things. **Read** is the parser:
@@ -86,11 +86,11 @@ The 25 files that will not parse, and the example models that will not
 flatten, are not a long tail of small things. They are a handful of
 features, each used widely:
 
-- **External C bodies** — the tables above all, then the string
-  handling, the random generators, the LAPACK bindings, the file
-  reading. These parse and are refused where they are called, naming
-  what was asked for. [EXTERNAL.md](EXTERNAL.md) says how that is to
-  change.
+- **External C bodies** — the time tables above all, then the random
+  generators, the LAPACK bindings, the file reading. The strings and
+  the one-dimensional tables are answered here now; the rest parse and
+  are refused where they are called, naming what was asked for.
+  [EXTERNAL.md](EXTERNAL.md) says how that is to change.
 - **A local assigned in one branch only** — 41 models, the water
   properties of the media library among them.
 - **A record component's declaration value** — `Complex v[m] = ...`
@@ -117,5 +117,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "339 of 734" mean anything — without it, one unparsed file would
+like "341 of 734" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

@@ -1858,6 +1858,42 @@ pub(super) fn instantiate_one(
                     (n.clone(), e.clone())
                 }))
                 .collect();
+            // A class extending `ExternalObject` is a handle: it holds
+            // no variables, and what it stands for is whatever its
+            // constructor was handed. Nothing downstream could reach
+            // that once the declaration is gone, so it is kept here.
+            if descends_from_external_object(registry, child, 0) {
+                if let Some(built) = site.binding.cloned().or_else(|| component.binding.clone()) {
+                    let no_loop_vars = HashMap::new();
+                    let shapes = Shapes {
+                        sizes,
+                        loop_vars: &no_loop_vars,
+                        consts: local_consts,
+                        records: no_records(),
+                    };
+                    let built = substitute_class_constants(&built, registry, scope, imports, &[]);
+                    let built = prefix_expr(&built, prefix, outers);
+                    let built = expand(&built, &shapes, registry, scope, imports, 0)?;
+                    // Filed under the name the constructor calls
+                    // outside, since that is what says what kind of
+                    // handle this is - the class it is declared in is
+                    // a library's own business.
+                    let outside = lookup(
+                        registry,
+                        &format!("{}.constructor", child.name),
+                        scope,
+                        imports,
+                    )
+                    .and_then(|made| made.external_call.as_ref())
+                    .map(|call| call.called.clone());
+                    let built = match (built.into_expr(), outside) {
+                        (Expr::Call(_, args), Some(outside)) => Expr::Call(outside, args),
+                        (built, _) => built,
+                    };
+                    acc.handles.insert(flat_name.to_string(), built);
+                }
+                return Ok(());
+            }
             let child_prefix = format!("{flat_name}.");
             let child_env = Env {
                 overrides: &mods,
@@ -1869,6 +1905,25 @@ pub(super) fn instantiate_one(
         }
     }
     Ok(())
+}
+
+/// Whether a class is a handle to something outside Modelica: itself
+/// `ExternalObject`, or built on one.
+pub(super) fn descends_from_external_object(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    depth: usize,
+) -> bool {
+    if class.name == "ExternalObject" {
+        return true;
+    }
+    if depth > MAX_DEPTH {
+        return false;
+    }
+    class.extends.iter().any(|extend| {
+        lookup(registry, &extend.base, &class.name, &class.imports)
+            .is_some_and(|base| descends_from_external_object(registry, base, depth + 1))
+    })
 }
 
 /// The length of a value along one axis, for a flexible `:` size. Only
