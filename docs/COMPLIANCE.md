@@ -221,6 +221,19 @@ one loop. And a walked body is opaque to everything the symbolic layer
 does: it cannot be differentiated except through a `derivative`
 annotation, and it is not folded where its arguments are known.
 
+A body reads its own locals before they leave it: `Integer m = size(x,
+1)` is written in terms of an input, and left to be read later it
+would carry the input's name out of the body, where the name means
+nothing. One that comes to a number is stored as one, so an `if`
+written on it is one arithmetic can decide; one that is an array keeps
+its name, since an element is read off a name rather than off a list
+written in its place.
+
+A run of elements may be named along more than one axis - `oM[1:mBase,
+1:mBase] := ...` - and is given that many values, the last subscript
+moving fastest. A name bound whole and then written into element by
+element is taken apart first.
+
 Among a model's own statements a `while` is still unrolled where it
 stands, so its trip count has to be settled there: only a call can be
 left for the run to walk.
@@ -410,7 +423,7 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2649 parse, and 367 of
+of the Modelica Standard Library's 2674 files, 2649 parse, and 373 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:

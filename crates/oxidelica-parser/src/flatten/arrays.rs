@@ -521,6 +521,16 @@ pub(super) fn expand_call(
             let shape = recur(&args[0])?.shape();
             let dimension = constant(&args[1])?;
             let length = shape.get((dimension - 1).max(0) as usize).ok_or_else(|| {
+                if std::env::var("OXSZ").is_ok() {
+                    let mut named: Vec<&String> = shapes.sizes.keys().collect();
+                    named.sort();
+                    eprintln!(
+                        "SZ {:?} scope={scope} known={:?}\n{}",
+                        args[0],
+                        &named[..named.len().min(12)],
+                        std::backtrace::Backtrace::force_capture()
+                    );
+                }
                 format!(
                     "size(..., {dimension}): {} is of shape {shape:?}",
                     crate::flatten::names::sketch(&args[0])

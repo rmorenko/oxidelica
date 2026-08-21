@@ -7351,7 +7351,7 @@ fn a_body_written_here_is_held_to_what_it_declares() {
     )
     .unwrap_err()
     .to_string();
-    assert!(one.contains("is not that many"), "{one}");
+    assert!(one.contains("run of 2 element(s) and 1 value(s)"), "{one}");
 
     // An answer whose length nothing says.
     let lengthless = parse_model(&format!(
@@ -7606,4 +7606,145 @@ fn a_handle_may_be_built_by_naming_what_it_is_handed() {
     .unwrap_err()
     .to_string();
     assert!(odd.contains("no argument named `verbose`"), "{odd}");
+}
+
+#[test]
+fn a_body_reads_its_own_locals_before_they_leave_it() {
+    // `Integer m = size(x, 1)` of a space-phasor transform is written
+    // in terms of an input. Left to be read where it is used, it would
+    // carry `x` out of the body, and out there the name means nothing.
+    let m = parse_model(
+        "function toPhasor input Real x[:]; output Real y[2]; \
+         protected Integer n = size(x, 1); Real gain[2, 1] = fill(2.0 / n, 2, 1); \
+         algorithm y := gain * {sum(x)}; end toPhasor; \
+         model M Real v[3]; Real p[2]; \
+         equation v = {time, 2 * time, 3 * time}; p = toPhasor(v); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    // Three phases, so the gain is two thirds, and the sum is six
+    // times the clock.
+    let said = format!("{:?}", m.equations);
+    assert!(!said.contains("size"), "{said}");
+    assert!(said.contains("Div, Number(2.0), Number(3.0)"), "{said}");
+
+    // A local that comes to a number through a call is stored as the
+    // number, so an `if` written on it is one arithmetic can decide.
+    let counted = parse_model(
+        "function halves input Integer m; output Integer n; \
+         algorithm n := if m > 3 then 2 else 1; end halves; \
+         function pick input Real x[:]; output Real y; \
+         protected Integer m = size(x, 1); Integer k = halves(m); \
+         algorithm if k == 2 then y := x[1]; else y := x[2]; end if; end pick; \
+         model M Real v[4]; Real p; \
+         equation v = {time, 2, 3, 4}; p = pick(v); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    // Four phases, so `halves` gives two and the first element is
+    // taken - the clock itself.
+    assert!(
+        counted
+            .equations
+            .iter()
+            .any(|e| matches!(&e.lhs, Expr::Ref(n) if n == "p")
+                && matches!(&e.rhs, Expr::Ref(taken) if taken == "v[1]")),
+        "{:?}",
+        counted.equations
+    );
+}
+
+#[test]
+fn a_run_of_elements_may_be_named_along_more_than_one_axis() {
+    // `oM[1:mBase, 1:mBase] := {o[1:mBase], -o[1:mBase]}` is how the
+    // polyphase library fills a transformation matrix: a run of names
+    // along two axes at once, and that many values to fill them.
+    let m = parse_model(
+        "function corner output Real a[3, 3]; \
+         algorithm a := zeros(3, 3); a[1:2, 1:2] := {{1, 2}, {3, 4}}; \
+         a[3, 2:3] := {5, 6}; end corner; \
+         model M parameter Real b[3, 3] = corner(); Real y; \
+         equation y = b[1, 2] * time; end M;",
+    )
+    .unwrap();
+    let worth = |name: &str| {
+        m.components
+            .iter()
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
+    };
+    // The last subscript moves fastest, the way an array is written
+    // out: 1, 2 fill the first row and 3, 4 the second.
+    assert_eq!(worth("b[1,1]"), Some(Expr::Number(1.0)));
+    assert_eq!(worth("b[1,2]"), Some(Expr::Number(2.0)));
+    assert_eq!(worth("b[2,1]"), Some(Expr::Number(3.0)));
+    assert_eq!(worth("b[2,2]"), Some(Expr::Number(4.0)));
+    // A plain subscript beside a run names one row of it.
+    assert_eq!(worth("b[3,2]"), Some(Expr::Number(5.0)));
+    assert_eq!(worth("b[3,3]"), Some(Expr::Number(6.0)));
+    // What the run did not name kept what it had.
+    assert_eq!(worth("b[3,1]"), Some(Expr::Number(0.0)));
+
+    // A run given the wrong number of values is said, not guessed.
+    let wrong = parse_model(
+        "function odd output Real a[2, 2]; \
+         algorithm a := zeros(2, 2); a[1:2, 1:2] := {{1, 2}}; end odd; \
+         model M parameter Real b[2, 2] = odd(); Real y; \
+         equation y = b[1, 1] * time; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        wrong.contains("run of 4 element(s) and 2 value(s)"),
+        "{wrong}"
+    );
+    // A plain subscript beside a run has to come to a number too.
+    let loose = parse_model(
+        "function odd input Real u; output Real a[2, 2]; \
+         protected Integer k; \
+         algorithm a := zeros(2, 2); k := integer(u); a[k, 1:2] := {1, 2}; end odd; \
+         model M Real b[2, 2]; Real y; \
+         equation b = odd(time); y = b[1, 1] * time; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(loose.contains("must be a whole number"), "{loose}");
+
+    // A name bound whole and then written into element by element,
+    // where nothing says what shape the whole is: the write says what
+    // it can and what it does not name is left alone.
+    let shapeless = parse_model(
+        "function odd input Real u[:]; output Real y; \
+         protected Real a[size(u, 1)] = u; \
+         algorithm a[1] := 5; y := a[1] + a[2]; end odd; \
+         model M Real p; equation p = odd({time, 2}); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(shapeless.is_ok(), "{shapeless:?}");
+}
+
+#[test]
+fn a_call_spread_over_arrays_wants_one_length_for_all_of_them() {
+    // A scalar function handed arrays is called once per element, so
+    // the arrays have to agree on how many elements there are.
+    let error = parse_model(
+        "model M Real a[2]; Real b[3]; Real y[2]; \
+         equation a = {time, 1}; b = {1, 2, 3}; y = atan2(a, b); end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        error.contains("array arguments must have one length"),
+        "{error}"
+    );
+
+    // Agreeing, they spread element by element, a scalar reaching
+    // every one of them.
+    let m = parse_model(
+        "model M Real a[2]; Real y[2]; \
+         equation a = {time, 1}; y = atan2(a, 2); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    assert_eq!(m.equations.len(), 4);
 }
