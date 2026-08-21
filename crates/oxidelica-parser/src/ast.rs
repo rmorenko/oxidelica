@@ -342,6 +342,10 @@ pub struct ClassDef {
     /// a simple name inside it is looked up in the class and its
     /// imports and nowhere further out.
     pub encapsulated: bool,
+    /// Whether the class stood in a `protected` section of the class
+    /// holding it: it may be named inside that class and inside the
+    /// classes extending it, and nowhere else.
+    pub protected: bool,
     /// `expandable connector` — a bus whose members are whatever the
     /// connections to it name, rather than what it declares.
     pub expandable: bool,
@@ -445,6 +449,7 @@ impl ClassDef {
     pub fn empty() -> Self {
         ClassDef {
             kind: ClassKind::Model,
+            protected: false,
             alias_causality: Causality::None,
             name: String::new(),
             partial: false,

@@ -90,6 +90,7 @@ pub(super) fn instantiate(
     // once per class rather than once per instance.
     if acc.restrictions_checked.insert(class.name.clone()) {
         restrictions::nothing_reaches_inside(registry, class, &imports)?;
+        restrictions::no_class_kept_back_is_named_from_outside(registry, class, &imports)?;
     }
     // Names a wildcard-imported constant may not quietly stand in for:
     // a component of this class outranks anything `import A.*;` opened.

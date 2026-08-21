@@ -375,7 +375,10 @@ impl Parser {
                 | Token::Encapsulated
                 | Token::Pure
                 | Token::Impure => match self.class_def()? {
-                    ClassItem::Class(class) => nested.push(*class),
+                    ClassItem::Class(mut class) => {
+                        class.protected = in_protected;
+                        nested.push(*class);
+                    }
                     ClassItem::Alias(alias) => class_aliases.push(alias),
                 },
                 // `replaceable`/`redeclare` introduce either a nested
@@ -384,7 +387,10 @@ impl Parser {
                 // decides is the first word past the prefixes.
                 Token::Replaceable | Token::Redeclare if self.class_ahead() => {
                     match self.class_def()? {
-                        ClassItem::Class(class) => nested.push(*class),
+                        ClassItem::Class(mut class) => {
+                            class.protected = in_protected;
+                            nested.push(*class);
+                        }
                         ClassItem::Alias(alias) => class_aliases.push(alias),
                     }
                 }
@@ -467,6 +473,7 @@ impl Parser {
             name,
             partial,
             encapsulated,
+            protected: false,
             expandable,
             alias_of,
             alias_causality: Causality::None,

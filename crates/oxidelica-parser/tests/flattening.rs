@@ -8134,3 +8134,42 @@ fn a_protected_declaration_is_kept_back_wherever_the_reach_is_written() {
         parse_model(&format!("{INNER} model M {HOLDS} {body} end M;")).unwrap();
     }
 }
+
+/// A class a package keeps to itself is named inside it and nowhere
+/// else.
+#[test]
+fn a_protected_class_is_not_named_from_outside() {
+    const PACKAGE: &str = "package P \
+                           function open input Real x; output Real y; algorithm y := 2 * x; end open; \
+                           protected \
+                           function shut input Real x; output Real y; algorithm y := 3 * x; end shut; \
+                           model Working Real w; equation w = time; end Working; \
+                           end P; ";
+
+    // Called from outside, and declared from outside.
+    for reach in [
+        "model M Real z; equation z = P.shut(time); end M;",
+        "model M P.Working w; end M;",
+        "model M extends P.Working; end M;",
+    ] {
+        let refusal = parse_model(&format!("{PACKAGE}{reach}"))
+            .unwrap_err()
+            .to_string();
+        assert!(refusal.contains("keeps to itself"), "{reach}: {refusal}");
+    }
+
+    // The public one beside it, and the kept-back one named from
+    // inside the package that holds it.
+    parse_model(&format!(
+        "{PACKAGE}model M Real z; equation z = P.open(time); end M;"
+    ))
+    .unwrap();
+    parse_model(
+        "package P \
+         protected function shut input Real x; output Real y; algorithm y := 3 * x; end shut; \
+         public function open input Real x; output Real y; algorithm y := P.shut(x); end open; \
+         end P; \
+         model M Real z; equation z = P.open(time); end M;",
+    )
+    .unwrap();
+}

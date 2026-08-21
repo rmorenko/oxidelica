@@ -135,11 +135,25 @@ one declaring an output nothing in it or in its bases ever speaks of is
 refused too - a `partial` block excepted, which is exactly the case
 where the outputs are left for whoever finishes it.
 
-What is not enforced: a class declared under `protected` may still be
-reached by name from outside, and a model's local balance is not
-counted - the equations and unknowns are counted over the flat model
-as a whole rather than class by class, so a class that does not balance
-on its own passes where the model around it makes up the difference.
+A class declared under `protected` is kept back the same way: naming
+`P.shut` from outside `P` is refused, whether the name is what a
+component is declared to be, what a class extends, or what a call
+names, while `P` itself and the classes inside it write it freely.
+
+What is not enforced is local balance (4.7): the equations and the
+unknowns are counted over the flat model as a whole rather than class
+by class, so a class that does not balance on its own passes where the
+model around it makes up the difference. The one consequence of it that
+is checked is the one this compiler can state exactly - a block settles
+its own outputs, above. Counting per class was measured rather than
+guessed: over the 381 standard-library models that flatten, 371 hold
+an instance whose equations and variables do not come to the same
+number under a naive count, because a component contributes its
+interface rather than its insides, a connection's equations belong to
+the class that wrote the connection, and a parameter is not an unknown.
+Getting that counting subtly wrong refuses correct models, so it waits
+on the specification's own definition rather than on a reconstruction
+of it.
 
 **Packages** (ch. 13) hold classes and constants and nothing else - a
 parameter or a variable in one is refused, since a package has no

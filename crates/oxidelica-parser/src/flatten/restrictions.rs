@@ -1,22 +1,25 @@
 //! What a class may hold, and who may reach into it.
 //!
-//! Two rules of the language's class restrictions, neither of which
+//! The rules of the language's class restrictions, none of which
 //! changes the flat model by so much as an equation - which is exactly
 //! why they are worth checking. A model that breaks one is written on
 //! something the library never promised, and it will break again the
 //! next time the library moves.
 //!
-//! A declaration under `protected` is visible inside its own class and
-//! inside classes extending it, and nowhere else. A class holding a
-//! component may write its public members - `r.R`, `pin.v` - and may
+//! What `protected` keeps back is visible inside its own class and
+//! inside the classes extending it, and nowhere else. A class holding
+//! a component may write its public members - `r.R`, `pin.v` - and may
 //! not write the ones the component's class kept back, whether by
-//! naming one or by modifying it from the declaration. A member that
-//! is not found where it is looked for is left alone: it may be
-//! inherited, and what a base class kept back is not decided here.
+//! naming one or by modifying it from the declaration; and a class
+//! kept back the same way may not be named from outside the class
+//! holding it. A member that is not found where it is looked for is
+//! left alone: it may be inherited from somewhere this does not reach.
 //!
 //! A `block` is a model whose connectors all have a direction, so that
 //! what goes in and what comes out is decided by the declaration
-//! rather than by what it is connected to.
+//! rather than by what it is connected to, and which settles the
+//! outputs it declares rather than leaving them to the model around
+//! it.
 
 use super::*;
 
@@ -97,6 +100,61 @@ pub(super) fn nothing_reaches_inside<'a>(
             own[&component]
         )),
     }
+}
+
+/// Refuse naming a class that the class holding it keeps back.
+///
+/// A class declared under `protected` is one its holder wrote for
+/// itself: a helper function, a working record. It may be named inside
+/// that holder and inside what the holder holds, and not from outside
+/// - which is what a qualified name reaching in would be.
+///
+/// The two ways a class is named are looked at: what a component is
+/// declared to be, and what a call names. A constant read out of a
+/// package is not one of these and is left alone.
+pub(super) fn no_class_kept_back_is_named_from_outside(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    imports: &[(String, String)],
+) -> Result<(), String> {
+    // Every qualified name this class writes where a class is meant.
+    let mut named: Vec<String> = class
+        .components
+        .iter()
+        .map(|component| component.type_name.clone())
+        .chain(class.extends.iter().map(|extend| extend.base.clone()))
+        .collect();
+    every_value(class, &mut |expr| {
+        expr.for_each(&mut |inside| {
+            if let Expr::Call(name, _) = inside {
+                named.push(name.clone());
+            }
+        });
+    });
+
+    for name in named {
+        if !name.contains('.') {
+            continue;
+        }
+        let Some(found) = lookup(registry, &name, &class.name, imports) else {
+            continue;
+        };
+        let Some((holder, _)) = found.name.rsplit_once('.') else {
+            continue;
+        };
+        // Inside the holder, or inside something the holder holds, the
+        // name is the class's own to write.
+        if !found.protected || class.name == holder || class.name.starts_with(&format!("{holder}."))
+        {
+            continue;
+        }
+        return Err(format!(
+            "`{name}` names a class `{holder}` keeps to itself; a `protected` class is \
+             named inside the class holding it and inside the classes extending it, \
+             and nowhere else"
+        ));
+    }
+    Ok(())
 }
 
 /// Refuse a `block` that holds a connector nothing gave a direction.
