@@ -8365,3 +8365,30 @@ fn a_call_may_be_subscripted_where_it_is_written() {
     assert_eq!(numbers("b"), "Bin(Mul, Number(3.0), Number(2.0))");
     assert_eq!(numbers("c[1]"), "Number(5.0)");
 }
+
+/// A call nothing could write out is still asked for one of its
+/// answers.
+#[test]
+fn a_standing_call_may_be_subscripted() {
+    // The loop runs as many rounds as the model decides, so the body
+    // cannot be written out and the call is left for the run to walk.
+    // The subscript goes with it: there is no list to pick from until
+    // the call is made.
+    let m = parse_model(
+        "function grow input Real x; output Real y[2]; protected Real k; \
+         algorithm k := 0; while k < x loop k := k + 1; end while; y := {k, 10 * k}; end grow; \
+         model M Real z; equation z = grow(time * 3)[2]; end M;",
+    )
+    .unwrap();
+    let settled = m
+        .equations
+        .iter()
+        .find(|equation| equation.lhs == oxidelica_parser::Expr::Ref("z".to_string()))
+        .expect("nothing settles z");
+    assert!(
+        matches!(&settled.rhs, oxidelica_parser::Expr::Index(base, _)
+            if matches!(base.as_ref(), oxidelica_parser::Expr::Call(name, _) if name == "grow")),
+        "{:?}",
+        settled.rhs
+    );
+}

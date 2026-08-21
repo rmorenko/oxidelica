@@ -1187,16 +1187,20 @@ pub(super) fn resolve(
             // A body written here answers with one flat list, and a
             // subscript takes a place of it. There is nothing to look
             // into: the call stands, and the run reads the place.
-            if let Expr::Call(called, _) = base.as_ref() {
-                if crate::outside::written_here(called) {
-                    return Ok(Expr::Index(
-                        Box::new(recur(base)?),
-                        subscripts
-                            .iter()
-                            .map(&recur)
-                            .collect::<Result<Vec<_>, String>>()?,
-                    ));
-                }
+            // A call nothing could write out answers where it stands,
+            // and one of its answers is asked for by subscript: the
+            // whole of it is left for the run, which walks the body and
+            // reads the element off what comes back. Nothing here can
+            // pick the element, since there is no list to pick from
+            // until the call is made.
+            if let Expr::Call(..) = base.as_ref() {
+                return Ok(Expr::Index(
+                    Box::new(recur(base)?),
+                    subscripts
+                        .iter()
+                        .map(&recur)
+                        .collect::<Result<Vec<_>, String>>()?,
+                ));
             }
             let base = match base.as_ref() {
                 Expr::Ref(_) | Expr::Array(_) => (**base).clone(),
