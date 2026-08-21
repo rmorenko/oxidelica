@@ -80,6 +80,28 @@ end MslRc;
 `RC = 100 × 1e-4 = 0,01 с`, значит при `t = 0,05` замкнутая форма даёт
 `5(1 − e⁻⁵) = 4,9663103`. Расчёт отвечает `4,966310`.
 
+Ещё один — там, где блок спрашивает ответ у C, а этот компилятор ответ
+выписывает:
+
+```modelica
+model TableRamp "A table of the standard library, read where the model wrote it"
+  Modelica.Blocks.Sources.CombiTimeTable t(table = [0, 0; 1, 2; 2, 6]);
+  Real y;
+equation
+  y = t.y[1];
+  annotation(experiment(StopTime = 1.5, Interval = 0.5, Tolerance = 1e-10));
+end TableRamp;
+```
+
+`[0, 0; 1, 2; 2, 6]` — это две прямые, наклон два до `t = 1` и наклон
+четыре после, значит при `t = 1,5` замкнутая форма даёт `2 + 0,5 × 4 = 4`.
+Расчёт отвечает `4,000000` и ставит событие на изломе.
+`Modelica.Blocks.Tables.CombiTable1Ds` читается так же, только абсцисса
+у него `t.u`. Что стоит за обоими — в [EXTERNAL.ru.md](EXTERNAL.ru.md).
+
+Этим нужна библиотека, а моделям в `examples/` — нет; поэтому они лежат
+здесь.
+
 ## Чего не получается
 
 25 файлов, которые не разбираются, и модели, которые не уплощаются, —

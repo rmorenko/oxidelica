@@ -80,6 +80,29 @@ end MslRc;
 `RC = 100 × 1e-4 = 0.01 s`, so at `t = 0.05` the closed form is
 `5(1 − e⁻⁵) = 4.9663103`. The run answers `4.966310`.
 
+Another, where the block asks C for its answer and this compiler
+writes the answer out instead:
+
+```modelica
+model TableRamp "A table of the standard library, read where the model wrote it"
+  Modelica.Blocks.Sources.CombiTimeTable t(table = [0, 0; 1, 2; 2, 6]);
+  Real y;
+equation
+  y = t.y[1];
+  annotation(experiment(StopTime = 1.5, Interval = 0.5, Tolerance = 1e-10));
+end TableRamp;
+```
+
+`[0, 0; 1, 2; 2, 6]` is two straight lines, a slope of two up to
+`t = 1` and a slope of four past it, so at `t = 1.5` the closed form is
+`2 + 0.5 × 4 = 4`. The run answers `4.000000`, and puts an event at the
+corner. `Modelica.Blocks.Tables.CombiTable1Ds` reads the same way with
+`t.u` for the abscissa. What is behind both is in
+[EXTERNAL.md](EXTERNAL.md).
+
+These need the library; the models in `examples/` do not, which is why
+they live here.
+
 ## What it does not
 
 The 25 files that will not parse, and the example models that will not
