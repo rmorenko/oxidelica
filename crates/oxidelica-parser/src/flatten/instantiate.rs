@@ -1140,17 +1140,48 @@ pub(super) fn instantiate(
             };
             let mut lifted = Vec::new();
             for branch in branches {
-                let mut actions = Vec::new();
-                for inner in &branch.body {
-                    let Statement::Assign(target, subscripts, value) = inner else {
-                        return Err("a `when` in an algorithm holds assignments".to_string());
-                    };
-                    if !subscripts.is_empty() {
-                        return Err(
-                            "a `when` in an algorithm assigns whole variables, not elements"
-                                .to_string(),
-                        );
+                // The body of a `when` is an algorithm like any other:
+                // it may hold an `if`, a loop, or a write to one
+                // element. Running it is what says which names it
+                // leaves changed and what each of them is worth, and
+                // that is exactly what an event does.
+                let mut written: HashMap<String, Expr> = HashMap::new();
+                let mut order: Vec<String> = Vec::new();
+                let mut checked: Vec<(Expr, String)> = Vec::new();
+                match execute(
+                    &branch.body,
+                    &mut written,
+                    &mut order,
+                    &mut checked,
+                    &local_consts,
+                    &sizes_here,
+                    registry,
+                    scope,
+                    &imports,
+                    depth,
+                    false,
+                )? {
+                    Flow::Normal => {}
+                    Flow::Break => {
+                        return Err("`break` outside of a loop, inside a `when`".to_string())
                     }
+                    Flow::Return => {
+                        return Err(
+                            "`return` belongs in a function, not a `when` of a model".to_string()
+                        )
+                    }
+                }
+                for (condition, message) in checked {
+                    acc.asserts.push((resolve_here(&condition)?, message));
+                }
+                let mut actions = Vec::new();
+                for target in &order {
+                    // Every name the run put in the order it also gave
+                    // a value; there is nothing to say about one that
+                    // is not there.
+                    let Some(value) = written.get(target) else {
+                        continue;
+                    };
                     actions.push(WhenAction::Assign(
                         flat_name(target, prefix, &outers),
                         resolve_here(value)?,

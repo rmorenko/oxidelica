@@ -1091,9 +1091,11 @@ fn the_rest_of_the_refusals_are_named_too() {
     // An initial equation whose sides are different shapes.
     assert!(err("model M Real v[2](start = {0, 0}); equation der(v[1]) = 0; der(v[2]) = 0; initial equation v = {1, 2, 3}; end M;")
         .contains("shapes that do not match"));
-    // A `when` in an algorithm that holds something else.
-    assert!(err("model M Real u; discrete Real c(start = 0); equation u = time; algorithm when u > 1 then for i in 1:2 loop c := 1; end for; end when; end M;")
-        .contains("holds assignments"));
+    // A loop inside a `when` of an algorithm is unrolled like any
+    // other: what it leaves changed is what the event assigns.
+    let looped = parse_model("model M Real u; Real v[2]; discrete Real c(start = 0); equation u = time; v = {1, 2}; algorithm when u > 1 then for i in 1:2 loop v[i] := i; end for; end when; end M;")
+        .unwrap();
+    assert_eq!(looped.when_clauses[0].branches[0].actions.len(), 2);
     // A range with a fractional end is still a range: `1:2.5` runs over
     // 1 and 2, the way the range operator reads everywhere else. It was
     // refused here once for not being whole, which was stricter than
@@ -1209,10 +1211,17 @@ fn a_when_may_stand_among_the_statements_of_an_algorithm() {
         "model M Real u; discrete Real c(start = 0); equation u = time; algorithm if u > 0 then when u > 1 then c := 1; end when; end if; end M;"
     )
     .contains("not inside an `if`"));
-    assert!(err(
+    // The body of a `when` is an algorithm like any other: a write to
+    // one element lands on that element's own name.
+    let element = parse_model(
         "model M Real u; Real v[2]; discrete Real c(start = 0); equation u = time; v = {1, 2}; algorithm when u > 1 then c := 1; v[1] := 2; end when; end M;"
     )
-    .contains("whole variables, not elements"));
+    .unwrap();
+    assert!(
+        format!("{:?}", element.when_clauses).contains("Assign(\"v[1]\""),
+        "{:?}",
+        element.when_clauses
+    );
 }
 
 #[test]
@@ -7747,4 +7756,58 @@ fn a_call_spread_over_arrays_wants_one_length_for_all_of_them() {
     )
     .unwrap();
     assert_eq!(m.equations.len(), 4);
+}
+
+#[test]
+fn a_when_of_an_algorithm_holds_an_algorithm() {
+    // `Modelica.Blocks.Math.RealFFT` counts ticks at an event and
+    // branches on the count: the body of a `when` is an algorithm like
+    // any other, and running it is what says which names it leaves
+    // changed and what each of them is worth.
+    let m = parse_model(
+        "model M Real u; discrete Integer n(start = 0, fixed = true); \
+         discrete Real held(start = 0, fixed = true); \
+         equation u = time; \
+         algorithm when u > 0.5 then n := pre(n) + 1; \
+         if n <= 2 then held := u; else held := 0; end if; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    )
+    .unwrap();
+    let actions = &m.when_clauses[0].branches[0].actions;
+    // Two names changed, and the second is a choice made at the event
+    // rather than two writes.
+    assert_eq!(actions.len(), 2);
+    let said = format!("{actions:?}");
+    assert!(
+        said.contains("Assign(\"n\"") && said.contains("Assign(\"held\""),
+        "{said}"
+    );
+    assert!(said.contains("If("), "{said}");
+
+    // A check written inside is a check of the model.
+    let checked = parse_model(
+        "model M Real u; discrete Real c(start = 0, fixed = true); \
+         equation u = time; \
+         algorithm when u > 0.5 then assert(u > 0, \"positive\"); c := 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    )
+    .unwrap();
+    assert_eq!(checked.asserts.len(), 1);
+}
+
+#[test]
+fn a_when_of_an_algorithm_is_no_place_to_leave_from() {
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+    // `break` belongs to a loop and `return` to a function; an event
+    // is neither, and there is nowhere for either to go.
+    assert!(err(
+        "model M Real u; discrete Real c(start = 0); equation u = time; \
+             algorithm when u > 1 then c := 1; break; end when; end M;"
+    )
+    .contains("`break` outside of a loop"),);
+    assert!(err(
+        "model M Real u; discrete Real c(start = 0); equation u = time; \
+             algorithm when u > 1 then c := 1; return; end when; end M;"
+    )
+    .contains("`return` belongs in a function"),);
 }

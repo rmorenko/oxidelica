@@ -234,6 +234,12 @@ A run of elements may be named along more than one axis - `oM[1:mBase,
 moving fastest. A name bound whole and then written into element by
 element is taken apart first.
 
+A `when` written among a model's statements holds an algorithm like
+any other - an `if`, a loop, a write to one element, a check - and
+running it is what says which names it leaves changed and what each of
+them is worth. That is what the standard library's Fourier transform
+does: it counts ticks at an event and branches on the count.
+
 Among a model's own statements a `while` is still unrolled where it
 stands, so its trip count has to be settled there: only a call can be
 left for the run to walk.
