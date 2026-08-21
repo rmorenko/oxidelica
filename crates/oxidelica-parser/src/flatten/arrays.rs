@@ -915,7 +915,8 @@ pub(super) fn expand_call(
                 if descends_from_external_object(registry, class, 0) {
                     return Ok(Value::Scalar(Expr::Call(
                         class.name.clone(),
-                        args.iter()
+                        handle_arguments(class, args, registry, scope, imports)?
+                            .iter()
                             .map(|arg| Ok(recur(arg)?.into_expr()))
                             .collect::<Result<Vec<_>, String>>()?,
                     )));
@@ -1226,6 +1227,77 @@ fn record_written_out(
 /// value however each of them is shaped. All of them mean the same
 /// thing here - the function is inlined with what it deals in intact,
 /// rather than applied to one element at a time.
+/// What a handle was handed, in the order its constructor declares.
+///
+/// A handle is built the way a function is called: by position, by
+/// name, or not at all where the declaration gives a value of its own.
+/// The standard library's gears build a table handle entirely by name,
+/// and what is behind the handle can only be read once the names are
+/// back in their places.
+fn handle_arguments(
+    class: &ClassDef,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Result<Vec<Expr>, String> {
+    let made = lookup(
+        registry,
+        &format!("{}.constructor", class.name),
+        scope,
+        imports,
+    );
+    let inputs: Vec<Component> = made
+        .map(|made| {
+            function_components(registry, made, 0)
+                .into_iter()
+                .filter(|c| c.causality == Causality::Input)
+                .collect()
+        })
+        .unwrap_or_default();
+    // No constructor to read the order from: the arguments stand as
+    // they were written, which is what a handle built by position
+    // comes to anyway.
+    if inputs.is_empty() {
+        return Ok(args.to_vec());
+    }
+    let mut placed: Vec<Option<Expr>> = vec![None; inputs.len()];
+    let mut position = 0;
+    for arg in args {
+        match arg {
+            Expr::NamedArg(name, value) => {
+                let at = inputs
+                    .iter()
+                    .position(|input| &input.name == name)
+                    .ok_or_else(|| {
+                        format!("`{}` is built with no argument named `{name}`", class.name)
+                    })?;
+                placed[at] = Some((**value).clone());
+            }
+            one => {
+                if position < placed.len() {
+                    placed[position] = Some(one.clone());
+                }
+                position += 1;
+            }
+        }
+    }
+    let made = made.expect("inputs came from a constructor");
+    Ok(inputs
+        .iter()
+        .zip(placed)
+        .map(|(input, given)| match given {
+            Some(given) => given,
+            // What the constructor's own declaration gives, where the
+            // call left it out. A name it holds is the constructor's,
+            // so it is read there.
+            None => input.binding.as_ref().map_or(Expr::Number(0.0), |value| {
+                substitute_class_constants(value, registry, &made.name, &made.imports, &[])
+            }),
+        })
+        .collect())
+}
+
 /// One round of a spreading call: the arguments with each spreading
 /// array taken down to its `index`th record, written out as fields,
 /// and everything else travelling unchanged.

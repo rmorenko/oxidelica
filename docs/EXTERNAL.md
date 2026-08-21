@@ -95,6 +95,11 @@ decomposition and the Schur form, which are neither short nor easy to
 get right, and the file system, which is a question about what a model
 may read rather than about arithmetic. Both belong behind the sandbox.
 
+A handle may be built by naming what it is handed rather than by
+putting it in order - the standard library's gears build one entirely
+by name - and a table of one row is a table too: what it says, it says
+everywhere.
+
 A table whose first column is time is written out the same way as an
 ordinary one, and says two things more: where it next turns a corner,
 which is what a run puts an event at, and nothing at all before the

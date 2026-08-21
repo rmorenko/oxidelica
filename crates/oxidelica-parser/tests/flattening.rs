@@ -7181,20 +7181,34 @@ fn a_table_reads_what_the_model_settled_around_it() {
     let written = format!("{:?}", among.equations);
     assert!(!written.contains("ModelicaStandardTables"), "{written}");
 
-    // A table of one row says nothing to interpolate between, so the
-    // call stands and the refusal names it.
+    // A table of one row has no interval to be in, and what it says
+    // it says everywhere: the standard library's clutches give a
+    // friction coefficient that way.
     let single = parse_model(&format!(
         "{TABLE_BLOCK} model M \
-         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1], {{2}}, 1, 2); \
-         Real y(start = Blocks.umin(h)); equation der(y) = 0; \
-         assert(Blocks.umax(h) > 0, \"a table\"); end M;"
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 7], {{2}}, 1, 2); \
+         Real y; Real low; Real high; \
+         equation y = Blocks.getValue(h, 1, time); \
+         low = Blocks.umin(h); high = Blocks.umax(h); end M;"
     ))
-    .unwrap_err()
-    .to_string();
+    .unwrap();
+    let told = |name: &str| {
+        single
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    // Seven wherever it is asked, and a slope of nothing.
     assert!(
-        single.contains("ModelicaStandardTables_CombiTable1D_minimumAbscissa"),
-        "{single}"
+        told("y").starts_with("WithDerivative(Number(7.0)"),
+        "{}",
+        told("y")
     );
+    assert!(told("y").contains("Mul, Number(0.0)"), "{}", told("y"));
+    assert_eq!(told("low"), "Number(0.0)");
+    assert_eq!(told("high"), "Number(0.0)");
 
     // An output the table has no column for is said, not guessed.
     let missing = parse_model(&format!(
@@ -7552,4 +7566,44 @@ fn a_record_valued_parameter_is_handed_down_field_by_field() {
         "{:?}",
         partly.equations
     );
+}
+
+#[test]
+fn a_handle_may_be_built_by_naming_what_it_is_handed() {
+    // `ExternalCombiTable1D(tableName = "NoName", table = lossTable,
+    // columns = {2, 3, 4, 5}, ...)` is how the standard library's
+    // gears build a table handle: entirely by name, and one argument
+    // left out for its own declaration to give. What is behind the
+    // handle can only be read once the names are back in their places.
+    let m = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\
+           columns = {{3}}, table = [0, 1, 4; 1, 2, 8], \
+           fileName = \"NoName\", tableName = \"NoName\", smoothness = 1, \
+           extrapolation = 2); \
+         Real y; Real high; equation y = Blocks.getValue(h, 1, time); \
+         high = Blocks.umax(h); end M;"
+    ))
+    .unwrap();
+    let told = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    assert_eq!(told("high"), "Number(1.0)");
+    // The third column, 4 to 8 over 0 to 1, is a slope of four.
+    assert!(told("y").contains("Number(4.0)"), "{}", told("y"));
+
+    // A name the constructor does not take is said, not ignored.
+    let odd = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1], {{2}}, 1, \
+           extrapolation = 2, verbose = true); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(odd.contains("no argument named `verbose`"), "{odd}");
 }

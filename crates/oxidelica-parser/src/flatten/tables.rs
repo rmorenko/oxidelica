@@ -149,9 +149,12 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
     {
         return None;
     }
+    // One row is a table too: the standard library's clutches give a
+    // friction coefficient that way, and what it says is that value
+    // everywhere.
     let rows = matrix(&args[2], numbers)?;
     let width = rows.first()?.len();
-    if rows.len() < 2 || rows.iter().any(|row| row.len() != width) {
+    if rows.iter().any(|row| row.len() != width) {
         return None;
     }
     let at = |which: usize| which + usize::from(time_table);
@@ -425,20 +428,6 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             )),
         )
     };
-    // Beyond the far end: the last interval's line carried on, or the
-    // last point held. Constant segments hold whatever the ends say,
-    // since there is no line to carry.
-    let intervals = table.rows.len() - 1;
-    let held_beyond =
-        table.extrapolation == HOLD_LAST_POINT || table.smoothness == CONSTANT_SEGMENTS;
-    let beyond = match held_beyond {
-        true => Expr::Number(match slope {
-            true => 0.0,
-            false => value(intervals),
-        }),
-        false => piece(intervals - 1),
-    };
-    let mut written = beyond;
     // Before it starts, a table whose first column is time says
     // nothing: what the block puts out there is its offset alone.
     let before_it_starts = |written: Expr| match table.starts.is_finite() {
@@ -453,6 +442,28 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             Box::new(written),
         ),
     };
+    // A table of one row has no interval to be in: what it says, it
+    // says everywhere, and it has no slope.
+    if table.rows.len() == 1 {
+        return Ok(before_it_starts(Expr::Number(match slope {
+            true => 0.0,
+            false => value(0),
+        })));
+    }
+    // Beyond the far end: the last interval's line carried on, or the
+    // last point held. Constant segments hold whatever the ends say,
+    // since there is no line to carry.
+    let intervals = table.rows.len() - 1;
+    let held_beyond =
+        table.extrapolation == HOLD_LAST_POINT || table.smoothness == CONSTANT_SEGMENTS;
+    let beyond = match held_beyond {
+        true => Expr::Number(match slope {
+            true => 0.0,
+            false => value(intervals),
+        }),
+        false => piece(intervals - 1),
+    };
+    let mut written = beyond;
     // Built from the far end back, so the nearest test ends up first.
     for first in (0..intervals).rev() {
         let held = piece(first);
