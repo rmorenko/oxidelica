@@ -48,14 +48,14 @@ work stands behind both.
 For most of what is written in C, writing it again is less work than
 reaching for it:
 
-| What                        | Written here                                     |
-| --------------------------- | ------------------------------------------------ |
-| `ModelicaRandom`            | xorshift64\* is twenty lines and published       |
-| `ModelicaStrings`           | length, substring, compare - and no encodings    |
-| `ModelicaStandardTables`    | interpolation the specification sets out in full |
-| `dgesv` of LAPACK           | clearing a matrix column by column, and no more   |
-| the rest of LAPACK          | reaching for it wins: the work is real            |
-| `ModelicaIO`, MatIO         | reaching for it wins, and it reads files          |
+| What                     | Written here                                     |
+| ------------------------ | ------------------------------------------------ |
+| `ModelicaRandom`         | xorshift64\* is twenty lines and published       |
+| `ModelicaStrings`        | length, substring, compare - and no encodings    |
+| `ModelicaStandardTables` | interpolation the specification sets out in full |
+| `dgesv` of LAPACK        | clearing a matrix column by column, and no more  |
+| the rest of LAPACK       | reaching for it wins: the work is real           |
+| `ModelicaIO`, MatIO      | reaching for it wins, and it reads files         |
 
 What is written here needs nothing brought along, and it can be read.
 The sandbox costs a dependency and a call that is not free; what it does
