@@ -336,7 +336,15 @@ impl Parser {
                         }
                     }
                 }
-                Ok(Expr::Call(name, args))
+                // `pair(x)[2]` - a call that answers with an array,
+                // asked for one of its elements where it stands. The
+                // grammar allows subscripts after any primary, and a
+                // call is one.
+                let called = Expr::Call(name, args);
+                match self.peek() == &Token::LBracket {
+                    true => Ok(Expr::Index(Box::new(called), self.subscript_list()?)),
+                    false => Ok(called),
+                }
             }
             Token::Ident(name) => {
                 self.bump();
@@ -350,20 +358,7 @@ impl Parser {
                     name.push_str(&self.ident("name after dot")?);
                 }
                 if self.peek() == &Token::LBracket {
-                    self.bump();
-                    let mut subscripts = Vec::new();
-                    loop {
-                        subscripts.push(self.subscript()?);
-                        match self.bump() {
-                            Token::Comma => continue,
-                            Token::RBracket => break,
-                            other => {
-                                return Err(self.err(format!(
-                                    "expected `,` or `]` in a subscript, found `{other}`"
-                                )))
-                            }
-                        }
-                    }
+                    let subscripts = self.subscript_list()?;
                     let indexed = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
                     if self.peek() == &Token::Dot {
                         self.bump();
@@ -444,7 +439,15 @@ impl Parser {
                         }
                     }
                     self.expect(&Token::RParen, "closing parenthesis of call")?;
-                    Ok(Expr::Call(name, args))
+                    // `pair(x)[2]` - a call that answers with an array,
+                    // asked for one of its elements where it stands.
+                    // The grammar allows subscripts after any primary,
+                    // and a call is one.
+                    let called = Expr::Call(name, args);
+                    match self.peek() == &Token::LBracket {
+                        true => Ok(Expr::Index(Box::new(called), self.subscript_list()?)),
+                        false => Ok(called),
+                    }
                 } else {
                     Ok(Expr::Ref(name))
                 }
@@ -468,6 +471,25 @@ impl Parser {
 
     /// One subscript: an expression, a bare `:` for the whole
     /// dimension, or `end` for its length.
+    /// The subscripts of one `[...]`, the bracket already ahead.
+    fn subscript_list(&mut self) -> Result<Vec<Expr>, ParseError> {
+        self.bump();
+        let mut subscripts = Vec::new();
+        loop {
+            subscripts.push(self.subscript()?);
+            match self.bump() {
+                Token::Comma => continue,
+                Token::RBracket => break,
+                other => {
+                    return Err(self.err(format!(
+                        "expected `,` or `]` in a subscript, found `{other}`"
+                    )))
+                }
+            }
+        }
+        Ok(subscripts)
+    }
+
     pub(super) fn subscript(&mut self) -> Result<Expr, ParseError> {
         if self.peek() == &Token::Colon {
             self.bump();

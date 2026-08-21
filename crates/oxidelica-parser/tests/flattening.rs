@@ -8332,3 +8332,36 @@ fn a_local_declaration_value_reads_a_constant_of_a_class() {
     settled.rhs.collect_refs(&mut left);
     assert!(left.is_empty(), "{:?} in {z:?}", left);
 }
+
+/// A call that answers with an array may be asked for one of its
+/// elements where it stands.
+#[test]
+fn a_call_may_be_subscripted_where_it_is_written() {
+    let m = parse_model(
+        "function pair input Real x; output Real y[2]; algorithm y := {x, 2 * x}; end pair; \
+         package Lib function twice input Real x; output Real y[2]; \
+         algorithm y := {3 * x, 4 * x}; end twice; end Lib; \
+         model M Real a; Real b; Real c[2]; \
+         equation a = pair(2)[2]; b = Lib.twice(2)[1]; c = pair(5); end M;",
+    )
+    .unwrap();
+    let settled = |name: &str| {
+        m.equations
+            .iter()
+            .find(|equation| equation.lhs == oxidelica_parser::Expr::Ref(name.to_string()))
+            .map(|equation| equation.rhs.clone())
+    };
+    // The second of {2, 4}, the first of {6, 8}, and a whole array
+    // still handed over whole. Each comes out as arithmetic on
+    // numbers alone: the element was picked, not left standing.
+    let numbers = |name: &str| {
+        let mut names = Vec::new();
+        let value = settled(name).expect(name);
+        value.collect_refs(&mut names);
+        assert!(names.is_empty(), "{name}: {value:?}");
+        format!("{value:?}")
+    };
+    assert_eq!(numbers("a"), "Bin(Mul, Number(2.0), Number(2.0))");
+    assert_eq!(numbers("b"), "Bin(Mul, Number(3.0), Number(2.0))");
+    assert_eq!(numbers("c[1]"), "Number(5.0)");
+}
