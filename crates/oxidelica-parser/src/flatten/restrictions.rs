@@ -521,27 +521,30 @@ pub(super) fn every_input_is_given_a_value(
             spoken.entry(name).or_default().push(&equation.origin);
         }
     }
-    // A `when` is the model's own, and so is what a connection came
-    // to: neither carries the instance that wrote it, and both settle
-    // from outside as far as this is concerned.
-    for branch in model.when_clauses.iter().flat_map(|it| &it.branches) {
-        let mut names = Vec::new();
-        branch.condition.collect_refs(&mut names);
-        for action in &branch.actions {
-            match action {
-                WhenAction::Assign(name, value) | WhenAction::Reinit(name, value) => {
-                    names.push(name);
-                    value.collect_refs(&mut names);
+    // What a `when` does at an event settles as much as an equation
+    // does, and it carries the instance that wrote it for the same
+    // reason. What a connection came to carries none, and settles from
+    // outside as far as this is concerned.
+    for clause in &model.when_clauses {
+        for branch in &clause.branches {
+            let mut names = Vec::new();
+            branch.condition.collect_refs(&mut names);
+            for action in &branch.actions {
+                match action {
+                    WhenAction::Assign(name, value) | WhenAction::Reinit(name, value) => {
+                        names.push(name);
+                        value.collect_refs(&mut names);
+                    }
+                    WhenAction::TupleAssign(targets, value) => {
+                        names.extend(targets.iter().flatten().map(String::as_str));
+                        value.collect_refs(&mut names);
+                    }
+                    _ => {}
                 }
-                WhenAction::TupleAssign(targets, value) => {
-                    names.extend(targets.iter().flatten().map(String::as_str));
-                    value.collect_refs(&mut names);
-                }
-                _ => {}
             }
-        }
-        for name in names {
-            spoken.entry(name).or_default().push("");
+            for name in names {
+                spoken.entry(name).or_default().push(&clause.origin);
+            }
         }
     }
 

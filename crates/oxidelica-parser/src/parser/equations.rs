@@ -368,7 +368,10 @@ impl Parser {
         self.expect(&Token::End, "end when")?;
         self.expect(&Token::When, "when after end")?;
         self.expect(&Token::Semi, "semicolon after end when")?;
-        Ok(WhenClause { branches })
+        Ok(WhenClause {
+            branches,
+            origin: String::new(),
+        })
     }
 
     /// The body of one `when` branch, up to `elsewhen` or `end`.

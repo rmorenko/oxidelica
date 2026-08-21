@@ -1238,7 +1238,10 @@ pub(super) fn instantiate(
                     actions,
                 });
             }
-            acc.when_clauses.push(WhenClause { branches: lifted });
+            acc.when_clauses.push(WhenClause {
+                branches: lifted,
+                origin: acc.origin.clone(),
+            });
         }
         let mut bindings: HashMap<String, Expr> = HashMap::new();
         let mut assigned: Vec<String> = Vec::new();
@@ -1764,7 +1767,10 @@ pub(super) fn instantiate(
                 actions,
             });
         }
-        acc.when_clauses.push(WhenClause { branches });
+        acc.when_clauses.push(WhenClause {
+            branches,
+            origin: acc.origin.clone(),
+        });
     }
     // A connection to a component that a condition left out goes with
     // it: this is how the standard library switches a support flange

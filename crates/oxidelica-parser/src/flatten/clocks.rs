@@ -781,6 +781,7 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         }
         model.when_clauses.push(WhenClause {
             branches: vec![WhenBranch { condition, actions }],
+            origin: String::new(),
         });
     }
     for (name, clock, start) in bookkeeping {

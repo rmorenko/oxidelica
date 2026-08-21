@@ -1300,7 +1300,10 @@ pub(crate) fn compile_at(
                 actions,
             });
         }
-        when_clauses.push(WhenClause { branches });
+        when_clauses.push(WhenClause {
+            branches,
+            origin: clause.origin.clone(),
+        });
     }
     let initial_equations: Vec<EquationItem> = model
         .initial_equations

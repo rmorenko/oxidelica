@@ -8227,3 +8227,26 @@ fn a_base_inherited_twice_is_merged_once() {
     }
     assert_eq!(m.equations.len(), 3);
 }
+
+/// A class settling its own input in a `when` settles nothing: asking
+/// to be given a value is what declaring an input means.
+#[test]
+fn a_when_inside_the_class_does_not_settle_its_own_input() {
+    let refusal = parse_model(
+        "model Held input Real u; discrete Real held; \
+         equation when time > 1 then held = u; end when; end Held; \
+         model M Held h; Real z; equation z = h.held; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("h.u"), "{refusal}");
+
+    // The same `when` written by the class holding it does settle it.
+    parse_model(
+        "model Held input Real u; discrete Real held; \
+         equation when time > 1 then held = u; end when; end Held; \
+         model M Held h; Real z; \
+         equation when time > 0.5 then h.u = time; end when; z = h.held; end M;",
+    )
+    .unwrap();
+}

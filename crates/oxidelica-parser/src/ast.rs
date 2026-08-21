@@ -644,6 +644,10 @@ pub struct IfEquation {
 pub struct WhenClause {
     /// Branches in source order.
     pub branches: Vec<WhenBranch>,
+    /// The instance this clause was written inside, by its flat
+    /// path. Empty for the top-level model itself and for one the
+    /// compiler made up.
+    pub origin: String,
 }
 
 /// Simulation settings from `annotation(experiment(...))`.
