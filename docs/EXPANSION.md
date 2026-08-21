@@ -21,7 +21,7 @@ out does not finish:
   an equation by iterating, which is a loop the model decides the
   length of. Such a body is left standing and walked at run time - and
   everything else about it has to reach that point first.
-- **A local assigned in one branch, 41 models.** The language leaves an
+- **A local assigned in one branch, 32 models.** The language leaves an
   unassigned local undefined, and the standard library writes that on
   purpose: a property of water on the boiling curve fills `cp` on one
   side and `cv` on the far side. Taking the value as zero is a
@@ -107,7 +107,7 @@ it was measured rather than reasoned:
 
 ## What it did not buy
 
-Taking an unassigned local as zero - the one-line rule the 41 models
+Taking an unassigned local as zero - the one-line rule the 32 models
 above are waiting for - still does not finish. With the remembering in
 place the library check runs past ten minutes and is killed, where
 without the rule it takes 41 seconds. So the repetition was real and
@@ -134,14 +134,37 @@ it is the answer, and the call stands - unless a walk could not carry
 what the body answers with, and then the refusal is a refusal after
 all. Two models.
 
-## What is left
+## A bound on the growth itself
 
-Neither remembering nor walking reaches the 46 models waiting on an
-unassigned local, and each was measured rather than argued. What is
-left is the thing both of those were trying to avoid: a bound on the
-growth itself - a size, or a count of steps - that turns runaway
-expansion into a refusal, or into the retreat that is now in place and
-has nothing to fire on.
+This is the thing the two above were trying to avoid, and it has now
+been tried in both the shapes this file asked for. The rule it is
+there to enable was applied first, and it is a rule rather than a
+guess: the language starts a function's variables at their `start`
+attribute, and a `Real` nobody gave one to starts at zero - so a
+branch that says nothing about `bpro.cp` leaves it there.
+
+**A bound on one inlining.** Written, and it does not fire: the growth
+is not in any one body, exactly as the width measurement above says.
+
+**A bound on everything written out beneath one call** - which the
+width measurement does not cover, and which is what a growth spread
+over many small bodies needs. This one works where it is aimed.
+`Modelica.Fluid.Examples.Explanatory.MomentumBalanceFittings`, the
+first of the 32, stops running away: it finishes in seconds and comes
+to rest on a refusal of its own, an arity check on the derivative of
+`psat` that nothing had ever reached before.
+
+And the library as a whole still does not finish. One model of the 32
+was carried past the pile; something else in the library runs away in
+its place, and ten minutes is not enough to find out which. So the
+bound is right and not yet sufficient, which is a different answer
+from the two above, and the next question is which model is left
+rather than which instrument to build.
+
+Nothing of this is in the tree. The rule and the bound are one edit
+each and are written here rather than kept, since a compiler that
+cannot read its own library is worse than one that refuses 32 models
+of it.
 
 ## What is already in place for it
 

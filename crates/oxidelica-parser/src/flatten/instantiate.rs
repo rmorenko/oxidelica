@@ -417,11 +417,6 @@ pub(super) fn instantiate(
             .iter()
             .map(|(path, of)| (path.clone(), of.clone())),
     );
-    let records_here = {
-        let mut all = acc.records.clone();
-        all.extend(records_here);
-        all
-    };
 
     for component in &class.components {
         let fresh = taken < acc.sizes.len();
@@ -1013,6 +1008,20 @@ pub(super) fn instantiate(
     // be written out as fields. It is an equation because that is what
     // a variable's declaration value is: `Complex vs[m] = plug.pin.v`
     // holds for the whole run.
+    // A modifier arrives written in the terms of the class that
+    // supplied it - `Shape s(R = mine)` names a record of the class
+    // holding `s` - so those have to be in view as well as this
+    // class's own. It is put together only where there is a record
+    // value to say it of, since every class would otherwise pay for a
+    // copy of every record the model holds.
+    let records_wider = record_values
+        .iter()
+        .any(|(_, _, prefixed)| *prefixed)
+        .then(|| {
+            let mut all = acc.records.clone();
+            all.extend(records_here.iter().map(|(k, v)| (k.clone(), v.clone())));
+            all
+        });
     for (name, value, prefixed) in &record_values {
         let lhs = expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?;
         let rhs = match prefixed {
@@ -1023,7 +1032,7 @@ pub(super) fn instantiate(
                     sizes: &sizes_here,
                     loop_vars: &no_loop_vars,
                     consts: &local_consts,
-                    records: &records_here,
+                    records: records_wider.as_ref().unwrap_or(&records_here),
                 };
                 let worked = expand(value, &shapes, registry, scope, &imports, 0)?;
                 records_written_out(worked, &shapes, registry, &|e| {
