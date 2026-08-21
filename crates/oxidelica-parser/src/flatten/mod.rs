@@ -593,6 +593,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // string, a smoothness a number - and what it leaves behind is
     // arithmetic with nothing outside Modelica left to run.
     tables::resolve_tables(&mut model, &acc.handles, &settled)?;
+    restrictions::every_input_is_given_a_value(&acc.unsupplied, &model)?;
     external::nothing_left_unanswered(&model)?;
     // Whatever calls are still standing in the flat model are calls
     // nothing could inline. The bodies behind them travel with the
@@ -803,6 +804,16 @@ struct Flat {
     /// keeps to itself. The answer is about the class alone, so it is
     /// worked out once however many instances of it a model holds.
     restrictions_checked: HashSet<String>,
+    /// Every instance that is a class in its own right, by its path,
+    /// and what that class is called. A record is not one of these:
+    /// its fields are the holder's, and a count that asked otherwise
+    /// would find every record short of two equations.
+    instances: HashMap<String, String>,
+    /// The `input` declarations of a model or block that nothing
+    /// settled: not the declaration itself, and not whoever holds it.
+    /// Written down here because after flattening a value that was
+    /// given and a value that was never written look alike.
+    unsupplied: Vec<(String, String)>,
 }
 
 /// How many `connect` equations name each connector.

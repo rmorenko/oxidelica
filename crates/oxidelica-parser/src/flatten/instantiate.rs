@@ -34,6 +34,12 @@ pub(super) fn instantiate(
     // belongs to; a class instantiated inside it stamps its own, and
     // this one is put back afterwards.
     let stamped = std::mem::replace(&mut acc.origin, prefix.trim_end_matches('.').to_string());
+    // Which instances are classes in their own right. A record is not
+    // one - its fields belong to whoever holds it - and the count that
+    // asks whether a class balances needs to tell the two apart.
+    if class.kind.is_model() {
+        acc.instances.insert(acc.origin.clone(), class.name.clone());
+    }
 
     // `inner` declarations of this class and of its bases own the
     // instances that `outer` declarations inside it refer to. They are
@@ -2005,11 +2011,25 @@ pub(super) fn instantiate_one(
             // declaration equation: `Support support(tau = -flange.tau)`
             // in the standard library ties a connector to its component.
             if flat.variability == Variability::Continuous {
+                // An `input` that is not a connector is settled from
+                // outside: either here by a value on the declaration,
+                // or by whoever holds the class. Either way it is one
+                // equation, and which of the two it was is known here
+                // and nowhere later.
+                if flat.causality == Causality::Input
+                    && flat.binding.is_none()
+                    && value_connector.is_none()
+                    && acc.instances.contains_key(&acc.origin)
+                {
+                    acc.unsupplied.push((acc.origin.clone(), flat.name.clone()));
+                }
                 if let Some(value) = flat.binding.take() {
                     acc.equations.push(EquationItem {
                         lhs: Expr::Ref(flat.name.clone()),
                         rhs: value,
-                        origin: String::new(),
+                        // A declaration equation belongs to the class
+                        // that wrote the declaration.
+                        origin: acc.origin.clone(),
                     });
                 }
             }
@@ -2038,6 +2058,15 @@ pub(super) fn instantiate_one(
             if let Some(class_name) = value_connector {
                 acc.connectors
                     .insert(flat_name.to_string(), class_name.to_string());
+                // `connector RealInput = input Real` writes the
+                // direction on the connector rather than on the
+                // declaration, and the flat model is where everything
+                // downstream looks for it.
+                if flat.causality == Causality::None {
+                    if let Some(of) = lookup(registry, class_name, scope, imports) {
+                        flat.causality = of.alias_causality;
+                    }
+                }
                 if !component.annotations.is_empty() {
                     acc.connect_rules
                         .push((flat_name.to_string(), component.annotations.clone()));
@@ -2796,7 +2825,7 @@ where
                 scalars.push(EquationItem {
                     lhs,
                     rhs,
-                    origin: String::new(),
+                    origin: acc.origin.clone(),
                 });
             }
         }

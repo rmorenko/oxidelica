@@ -472,6 +472,99 @@ fn written(statement: &Statement, look: &mut impl FnMut(&Expr)) {
     }
 }
 
+/// Refuse an `input` of a model or block that nothing settles.
+///
+/// An input is what a class asks to be given: by a value on its own
+/// declaration, by a modifier from whoever holds the class, by an
+/// equation there, or by a connection. `unsupplied` names the ones the
+/// first two did not settle, so what is left is to ask whether the
+/// flat model speaks of them at all.
+///
+/// Speaking of one is enough. Nothing here works out which side of an
+/// equation settles what, so the only thing refused is an input the
+/// whole model never mentions - one equation missing, in a model that
+/// would otherwise come up short without saying why.
+pub(super) fn every_input_is_given_a_value(
+    unsupplied: &[(String, String)],
+    model: &Model,
+) -> Result<(), String> {
+    // The model itself has nothing outside it to be given anything by,
+    // and whether it comes out balanced is the whole model's question
+    // rather than a class's.
+    let asked: Vec<&(String, String)> = unsupplied
+        .iter()
+        .filter(|(instance, _)| !instance.is_empty())
+        .collect();
+    if asked.is_empty() {
+        return Ok(());
+    }
+    // Where each name is spoken of, by the instance whose equation
+    // speaks. A class reading its own input settles nothing - that is
+    // what asking for one means - so where the speaking happened is
+    // the whole question.
+    let mut spoken: HashMap<&str, Vec<&str>> = HashMap::new();
+    let held_aside = model
+        .conditional
+        .iter()
+        .flat_map(|conditional| &conditional.branches)
+        .flatten();
+    for equation in model
+        .equations
+        .iter()
+        .chain(model.initial_equations.iter())
+        .chain(held_aside)
+    {
+        let mut names = Vec::new();
+        equation.lhs.collect_refs(&mut names);
+        equation.rhs.collect_refs(&mut names);
+        for name in names {
+            spoken.entry(name).or_default().push(&equation.origin);
+        }
+    }
+    // A `when` is the model's own, and so is what a connection came
+    // to: neither carries the instance that wrote it, and both settle
+    // from outside as far as this is concerned.
+    for branch in model.when_clauses.iter().flat_map(|it| &it.branches) {
+        let mut names = Vec::new();
+        branch.condition.collect_refs(&mut names);
+        for action in &branch.actions {
+            match action {
+                WhenAction::Assign(name, value) | WhenAction::Reinit(name, value) => {
+                    names.push(name);
+                    value.collect_refs(&mut names);
+                }
+                WhenAction::TupleAssign(targets, value) => {
+                    names.extend(targets.iter().flatten().map(String::as_str));
+                    value.collect_refs(&mut names);
+                }
+                _ => {}
+            }
+        }
+        for name in names {
+            spoken.entry(name).or_default().push("");
+        }
+    }
+
+    let settled = |instance: &str, name: &str| {
+        spoken.get(name).is_some_and(|origins| {
+            origins
+                .iter()
+                .any(|origin| *origin != instance && !origin.starts_with(&format!("{instance}.")))
+        })
+    };
+    match asked
+        .iter()
+        .find(|(instance, name)| !settled(instance, name))
+    {
+        None => Ok(()),
+        Some((_, name)) => Err(format!(
+            "`{name}` is an `input` and nothing gives it a value: an input is settled by a \
+             value on its own declaration, by a modifier or an equation from the class \
+             holding it, or by a connection, and none of those is written here"
+        )),
+    }
+}
+
 /// The first reach into something kept back that this expression
 /// makes, as the component reached into and the member named.
 fn reaching(

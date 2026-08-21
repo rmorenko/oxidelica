@@ -8173,3 +8173,34 @@ fn a_protected_class_is_not_named_from_outside() {
     )
     .unwrap();
 }
+
+/// An `input` is what a class asks to be given, and something has to
+/// give it.
+#[test]
+fn an_input_nothing_settles_is_refused() {
+    const HELD: &str = "model Held input Real u; Real y; equation y = 2 * u; end Held; ";
+
+    let refusal = parse_model(&format!(
+        "{HELD}model M Held h; Real z; equation z = h.y; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("h.u"), "{refusal}");
+    assert!(refusal.contains("`input`"), "{refusal}");
+
+    // Settled by a value on the declaration, by a modifier, by an
+    // equation of the class holding it, and by a connection.
+    for held in [
+        "model Held input Real u = time; Real y; equation y = 2 * u; end Held; \
+         model M Held h; Real z; equation z = h.y; end M;",
+        "model Held input Real u; Real y; equation y = 2 * u; end Held; \
+         model M Held h(u = time); Real z; equation z = h.y; end M;",
+        "model Held input Real u; Real y; equation y = 2 * u; end Held; \
+         model M Held h; Real z; equation h.u = time; z = h.y; end M;",
+        "connector In input Real v; end In; \
+         model Held In p; Real y; equation y = 2 * p.v; end Held; \
+         model M Held h; In q; Real z; equation q.v = time; connect(h.p, q); z = h.y; end M;",
+    ] {
+        parse_model(held).unwrap();
+    }
+}

@@ -140,20 +140,28 @@ A class declared under `protected` is kept back the same way: naming
 component is declared to be, what a class extends, or what a call
 names, while `P` itself and the classes inside it write it freely.
 
-What is not enforced is local balance (4.7): the equations and the
-unknowns are counted over the flat model as a whole rather than class
-by class, so a class that does not balance on its own passes where the
-model around it makes up the difference. The one consequence of it that
-is checked is the one this compiler can state exactly - a block settles
-its own outputs, above. Counting per class was measured rather than
-guessed: over the 381 standard-library models that flatten, 371 hold
-an instance whose equations and variables do not come to the same
-number under a naive count, because a component contributes its
-interface rather than its insides, a connection's equations belong to
-the class that wrote the connection, and a parameter is not an unknown.
-Getting that counting subtly wrong refuses correct models, so it waits
-on the specification's own definition rather than on a reconstruction
-of it.
+Balanced models (4.7) are enforced by their two exact consequences
+rather than by the count itself. A block settles the outputs it
+declares, above; and an `input` of a model or block is settled by
+something - a value on its own declaration, a modifier or an equation
+from the class holding it, or a connection - where a class reading its
+own input settles nothing, since asking to be given one is what
+declaring an input means. The standard library keeps both: no example
+model of it has an input nothing gives a value to.
+
+The count itself is not made per class, and what stands in its way was
+measured rather than argued. Counting every instance of the 381
+standard-library models that flatten started at 10 627 instances whose
+equations and unknowns disagree and came down to 3 428 as each term
+was put right - a record is not an instance of its own, a scalar
+connector carries its direction on itself, a declaration value is an
+equation of the class that wrote it. What is left is not the rule but
+this compiler: a `when` clause carries no instance to be counted
+against, a record-valued `input` yields no declaration equations, and
+a class inherited down two paths of a diamond has its declarations
+counted twice. Each of those is a flattening question rather than a
+chapter 4 one, and until they are settled a count built on them would
+refuse correct models.
 
 **Packages** (ch. 13) hold classes and constants and nothing else - a
 parameter or a variable in one is refused, since a package has no
