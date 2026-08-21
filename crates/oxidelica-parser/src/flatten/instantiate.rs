@@ -12,6 +12,10 @@ pub(super) fn instantiate(
     acc: &mut Flat,
     depth: usize,
 ) -> Result<(), String> {
+    // What a body comes to is remembered for as long as one class is
+    // being instantiated: the parameter values a body folds with are
+    // this class's, and they do not move while it is built.
+    let _remembering = Inlined::open();
     if depth > MAX_DEPTH {
         return Err(format!(
             "instantiation deeper than {MAX_DEPTH} levels at `{}` (recursive classes?)",
@@ -301,6 +305,7 @@ pub(super) fn instantiate(
             });
             if let Some(value) = settled {
                 local_consts.insert(component.name.clone(), value);
+                Inlined::forget();
                 env.insert(component.name.clone(), value);
                 let named = format!("{prefix}{}", component.name);
                 env.insert(named.clone(), value);
@@ -320,6 +325,7 @@ pub(super) fn instantiate(
     if !prefix.is_empty() {
         for (name, value) in local_consts.clone() {
             local_consts.insert(format!("{prefix}{name}"), value);
+            Inlined::forget();
         }
     }
     // And every parameter the model has settled so far, by its full
@@ -335,6 +341,7 @@ pub(super) fn instantiate(
     for (name, value) in &acc.const_values {
         if !local_consts.contains_key(name) {
             local_consts.insert(name.clone(), *value);
+            Inlined::forget();
         }
     }
 
@@ -447,7 +454,9 @@ pub(super) fn instantiate(
                     });
                 if let Some(length) = measured {
                     local_consts.insert(waiting.name.clone(), length as f64);
+                    Inlined::forget();
                     local_consts.insert(format!("{prefix}{}", waiting.name), length as f64);
+                    Inlined::forget();
                     acc.const_values
                         .insert(format!("{prefix}{}", waiting.name), length as f64);
                     settled.insert(waiting.name.clone(), length as f64);

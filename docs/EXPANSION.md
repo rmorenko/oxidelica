@@ -83,17 +83,39 @@ the transistor models of Spice3.
 None of these are in the tree. Each was measured, put back, and is
 written here so that it is not written twice.
 
-## What the measurement asks for
+## Remembering what a call came to
 
-Remembering what a call came to. `(the function, the arguments, the
-shapes) -> what it answered` is a pure question while one registry
-stands, and the guard for exactly that lifetime already exists - the
-same one that remembers what a name means. Eighty-three of every
-eighty-four askings would be a table lookup.
+This is done. `(the function, how deep the asking is, how many values
+are in view, the arguments, the shapes) -> what it answered and what
+it checked` is remembered for as long as one class is being
+instantiated, which is exactly as long as the parameter values a body
+folds with stand still. What the flat models come to does not move by
+one equation; the library is read in 41 seconds rather than 60.
 
-Remembering a resolution itself is a wider question: what it comes to
-depends on the parameters, the lengths and the loop variables in view
-as well, so the key is not the expression alone.
+The key is longer than the doorway above expected, and each piece of
+it was measured rather than reasoned:
+
+- **How deep.** A body that will not come to an end is refused at a
+  depth rather than by what it was handed, and the same asking higher
+  up may be answered. Without this, five models were lost.
+- **How many values are in view.** A body folds with the parameters of
+  the class being built, and a caller further along has more of them.
+  Without this, two models were lost.
+- **Forgetting on a new value.** A parameter settled mid-way changes
+  what a body already asked would fold to, so the remembering is
+  dropped each time one is.
+
+## What it did not buy
+
+Taking an unassigned local as zero - the one-line rule the 41 models
+above are waiting for - still does not finish. With the remembering in
+place the library check runs past ten minutes and is killed, where
+without the rule it takes 41 seconds. So the repetition was real and
+worth removing, and it was not the whole illness: what the rule opens
+is not the same work asked again, it is more work.
+
+That leaves walking the body instead of writing it out, which is the
+other half this file has been pointing at all along.
 
 ## What is already in place for it
 

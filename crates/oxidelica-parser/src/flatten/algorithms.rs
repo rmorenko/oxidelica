@@ -1617,9 +1617,98 @@ pub(super) fn function_components(
     out
 }
 
+/// What a body came to last time it was handed exactly this, for as
+/// long as one class is being instantiated.
+///
+/// A model asks the same question of the same body over and over: the
+/// transistor bodies of `Spice3` are written out four million times
+/// between them, and a hundred thousand of those askings are
+/// different. What a body answers depends on what it was handed, on
+/// the shapes it was handed, and on the parameter values in view -
+/// and the last of those is what stands still while one class is
+/// instantiated, which is why the remembering lives exactly that long.
+type Remembered = Result<(Vec<(String, Expr)>, Vec<(Expr, String)>), String>;
+
+thread_local! {
+    static INLINED: std::cell::RefCell<HashMap<String, Remembered>> =
+        std::cell::RefCell::new(HashMap::new());
+    static REMEMBERING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Remember what bodies come to while this stands, and forget it when
+/// it falls: one class is being instantiated, and its parameter values
+/// do not move while it is.
+pub(super) struct Inlined(HashMap<String, Remembered>, bool);
+
+impl Inlined {
+    pub(super) fn open() -> Self {
+        let held = INLINED.with(|held| std::mem::take(&mut *held.borrow_mut()));
+        let before = REMEMBERING.with(|on| on.replace(true));
+        Inlined(held, before)
+    }
+}
+
+impl Inlined {
+    /// Forget what was remembered, because what a body would fold with
+    /// has moved: a parameter this class holds has just been settled,
+    /// and a body asked before it was settled may answer differently
+    /// now.
+    pub(super) fn forget() {
+        INLINED.with(|held| held.borrow_mut().clear());
+    }
+}
+
+impl Drop for Inlined {
+    fn drop(&mut self) {
+        INLINED.with(|held| *held.borrow_mut() = std::mem::take(&mut self.0));
+        REMEMBERING.with(|on| on.set(self.1));
+    }
+}
+
 /// Run a function body and give back what each output came to, with
 /// the checks the body made collected into `checks`.
+///
+/// Asked the same thing twice, it answers the second from the first.
 fn inline_body(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+    depth: usize,
+    checks: &mut Vec<(Expr, String)>,
+) -> Result<Vec<(String, Expr)>, String> {
+    if !REMEMBERING.with(|on| on.get()) {
+        return worked_body(class, args, shapes, consts, registry, depth, checks);
+    }
+    // How deep the asking is belongs to the question: a body that
+    // will not come to an end is refused at a depth rather than by
+    // what it was handed, and the same asking higher up may be
+    // answered. So does how many values are in view, since a body
+    // folds with them and a caller further along has more.
+    let asked = format!(
+        "{}|{depth}|{}|{args:?}|{shapes:?}",
+        class.name,
+        consts.len()
+    );
+    if let Some(told) = INLINED.with(|held| held.borrow().get(&asked).cloned()) {
+        let (outputs, said) = told?;
+        checks.extend(said);
+        return Ok(outputs);
+    }
+    let mut said = Vec::new();
+    let answer = worked_body(class, args, shapes, consts, registry, depth, &mut said);
+    let told: Remembered = match &answer {
+        Ok(outputs) => Ok((outputs.clone(), said.clone())),
+        Err(why) => Err(why.clone()),
+    };
+    INLINED.with(|held| held.borrow_mut().insert(asked, told));
+    checks.extend(said);
+    answer
+}
+
+/// The same, worked out rather than remembered.
+fn worked_body(
     class: &ClassDef,
     args: &[Expr],
     shapes: &[Vec<i64>],
