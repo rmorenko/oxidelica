@@ -7383,3 +7383,94 @@ fn a_body_written_here_is_held_to_what_it_declares() {
         "{mismatched}"
     );
 }
+
+#[test]
+fn a_record_valued_variable_says_its_value_field_by_field() {
+    // `output SI.ComplexVoltage vs[m] = plug_sp.pin.v - plug_sn.pin.v`
+    // is how the quasi-static machines read a stator voltage: a whole
+    // array of records given a value on the declaration. There is no
+    // name in the flat model for `vs[1]` itself, so what the value
+    // says is said of its fields.
+    let m = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         model M C a[2]; C b[2]; C d[2] = a - b; \
+         equation for i in 1:2 loop a[i].re = i * time; a[i].im = 0; \
+         b[i].re = 1; b[i].im = 2; end for; end M;"
+    ))
+    .unwrap();
+    let said: Vec<String> = m
+        .equations
+        .iter()
+        .map(|e| format!("{:?} = {:?}", e.lhs, e.rhs))
+        .collect();
+    for name in ["d[1].re", "d[1].im", "d[2].re", "d[2].im"] {
+        assert!(
+            said.iter()
+                .any(|e| e.starts_with(&format!("Ref(\"{name}\")"))),
+            "{said:?}"
+        );
+    }
+    assert!(m.components.iter().any(|c| c.name == "d[2].im"));
+
+    // One record rather than an array of them, and one whose value is
+    // built rather than named.
+    let one = parse_model(&format!(
+        "{OPERATOR_RECORD}model M C u; C v = u; \
+         equation u.re = time; u.im = 1; end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", one.equations);
+    assert!(
+        said.contains("Ref(\"v.re\")") && said.contains("Ref(\"v.im\")"),
+        "{said}"
+    );
+
+    // A value handed down as a modifier rather than written on the
+    // declaration: it arrives in the terms of the class that supplied
+    // it and is read there.
+    let handed = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         model Inner C v; Real y; equation y = v.re + v.im; end Inner; \
+         model M C u; Inner k(v = u); equation u.re = time; u.im = 2; end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", handed.equations);
+    assert!(
+        said.contains("Ref(\"k.v.re\")") && said.contains("Ref(\"k.v.im\")"),
+        "{said}"
+    );
+
+    // A value this compiler cannot take apart is left where it was,
+    // which is what it did with every record value until now: the
+    // model is no worse off than before, and says nothing untrue.
+    let opaque = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         function make output C c; algorithm c := C(1, 2); end make; \
+         model M C v = make(); Real y; equation y = v.re + time; end M;"
+    ));
+    assert!(opaque.is_ok(), "{opaque:?}");
+}
+
+#[test]
+fn zero_fits_a_unit_of_any_kind() {
+    // A rate of change may be nothing, and nothing has no dimension of
+    // its own: the multibody library writes `w = T * w1 + e * 0` where
+    // `e` is a unit vector and the whole is an angular velocity.
+    let m = parse_model(
+        "model M Real w(unit = \"rad/s\"); Real e(unit = \"1\") = 1; \
+         Real v(unit = \"rad/s\") = time; \
+         equation w = v + e * 0; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(m.is_ok(), "{m:?}");
+
+    // What is not zero is still held to its unit.
+    let wrong = parse_model(
+        "model M Real w(unit = \"rad/s\"); Real e(unit = \"1\") = 1; \
+         Real v(unit = \"rad/s\") = time; \
+         equation w = v + e * 2; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(wrong.contains("cannot add"), "{wrong}");
+}

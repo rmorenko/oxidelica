@@ -170,6 +170,10 @@ exact between output points, since the profile remembers the position
 each value entered at rather than sampling a grid. Its arguments but
 the two inflows are checked before the run.
 
+Zero is the one number that fits a unit of any kind: a rate of change
+may be nothing, and nothing has no dimension of its own. Everything
+else is dimensionless until a declaration says otherwise.
+
 `cardinality(c)` answers how many `connect` equations name a port,
 which is settled while the connections are still in hand. The
 specification deprecates it and says it will be removed in a coming
@@ -264,7 +268,10 @@ comparison of records dispatches and returns a Boolean; `String(a)` is
 what the record's own `'String'` makes of it; and `sum` over an array
 of records adds them with `'+'` starting from `'0'`, or from the first
 element where no `'0'` is declared. An operator function may build its
-record output field by field. An operator written for one record and
+record output field by field. A variable declared with a record value -
+`Complex vs[m] = plug.pin.v` - says that value of its fields, since
+there is no name in the flat model for a record itself; a parameter
+keeps its value where it was written. An operator written for one record and
 handed a whole array of them works on each in turn - `v1 - v2` of two
 `Complex[3]` is three subtractions - which is the same vectorization
 an ordinary function gets, and it reaches functions taking records

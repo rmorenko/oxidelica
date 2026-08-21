@@ -363,6 +363,10 @@ pub(super) fn instantiate(
     let mut settled: HashMap<String, f64> = HashMap::new();
     // Which of this class's components are records, and of what: an
     // overloaded operator is chosen by the record its operands are of.
+    // What a record-valued variable was given as its value, kept until
+    // the array layer is ready to say it: the name, the value, and
+    // whether it came already written in this class's terms.
+    let mut record_values: Vec<(String, Expr, bool)> = Vec::new();
     let mut records_here: HashMap<String, String> = HashMap::new();
     collect_records(
         registry,
@@ -750,13 +754,32 @@ pub(super) fn instantiate(
                 .find(|(name, _)| name == target)
                 .map(|(_, value)| value.clone())
         };
+        // A record's value is not one number per element: `Complex
+        // vs[m] = plug.pin.v` says as much about `vs[1].re` as about
+        // `vs[1]`, and there is no name in the flat model for `vs[1]`
+        // itself. Where the declaration is a variable, its value is a
+        // declaration equation anyway - and an equation between
+        // records is one this compiler already writes out field by
+        // field. A parameter is another matter: its value has to stay
+        // a value, so it is left as it was.
+        let of_record = records_here.contains_key(&format!("{prefix}{}", component.name))
+            && component.variability == Variability::Continuous;
         let element_bindings: Option<Vec<Expr>> = match (
             handed_down(&component.name),
             &component.binding,
             sizes.is_empty(),
+            of_record,
         ) {
-            (Some(value), _, false) => Some(spread(&value, "value", true)?),
-            (None, Some(binding), false) => Some(spread(binding, "value", false)?),
+            (Some(value), _, _, true) => {
+                record_values.push((component.name.clone(), value, true));
+                None
+            }
+            (None, Some(binding), _, true) => {
+                record_values.push((component.name.clone(), binding.clone(), false));
+                None
+            }
+            (Some(value), _, false, false) => Some(spread(&value, "value", true)?),
+            (None, Some(binding), false, false) => Some(spread(binding, "value", false)?),
             _ => None,
         };
         let start_target = format!("{}.start", component.name);
@@ -859,6 +882,40 @@ pub(super) fn instantiate(
     let resolve_here =
         |expr: &Expr| -> Result<Expr, String> { expand_here(expr, &HashMap::new())?.scalar() };
     let no_loop_vars = HashMap::new();
+    // A record-valued variable's value, said now that both sides can
+    // be written out as fields. It is an equation because that is what
+    // a variable's declaration value is: `Complex vs[m] = plug.pin.v`
+    // holds for the whole run.
+    for (name, value, prefixed) in &record_values {
+        let lhs = expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?;
+        let rhs = match prefixed {
+            // A modifier arrives already written in the terms of the
+            // class that supplied it.
+            true => {
+                let shapes = Shapes {
+                    sizes: &sizes_here,
+                    loop_vars: &no_loop_vars,
+                    consts: &local_consts,
+                    records: &records_here,
+                };
+                let worked = expand(value, &shapes, registry, scope, &imports, 0)?;
+                records_written_out(worked, &shapes, registry, &|e| {
+                    expand(e, &shapes, registry, scope, &imports, 0)
+                })?
+            }
+            false => expand_here(value, &no_loop_vars)?,
+        };
+        // Where the value cannot be written out as fields - a record
+        // named in a class this one knows nothing about - the two
+        // sides do not line up, and the value is left where it was
+        // rather than half-applied. That is what this compiler did
+        // with every record value until now, so nothing is lost by
+        // leaving it there.
+        let held = acc.equations.len();
+        if push_equations(&lhs, &rhs, acc).is_err() {
+            acc.equations.truncate(held);
+        }
+    }
     for equation in &class.equations {
         // `(a, , c) = f(...)`: one call fills several targets. The
         // call is inlined once per output; a skipped slot costs its

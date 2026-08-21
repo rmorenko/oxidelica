@@ -669,6 +669,11 @@ impl UnitLayer {
 
     fn infer(&self, expr: &Expr) -> Result<Units, String> {
         match expr {
+            // Zero is the one number that fits any unit: a rate of
+            // change may be nothing, and a length may be nothing, and
+            // neither says what it is a nothing of. Every other number
+            // is dimensionless until something says otherwise.
+            Expr::Number(value) if *value == 0.0 => Ok(Units::Any),
             Expr::Number(_) | Expr::Bool(_) => Ok(Units::Weak),
             Expr::Ref(name) => Ok(self.vars.get(name).copied().unwrap_or(Units::Any)),
             // `time` is in seconds, but treating it so would flag the
