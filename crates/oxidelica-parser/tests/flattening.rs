@@ -822,13 +822,23 @@ fn flow_control_error_paths() {
     assert!(err("model M Real y; \
          algorithm y := 0; while y < 1e9 loop y := y + 1; end while; end M;")
     .contains("did not finish"));
-    // A `break` guarded by a condition the compiler cannot decide.
-    assert!(
-        err("function f input Real u; output Real y; algorithm y := 0; \
+    // A `break` guarded by a condition only the run decides: which
+    // statements run is what the leaving decides, so there is nothing
+    // to write out and the call stands for the run to walk.
+    let walked = parse_model(
+        "function f input Real u; output Real y; algorithm y := 0; \
          for i in 1:3 loop if u > 0 then break; end if; y := y + 1; end for; end f;\
-         model M Real u; Real y; equation u = time; y = f(u); end M;")
-        .contains("compiler can decide")
+         model M Real u; Real y; equation u = time; y = f(u); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    assert!(walked.functions.iter().any(|body| body.name == "f"));
+    assert!(
+        format!("{:?}", walked.equations).contains("Call(\"f\""),
+        "{:?}",
+        walked.equations
     );
+
     // `return` is for functions, `break` for loops.
     assert!(
         err("model M Real y; algorithm y := 1; return; end M;").contains("belongs in a function")

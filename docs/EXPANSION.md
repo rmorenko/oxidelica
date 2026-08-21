@@ -114,8 +114,34 @@ without the rule it takes 41 seconds. So the repetition was real and
 worth removing, and it was not the whole illness: what the rule opens
 is not the same work asked again, it is more work.
 
-That leaves walking the body instead of writing it out, which is the
-other half this file has been pointing at all along.
+## Walking the body instead of writing it out
+
+Tried too, and it does not reach this either - for a reason worth
+writing down. Retreating to a walk fires on a refusal, and the illness
+raises none: the expression simply grows, and `resolve` walks and
+clones it for as long as anyone waits. There is nothing for a retreat
+to catch.
+
+Retreating on _every_ inlining failure was measured as well: four
+models of `ModelicaTest` gain, and four kinds of honest refusal turn
+into calls deferred to a run that may not manage them either. That is
+a bad trade and it was put back.
+
+What was kept is the narrow half: a body that leaves by a `break` or a
+`return` on a condition only the run decides cannot be written out at
+all, since which statements run is what the leaving decides. Walking
+it is the answer, and the call stands - unless a walk could not carry
+what the body answers with, and then the refusal is a refusal after
+all. Two models.
+
+## What is left
+
+Neither remembering nor walking reaches the 46 models waiting on an
+unassigned local, and each was measured rather than argued. What is
+left is the thing both of those were trying to avoid: a bound on the
+growth itself - a size, or a count of steps - that turns runaway
+expansion into a refusal, or into the retreat that is now in place and
+has nothing to fire on.
 
 ## What is already in place for it
 

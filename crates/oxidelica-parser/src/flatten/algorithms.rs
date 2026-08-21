@@ -95,6 +95,12 @@ pub(super) const UNDECIDABLE_LOOP: &str = "the trip count of a loop is not settl
 /// against by these words rather than by where they came from.
 pub(super) const NO_BOTTOM: &str = "did not come to an end here";
 
+/// A body that leaves by a `break` or a `return` the compiler cannot
+/// decide is one it cannot write out at all: which statements run is
+/// what the leaving decides. Walking it is the answer, so this too is
+/// a reason to leave the call standing rather than to refuse.
+pub(super) const UNDECIDABLE_LEAVING: &str = "needs a condition the compiler can decide";
+
 /// Whether an expression still holds a call to a function whose calls
 /// lead back to itself. Such a call is what an unrolling that stopped
 /// short leaves behind.
@@ -532,9 +538,10 @@ pub(super) fn execute(
                             Some(condition) => {
                                 let condition = substitute_refs(condition, bindings);
                                 let value = const_eval(&condition, consts).ok_or_else(|| {
-                                    "a branch holding `break` or `return` needs a condition \
-                                     the compiler can decide"
-                                        .to_string()
+                                    format!(
+                                        "a branch holding `break` or `return` \
+                                         {UNDECIDABLE_LEAVING}"
+                                    )
                                 })?;
                                 if value != 0.0 {
                                     taken = Some(&branch.body);
@@ -857,7 +864,17 @@ pub(super) fn inline_function(
     let attempt = inline_function_outputs(class, args, shapes, consts, registry, depth);
     let mut outputs = match attempt {
         Ok(outputs) => outputs,
-        Err(why) if why.starts_with(UNDECIDABLE_LOOP) || why.contains(NO_BOTTOM) => {
+        // A body that leaves by a `break` or a `return` the compiler
+        // cannot decide is one it cannot write out at all: which
+        // statements run is what the leaving decides. Walking it is
+        // the answer, so the call stands - unless a walk could not
+        // carry what the body takes or answers with, and then the
+        // refusal is a refusal after all.
+        Err(why)
+            if why.starts_with(UNDECIDABLE_LOOP)
+                || why.contains(NO_BOTTOM)
+                || (why.contains(UNDECIDABLE_LEAVING) && walkable(class).is_ok()) =>
+        {
             return standing()
         }
         Err(_) if speculative => return standing(),
