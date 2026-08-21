@@ -3146,16 +3146,18 @@ fn a_body_written_here_takes_the_numbers_it_was_written_for() {
 
     // Handed more numbers than the body was written for, the compiler
     // says so rather than reading past the end of them.
-    let refusal = refused(
+    let refusal = parse_model(
         "model M function draw input Integer state[3]; output Real r; \
          output Integer nextState[2]; \
          external \"C\" ModelicaRandom_xorshift64star(state, nextState, r); end draw; \
          discrete Real r(start = 0, fixed = true); \
          equation when time > 0.5 then r = draw({1, 2, 3}); end when; \
          annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
-    );
+    )
+    .unwrap_err()
+    .to_string();
     assert!(
-        refusal.contains("takes 2 number(s), and it was handed 3"),
+        refusal.contains("not for what it was handed: 1 argument(s) of 3 number(s)"),
         "{refusal}"
     );
 }
@@ -3280,4 +3282,40 @@ fn a_size_written_before_the_array_is_settled_once_every_shape_is_in() {
     let first = result.columns.iter().position(|c| c == "y[1]").unwrap();
     let last = result.rows.last().unwrap();
     assert!((last[first] - last[0]).abs() < 1e-12, "{}", last[first]);
+}
+
+#[test]
+fn a_system_of_equations_is_solved_by_a_body_written_here() {
+    // `Modelica.Math.Matrices.solve` is a declaration in Modelica and
+    // LAPACK's `dgesv` underneath. The matrix arrives row by row and
+    // the right-hand side after it; what comes back is the solution
+    // and word of how it went.
+    let result = run(
+        "model M function solve input Real a[:, size(a, 1)]; input Real b[size(a, 1)]; \
+         output Real x[size(a, 1)]; output Integer info; \
+         external \"FORTRAN 77\" dgesv(a, b, x, info); end solve; \
+         Real x[2]; Real ok; \
+         equation (x, ok) = solve([2, 1; 1, 3], {3, 5}); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // 2x + y = 3 and x + 3y = 5 hold at (0.8, 1.4).
+    assert!((last[column("x[1]")] - 0.8).abs() < 1e-12, "{:?}", last);
+    assert!((last[column("x[2]")] - 1.4).abs() < 1e-12, "{:?}", last);
+    assert_eq!(last[column("ok")], 0.0);
+
+    // A matrix that is not square is not a shape this body was written
+    // for, and the refusal says so rather than reading past its end.
+    let refusal = parse_model(
+        "model M function solve input Real a[:, :]; input Real b[:]; \
+         output Real x[2]; output Integer info; \
+         external \"FORTRAN 77\" dgesv(a, b, x, info); end solve; \
+         Real x[2]; Real ok; \
+         equation (x, ok) = solve([1, 2, 3; 4, 5, 6], {1, 2}); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("written here"), "{refusal}");
 }

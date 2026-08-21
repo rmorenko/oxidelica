@@ -1359,6 +1359,16 @@ pub(super) fn outside_this_language(class: &ClassDef) -> String {
     )
 }
 
+/// How many numbers a value written out holds. A matrix arrives as an
+/// array of its rows, and what a body written here is handed is the
+/// numbers themselves.
+fn numbers_in(expr: &Expr) -> usize {
+    match expr {
+        Expr::Array(items) => items.iter().map(numbers_in).sum(),
+        _ => 1,
+    }
+}
+
 /// The outputs of a body written here, each taking its own place of
 /// what the call answers with.
 ///
@@ -1367,10 +1377,12 @@ pub(super) fn outside_this_language(class: &ClassDef) -> String {
 /// two places. A scalar output is one place, and a call asked for one
 /// place is written `f(...)[k]` - the same shape a walked body's
 /// answer takes, so nothing downstream needs a second rule.
+#[allow(clippy::too_many_arguments)]
 fn numbered_outputs(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,
     consts: &HashMap<String, f64>,
+    given_shapes: &HashMap<String, Vec<i64>>,
     made: &Expr,
     answers: usize,
 ) -> Result<Vec<(String, Expr)>, String> {
@@ -1388,7 +1400,8 @@ fn numbered_outputs(
     {
         // A length is nearly always a constant of the package the
         // function is written in - `stateOut[nState]` of a generator -
-        // and that is a name no environment holds on its own.
+        // or a length the call handed over - `x[size(A, 1)]` of a
+        // solver - and neither is a name an environment holds.
         let length = match output.dimensions.as_slice() {
             [] => None,
             [dimension] => {
@@ -1399,12 +1412,17 @@ fn numbered_outputs(
                     &class.imports,
                     &[],
                 );
-                Some(const_eval(&named, consts).ok_or_else(|| {
-                    format!(
-                        "`{}` answers with `{}`, whose length this compiler cannot see",
-                        class.name, output.name
-                    )
-                })? as usize)
+                Some(
+                    const_eval(&named, consts)
+                        .map(|length| length as i64)
+                        .or_else(|| dimension_value(&named, consts, given_shapes))
+                        .ok_or_else(|| {
+                            format!(
+                                "`{}` answers with `{}`, whose length this compiler cannot see",
+                                class.name, output.name
+                            )
+                        })? as usize,
+                )
             }
             _ => {
                 return Err(format!(
@@ -1535,8 +1553,29 @@ fn inline_body(
         // with a string, and may answer with several: the generators
         // give a value and the state they moved to. Each output takes
         // its own place of that answer, the way a walked body's does.
-        if let Some((_, answers)) = crate::outside::answers(&call.called) {
-            return numbered_outputs(class, registry, consts, &made, answers);
+        let handed: Vec<usize> = args.iter().map(numbers_in).collect();
+        if let Some((_, answers)) = crate::outside::shape(&call.called, &handed) {
+            // The shapes the call handed over, under the names the
+            // declaration knows them by: an answer as long as `size(A,
+            // 1)` reads its length back out of here.
+            let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+            for (input, shape) in function_components(registry, class, 0)
+                .iter()
+                .filter(|c| c.causality == Causality::Input)
+                .zip(shapes)
+            {
+                given_shapes.insert(input.name.clone(), shape.clone());
+            }
+            return numbered_outputs(class, registry, consts, &given_shapes, &made, answers);
+        }
+        if crate::outside::written_here(&call.called) {
+            return Err(format!(
+                "`{}` is written here, and not for what it was handed: {} argument(s) of {} \
+                 number(s) in all",
+                call.called,
+                handed.len(),
+                handed.iter().sum::<usize>()
+            ));
         }
         let output = class
             .components

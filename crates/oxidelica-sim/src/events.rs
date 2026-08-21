@@ -41,6 +41,21 @@ impl EventRewrite<'_> {
         Ok(Expr::Ref(format!("$pre.{name}")))
     }
 
+    /// The same, where an argument may be an array and stays one: a
+    /// body written outside Modelica takes what it was handed as it
+    /// was handed it, however deep it goes.
+    fn whole(&mut self, expr: &Expr) -> Result<Expr, SimError> {
+        match expr {
+            Expr::Array(items) => Ok(Expr::Array(
+                items
+                    .iter()
+                    .map(|item| self.whole(item))
+                    .collect::<Result<Vec<_>, SimError>>()?,
+            )),
+            one => self.expr(one),
+        }
+    }
+
     /// Rewrite one expression.
     pub(crate) fn expr(&mut self, expr: &Expr) -> Result<Expr, SimError> {
         Ok(match expr {
@@ -130,15 +145,7 @@ impl EventRewrite<'_> {
                 _ => Expr::Call(
                     name.clone(),
                     args.iter()
-                        .map(|arg| match arg {
-                            Expr::Array(items) => Ok(Expr::Array(
-                                items
-                                    .iter()
-                                    .map(|item| self.expr(item))
-                                    .collect::<Result<Vec<_>, SimError>>()?,
-                            )),
-                            one => self.expr(one),
-                        })
+                        .map(|arg| self.whole(arg))
                         .collect::<Result<Vec<_>, SimError>>()?,
                 ),
             },

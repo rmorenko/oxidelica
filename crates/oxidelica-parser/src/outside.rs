@@ -21,16 +21,29 @@
 
 /// Whether a body of this name is one written here.
 pub fn written_here(called: &str) -> bool {
-    answers(called).is_some()
+    matches!(called, "ModelicaRandom_xorshift64star" | "dgesv")
 }
 
-/// How many numbers a body of this name answers with, and how many it
-/// takes. `None` where nobody here answers for it.
-pub fn answers(called: &str) -> Option<(usize, usize)> {
-    match called {
+/// How many numbers a body of this name takes and how many it answers
+/// with, given how many each of its arguments came to.
+///
+/// Some bodies work on whatever size they are handed - a system of
+/// equations is as wide as its matrix - so the shape is a question
+/// about the call rather than about the name alone. `None` where
+/// nobody here answers for the name, or where what it was handed is
+/// not a shape it works on.
+pub fn shape(called: &str, given: &[usize]) -> Option<(usize, usize)> {
+    let all: usize = given.iter().sum();
+    match (called, given) {
         // Two halves of a state in; a value and the two halves of the
-        // next state out.
-        "ModelicaRandom_xorshift64star" => Some((2, 3)),
+        // next state out. However the declaration grouped them, what
+        // the body takes is the two numbers.
+        ("ModelicaRandom_xorshift64star", _) if all == 2 => Some((2, 3)),
+        // A square matrix and a right-hand side of its width; the
+        // solution and word of whether there was one.
+        ("dgesv", [square, width]) if *width * *width == *square && *width > 0 => {
+            Some((all, width + 1))
+        }
         _ => None,
     }
 }
@@ -47,8 +60,72 @@ pub fn answer(called: &str, given: &[f64]) -> Option<Vec<f64>> {
             let (low, high) = state_to_halves(state);
             Some(vec![value, low, high])
         }
+        // The matrix comes row by row and the right-hand side after
+        // it, which is how a value written out arrives.
+        ("dgesv", _) => {
+            let width = square_and_side(given.len())?;
+            let mut answer = solve(&given[..given.len() - width], &given[given.len() - width..])?;
+            // Whether there was a solution, the way LAPACK says it: a
+            // zero where all went well.
+            answer.push(0.0);
+            Some(answer)
+        }
         _ => None,
     }
+}
+
+/// The width of a square matrix followed by a right-hand side of that
+/// width, from how many numbers there are in all.
+fn square_and_side(all: usize) -> Option<usize> {
+    (1..=all).find(|width| width * width + width == all)
+}
+
+/// Solve `A x = b` for `x`, the matrix given row by row.
+///
+/// Gaussian elimination with partial pivoting, which is what LAPACK's
+/// `dgesv` does: the largest remaining entry of a column is brought to
+/// the diagonal, the rows below it are cleared, and the answer is read
+/// back from the bottom up. `None` where the matrix turns out to be
+/// singular, which is what a zero pivot means.
+pub fn solve(matrix: &[f64], side: &[f64]) -> Option<Vec<f64>> {
+    let width = side.len();
+    if width == 0 {
+        return Some(Vec::new());
+    }
+    let mut rows: Vec<Vec<f64>> = matrix.chunks(width).map(<[f64]>::to_vec).collect();
+    let mut side = side.to_vec();
+    for step in 0..width {
+        // The largest entry of this column, so that dividing by it
+        // loses as little as it can.
+        let pivot = (step..width).max_by(|a, b| {
+            rows[*a][step]
+                .abs()
+                .partial_cmp(&rows[*b][step].abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+        if rows[pivot][step] == 0.0 {
+            return None;
+        }
+        rows.swap(step, pivot);
+        side.swap(step, pivot);
+        for below in step + 1..width {
+            let share = rows[below][step] / rows[step][step];
+            if share == 0.0 {
+                continue;
+            }
+            let cleared: Vec<f64> = rows[step][step..].iter().map(|at| share * at).collect();
+            for (cell, taken) in rows[below][step..].iter_mut().zip(cleared) {
+                *cell -= taken;
+            }
+            side[below] -= share * side[step];
+        }
+    }
+    let mut answer = vec![0.0; width];
+    for step in (0..width).rev() {
+        let known: f64 = (step + 1..width).map(|c| rows[step][c] * answer[c]).sum();
+        answer[step] = (side[step] - known) / rows[step][step];
+    }
+    Some(answer)
 }
 
 /// One round of the xorshift64\* generator: the state it moves to, and
@@ -124,10 +201,56 @@ mod tests {
         }
     }
 
+    /// A system whose answer is known by putting it back in, and one
+    /// that has no answer at all.
+    #[test]
+    fn a_system_is_solved_by_clearing_it_column_by_column() {
+        // 2x + y = 3, x + 3y = 5 has x = 0.8, y = 1.4.
+        let answer = solve(&[2.0, 1.0, 1.0, 3.0], &[3.0, 5.0]).unwrap();
+        assert!((answer[0] - 0.8).abs() < 1e-12, "{answer:?}");
+        assert!((answer[1] - 1.4).abs() < 1e-12, "{answer:?}");
+
+        // A pivot that has to be swapped in from below: the first
+        // column starts at zero.
+        let swapped = solve(&[0.0, 1.0, 1.0, 0.0], &[2.0, 3.0]).unwrap();
+        assert_eq!(swapped, vec![3.0, 2.0]);
+
+        // One equation, and a bigger one checked by putting the answer
+        // back where it came from.
+        assert_eq!(solve(&[4.0], &[8.0]), Some(vec![2.0]));
+        let rows = [2.0, 1.0, -1.0, -3.0, -1.0, 2.0, -2.0, 1.0, 2.0];
+        let side = [8.0, -11.0, -3.0];
+        let answer = solve(&rows, &side).unwrap();
+        for (row, wanted) in rows.chunks(3).zip(side) {
+            let got: f64 = row.iter().zip(&answer).map(|(a, x)| a * x).sum();
+            assert!((got - wanted).abs() < 1e-12, "{got} against {wanted}");
+        }
+
+        // Two equations saying the same thing have no one answer.
+        assert_eq!(solve(&[1.0, 2.0, 2.0, 4.0], &[3.0, 6.0]), None);
+        // Nothing to solve is nothing to answer with.
+        assert_eq!(solve(&[], &[]), Some(Vec::new()));
+
+        // Through the name it is called by outside: the matrix row by
+        // row, the side after it, and word of how it went at the end.
+        let told = super::answer("dgesv", &[2.0, 1.0, 1.0, 3.0, 3.0, 5.0]).unwrap();
+        assert_eq!(told.len(), 3);
+        assert_eq!(told[2], 0.0);
+        assert!((told[0] - 0.8).abs() < 1e-12, "{told:?}");
+        assert_eq!(shape("dgesv", &[4, 2]), Some((6, 3)));
+        assert_eq!(shape("dgesv", &[4, 3]), None);
+    }
+
     #[test]
     fn the_name_is_what_says_who_answers() {
         assert!(written_here("ModelicaRandom_xorshift64star"));
-        assert_eq!(answers("ModelicaRandom_xorshift64star"), Some((2, 3)));
+        // However the two numbers were grouped.
+        assert_eq!(shape("ModelicaRandom_xorshift64star", &[2]), Some((2, 3)));
+        assert_eq!(
+            shape("ModelicaRandom_xorshift64star", &[1, 1]),
+            Some((2, 3))
+        );
+        assert_eq!(shape("ModelicaRandom_xorshift64star", &[3]), None);
         assert!(!written_here("ModelicaRandom_xorshift1024star"));
         assert!(answer("ModelicaRandom_xorshift1024star", &[1.0]).is_none());
         // The right name handed the wrong count answers nothing.

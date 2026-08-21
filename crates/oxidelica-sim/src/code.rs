@@ -512,21 +512,31 @@ impl SlotTable {
         // by outside. An array argument was handed over written out,
         // and the body takes the numbers in the order they were
         // written, so there is nothing to keep about the grouping.
-        if let Some((takes, _)) = oxidelica_parser::outside::written_here(name)
-            .then(|| oxidelica_parser::outside::answers(name))
-            .flatten()
-        {
-            let mut given = Vec::new();
-            for arg in args {
-                match arg {
-                    Expr::Array(items) => {
-                        for item in items {
-                            given.push(self.compile(item)?);
-                        }
-                    }
-                    one => given.push(self.compile(one)?),
+        if oxidelica_parser::outside::written_here(name) {
+            // A matrix arrives as an array of its rows, and what the
+            // body takes is the numbers themselves, in the order they
+            // were written.
+            fn leaves<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
+                match expr {
+                    Expr::Array(items) => items.iter().for_each(|item| leaves(item, out)),
+                    one => out.push(one),
                 }
             }
+            let (mut given, mut handed) = (Vec::new(), Vec::new());
+            for arg in args {
+                let mut here = Vec::new();
+                leaves(arg, &mut here);
+                handed.push(here.len());
+                for one in here {
+                    given.push(self.compile(one)?);
+                }
+            }
+            let Some((takes, _)) = oxidelica_parser::outside::shape(name, &handed) else {
+                return err(format!(
+                    "`{name}` is written here, and not for what it was handed: {} number(s)",
+                    given.len()
+                ));
+            };
             if given.len() != takes {
                 return err(format!(
                     "`{name}` takes {takes} number(s), and it was handed {}",

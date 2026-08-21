@@ -1152,23 +1152,31 @@ pub(super) fn resolve(
     };
     Ok(match expr {
         // A body written here in Rust takes what it was handed as it
-        // was handed it: an array argument stays whole, so the run
-        // knows how many numbers went into which of them.
-        Expr::Call(name, args) if crate::outside::written_here(name) => Expr::Call(
-            name.clone(),
-            args.iter()
-                .map(|arg| match arg {
-                    Expr::Array(items) => {
-                        Ok(Expr::Array(items.iter().map(&recur).collect::<Result<
-                            Vec<_>,
-                            String,
-                        >>(
-                        )?))
-                    }
-                    one => recur(one),
-                })
-                .collect::<Result<Vec<_>, String>>()?,
-        ),
+        // was handed it: an array argument stays whole however deep it
+        // goes, since a matrix is an array of its rows and the body
+        // takes the numbers in the order they were written.
+        Expr::Call(name, args) if crate::outside::written_here(name) => {
+            fn whole(
+                expr: &Expr,
+                one: &impl Fn(&Expr) -> Result<Expr, String>,
+            ) -> Result<Expr, String> {
+                match expr {
+                    Expr::Array(items) => Ok(Expr::Array(
+                        items
+                            .iter()
+                            .map(|item| whole(item, one))
+                            .collect::<Result<Vec<_>, String>>()?,
+                    )),
+                    plain => one(plain),
+                }
+            }
+            Expr::Call(
+                name.clone(),
+                args.iter()
+                    .map(|arg| whole(arg, &recur))
+                    .collect::<Result<Vec<_>, String>>()?,
+            )
+        }
         Expr::Index(base, subscripts) => {
             // A function body reads `table[i]` off whatever it was
             // handed, and what it was handed may be a list written out

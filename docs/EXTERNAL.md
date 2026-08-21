@@ -53,7 +53,9 @@ reaching for it:
 | `ModelicaRandom`            | xorshift64\* is twenty lines and published       |
 | `ModelicaStrings`           | length, substring, compare - and no encodings    |
 | `ModelicaStandardTables`    | interpolation the specification sets out in full |
-| `ModelicaIO`, MatIO, LAPACK | reaching for it wins: the work is real           |
+| `dgesv` of LAPACK           | clearing a matrix column by column, and no more   |
+| the rest of LAPACK          | reaching for it wins: the work is real            |
+| `ModelicaIO`, MatIO         | reaching for it wins, and it reads files          |
 
 What is written here needs nothing brought along, and it can be read.
 The sandbox costs a dependency and a call that is not free; what it does
@@ -85,7 +87,13 @@ and where each answer goes.
 **4. What is written here.** Random first (smallest and exactly
 specified), then strings, then the tables.
 
-The generators are done, the tables - both kinds - and the strings.
+The generators are done, the tables - both kinds, the strings, and
+`dgesv` - which is what `Modelica.Math.Matrices.solve` is built on:
+Gaussian elimination with partial pivoting, sixty lines and exactly
+what LAPACK does. What is left of LAPACK is the singular value
+decomposition and the Schur form, which are neither short nor easy to
+get right, and the file system, which is a question about what a model
+may read rather than about arithmetic. Both belong behind the sandbox.
 
 A table whose first column is time is written out the same way as an
 ordinary one, and says two things more: where it next turns a corner,
