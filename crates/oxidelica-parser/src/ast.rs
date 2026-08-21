@@ -80,6 +80,10 @@ pub struct ClassAlias {
     /// ComplexOutput = output Complex` gives a record a name that a
     /// `connect` may join, and the record itself says nothing of that.
     pub connector: bool,
+    /// `input` or `output` written before the target: `connector
+    /// ComplexInput = input Complex` is a causal connector, which is
+    /// what a `block` may hold.
+    pub causality: Causality,
 }
 
 /// A body written outside Modelica, as the declaration wrote it.
@@ -267,6 +271,10 @@ pub enum Statement {
 pub enum ClassKind {
     /// `model` — a component or the top-level system.
     Model,
+    /// `block` — a model whose every connector is causal: what goes in
+    /// and what comes out are decided by the declaration rather than
+    /// by what it is connected to.
+    Block,
     /// `connector` — an interface with potential and flow variables.
     Connector,
     /// `record` — a plain bundle of variables.
@@ -277,6 +285,18 @@ pub enum ClassKind {
     Package,
     /// `type` — a named alias of a primitive with attribute defaults.
     Type,
+}
+
+impl ClassKind {
+    /// Whether the class is one that holds equations and may stand on
+    /// its own as something to simulate.
+    ///
+    /// `model`, `class` and `block` differ in what they are allowed to
+    /// contain rather than in what they are, so everything but the
+    /// checks of those rules treats the three alike.
+    pub fn is_model(self) -> bool {
+        matches!(self, ClassKind::Model | ClassKind::Block)
+    }
 }
 
 /// An `extends Base(mod = expr, ...);` clause.
@@ -336,6 +356,11 @@ pub struct ClassDef {
     /// The `unit` attribute of a type alias:
     /// `type Voltage = Real(unit = "V")`.
     pub alias_unit: Option<String>,
+    /// `input` or `output` written in a short class definition:
+    /// `connector RealInput = input Real` is what makes a signal
+    /// connector a causal one. It says nothing about the class it
+    /// names and everything about what may hold it.
+    pub alias_causality: Causality,
     /// Literals of an enumeration type, in declaration order. A
     /// reference `Init.SteadyState` is their 1-based position.
     pub enumeration: Vec<String>,
@@ -420,6 +445,7 @@ impl ClassDef {
     pub fn empty() -> Self {
         ClassDef {
             kind: ClassKind::Model,
+            alias_causality: Causality::None,
             name: String::new(),
             partial: false,
             encapsulated: false,

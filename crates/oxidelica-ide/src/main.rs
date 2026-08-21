@@ -1171,7 +1171,7 @@ fn diagram_ui(ui: &mut egui::Ui, ide: &mut Ide, s: &i18n::Strings, p: &style::Pa
                 .and_then(|own| {
                     own.iter()
                         .rev()
-                        .find(|c| c.kind == oxidelica_parser::ClassKind::Model && !c.partial)
+                        .find(|c| c.kind.is_model() && !c.partial)
                         .map(|c| c.name.clone())
                 });
             match top.map(|name| ide.diagram.import(&classes, &name)) {

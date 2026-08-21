@@ -457,14 +457,19 @@ a rule but a runaway expansion, measured twice over in
 shape this compiler cannot line up; a component left out by a
 condition; and a `size` of something whose shape was lost.
 
-**Structure**: no `operator` classes (`block` parses as a model,
-causality unchecked); an `expandable connector` takes each member's
+**Structure**: an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
 `each`-style array members of a bus are not supported. `protected` is
 enforced where it is reached across a component - naming `a.hidden`, or
 modifying it from the declaration - and not where a class holding the
-declaration is looked into by other means. A library may be a directory tree, but
+declaration is looked into by other means. A `block` is refused where
+it holds a connector nothing gave a direction, the direction being
+read from the declaration, from the short definition the connector
+came from, or from every signal it holds; an `expandable connector` is
+exempt, since a bus takes its directions from the connections that
+fill it. What a block's causality then means for which side of an
+equation a variable may stand on is not checked. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.

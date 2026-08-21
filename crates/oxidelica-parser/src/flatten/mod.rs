@@ -29,7 +29,7 @@ mod external;
 mod instantiate;
 mod names;
 mod operators;
-mod protection;
+mod restrictions;
 mod strings;
 mod tables;
 #[cfg(test)]
@@ -73,7 +73,7 @@ pub fn class_info(classes: &[ClassDef], name: &str) -> Option<ClassInfo> {
     let mut info = ClassInfo {
         description: class.description.clone(),
         annotations: class.annotations.clone(),
-        instantiable: !class.partial && matches!(class.kind, ClassKind::Model | ClassKind::Record),
+        instantiable: !class.partial && (class.kind.is_model() || class.kind == ClassKind::Record),
         ..ClassInfo::default()
     };
     collect_members(&registry, class, &mut info, 0);
@@ -206,6 +206,13 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 }
             ));
         }
+    }
+
+    // A `block` is a model whose connectors all have a direction. The
+    // classes are looked over rather than the instances, so that a
+    // `partial block` others are built on is looked over too.
+    for class in classes.iter().filter(|c| c.kind == ClassKind::Block) {
+        restrictions::every_connector_of_a_block_is_causal(&registry, class)?;
     }
 
     let mut acc = Flat::default();
@@ -794,7 +801,7 @@ struct Flat {
     /// Classes already looked over for a reach into what a component
     /// keeps to itself. The answer is about the class alone, so it is
     /// worked out once however many instances of it a model holds.
-    protection_checked: HashSet<String>,
+    restrictions_checked: HashSet<String>,
 }
 
 /// How many `connect` equations name each connector.

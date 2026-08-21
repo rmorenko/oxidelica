@@ -47,7 +47,8 @@ impl Parser {
         } else {
             match self.bump() {
                 // `class` puts no restriction on what is inside it.
-                Token::Model | Token::Block | Token::Class => ClassKind::Model,
+                Token::Model | Token::Class => ClassKind::Model,
+                Token::Block => ClassKind::Block,
                 Token::Connector => ClassKind::Connector,
                 Token::Record => ClassKind::Record,
                 Token::Function => ClassKind::Function,
@@ -98,7 +99,10 @@ impl Parser {
             // `connector RealInput = input Real "'input Real' as
             // connector";` - a short definition may repeat the prefixes
             // of a declaration. They restrict what the name may be used
-            // for and change nothing about the class itself.
+            // for and change nothing about the class itself, save that
+            // `input` or `output` is what makes a signal connector a
+            // causal one, which is what a `block` is allowed to hold.
+            let mut alias_causality = Causality::None;
             while matches!(
                 self.peek(),
                 Token::Input
@@ -109,7 +113,11 @@ impl Parser {
                     | Token::Parameter
                     | Token::Constant
             ) {
-                self.bump();
+                alias_causality = match self.bump() {
+                    Token::Input => Causality::Input,
+                    Token::Output => Causality::Output,
+                    _ => alias_causality,
+                };
             }
             let target = self.dotted_name("aliased class")?;
             // A short definition of a predefined type declares a type
@@ -139,6 +147,7 @@ impl Parser {
                     alias_of: Some((target, attributes)),
                     alias_dimensions,
                     alias_unit: unit,
+                    alias_causality,
                     ..ClassDef::empty()
                 })));
             }
@@ -167,6 +176,7 @@ impl Parser {
                 redeclaration,
                 constrained_by,
                 connector: kind == ClassKind::Connector,
+                causality: alias_causality,
             }));
         }
 
@@ -459,6 +469,7 @@ impl Parser {
             encapsulated,
             expandable,
             alias_of,
+            alias_causality: Causality::None,
             alias_dimensions,
             alias_unit,
             enumeration,

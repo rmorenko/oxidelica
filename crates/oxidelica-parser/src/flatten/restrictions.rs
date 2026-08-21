@@ -1,21 +1,22 @@
-//! What a `protected` section keeps to itself.
+//! What a class may hold, and who may reach into it.
+//!
+//! Two rules of the language's class restrictions, neither of which
+//! changes the flat model by so much as an equation - which is exactly
+//! why they are worth checking. A model that breaks one is written on
+//! something the library never promised, and it will break again the
+//! next time the library moves.
 //!
 //! A declaration under `protected` is visible inside its own class and
 //! inside classes extending it, and nowhere else. A class holding a
 //! component may write its public members - `r.R`, `pin.v` - and may
-//! not write the ones the component's class kept back.
+//! not write the ones the component's class kept back, whether by
+//! naming one or by modifying it from the declaration. A member that
+//! is not found where it is looked for is left alone: it may be
+//! inherited, and what a base class kept back is not decided here.
 //!
-//! Nothing about the flat model turns on this, which is exactly why it
-//! is worth checking: a model that reaches inside a component is
-//! reading something the library never promised to keep, and it will
-//! break the next time the library moves it. Saying so at the point of
-//! the reach is the whole of what this module does.
-//!
-//! Two ways of reaching are refused: naming the member, and modifying
-//! it from the declaration - `Motor m(inertia = 2)` where the motor
-//! keeps `inertia` to itself. A member that is not found where it is
-//! looked for is left alone: it may be inherited, and what a base
-//! class kept back is not decided here.
+//! A `block` is a model whose connectors all have a direction, so that
+//! what goes in and what comes out is decided by the declaration
+//! rather than by what it is connected to.
 
 use super::*;
 
@@ -101,6 +102,63 @@ pub(super) fn nothing_reaches_inside<'a>(
             own[component.as_str()]
         )),
     }
+}
+
+/// Refuse a `block` that holds a connector nothing gave a direction.
+///
+/// A `block` is a model whose every connector is causal: what goes in
+/// and what comes out is decided by the declaration rather than by
+/// what it is connected to. The direction may be written on the
+/// component, on the short definition its connector came from - the
+/// standard library's `connector RealInput = input Real` - or on
+/// every variable the connector declares.
+pub(super) fn every_connector_of_a_block_is_causal(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+) -> Result<(), String> {
+    for component in &class.components {
+        if component.causality != Causality::None {
+            continue;
+        }
+        let Some(of) = lookup(registry, &component.type_name, &class.name, &class.imports) else {
+            continue;
+        };
+        // An `expandable connector` is a bus: what it carries is put
+        // there by the connections that name it, and the direction
+        // comes with it. There is nothing here to read a direction off.
+        if of.kind != ClassKind::Connector || of.alias_causality != Causality::None || of.expandable
+        {
+            continue;
+        }
+        // A connector built of variables of its own is causal where
+        // every one of them says which way it goes. A parameter is not
+        // a signal and says nothing either way, and neither does an
+        // empty connector.
+        let signals: Vec<&Component> = of
+            .components
+            .iter()
+            .filter(|inside| {
+                matches!(
+                    inside.variability,
+                    Variability::Continuous | Variability::Discrete
+                )
+            })
+            .collect();
+        if !signals.is_empty()
+            && signals
+                .iter()
+                .all(|inside| inside.causality != Causality::None)
+        {
+            continue;
+        }
+        return Err(format!(
+            "`{}.{}` is a connector of a `block` and nothing says which way it goes; \
+             a block's connectors are `input` or `output`, written on the declaration, \
+             on the connector or on every variable it holds",
+            class.name, component.name
+        ));
+    }
+    Ok(())
 }
 
 /// The first reach into something kept back that this expression

@@ -94,6 +94,7 @@ fn parse_file_within(source: &str) -> Result<(Vec<ClassDef>, Option<String>), Pa
                     false => ClassKind::Model,
                 },
                 name: alias.name,
+                alias_causality: alias.causality,
                 alias_of: Some((alias.target, Vec::new())),
                 ..ClassDef::empty()
             },
@@ -178,12 +179,8 @@ fn parse_model_among(mut classes: Vec<ClassDef>, source: &str) -> Result<Model, 
     let top = own
         .iter()
         .rev()
-        .find(|c| c.kind == ClassKind::Model && !c.partial && top_level(c))
-        .or_else(|| {
-            own.iter()
-                .rev()
-                .find(|c| c.kind == ClassKind::Model && !c.partial)
-        })
+        .find(|c| c.kind.is_model() && !c.partial && top_level(c))
+        .or_else(|| own.iter().rev().find(|c| c.kind.is_model() && !c.partial))
         .ok_or_else(|| ParseError {
             message: "no model class in file".into(),
             line: 1,

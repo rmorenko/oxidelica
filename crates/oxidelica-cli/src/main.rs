@@ -324,7 +324,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
     report(&refusals, "  ", list);
     let models: Vec<String> = classes
         .iter()
-        .filter(|c| c.kind == oxidelica_parser::ClassKind::Model && !c.partial)
+        .filter(|c| c.kind.is_model() && !c.partial)
         .filter(|c| c.name.contains(".Examples.") || c.name.contains(".Test"))
         .map(|c| c.name.clone())
         .collect();

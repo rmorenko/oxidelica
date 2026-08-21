@@ -7977,3 +7977,31 @@ fn a_protected_connector_is_not_reachable_from_outside() {
     .to_string();
     assert!(refusal.contains("a.p"), "{refusal}");
 }
+
+/// A `block` is a model whose connectors all have a direction.
+#[test]
+fn a_block_may_not_hold_a_connector_without_a_direction() {
+    // A potential-and-flow connector says nothing about which way it
+    // goes, which is the one thing a block's connectors must.
+    let refusal = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         block B Pin p; equation p.v = time; end B; \
+         model M B b; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("`block`"), "{refusal}");
+    assert!(refusal.contains("B.p"), "{refusal}");
+
+    // The direction may be written on the connector, on the short
+    // definition it came from, or on the declaration.
+    for block in [
+        "connector RealInput = input Real; block B RealInput u; Real y; equation y = 2 * u; end B;",
+        "connector Signal Real v; end Signal; \
+         block B input Signal u; Real y; equation y = 2 * u.v; end B;",
+        "connector Causal input Real v; end Causal; \
+         block B Causal u; Real y; equation y = 2 * u.v; end B;",
+    ] {
+        parse_model(&format!("{block} model M B b; equation b.y = time; end M;")).unwrap();
+    }
+}

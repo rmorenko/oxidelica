@@ -88,8 +88,8 @@ pub(super) fn instantiate(
     // What a component's class keeps to itself is nobody else's to
     // read. This says nothing about the flat model, so it is asked
     // once per class rather than once per instance.
-    if acc.protection_checked.insert(class.name.clone()) {
-        protection::nothing_reaches_inside(registry, class, &imports)?;
+    if acc.restrictions_checked.insert(class.name.clone()) {
+        restrictions::nothing_reaches_inside(registry, class, &imports)?;
     }
     // Names a wildcard-imported constant may not quietly stand in for:
     // a component of this class outranks anything `import A.*;` opened.
@@ -1893,7 +1893,7 @@ fn collect_records(
         }
         if matches!(
             of.kind,
-            ClassKind::Record | ClassKind::Model | ClassKind::Connector
+            ClassKind::Record | ClassKind::Model | ClassKind::Block | ClassKind::Connector
         ) {
             let below = format!("{name}.");
             collect_records(registry, of, &below, &of.name, &of.imports, out, depth + 1);
