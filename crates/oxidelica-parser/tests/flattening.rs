@@ -8005,3 +8005,132 @@ fn a_block_may_not_hold_a_connector_without_a_direction() {
         parse_model(&format!("{block} model M B b; equation b.y = time; end M;")).unwrap();
     }
 }
+
+/// The reach is refused wherever it is written, and whatever way the
+/// two classes came to hold what they hold.
+#[test]
+fn a_protected_declaration_is_kept_back_through_inheritance_too() {
+    // Kept back by a base of the component's class: inheriting a
+    // declaration does not publish it.
+    let refusal = parse_model(
+        "model Base protected Real hidden; equation hidden = time; end Base; \
+         model Inner extends Base; Real y; equation y = hidden; end Inner; \
+         model M Inner a; Real z; equation z = a.hidden; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("a.hidden"), "{refusal}");
+
+    // Reached from a class that inherited the component rather than
+    // declaring it, and reached from an algorithm rather than an
+    // equation.
+    let refusal = parse_model(
+        "model Inner protected Real hidden; public Real y; equation hidden = time; y = 1; end Inner; \
+         model Holder Inner a; end Holder; \
+         model M extends Holder; Real z; algorithm z := a.hidden; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("a.hidden"), "{refusal}");
+}
+
+/// A block settles its own outputs; an interface leaves them to
+/// whoever finishes it.
+#[test]
+fn a_block_settles_the_outputs_it_declares() {
+    const INSIDE: &str = "block B input Real u; output Real y; ";
+
+    let refusal = parse_model(&format!(
+        "{INSIDE} end B; model M B b; equation b.u = time; b.y = 5; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("B.y"), "{refusal}");
+    assert!(refusal.contains("output"), "{refusal}");
+
+    // Settled by an equation, by a declaration value, by an algorithm,
+    // and by the declaration that inherits it.
+    for block in [
+        format!("{INSIDE} equation y = 2 * u; end B;"),
+        "block B input Real u; output Real y = 2 * u; end B;".to_string(),
+        format!("{INSIDE} algorithm y := 2 * u; end B;"),
+        format!("partial {INSIDE} end B; block C extends B(y = 2 * u); end C;"),
+    ] {
+        let named = match block.contains("block C") {
+            true => "C",
+            false => "B",
+        };
+        parse_model(&format!(
+            "{block} model M {named} b; equation b.u = time; end M;"
+        ))
+        .unwrap();
+    }
+
+    // An interface is exactly the case where the outputs are left for
+    // whoever extends it.
+    parse_model(&format!(
+        "partial {INSIDE} end B; block C extends B; equation y = 3 * u; end C; \
+         model M C c; equation c.u = time; end M;"
+    ))
+    .unwrap();
+}
+
+/// The reach is looked for in every place a class writes a value:
+/// inside a loop, inside a branch, inside a `when`, inside an
+/// algorithm, and in what a declaration says about itself.
+#[test]
+fn a_protected_declaration_is_kept_back_wherever_the_reach_is_written() {
+    const INNER: &str = "model Inner protected parameter Real hidden = 2; \
+                         public Real y; equation y = hidden * time; end Inner; \
+                         function two input Real x; output Real p; output Real q; \
+                         algorithm p := x; q := 2 * x; end two; ";
+    const HOLDS: &str = "Inner a; parameter Integer n = 2; Real z[2]; Boolean fired; ";
+
+    for body in [
+        // In a loop, and in a branch inside one.
+        "equation for i in 1:2 loop z[i] = a.hidden; end for;",
+        "equation for i in 1:2 loop if i > 1 then z[i] = a.hidden; else z[i] = 0; end if; end for;",
+        // In a branch, in what a branch asserts, and in what it calls.
+        "equation if n > 1 then z = {a.hidden, 0}; else z = {0, 0}; end if;",
+        // In what a `when` fires on and in what it does.
+        "equation z = {0, 0}; algorithm when time > a.hidden then fired := true; end when;",
+        "equation z = {0, 0}; algorithm when time > 1 then fired := time > a.hidden; end when;",
+        // In an algorithm, in a loop inside one, and in a `while`.
+        "algorithm z[1] := a.hidden; z[2] := 0;",
+        "algorithm for i in 1:2 loop z[i] := a.hidden; end for;",
+        "algorithm z := {0, 0}; while time < a.hidden loop break; end while;",
+        // In what a loop asserts, in a loop inside a loop, and in what
+        // a branch asserts or fires on.
+        "equation z = {0, 0}; for i in 1:2 loop assert(a.hidden > 0, \"positive\"); end for;",
+        "equation for i in 1:2 loop for j in 1:1 loop z[i] = a.hidden * j; end for; end for;",
+        "equation z = {0, 0}; if n > 1 then assert(a.hidden > 0, \"positive\"); end if;",
+        "equation z = {0, 0}; if n > 1 then when time > a.hidden then fired = true; end when; end if;",
+        "equation z = {0, 0}; if n > 1 then for i in 1:2 loop assert(a.hidden > i, \"above\"); end for; end if;",
+        // In a loop and in a branch inside a `when`.
+        "equation z = {0, 0}; when time > 1 then for i in 1:2 loop assert(a.hidden > i, \"above\"); end for; end when;",
+        "equation z = {0, 0}; when time > 1 then if n > 1 then fired = a.hidden > 0; else fired = false; end if; end when;",
+        // In what several outputs at once are taken from, and in a
+        // call nothing takes the outputs of.
+        "algorithm (z[1], z[2]) := two(a.hidden);",
+        "algorithm z := {0, 0}; two(a.hidden);",
+        "algorithm z := {0, 0}; assert(a.hidden > 0, \"positive\");",
+        // In what the class asserts and in what it calls outright.
+        "equation z = {0, 0}; assert(a.hidden > 0, \"positive\");",
+        // In what a declaration says about itself.
+        "Real w(start = a.hidden, min = -a.hidden, max = a.hidden); equation z = {0, 0}; w = 0;",
+    ] {
+        let source = format!("{INNER} model M {HOLDS} {body} end M;");
+        let refusal = parse_model(&source).unwrap_err().to_string();
+        assert!(refusal.contains("a.hidden"), "{body}: {refusal}");
+    }
+
+    // The same places with the public member instead, so that what is
+    // refused above is the reach and not the shape of the model.
+    for body in [
+        "equation for i in 1:2 loop z[i] = a.y; end for;",
+        "algorithm z[1] := a.y; z[2] := 0;",
+        "equation z = {0, 0}; assert(a.y > -1, \"above\");",
+    ] {
+        parse_model(&format!("{INNER} model M {HOLDS} {body} end M;")).unwrap();
+    }
+}

@@ -9,7 +9,7 @@ under a chapter works as specified for the subset this project covers.
 | --- | ----------------------------- | ------- |
 | 2   | Lexical structure             | Full    |
 | 3   | Operators and expressions     | Full    |
-| 4   | Classes, types, declarations  | Partial |
+| 4   | Classes, types, declarations  | Mostly  |
 | 5   | Scoping, lookup, flattening   | Partial |
 | 6   | Type relationships            | Minimal |
 | 7   | Inheritance, redeclaration    | Full    |
@@ -117,6 +117,29 @@ array where a bare list is handed out one entry per element, and a
 selective `extends Base(break f)` leaves a component and its
 connections out - `break connect(a, b)` one connection - refusing a
 break that matches nothing.
+
+**Class restrictions** (ch. 4): what a class kind may hold and who may
+reach into it. A declaration under `protected` is visible inside its
+own class and in the classes extending it, and a class reaching across
+a component into one - naming `a.hidden`, `a[1].hidden`, or modifying
+it from the declaration with `Inner a(hidden = 5)` - is refused,
+whether the component was declared or inherited and whether the member
+was declared by the component's class or inherited by it. A `block` is
+a model whose connectors all have a direction: one that holds a
+connector nothing gave a direction is refused, the direction being read
+from the declaration, from the short definition the connector came from
+(`connector RealInput = input Real`) or from every signal it holds, and
+an `expandable connector` exempt since a bus takes its directions from
+the connections that fill it. A block also settles its own outputs, so
+one declaring an output nothing in it or in its bases ever speaks of is
+refused too - a `partial` block excepted, which is exactly the case
+where the outputs are left for whoever finishes it.
+
+What is not enforced: a class declared under `protected` may still be
+reached by name from outside, and a model's local balance is not
+counted - the equations and unknowns are counted over the flat model
+as a whole rather than class by class, so a class that does not balance
+on its own passes where the model around it makes up the difference.
 
 **Packages** (ch. 13) hold classes and constants and nothing else - a
 parameter or a variable in one is refused, since a package has no
@@ -460,16 +483,7 @@ condition; and a `size` of something whose shape was lost.
 **Structure**: an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
-`each`-style array members of a bus are not supported. `protected` is
-enforced where it is reached across a component - naming `a.hidden`, or
-modifying it from the declaration - and not where a class holding the
-declaration is looked into by other means. A `block` is refused where
-it holds a connector nothing gave a direction, the direction being
-read from the declaration, from the short definition the connector
-came from, or from every signal it holds; an `expandable connector` is
-exempt, since a bus takes its directions from the connections that
-fill it. What a block's causality then means for which side of an
-equation a variable may stand on is not checked. A library may be a directory tree, but
+`each`-style array members of a bus are not supported. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.

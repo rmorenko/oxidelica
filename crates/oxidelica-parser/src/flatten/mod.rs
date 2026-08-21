@@ -213,6 +213,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // `partial block` others are built on is looked over too.
     for class in classes.iter().filter(|c| c.kind == ClassKind::Block) {
         restrictions::every_connector_of_a_block_is_causal(&registry, class)?;
+        restrictions::every_output_of_a_block_is_settled_inside(&registry, class)?;
     }
 
     let mut acc = Flat::default();
