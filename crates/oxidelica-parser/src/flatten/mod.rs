@@ -818,6 +818,11 @@ struct Flat {
     /// diamond names one of them by two paths, and the specification
     /// says such an element is included once.
     extended: HashSet<(String, String)>,
+    /// Every instance known to be a record, by its flat path, and
+    /// what record it is. A modifier is written in the terms of the
+    /// class that supplied it, so what one class knows has to still
+    /// be in view while the class it hands the value to is built.
+    records: HashMap<String, String>,
 }
 
 /// How many `connect` equations name each connector.

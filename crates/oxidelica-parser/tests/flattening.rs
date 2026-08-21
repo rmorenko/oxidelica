@@ -8250,3 +8250,34 @@ fn a_when_inside_the_class_does_not_settle_its_own_input() {
     )
     .unwrap();
 }
+
+/// A modifier handing a whole record over is written in the terms of
+/// the class that supplied it.
+#[test]
+fn a_record_handed_down_by_name_is_written_out_field_by_field() {
+    const PARTS: &str = "record C Real re; Real im; end C; \
+                         function makeC output C r; algorithm r := C(re = 1, im = 2); end makeC; \
+                         model Shape input C v = makeC(); Real y; \
+                         equation y = v.re + v.im; end Shape; ";
+
+    let m = parse_model(&format!(
+        "{PARTS}model Holder C mine = makeC(); Shape s(v = mine); Real q; \
+         equation q = s.y; end Holder; \
+         model M Holder h; Real z; equation z = h.q; end M;"
+    ))
+    .unwrap();
+    // Both sides of the modifier come out field by field: `h.s.v` is
+    // what `h.mine` is, rather than being left with no value at all.
+    for field in ["re", "im"] {
+        let named = format!("h.s.v.{field}");
+        assert!(
+            m.equations.iter().any(|equation| {
+                let mut names = Vec::new();
+                equation.lhs.collect_refs(&mut names);
+                equation.rhs.collect_refs(&mut names);
+                names.contains(&named.as_str())
+            }),
+            "nothing settles {named}"
+        );
+    }
+}

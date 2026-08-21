@@ -406,6 +406,22 @@ pub(super) fn instantiate(
         &mut records_here,
         0,
     );
+    // A modifier arrives written in the terms of the class that
+    // supplied it - `Shape s(R = mine)` names a record of the class
+    // holding `s`, not of `Shape` - so what that class knows to be a
+    // record has to be still in view here. Every class adds what it
+    // knows as it is built, and the paths are full ones, so nothing
+    // collides.
+    acc.records.extend(
+        records_here
+            .iter()
+            .map(|(path, of)| (path.clone(), of.clone())),
+    );
+    let records_here = {
+        let mut all = acc.records.clone();
+        all.extend(records_here);
+        all
+    };
 
     for component in &class.components {
         let fresh = taken < acc.sizes.len();
