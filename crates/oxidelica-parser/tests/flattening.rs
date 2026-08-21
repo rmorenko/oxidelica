@@ -5,6 +5,7 @@
 //! connections, clocks, state machines - checked through `parse_model`,
 //! which is how everything but the compiler itself sees this crate.
 
+use oxidelica_parser::ast::BinOp;
 use oxidelica_parser::{parse_model, parse_model_with_libraries, Expr};
 
 /// Sources that share the shape of a standard-library package: a
@@ -7856,4 +7857,58 @@ fn a_tuple_may_stand_inside_a_branch_the_compiler_settles() {
     .unwrap_err()
     .to_string();
     assert!(odd.contains("must be a function call"), "{odd}");
+}
+
+#[test]
+fn an_answer_of_more_than_one_dimension_is_an_array_of_arrays() {
+    // `Modelica.Blocks.Continuous.Filter` builds `den2[:, 2]` element
+    // by element and hands it on, and whoever was handed it reads
+    // `den2[i, 2]`. Gathered flat, the second subscript would have
+    // nowhere to go.
+    let m = parse_model(
+        "model M function pairs input Integer n; output Real d[n, 2]; \
+         algorithm for i in 1:n loop d[i, 1] := i; d[i, 2] := 2 * i; end for; end pairs; \
+         function second input Real d[:, 2]; input Integer k; output Real y; \
+         algorithm y := d[k, 2]; end second; \
+         Real y; equation y = second(pairs(3), 2) * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    // The second row's second column is two times two.
+    assert!(
+        format!("{:?}", m.equations).contains("Mul, Number(2.0), Number(2.0)"),
+        "{:?}",
+        m.equations
+    );
+
+    // Read as a whole, it is still the shape it was declared.
+    let whole = parse_model(
+        "model M function pairs input Integer n; output Real d[n, 2]; \
+         algorithm for i in 1:n loop d[i, 1] := i; d[i, 2] := 2 * i; end for; end pairs; \
+         parameter Real g[2, 2] = pairs(2); Real y; equation y = g[2, 1] * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    assert_eq!(
+        whole
+            .components
+            .iter()
+            .find(|c| c.name == "g[2,2]")
+            .and_then(|c| c.binding.clone()),
+        Some(Expr::Bin(
+            BinOp::Mul,
+            Box::new(Expr::Number(2.0)),
+            Box::new(Expr::Number(2.0))
+        ))
+    );
+
+    // An element the body never assigned is said by name.
+    let missing = parse_model(
+        "model M function pairs output Real d[2, 2]; \
+         algorithm d[1, 1] := 1; end pairs; \
+         parameter Real g[2, 2] = pairs(); Real y; equation y = g[1, 1] * time; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(missing.contains("never assigns `d[1,2]`"), "{missing}");
 }

@@ -234,6 +234,10 @@ A run of elements may be named along more than one axis - `oM[1:mBase,
 moving fastest. A name bound whole and then written into element by
 element is taken apart first.
 
+An answer of more than one dimension is an array of arrays rather than
+a flat list, since whoever was handed it reads `den2[i, 2]` and a
+second subscript has nowhere to go in a flat one.
+
 A tuple filled by a call - `(r, a, b, ku) = lowPass(cr, c0, c1,
 f_cut)` - may stand at the top of a class or inside a branch the
 compiler settles, and is read the same way in both.
@@ -433,7 +437,7 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2649 parse, and 377 of
+of the Modelica Standard Library's 2674 files, 2649 parse, and 379 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:

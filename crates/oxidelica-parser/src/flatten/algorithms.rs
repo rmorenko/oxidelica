@@ -1881,19 +1881,34 @@ fn inline_body(
                 return Ok((name.clone(), expr.clone()));
             }
             if let Some(dimensions) = sizes.get(name) {
-                let items = index_tuples(dimensions)
-                    .into_iter()
-                    .map(|indices| {
-                        let element = element_name(name, &indices);
-                        bindings.get(&element).cloned().ok_or_else(|| {
-                            format!(
-                                "function `{}` never assigns `{element}` of its output",
-                                class.name
-                            )
-                        })
-                    })
-                    .collect::<Result<Vec<_>, String>>()?;
-                return Ok((name.clone(), Expr::Array(items)));
+                // An answer of more than one dimension is an array of
+                // arrays, not a flat list: `den2[:, 2]` is read
+                // `den2[i, 2]` by whoever was handed it, and a second
+                // subscript has nowhere to go in a flat list.
+                fn gathered(
+                    name: &str,
+                    dimensions: &[i64],
+                    so_far: &mut Vec<i64>,
+                    bindings: &HashMap<String, Expr>,
+                    class: &str,
+                ) -> Result<Expr, String> {
+                    let Some((&length, rest)) = dimensions.split_first() else {
+                        let element = element_name(name, so_far);
+                        return bindings.get(&element).cloned().ok_or_else(|| {
+                            format!("function `{class}` never assigns `{element}` of its output")
+                        });
+                    };
+                    let mut items = Vec::new();
+                    for index in 1..=length {
+                        so_far.push(index);
+                        items.push(gathered(name, rest, so_far, bindings, class)?);
+                        so_far.pop();
+                    }
+                    Ok(Expr::Array(items))
+                }
+                let mut so_far = Vec::new();
+                let items = gathered(name, dimensions, &mut so_far, &bindings, &class.name)?;
+                return Ok((name.clone(), items));
             }
             // A record-typed output built up field by field - `v.x :=`,
             // `v.y :=`, as an operator record's constructor does - is
