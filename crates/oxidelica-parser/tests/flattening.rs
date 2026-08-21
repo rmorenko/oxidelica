@@ -8281,3 +8281,24 @@ fn a_record_handed_down_by_name_is_written_out_field_by_field() {
         );
     }
 }
+
+/// A chain of type aliases is read where each name was written.
+#[test]
+fn a_derivative_seeds_an_input_named_through_a_chain_of_aliases() {
+    // `Temperature` is what `Units` calls `Absolute`, which is what it
+    // calls a `Real` - and the second name is written inside `Units`,
+    // not where the declaration using it stands. Reading it from the
+    // wrong place makes the input look like something no derivative is
+    // handed for, and the rule is refused for taking one argument too
+    // many.
+    let m = parse_model(
+        "package Units type Absolute = Real(unit = \"K\"); type Temperature = Absolute; end Units; \
+         function warmth input Units.Temperature T; output Real p; \
+         algorithm p := 2 * T; annotation(derivative = warmth_der); end warmth; \
+         function warmth_der input Units.Temperature T; input Real der_T; output Real der_p; \
+         algorithm der_p := 2 * der_T; end warmth_der; \
+         model M Real x; Real y; equation x = 300 + time; y = der(warmth(x)); end M;",
+    )
+    .unwrap();
+    assert!(m.components.iter().any(|c| c.name == "y"));
+}

@@ -1586,17 +1586,26 @@ fn is_real(
     imports: &[(String, String)],
 ) -> bool {
     let mut named = component.type_name.clone();
+    // Each step of the chain is a name written inside the class that
+    // came before it: `SI.Temperature` is `ThermodynamicTemperature`
+    // as `Modelica.Units.SI` spells it, and looking that up from where
+    // the declaration stands finds nothing. So the place to look moves
+    // along with the name.
+    let mut scope = scope.to_string();
+    let mut imports = imports.to_vec();
     for _ in 0..MAX_DEPTH {
         if named == "Real" {
             return true;
         }
-        let Some(of) = lookup(registry, &named, scope, imports) else {
+        let Some(of) = lookup(registry, &named, &scope, &imports) else {
             return false;
         };
         let Some(alias) = &of.alias_of else {
             return false;
         };
         named = alias.0.clone();
+        scope = of.name.clone();
+        imports = of.imports.clone();
     }
     false
 }

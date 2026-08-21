@@ -331,6 +331,9 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let mut flat: Vec<&String> = Vec::new();
     let mut why_not: Vec<(String, String)> = Vec::new();
     for name in &models {
+        if std::env::var("OXIDELICA_TRACE").is_ok() {
+            eprintln!("{name}");
+        }
         match oxidelica_parser::flatten_named(&classes, name) {
             Ok(_) => flat.push(name),
             Err(why) => why_not.push((why, name.clone())),
