@@ -154,17 +154,43 @@ first of the 32, stops running away: it finishes in seconds and comes
 to rest on a refusal of its own, an arity check on the derivative of
 `psat` that nothing had ever reached before.
 
-And the library as a whole still does not finish. One model of the 32
-was carried past the pile; something else in the library runs away in
-its place, and ten minutes is not enough to find out which. So the
-bound is right and not yet sufficient, which is a different answer
-from the two above, and the next question is which model is left
-rather than which instrument to build.
+**A bound on a whole model's writing out.** The one that was left. The
+model that runs away in place of the 32 is
+`Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder`, and a bound under
+one call never touches it: at a budget of 500 it hangs exactly as at
+20 000, because the time goes into cloning an expression that is
+already large rather than into making a larger one. Only a count over
+the whole model catches that, and it can only refuse - there is no one
+call to leave standing when what grew is the model.
 
-Nothing of this is in the tree. The rule and the bound are one edit
-each and are written here rather than kept, since a compiler that
-cannot read its own library is worse than one that refuses 32 models
-of it.
+Measured with the budget swept:
+
+| Budget    | Library   | Models     |
+| --------- | --------- | ---------- |
+| 8 000 000 | runs away | -          |
+| 2 000 000 | runs away | -          |
+| 1 000 000 | runs away | -          |
+| 500 000   | 3 minutes | 360 of 734 |
+
+So there is a budget that makes the library readable, and it costs 21
+models net: 28 of MultiBody go, `Frames.resolve2` being exactly the
+body the width table above measures at 163 345 pieces, and the 32 come
+through to the next thing that stops them. There is no window between
+the two - a budget MultiBody survives is one the adder does not.
+
+What the 32 hit next is worth having found. Each obstacle behind them
+was real and is now fixed: a chain of type aliases read where each
+name was written, a local's declaration value reading a constant of a
+class, a call subscripted where it stands, a call the run walks
+subscripted the same way. Those are in the tree and stand on their own.
+The pile now stops at an expression that nests deeper than the
+compiler follows, which is the same illness one layer down.
+
+Neither the rule nor the bound is in the tree. Both are one edit each
+and are written here rather than kept, since a compiler that cannot
+read its own library is worse than one that refuses 32 models of it,
+and a bound that buys those 32 by losing 28 others is not a bargain
+either.
 
 ## What is already in place for it
 
