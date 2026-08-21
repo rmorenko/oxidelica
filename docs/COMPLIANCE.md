@@ -196,30 +196,40 @@ has two elements indexed off `false`, `Real x[E]` one per enumeration
 literal - or a `:` that reads its length from the value the component
 is given.
 
-**Functions** (ch. 12): no external C/Fortran bodies (they are read and
-refused where called), no functions as arguments, no record
-constructors. A function is inlined symbolically
+**Functions** (ch. 12): no functions as arguments. A body written
+outside Modelica is answered where this compiler has an answer of its
+own - the strings, the tables, the generators and `dgesv` - and
+refused by name where it has none; [EXTERNAL.md](EXTERNAL.md) says
+which and why. A function is inlined symbolically
 wherever it can be, which is what lets the compiler differentiate
 through one and fold it away where the arguments are known — and a
 skipped tuple slot still costs the work of computing that output's
 expression.
 
 Where inlining cannot reach, the call is left standing and the run
-walks the body for itself, one number at a time. Two things cannot be
-inlined: a function that leads back to itself, directly or through
-others, which has no bottom to unroll to; and a `while` whose trip
-count the model decides rather than the compiler. So recursion and a
-data-dependent loop both run, and `5!` written the obvious way comes
-out at 120.
+walks the body for itself. Three things cannot be inlined: a function
+that leads back to itself, directly or through others, which has no
+bottom to unroll to; a `while` whose trip count the model decides
+rather than the compiler; and a body that leaves by a `break` or a
+`return` on a condition only the run settles, since which statements
+run is what the leaving decides. So recursion and a data-dependent
+loop both run, and `5!` written the obvious way comes out at 120.
 
-What a walked body may hold is narrower than what an inlined one may,
-because a walk carries numbers: an array or a `String` inside one is
-refused, as is a body giving more than one answer, and a `when` has no
-meaning there since there is no event inside a call. A walk that will
-not end is stopped and named — 64 calls deep, or ten million rounds of
-one loop. And a walked body is opaque to everything the symbolic layer
-does: it cannot be differentiated except through a `derivative`
-annotation, and it is not folded where its arguments are known.
+A walked body carries arrays, and records written out as their
+members at the boundary. What it may not do is answer with more than
+one output, or with an array whose length the compiler cannot see, or
+hold a `String` - a `when` has no meaning there either, since there is
+no event inside a call. A walk that will not end is stopped and named
+— 64 calls deep, or ten million rounds of one loop. And a walked body
+is opaque to everything the symbolic layer does: it cannot be
+differentiated except through a `derivative` annotation, and it is not
+folded where its arguments are known.
+
+A record is built by naming its fields or by giving them in order, and
+a field left out takes the value its own declaration gives it; a
+record that declares a `'constructor'` is built by that instead. A
+handle to something outside Modelica - a table's data - is built the
+same way, by name or in order.
 
 A body reads its own locals before they leave it: `Integer m = size(x,
 1)` is written in terms of an input, and left to be read later it
@@ -440,11 +450,12 @@ them.
 of the Modelica Standard Library's 2674 files, 2649 parse, and 381 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
-reasons - and the list is in [MSL.md](MSL.md). The largest of them:
-external C bodies, the table functions above all; a local a body
-assigns in one branch only; a record component's declaration
-value; the multibody library's arrays; and a clock whose interval
-comes from a count of ticks.
+reasons - and the list is in [MSL.md](MSL.md). The largest of them: a
+local a body assigns in one branch only, which is 46 models and is not
+a rule but a runaway expansion, measured twice over in
+[EXPANSION.md](EXPANSION.md); an array of records given a value of a
+shape this compiler cannot line up; a component left out by a
+condition; and a `size` of something whose shape was lost.
 
 **Structure**: no `operator` classes (`block` parses as a model,
 causality unchecked); an `expandable connector` takes each member's
@@ -459,7 +470,9 @@ though it were flat.
 A call whose body is written outside Modelica and which answers with
 nothing is read and dropped: `Streams.print(...)` writes a line on a
 terminal, there is none here, and no value goes missing. One that does
-answer is refused where it is called, its value being wanted.
+answer is answered where this compiler has an answer of its own, and
+refused by name where it has none - never quietly given a number that
+came from nowhere.
 
 **Semantics**: `StateSelect` is the language's own enumeration and a
 model may declare with it and read its literals, but what it asks for
@@ -469,9 +482,9 @@ and by index reduction. `der()` only of a plain variable; a condition of a
 run-time `if` equation must be readable from the parameters, the
 states and plain `name = expr` definitions at the instant the mode is
 settled — a condition that only an algebraic loop could produce falls
-back to the `else`. A `when` may stand among the statements of a
-model's algorithm section, but only at the top of one and holding
-whole-variable assignments. `homotopy` takes the real problem and goes
+back to the `else`. A `when` may stand among the statements of
+a model's algorithm section, but only at the top of one - inside it
+may hold an algorithm of its own. `homotopy` takes the real problem and goes
 straight at it, which the specification permits and which means no
 continuation is run. `Connections.root`, `potentialRoot`, `branch`,
 `isRoot` and `rooted` decide the roots of an overconstrained graph and
