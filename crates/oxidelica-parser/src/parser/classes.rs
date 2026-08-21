@@ -264,6 +264,10 @@ impl Parser {
         let mut initial_equations = Vec::new();
         let mut annotated = Annotated::default();
         let mut in_equations = false;
+        // A `protected` heading holds until a `public` one takes over,
+        // so what a declaration is reachable from is decided by which
+        // of the two was seen last.
+        let mut in_protected = false;
         // `initial equation` holds equations that describe the state the
         // model starts from rather than how it moves.
         let mut in_initial = false;
@@ -322,7 +326,11 @@ impl Parser {
                     connects.push(self.connect_clause()?);
                 }
                 Token::Protected | Token::Public => {
-                    self.bump();
+                    in_protected = self.bump() == Token::Protected;
+                    // A section heading also ends an equation section:
+                    // what follows it is declarations again.
+                    in_equations = false;
+                    in_initial = false;
                 }
                 // An implementation outside Modelica. The class is read
                 // so that the file it shares with others still loads;
@@ -420,7 +428,10 @@ impl Parser {
                             EquationLine::Call(call) => calls.push(call),
                         }
                     } else {
-                        components.extend(self.declaration()?);
+                        components.extend(self.declaration()?.into_iter().map(|mut one| {
+                            one.protected = in_protected;
+                            one
+                        }));
                     }
                 }
             }

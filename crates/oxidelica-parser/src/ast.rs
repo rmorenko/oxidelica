@@ -157,6 +157,10 @@ pub struct Component {
     /// `final` prefix: the declaration may not be modified or
     /// redeclared from an enclosing class.
     pub is_final: bool,
+    /// Whether the declaration stood in a `protected` section: it is
+    /// visible inside its own class and in classes extending it, and
+    /// nowhere else.
+    pub protected: bool,
     /// Names of the modifiers written with `each`: on an array
     /// component, `each` spreads a value over every element rather than
     /// handing the elements the slices of it.
@@ -859,56 +863,70 @@ impl Expr {
 
     /// Collect the names of all component references in the expression.
     pub fn collect_refs<'a>(&'a self, out: &mut Vec<&'a str>) {
+        self.for_each(&mut |expr| {
+            if let Expr::Ref(name) = expr {
+                out.push(name);
+            }
+        });
+    }
+
+    /// Apply `look` to this expression and to every expression written
+    /// inside it, the outermost first.
+    ///
+    /// What is walked is the values an expression is built from. Names
+    /// that are not values - the operator a call names, the variable a
+    /// comprehension counts with - are not expressions and are not
+    /// visited.
+    pub fn for_each<'a>(&'a self, look: &mut impl FnMut(&'a Expr)) {
+        look(self);
         match self {
-            Expr::Ref(name) => out.push(name),
-            Expr::Call(_, args) => args.iter().for_each(|a| a.collect_refs(out)),
-            Expr::Neg(inner) | Expr::Not(inner) => inner.collect_refs(out),
+            Expr::Call(_, args) => args.iter().for_each(|a| a.for_each(look)),
+            Expr::Neg(inner) | Expr::Not(inner) => inner.for_each(look),
             Expr::Bin(_, l, r) | Expr::Rel(_, l, r) | Expr::And(l, r) | Expr::Or(l, r) => {
-                l.collect_refs(out);
-                r.collect_refs(out);
+                l.for_each(look);
+                r.for_each(look);
             }
             Expr::If(c, t, e) => {
-                c.collect_refs(out);
-                t.collect_refs(out);
-                e.collect_refs(out);
+                c.for_each(look);
+                t.for_each(look);
+                e.for_each(look);
             }
             Expr::Index(base, subscripts) => {
-                base.collect_refs(out);
-                subscripts.iter().for_each(|s| s.collect_refs(out));
+                base.for_each(look);
+                subscripts.iter().for_each(|s| s.for_each(look));
             }
             // What the call reads is in its value and its arguments;
             // the rule names the same variables and, besides those, only
             // the compiler's own stand-ins for their derivatives.
             Expr::WithDerivative(value, _, seeds) => {
-                value.collect_refs(out);
-                seeds.iter().for_each(|(_, arg)| arg.collect_refs(out));
+                value.for_each(look);
+                seeds.iter().for_each(|(_, arg)| arg.for_each(look));
             }
-            Expr::Member(base, _) => base.collect_refs(out),
-            Expr::Array(items) => items.iter().for_each(|item| item.collect_refs(out)),
+            Expr::Member(base, _) => base.for_each(look),
+            Expr::Array(items) => items.iter().for_each(|item| item.for_each(look)),
             Expr::Elementwise(_, l, r) => {
-                l.collect_refs(out);
-                r.collect_refs(out);
+                l.for_each(look);
+                r.for_each(look);
             }
             Expr::Range(a, step, b) => {
-                a.collect_refs(out);
+                a.for_each(look);
                 if let Some(step) = step {
-                    step.collect_refs(out);
+                    step.for_each(look);
                 }
-                b.collect_refs(out);
+                b.for_each(look);
             }
             Expr::Comprehension(body, _, range) => {
-                body.collect_refs(out);
-                range.collect_refs(out);
+                body.for_each(look);
+                range.for_each(look);
             }
-            Expr::ColonSubscript | Expr::EndSubscript => {}
             Expr::MatrixRows(rows) => rows
                 .iter()
-                .for_each(|row| row.iter().for_each(|item| item.collect_refs(out))),
-            Expr::NamedArg(_, value) => value.collect_refs(out),
+                .for_each(|row| row.iter().for_each(|item| item.for_each(look))),
+            Expr::NamedArg(_, value) => value.for_each(look),
             Expr::Tuple(targets) => targets
                 .iter()
                 .flatten()
-                .for_each(|target| target.collect_refs(out)),
+                .for_each(|target| target.for_each(look)),
             _ => {}
         }
     }

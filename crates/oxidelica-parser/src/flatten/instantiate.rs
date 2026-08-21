@@ -85,6 +85,12 @@ pub(super) fn instantiate(
     // The class's own aliases join its imports, with any redeclarations
     // from outside already applied.
     let imports = effective_imports(registry, class, scope, &redeclares)?;
+    // What a component's class keeps to itself is nobody else's to
+    // read. This says nothing about the flat model, so it is asked
+    // once per class rather than once per instance.
+    if acc.protection_checked.insert(class.name.clone()) {
+        protection::nothing_reaches_inside(registry, class, &imports)?;
+    }
     // Names a wildcard-imported constant may not quietly stand in for:
     // a component of this class outranks anything `import A.*;` opened.
     let shadow: Vec<&str> = class

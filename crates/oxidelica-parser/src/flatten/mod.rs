@@ -18,7 +18,7 @@
 //!   `connect` statements that mention it.
 
 use crate::ast::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Maximum instantiation depth (guards against recursive classes).
 mod algorithms;
@@ -29,6 +29,7 @@ mod external;
 mod instantiate;
 mod names;
 mod operators;
+mod protection;
 mod strings;
 mod tables;
 #[cfg(test)]
@@ -790,6 +791,10 @@ struct Flat {
     /// its data behind one of these, and this is where what is behind
     /// it can still be reached.
     handles: HashMap<String, Expr>,
+    /// Classes already looked over for a reach into what a component
+    /// keeps to itself. The answer is about the class alone, so it is
+    /// worked out once however many instances of it a model holds.
+    protection_checked: HashSet<String>,
 }
 
 /// How many `connect` equations name each connector.

@@ -7922,3 +7922,58 @@ fn an_answer_of_more_than_one_dimension_is_an_array_of_arrays() {
     .to_string();
     assert!(missing.contains("never assigns `d[1,2]`"), "{missing}");
 }
+
+/// What a `protected` section keeps back is the class's own: a model
+/// holding one of its instances may write its public members and not
+/// the rest.
+#[test]
+fn a_protected_declaration_is_not_reachable_from_outside() {
+    const INNER: &str = "model Inner protected parameter Real k = 1; Real hidden; \
+                         public Real y; equation hidden = time; y = k * hidden; end Inner; ";
+
+    // Named from outside, however it is written.
+    for reach in [
+        "model M Inner a; Real z; equation z = a.hidden; end M;",
+        "model M Inner a[2]; Real z; equation z = a[1].hidden; end M;",
+    ] {
+        let refusal = parse_model(&format!("{INNER}{reach}"))
+            .unwrap_err()
+            .to_string();
+        assert!(refusal.contains("`protected`"), "{refusal}");
+        assert!(refusal.contains("a.hidden"), "{refusal}");
+    }
+
+    // Modified from the declaration, which is the same reach with the
+    // value going the other way.
+    let refusal = parse_model(&format!(
+        "{INNER}model M Inner a(k = 5); Real z; equation z = a.y; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("a.k"), "{refusal}");
+
+    // A public member of the same class, and the same names read
+    // where they belong: inside the class, and inside one extending
+    // it.
+    parse_model(&format!(
+        "{INNER}model M Inner a; Real z; equation z = a.y; end M;"
+    ))
+    .unwrap();
+    parse_model(&format!(
+        "{INNER}model M extends Inner; Real z; equation z = hidden + k; end M;"
+    ))
+    .unwrap();
+}
+
+/// A connector kept back is kept back from `connect` too.
+#[test]
+fn a_protected_connector_is_not_reachable_from_outside() {
+    let refusal = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model Part protected Pin p; equation p.v = time; end Part; \
+         model M Part a; Pin q; equation connect(a.p, q); end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refusal.contains("a.p"), "{refusal}");
+}

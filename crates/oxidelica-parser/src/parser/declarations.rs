@@ -183,6 +183,9 @@ impl Parser {
                 redeclares,
                 redeclaration,
                 is_final,
+                // Which section a declaration stood in is known where
+                // the sections are read, and set there.
+                protected: false,
                 each_modifiers,
                 annotations: annotated.kept,
             });

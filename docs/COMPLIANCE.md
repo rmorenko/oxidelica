@@ -461,8 +461,10 @@ condition; and a `size` of something whose shape was lost.
 causality unchecked); an `expandable connector` takes each member's
 type from the other side of the connection that names it, so a member
 connected only to another bus member has nowhere to get one, and
-`each`-style array members of a bus are not supported;
-`protected` is accepted but not enforced. A library may be a directory tree, but
+`each`-style array members of a bus are not supported. `protected` is
+enforced where it is reached across a component - naming `a.hidden`, or
+modifying it from the declaration - and not where a class holding the
+declaration is looked into by other means. A library may be a directory tree, but
 a file's place in it comes from its `within` clause rather than from
 where the file sits, so a tree without `within` headers is read as
 though it were flat.

@@ -74,7 +74,9 @@ pub(super) fn nothing_left_unanswered(model: &Model) -> Result<(), String> {
     match standing {
         None => Ok(()),
         Some(name) => Err(format!(
-            "`{name}` is written outside Modelica. This compiler answers for that name where              what it needs is in the model - a table written as a matrix, a string it can              read - and this call is not one of those"
+            "`{name}` is written outside Modelica. This compiler answers for that name \
+             where what it needs is in the model - a table written as a matrix, a \
+             string it can read - and this call is not one of those"
         )),
     }
 }
