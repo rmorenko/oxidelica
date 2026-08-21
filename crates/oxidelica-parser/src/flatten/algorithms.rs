@@ -1925,6 +1925,18 @@ fn worked_body(
                 // A local that is an array keeps its name, because the
                 // array layer reads an element off a name and cannot
                 // read one off a list written in its place.
+                // A declaration value may name a constant of a class
+                // the way a statement may - `Real Tlim = min(T,
+                // data.TCRIT)` reads a constant of a record beside the
+                // function - and it is read here, where the names mean
+                // what they meant to whoever wrote them.
+                let binding = &substitute_class_constants(
+                    binding,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    &[],
+                );
                 let bound = match component.dimensions.is_empty() {
                     true => substitute_refs(binding, &bindings),
                     false => binding.clone(),

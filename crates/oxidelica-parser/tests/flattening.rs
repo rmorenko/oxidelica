@@ -8302,3 +8302,33 @@ fn a_derivative_seeds_an_input_named_through_a_chain_of_aliases() {
     .unwrap();
     assert!(m.components.iter().any(|c| c.name == "y"));
 }
+
+/// A declaration value inside a function reads a constant of a class
+/// the way a statement does.
+#[test]
+fn a_local_declaration_value_reads_a_constant_of_a_class() {
+    let m = parse_model(
+        "package Lib \
+           record Limits constant Real TOP = 7; end Limits; \
+           function capped input Real x; output Real y; \
+           protected Real held = min(x, Limits.TOP); \
+           algorithm y := 2 * held; end capped; \
+         end Lib; \
+         model M Real z; equation z = Lib.capped(10); end M;",
+    )
+    .unwrap();
+    // 10 capped at 7, doubled. Read where the name was written, or
+    // `Limits.TOP` would still be standing with nothing to say.
+    let z = m.components.iter().find(|c| c.name == "z").unwrap();
+    let mut equations = m.equations.iter().filter(|e| {
+        let mut names = Vec::new();
+        e.lhs.collect_refs(&mut names);
+        names.contains(&"z")
+    });
+    let settled = equations.next().expect("nothing settles z");
+    // Nothing of `Limits.TOP` is left standing: the value came out as
+    // arithmetic on numbers alone.
+    let mut left = Vec::new();
+    settled.rhs.collect_refs(&mut left);
+    assert!(left.is_empty(), "{:?} in {z:?}", left);
+}
