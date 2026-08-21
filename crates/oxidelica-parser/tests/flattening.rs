@@ -7811,3 +7811,49 @@ fn a_when_of_an_algorithm_is_no_place_to_leave_from() {
     )
     .contains("`return` belongs in a function"),);
 }
+
+#[test]
+fn a_tuple_may_stand_inside_a_branch_the_compiler_settles() {
+    // `Modelica.Blocks.Continuous.Filter` picks its coefficients by
+    // kind: `if filterType == LowPass then (r, a, b, ku) = lowPass(...)`.
+    // A tuple reads the same way inside a branch as at the top of a
+    // class - one call filling several targets.
+    let m = parse_model(
+        "model M function split input Real u; output Real a; output Real b; \
+         algorithm a := u; b := 2 * u; end split; \
+         parameter Boolean low = true; Real p; Real q; \
+         equation if low then (p, q) = split(time); else p = 0; q = 0; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    let said = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    assert_eq!(said("p"), "Time");
+    assert_eq!(said("q"), "Bin(Mul, Number(2.0), Time)");
+
+    // A slot left out costs its output nothing, in a branch as
+    // anywhere else.
+    let skipped = parse_model(
+        "model M function split input Real u; output Real a; output Real b; \
+         algorithm a := u; b := 2 * u; end split; \
+         parameter Boolean low = true; Real q; \
+         equation if low then (, q) = split(time); else q = 0; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    assert_eq!(skipped.equations.len(), 1);
+
+    // The right side of a tuple is a call, wherever the tuple stands.
+    let odd = parse_model(
+        "model M parameter Boolean low = true; Real p; Real q; \
+         equation if low then (p, q) = time; else p = 0; q = 0; end if; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(odd.contains("must be a function call"), "{odd}");
+}

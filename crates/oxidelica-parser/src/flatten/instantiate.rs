@@ -996,83 +996,94 @@ pub(super) fn instantiate(
             acc.equations.truncate(held);
         }
     }
-    for equation in &class.equations {
-        // `(a, , c) = f(...)`: one call fills several targets. The
-        // call is inlined once per output; a skipped slot costs its
-        // computation nothing, since the expression is never used.
-        if let Expr::Tuple(targets) = &equation.lhs {
-            let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports, &shadow);
-            let rhs = prefix_expr(&rhs, prefix, &outers);
-            let Expr::Call(name, raw_args) = &rhs else {
-                return Err("the right side of a tuple equation must be a function call".into());
-            };
-            // `spatialDistribution` fills a pair the way a function
-            // does, but there is no body to inline: what it stands for
-            // is a profile the run carries, so it is recorded here and
-            // the equation becomes the two boundary values.
-            if name == "spatialDistribution" {
-                let shapes = Shapes {
-                    sizes: &sizes_here,
-                    loop_vars: &no_loop_vars,
-                    consts: &local_consts,
-                    records: &records_here,
-                };
-                let arguments = raw_args
-                    .iter()
-                    .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
-                    .collect::<Result<Vec<Expr>, String>>()?;
-                // The targets go through the usual pipeline, so the
-                // names recorded are the flat ones.
-                let mut named = Vec::new();
-                for target in targets {
-                    let Some(target) = target else {
-                        named.push(None);
-                        continue;
-                    };
-                    named.push(Some(expand_here(target, &no_loop_vars)?.into_expr()));
-                }
-                spatial_transport(&named, &arguments, prefix, &outers, &local_consts, acc)?;
-                continue;
-            }
-            let function = lookup(registry, name, scope, &imports)
-                .filter(|c| c.kind == ClassKind::Function)
-                .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
+    // `(r, a, b, ku) = lowPass(cr, c0, c1, f_cut)`: one call fills
+    // several targets, and a skipped slot costs its output nothing
+    // since the expression is never used. A tuple may stand at the top
+    // of a class or inside a branch the compiler settles, and it is
+    // read the same way in both.
+    let tuple_equation = |equation: &EquationItem, acc: &mut Flat| -> Result<bool, String> {
+        let Expr::Tuple(targets) = &equation.lhs else {
+            return Ok(false);
+        };
+        let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports, &shadow);
+        let rhs = prefix_expr(&rhs, prefix, &outers);
+        let Expr::Call(name, raw_args) = &rhs else {
+            return Err("the right side of a tuple equation must be a function call".into());
+        };
+        // `spatialDistribution` fills a pair the way a function
+        // does, but there is no body to inline: what it stands for
+        // is a profile the run carries, so it is recorded here and
+        // the equation becomes the two boundary values.
+        if name == "spatialDistribution" {
             let shapes = Shapes {
                 sizes: &sizes_here,
                 loop_vars: &no_loop_vars,
                 consts: &local_consts,
                 records: &records_here,
             };
-            let values = raw_args
+            let arguments = raw_args
                 .iter()
-                .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
-                .collect::<Result<Vec<_>, String>>()?;
-            let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
-            let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
-            let outputs = inline_function_outputs(
-                function,
-                &arguments,
-                &argument_shapes,
-                &local_consts,
-                registry,
-                0,
-            )?;
-            if targets.len() > outputs.len() {
-                return Err(format!(
-                    "`{name}` has {} output(s) for {} target(s)",
-                    outputs.len(),
-                    targets.len()
-                ));
+                .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
+                .collect::<Result<Vec<Expr>, String>>()?;
+            // The targets go through the usual pipeline, so the
+            // names recorded are the flat ones.
+            let mut named = Vec::new();
+            for target in targets {
+                let Some(target) = target else {
+                    named.push(None);
+                    continue;
+                };
+                named.push(Some(expand_here(target, &no_loop_vars)?.into_expr()));
             }
-            for (slot, (_, value)) in targets.iter().zip(outputs) {
-                let Some(target) = slot else { continue };
-                // The target goes through the usual pipeline; the
-                // inlined value is already resolved and only needs the
-                // array layer, or a second prefix would corrupt it.
-                let lhs = expand_here(target, &no_loop_vars)?;
-                let rhs = expand(&value, &shapes, registry, scope, &imports, 0)?;
-                push_equations(&lhs, &rhs, acc)?;
-            }
+            spatial_transport(&named, &arguments, prefix, &outers, &local_consts, acc)?;
+            return Ok(true);
+        }
+        let function = lookup(registry, name, scope, &imports)
+            .filter(|c| c.kind == ClassKind::Function)
+            .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+            records: &records_here,
+        };
+        let values = raw_args
+            .iter()
+            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+            .collect::<Result<Vec<_>, String>>()?;
+        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+        let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
+        let outputs = inline_function_outputs(
+            function,
+            &arguments,
+            &argument_shapes,
+            &local_consts,
+            registry,
+            0,
+        )?;
+        if targets.len() > outputs.len() {
+            return Err(format!(
+                "`{name}` has {} output(s) for {} target(s)",
+                outputs.len(),
+                targets.len()
+            ));
+        }
+        for (slot, (_, value)) in targets.iter().zip(outputs) {
+            let Some(target) = slot else { continue };
+            // The target goes through the usual pipeline; the
+            // inlined value is already resolved and only needs the
+            // array layer, or a second prefix would corrupt it.
+            let lhs = expand_here(target, &no_loop_vars)?;
+            let rhs = expand(&value, &shapes, registry, scope, &imports, 0)?;
+            push_equations(&lhs, &rhs, acc)?;
+        }
+        Ok(true)
+    };
+    for equation in &class.equations {
+        // `(a, , c) = f(...)`: one call fills several targets. The
+        // call is inlined once per output; a skipped slot costs its
+        // computation nothing, since the expression is never used.
+        if tuple_equation(equation, acc)? {
             continue;
         }
         let lhs = expand_here(&equation.lhs, &no_loop_vars)?;
@@ -1470,6 +1481,9 @@ pub(super) fn instantiate(
             )?;
         }
         for equation in &branch.equations {
+            if tuple_equation(equation, acc)? {
+                continue;
+            }
             push_equations(
                 &expand_here(&equation.lhs, &no_loop_vars)?,
                 &expand_here(&equation.rhs, &no_loop_vars)?,

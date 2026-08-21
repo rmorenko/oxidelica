@@ -234,6 +234,10 @@ A run of elements may be named along more than one axis - `oM[1:mBase,
 moving fastest. A name bound whole and then written into element by
 element is taken apart first.
 
+A tuple filled by a call - `(r, a, b, ku) = lowPass(cr, c0, c1,
+f_cut)` - may stand at the top of a class or inside a branch the
+compiler settles, and is read the same way in both.
+
 A `when` written among a model's statements holds an algorithm like
 any other - an `if`, a loop, a write to one element, a check - and
 running it is what says which names it leaves changed and what each of
@@ -429,7 +433,7 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2649 parse, and 373 of
+of the Modelica Standard Library's 2674 files, 2649 parse, and 377 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:
