@@ -754,6 +754,72 @@ pub(super) fn instantiate(
                 .find(|(name, _)| name == target)
                 .map(|(_, value)| value.clone())
         };
+        // The same value where the declaration is a parameter, which
+        // may not become an equation: a parameter has to stay a value
+        // the run works out at the start. It is handed down as one
+        // modifier per field instead, which is what `rcData(R = ..., C
+        // = ...)` would have said. A field the record declares `final`
+        // is not one a value may hand down, and where the value will
+        // not come apart at all it is left where it was.
+        let per_field = |value: &Expr, of: &ClassDef, prefixed: bool| -> Vec<Vec<(String, Expr)>> {
+            let fields: Vec<String> = of
+                .components
+                .iter()
+                .filter(|field| !field.is_final)
+                .map(|field| field.name.clone())
+                .collect();
+            if fields.is_empty() || fields.len() != of.components.len() {
+                return Vec::new();
+            }
+            let shapes = Shapes {
+                sizes: &sizes_here,
+                loop_vars: &HashMap::new(),
+                consts: &local_consts,
+                records: &records_here,
+            };
+            let expr = match prefixed {
+                true => value.clone(),
+                false => {
+                    let expr =
+                        substitute_class_constants(value, registry, scope, &imports, &shadow);
+                    prefix_expr(&expr, prefix, &outers)
+                }
+            };
+            let worked = expand(&expr, &shapes, registry, scope, &imports, 0).and_then(|worked| {
+                records_written_out(worked, &shapes, registry, &|e| {
+                    expand(e, &shapes, registry, scope, &imports, 0)
+                })
+            });
+            let Ok(worked) = worked else {
+                return Vec::new();
+            };
+            // One record is its fields, and a field may be an array of
+            // its own, so what is counted here is fields rather than
+            // numbers.
+            let one = |item: &Value| -> Option<Vec<Expr>> {
+                match item {
+                    Value::Array(given) if given.len() == fields.len() => {
+                        Some(given.iter().cloned().map(Value::into_expr).collect())
+                    }
+                    _ => None,
+                }
+            };
+            let each: Option<Vec<Vec<Expr>>> = match &worked {
+                Value::Array(items) if items.len() == element_names.len() => {
+                    items.iter().map(one).collect()
+                }
+                _ => None,
+            };
+            // Failing one record per element, one record for all of
+            // them - which is what a scalar value does for an array.
+            let per_element = each
+                .or_else(|| one(&worked).map(|whole| vec![whole; element_names.len()]))
+                .unwrap_or_default();
+            per_element
+                .into_iter()
+                .map(|given| fields.iter().cloned().zip(given).collect())
+                .collect()
+        };
         // A record's value is not one number per element: `Complex
         // vs[m] = plug.pin.v` says as much about `vs[1].re` as about
         // `vs[1]`, and there is no name in the flat model for `vs[1]`
@@ -762,8 +828,20 @@ pub(super) fn instantiate(
         // records is one this compiler already writes out field by
         // field. A parameter is another matter: its value has to stay
         // a value, so it is left as it was.
-        let of_record = records_here.contains_key(&format!("{prefix}{}", component.name))
-            && component.variability == Variability::Continuous;
+        let named_record = records_here
+            .get(&format!("{prefix}{}", component.name))
+            .and_then(|of| registry.get(of.as_str()).copied());
+        let of_record = named_record.is_some() && component.variability == Variability::Continuous;
+        let of_parameter = named_record.filter(|_| !of_record);
+        let fields_given: Vec<Vec<(String, Expr)>> = match (
+            of_parameter,
+            handed_down(&component.name),
+            &component.binding,
+        ) {
+            (Some(of), Some(value), _) => per_field(&value, of, true),
+            (Some(of), None, Some(binding)) => per_field(binding, of, false),
+            _ => Vec::new(),
+        };
         let element_bindings: Option<Vec<Expr>> = match (
             handed_down(&component.name),
             &component.binding,
@@ -778,6 +856,7 @@ pub(super) fn instantiate(
                 record_values.push((component.name.clone(), binding.clone(), false));
                 None
             }
+            _ if of_parameter.is_some() && !fields_given.is_empty() => None,
             (Some(value), _, false, false) => Some(spread(&value, "value", true)?),
             (None, Some(binding), false, false) => Some(spread(binding, "value", false)?),
             _ => None,
@@ -825,6 +904,7 @@ pub(super) fn instantiate(
                     };
                     (name.clone(), value)
                 })
+                .chain(fields_given.get(position).into_iter().flatten().cloned())
                 .collect();
             let site = Site {
                 component: &component,

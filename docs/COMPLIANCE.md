@@ -270,8 +270,11 @@ of records adds them with `'+'` starting from `'0'`, or from the first
 element where no `'0'` is declared. An operator function may build its
 record output field by field. A variable declared with a record value -
 `Complex vs[m] = plug.pin.v` - says that value of its fields, since
-there is no name in the flat model for a record itself; a parameter
-keeps its value where it was written. An operator written for one record and
+there is no name in the flat model for a record itself. A parameter
+may not become an equation, so its value is handed down as one
+modifier per field instead; a field the record declares `final` is not
+one a value may hand down, and a value that will not come apart is
+left where it was written. An operator written for one record and
 handed a whole array of them works on each in turn - `v1 - v2` of two
 `Complex[3]` is three subtractions - which is the same vectorization
 an ordinary function gets, and it reaches functions taking records
@@ -407,7 +410,7 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2674 files, 2649 parse, and 353 of
+of the Modelica Standard Library's 2674 files, 2649 parse, and 354 of
 its 734 example models flatten. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them:

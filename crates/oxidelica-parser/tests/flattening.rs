@@ -7474,3 +7474,82 @@ fn zero_fits_a_unit_of_any_kind() {
     .to_string();
     assert!(wrong.contains("cannot add"), "{wrong}");
 }
+
+#[test]
+fn a_record_valued_parameter_is_handed_down_field_by_field() {
+    // `parameter RCData rcData[nRC] = {RCData(R = 0, C = 0)}` is how
+    // the battery library carries the parameters of its RC elements. A
+    // parameter may not become an equation - its value has to stay a
+    // value the run works out at the start - so it is handed down as
+    // one modifier per field.
+    const PAIR: &str = "record P Real a; Real b; end P; ";
+    let m = parse_model(&format!(
+        "{PAIR}model M parameter P p[2] = {{P(1, 2), P(3, 4)}}; \
+         Real y; equation y = p[2].a * time + p[1].b; end M;"
+    ))
+    .unwrap();
+    // A field takes its value the way any modifier's does, which for
+    // a field of a record is a declaration equation.
+    let worth = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| e.rhs.clone())
+    };
+    assert_eq!(worth("p[1].a"), Some(Expr::Number(1.0)));
+    assert_eq!(worth("p[1].b"), Some(Expr::Number(2.0)));
+    assert_eq!(worth("p[2].a"), Some(Expr::Number(3.0)));
+    assert_eq!(worth("p[2].b"), Some(Expr::Number(4.0)));
+
+    // One record given to a whole array reaches every element of it,
+    // the way a single number does.
+    let spread = parse_model(&format!(
+        "{PAIR}model M parameter P p[3] = P(5, 6); \
+         Real y; equation y = p[3].a * time; end M;"
+    ))
+    .unwrap();
+    assert_eq!(
+        spread
+            .equations
+            .iter()
+            .filter(|e| e.rhs == Expr::Number(5.0))
+            .count(),
+        3
+    );
+
+    // A field the record declares `final` is not one a value may hand
+    // down, and the value is left where it was rather than half
+    // applied - which is what this compiler did with every record
+    // value until now.
+    let fixed = parse_model(
+        "record Q Real a; final Real b = 9; end Q; \
+         model M parameter Q q = Q(1); Real y; equation y = q.b * time; end M;",
+    )
+    .unwrap();
+    assert!(
+        fixed
+            .equations
+            .iter()
+            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "q.b")
+                && e.rhs == Expr::Number(9.0)),
+        "{:?}",
+        fixed.equations
+    );
+
+    // A record built from fewer values than it has fields takes the
+    // rest from its own declaration.
+    let partly = parse_model(
+        "record R Real a; Real b = 7; end R; \
+         model M parameter R r = R(1); Real y; equation y = r.b * time; end M;",
+    )
+    .unwrap();
+    assert!(
+        partly
+            .equations
+            .iter()
+            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "r.b")
+                && e.rhs == Expr::Number(7.0)),
+        "{:?}",
+        partly.equations
+    );
+}
