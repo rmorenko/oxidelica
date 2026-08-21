@@ -8204,3 +8204,26 @@ fn an_input_nothing_settles_is_refused() {
         parse_model(held).unwrap();
     }
 }
+
+/// A class reached by two paths of a diamond is one class.
+#[test]
+fn a_base_inherited_twice_is_merged_once() {
+    let m = parse_model(
+        "partial model Base input Real a = 1; Real b; end Base; \
+         partial model Left extends Base; end Left; \
+         model Both extends Left; extends Base; equation b = a * time; end Both; \
+         model M Both t; Real z; equation z = t.b; end M;",
+    )
+    .unwrap();
+    // One of each, not two: merging the base twice would give the
+    // instance two of every variable and two of every equation.
+    for name in ["t.a", "t.b"] {
+        assert_eq!(
+            m.components.iter().filter(|c| c.name == name).count(),
+            1,
+            "{name} in {:?}",
+            m.components.iter().map(|c| &c.name).collect::<Vec<_>>()
+        );
+    }
+    assert_eq!(m.equations.len(), 3);
+}

@@ -814,6 +814,10 @@ struct Flat {
     /// Written down here because after flattening a value that was
     /// given and a value that was never written look alike.
     unsupplied: Vec<(String, String)>,
+    /// Which base classes have been merged into which instance. A
+    /// diamond names one of them by two paths, and the specification
+    /// says such an element is included once.
+    extended: HashSet<(String, String)>,
 }
 
 /// How many `connect` equations name each connector.

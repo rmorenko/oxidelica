@@ -202,6 +202,15 @@ pub(super) fn instantiate(
             false => lookup(registry, &extend.base, scope, &imports)
                 .ok_or_else(|| format!("unknown base class `{}`", extend.base))?,
         };
+        // A class reached by more than one path of a diamond is one
+        // class: `Shape` extends both the animation shape and the
+        // partial shape that one is built on, and what they share is
+        // shared rather than doubled. Merging it twice would give the
+        // instance two of every variable its base declares and two of
+        // every equation.
+        if !acc.extended.insert((prefix.to_string(), base.name.clone())) {
+            continue;
+        }
         let mods: Vec<(String, Expr)> = extend
             .modifiers
             .iter()
