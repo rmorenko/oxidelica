@@ -3159,3 +3159,125 @@ fn a_body_written_here_takes_the_numbers_it_was_written_for() {
         "{refusal}"
     );
 }
+
+/// A table block of the shape the standard library gives one whose
+/// first column is time: the data in a handle, the value asked for by
+/// a body written in C, and the corners asked for so the run can put
+/// events there.
+const TIME_TABLE: &str = "package Times \
+     class Handle extends ExternalObject; \
+       function constructor input String tableName; input String fileName; \
+         input Real table[:, :]; input Real startTime; input Integer columns[:]; \
+         input Integer smoothness; input Integer extrapolation; input Real shiftTime; \
+         output Handle h; \
+         external \"C\" h = ModelicaStandardTables_CombiTimeTable_init3(tableName, fileName, \
+           table, startTime, columns, smoothness, extrapolation, shiftTime); \
+         end constructor; \
+       function destructor input Handle h; \
+         external \"C\" ModelicaStandardTables_CombiTimeTable_close(h); end destructor; \
+     end Handle; \
+     function getValue input Handle h; input Integer column; input Real t; \
+       input Real nextEvent; input Real preNextEvent; output Real y; \
+       external \"C\" y = ModelicaStandardTables_CombiTimeTable_getValue(h, column, t, \
+         nextEvent, preNextEvent); end getValue; \
+     function nextEvent input Handle h; input Real t; output Real at; \
+       external \"C\" at = ModelicaStandardTables_CombiTimeTable_nextTimeEvent(h, t); \
+       end nextEvent; \
+   end Times; ";
+
+#[test]
+fn a_time_table_follows_the_lines_it_was_written_as() {
+    let result = run(&format!(
+        "{TIME_TABLE} model M \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2; 2, 6], \
+           0, {{2}}, 1, 2, 0); \
+         Real y; Real turns; \
+         equation y = Times.getValue(h, 1, time, 0, 0); turns = Times.nextEvent(h, time); \
+         annotation(experiment(StopTime = 1.5, Interval = 0.25, Tolerance = 1e-10)); end M;"
+    ));
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let (y, turns) = (column("y"), column("turns"));
+    let at = |when: f64, which: usize| {
+        result
+            .rows
+            .iter()
+            .rev()
+            .find(|row| row[0] <= when + 1e-9)
+            .unwrap()[which]
+    };
+
+    // Two straight lines: 2t up to one, then 2 + 4(t - 1) past it,
+    // carried on beyond the last row. The room left is for the nudge
+    // an event puts on the clock, not for the arithmetic.
+    for when in [0.0, 0.25, 0.5, 0.75] {
+        assert!(
+            (at(when, y) - 2.0 * when).abs() < 1e-6,
+            "at {when}: {}",
+            at(when, y)
+        );
+    }
+    for when in [1.0, 1.25, 1.5] {
+        let closed = 2.0 + 4.0 * (when - 1.0);
+        assert!(
+            (at(when, y) - closed).abs() < 1e-6,
+            "at {when}: {}",
+            at(when, y)
+        );
+    }
+
+    // The next corner the table turns, at every point of the run.
+    assert_eq!(at(0.5, turns), 1.0);
+    assert_eq!(at(1.25, turns), 2.0);
+
+    // The corner at t = 1 is an event, so the run stops there rather
+    // than stepping over it.
+    let corners = result.rows.iter().filter(|row| (row[0] - 1.0).abs() < 1e-9);
+    assert!(corners.count() >= 2, "no event at the corner");
+}
+
+#[test]
+fn a_time_table_is_asked_for_its_corners_at_an_event() {
+    // The shape the standard library's block has: the next corner is
+    // read at an event rather than at every step, and how many outputs
+    // the block has is the longest of two lists.
+    let result = run(&format!(
+        "{TIME_TABLE} model M \
+         parameter Integer columns[:] = {{2}}; parameter Real offset[:] = {{0}}; \
+         parameter Integer nout = max([size(columns, 1); size(offset, 1)]); \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2; 2, 6], \
+           0, columns, 1, 2, 0); \
+         Real y[nout]; discrete Real nextT(start = 0, fixed = true); \
+         equation when {{time >= pre(nextT), initial()}} then \
+           nextT = Times.nextEvent(h, time); end when; \
+         for i in 1:nout loop y[i] = Times.getValue(h, i, time, nextT, pre(nextT)); end for; \
+         annotation(experiment(StopTime = 1.5, Interval = 0.5, Tolerance = 1e-10)); end M;"
+    ));
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let (y, next) = (column("y[1]"), column("nextT"));
+    let last = result.rows.last().unwrap();
+    assert!((last[y] - 4.0).abs() < 1e-6, "{}", last[y]);
+    // Past the last row of the table there is no corner left to turn.
+    assert_eq!(last[next], 2.0);
+}
+
+#[test]
+fn a_size_written_before_the_array_is_settled_once_every_shape_is_in() {
+    // `extends MO(final nout = max([size(columns, 1); size(offset, 1)]))`
+    // is how the standard library's table blocks count their outputs:
+    // the lengths belong to declarations further down the same class,
+    // so nothing could say what they were where the modifier was
+    // written.
+    let result = run(
+        "package P partial block Base parameter Integer n = 1; Real y[n]; end Base; end P; \
+         model M extends P.Base(final n = max([size(cols, 1); size(offs, 1)])); \
+         parameter Integer cols[:] = {2, 3}; parameter Real offs[:] = {0}; \
+         equation for i in 1:n loop y[i] = i * time; end for; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    // The run got as far as working its parameters out, which is what
+    // settling the length buys: with `size` still standing in `n`,
+    // there is nothing the run could make of it.
+    let first = result.columns.iter().position(|c| c == "y[1]").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[first] - last[0]).abs() < 1e-12, "{}", last[first]);
+}

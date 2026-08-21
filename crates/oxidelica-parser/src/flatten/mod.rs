@@ -602,7 +602,47 @@ fn settle_sizes(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
     if known.is_empty() {
         return;
     }
+    /// Every number in a value written out, in order, or `None` where
+    /// something in it is not one.
+    fn all_numbers(expr: &Expr) -> Option<Vec<f64>> {
+        match expr {
+            Expr::Number(value) => Some(vec![*value]),
+            Expr::Array(items) => items.iter().try_fold(Vec::new(), |mut all, item| {
+                all.extend(all_numbers(item)?);
+                Some(all)
+            }),
+            Expr::MatrixRows(rows) => {
+                rows.iter()
+                    .flatten()
+                    .try_fold(Vec::new(), |mut all: Vec<f64>, cell| {
+                        all.extend(all_numbers(cell)?);
+                        Some(all)
+                    })
+            }
+            _ => None,
+        }
+    }
+
     fn answer(expr: &Expr, known: &HashMap<&str, &Vec<i64>>) -> Expr {
+        // The largest of a column of lengths, which is how a block
+        // with several outputs counts them: `nout = max([size(columns,
+        // 1); size(offset, 1)])`. Once the lengths are in, that is a
+        // number rather than a question about arrays.
+        if let Expr::Call(name, args) = expr {
+            if let ("max" | "min", [inside]) = (name.as_str(), args.as_slice()) {
+                if let Some(numbers) = all_numbers(&answer(inside, known)) {
+                    if let Some((first, rest)) = numbers.split_first() {
+                        return Expr::Number(rest.iter().fold(
+                            *first,
+                            |a, b| match name.as_str() {
+                                "max" => a.max(*b),
+                                _ => a.min(*b),
+                            },
+                        ));
+                    }
+                }
+            }
+        }
         if let Expr::Call(name, args) = expr {
             if name == "size" && args.len() == 2 {
                 if let (Expr::Ref(of), Expr::Number(axis)) = (&args[0], &args[1]) {
@@ -618,6 +658,12 @@ fn settle_sizes(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
         let recur = |e: &Expr| answer(e, known);
         match expr {
             Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
+            Expr::MatrixRows(rows) => Expr::MatrixRows(
+                rows.iter()
+                    .map(|row| row.iter().map(recur).collect())
+                    .collect(),
+            ),
             Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
             Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
             Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),

@@ -1771,6 +1771,16 @@ pub(super) fn instantiate_one(
                 Some(expr) => Some(expr.clone()),
                 None => flat.binding.as_ref().map(&resolve_value).transpose()?,
             };
+            // A bound is read the same way: `timeScale(min = Modelica
+            // .Constants.eps)` names a constant of a package, and
+            // nothing downstream holds a name like that. A bound
+            // written over a whole array does not come to one value,
+            // and is left as it was rather than refused - a bound is
+            // something a model is held to, not something it is built
+            // from.
+            let bound = |expr: &Expr| resolve_value(expr).unwrap_or_else(|_| expr.clone());
+            flat.min = flat.min.as_ref().map(bound);
+            flat.max = flat.max.as_ref().map(bound);
             // A parent modifier `name = expr` overrides the binding, and
             // a nested one - `phi(start = 1)` - the attribute.
             let modifier = |target: &str| {

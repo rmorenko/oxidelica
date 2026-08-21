@@ -85,7 +85,13 @@ and where each answer goes.
 **4. What is written here.** Random first (smallest and exactly
 specified), then strings, then the tables.
 
-The generators are done, the one-dimensional tables, and the strings.
+The generators are done, the tables - both kinds - and the strings.
+
+A table whose first column is time is written out the same way as an
+ordinary one, and says two things more: where it next turns a corner,
+which is what a run puts an event at, and nothing at all before the
+instant it was told to start. Its abscissa may be shifted along the
+axis, which the block uses to move a table without rewriting it.
 
 `ModelicaRandom_xorshift64star` is written again in `outside.rs`, which
 sits where both the compiler and the run can reach it - numbers in,

@@ -34,6 +34,11 @@ struct Table {
     columns: Vec<usize>,
     smoothness: f64,
     extrapolation: f64,
+    /// Where the first column is time: what to add to it, and the
+    /// instant before which the table says nothing at all. Both are
+    /// zero for a table whose first column is an ordinary abscissa.
+    shift: f64,
+    starts: f64,
 }
 
 /// Work out every table call in the model, or say why one cannot be.
@@ -84,6 +89,34 @@ pub(super) fn resolve_tables(
     for (condition, _) in &mut model.asserts {
         *condition = rewrite(condition);
     }
+    // A table whose first column is time says when it next turns a
+    // corner, and the block asks that at an event.
+    for clause in &mut model.when_clauses {
+        for branch in &mut clause.branches {
+            branch.condition = rewrite(&branch.condition);
+            for action in &mut branch.actions {
+                match action {
+                    WhenAction::Assign(_, value)
+                    | WhenAction::Reinit(_, value)
+                    | WhenAction::TupleAssign(_, value) => *value = rewrite(value),
+                    // Taken apart while flattening, so neither a loop
+                    // nor a choice is left.
+                    WhenAction::Terminate(_) | WhenAction::Loop(_) | WhenAction::Choice(_) => {}
+                }
+            }
+        }
+    }
+    for conditional in &mut model.conditional {
+        for condition in &mut conditional.conditions {
+            *condition = rewrite(condition);
+        }
+        for branch in &mut conditional.branches {
+            for equation in branch {
+                equation.lhs = rewrite(&equation.lhs);
+                equation.rhs = rewrite(&equation.rhs);
+            }
+        }
+    }
     match trouble {
         Some(why) => Err(why),
         None => Ok(()),
@@ -98,14 +131,20 @@ pub(super) fn resolve_tables(
 /// the call is left standing to be refused by name.
 fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
     // The standard library has numbered its way to `_init3`; each
-    // takes the same first six things, and later ones say more about
+    // takes the same things first, and later ones say more about
     // reading a file, which is not a table this reads anyway. A file
     // name other than `"NoName"` means the data is not here at all.
     let Expr::Call(made, args) = built else {
         return None;
     };
-    if !made.starts_with("ModelicaStandardTables_CombiTable1D_init")
-        || args.len() < 6
+    // The two kinds differ in what they were handed: a table whose
+    // first column is time is also told where its time starts and how
+    // far it is shifted.
+    let time_table = made.starts_with("ModelicaStandardTables_CombiTimeTable_init");
+    let plain = made.starts_with("ModelicaStandardTables_CombiTable1D_init");
+    let wanted = if time_table { 8 } else { 6 };
+    if (!time_table && !plain)
+        || args.len() < wanted
         || !matches!(&args[1], Expr::Str(name) if name == "NoName")
     {
         return None;
@@ -115,15 +154,24 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
     if rows.len() < 2 || rows.iter().any(|row| row.len() != width) {
         return None;
     }
-    let columns: Vec<usize> = vector(&args[3], numbers)?
+    let at = |which: usize| which + usize::from(time_table);
+    let columns: Vec<usize> = vector(&args[at(3)], numbers)?
         .into_iter()
         .map(|column| column as usize)
         .collect();
     Some(Table {
         rows,
         columns,
-        smoothness: const_eval(&args[4], numbers)?,
-        extrapolation: const_eval(&args[5], numbers)?,
+        smoothness: const_eval(&args[at(4)], numbers)?,
+        extrapolation: const_eval(&args[at(5)], numbers)?,
+        shift: match time_table {
+            true => const_eval(&args[7], numbers)?,
+            false => 0.0,
+        },
+        starts: match time_table {
+            true => const_eval(&args[3], numbers)?,
+            false => f64::NEG_INFINITY,
+        },
     })
 }
 
@@ -263,6 +311,48 @@ fn one_call(
                 Box::new(args[3].clone()),
             )))
         }
+        // The same, where the abscissa is time. Both are asked for
+        // the instant to look at and, in the time table's case, for
+        // the two event instants around it - which say which side of a
+        // jump the run is on, and are not needed to say what the value
+        // is: the chain of `if`s below already tests one side at a
+        // time.
+        "ModelicaStandardTables_CombiTimeTable_minimumTime" => {
+            Ok(Some(Expr::Number(abscissa[0] + table.shift)))
+        }
+        "ModelicaStandardTables_CombiTimeTable_maximumTime" => Ok(Some(Expr::Number(
+            abscissa[abscissa.len() - 1] + table.shift,
+        ))),
+        "ModelicaStandardTables_CombiTimeTable_getValue" if args.len() == 5 => {
+            Ok(Some(interpolate(table, &args[1], &args[2], false)?))
+        }
+        "ModelicaStandardTables_CombiTimeTable_getDerValue" if args.len() >= 6 => {
+            let slope = interpolate(table, &args[1], &args[2], true)?;
+            Ok(Some(Expr::Bin(
+                BinOp::Mul,
+                Box::new(slope),
+                Box::new(args[5].clone()),
+            )))
+        }
+        // When the table next turns a corner, which is what a run
+        // needs to put an event there. Past the last corner there is
+        // none, and the standard library reads that as an infinity.
+        "ModelicaStandardTables_CombiTimeTable_nextTimeEvent" if args.len() == 2 => {
+            let mut written = Expr::Number(f64::INFINITY);
+            for corner in abscissa.iter().rev() {
+                let corner = corner + table.shift;
+                written = Expr::If(
+                    Box::new(Expr::Rel(
+                        RelOp::Lt,
+                        Box::new(args[1].clone()),
+                        Box::new(Expr::Number(corner)),
+                    )),
+                    Box::new(Expr::Number(corner)),
+                    Box::new(written),
+                );
+            }
+            Ok(Some(written))
+        }
         _ => Ok(None),
     }
 }
@@ -302,7 +392,10 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         );
     }
     let value = |row: usize| table.rows[row][column - 1];
-    let at = |row: usize| table.rows[row][0];
+    // Where the first column is time, the table may sit shifted along
+    // it; everywhere else the shift is zero and this is the column as
+    // written.
+    let at = |row: usize| table.rows[row][0] + table.shift;
     // What one interval says, as a value or as a slope.
     let piece = |first: usize| -> Expr {
         let last = first + 1;
@@ -346,6 +439,20 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         false => piece(intervals - 1),
     };
     let mut written = beyond;
+    // Before it starts, a table whose first column is time says
+    // nothing: what the block puts out there is its offset alone.
+    let before_it_starts = |written: Expr| match table.starts.is_finite() {
+        false => written,
+        true => Expr::If(
+            Box::new(Expr::Rel(
+                RelOp::Lt,
+                Box::new(u.clone()),
+                Box::new(Expr::Number(table.starts)),
+            )),
+            Box::new(Expr::Number(0.0)),
+            Box::new(written),
+        ),
+    };
     // Built from the far end back, so the nearest test ends up first.
     for first in (0..intervals).rev() {
         let held = piece(first);
@@ -382,5 +489,5 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             Box::new(written),
         );
     }
-    Ok(written)
+    Ok(before_it_starts(written))
 }

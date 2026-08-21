@@ -6881,6 +6881,153 @@ fn a_derivative_is_handed_a_rate_only_for_what_has_one() {
 /// A table block of the shape the standard library gives one: the data
 /// in a handle built from a matrix, and the value asked for by a call
 /// to a body written in C.
+const TIME_TABLE_BLOCK: &str = "package Times \
+     class Handle extends ExternalObject; \
+       function constructor input String tableName; input String fileName; \
+         input Real table[:, :]; input Real startTime; input Integer columns[:]; \
+         input Integer smoothness; input Integer extrapolation; input Real shiftTime; \
+         output Handle h; \
+         external \"C\" h = ModelicaStandardTables_CombiTimeTable_init3(tableName, fileName, \
+           table, size(table, 1), size(table, 2), startTime, columns, size(columns, 1), \
+           smoothness, extrapolation, shiftTime); end constructor; \
+       function destructor input Handle h; \
+         external \"C\" ModelicaStandardTables_CombiTimeTable_close(h); end destructor; \
+     end Handle; \
+     function getValue input Handle h; input Integer column; input Real t; \
+       input Real nextEvent; input Real preNextEvent; output Real y; \
+       external \"C\" y = ModelicaStandardTables_CombiTimeTable_getValue(h, column, t, \
+         nextEvent, preNextEvent); annotation(derivative = getDerValue); end getValue; \
+     function nextEvent input Handle h; input Real t; output Real at; \
+       external \"C\" at = ModelicaStandardTables_CombiTimeTable_nextTimeEvent(h, t); \
+       end nextEvent; \
+     function getDerValue input Handle h; input Integer column; input Real t; \
+       input Real nextEvent; input Real preNextEvent; input Real der_t; \
+       input Real der_next; input Real der_preNext; output Real der_y; \
+       external \"C\" der_y = ModelicaStandardTables_CombiTimeTable_getDerValue(h, column, t, \
+         nextEvent, preNextEvent, der_t, der_next, der_preNext); end getDerValue; \
+     function tmin input Handle h; output Real t; \
+       external \"C\" t = ModelicaStandardTables_CombiTimeTable_minimumTime(h); end tmin; \
+     function tmax input Handle h; output Real t; \
+       external \"C\" t = ModelicaStandardTables_CombiTimeTable_maximumTime(h); end tmax; \
+   end Times; ";
+
+#[test]
+fn a_table_whose_first_column_is_time_says_when_it_turns() {
+    // The same lines as an ordinary table, shifted along the time axis
+    // and starting where the block was told to start.
+    let m = parse_model(&format!(
+        "{TIME_TABLE_BLOCK} model M \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2; 2, 6], \
+           0, {{2}}, 1, 2, 0); \
+         Real y; Real turns; Real first; Real last; \
+         equation y = Times.getValue(h, 1, time, 0, 0); \
+         turns = Times.nextEvent(h, time); \
+         first = Times.tmin(h); last = Times.tmax(h); end M;"
+    ))
+    .unwrap();
+    let said = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    assert_eq!(said("first"), "Number(0.0)");
+    assert_eq!(said("last"), "Number(2.0)");
+    // Nothing outside Modelica is left, and the value is a chain of
+    // tests on time.
+    assert!(
+        !said("y").contains("ModelicaStandardTables"),
+        "{}",
+        said("y")
+    );
+    assert!(
+        said("y").contains("Rel(Lt, Time, Number(1.0))"),
+        "{}",
+        said("y")
+    );
+    // The corners, in order, and an infinity past the last one.
+    let turns = said("turns");
+    assert!(turns.contains("Number(inf)"), "{turns}");
+    assert!(
+        turns.contains("If(Rel(Lt, Time, Number(0.0)), Number(0.0),"),
+        "{turns}"
+    );
+
+    // The slope of a table, which is what a model asks for when it
+    // differentiates one: two up to the corner, four past it.
+    let sloped = parse_model(&format!(
+        "{TIME_TABLE_BLOCK} model M \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2; 2, 6], \
+           0, {{2}}, 1, 2, 0); \
+         Real y; Real rate; equation y = Times.getValue(h, 1, time, 0, 0); \
+         rate = der(y); end M;"
+    ))
+    .unwrap();
+    let rate = format!("{:?}", sloped.equations);
+    assert!(
+        rate.contains("Number(2.0)") && rate.contains("Number(4.0)"),
+        "{rate}"
+    );
+    assert!(!rate.contains("ModelicaStandardTables"), "{rate}");
+
+    // A table asked for a column it has none of.
+    let missing = parse_model(&format!(
+        "{TIME_TABLE_BLOCK} model M \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2], \
+           0, {{3}}, 1, 2, 0); \
+         Real y; equation y = Times.getValue(h, 1, time, 0, 0); end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        missing.contains("asked for column 3, and it has 2"),
+        "{missing}"
+    );
+
+    // A table read inside a branch only the run settles is read there
+    // too: the branches travel to the compiler as they were written.
+    let branched = parse_model(&format!(
+        "{TIME_TABLE_BLOCK} model M \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2], \
+           0, {{2}}, 1, 2, 0); \
+         Real u; Real y; equation u = time; \
+         if u > 1 then y = Times.getValue(h, 1, time, 0, 0); else y = 0; end if; end M;"
+    ))
+    .unwrap();
+    let written = format!("{:?}", branched.conditional);
+    assert!(!written.contains("ModelicaStandardTables"), "{written}");
+    assert!(written.contains("Rel(Lt, Time, Number(1.0))"), "{written}");
+
+    // Shifted along its own axis, and saying nothing before it starts.
+    let shifted = parse_model(&format!(
+        "{TIME_TABLE_BLOCK} model M \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 5; 1, 7], \
+           0.5, {{2}}, 1, 2, 10); \
+         Real y; Real first; equation y = Times.getValue(h, 1, time, 0, 0); \
+         first = Times.tmin(h); end M;"
+    ))
+    .unwrap();
+    let first = shifted
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "first"))
+        .map(|e| format!("{:?}", e.rhs))
+        .unwrap_or_default();
+    assert_eq!(first, "Number(10.0)");
+    let value = shifted
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "y"))
+        .map(|e| format!("{:?}", e.rhs))
+        .unwrap_or_default();
+    assert!(
+        value.contains("If(Rel(Lt, Time, Number(0.5)), Number(0.0),"),
+        "{value}"
+    );
+    assert!(value.contains("Number(11.0)"), "{value}");
+}
+
 const TABLE_BLOCK: &str = "package Blocks \
      class Handle extends ExternalObject; \
        function constructor input String tableName; input String fileName; \

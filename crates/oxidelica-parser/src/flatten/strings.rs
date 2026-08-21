@@ -58,6 +58,27 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<Settled, String> {
             numbers.entry(name.clone()).or_insert(value);
         }
     }
+    // A parameter built on another settles a round later: a table
+    // block's `shiftTime = startTime` is one name standing for
+    // another. A round that settles nothing new is the end of it.
+    loop {
+        let mut moved = false;
+        for component in &model.components {
+            if numbers.contains_key(&component.name) {
+                continue;
+            }
+            let Some(value) = component.binding.as_ref().or(component.start.as_ref()) else {
+                continue;
+            };
+            if let Some(number) = const_eval(value, &numbers) {
+                numbers.insert(component.name.clone(), number);
+                moved = true;
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
     let values = settle(&named, model, &numbers)?;
 
     // A comparison of two strings is the one place a string reaches the
