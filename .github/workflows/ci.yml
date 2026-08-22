@@ -61,6 +61,35 @@ jobs:
           done
           exit $status
 
+  # How much of the standard library this compiler reads. The three
+  # numbers were measured by hand before every commit and believed on
+  # trust afterwards, and nothing stopped one of them going down.
+  # Once, where the library is cheapest to fetch.
+  library:
+    name: the standard library still reads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Pinned to the release the floors were measured against: a
+      # library that moved under us would move the numbers with it, and
+      # that is not what this job is asking about.
+      - name: The standard library
+        uses: actions/checkout@v5
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: v4.1.0
+          path: .msl
+
+      - name: Read it
+        run: |
+          cargo build --release -p oxidelica-cli
+          ./scripts/library_floor.sh .msl
+
   # Coverage and the linters for everything that is not Rust run once,
   # where the tooling is cheapest to install.
   quality:
