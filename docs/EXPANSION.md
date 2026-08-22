@@ -134,6 +134,39 @@ it is the answer, and the call stands - unless a walk could not carry
 what the body answers with, and then the refusal is a refusal after
 all. Two models.
 
+## Leaving it undefined rather than giving it a value
+
+The 32 models above wait on `bpro.cp`, a field of a record a function
+answers with, which callers genuinely read. Nine more wait on `evd`,
+and that one is a different shape worth telling apart: a diode's
+`evd` at `Spice3.mo:5730` is a working value of the branch that
+computes it, and nothing outside that branch ever reads it. The
+outputs `out_current` and `out_cond` are settled by every branch, so
+the caller is served whatever `evd` comes to.
+
+That suggests a cure narrower and truer than taking the value as zero:
+leave such a variable unbound. The language says an unassigned local
+is undefined, and a name carried out of the body is exactly what says
+so - a body that reads it later is asking for something that was never
+there. Nothing is made up.
+
+Measured, and it is the same wall. It is not the cure that costs, it
+is finishing the inlining at all: whichever way the variable is
+treated, the body comes out written, and what the body unlocks is what
+grows. Two numbers say it:
+
+- The Spice3 four-bit adder **finishes** rather than running away -
+  140 seconds, and it comes to rest on a unit mismatch inside the
+  library's own transistor code. So the growth here is finite, which
+  taking the value as zero never showed.
+- The library goes from 45 seconds to past twenty minutes. Killed at
+  507 models of 734, seventeen of them in the last nine minutes, and
+  MultiBody is in that slow stretch as much as Spice3.
+
+Forty-five seconds is what every measurement in this file rests on, so
+that is disqualifying whatever the gain would have been. Put back, and
+written here.
+
 ## A bound on the growth itself
 
 This is the thing the two above were trying to avoid, and it has now
