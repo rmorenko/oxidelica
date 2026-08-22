@@ -11,6 +11,7 @@ Russian version of this file: [README.ru.md](README.ru.md).
 ```bash
 cargo run -p oxidelica-cli -- simulate examples/pendulum.mo -o pendulum.csv
 cargo run -p oxidelica-cli -- parse examples/decay.mo
+cargo run -p oxidelica-cli -- why examples/pendulum.mo phi
 cargo run -p oxidelica-cli -- library add modelica
 cargo run -p oxidelica-ide
 cargo test
@@ -47,6 +48,13 @@ reads a library and says how far this compiler got with it. How much of
 MSL that is, and what stands in the way of the rest:
 [docs/MSL.md](docs/MSL.md) ([Russian](docs/MSL.ru.md)).
 
+When a model will not run, `oxidelica why <model> <variable>` says where
+the variable's value was meant to come from: what it was declared as,
+what its declaration bound and started it at, every equation and `when`
+that names it, and what the compiler in the end made of it. It takes a
+file or a class of the libraries, so a standard-library model can be
+asked about without writing a file to name it.
+
 Linux needs the libraries Bevy links against — on Debian and Ubuntu
 `pkg-config libasound2-dev libudev-dev`; the Windows cross-build needs
 `mingw-w64`, and running its binaries needs `wine`. Both checks run from
@@ -63,9 +71,14 @@ The project threshold is **95% line coverage** for the core (parser, sim, cli; t
 
 ```bash
 make help
-make check
+make preflight
 make cov-report
 ```
+
+`make preflight` runs on one machine what the six CI jobs run between
+them, so a linter or the coverage threshold is found here rather than
+several minutes after a push. How work on the project is done, and what
+was learned by getting it wrong, is in [AGENTS.md](AGENTS.md).
 
 Language rule: no Cyrillic anywhere except Markdown files with a `.ru.md` suffix and the IDE locale file `locales/ru.conf`; enforced by `make lint-cyrillic`.
 

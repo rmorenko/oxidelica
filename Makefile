@@ -149,5 +149,13 @@ cov-lcov: ## lcov coverage output (for CI)
 check: fmt-check lint spell audit test cov ## full check (as in CI)
 	@echo "OK: all checks passed"
 
+.PHONY: preflight
+preflight: ## everything CI checks, in CI's own commands (adds the library floor and the examples)
+	./scripts/preflight.sh
+
+.PHONY: preflight-quick
+preflight-quick: ## the fast half of preflight, for a change still moving
+	./scripts/preflight.sh --quick
+
 .PHONY: ci
 ci: check ## alias for check

@@ -11,6 +11,7 @@
 ```bash
 cargo run -p oxidelica-cli -- simulate examples/pendulum.mo -o pendulum.csv
 cargo run -p oxidelica-cli -- parse examples/decay.mo
+cargo run -p oxidelica-cli -- why examples/pendulum.mo phi
 cargo run -p oxidelica-cli -- library add modelica
 cargo run -p oxidelica-ide
 cargo test
@@ -46,6 +47,13 @@ Docker, где ядро проходит тесты, а весь workspace чи�
 MSL и что мешает остальному: [docs/MSL.ru.md](docs/MSL.ru.md)
 ([English](docs/MSL.md)).
 
+Когда модель не запускается, `oxidelica why <модель> <переменная>`
+говорит, откуда значение переменной должно было взяться: чем она
+объявлена, что дала ей декларация и стартовое значение, все уравнения и
+`when`, которые её называют, и во что компилятор её в итоге обратил.
+Принимает файл или класс библиотеки, так что о модели из стандартной
+библиотеки можно спросить, не заводя файла ради её имени.
+
 Linux'у нужны библиотеки, с которыми линкуется Bevy: на Debian и Ubuntu
 `pkg-config libasound2-dev libudev-dev`; кросс-сборке под Windows нужен
 `mingw-w64`, а запуску её бинарников — `wine`. Обе проверки запускаются с
@@ -62,9 +70,14 @@ make windows-check
 
 ```bash
 make help
-make check
+make preflight
 make cov-report
 ```
+
+`make preflight` прогоняет на одной машине всё, что порознь проверяют
+шесть задач CI, — линтер или порог покрытия обнаруживаются здесь, а не
+через несколько минут после пуша. Как над проектом ведётся работа и что
+выяснилось на собственных ошибках: [AGENTS.md](AGENTS.md).
 
 Языковое правило: кириллица допустима только в Markdown-файлах с суффиксом `.ru.md` и в файле локализации IDE `locales/ru.conf`; проверяется `make lint-cyrillic`.
 
