@@ -643,7 +643,7 @@ fn reduce_index(
         };
 
         selection_records.push((residual.clone(), victim.clone(), all_candidates));
-        let dummy = format!("der({victim})");
+        let dummy = derivative_name(&victim);
         let victim_rhs = state_rhs
             .remove(&victim)
             .expect("a state has a defining derivative");
@@ -659,11 +659,19 @@ fn reduce_index(
         }
         states.retain(|s| s != &victim);
         unknowns.push(victim.clone());
-        unknowns.push(dummy.clone());
         dummies.insert(victim.clone(), dummy.clone());
-        // The former state equation `der(v) = rhs` now determines the
-        // dummy, and the differentiated constraint joins the system.
-        algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
+        // A state whose derivative nothing stated on its own already
+        // has an unknown of exactly this name, and the equations
+        // holding it are already in the system: there is no former
+        // state equation to hand the dummy, and adding one would say
+        // `der(v) = der(v)`.
+        if !matches!(&victim_rhs, Expr::Ref(name) if name == &dummy) {
+            unknowns.push(dummy.clone());
+            // The former state equation `der(v) = rhs` now determines
+            // the dummy, and the differentiated constraint joins the
+            // system.
+            algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
+        }
         algebraic_eqs.push((derivative, Expr::Number(0.0)));
     };
     Ok(Reduction {
@@ -680,14 +688,81 @@ fn reduce_index(
 
 /// The equations of a model, sorted: what each state's derivative is,
 /// and everything else.
-type SortedEquations = (HashMap<String, Expr>, Vec<(Expr, Expr)>);
+///
+/// The third part names the derivatives no equation stated on its own:
+/// each is carried as an algebraic unknown of its own.
+type SortedEquations = (HashMap<String, Expr>, Vec<(Expr, Expr)>, Vec<String>);
+
+/// The name an unstated derivative is carried under.
+///
+/// It is spelled the way the model writes it, which no identifier can
+/// be, so nothing a model declares can collide with it. Index
+/// reduction already names a demoted state's derivative this way, so a
+/// derivative is read by one name wherever it came from.
+pub(crate) fn derivative_name(state: &str) -> String {
+    format!("der({state})")
+}
+
+/// Replace every `der(x)` with the unknown standing for it.
+fn name_derivatives(expr: &Expr, seen: &mut Vec<String>) -> Expr {
+    if let Some(state) = expr.as_der_of() {
+        let name = derivative_name(state);
+        if !seen.iter().any(|s| s == state) {
+            seen.push(state.to_string());
+        }
+        return Expr::Ref(name);
+    }
+    match expr {
+        Expr::Call(name, args) => {
+            let mut out = Vec::with_capacity(args.len());
+            for arg in args {
+                out.push(name_derivatives(arg, seen));
+            }
+            Expr::Call(name.clone(), out)
+        }
+        Expr::Neg(inner) => Expr::Neg(Box::new(name_derivatives(inner, seen))),
+        Expr::Not(inner) => Expr::Not(Box::new(name_derivatives(inner, seen))),
+        Expr::Bin(op, l, r) => {
+            let left = name_derivatives(l, seen);
+            Expr::Bin(*op, Box::new(left), Box::new(name_derivatives(r, seen)))
+        }
+        Expr::Rel(op, l, r) => {
+            let left = name_derivatives(l, seen);
+            Expr::Rel(*op, Box::new(left), Box::new(name_derivatives(r, seen)))
+        }
+        Expr::And(l, r) => {
+            let left = name_derivatives(l, seen);
+            Expr::And(Box::new(left), Box::new(name_derivatives(r, seen)))
+        }
+        Expr::Or(l, r) => {
+            let left = name_derivatives(l, seen);
+            Expr::Or(Box::new(left), Box::new(name_derivatives(r, seen)))
+        }
+        Expr::If(c, a, b) => {
+            let condition = name_derivatives(c, seen);
+            let then = name_derivatives(a, seen);
+            Expr::If(
+                Box::new(condition),
+                Box::new(then),
+                Box::new(name_derivatives(b, seen)),
+            )
+        }
+        other => other.clone(),
+    }
+}
 
 /// Sort the equations into the ones that give a state its derivative
 /// and the ones that are algebraic.
 ///
-/// `der(x)` has to stand alone on one side, which is what makes the
-/// first kind recognisable; anything else is algebraic and need not be
-/// in assignment form at all.
+/// `der(x)` standing alone on one side is what makes the first kind
+/// recognisable, and an equation stating one in place - `i = C *
+/// der(v)` - is rearranged into that form. What is left over holds a
+/// derivative nothing states on its own: `der(x) + der(y) = 1` says
+/// something about two of them at once, and no rearrangement gives
+/// either. Those are carried as algebraic unknowns, one per
+/// derivative, and the equations that hold them stay as they are -
+/// the matching, the tearing and the solver then treat a derivative
+/// like any other unknown, which is what a DAE is.
 fn split_equations(
     equations: &[EquationItem],
     continuous: &[&str],
@@ -704,14 +779,14 @@ fn split_equations(
         } else {
             (None, rhs)
         };
-        if let Some(state) = target {
+        // `der(x) = der(y)` states neither on its own: it is a
+        // relation between two derivatives, and belongs with the
+        // equations that are solved rather than stepped with.
+        if let Some(state) = target.filter(|_| !value.contains_der()) {
             if !continuous.contains(&state) {
                 return err(format!(
                     "der({state}): {state} is not a continuous variable"
                 ));
-            }
-            if value.contains_der() {
-                return err("der() must appear alone on one side of an equation".to_string());
             }
             if state_rhs.insert(state.to_string(), value.clone()).is_some() {
                 return err(format!("two equations for der({state})"));
@@ -747,12 +822,55 @@ fn split_equations(
         }
     }
     for (lhs, rhs) in left_over {
-        if lhs.contains_der() || rhs.contains_der() {
-            return err("der() must appear alone on one side of an equation".to_string());
-        }
         algebraic_eqs.push((lhs, rhs));
     }
-    Ok((state_rhs, algebraic_eqs))
+
+    // What still holds a derivative gives it a name and keeps the
+    // equation. The state stays a state - the run integrates it - and
+    // its right-hand side is the unknown the algebraic layer solves
+    // for.
+    let mut implicit: Vec<String> = Vec::new();
+    // A derivative another equation already states, and this one only
+    // reads: `y = der(x) + 1` beside `der(x) = 3`. It is named the same
+    // way, and what it is worth is said by an equation of its own, so
+    // the balance is kept and nothing is defined twice.
+    let mut read_only: Vec<String> = Vec::new();
+    for (lhs, rhs) in &mut algebraic_eqs {
+        if !lhs.contains_der() && !rhs.contains_der() {
+            continue;
+        }
+        let mut seen = Vec::new();
+        *lhs = name_derivatives(lhs, &mut seen);
+        *rhs = name_derivatives(rhs, &mut seen);
+        for state in seen {
+            if !continuous.contains(&state.as_str()) {
+                return err(format!(
+                    "der({state}): {state} is not a continuous variable"
+                ));
+            }
+            if state_rhs.contains_key(&state) {
+                if !read_only.iter().any(|s| s == &state) {
+                    read_only.push(state);
+                }
+                continue;
+            }
+            if !implicit.iter().any(|s| s == &state) {
+                implicit.push(state);
+            }
+        }
+    }
+    for state in &implicit {
+        state_rhs.insert(state.clone(), Expr::Ref(derivative_name(state)));
+    }
+    for state in &read_only {
+        let value = state_rhs
+            .get(state)
+            .expect("a derivative another equation stated")
+            .clone();
+        algebraic_eqs.push((Expr::Ref(derivative_name(state)), value));
+    }
+    implicit.extend(read_only);
+    Ok((state_rhs, algebraic_eqs, implicit))
 }
 
 /// Get the derivative out of an equation that states it in place:
@@ -821,17 +939,21 @@ const MAX_ISOLATION: usize = 8;
 fn unknowns_of(
     continuous: &[&str],
     state_rhs: &HashMap<String, Expr>,
+    implicit: &[String],
 ) -> (Vec<String>, Vec<String>) {
     let states = continuous
         .iter()
         .filter(|n| state_rhs.contains_key(**n))
         .map(|n| n.to_string())
         .collect();
-    let unknowns = continuous
+    let mut unknowns: Vec<String> = continuous
         .iter()
         .filter(|n| !state_rhs.contains_key(**n))
         .map(|n| n.to_string())
         .collect();
+    // A derivative no equation stated on its own is solved for beside
+    // them, which is what keeps the equation holding it matched.
+    unknowns.extend(implicit.iter().map(|state| derivative_name(state)));
     (states, unknowns)
 }
 
@@ -858,6 +980,9 @@ fn check_references(
             // `$pre.x`, `$initial` and `$sampleN` are supplied by the
             // event machinery, not by the equations.
             && !r.starts_with('$')
+            // `der(x)` is a name the compiler made for a derivative
+            // nothing stated on its own, not one a model wrote.
+            && !(r.starts_with("der(") && r.ends_with(')'))
     }) {
         return err(format!("unknown variable `{bad}` in equation"));
     }
@@ -1417,11 +1542,11 @@ pub(crate) fn compile_at(
         .filter(|c| c.variability == Variability::Continuous && !discretes.contains(&c.name))
         .map(|c| c.name.as_str())
         .collect();
-    let (mut state_rhs, algebraic_eqs) = split_equations(&equations, &continuous)?;
+    let (mut state_rhs, algebraic_eqs, implicit) = split_equations(&equations, &continuous)?;
 
     // 3. What is left to solve for, and whether every name in the
     // equations is one the model knows.
-    let (states, unknowns) = unknowns_of(&continuous, &state_rhs);
+    let (states, unknowns) = unknowns_of(&continuous, &state_rhs, &implicit);
     check_references(&state_rhs, &algebraic_eqs, &continuous, &params, &discretes)?;
     if algebraic_eqs.len() != unknowns.len() {
         return err(format!(
@@ -1730,6 +1855,13 @@ pub(crate) fn compile_at(
         .iter()
         .zip(&algebraic_slots)
         .filter(|(name, _)| !dummies.values().any(|dummy| dummy == *name))
+        // A derivative the compiler named to solve for is not a
+        // variable the model declared, so it is not one of its results.
+        .filter(|(name, _)| {
+            !implicit
+                .iter()
+                .any(|state| &derivative_name(state) == *name)
+        })
         .filter(|(name, _)| !hidden(name))
         .map(|(name, &slot)| (name.clone(), slot))
         .collect();

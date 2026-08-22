@@ -521,7 +521,11 @@ came from nowhere.
 model may declare with it and read its literals, but what it asks for
 is not acted on: `never` and `always` are demands about which variables
 are integrated, and the states here are chosen by where `der` appears
-and by index reduction. `der()` only of a plain variable; a condition of a
+and by index reduction. `der()` only of a plain variable, though the
+equation holding one need not state it: `der(x) + der(y) = 1` says
+something about two derivatives at once and neither can be got out of
+it, so each is solved for like any other unknown, which is what a DAE
+is. A condition of a
 run-time `if` equation must be readable from the parameters, the
 states and plain `name = expr` definitions at the instant the mode is
 settled — a condition that only an algebraic loop could produce falls

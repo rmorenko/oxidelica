@@ -221,11 +221,12 @@ fn compile_error_paths() {
         compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")
             .contains("continuous")
     );
-    // der on both sides.
-    assert!(
-        compile_err("model M Real x; Real y; equation der(x) = der(y); y = 1; end M;")
-            .contains("must appear alone")
-    );
+    // der on both sides states neither: the equation is solved rather
+    // than stepped with, and `y = 1` makes both derivatives nothing.
+    assert!(compile(
+        &parse_model("model M Real x; Real y; equation der(x) = der(y); y = 1; end M;").unwrap()
+    )
+    .is_ok());
     // Two equations for one state.
     assert!(
         compile_err("model M Real x; equation der(x) = 1; der(x) = 2; end M;")
@@ -238,11 +239,12 @@ fn compile_error_paths() {
         compile_err("model M Real x; equation der(x) = 1; x = 2; end M;").contains("unbalanced")
     );
 
-    // der inside an algebraic expression.
-    assert!(
-        compile_err("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
-            .contains("appear alone")
-    );
+    // der inside an algebraic expression is read where it stands.
+    assert!(compile(
+        &parse_model("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")
+            .unwrap()
+    )
+    .is_ok());
     // Reference to an undeclared variable.
     assert!(
         compile_err("model M Real x; equation x = 1; q = 2; end M;").contains("unknown variable")
@@ -828,10 +830,6 @@ fn the_compiler_names_what_it_cannot_do() {
         refused("model M Real y; equation y = atan2(1); end M;").contains("expects 2 arguments")
     );
     assert!(refused("model M Real y; equation y = made_up(1); end M;").contains("unknown function"));
-    assert!(refused(
-        "model M Real x(start = 0); Real y; equation der(x) = 1; y = 2 * der(x); end M;"
-    )
-    .contains("der() must appear alone on one side"));
     assert!(refused("model M Real y; equation y = pre(y); end M;").contains("is not discrete"));
     assert!(refused("model M discrete Real d(start = 0); Real y; equation y = 1; when sample(0, 0) then d = 1; end when; end M;")
         .contains("the interval must be positive"));
@@ -2728,40 +2726,70 @@ fn a_derivative_is_got_out_of_the_equation_that_states_it() {
         assert!((last - 2.0).abs() < 1e-9, "{equation} gave x(1) = {last}");
     }
 
-    // A derivative another equation already defines is left where it
-    // was: `y = der(x) + 1` says what `y` is, and reading it the other
-    // way would claim a second definition of `der(x)`. Using one as a
-    // value is still more than this compiler does, and what it says is
-    // that - not that the model defines the derivative twice.
-    let refusal = refused(
-        "model M Real x(start = 0, fixed = true); Real y; \
-         equation der(x) = 3; y = der(x) + 1; end M;",
-    );
-    assert!(refusal.contains("appear alone"), "{refusal}");
+    // A derivative another equation already defines is read where it
+    // stands: `y = der(x) + 1` says what `y` is, and the derivative it
+    // reads is the one the other equation stated.
+    let result = run("model M Real x(start = 0, fixed = true); Real y; \
+         equation der(x) = 3; y = der(x) + 1; \
+         annotation(experiment(StopTime = 1, Interval = 1, Tolerance = 1e-10)); end M;");
+    let y = result.columns.iter().position(|n| n == "y").unwrap();
+    let last = result.rows.last().unwrap()[y];
+    assert!((last - 4.0).abs() < 1e-9, "y = {last}");
 
-    // A derivative under a power would need a root, and which root
-    // depends on the exponent; one on both sides is not a shape this
-    // gets anything out of either.
+    // The derivative it did not name is not one of the model's
+    // variables: it was solved for, and it is not written out.
     assert!(
-        refused("model M Real x(start = 1); equation der(x)^2 = 4; end M;")
-            .contains("appear alone")
+        !result.columns.iter().any(|name| name.starts_with("der(")),
+        "{:?}",
+        result.columns
     );
-    assert!(refused(
-        "model M Real x(start = 1); Real y(start = 1); \
-         equation der(x) + der(y) = 4; der(x) - der(y) = 0; end M;"
-    )
-    .contains("appear alone"));
-    // One inside a call has no operation to undo, and one further down
-    // than this looks is not the shape being looked for either.
+
+    // A shape no rearrangement gets a derivative out of is not
+    // refused: the derivative is solved for like any other unknown.
+    // Two of them stated together, where each equation says something
+    // about both.
+    let result = run(
+        "model M Real x(start = 1, fixed = true); Real y(start = 0, fixed = true); \
+         equation der(x) + der(y) = -x + 1; der(x) - der(y) = -x - 1; \
+         annotation(experiment(StopTime = 1, Interval = 1, Tolerance = 1e-10)); end M;",
+    );
+    // Which is `der(x) = -x` and `der(y) = 1`, so `x = e^-t`, `y = t`.
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| last[result.columns.iter().position(|n| n == name).unwrap()];
     assert!(
-        refused("model M Real x(start = 1); equation abs(der(x)) = 2; end M;")
-            .contains("appear alone")
+        (at("x") - (-1.0f64).exp()).abs() < 1e-8,
+        "x(1) = {}",
+        at("x")
     );
+    assert!((at("y") - 1.0).abs() < 1e-8, "y(1) = {}", at("y"));
+
+    // One inside a call has no operation to undo, and is solved for
+    // instead: `abs(der(x)) = 2` from a positive guess is `der(x) = 2`.
+    let result = run(
+        "model M Real x(start = 1, fixed = true); equation abs(der(x)) = 2; \
+         annotation(experiment(StopTime = 1, Interval = 1, Tolerance = 1e-10)); end M;",
+    );
+    let last = result.rows.last().unwrap()[1];
+    assert!((last - 3.0).abs() < 1e-8, "x(1) = {last}");
+
+    // One further down than the isolation looks is solved for the same
+    // way, and comes to the same answer.
     let deep = "der(x) + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1";
-    assert!(refused(&format!(
-        "model M Real x(start = 1); equation {deep} = 11; end M;"
-    ))
-    .contains("appear alone"));
+    let result = run(&format!(
+        "model M Real x(start = 0, fixed = true); equation {deep} = 11; \
+         annotation(experiment(StopTime = 1, Interval = 1, Tolerance = 1e-10)); end M;"
+    ));
+    let last = result.rows.last().unwrap()[1];
+    assert!((last - 2.0).abs() < 1e-9, "x(1) = {last}");
+
+    // What a solved-for derivative may not be is undetermined. A
+    // square has two roots, and which one a model meant is not a thing
+    // to guess at.
+    let said = refused(
+        "model M Real x(start = 1, fixed = true); equation der(x)^2 = 4; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(said.contains("der(x)"), "{said}");
     // A derivative got out of an equation still has to be one of a
     // variable that moves.
     let said = refused("model M parameter Real p = 1; equation 2 * der(p) = 4; end M;");

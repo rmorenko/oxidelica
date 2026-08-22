@@ -41,7 +41,7 @@ oxidelica library add https://github.com/example/Library.git --version v2.0 --as
 
 ```text
 files: 2646 read, 25 not read
-classes: 6539; example models: 733, of which 381 flatten and 38 run
+classes: 6539; example models: 733, of which 381 flatten and 39 run
 ```
 
 Три числа, и они про разное. **Read** — это парсер: файл понят как
