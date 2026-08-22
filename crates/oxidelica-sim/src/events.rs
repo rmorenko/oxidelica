@@ -28,15 +28,27 @@ impl EventState {
 }
 
 impl EventRewrite<'_> {
-    /// The `$pre.` reference of a discrete variable.
-    pub(crate) fn pre_of(&self, arg: &Expr, builtin: &str) -> Result<Expr, SimError> {
+    /// The `$pre.` reference of a variable that has a value from
+    /// before the event.
+    ///
+    /// A `when` target has one because it only ever changes at an
+    /// event. So does a Boolean or an Integer, whatever assigns it:
+    /// the language calls those discrete-valued, and a continuous
+    /// equation writing one still only lets it change when a relation
+    /// inside it flips, which is an event.
+    pub(crate) fn pre_of(&mut self, arg: &Expr, builtin: &str) -> Result<Expr, SimError> {
         let Expr::Ref(name) = arg else {
             return err(format!("{builtin}() takes a variable, not an expression"));
         };
         if !self.discretes.iter().any(|d| d == name) {
-            return err(format!(
-                "{builtin}({name}): `{name}` is not discrete, so it has no value from before the event"
-            ));
+            if !self.discrete_valued.iter().any(|d| d == name) {
+                return err(format!(
+                    "{builtin}({name}): `{name}` is not discrete, so it has no value from before the event"
+                ));
+            }
+            if !self.pre_wanted.iter().any(|d| d == name) {
+                self.pre_wanted.push(name.clone());
+            }
         }
         Ok(Expr::Ref(format!("$pre.{name}")))
     }
@@ -255,7 +267,7 @@ impl CompiledModel {
         state: &mut EventState,
     ) -> Result<EventOutcome, SimError> {
         let mut outcome = EventOutcome::default();
-        for (&slot, &pre) in self.discrete_slots.iter().zip(&self.pre_slots) {
+        for &(slot, pre) in &self.pre_slots {
             values[pre] = values[slot];
         }
         let before_event = state.when_prev.clone();

@@ -253,8 +253,11 @@ pub struct CompiledModel {
     output_algebraics: Vec<(String, Slot)>,
     /// See [`CompiledModel::state_slots`].
     discrete_slots: Vec<Slot>,
-    /// Slot holding the previous value of each discrete variable.
-    pre_slots: Vec<Slot>,
+    /// The slot a variable is read from, paired with the slot holding
+    /// what it was when the event began. Not one per `when` target:
+    /// a Boolean or an Integer is discrete-valued whatever assigns it,
+    /// so `pre` reaches it too and it needs a slot of its own here.
+    pre_slots: Vec<(Slot, Slot)>,
     /// Slot of the flag raised during the initial event.
     initial_slot: Slot,
     /// Slot of `$terminal`, raised once the run reaches its stop time.
@@ -385,8 +388,16 @@ struct EventState {
 /// `sample(s, i)` the flag of a scheduled one, and `edge`/`change` their
 /// definitions in terms of `pre`.
 struct EventRewrite<'a> {
-    /// Names of the discrete variables, the only ones `pre` accepts.
+    /// Names of the discrete variables: those a `when` assigns.
     discretes: &'a [String],
+    /// Names that are discrete by their type rather than by what
+    /// assigns them. The language calls a Boolean and an Integer
+    /// discrete-valued outright, and `pre` accepts them on that
+    /// ground alone.
+    discrete_valued: &'a [String],
+    /// Names `pre` was asked for that were not already discrete, in
+    /// the order they were asked for.
+    pre_wanted: Vec<String>,
     /// Parameter values: the arguments of `sample` must be constant.
     params: &'a HashMap<String, f64>,
     /// Schedules found so far, in flag order.

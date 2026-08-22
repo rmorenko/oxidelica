@@ -3521,3 +3521,30 @@ fn a_parameter_the_initialization_settles_is_read_the_way_the_language_says() {
     );
     assert!((held - 5.0).abs() < 1e-6, "{held}");
 }
+
+/// `pre` reaches a Boolean that no `when` assigns.
+///
+/// The language calls a Boolean and an Integer discrete-valued by
+/// their type, whatever writes them, so each has a value from before
+/// the event whether or not a `when` clause is what set it. Reading
+/// one only as a `when` target refused models the standard library is
+/// full of, friction and thyristors among them.
+#[test]
+fn pre_reaches_a_boolean_that_no_when_assigns() {
+    let result = run(
+        "model M Boolean b; Integer n; Real x(start = 1, fixed = true); \
+         equation b = x < 0.5; n = if b then 2 else 1; \
+         der(x) = if pre(b) then -0.5 * pre(n) else -1; \
+         annotation(experiment(StopTime=1.0)); end M;",
+    );
+    let b = result.columns.iter().position(|c| c == "b").unwrap();
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let first = result.rows.first().unwrap();
+    assert!(first[b] < 0.5, "b starts false: {}", first[b]);
+    let last = result.rows.last().unwrap();
+    assert!(last[b] > 0.5, "b ends true: {}", last[b]);
+    // It fell at 1 per second to 0.5, then at 1 per second again once
+    // `pre(b)` caught up with `b` at the event: 0.5 at half a second,
+    // and 0.5 more over the remaining half.
+    assert!(last[x].abs() < 1e-6, "x ends at zero: {}", last[x]);
+}

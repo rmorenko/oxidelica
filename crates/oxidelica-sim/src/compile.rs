@@ -1470,8 +1470,19 @@ pub(crate) fn compile_at(
     let start_env = values_at_this_point(model, &params, &discretes, &discrete_start, &resume);
 
     // The event built-ins become references the evaluator can look up.
+    // A Boolean or an Integer is discrete-valued by its type, whatever
+    // assigns it, so `pre` reaches it as well as it reaches a `when`
+    // target.
+    let discrete_valued: Vec<String> = model
+        .components
+        .iter()
+        .filter(|c| c.type_name == "Boolean" || c.type_name == "Integer")
+        .map(|c| c.name.clone())
+        .collect();
     let mut rewrite = EventRewrite {
         discretes: &discretes,
+        discrete_valued: &discrete_valued,
+        pre_wanted: Vec::new(),
         params: &params,
         samples: Vec::new(),
         delays: Vec::new(),
@@ -1568,6 +1579,7 @@ pub(crate) fn compile_at(
         .collect::<Result<Vec<_>, SimError>>()?;
     let samples = rewrite.samples;
     let delayed = rewrite.delays;
+    let pre_wanted = rewrite.pre_wanted;
 
     // 2. Which equations give a state its derivative, and which are
     // algebraic.
@@ -1753,9 +1765,13 @@ pub(crate) fn compile_at(
     let state_slots: Vec<Slot> = states.iter().map(|name| table.slot(name)).collect();
     let algebraic_slots: Vec<Slot> = ordered_algs.iter().map(|name| table.slot(name)).collect();
     let discrete_slots: Vec<Slot> = discretes.iter().map(|name| table.slot(name)).collect();
-    let pre_slots: Vec<Slot> = discretes
+    // Every variable `pre` was asked about needs the slot it is read
+    // from beside the one holding what it was when the event began:
+    // the `when` targets, and whatever else was asked for by type.
+    let pre_slots: Vec<(Slot, Slot)> = discretes
         .iter()
-        .map(|name| table.slot(&format!("$pre.{name}")))
+        .chain(&pre_wanted)
+        .map(|name| (table.slot(name), table.slot(&format!("$pre.{name}"))))
         .collect();
     let initial_slot = table.slot("$initial");
     let terminal_slot = table.slot("$terminal");
