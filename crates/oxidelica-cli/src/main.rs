@@ -330,20 +330,35 @@ fn library_check(args: &[String]) -> Result<(), String> {
         .collect();
     let mut flat: Vec<&String> = Vec::new();
     let mut why_not: Vec<(String, String)> = Vec::new();
+    let mut ran: Vec<&String> = Vec::new();
+    let mut would_not_run: Vec<(String, String)> = Vec::new();
     for name in &models {
         if std::env::var("OXIDELICA_TRACE").is_ok() {
             eprintln!("{name}");
         }
         match oxidelica_parser::flatten_named(&classes, name) {
-            Ok(_) => flat.push(name),
+            Ok(model) => {
+                flat.push(name);
+                // Flattening is not the whole of it. A flat model still
+                // has to come out as something that runs, and a model
+                // that flattens into equations nothing can solve is one
+                // this compiler has said nothing true about. What that
+                // costs is a few steps apiece, not a whole simulation:
+                // what goes wrong here goes wrong at the start.
+                match run_a_little(&model) {
+                    Ok(()) => ran.push(name),
+                    Err(why) => would_not_run.push((why, name.clone())),
+                }
+            }
             Err(why) => why_not.push((why, name.clone())),
         }
     }
     println!(
-        "classes: {}; example models: {}, of which {} flatten",
+        "classes: {}; example models: {}, of which {} flatten and {} run",
         classes.len(),
         models.len(),
-        flat.len()
+        flat.len(),
+        ran.len()
     );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
@@ -353,6 +368,8 @@ fn library_check(args: &[String]) -> Result<(), String> {
         }
     }
     report(&why_not, "  ", list);
+    println!("of the {} that flatten, {} run:", flat.len(), ran.len());
+    report(&would_not_run, "  ", list);
     Ok(())
 }
 
@@ -384,4 +401,22 @@ fn report(reasons: &[(String, String)], indent: &str, all: bool) {
     if ranked.len() > shown {
         println!("{indent}       and {} more kind(s)", ranked.len() - shown);
     }
+}
+
+/// Take a flat model as far as a few steps of a run.
+///
+/// A model that flattens has not been shown to be worth anything yet:
+/// the equations still have to come out as something solvable, and the
+/// first steps are where an unbalanced system, a name nothing settles
+/// or a call nobody can answer makes itself known. Running to the end
+/// would say more and cost minutes apiece; what is asked here is the
+/// cheap half of the question.
+fn run_a_little(model: &oxidelica_parser::Model) -> Result<(), String> {
+    let mut compiled = compile(model).map_err(|e| e.to_string())?;
+    // Ten steps of whatever the model calls a step, and never past
+    // where the model itself stops: a model asking for a long run is
+    // not made to do one, and one asking for a short run is not made
+    // to overrun it.
+    compiled.stop_time = (compiled.step * 10.0).min(compiled.stop_time);
+    compiled.simulate().map(|_| ()).map_err(|e| e.to_string())
 }

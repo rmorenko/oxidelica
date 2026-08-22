@@ -41,14 +41,31 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2649 read, 25 not read
-classes: 6544; example models: 734, of which 381 flatten
+classes: 6544; example models: 734, of which 388 flatten and 36 run
 ```
 
-Two numbers, and they mean different things. **Read** is the parser:
-the file was understood as Modelica. **Flatten** is the whole front end:
-the model was instantiated, its connections resolved, its arrays and
-functions expanded, and what came out is a flat system of equations. A
-model that flattens is a model this compiler can go on to simulate.
+Three numbers, and they mean different things. **Read** is the parser:
+the file was understood as Modelica. **Flatten** is the front end: the
+model was instantiated, its connections resolved, its arrays and
+functions expanded, and what came out is a flat system of equations.
+**Run** is the rest: that system came out as something solvable and
+took ten steps without complaint.
+
+The gap between the last two is the point of counting them apart. For
+a long time only the middle number was measured, and it flattered the
+compiler: a flat system nothing can solve is not an answer, and two
+faults found while this was being written - a class inherited by two
+paths of a diamond duplicating every variable, an array of records
+given its value the wrong way round - had produced wrong flat models
+for months without a single refusal to show for it. Flattening says
+the front end had no objection. Running is what says the objection
+would have been worth having.
+
+Ten steps rather than a whole simulation, and never past where the
+model itself stops. What goes wrong at this stage goes wrong at the
+start - an unbalanced system, a parameter nothing settles, a name that
+means nothing - and a full run would say little more for minutes
+apiece.
 
 Both numbers move as files start to parse, and not always upwards. A
 file nobody could read holds classes nobody could name, and a call to a
