@@ -3604,3 +3604,70 @@ fn a_parameter_handed_a_call_down_an_extends_is_evaluated() {
         last[x]
     );
 }
+
+/// A function body may leave a variable unset in one branch.
+///
+/// The language says an unassigned local or output of a function
+/// starts where its type starts, and the standard library writes whole
+/// property functions that way: the steam tables fill `cp` on one side
+/// of a region boundary and `cv` on the other, each meant to be left
+/// at zero where the other was set. Refusing that took thirty-two
+/// models out of reach, the Fluid examples among them.
+#[test]
+fn a_function_may_leave_a_value_unset_in_one_branch() {
+    let result = run("package Top \
+           record Pair Real hot; Real cold; end Pair; \
+           function pick input Real u; output Real y; \
+           protected Pair p; \
+           algorithm \
+             if u > 0 then p.hot := u; else p.cold := -u; end if; \
+             y := p.hot + p.cold; \
+           end pick; \
+           model M \
+             Real warm = pick(time + 1); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;");
+    let last = result.rows.last().expect("a final row");
+    let warm = last[1];
+    // The branch that ran set `hot` to 1.1; the branch that did not
+    // leaves `cold` where its type starts, which is zero.
+    assert!(
+        (warm - 1.1).abs() < 1e-9,
+        "the unset field should count as its own start of zero: {warm}"
+    );
+}
+
+/// The same for a record handed on whole, and for a flag.
+///
+/// A body that sets a record in one branch and hands it on in both
+/// needs the record itself to have a start, which is its fields'
+/// starts gathered up. A `Boolean` starts at false rather than at
+/// zero, and a field declared through a chain of unit aliases -
+/// `SI.Temperature` is a `Real` by way of two other names - has to be
+/// followed to the end to find that out.
+#[test]
+fn an_unset_record_starts_as_its_fields_do() {
+    let result = run("package Top \
+           type Temperature = Real; \
+           record State Temperature warm; Boolean lit; end State; \
+           function pick input Real u; output Real y; \
+           protected State s; \
+           algorithm \
+             if u > 2 then s.warm := u; s.lit := true; end if; \
+             y := s.warm + (if s.lit then 10 else 0); \
+           end pick; \
+           model M \
+             Real cool = pick(time + 1); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;");
+    let last = result.rows.last().expect("a final row");
+    let cool = last[1];
+    // Neither field was set: the number starts at zero and the flag at
+    // false, so nothing is added for either.
+    assert!(
+        cool.abs() < 1e-9,
+        "an unset record should start as its fields do: {cool}"
+    );
+}

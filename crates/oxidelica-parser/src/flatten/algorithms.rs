@@ -620,7 +620,41 @@ pub(super) fn execute(
                 }
                 touched.sort();
                 for name in touched {
-                    let fallback = before.get(&name).cloned();
+                    // A variable of a function body that no branch
+                    // wrote still has a value: the language says an
+                    // unassigned local starts at what its type starts
+                    // at, and a `Real` starts at zero. The steam
+                    // tables are written that way on purpose - the
+                    // boiling curve fills `cp` on one side of the
+                    // region 3 boundary and `cv` on the other, and
+                    // each is meant to be left at zero where the other
+                    // was set. Refusing that took thirty-two models
+                    // out, the whole of the Fluid examples among them.
+                    // Outside a function the same shape is a real
+                    // mistake and is still refused: a model's
+                    // algorithm has to say what the variable is before
+                    // the `if` decides whether to change it.
+                    // An `if` whose branches write arrays is left
+                    // alone: a quaternion conversion assigns four
+                    // elements in each of four branches, and giving
+                    // its scalars a start lets the whole thing be
+                    // inlined - four elements of nested conditions,
+                    // expanded again at every use. One multi-body
+                    // model went from a second and a half to half a
+                    // minute that way, and the library from seventeen
+                    // seconds to a quarter of an hour. What the
+                    // library needs this rule for is bodies that
+                    // decide a scalar or a record field one way or
+                    // another, and those cost nothing.
+                    let writes_arrays = outcomes.iter().any(|(_, local)| {
+                        local.keys().any(|written| sizes.contains_key(written))
+                    });
+                    let fallback = before.get(&name).cloned().or_else(|| {
+                        if writes_arrays {
+                            return None;
+                        }
+                        starts_at(&name, registry, scope)
+                    });
                     let mut value = match outcomes.last() {
                         // A trailing `else` supplies the last value.
                         Some((None, local)) => local.get(&name).cloned().or(fallback.clone()),
@@ -2159,4 +2193,140 @@ pub(super) fn record_input_fields(
         &function.imports,
     )?;
     (of.kind == ClassKind::Record).then(|| record_fields(of))
+}
+
+/// What a name of a function body holds before anything assigns it.
+///
+/// Inside a function this is not a missing value but a stated one: an
+/// unassigned local or output starts at its type's own start, which
+/// for a number is zero and for a Boolean is false. Outside a function
+/// there is no such rule, so nothing comes back and the branch that
+/// left the variable unset is refused as before.
+///
+/// A field of a record - `bpro.cp` - starts where the field's own type
+/// starts, which is the same answer arrived at by the name of the
+/// field rather than of the record holding it.
+fn starts_at(name: &str, registry: &HashMap<&str, &ClassDef>, scope: &str) -> Option<Expr> {
+    let class = registry.get(scope)?;
+    if class.kind != ClassKind::Function {
+        return None;
+    }
+    // Only a name the body declares, reached through the record it
+    // may be a field of. A name from anywhere else is not this rule's
+    // business and keeps the refusal it had.
+    let root = name.split('.').next()?;
+    let declared = class.components.iter().find(|c| c.name == root)?;
+    if declared.causality == Causality::Input || !declared.dimensions.is_empty() {
+        return None;
+    }
+    // Only a record, whole or by one of its fields. A plain local
+    // that one branch sets and another does not is the shape a
+    // quaternion conversion is written in - four branches, each
+    // assigning the same handful of names - and merging those builds
+    // a pile of nested conditions that is expanded again at every
+    // use. One multi-body model went from a second and a half to half
+    // a minute that way and the whole library from seventeen seconds
+    // to a quarter of an hour, for models it did not rescue. What the
+    // library does rely on is records: the steam tables leave `cp`
+    // unset on one side of a boundary and `cv` on the other, and each
+    // field is a name of its own that nothing multiplies.
+    let held = lookup(registry, &declared.type_name, &class.name, &class.imports);
+    let record = held.filter(|held| held.kind == ClassKind::Record);
+    // A plain local - not a record at all - has a start too, and the
+    // guard above is what keeps that affordable: where the branches
+    // write arrays, nothing here answers.
+    if record.is_none() && name == root {
+        return match started_by(&declared.type_name, registry, class, 0) {
+            Some(Started::Boolean) => Some(Expr::Bool(false)),
+            Some(Started::Number) => Some(Expr::Number(0.0)),
+            None => None,
+        };
+    }
+    // A record named whole is never what the merge asks about:
+    // flattening takes it apart first, so what a branch assigns and
+    // another leaves is `p.cp`, never `p`.
+    if name == root {
+        return None;
+    }
+    record?;
+    Some(match starting_type(name, declared, registry, class) {
+        Some(Started::Boolean) => Expr::Bool(false),
+        Some(Started::Number) => Expr::Number(0.0),
+        // A start this cannot name - a string, or a record field
+        // whose type is not in view - is left to the refusal, which
+        // says something true about a value that is really missing.
+        None => return None,
+    })
+}
+
+/// What kind of start a declaration has.
+enum Started {
+    /// A `Real` or `Integer`, which starts at zero.
+    Number,
+    /// A `Boolean`, which starts at false.
+    Boolean,
+}
+
+/// The start of `name`, following it into the record it is a field of.
+fn starting_type(
+    name: &str,
+    declared: &Component,
+    registry: &HashMap<&str, &ClassDef>,
+    within: &ClassDef,
+) -> Option<Started> {
+    // A field's type is written where the record is written, not
+    // where the function using it is: a steam property record says
+    // `DerPressureByTemperature`, a name that means something in the
+    // media package and nothing in the function reading it. So the
+    // record that holds a field becomes the place the next name is
+    // looked up from.
+    let mut current = declared.type_name.clone();
+    let mut within = within;
+    for field in name.split('.').skip(1) {
+        let holding = lookup(registry, &current, &within.name, &within.imports)?;
+        current = holding
+            .components
+            .iter()
+            .find(|c| c.name == field)?
+            .type_name
+            .clone();
+        within = holding;
+    }
+    started_by(&current, registry, within, 0)
+}
+
+/// A type name followed through its own bases until it is one of the
+/// language's own: `SI.SpecificHeatCapacity` is a `Real`.
+fn started_by(
+    type_name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    within: &ClassDef,
+    depth: usize,
+) -> Option<Started> {
+    if depth > 32 {
+        return None;
+    }
+    match type_name {
+        "Real" | "Integer" => return Some(Started::Number),
+        "Boolean" => return Some(Started::Boolean),
+        "String" => return None,
+        _ => {}
+    }
+    let class = lookup(registry, type_name, &within.name, &within.imports)?;
+    // An enumeration counts from one and is held as a number.
+    if !class.enumeration.is_empty() {
+        return Some(Started::Number);
+    }
+    // A type reaches what it is by either road: the short form -
+    // `type Current = SI.Current` - keeps its base as an alias, and
+    // the long one as an `extends`.
+    let base = match &class.alias_of {
+        Some((base, _)) => base.clone(),
+        None => class.extends.first()?.base.clone(),
+    };
+    // The next name along is written where this type is written, so
+    // that is where it is looked up from: `SpecificEnthalpy` is
+    // `SpecificEnergy` in the units package, and the function that
+    // started the asking has never heard of either.
+    started_by(&base, registry, class, depth + 1)
 }
