@@ -3362,3 +3362,54 @@ fn a_parameter_fixed_false_is_settled_by_an_initial_equation() {
         .expect("x");
     assert!((final_row[index] - 2.0).abs() < 1e-6, "{:?}", final_row);
 }
+
+/// What `fixed = false` on a parameter does and does not change.
+#[test]
+fn a_parameter_the_initialization_settles_is_read_the_way_the_language_says() {
+    let final_value = |source: &str, wanted: &str| {
+        let result = run(source);
+        let last = result.rows.last().expect("a final row").clone();
+        let at = result
+            .columns
+            .iter()
+            .position(|column| column == wanted)
+            .unwrap_or_else(|| panic!("{wanted} in {:?}", result.columns));
+        last[at]
+    };
+
+    // A declaration that wrote a value keeps it: the language asks for
+    // a warning where both are given, not for the value to be thrown
+    // away. Here `p` is 3, `x` starts there and climbs by one.
+    let both = final_value(
+        "model M parameter Real p(fixed = false) = 3; Real x(start = 0, fixed = false); \
+         initial equation x = p; equation der(x) = 1; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+        "x",
+    );
+    assert!((both - 4.0).abs() < 1e-6, "{both}");
+
+    // Which equation settles the parameter is not the first one that
+    // mentions it: `x = p` is about the state and cannot settle
+    // anything, so `p = 7` is taken whichever order they stand in.
+    for order in ["x = p; p = 7;", "p = 7; x = p;"] {
+        let settled = final_value(
+            &format!(
+                "model M parameter Real p(fixed = false); Real x(start = 0, fixed = false); \
+                 initial equation {order} equation der(x) = 1; \
+                 annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+            ),
+            "x",
+        );
+        assert!((settled - 8.0).abs() < 1e-6, "{order}: {settled}");
+    }
+
+    // A constant is settled by its declaration whatever it says about
+    // `fixed`, since the language does not let one be an unknown.
+    let held = final_value(
+        "model M constant Real k(fixed = false) = 5; Real x(start = 0, fixed = true); \
+         equation der(x) = k; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+        "x",
+    );
+    assert!((held - 5.0).abs() < 1e-6, "{held}");
+}

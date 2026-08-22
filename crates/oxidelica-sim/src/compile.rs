@@ -1131,47 +1131,32 @@ fn describe(expr: &Expr) -> String {
     }
 }
 
-/// What an initial equation says a name comes to, where it says it
-/// outright: `t0 = time` either way round.
-///
-/// A parameter written `fixed = false` is one the initialisation
-/// settles rather than the declaration, and the standard library uses
-/// that to catch the moment a simulation starts. Where the equation
-/// naming it is this plain, the value is worked out here with the
-/// other parameters, which is where everything downstream expects a
-/// parameter's value to be.
-fn settled_by_initialization<'a>(model: &'a Model, name: &str) -> Option<(usize, &'a Expr)> {
-    model
-        .initial_equations
-        .iter()
-        .enumerate()
-        .find_map(|(at, equation)| match (&equation.lhs, &equation.rhs) {
-            (Expr::Ref(named), value) | (value, Expr::Ref(named)) if named == name => {
-                Some((at, value))
-            }
-            _ => None,
-        })
-}
-
-fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> {
+fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize>), SimError> {
     let mut params: HashMap<String, f64> = HashMap::new();
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
+    // The parameters the initialisation settles rather than the
+    // declaration, and the initial equations claimed for them.
+    let mut unknowns: Vec<&oxidelica_parser::Component> = Vec::new();
+    let mut claimed: Vec<usize> = Vec::new();
     for c in &model.components {
         if matches!(
             c.variability,
             Variability::Parameter | Variability::Constant
         ) {
-            let binding = match c.fixed {
-                // `fixed = false` says the declaration is not where the
-                // value comes from, so the start value is a guess and
-                // not an answer: the initial equations are asked first.
-                Some(false) => settled_by_initialization(model, &c.name)
-                    .map(|(_, value)| value)
-                    .or(c.binding.as_ref())
-                    .or(c.start.as_ref()),
-                _ => c.binding.as_ref().or(c.start.as_ref()),
-            };
-            match binding {
+            // `fixed = false` says the declaration is not where the
+            // value comes from - unless it wrote one anyway, and then
+            // the declaration wins and the language only asks for a
+            // warning. A constant is settled by its declaration
+            // whatever it says about `fixed`, since the language does
+            // not let a constant be an unknown of anything.
+            let asks_the_initialization = c.variability == Variability::Parameter
+                && c.fixed == Some(false)
+                && c.binding.is_none();
+            if asks_the_initialization {
+                unknowns.push(c);
+                continue;
+            }
+            match c.binding.as_ref().or(c.start.as_ref()) {
                 Some(expr) => pending.push((&c.name, expr)),
                 None => return err(format!("parameter {} has no value", c.name)),
             }
@@ -1209,7 +1194,74 @@ fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> 
             ));
         }
     }
-    Ok(params)
+
+    // What the initialisation settles. An equation is claimable where
+    // it names the parameter on one side and the other side comes to a
+    // number with what is settled so far - so `p = 7` is taken and
+    // `x = p` is left to the state it is really about, whichever order
+    // they were written in. Settling one may let another go, so they
+    // are asked in rounds.
+    loop {
+        let mut progress = false;
+        unknowns.retain(|c| {
+            let taken = model
+                .initial_equations
+                .iter()
+                .enumerate()
+                .filter(|(at, _)| !claimed.contains(at))
+                .find_map(|(at, equation)| {
+                    let value = match (&equation.lhs, &equation.rhs) {
+                        (Expr::Ref(named), value) | (value, Expr::Ref(named))
+                            if *named == c.name =>
+                        {
+                            value
+                        }
+                        _ => return None,
+                    };
+                    let context = EvalCtx {
+                        vars: &params,
+                        time: 0.0,
+                        programs: None,
+                        depth: 0,
+                    };
+                    eval(value, &context).ok().map(|number| (at, number))
+                });
+            match taken {
+                Some((at, number)) => {
+                    claimed.push(at);
+                    params.insert(c.name.clone(), number);
+                    progress = true;
+                    false
+                }
+                None => true,
+            }
+        });
+        if unknowns.is_empty() || !progress {
+            break;
+        }
+    }
+    // One nothing settled keeps its start value, which is what the
+    // language says a start is for where nothing else decides.
+    for c in unknowns {
+        match c.start.as_ref() {
+            Some(start) => {
+                let context = EvalCtx {
+                    vars: &params,
+                    time: 0.0,
+                    programs: None,
+                    depth: 0,
+                };
+                match eval(start, &context) {
+                    Ok(number) => {
+                        params.insert(c.name.clone(), number);
+                    }
+                    Err(_) => return err(format!("parameter {} has no value", c.name)),
+                }
+            }
+            None => return err(format!("parameter {} has no value", c.name)),
+        }
+    }
+    Ok((params, claimed))
 }
 
 /// Compile a model, either from its declared start (`resume` absent) or
@@ -1240,7 +1292,7 @@ pub(crate) fn compile_at(
 
     // 1. Parameters and constants, in whatever order they depend on
     // each other.
-    let params = evaluate_parameters(model)?;
+    let (params, settled_parameters) = evaluate_parameters(model)?;
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
@@ -1340,18 +1392,6 @@ pub(crate) fn compile_at(
     // done its work among the parameters, and counting it again here
     // would leave the initialisation with one equation more than it
     // has unknowns.
-    let settled_parameters: Vec<usize> = model
-        .components
-        .iter()
-        .filter(|c| {
-            c.fixed == Some(false)
-                && matches!(
-                    c.variability,
-                    Variability::Parameter | Variability::Constant
-                )
-        })
-        .filter_map(|c| settled_by_initialization(model, &c.name).map(|(at, _)| at))
-        .collect();
     let initial_equations: Vec<EquationItem> = model
         .initial_equations
         .iter()
