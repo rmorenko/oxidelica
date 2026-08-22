@@ -41,7 +41,7 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2646 read, 25 not read
-classes: 6539; example models: 733, of which 381 flatten and 37 run
+classes: 6539; example models: 733, of which 381 flatten and 38 run
 ```
 
 Three numbers, and they mean different things. **Read** is the parser:

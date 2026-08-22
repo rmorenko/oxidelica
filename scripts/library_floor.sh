@@ -7,19 +7,15 @@
 # every commit and believed on trust afterwards. Nothing stopped one of
 # them going down. This is what stops it.
 #
-# A floor rather than an exact number, for two reasons. Going up is the
-# point, and should not need the threshold edited in the same commit.
-# And two models sit on a numerical edge - an algebraic loop that
-# converges in fifty Newton iterations or does not - so the run count
-# is one of a pair from one process to the next. The floor is set below
-# the lower of the two.
+# A floor rather than an exact number: going up is the point, and
+# should not need the threshold edited in the same commit.
 #
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
 FILES_FLOOR=2646
 FLATTEN_FLOOR=381
-RUN_FLOOR=36
+RUN_FLOOR=38
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."

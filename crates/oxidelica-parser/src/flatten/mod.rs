@@ -250,7 +250,13 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     expand_buses(&registry, &mut acc)?;
 
     // Connection sets via union-find over connector instance paths.
-    let paths: Vec<String> = acc.connectors.keys().cloned().collect();
+    // The paths are put in order first: what a hash map hands back
+    // comes out differently in every process, and everything below
+    // here - which connector a set is named after, which equation is
+    // written first, and so which one the index reduction finds left
+    // over - would come out differently with it.
+    let mut paths: Vec<String> = acc.connectors.keys().cloned().collect();
+    paths.sort();
     let index: HashMap<&str, usize> = paths.iter().map(|p| p.as_str()).zip(0..).collect();
     let mut parent: Vec<usize> = (0..paths.len()).collect();
     fn find(parent: &mut Vec<usize>, i: usize) -> usize {
@@ -279,8 +285,18 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         sets.entry(find(&mut parent, i)).or_default().push(path);
     }
 
-    for members in sets.values_mut() {
-        members.sort();
+    // And the sets themselves in order, by the first connector each
+    // holds. Sorting inside a set is not enough: the sequence of sets
+    // is what decides the order the equations are written in.
+    let mut sets: Vec<Vec<&str>> = sets
+        .into_values()
+        .map(|mut members| {
+            members.sort();
+            members
+        })
+        .collect();
+    sets.sort();
+    for members in sets.iter_mut() {
         // Connectors in one set must match in shape, not in name: a
         // signal output and a signal input are different classes with
         // the same members, and connecting them is the whole point.
@@ -382,7 +398,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     });
     if any_streams {
         let mut node_of: HashMap<String, Vec<String>> = HashMap::new();
-        for members in sets.values() {
+        for members in sets.iter() {
             for member in members.iter() {
                 node_of.insert(
                     (*member).to_string(),

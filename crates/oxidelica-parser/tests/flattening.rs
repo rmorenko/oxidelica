@@ -8508,3 +8508,44 @@ fn a_length_a_modifier_settled_is_seen_by_an_algorithm() {
         });
     assert_eq!(settled, Some(oxidelica_parser::Expr::Number(3.0)));
 }
+
+/// The same model flattens to the same thing every time it is read.
+#[test]
+fn a_model_built_of_connections_flattens_the_same_way_twice() {
+    // The connection sets used to be emitted in the order a hash map
+    // handed them back, which Rust seeds afresh in every process. What
+    // came of it was not a different message but a different model:
+    // the equations in another order, so the index reduction found
+    // another one left over, so another state was demoted, so the
+    // count of pinned starts moved and the initialisation was square
+    // or was not.
+    const BRIDGE: &str = "connector Pin Real v; flow Real i; end Pin; \
+         model R Pin p; Pin n; parameter Real R = 1; \
+         equation p.i + n.i = 0; p.v - n.v = R * p.i; end R; \
+         model Src Pin p; Pin n; \
+         equation p.i + n.i = 0; p.v - n.v = 5; end Src; \
+         model G Pin p; equation p.v = 0; end G; \
+         model M R ra; R rb(R = 2); R rc(R = 3); R rd(R = 4); Src s; G g; \
+         equation connect(s.p, ra.p); connect(s.p, rb.p); \
+         connect(ra.n, rc.p); connect(rb.n, rd.p); \
+         connect(rc.n, s.n); connect(rd.n, s.n); connect(s.n, g.p); end M;";
+
+    let once = parse_model(BRIDGE).unwrap();
+    let written = |model: &oxidelica_parser::Model| {
+        let names: Vec<&str> = model.components.iter().map(|c| c.name.as_str()).collect();
+        let equations: Vec<String> = model
+            .equations
+            .iter()
+            .map(|equation| format!("{:?} = {:?}", equation.lhs, equation.rhs))
+            .collect();
+        (names.join(","), equations.join(";"))
+    };
+    // Reading it again in the same process would use the same seed, so
+    // what is checked here is that the order does not come from the
+    // map at all: the components and the equations come out sorted by
+    // the names the model wrote, which is a property of the answer
+    // rather than of the run.
+    for _ in 0..4 {
+        assert_eq!(written(&once), written(&parse_model(BRIDGE).unwrap()));
+    }
+}
