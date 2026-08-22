@@ -8721,3 +8721,41 @@ fn a_value_handed_down_an_extends_is_worked_out() {
         k.binding
     );
 }
+
+/// An array handed down an `extends` reaches the base as its elements.
+///
+/// `extends ConditionalHeatPort(T = T_ref)` is how every machine in
+/// the standard library says its windings start at their reference
+/// temperature. In the base, `T_ref` is not a name, so the value came
+/// back whole and looked like a scalar - and a scalar spreads over the
+/// whole array, binding every element of `T` to the entire array.
+/// Seventeen machine models refused to start on the parameters that
+/// made.
+#[test]
+fn an_array_handed_down_an_extends_arrives_as_its_elements() {
+    let model = parse_model(
+        "package Top \
+           partial model Cond parameter Real T[3] = fill(293.15, 3); end Cond; \
+           model R parameter Real T_ref[3] = fill(300.15, 3); \
+             extends Cond(T = T_ref); \
+           end R; \
+         end Top;",
+    )
+    .expect("flattens");
+    for element in 1..=3 {
+        let name = format!("T[{element}]");
+        let bound = model
+            .components
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("{name} survives"))
+            .binding
+            .as_ref()
+            .map(|b| b.describe());
+        assert_eq!(
+            bound,
+            Some(format!("T_ref[{element}]")),
+            "{name} should take its own element, not the whole array"
+        );
+    }
+}

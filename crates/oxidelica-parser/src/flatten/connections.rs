@@ -152,6 +152,7 @@ pub(super) fn expand_buses(
         redeclares: &[],
         inners: &HashMap::new(),
         broken: &[],
+        handed_shapes: &HashMap::new(),
     };
     let mut fresh: Vec<(String, String)> = Vec::new();
     loop {

@@ -222,6 +222,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         redeclares: &[],
         inners: &HashMap::new(),
         broken: &[],
+        handed_shapes: &HashMap::new(),
     };
     instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
 
@@ -886,6 +887,11 @@ struct Env<'a> {
     inners: &'a HashMap<String, InnerInstance>,
     /// A selective `extends` leaves these elements of this class out.
     broken: &'a [Deselect],
+    /// Shapes of the arrays named by the values in `overrides`, which
+    /// are written in the terms of the class above and are not names
+    /// here at all. Without them a value like `T = T_ref` looks like a
+    /// scalar and spreads whole over every element it lands on.
+    handed_shapes: &'a HashMap<String, Vec<i64>>,
 }
 
 /// One component element about to be instantiated: the declaration, the

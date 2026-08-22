@@ -227,8 +227,21 @@ pub(super) fn instantiate(
             )?);
         }
         base_redeclares.extend(redeclares.iter().cloned());
+        // What the values handed down name, measured here where those
+        // names still mean something.
+        let mut handed_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+        collect_shapes(
+            registry,
+            class,
+            &acc.const_values,
+            &HashMap::new(),
+            &mut handed_shapes,
+            0,
+        );
+        let handed_shapes = prefixed_sizes(&handed_shapes, prefix);
         let base_env = Env {
             overrides: &mods,
+            handed_shapes: &handed_shapes,
             redeclares: &base_redeclares,
             inners: &inners,
             broken: &extend.broken,
@@ -781,7 +794,29 @@ pub(super) fn instantiate(
             let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
             let mut items = Vec::new();
             value.flatten_into(&mut items);
-            // A scalar start spreads over the whole array.
+            // A scalar start spreads over the whole array - but only
+            // a real scalar. A value handed down an `extends` is
+            // written in the terms of the class above, where `T =
+            // T_ref` names an array; here that name means nothing, so
+            // it comes back whole and looks exactly like a scalar.
+            // Spread, it binds every element of the array to the
+            // whole array, which is the shape nothing can check and
+            // the parameters cannot evaluate. Where the name is known
+            // above to be an array of the same length, its elements
+            // are what was meant, one apiece.
+            if items.len() == 1 && element_names.len() > 1 {
+                if let Expr::Ref(name) = &items[0] {
+                    if let Some(shape) = env.handed_shapes.get(name.as_str()) {
+                        let indices = index_tuples(shape);
+                        if indices.len() == element_names.len() {
+                            return Ok(indices
+                                .into_iter()
+                                .map(|at| Expr::Ref(element_name(name, &at)))
+                                .collect());
+                        }
+                    }
+                }
+            }
             if items.len() == 1 && element_names.len() > 1 {
                 return Ok(vec![items[0].clone(); element_names.len()]);
             }
@@ -2316,6 +2351,7 @@ pub(super) fn instantiate_one(
                 redeclares,
                 inners,
                 broken: &[],
+                handed_shapes: &HashMap::new(),
             };
             instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
         }
