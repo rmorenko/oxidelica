@@ -3548,3 +3548,35 @@ fn pre_reaches_a_boolean_that_no_when_assigns() {
     // and 0.5 more over the remaining half.
     assert!(last[x].abs() < 1e-6, "x ends at zero: {}", last[x]);
 }
+
+/// Inside a `when` body, `pre` reaches a moving state.
+///
+/// The body runs at the instant of the event, so the value the state
+/// arrived with is one that exists, and it is the value a block
+/// averaging over a period is after: the integral just before the
+/// `reinit` that clears it for the next period. Outside a `when` the
+/// same state is between events and moving, and the refusal stands.
+#[test]
+fn a_when_body_can_ask_what_a_state_arrived_with() {
+    let result = run(
+        "model M Real x(start = 0, fixed = true); discrete Real mean(start = 0); \
+         equation der(x) = 2 * time; \
+         when sample(1, 1) then mean = pre(x); reinit(x, 0); end when; \
+         annotation(experiment(StopTime=1.5)); end M;",
+    );
+    let mean = result.columns.iter().position(|c| c == "mean").unwrap();
+    // Over the first second der(x) = 2t integrates to exactly 1, and
+    // that is what the event finds waiting for it.
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[mean] - 1.0).abs() < 1e-6,
+        "mean = {}, expected the integral of 2t over the period",
+        last[mean]
+    );
+    // Outside a when body a state is moving and has no such value.
+    assert!(refused(
+        "model M Real x(start = 0, fixed = true); Real y; \
+                 equation der(x) = 1; y = pre(x); end M;"
+    )
+    .contains("is not discrete"));
+}

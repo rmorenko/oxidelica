@@ -36,12 +36,20 @@ impl EventRewrite<'_> {
     /// the language calls those discrete-valued, and a continuous
     /// equation writing one still only lets it change when a relation
     /// inside it flips, which is an event.
+    ///
+    /// Inside a `when` body any variable has one, including a moving
+    /// state: the body runs at the instant of the event, so the value
+    /// the state arrived with is a value that exists. That is what a
+    /// block averaging over a period asks for, `pre(x)` being the
+    /// integral just before the `reinit` that clears it.
     pub(crate) fn pre_of(&mut self, arg: &Expr, builtin: &str) -> Result<Expr, SimError> {
         let Expr::Ref(name) = arg else {
             return err(format!("{builtin}() takes a variable, not an expression"));
         };
         if !self.discretes.iter().any(|d| d == name) {
-            if !self.discrete_valued.iter().any(|d| d == name) {
+            let by_type = self.discrete_valued.iter().any(|d| d == name);
+            let at_an_event = self.inside_a_when && self.declared.iter().any(|d| d == name);
+            if !by_type && !at_an_event {
                 return err(format!(
                     "{builtin}({name}): `{name}` is not discrete, so it has no value from before the event"
                 ));

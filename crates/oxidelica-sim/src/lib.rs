@@ -398,6 +398,13 @@ struct EventRewrite<'a> {
     /// Names `pre` was asked for that were not already discrete, in
     /// the order they were asked for.
     pre_wanted: Vec<String>,
+    /// Every variable the model declares. Inside a `when` body the
+    /// left limit of any of them is a value that exists, since the
+    /// body is evaluated at the instant of the event; outside one, a
+    /// continuous variable is moving and has no such value.
+    declared: &'a [String],
+    /// Whether what is being rewritten is the body of a `when`.
+    inside_a_when: bool,
     /// Parameter values: the arguments of `sample` must be constant.
     params: &'a HashMap<String, f64>,
     /// Schedules found so far, in flag order.

@@ -1473,6 +1473,7 @@ pub(crate) fn compile_at(
     // A Boolean or an Integer is discrete-valued by its type, whatever
     // assigns it, so `pre` reaches it as well as it reaches a `when`
     // target.
+    let declared: Vec<String> = model.components.iter().map(|c| c.name.clone()).collect();
     let discrete_valued: Vec<String> = model
         .components
         .iter()
@@ -1483,6 +1484,8 @@ pub(crate) fn compile_at(
         discretes: &discretes,
         discrete_valued: &discrete_valued,
         pre_wanted: Vec::new(),
+        declared: &declared,
+        inside_a_when: false,
         params: &params,
         samples: Vec::new(),
         delays: Vec::new(),
@@ -1525,6 +1528,9 @@ pub(crate) fn compile_at(
                 .collect::<Result<Vec<_>, SimError>>()
         })
         .collect::<Result<Vec<_>, SimError>>()?;
+    // The body of a `when` is evaluated at the instant of an event, so
+    // the left limit of any variable it names is a value that exists.
+    rewrite.inside_a_when = true;
     let mut when_clauses: Vec<WhenClause> = Vec::new();
     for clause in &model.when_clauses {
         let mut branches = Vec::new();
@@ -1559,6 +1565,7 @@ pub(crate) fn compile_at(
             origin: clause.origin.clone(),
         });
     }
+    rewrite.inside_a_when = false;
     // An initial equation that settled a `fixed = false` parameter has
     // done its work among the parameters, and counting it again here
     // would leave the initialisation with one equation more than it
