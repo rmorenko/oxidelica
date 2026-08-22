@@ -47,6 +47,12 @@ This replaced the routine of writing a throwaway model, adding
 Where it does not answer the question, the fix is usually to make it
 answer the question rather than to go back to the printlns.
 
+`OXIDELICA_WHERE=1` puts the file and line on a compiler refusal, which
+answers which of the several places raising a message raised this one.
+A debugger was measured against this and lost: it has no Rust plugin
+here, so `String` and `Expr` read as addresses. It answers "where" and
+not "what", and "where" is the cheaper half to build in.
+
 ## Refusals
 
 A refusal must name what it refused. "Subscripts survive flattening

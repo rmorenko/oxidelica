@@ -47,8 +47,26 @@ impl fmt::Display for SimError {
 
 impl std::error::Error for SimError {}
 
+/// Where a refusal was made, when the run was asked for it.
+///
+/// A message says what was wrong with the model; it does not say which
+/// of the several places that could have raised it did. Finding that
+/// out meant a debugger, and a debugger on this codebase reads `String`
+/// and `Expr` as addresses - it answers "where" well and "what" not at
+/// all, which is the wrong half. `OXIDELICA_WHERE=1` puts the file and
+/// line on the message and answers the half a debugger was wanted for,
+/// on every platform and without one.
+#[track_caller]
 fn err<T>(message: impl Into<String>) -> Result<T, SimError> {
-    Err(SimError(message.into()))
+    let message = message.into();
+    let message = match std::env::var_os("OXIDELICA_WHERE").is_some() {
+        true => {
+            let at = std::panic::Location::caller();
+            format!("{message} [{}:{}]", at.file(), at.line())
+        }
+        false => message,
+    };
+    Err(SimError(message))
 }
 
 /// Integration method used by [`CompiledModel::simulate`].

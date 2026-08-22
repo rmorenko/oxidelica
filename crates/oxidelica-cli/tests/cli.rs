@@ -628,3 +628,31 @@ fn with_no_home_there_is_nowhere_to_keep_a_library() {
         stderr(&out)
     );
 }
+
+/// A refusal can be asked where it was made.
+///
+/// The message says what was wrong with the model but not which of the
+/// places that raise it did; a debugger answers that and little else
+/// here, so the run answers it instead when asked.
+#[test]
+fn a_refusal_can_be_asked_where_it_was_made() {
+    let file = TempFile::new(
+        "where.mo",
+        "model M parameter Real a = nowhere; Real x; equation x = a; end M;",
+    );
+    let quiet = bin().arg("why").arg(file.path()).arg("a").output().unwrap();
+    let quiet = stdout(&quiet) + &stderr(&quiet);
+    assert!(quiet.contains("`nowhere`"), "{quiet}");
+    assert!(!quiet.contains(".rs:"), "unasked-for place: {quiet}");
+
+    let loud = bin()
+        .env("OXIDELICA_WHERE", "1")
+        .arg("why")
+        .arg(file.path())
+        .arg("a")
+        .output()
+        .unwrap();
+    let loud = stdout(&loud) + &stderr(&loud);
+    assert!(loud.contains("`nowhere`"), "{loud}");
+    assert!(loud.contains("compile.rs:"), "no place given: {loud}");
+}
