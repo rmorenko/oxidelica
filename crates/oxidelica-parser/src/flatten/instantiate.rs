@@ -956,8 +956,15 @@ pub(super) fn instantiate(
                     let value =
                         substitute_class_constants(value, registry, scope, &imports, &shadow);
                     let value = prefix_expr(&value, prefix, &outers);
+                    // A component with no dimensions at all takes its
+                    // modifier whole, and so does one written `each`.
+                    // An array of a single element is still an array:
+                    // `p[1](k = zeros(1))` hands its one element the
+                    // one entry, not the vector, which is what the
+                    // rectifiers do when they reuse a polyphase block
+                    // with `m = 1`.
                     let spread_whole =
-                        element_count == 1 || component.each_modifiers.iter().any(|e| e == name);
+                        sizes.is_empty() || component.each_modifiers.iter().any(|e| e == name);
                     let value = if spread_whole {
                         value
                     } else {

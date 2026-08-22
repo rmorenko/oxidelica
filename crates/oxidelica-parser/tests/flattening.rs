@@ -503,6 +503,29 @@ fn a_whole_array_handed_to_a_component_reaches_its_elements() {
             .unwrap_err()
             .to_string();
     assert!(error.contains("3 element(s)"), "{error}");
+
+    // An array of one element is still an array. The rectifiers reuse
+    // their polyphase blocks with the phase count set to one and pass
+    // `zeros(1)` in, so a vector of a single entry has to be handed
+    // out entry by entry like any other, not given whole to the one
+    // element - which would leave a scalar parameter holding a vector.
+    let m = parse_model(
+        "model Sub parameter Integer m = 3; Inner p[m](k = zeros(m)); end Sub;\
+         model Inner parameter Real k = 7; end Inner;\
+         model M Sub one(m = 1); Sub two(m = 2); end M;",
+    )
+    .unwrap();
+    for name in ["one.p[1].k", "two.p[1].k", "two.p[2].k"] {
+        let binding = format!(
+            "{:?}",
+            m.components
+                .iter()
+                .find(|c| c.name == name)
+                .unwrap_or_else(|| panic!("no {name}"))
+                .binding
+        );
+        assert!(binding.contains("Number(0.0)"), "{name}: {binding}");
+    }
 }
 
 #[test]
