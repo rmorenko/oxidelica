@@ -15,6 +15,39 @@ pub(crate) fn nth_root(value: f64, n: f64) -> f64 {
     }
 }
 
+/// What an expression the run cannot carry was, said plainly.
+///
+/// The refusal without it names the rule and not the thing, and the
+/// thing is what says which of several quite different faults this is:
+/// a subscript nothing expanded, a whole array where a number was
+/// wanted, a field of a record that never came apart.
+pub(crate) fn shape_of(expr: &Expr) -> String {
+    match expr {
+        Expr::Index(base, subscripts) => {
+            let names = |e: &Expr| match e {
+                Expr::Ref(name) => name.clone(),
+                other => shape_of(other),
+            };
+            let inside: Vec<String> = subscripts.iter().map(names).collect();
+            format!("`{}` subscripted by [{}]", names(base), inside.join(", "))
+        }
+        Expr::Member(base, field) => match base.as_ref() {
+            Expr::Ref(name) => format!("`{name}.{field}`, a field of a record"),
+            _ => format!("`.{field}`, a field of a record"),
+        },
+        Expr::Array(items) => format!("an array of {} written out", items.len()),
+        Expr::MatrixRows(rows) => format!("a matrix of {} row(s)", rows.len()),
+        Expr::Range(..) => "a range".to_string(),
+        Expr::Comprehension(..) => "a comprehension".to_string(),
+        Expr::Elementwise(..) => "an elementwise operation".to_string(),
+        Expr::ColonSubscript => "a `:` subscript".to_string(),
+        Expr::EndSubscript => "an `end` subscript".to_string(),
+        Expr::NamedArg(name, _) => format!("`{name} = ...`, a named argument"),
+        Expr::Tuple(items) => format!("a tuple of {}", items.len()),
+        _ => "an expression of more than one number".to_string(),
+    }
+}
+
 pub(crate) fn truth(yes: bool) -> f64 {
     if yes {
         1.0
@@ -485,9 +518,10 @@ impl SlotTable {
                     }
                 }
                 _ => {
-                    return err(
-                        "subscripts and arrays survive flattening only as scalars".to_string()
-                    )
+                    return err(format!(
+                        "subscripts and arrays survive flattening only as scalars: {}",
+                        shape_of(expr)
+                    ))
                 }
             },
             Expr::Member(_, _)
@@ -500,7 +534,10 @@ impl SlotTable {
             | Expr::MatrixRows(_)
             | Expr::NamedArg(_, _)
             | Expr::Tuple(_) => {
-                return err("subscripts and arrays survive flattening only as scalars".to_string())
+                return err(format!(
+                    "subscripts and arrays survive flattening only as scalars: {}",
+                    shape_of(expr)
+                ))
             }
         })
     }

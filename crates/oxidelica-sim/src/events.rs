@@ -176,7 +176,10 @@ impl EventRewrite<'_> {
             | Expr::MatrixRows(_)
             | Expr::NamedArg(_, _)
             | Expr::Tuple(_) => {
-                return err("subscripts and arrays survive flattening only as scalars".to_string())
+                return err(format!(
+                    "subscripts and arrays survive flattening only as scalars: {}",
+                    crate::code::shape_of(expr)
+                ))
             }
             Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Time => expr.clone(),
         })
