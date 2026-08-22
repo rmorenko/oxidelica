@@ -179,8 +179,8 @@ impl TypeLayer {
         if bool_against_number(left, right) {
             return Err(format!(
                 "type mismatch in `{} = {}`: {} against {}",
-                describe(lhs),
-                describe(rhs),
+                lhs.describe(),
+                rhs.describe(),
                 left.name(),
                 right.name()
             ));
@@ -209,7 +209,7 @@ impl TypeLayer {
                 if value.fract() != 0.0 {
                     return Err(format!(
                         "`{name}` is an Integer but `{}` works out to {value}; use `integer()`",
-                        describe(other)
+                        other.describe()
                     ));
                 }
             }
@@ -242,7 +242,7 @@ impl TypeLayer {
         if bool_against_number(target, given) {
             return Err(format!(
                 "type mismatch in `{name} := {}`: {} against {}",
-                describe(value),
+                value.describe(),
                 target.name(),
                 given.name()
             ));
@@ -250,7 +250,7 @@ impl TypeLayer {
         if target == Ty::Int && given == Ty::Real {
             return Err(format!(
                 "`{name}` is an Integer but `{}` is Real; use `integer()`",
-                describe(value)
+                value.describe()
             ));
         }
         Ok(())
@@ -268,9 +268,9 @@ impl TypeLayer {
                 return Err(format!(
                     "`{} {} {}` compares Reals for equality; \
                      compare the difference with a tolerance instead",
-                    describe(a),
+                    a.describe(),
                     if matches!(op, RelOp::Eq) { "==" } else { "<>" },
-                    describe(b)
+                    b.describe()
                 ));
             }
         }
@@ -286,7 +286,7 @@ impl TypeLayer {
             Ty::Bool | Ty::Unknown => Ok(()),
             other => Err(format!(
                 "the condition `{}` is {}, not Boolean",
-                describe(expr),
+                expr.describe(),
                 other.name()
             )),
         }
@@ -305,8 +305,8 @@ impl TypeLayer {
             }
             Expr::Bin(op, a, b) | Expr::Elementwise(op, a, b) => {
                 let (ta, tb) = (self.infer(a)?, self.infer(b)?);
-                self.numeric(ta, a, op_text(*op))?;
-                self.numeric(tb, b, op_text(*op))?;
+                self.numeric(ta, a, (*op).text())?;
+                self.numeric(tb, b, (*op).text())?;
                 Ok(match op {
                     // Division and powers are Real by definition.
                     BinOp::Div | BinOp::Pow => Ty::Real,
@@ -318,9 +318,9 @@ impl TypeLayer {
                 if bool_against_number(ta, tb) {
                     return Err(format!(
                         "cannot compare `{}` ({}) with `{}` ({})",
-                        describe(a),
+                        a.describe(),
                         ta.name(),
-                        describe(b),
+                        b.describe(),
                         tb.name()
                     ));
                 }
@@ -341,10 +341,10 @@ impl TypeLayer {
                 if bool_against_number(yes, no) {
                     return Err(format!(
                         "the branches of `if {}` disagree: `{}` is {}, `{}` is {}",
-                        describe(condition),
-                        describe(then),
+                        condition.describe(),
+                        then.describe(),
                         yes.name(),
-                        describe(otherwise),
+                        otherwise.describe(),
                         no.name()
                     ));
                 }
@@ -433,7 +433,7 @@ impl TypeLayer {
         if ty == Ty::Bool {
             return Err(format!(
                 "`{operation}` needs a number, but `{}` is Boolean",
-                describe(expr)
+                expr.describe()
             ));
         }
         Ok(())
@@ -444,7 +444,7 @@ impl TypeLayer {
             Ty::Bool | Ty::Unknown => Ok(()),
             other => Err(format!(
                 "`{}` is {}, but a Boolean is needed here",
-                describe(expr),
+                expr.describe(),
                 other.name()
             )),
         }
@@ -644,8 +644,8 @@ impl UnitLayer {
         if clashes(left, right) {
             return Err(format!(
                 "unit mismatch in `{} = {}`: {} against {}",
-                describe(lhs),
-                describe(rhs),
+                lhs.describe(),
+                rhs.describe(),
                 left.text(),
                 right.text()
             ));
@@ -659,7 +659,7 @@ impl UnitLayer {
         if clashes(target, given) {
             return Err(format!(
                 "unit mismatch in `{name} := {}`: {} against {}",
-                describe(value),
+                value.describe(),
                 target.text(),
                 given.text()
             ));
@@ -689,9 +689,9 @@ impl UnitLayer {
                             return Err(format!(
                                 "cannot {} `{}` ({}) and `{}` ({})",
                                 if *op == BinOp::Add { "add" } else { "subtract" },
-                                describe(a),
+                                a.describe(),
                                 ua.text(),
-                                describe(b),
+                                b.describe(),
                                 ub.text()
                             ));
                         }
@@ -707,9 +707,9 @@ impl UnitLayer {
                 if clashes(ua, ub) {
                     return Err(format!(
                         "cannot compare `{}` ({}) with `{}` ({})",
-                        describe(a),
+                        a.describe(),
                         ua.text(),
-                        describe(b),
+                        b.describe(),
                         ub.text()
                     ));
                 }
@@ -730,10 +730,10 @@ impl UnitLayer {
                 if clashes(yes, no) {
                     return Err(format!(
                         "the branches of `if {}` disagree: `{}` is {}, `{}` is {}",
-                        describe(condition),
-                        describe(then),
+                        condition.describe(),
+                        then.describe(),
                         yes.text(),
-                        describe(otherwise),
+                        otherwise.describe(),
                         no.text()
                     ));
                 }
@@ -770,7 +770,7 @@ impl UnitLayer {
                             return Err(format!(
                                 "the argument of `{name}` must be dimensionless, \
                                  but `{}` has unit {}",
-                                describe(arg),
+                                arg.describe(),
                                 dim.text()
                             ));
                         }
@@ -831,7 +831,7 @@ impl UnitLayer {
             if dim != Dim::ONE {
                 return Err(format!(
                     "an exponent must be dimensionless, but `{}` has unit {}",
-                    describe(exponent),
+                    exponent.describe(),
                     dim.text()
                 ));
             }
@@ -1107,55 +1107,6 @@ fn children(expr: &Expr) -> Vec<&Expr> {
         Expr::Comprehension(body, _, range) => vec![body, range],
         Expr::MatrixRows(rows) => rows.iter().flatten().collect(),
         _ => Vec::new(),
-    }
-}
-
-/// A compact source-like spelling of an expression for error messages.
-fn describe(expr: &Expr) -> String {
-    match expr {
-        Expr::Number(n) => format!("{n}"),
-        Expr::Bool(b) => format!("{b}"),
-        Expr::Ref(name) => name.clone(),
-        Expr::Time => "time".to_string(),
-        Expr::Neg(inner) => format!("-{}", describe(inner)),
-        Expr::Bin(op, a, b) | Expr::Elementwise(op, a, b) => {
-            format!("{} {} {}", describe(a), op_text(*op), describe(b))
-        }
-        Expr::Rel(op, a, b) => {
-            let symbol = match op {
-                RelOp::Lt => "<",
-                RelOp::Le => "<=",
-                RelOp::Gt => ">",
-                RelOp::Ge => ">=",
-                RelOp::Eq => "==",
-                RelOp::Ne => "<>",
-            };
-            format!("{} {symbol} {}", describe(a), describe(b))
-        }
-        Expr::And(a, b) => format!("{} and {}", describe(a), describe(b)),
-        Expr::Or(a, b) => format!("{} or {}", describe(a), describe(b)),
-        Expr::Not(inner) => format!("not {}", describe(inner)),
-        Expr::If(c, t, e) => format!(
-            "if {} then {} else {}",
-            describe(c),
-            describe(t),
-            describe(e)
-        ),
-        Expr::Call(name, args) => {
-            let args: Vec<String> = args.iter().map(describe).collect();
-            format!("{name}({})", args.join(", "))
-        }
-        _ => "…".to_string(),
-    }
-}
-
-fn op_text(op: BinOp) -> &'static str {
-    match op {
-        BinOp::Add => "+",
-        BinOp::Sub => "-",
-        BinOp::Mul => "*",
-        BinOp::Div => "/",
-        BinOp::Pow => "^",
     }
 }
 
@@ -1468,37 +1419,9 @@ mod tests {
     }
 
     #[test]
-    fn the_reporting_helpers_spell_expressions() {
+    fn the_reporting_helpers_walk_the_array_forms() {
         let x = || Box::new(Expr::Ref("x".to_string()));
         let one = || Box::new(Expr::Number(1.0));
-        let spell = |op: RelOp| describe(&Expr::Rel(op, x(), one()));
-        assert_eq!(spell(RelOp::Lt), "x < 1");
-        assert_eq!(spell(RelOp::Le), "x <= 1");
-        assert_eq!(spell(RelOp::Gt), "x > 1");
-        assert_eq!(spell(RelOp::Ge), "x >= 1");
-        assert_eq!(spell(RelOp::Eq), "x == 1");
-        assert_eq!(spell(RelOp::Ne), "x <> 1");
-        assert_eq!(
-            describe(&Expr::And(
-                Box::new(Expr::Bool(true)),
-                Box::new(Expr::Or(x(), Box::new(Expr::Not(x()))))
-            )),
-            "true and x or not x"
-        );
-        assert_eq!(
-            describe(&Expr::If(
-                x(),
-                Box::new(Expr::Time),
-                Box::new(Expr::Neg(one()))
-            )),
-            "if x then time else -1"
-        );
-        assert_eq!(
-            describe(&Expr::Call("f".to_string(), vec![*x(), *one()])),
-            "f(x, 1)"
-        );
-        assert_eq!(describe(&Expr::Array(Vec::new())), "…");
-
         // The loose walks see every child of the array forms.
         let range = Expr::Range(one(), Some(one()), one());
         assert_eq!(children(&range).len(), 3);

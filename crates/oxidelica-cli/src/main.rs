@@ -1,6 +1,7 @@
 //! M0 spike CLI: `oxidelica simulate model.mo [--stop T] [--dt H] [-o out.csv]`
 //! and `oxidelica parse model.mo` to dump the compiled model structure.
 
+use oxidelica_parser::{Variability, WhenAction};
 use oxidelica_sim::compile;
 use std::process::ExitCode;
 
@@ -20,6 +21,8 @@ Usage:
   oxidelica simulate <file.mo> [--stop T] [--dt H] [--solver NAME] [-o result.csv]
                             solvers: auto (default), dopri45, bdf (stiff), rk4
   oxidelica parse <file.mo>
+  oxidelica why <file.mo|Library.Class> <variable>
+                            where a variable's value comes from
   oxidelica library list
   oxidelica library add <name|git-url> [--version TAG] [--as NAME]
                             names: modelica (the Modelica Standard Library)
@@ -43,6 +46,7 @@ fn run() -> Result<(), String> {
     match command {
         Some("simulate") => simulate(&args[1..]),
         Some("parse") => parse(&args[1..]),
+        Some("why") => why(&args[1..]),
         Some("library") => library(&args[1..]),
         _ => Err(USAGE.to_string()),
     }
@@ -56,6 +60,193 @@ fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
     let libraries = oxidelica_parser::library_sources(Some(std::path::Path::new(path)));
     oxidelica_parser::parse_model_with_libraries(&libraries, &source)
         .map_err(|e| format!("{path}: {e}"))
+}
+
+/// Read a model named either as a file or as a class of the libraries.
+///
+/// Asking about a standard-library model otherwise means writing a
+/// file whose only purpose is to name it, and the question is usually
+/// asked about a library model: that is where the models that will not
+/// run are. A name with a path separator or a `.mo` suffix is a file,
+/// and anything else is looked up among the classes.
+fn load_named(what: &str) -> Result<oxidelica_parser::Model, String> {
+    let looks_like_a_file = what.ends_with(".mo")
+        || what.contains('/')
+        || what.contains('\\')
+        || std::path::Path::new(what).exists();
+    if looks_like_a_file {
+        return load(what);
+    }
+    let files = oxidelica_parser::library_files(None);
+    if files.is_empty() {
+        return Err(format!(
+            "no libraries to look for {what} in, and it is not a file"
+        ));
+    }
+    let mut classes = Vec::new();
+    for file in &files {
+        let Ok(source) = std::fs::read_to_string(file) else {
+            continue;
+        };
+        if let Ok(mut found) = oxidelica_parser::parse_file(&source) {
+            classes.append(&mut found);
+        }
+    }
+    if !classes.iter().any(|c| c.name == what) {
+        return Err(format!("no class called {what} in the libraries"));
+    }
+    oxidelica_parser::flatten_named(&classes, what)
+}
+
+/// `why` subcommand: where a variable's value comes from.
+///
+/// Debugging a model that will not run means asking the same question
+/// over and over: this variable has no value, or the wrong one, so who
+/// was supposed to give it one? Answering it by reading the flat model
+/// by hand is slow, because the flat model is thousands of lines and
+/// the variable is mentioned in a dozen of them. This gathers the
+/// dozen: what the variable was declared as, what its declaration
+/// bound, and every equation that names it, on either side.
+///
+/// The model is taken as a file or as a class of the libraries, so a
+/// standard-library model can be asked about without writing a file
+/// that instantiates it.
+fn why(args: &[String]) -> Result<(), String> {
+    let what = args.first().ok_or(USAGE)?;
+    let wanted = args.get(1).ok_or(USAGE)?;
+    let model = load_named(what)?;
+
+    println!("in {}, about `{wanted}`:", model.name);
+
+    // Everything whose name is the one asked for, or which lives
+    // inside it: asking about a record or a component is asking about
+    // the fields underneath, and nobody wants to ask again for each.
+    let named: Vec<&oxidelica_parser::Component> = model
+        .components
+        .iter()
+        .filter(|c| c.name == *wanted || c.name.starts_with(&format!("{wanted}.")))
+        .collect();
+
+    if named.is_empty() {
+        println!("  declared: nowhere - no component of the flat model is called that");
+    }
+    for component in &named {
+        let variability = match component.variability {
+            Variability::Parameter => "parameter ",
+            Variability::Constant => "constant ",
+            Variability::Discrete => "discrete ",
+            Variability::Continuous => "",
+        };
+        println!(
+            "  declared: {variability}{} {}",
+            component.type_name, component.name
+        );
+        match &component.binding {
+            Some(expr) => println!("    bound to: {}", expr.describe()),
+            None => println!("    bound to: nothing"),
+        }
+        if let Some(expr) = &component.start {
+            println!("    start: {}", expr.describe());
+        }
+        if let Some(fixed) = component.fixed {
+            println!("    fixed: {fixed}");
+        }
+        if let Some(unit) = &component.unit {
+            println!("    unit: {unit}");
+        }
+        // Where the declaration came from is the question behind the
+        // question: a value that went missing went missing in some
+        // class, and the flat name says which.
+        if let Some((instance, _)) = component.name.rsplit_once('.') {
+            println!("    inside: {instance}");
+        }
+    }
+
+    let mentions = |side: &oxidelica_parser::Expr| {
+        let mut found = false;
+        side.for_each(&mut |part| {
+            if let oxidelica_parser::Expr::Ref(name) = part {
+                if name == wanted || name.starts_with(&format!("{wanted}.")) {
+                    found = true;
+                }
+            }
+        });
+        found
+    };
+
+    let mut said = 0usize;
+    for (what, equations) in [
+        ("equation", &model.equations),
+        ("initial equation", &model.initial_equations),
+    ] {
+        for item in equations.iter() {
+            if !mentions(&item.lhs) && !mentions(&item.rhs) {
+                continue;
+            }
+            said += 1;
+            println!(
+                "  {what}: {} = {}",
+                item.lhs.describe(),
+                item.rhs.describe()
+            );
+            if !item.origin.is_empty() {
+                println!("    written in: {}", item.origin);
+            }
+        }
+    }
+
+    // A `when` is where a discrete variable gets its value, and a
+    // discrete variable with no `when` is the usual reason one is
+    // stuck at zero, so their absence is worth as much as their
+    // presence.
+    for clause in &model.when_clauses {
+        for branch in &clause.branches {
+            for action in &branch.actions {
+                let (target, value) = match action {
+                    WhenAction::Assign(name, value) => (name.clone(), value.describe()),
+                    WhenAction::Reinit(name, value) => {
+                        (name.clone(), format!("reinit to {}", value.describe()))
+                    }
+                    _ => continue,
+                };
+                if target != *wanted && !target.starts_with(&format!("{wanted}.")) {
+                    continue;
+                }
+                said += 1;
+                println!("  when {}: {target} = {value}", branch.condition.describe());
+            }
+        }
+    }
+
+    if said == 0 {
+        println!("  named by: no equation of the flat model");
+    }
+
+    // What the compiler made of it, when it got that far. A variable
+    // that flattened and still has no value is a different problem
+    // from one that never reached the compiler, and the two look the
+    // same until this is asked.
+    match compile(&model) {
+        Ok(compiled) => {
+            let value = compiled
+                .parameters
+                .iter()
+                .find(|(name, _)| name == wanted)
+                .map(|(_, value)| *value);
+            match value {
+                Some(value) => println!("  settled as: a parameter worth {value}"),
+                None if compiled.states.iter().any(|name| name == wanted) => {
+                    println!("  settled as: a state of the run")
+                }
+                None if compiled.algebraics.iter().any(|name| name == wanted) => {
+                    println!("  settled as: an algebraic variable of the run")
+                }
+                None => println!("  settled as: nothing the compiled model names"),
+            }
+        }
+        Err(refusal) => println!("  the compiler refused the model: {refusal}"),
+    }
+    Ok(())
 }
 
 /// `parse` subcommand: print the compiled model structure.

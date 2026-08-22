@@ -72,6 +72,125 @@ fn parse_dumps_model_structure() {
 }
 
 #[test]
+fn why_says_where_a_value_comes_from() {
+    let model = TempFile::new(
+        "why.mo",
+        "model M parameter Real k(unit = \"m\") = 3; Real x(start = 1); \
+         Real y; equation der(x) = -k * x; y = x + k; end M;",
+    );
+    let out = bin().args(["why", model.path(), "k"]).output().unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    // What it was declared as, what gave it a value, and the unit it
+    // carries: the three things asked of a parameter.
+    assert!(text.contains("parameter Real k"), "{text}");
+    assert!(text.contains("bound to: 3"), "{text}");
+    assert!(text.contains("unit: m"), "{text}");
+    // Every equation naming it, on either side.
+    assert!(text.contains("y = x + k"), "{text}");
+    assert!(text.contains("der(x) = -(k * x)"), "{text}");
+    assert!(text.contains("a parameter worth 3"), "{text}");
+
+    // A state is named as one, and its start is shown.
+    let out = bin().args(["why", model.path(), "x"]).output().unwrap();
+    let text = stdout(&out);
+    assert!(text.contains("start: 1"), "{text}");
+    assert!(text.contains("a state of the run"), "{text}");
+
+    // An algebraic variable likewise.
+    let out = bin().args(["why", model.path(), "y"]).output().unwrap();
+    assert!(
+        stdout(&out).contains("an algebraic variable of the run"),
+        "{}",
+        stdout(&out)
+    );
+}
+
+#[test]
+fn why_says_so_when_there_is_nothing_to_say() {
+    let model = TempFile::new(
+        "why-nothing.mo",
+        "model M Real x(start = 1); equation der(x) = -x; end M;",
+    );
+    let out = bin()
+        .args(["why", model.path(), "nowhere"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("declared: nowhere"), "{text}");
+    assert!(text.contains("no equation of the flat model"), "{text}");
+
+    // A model the compiler will not take is still worth asking about:
+    // the declaration is there to read even where the run is not.
+    let broken = TempFile::new(
+        "why-broken.mo",
+        "model M parameter Real a = missing; Real x; equation x = a; end M;",
+    );
+    let out = bin().args(["why", broken.path(), "a"]).output().unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("bound to: missing"), "{text}");
+    assert!(text.contains("the compiler refused"), "{text}");
+}
+
+#[test]
+fn why_wants_a_model_and_a_variable() {
+    let out = bin().arg("why").output().unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("Usage"));
+
+    let model = TempFile::new("why-alone.mo", "model M Real x; equation x = 1; end M;");
+    let out = bin().args(["why", model.path()]).output().unwrap();
+    assert!(!out.status.success());
+    assert!(stderr(&out).contains("Usage"));
+
+    // A name that is neither a file nor a class of the libraries says
+    // which of the two it failed to be.
+    let out = bin()
+        .args(["why", "Nowhere.At.All", "x"])
+        .env("OXIDELICA_LIB", "")
+        .env("MODELICAPATH", "")
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let text = stderr(&out);
+    assert!(text.contains("Nowhere.At.All"), "{text}");
+}
+
+#[test]
+fn why_reads_a_record_field_by_field() {
+    // Asking about a record asks about the fields underneath it, which
+    // is where a value goes missing.
+    let model = TempFile::new(
+        "why-record.mo",
+        "record P parameter Real a = 1; parameter Real b = 2; end P; \
+         model M parameter P p; Real x; equation x = p.a + p.b; end M;",
+    );
+    let out = bin().args(["why", model.path(), "p"]).output().unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("p.a"), "{text}");
+    assert!(text.contains("p.b"), "{text}");
+    assert!(text.contains("inside: p"), "{text}");
+}
+
+#[test]
+fn why_finds_the_when_that_settles_a_discrete_variable() {
+    let model = TempFile::new(
+        "why-when.mo",
+        "model M discrete Real held(start = 0); Real x; \
+         equation x = time; \
+         when time > 0.5 then held = x; end when; end M;",
+    );
+    let out = bin().args(["why", model.path(), "held"]).output().unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("discrete Real held"), "{text}");
+    assert!(text.contains("when time > 0.5: held = x"), "{text}");
+}
+
+#[test]
 fn simulate_writes_csv_to_stdout() {
     let out = bin()
         .args([

@@ -1887,6 +1887,32 @@ fn worked_body(
                     position += 1;
                     continue;
                 }
+                // A record handed over by name rather than written out
+                // is the commoner way of it: the caller has the record
+                // as a variable and passes it whole. Flattening has
+                // already taken that variable apart, so its fields are
+                // there to be named one by one - and binding the name
+                // alone would leave the body reading `p.V` with
+                // nothing bound to it, which is a value gone missing
+                // rather than a refusal.
+                //
+                // The name itself is bound too, below: a body may hand
+                // the record on to another function whole, and that
+                // call wants the record and not its fields.
+                //
+                // Only the fields that are single numbers. A field
+                // with dimensions of its own - an orientation carries
+                // a three by three - has a shape the caller knows and
+                // this does not, and binding a bare name to it loses
+                // the shape and refuses the model further along.
+                if let Expr::Ref(given) = arg {
+                    for field in scalar_record_fields(registry, class, input) {
+                        bindings.insert(
+                            format!("{}.{field}", input.name),
+                            Expr::Ref(format!("{given}.{field}")),
+                        );
+                    }
+                }
             }
             bindings.insert(input.name.clone(), arg.clone());
             position += 1;
@@ -2088,6 +2114,35 @@ fn worked_body(
                 class.name
             ))
         })
+        .collect()
+}
+
+/// The fields of a record-typed argument that are single numbers.
+///
+/// A field with dimensions is left out: what a caller handed over
+/// knows its shape and a bare name written in its place does not, so
+/// binding one would turn a matrix into something of no shape at all.
+/// Those are still reached through the record's own name.
+fn scalar_record_fields(
+    registry: &HashMap<&str, &ClassDef>,
+    function: &ClassDef,
+    input: &Component,
+) -> Vec<String> {
+    let Some(of) = lookup(
+        registry,
+        &input.type_name,
+        &function.name,
+        &function.imports,
+    ) else {
+        return Vec::new();
+    };
+    if of.kind != ClassKind::Record {
+        return Vec::new();
+    }
+    of.components
+        .iter()
+        .filter(|field| field.dimensions.is_empty())
+        .map(|field| field.name.clone())
         .collect()
 }
 

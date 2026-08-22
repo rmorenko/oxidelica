@@ -1310,12 +1310,47 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
             break;
         }
         if pending.len() == before {
+            // Which name is missing is the whole of the question, and
+            // the list of what could not be worked out does not answer
+            // it: every one of them is stuck on the same handful of
+            // names, and reading the handful out of the expressions is
+            // what a person would otherwise do by eye. A name nothing
+            // declares is the usual cause, and a genuine cycle shows
+            // up as a name that is pending rather than missing.
+            let stuck: std::collections::BTreeSet<&str> =
+                pending.iter().map(|(name, _)| *name).collect();
+            let mut wanted: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
+            for (_, value) in &pending {
+                value.for_each(&mut |part| {
+                    if let Expr::Ref(name) = part {
+                        if !params.contains_key(name.as_str()) {
+                            wanted.insert(name.clone());
+                        }
+                    }
+                });
+            }
+            let undeclared: Vec<&String> = wanted
+                .iter()
+                .filter(|name| !stuck.contains(name.as_str()))
+                .collect();
             let names: Vec<String> = pending
                 .iter()
-                .map(|(name, value)| format!("{name} = {value:?}"))
+                .map(|(name, value)| format!("{name} = {}", value.describe()))
                 .collect();
+            let because = match undeclared.is_empty() {
+                true => "they wait on each other".to_string(),
+                false => format!(
+                    "nothing gives a value to {}",
+                    undeclared
+                        .iter()
+                        .map(|name| format!("`{name}`"))
+                        .collect::<Vec<String>>()
+                        .join(", ")
+                ),
+            };
             return err(format!(
-                "cannot evaluate parameters {names:?}: cycle or unknown reference"
+                "cannot evaluate parameters [{}]: {because}",
+                names.join(", ")
             ));
         }
     }

@@ -759,6 +759,19 @@ pub enum BinOp {
     Pow,
 }
 
+impl BinOp {
+    /// How the operator is written.
+    pub fn text(self) -> &'static str {
+        match self {
+            BinOp::Add => "+",
+            BinOp::Sub => "-",
+            BinOp::Mul => "*",
+            BinOp::Div => "/",
+            BinOp::Pow => "^",
+        }
+    }
+}
+
 /// Relational operator.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RelOp {
@@ -774,6 +787,20 @@ pub enum RelOp {
     Eq,
     /// `<>`
     Ne,
+}
+
+impl RelOp {
+    /// How the operator is written.
+    pub fn text(self) -> &'static str {
+        match self {
+            RelOp::Lt => "<",
+            RelOp::Le => "<=",
+            RelOp::Gt => ">",
+            RelOp::Ge => ">=",
+            RelOp::Eq => "==",
+            RelOp::Ne => "<>",
+        }
+    }
 }
 
 /// An expression tree node.
@@ -860,6 +887,123 @@ impl Expr {
             }
         }
         None
+    }
+
+    /// A compact source-like spelling of the expression.
+    ///
+    /// This is for a person reading a message, not for a compiler
+    /// reading it back: it is close to what was written and does not
+    /// promise to parse. Where a shape has no short spelling it is
+    /// named rather than written out, since a message that runs to a
+    /// paragraph tells nobody anything.
+    pub fn describe(&self) -> String {
+        match self {
+            Expr::Str(text) => format!("\"{text}\""),
+            Expr::Number(value) => format!("{value}"),
+            Expr::Bool(value) => format!("{value}"),
+            Expr::Ref(name) => name.clone(),
+            Expr::Time => "time".to_string(),
+            Expr::Neg(inner) => format!("-{}", inner.grouped()),
+            Expr::Not(inner) => format!("not {}", inner.grouped()),
+            Expr::Bin(op, a, b) => {
+                format!("{} {} {}", a.grouped(), op.text(), b.grouped())
+            }
+            Expr::Elementwise(op, a, b) => {
+                format!("{} .{} {}", a.grouped(), op.text(), b.grouped())
+            }
+            Expr::Rel(op, a, b) => {
+                format!("{} {} {}", a.grouped(), op.text(), b.grouped())
+            }
+            Expr::And(a, b) => format!("{} and {}", a.grouped(), b.grouped()),
+            Expr::Or(a, b) => format!("{} or {}", a.grouped(), b.grouped()),
+            Expr::If(c, t, e) => format!(
+                "if {} then {} else {}",
+                c.describe(),
+                t.describe(),
+                e.describe()
+            ),
+            Expr::Call(name, args) => {
+                let args: Vec<String> = args.iter().map(Expr::describe).collect();
+                format!("{name}({})", args.join(", "))
+            }
+            // The rule beside a call is the compiler's own working and
+            // not something anybody wrote; what was written is the
+            // call, so that is what is shown.
+            Expr::WithDerivative(value, ..) => value.describe(),
+            Expr::Index(base, subscripts) => {
+                let inside: Vec<String> = subscripts.iter().map(Expr::describe).collect();
+                format!("{}[{}]", base.describe(), inside.join(", "))
+            }
+            Expr::Member(base, field) => format!("{}.{field}", base.describe()),
+            Expr::Array(items) => {
+                let items: Vec<String> = items.iter().map(Expr::describe).collect();
+                format!("{{{}}}", items.join(", "))
+            }
+            Expr::Range(lower, step, upper) => match step {
+                Some(step) => format!(
+                    "{}:{}:{}",
+                    lower.describe(),
+                    step.describe(),
+                    upper.describe()
+                ),
+                None => format!("{}:{}", lower.describe(), upper.describe()),
+            },
+            Expr::Comprehension(body, name, range) => {
+                format!("{} for {name} in {}", body.describe(), range.describe())
+            }
+            Expr::ColonSubscript => ":".to_string(),
+            Expr::EndSubscript => "end".to_string(),
+            Expr::MatrixRows(rows) => {
+                let rows: Vec<String> = rows
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(Expr::describe)
+                            .collect::<Vec<String>>()
+                            .join(", ")
+                    })
+                    .collect();
+                format!("[{}]", rows.join("; "))
+            }
+            Expr::NamedArg(name, value) => format!("{name} = {}", value.describe()),
+            Expr::Tuple(targets) => {
+                let targets: Vec<String> = targets
+                    .iter()
+                    .map(|target| match target {
+                        Some(expr) => expr.describe(),
+                        None => String::new(),
+                    })
+                    .collect();
+                format!("({})", targets.join(", "))
+            }
+        }
+    }
+
+    /// The spelling of a part of a larger expression, in brackets
+    /// where leaving them out would change what it says.
+    ///
+    /// Precedence is not tracked: what matters for a message is that
+    /// `a - (b - c)` does not read as `a - b - c`, and bracketing every
+    /// compound part says the truth at the cost of a few brackets
+    /// nobody needed.
+    fn grouped(&self) -> String {
+        let compound = matches!(
+            self,
+            Expr::Bin(..)
+                | Expr::Elementwise(..)
+                | Expr::Rel(..)
+                | Expr::And(..)
+                | Expr::Or(..)
+                | Expr::Not(..)
+                | Expr::Neg(..)
+                | Expr::If(..)
+                | Expr::Range(..)
+                | Expr::Comprehension(..)
+        );
+        match compound {
+            true => format!("({})", self.describe()),
+            false => self.describe(),
+        }
     }
 
     /// Whether the expression contains a `der(...)` call anywhere.
@@ -977,6 +1121,106 @@ mod tests {
 
     fn der(name: &str) -> Expr {
         Expr::Call("der".into(), vec![r(name)])
+    }
+
+    #[test]
+    fn every_shape_of_expression_can_be_spelled() {
+        let x = || Box::new(r("x"));
+        let one = || Box::new(Expr::Number(1.0));
+
+        assert_eq!(Expr::Str("hi".into()).describe(), "\"hi\"");
+        assert_eq!(Expr::Number(1.5).describe(), "1.5");
+        assert_eq!(Expr::Bool(true).describe(), "true");
+        assert_eq!(r("x").describe(), "x");
+        assert_eq!(Expr::Time.describe(), "time");
+        assert_eq!(Expr::Neg(one()).describe(), "-1");
+        assert_eq!(Expr::Not(x()).describe(), "not x");
+
+        let spell = |op: BinOp| Expr::Bin(op, x(), one()).describe();
+        assert_eq!(spell(BinOp::Add), "x + 1");
+        assert_eq!(spell(BinOp::Sub), "x - 1");
+        assert_eq!(spell(BinOp::Mul), "x * 1");
+        assert_eq!(spell(BinOp::Div), "x / 1");
+        assert_eq!(spell(BinOp::Pow), "x ^ 1");
+        assert_eq!(
+            Expr::Elementwise(BinOp::Mul, x(), one()).describe(),
+            "x .* 1"
+        );
+
+        let spell = |op: RelOp| Expr::Rel(op, x(), one()).describe();
+        assert_eq!(spell(RelOp::Lt), "x < 1");
+        assert_eq!(spell(RelOp::Le), "x <= 1");
+        assert_eq!(spell(RelOp::Gt), "x > 1");
+        assert_eq!(spell(RelOp::Ge), "x >= 1");
+        assert_eq!(spell(RelOp::Eq), "x == 1");
+        assert_eq!(spell(RelOp::Ne), "x <> 1");
+
+        assert_eq!(
+            Expr::And(
+                Box::new(Expr::Bool(true)),
+                Box::new(Expr::Or(x(), Box::new(Expr::Not(x()))))
+            )
+            .describe(),
+            "true and (x or (not x))"
+        );
+        assert_eq!(
+            Expr::If(x(), Box::new(Expr::Time), Box::new(Expr::Neg(one()))).describe(),
+            "if x then time else -1"
+        );
+        assert_eq!(
+            Expr::Call("f".into(), vec![*x(), *one()]).describe(),
+            "f(x, 1)"
+        );
+        // The rule beside a call is not shown: nobody wrote it.
+        assert_eq!(Expr::WithDerivative(x(), one(), Vec::new()).describe(), "x");
+
+        assert_eq!(
+            Expr::Index(x(), vec![*one(), Expr::ColonSubscript]).describe(),
+            "x[1, :]"
+        );
+        assert_eq!(Expr::Member(x(), "y".into()).describe(), "x.y");
+        assert_eq!(Expr::Array(vec![*x(), *one()]).describe(), "{x, 1}");
+        assert_eq!(Expr::Range(one(), None, x()).describe(), "1:x");
+        assert_eq!(Expr::Range(one(), Some(one()), x()).describe(), "1:1:x");
+        assert_eq!(
+            Expr::Comprehension(x(), "i".into(), Box::new(Expr::Range(one(), None, x())))
+                .describe(),
+            "x for i in 1:x"
+        );
+        assert_eq!(Expr::ColonSubscript.describe(), ":");
+        assert_eq!(Expr::EndSubscript.describe(), "end");
+        assert_eq!(
+            Expr::MatrixRows(vec![vec![*one(), *x()], vec![*x()]]).describe(),
+            "[1, x; x]"
+        );
+        assert_eq!(Expr::NamedArg("k".into(), one()).describe(), "k = 1");
+        assert_eq!(
+            Expr::Tuple(vec![Some(*x()), None, Some(*one())]).describe(),
+            "(x, , 1)"
+        );
+    }
+
+    #[test]
+    fn a_spelling_does_not_regroup_what_it_spells() {
+        let a = || Box::new(r("a"));
+        let b = || Box::new(r("b"));
+        let c = || Box::new(r("c"));
+        // The whole reason for the brackets: without them this reads
+        // as `a - b - c`, which is a different number.
+        assert_eq!(
+            Expr::Bin(BinOp::Sub, a(), Box::new(Expr::Bin(BinOp::Sub, b(), c()))).describe(),
+            "a - (b - c)"
+        );
+        // A part that cannot be misread keeps its brackets off.
+        assert_eq!(
+            Expr::Bin(
+                BinOp::Mul,
+                Box::new(Expr::Member(a(), "x".into())),
+                Box::new(Expr::Call("f".into(), vec![*b()]))
+            )
+            .describe(),
+            "a.x * f(b)"
+        );
     }
 
     #[test]

@@ -211,11 +211,15 @@ fn compile_error_paths() {
         compile_err("model M parameter Real p; Real x; equation x = 1; end M;")
             .contains("has no value")
     );
-    // Parameter cycle.
+    // Parameter cycle: neither is missing, they wait on each other.
     assert!(compile_err(
         "model M parameter Real a = b; parameter Real b = a; Real x; equation x = 1; end M;"
     )
-    .contains("cycle"));
+    .contains("wait on each other"));
+    // A name nothing declares is named outright rather than being
+    // called a cycle it is not.
+    let missing = compile_err("model M parameter Real a = nowhere; Real x; equation x = 1; end M;");
+    assert!(missing.contains("`nowhere`"), "{missing}");
     // der of a parameter.
     assert!(
         compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")
@@ -3136,6 +3140,33 @@ fn a_record_of_losses_reaches_the_component_that_reads_it() {
         .expect("no dcpm.friction.y");
     // The reference speed arrived, so the reading at t = 1 is it.
     assert!((result.rows.last().unwrap()[y] - 5.0).abs() < 1e-9);
+}
+
+#[test]
+fn a_record_given_to_a_function_whole_is_read_field_by_field() {
+    // The shape a machine works its nominal voltage out in: a
+    // function takes a record of brush parameters and reads `V` and
+    // `ILinear` out of it, and the caller hands the record over by
+    // name rather than writing its fields out. Binding the name alone
+    // left the body reading fields nothing was bound to, and the
+    // parameter it was working out went missing with no word said
+    // about which name was wanting.
+    let result = run(
+        "record Brush parameter Real V = 2; parameter Real ILinear = 4; end Brush; \
+         function drop input Brush brush; input Real i; output Real v; \
+         algorithm v := if i > brush.ILinear then brush.V \
+           else brush.V * i / brush.ILinear; end drop; \
+         model M parameter Brush brushParameters; \
+         parameter Real i = 2; \
+         parameter Real v = drop(brushParameters, i); \
+         Real y; equation y = v * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let y = result.columns.iter().position(|c| c == "y").expect("no y");
+    // `2 * 2 / 4` is one, and a reading of one says both fields
+    // arrived: a missing `V` or a missing `ILinear` refuses the model
+    // outright rather than answering with the wrong number.
+    assert!((result.rows.last().unwrap()[y] - 1.0).abs() < 1e-9);
 }
 
 #[test]
