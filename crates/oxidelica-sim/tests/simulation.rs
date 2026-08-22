@@ -3319,3 +3319,46 @@ fn a_system_of_equations_is_solved_by_a_body_written_here() {
     .to_string();
     assert!(refusal.contains("written here"), "{refusal}");
 }
+
+/// A parameter written `fixed = false` takes its value from the
+/// initialisation rather than from its declaration.
+#[test]
+fn a_parameter_fixed_false_is_settled_by_an_initial_equation() {
+    // The standard library catches the moment a simulation starts this
+    // way - `parameter SI.Time t0(fixed=false)` with `t0 = time` among
+    // the initial equations - and then reads it for the rest of the
+    // run. Here the start is at zero, so `der(x)` is one throughout
+    // and `x` reaches one.
+    let result = run(
+        "model M parameter Real t0(fixed = false); Real x(start = 0, fixed = true); \
+         initial equation t0 = time; \
+         equation der(x) = t0 + 1; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    let last = result.rows.last().expect("a final row");
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|column| column == name)
+            .map(|index| last[index])
+    };
+    assert!((at("x").expect("x") - 1.0).abs() < 1e-6, "{:?}", at("x"));
+
+    // The equation that settled it is not counted twice: it did its
+    // work among the parameters, and asking the initialisation for it
+    // again would leave one equation more than there are unknowns.
+    let started = run(
+        "model M parameter Real t0(fixed = false); Real x(start = 3); \
+         initial equation t0 = 2; x = t0; \
+         equation der(x) = 0; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    let final_row = started.rows.last().expect("a final row");
+    let index = started
+        .columns
+        .iter()
+        .position(|column| column == "x")
+        .expect("x");
+    assert!((final_row[index] - 2.0).abs() < 1e-6, "{:?}", final_row);
+}

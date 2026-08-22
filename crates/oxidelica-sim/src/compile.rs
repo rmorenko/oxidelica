@@ -1131,6 +1131,28 @@ fn describe(expr: &Expr) -> String {
     }
 }
 
+/// What an initial equation says a name comes to, where it says it
+/// outright: `t0 = time` either way round.
+///
+/// A parameter written `fixed = false` is one the initialisation
+/// settles rather than the declaration, and the standard library uses
+/// that to catch the moment a simulation starts. Where the equation
+/// naming it is this plain, the value is worked out here with the
+/// other parameters, which is where everything downstream expects a
+/// parameter's value to be.
+fn settled_by_initialization<'a>(model: &'a Model, name: &str) -> Option<(usize, &'a Expr)> {
+    model
+        .initial_equations
+        .iter()
+        .enumerate()
+        .find_map(|(at, equation)| match (&equation.lhs, &equation.rhs) {
+            (Expr::Ref(named), value) | (value, Expr::Ref(named)) if named == name => {
+                Some((at, value))
+            }
+            _ => None,
+        })
+}
+
 fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> {
     let mut params: HashMap<String, f64> = HashMap::new();
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
@@ -1139,7 +1161,16 @@ fn evaluate_parameters(model: &Model) -> Result<HashMap<String, f64>, SimError> 
             c.variability,
             Variability::Parameter | Variability::Constant
         ) {
-            let binding = c.binding.as_ref().or(c.start.as_ref());
+            let binding = match c.fixed {
+                // `fixed = false` says the declaration is not where the
+                // value comes from, so the start value is a guess and
+                // not an answer: the initial equations are asked first.
+                Some(false) => settled_by_initialization(model, &c.name)
+                    .map(|(_, value)| value)
+                    .or(c.binding.as_ref())
+                    .or(c.start.as_ref()),
+                _ => c.binding.as_ref().or(c.start.as_ref()),
+            };
             match binding {
                 Some(expr) => pending.push((&c.name, expr)),
                 None => return err(format!("parameter {} has no value", c.name)),
@@ -1305,9 +1336,28 @@ pub(crate) fn compile_at(
             origin: clause.origin.clone(),
         });
     }
+    // An initial equation that settled a `fixed = false` parameter has
+    // done its work among the parameters, and counting it again here
+    // would leave the initialisation with one equation more than it
+    // has unknowns.
+    let settled_parameters: Vec<usize> = model
+        .components
+        .iter()
+        .filter(|c| {
+            c.fixed == Some(false)
+                && matches!(
+                    c.variability,
+                    Variability::Parameter | Variability::Constant
+                )
+        })
+        .filter_map(|c| settled_by_initialization(model, &c.name).map(|(at, _)| at))
+        .collect();
     let initial_equations: Vec<EquationItem> = model
         .initial_equations
         .iter()
+        .enumerate()
+        .filter(|(at, _)| !settled_parameters.contains(at))
+        .map(|(_, equation)| equation)
         .map(|equation| {
             Ok(EquationItem {
                 lhs: rewrite.expr(&equation.lhs)?,
