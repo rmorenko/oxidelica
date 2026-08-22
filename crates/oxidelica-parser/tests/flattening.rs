@@ -1220,6 +1220,38 @@ fn the_last_of_the_builtins_say_what_they_mean() {
         refused.contains("both by name and by position"),
         "{refused}"
     );
+    // The same name twice.
+    let refused = parse_model(
+        "model M Real y; equation y = homotopy(actual = time, actual = 0, simplified = 0); end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(refused.contains("`actual` twice"), "{refused}");
+    // An argument passed over leaves the operator with a gap where one
+    // of its arguments should be.
+    let refused = parse_model("model M Real y; equation y = homotopy(simplified = time); end M;")
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("nothing for `actual`"), "{refused}");
+    // A positional argument after a named one is not something the
+    // language allows, and the operator says so rather than reading it
+    // as though the order had been kept.
+    let refused = parse_model("model M Real y; equation y = semiLinear(x = time, 2, 5); end M;")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refused.contains("by position after one given by name"),
+        "{refused}"
+    );
+    // An operator with no declared argument names keeps the refusal it
+    // had: naming arguments is something a function takes.
+    let refused = parse_model("model M Real y; equation y = sin(x = time); end M;")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        !refused.is_empty(),
+        "a named argument to `sin` was accepted"
+    );
 
     // `semiLinear` is two slopes meeting at zero.
     let m = parse_model(
@@ -7634,6 +7666,66 @@ fn a_record_valued_parameter_is_handed_down_field_by_field() {
         "{:?}",
         partly.equations
     );
+
+    // A record that states some of its fields `final` still hands the
+    // rest down. The machines' friction record is a reference power
+    // and speed with four torques worked out from them, and refusing
+    // the whole record for having them left every machine in the
+    // library without its reference speed.
+    let mixed = parse_model(
+        "record F parameter Real PRef = 0; parameter Real wRef; \
+          final parameter Real tauRef = PRef; end F; \
+         model Inner parameter F p; Real y; equation y = p.wRef * time; end Inner; \
+         model M parameter F source(wRef = 5); Inner inner1(p = source); end M;",
+    )
+    .unwrap();
+    // The value may land as the declaration's binding or, where the
+    // field already had one, as its start attribute; either way it is
+    // the value the run works out from.
+    let binding = |model: &oxidelica_parser::Model, name: &str| {
+        let c = model
+            .components
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap_or_else(|| panic!("no {name}"));
+        format!("{:?} {:?}", c.binding, c.start)
+    };
+    // The value may be handed on as the name it was written as, which
+    // is settled once every parameter is worked out; what matters is
+    // that the field was given one at all rather than left empty.
+    assert!(
+        binding(&mixed, "inner1.p.wRef").contains("source.wRef"),
+        "{}",
+        binding(&mixed, "inner1.p.wRef")
+    );
+
+    // A field typed by an alias holds one number like any other. The
+    // record is measured to decide whether a value is one of it or one
+    // per element, and counting an alias as nothing made a record of
+    // them look empty, so the value matched neither reading and was
+    // dropped in silence.
+    let aliased = parse_model(
+        "type Power = Real(unit = \"W\"); type Speed = Real(unit = \"rad/s\"); \
+         record F parameter Power PRef = 0; parameter Speed wRef; end F; \
+         model Inner parameter F p; Real y; equation y = p.wRef * time; end Inner; \
+         model M parameter F source(wRef = 7); Inner inner1(p = source); end M;",
+    )
+    .unwrap();
+    let worth = binding(&aliased, "inner1.p.wRef");
+    assert!(worth.contains("source.wRef"), "{worth}");
+
+    // A value handed down names a record of the class that supplied
+    // it, not of the one receiving it, so what that class knows has to
+    // still be in view when the value is taken apart.
+    let across = parse_model(
+        "record F parameter Real wRef = 1; end F; \
+          record Outer parameter F inner_(wRef = 3); end Outer; \
+         model Inner parameter F p; Real y; equation y = p.wRef * time; end Inner; \
+         model M parameter Outer data; Inner inner1(p = data.inner_); end M;",
+    )
+    .unwrap();
+    let reached = binding(&across, "inner1.p.wRef");
+    assert!(reached.contains("data.inner_.wRef"), "{reached}");
 }
 
 #[test]

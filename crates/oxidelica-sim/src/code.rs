@@ -665,3 +665,67 @@ impl SlotTable {
         err(format!("unknown function `{name}`"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every construction the refusal may have to name, named.
+    ///
+    /// These reach the reader only through a model that got that far,
+    /// and most of them cannot survive flattening at all - a `:`
+    /// subscript is resolved long before, a comprehension is unrolled -
+    /// so what is checked here is the wording rather than a route
+    /// through the compiler.
+    #[test]
+    fn a_construction_that_is_not_a_scalar_says_what_it_is() {
+        let name = |text: &str| Expr::Ref(text.to_string());
+        let one = || Box::new(Expr::Number(1.0));
+        for (expr, expected) in [
+            (
+                Expr::Index(Box::new(name("v")), vec![Expr::Number(2.0)]),
+                "`v` subscripted by",
+            ),
+            (
+                Expr::Member(Box::new(name("r")), "field".to_string()),
+                "`r.field`, a field of a record",
+            ),
+            (
+                Expr::Member(Box::new(Expr::Number(1.0)), "field".to_string()),
+                "`.field`, a field of a record",
+            ),
+            (Expr::Array(vec![Expr::Number(1.0)]), "an array of 1"),
+            (
+                Expr::MatrixRows(vec![vec![Expr::Number(1.0)]]),
+                "a matrix of 1 row(s)",
+            ),
+            (Expr::Range(one(), None, one()), "a range"),
+            (
+                Expr::Comprehension(one(), "i".to_string(), one()),
+                "a comprehension",
+            ),
+            (
+                Expr::Elementwise(oxidelica_parser::BinOp::Add, one(), one()),
+                "an elementwise operation",
+            ),
+            (Expr::ColonSubscript, "a `:` subscript"),
+            (Expr::EndSubscript, "an `end` subscript"),
+            (
+                Expr::NamedArg("actual".to_string(), one()),
+                "`actual = ...`, a named argument",
+            ),
+            (Expr::Tuple(vec![Some(Expr::Number(1.0))]), "a tuple of 1"),
+            (Expr::Time, "an expression of more than one number"),
+        ] {
+            let said = shape_of(&expr);
+            assert!(said.contains(expected), "{said} does not say {expected}");
+        }
+        // A subscript that is itself a construction is named the same
+        // way, one level down.
+        let nested = shape_of(&Expr::Index(
+            Box::new(Expr::Array(vec![Expr::Number(1.0)])),
+            vec![Expr::ColonSubscript],
+        ));
+        assert!(nested.contains("a `:` subscript"), "{nested}");
+    }
+}

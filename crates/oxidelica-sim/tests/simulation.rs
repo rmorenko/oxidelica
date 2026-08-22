@@ -3106,6 +3106,39 @@ fn a_walked_body_answers_with_several_numbers() {
 }
 
 #[test]
+fn a_record_of_losses_reaches_the_component_that_reads_it() {
+    // The shape every machine in the standard library is built in: a
+    // data record naming a reference power and speed with the torques
+    // worked out from them as `final` fields, typed by aliases rather
+    // than by `Real`, handed down through one component into another.
+    // Each of those three - the final fields, the aliases, and the
+    // value naming a record of the class above - was enough on its own
+    // to lose the reference speed in silence and leave the parameter
+    // with nothing.
+    let result = run(
+        "type Power = Real(unit = \"W\"); type Speed = Real(unit = \"rad/s\"); \
+         record F parameter Power PRef = 0; parameter Speed wRef; \
+         final parameter Real tauRef = PRef; end F; \
+         record Data parameter Speed wNominal = 5; \
+         parameter F frictionParameters(wRef = wNominal); end Data; \
+         model Friction parameter F frictionParameters; Real y; \
+         equation y = frictionParameters.wRef * time; end Friction; \
+         model Machine parameter F frictionParameters; \
+         Friction friction(final frictionParameters = frictionParameters); end Machine; \
+         model M parameter Data motorData; \
+         Machine dcpm(frictionParameters = motorData.frictionParameters); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let y = result
+        .columns
+        .iter()
+        .position(|c| c == "dcpm.friction.y")
+        .expect("no dcpm.friction.y");
+    // The reference speed arrived, so the reading at t = 1 is it.
+    assert!((result.rows.last().unwrap()[y] - 5.0).abs() < 1e-9);
+}
+
+#[test]
 fn a_walked_body_answers_with_a_record() {
     // The shape the standard library's water is written in: a body
     // that cannot be unrolled fills one member of a record in one

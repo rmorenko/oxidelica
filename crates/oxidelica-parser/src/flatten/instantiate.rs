@@ -417,6 +417,15 @@ pub(super) fn instantiate(
             .iter()
             .map(|(path, of)| (path.clone(), of.clone())),
     );
+    // The same view, for the values handed down to parameter records
+    // while this class's components are built. Those are written in
+    // the terms of the class that supplied them, so what it knows to
+    // be a record has to be in view here too.
+    let records_wider_for_fields: HashMap<String, String> = acc
+        .records
+        .iter()
+        .map(|(path, of)| (path.clone(), of.clone()))
+        .collect();
 
     for component in &class.components {
         let fresh = taken < acc.sizes.len();
@@ -804,20 +813,38 @@ pub(super) fn instantiate(
         // is not one a value may hand down, and where the value will
         // not come apart at all it is left where it was.
         let per_field = |value: &Expr, of: &ClassDef, prefixed: bool| -> Vec<Vec<(String, Expr)>> {
+            // The value comes apart into every field the record has,
+            // final ones among them, because that is what the record
+            // is. Which of them may be handed on is a separate
+            // question, answered once the value has been taken apart:
+            // a `final` field is worked out from the others where it
+            // lands and is not one a value may set. Refusing the whole
+            // record for having one was what left the machines' loss
+            // parameters unset, since a friction record states its
+            // reference torque as a `final` field.
             let fields: Vec<String> = of
                 .components
                 .iter()
-                .filter(|field| !field.is_final)
                 .map(|field| field.name.clone())
                 .collect();
-            if fields.is_empty() || fields.len() != of.components.len() {
+            let settable: Vec<bool> = of.components.iter().map(|field| !field.is_final).collect();
+            if fields.is_empty() || !settable.iter().any(|may| *may) {
                 return Vec::new();
             }
             let shapes = Shapes {
                 sizes: &sizes_here,
                 loop_vars: &HashMap::new(),
                 consts: &local_consts,
-                records: &records_here,
+                // A value handed down arrives written in the terms of
+                // the class that supplied it - `Machine m(friction =
+                // data.friction)` names a record that class holds, not
+                // one of this one - so what every class built so far
+                // knows has to be in view, as it is for a record-valued
+                // variable further down. Without it the value is not
+                // recognised as a record at all, comes apart into
+                // nothing, and the fields are left to whatever their
+                // declarations said.
+                records: &records_wider_for_fields,
             };
             let expr = match prefixed {
                 true => value.clone(),
@@ -887,7 +914,16 @@ pub(super) fn instantiate(
             .unwrap_or_default();
             per_element
                 .into_iter()
-                .map(|given| fields.iter().cloned().zip(given).collect())
+                .map(|given| {
+                    fields
+                        .iter()
+                        .cloned()
+                        .zip(given)
+                        .zip(&settable)
+                        .filter(|(_, may)| **may)
+                        .map(|(field, _)| field)
+                        .collect()
+                })
                 .collect()
         };
         // A record's value is not one number per element: `Complex
@@ -3440,7 +3476,18 @@ fn numbers_of_one(
             true => 1,
             false => {
                 let inside = lookup(registry, &field.type_name, &of.name, &of.imports)?;
-                numbers_of_one(registry, inside, depth + 1)?
+                // A type alias is a name for a primitive with
+                // attributes attached - `type Power = Real(unit =
+                // "W")` - and holds one number, not the none its
+                // empty component list would suggest. Counting it as
+                // none made a record of aliases look emptier than it
+                // is, so a value handed to it matched neither reading
+                // and was dropped, which is what left the machines'
+                // friction records without their reference speed.
+                match inside.alias_of.is_some() || !inside.enumeration.is_empty() {
+                    true => 1,
+                    false => numbers_of_one(registry, inside, depth + 1)?,
+                }
             }
         };
         all += many * each;
