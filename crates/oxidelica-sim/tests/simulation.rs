@@ -3710,3 +3710,35 @@ fn a_record_assigned_whole_in_one_branch_starts_as_its_fields_do() {
         "the record should start at its fields rather than turn the body down: {said}"
     );
 }
+
+/// A flag left unset beside a run of numbers still starts at false.
+///
+/// Giving unset locals a start is held back where a branch writes an
+/// array, because that lets a whole body be folded into the caller and
+/// a quaternion's four elements of nested conditions cost the library
+/// minutes. A flag is not that: it decides which branch runs rather
+/// than being folded into arithmetic, so it can never grow the value.
+/// The steam tables put one right beside an array - `hsubcrit` is set
+/// once and read in both halves of the region test - and holding it
+/// back kept thirty-two models from flattening at all.
+#[test]
+fn a_flag_beside_an_array_still_starts_at_false() {
+    let result = run("package Top \
+           function region input Real p; output Real r; \
+           protected Boolean sub; Real[3] v; \
+           algorithm \
+             v := {0, 0, 0}; \
+             if p > 1 then v := {p, 1, 2}; sub := true; end if; \
+             r := v[1] + (if sub then 10 else 0); \
+           end region; \
+           model M \
+             Real y = region(time); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;");
+    let last = result.rows.last().expect("a final row");
+    let y = last[1];
+    // Time never passes 1, so the branch never runs: the array keeps
+    // its zeros and the flag is false, adding nothing.
+    assert!(y.abs() < 1e-9, "the unset flag should start at false: {y}");
+}

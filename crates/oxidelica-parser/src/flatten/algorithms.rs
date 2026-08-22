@@ -650,10 +650,16 @@ pub(super) fn execute(
                         local.keys().any(|written| sizes.contains_key(written))
                     });
                     let fallback = before.get(&name).cloned().or_else(|| {
-                        if writes_arrays {
+                        let start = starts_at(&name, registry, scope)?;
+                        // A flag costs nothing to give a start to: it
+                        // decides a branch rather than being folded
+                        // into arithmetic, so it cannot grow the value
+                        // the way a run of numbers can.
+                        let is_flag = matches!(start, Expr::Bool(_));
+                        if writes_arrays && !is_flag {
                             return None;
                         }
-                        starts_at(&name, registry, scope)
+                        Some(start)
                     });
                     let mut value = match outcomes.last() {
                         // A trailing `else` supplies the last value.
