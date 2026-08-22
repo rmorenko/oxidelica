@@ -8439,3 +8439,43 @@ fn a_record_array_of_two_dimensions_takes_its_value_row_by_row() {
     // is 3j + 6 for three phases, at j = 1 and j = 3.
     assert!(m.components.iter().any(|c| c.name == "z"));
 }
+
+/// One record handed to a whole array of them is told from one record
+/// per element by how many numbers the value holds.
+#[test]
+fn one_record_over_an_array_is_not_mistaken_for_one_per_element() {
+    // The trap: a record of two fields handed to an array of two
+    // elements. Both readings see two entries at the top, so counting
+    // entries picks the wrong one and gives `p[1]` the first field and
+    // `p[2]` the second, with nothing said about it.
+    let m = parse_model(
+        "record P Real a[2]; Real b[2]; end P; \
+         model M parameter P p[2] = P({1, 2}, {3, 4}); Real y; \
+         equation y = p[1].a[2] + p[2].b[1]; end M;",
+    )
+    .unwrap();
+    let value = |name: &str| {
+        m.equations
+            .iter()
+            .find(|equation| equation.lhs == oxidelica_parser::Expr::Ref(name.to_string()))
+            .map(|equation| equation.rhs.clone())
+            .or_else(|| {
+                m.components
+                    .iter()
+                    .find(|component| component.name == name)
+                    .and_then(|component| component.binding.clone())
+            })
+    };
+    // Every element is the whole record, so both hold a = {1, 2} and
+    // b = {3, 4}.
+    for element in ["p[1]", "p[2]"] {
+        for (field, wanted) in [("a[1]", 1.0), ("a[2]", 2.0), ("b[1]", 3.0), ("b[2]", 4.0)] {
+            let named = format!("{element}.{field}");
+            assert_eq!(
+                value(&named),
+                Some(oxidelica_parser::Expr::Number(wanted)),
+                "{named}"
+            );
+        }
+    }
+}

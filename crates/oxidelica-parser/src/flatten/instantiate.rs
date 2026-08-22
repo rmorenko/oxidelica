@@ -850,21 +850,41 @@ pub(super) fn instantiate(
             // elements and once into each element's fields. The
             // elements lie as many levels down as the declaration has
             // dimensions, so that is how far to go - `Complex sTM[m,
-            // m]` is m rows of m records, and counting by length
-            // instead would take the two rows of a 2 by 2 for the two
-            // fields of one record and give every element the same
-            // wrong value.
-            let mut elements = Vec::new();
-            levels_down(&worked, sizes.len(), &mut elements);
-            let each: Option<Vec<Vec<Expr>>> = match elements.len() == element_names.len() {
-                true => elements.iter().map(one).collect(),
-                false => None,
+            // m]` is m rows of m records, and counting entries at one
+            // level instead would take the two rows of a 2 by 2 for
+            // the two fields of one record.
+            let one_apiece = || -> Option<Vec<Vec<Expr>>> {
+                let mut elements = Vec::new();
+                levels_down(&worked, sizes.len(), &mut elements);
+                match elements.len() == element_names.len() {
+                    true => elements.iter().map(one).collect(),
+                    false => None,
+                }
             };
-            // Failing one record per element, one record for all of
-            // them - which is what a scalar value does for an array.
-            let per_element = each
-                .or_else(|| one(&worked).map(|whole| vec![whole; element_names.len()]))
-                .unwrap_or_default();
+            // One record for all of them, which is what a scalar value
+            // does for an array.
+            let over_all = || one(&worked).map(|whole| vec![whole; element_names.len()]);
+            // Which of the two the value is under is a question about
+            // how many numbers it holds rather than about how many
+            // entries any one level has: a record of two fields handed
+            // to an array of two elements has the same length either
+            // way, and reading it wrongly gives every element the same
+            // wrong value with nothing said. One record of this class
+            // is so many numbers, and the value is either that many or
+            // that many times over.
+            let mut leaves = Vec::new();
+            worked.flatten_into(&mut leaves);
+            let of_one = numbers_of_one(registry, of, 0);
+            let per_element = match of_one {
+                // A record whose shape holds a length the compiler
+                // cannot see says nothing either way, and the reading
+                // that was here before has its say.
+                None | Some(0) => one_apiece().or_else(over_all),
+                Some(each) if leaves.len() == each * element_names.len() => one_apiece(),
+                Some(each) if leaves.len() == each => over_all(),
+                Some(_) => None,
+            }
+            .unwrap_or_default();
             per_element
                 .into_iter()
                 .map(|given| fields.iter().cloned().zip(given).collect())
@@ -3366,4 +3386,43 @@ fn levels_down(value: &Value, depth: usize, out: &mut Vec<Value>) {
             .for_each(|item| levels_down(item, depth - 1, out)),
         _ => {}
     }
+}
+
+/// How many numbers one record of this class holds: its fields, each
+/// as many times over as its own dimensions say, and a field that is
+/// itself a record counted the same way.
+///
+/// `None` where a dimension is not a length written as a number, or
+/// where a field's class is one this cannot look into. Then nothing
+/// here can say what a value's shape means, and whoever asked is left
+/// to decide by other means rather than by a count that might be
+/// wrong.
+fn numbers_of_one(
+    registry: &HashMap<&str, &ClassDef>,
+    of: &ClassDef,
+    depth: usize,
+) -> Option<usize> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    let mut all = 0;
+    for field in &of.components {
+        let mut many = 1;
+        for dimension in &field.dimensions {
+            let length = const_eval(dimension, &HashMap::new())?;
+            if length < 0.0 || length.fract() != 0.0 {
+                return None;
+            }
+            many *= length as usize;
+        }
+        let each = match is_primitive(&field.type_name) {
+            true => 1,
+            false => {
+                let inside = lookup(registry, &field.type_name, &of.name, &of.imports)?;
+                numbers_of_one(registry, inside, depth + 1)?
+            }
+        };
+        all += many * each;
+    }
+    Some(all)
 }
