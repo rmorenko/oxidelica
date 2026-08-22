@@ -8392,3 +8392,50 @@ fn a_standing_call_may_be_subscripted() {
         settled.rhs
     );
 }
+
+/// An array of records takes its value element by element, and which
+/// level of the value is an element comes from the declaration.
+#[test]
+fn a_record_array_of_two_dimensions_takes_its_value_row_by_row() {
+    let m = parse_model(
+        "operator record C Real re; Real im; end C; \
+         function grid input Integer n; output C t[n, n]; \
+         algorithm t := {{C(i, j) for j in 1:n} for i in 1:n}; end grid; \
+         model Conv parameter Integer n = 1; final parameter C sTM[n, n] = grid(n); \
+         Real y[n]; equation \
+         for j in 1:n loop y[j] = sum({sTM[j, k].re + sTM[j, k].im for k in 1:n}); end for; \
+         end Conv; \
+         model M Conv c(n = 3); Real z; equation z = c.y[1] + c.y[3]; end M;",
+    )
+    .unwrap();
+    // Row-major: `sTM[3,2]` is `C(3, 2)`. Counting the levels by
+    // length instead of by dimension takes the rows of a square for
+    // the fields of one record, and every element comes out the same.
+    let value = |name: &str| {
+        m.equations
+            .iter()
+            .find(|equation| equation.lhs == oxidelica_parser::Expr::Ref(name.to_string()))
+            .map(|equation| equation.rhs.clone())
+            .or_else(|| {
+                m.components
+                    .iter()
+                    .find(|component| component.name == name)
+                    .and_then(|component| component.binding.clone())
+            })
+    };
+    for (name, wanted) in [
+        ("c.sTM[3,2].re", 3.0),
+        ("c.sTM[3,2].im", 2.0),
+        ("c.sTM[1,3].re", 1.0),
+        ("c.sTM[1,3].im", 3.0),
+    ] {
+        assert_eq!(
+            value(name),
+            Some(oxidelica_parser::Expr::Number(wanted)),
+            "{name}"
+        );
+    }
+    // And what the model reads off them: sum over k of (j + k), which
+    // is 3j + 6 for three phases, at j = 1 and j = 3.
+    assert!(m.components.iter().any(|c| c.name == "z"));
+}

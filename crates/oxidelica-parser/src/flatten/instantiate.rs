@@ -846,11 +846,19 @@ pub(super) fn instantiate(
                     _ => None,
                 }
             };
-            let each: Option<Vec<Vec<Expr>>> = match &worked {
-                Value::Array(items) if items.len() == element_names.len() => {
-                    items.iter().map(one).collect()
-                }
-                _ => None,
+            // An array of records comes apart twice over: once into its
+            // elements and once into each element's fields. The
+            // elements lie as many levels down as the declaration has
+            // dimensions, so that is how far to go - `Complex sTM[m,
+            // m]` is m rows of m records, and counting by length
+            // instead would take the two rows of a 2 by 2 for the two
+            // fields of one record and give every element the same
+            // wrong value.
+            let mut elements = Vec::new();
+            levels_down(&worked, sizes.len(), &mut elements);
+            let each: Option<Vec<Vec<Expr>>> = match elements.len() == element_names.len() {
+                true => elements.iter().map(one).collect(),
+                false => None,
             };
             // Failing one record per element, one record for all of
             // them - which is what a scalar value does for an array.
@@ -3341,4 +3349,21 @@ fn spatial_transport(
         initial_values,
     });
     Ok(())
+}
+
+/// The values that lie `depth` levels down inside one, in the order a
+/// row-major walk meets them.
+///
+/// A value nests once per dimension and then once more for a record's
+/// fields, and telling those apart by counting alone goes wrong as soon
+/// as the two counts agree. The declaration says how many levels are
+/// dimensions, so that is what is followed.
+fn levels_down(value: &Value, depth: usize, out: &mut Vec<Value>) {
+    match (depth, value) {
+        (0, _) => out.push(value.clone()),
+        (_, Value::Array(items)) => items
+            .iter()
+            .for_each(|item| levels_down(item, depth - 1, out)),
+        _ => {}
+    }
 }
