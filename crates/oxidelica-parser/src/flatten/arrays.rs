@@ -178,6 +178,22 @@ pub(super) fn expand(
             }
             map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e)))
         }
+        // A logical operator is worked out here rather than left for
+        // the scalar path, because its sides may still be things only
+        // this pass can settle: `size(b, 1) > 0 and max(b)` asks the
+        // length and the largest of a vector, and both answers are
+        // scalars once they have been looked at with the shapes to
+        // hand. Left to the scalar path the vector arrives whole and
+        // is refused for being an array.
+        Expr::Not(inner) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
+        Expr::And(l, r) => Value::Scalar(Expr::And(
+            Box::new(recur(l)?.scalar()?),
+            Box::new(recur(r)?.scalar()?),
+        )),
+        Expr::Or(l, r) => Value::Scalar(Expr::Or(
+            Box::new(recur(l)?.scalar()?),
+            Box::new(recur(r)?.scalar()?),
+        )),
         Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
             // An operator on records is whatever the record says it
             // is; anything else combines element by element.

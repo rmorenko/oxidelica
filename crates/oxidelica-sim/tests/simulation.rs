@@ -3742,3 +3742,38 @@ fn a_flag_beside_an_array_still_starts_at_false() {
     // its zeros and the flag is false, adding nothing.
     assert!(y.abs() < 1e-9, "the unset flag should start at false: {y}");
 }
+
+/// A logical operator on things only the array pass can settle.
+///
+/// `anyTrue` is written as `size(b, 1) > 0 and max(b)`, and both sides
+/// are questions about a vector that only this pass can answer: the
+/// length of an input declared `[:]`, and the largest of its elements.
+/// The pass had no rule for `and`, so the whole expression went off to
+/// the scalar path, where the vector arrives whole and is turned down
+/// for being an array. Seventeen models could not be flattened for
+/// that, the state graphs among them - they ask whether any branch of
+/// a split has been reset, and that is exactly this call.
+#[test]
+fn a_logical_operator_settles_what_only_shapes_can_answer() {
+    let result = run("package Top \
+           function anyTrue input Boolean b[:]; \
+             output Boolean r = size(b, 1) > 0 and max(b); \
+             algorithm end anyTrue; \
+           model M \
+             Boolean v[3] = {false, time > 0.5, false}; \
+             Boolean q = anyTrue(v); \
+             annotation(experiment(StopTime=1)); \
+           end M; \
+         end Top;");
+    let last = result.rows.last().expect("a final row");
+    let names = &result.columns;
+    let q = last[names
+        .iter()
+        .position(|n| n == "q")
+        .expect("q is written out")];
+    // Past half a second the middle element is true, so any of them is.
+    assert!(
+        q > 0.5,
+        "the vector's own questions should be answered before `and`: {q}"
+    );
+}
