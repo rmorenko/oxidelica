@@ -8689,3 +8689,35 @@ fn a_model_built_of_connections_flattens_the_same_way_twice() {
         assert_eq!(written(&once), written(&parse_model(BRIDGE).unwrap()));
     }
 }
+
+/// A value handed down an `extends` is worked out, not left standing.
+///
+/// A modifier arrives written in the terms of the class that supplied
+/// it, so it is not prefixed a second time - but it was not expanded
+/// either, and a call inside one was never inlined. The parameters
+/// then had a function call where they wanted a number and could
+/// evaluate nothing. The machines of the standard library state their
+/// nominal voltage exactly this way, as a function of the resistance
+/// and the brush voltage drop handed down to a base class.
+#[test]
+fn a_value_handed_down_an_extends_is_worked_out() {
+    let model = parse_model(
+        "package Top \
+           function twice input Real i; output Real v; algorithm v := 2 * i; end twice; \
+           partial model Base parameter Real k = 0; Real x; equation der(x) = -k; end Base; \
+           model M extends Base(final k = twice(3)); end M; \
+         end Top;",
+    )
+    .expect("flattens");
+    let k = model
+        .components
+        .iter()
+        .find(|c| c.name == "k")
+        .expect("k survives");
+    assert_eq!(
+        k.binding.as_ref().map(|b| b.describe()),
+        Some("2 * 3".to_string()),
+        "the call should have been inlined: {:?}",
+        k.binding
+    );
+}

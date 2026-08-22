@@ -2120,7 +2120,25 @@ pub(super) fn instantiate_one(
                     .map(|(_, e)| e.clone())
             };
             if let Some(value) = modifier(local_name) {
-                flat.binding = Some(value);
+                // A modifier arrives written in the terms of the class
+                // that supplied it, so it is not prefixed again - but
+                // it still has to be worked out. Left as it stands, a
+                // call inside it is never inlined, and a value that
+                // came down an `extends` is a call the parameters
+                // cannot evaluate: the machines say what their
+                // nominal voltage is that way, through a function of
+                // the resistance and the brush drop.
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
+                    sizes,
+                    loop_vars: &no_loop_vars,
+                    consts: local_consts,
+                    records: no_records(),
+                };
+                let worked = substitute_class_constants(&value, registry, scope, imports, &[]);
+                let worked = expand(&worked, &shapes, registry, scope, imports, 0)
+                    .and_then(|value| value.scalar());
+                flat.binding = Some(worked.unwrap_or(value));
             }
             // On an array the start has already been handed out
             // element by element; this is the scalar case.

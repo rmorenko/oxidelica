@@ -3580,3 +3580,27 @@ fn a_when_body_can_ask_what_a_state_arrived_with() {
     )
     .contains("is not discrete"));
 }
+
+/// A value handed down an `extends` reaches the run as a number.
+///
+/// Flattening leaves the call inlined; what matters here is that the
+/// parameters can then evaluate it, which is where a model whose
+/// nominal voltage comes down from a base class used to stop.
+#[test]
+fn a_parameter_handed_a_call_down_an_extends_is_evaluated() {
+    let result = run("package Top \
+           function twice input Real i; output Real v; algorithm v := 2 * i; end twice; \
+           partial model Base parameter Real k = 0; Real x(start = 1, fixed = true); \
+             equation der(x) = -k; end Base; \
+           model M extends Base(final k = twice(3)); \
+             annotation(experiment(StopTime=1.0)); end M; \
+         end Top;");
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let last = result.rows.last().unwrap();
+    // k is 6, so x falls from 1 to -5 over the second.
+    assert!(
+        (last[x] + 5.0).abs() < 1e-6,
+        "x = {}, expected the run to have used k = 6",
+        last[x]
+    );
+}
