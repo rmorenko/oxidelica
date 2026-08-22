@@ -8479,3 +8479,32 @@ fn one_record_over_an_array_is_not_mistaken_for_one_per_element() {
         }
     }
 }
+
+/// A length only the component's value settles is one the statements
+/// of the class holding it can read.
+#[test]
+fn a_length_a_modifier_settled_is_seen_by_an_algorithm() {
+    // `t[:, 2]` says the declaration will not say how long it is; the
+    // modifier does. What the length came to is filed under the
+    // component's full path, and a statement writes the name this
+    // class gave the component, so it has to be filed under that too.
+    let m = parse_model(
+        "block Holder parameter Real t[:, 2] = fill(0.0, 0, 2); \
+         Real y; \
+         algorithm y := size(t, 1); end Holder; \
+         model M Holder h(t = [1, 2; 3, 4; 5, 6]); Real z; equation z = h.y; end M;",
+    )
+    .unwrap();
+    let settled = m
+        .equations
+        .iter()
+        .find(|equation| equation.lhs == oxidelica_parser::Expr::Ref("h.y".to_string()))
+        .map(|equation| equation.rhs.clone())
+        .or_else(|| {
+            m.components
+                .iter()
+                .find(|component| component.name == "h.y")
+                .and_then(|component| component.binding.clone())
+        });
+    assert_eq!(settled, Some(oxidelica_parser::Expr::Number(3.0)));
+}

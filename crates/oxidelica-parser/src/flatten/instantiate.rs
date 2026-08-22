@@ -1001,6 +1001,20 @@ pub(super) fn instantiate(
         }
         taken += 1;
     }
+    // A `:` length is settled only once the component has a value to
+    // read it from, and the answer is filed under the component's full
+    // path. What a statement of this class writes is the name this
+    // class gave the component, so the same lengths go in again under
+    // those names - and the full paths stay, for a statement naming
+    // what a component below holds. The shorter names go in second, so
+    // a length a value settled wins over one the declaration guessed
+    // at.
+    sizes.extend(sizes_here.clone());
+    for (path, shape) in &sizes_here {
+        if let Some(local) = path.strip_prefix(prefix) {
+            sizes.insert(local.to_string(), shape.clone());
+        }
+    }
 
     // The last declarations' numbers, which the loop above added after
     // its final round.
@@ -1249,7 +1263,7 @@ pub(super) fn instantiate(
                     &mut order,
                     &mut checked,
                     &local_consts,
-                    &sizes_here,
+                    &sizes,
                     registry,
                     scope,
                     &imports,
