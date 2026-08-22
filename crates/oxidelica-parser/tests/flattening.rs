@@ -1173,6 +1173,31 @@ fn the_last_of_the_builtins_say_what_they_mean() {
     let m = parse_model("model M Real y; equation y = homotopy(3 * time, time); end M;").unwrap();
     assert!(format!("{:?}", m.equations[0].rhs).contains("Number(3.0)"));
 
+    // The operators take their arguments by name as readily as a
+    // function does, and the standard library writes them that way.
+    // Naming them puts them in order, whichever order they were written.
+    let m = parse_model(
+        "model M Real y; equation y = homotopy(simplified = time, actual = 3 * time); end M;",
+    )
+    .unwrap();
+    assert!(format!("{:?}", m.equations[0].rhs).contains("Number(3.0)"));
+    // A name the operator does not have says so, rather than being
+    // quietly taken for the argument that stands in that place.
+    let refused =
+        parse_model("model M Real y; equation y = homotopy(actual = time, easier = 0); end M;")
+            .unwrap_err()
+            .to_string();
+    assert!(refused.contains("no argument called `easier`"), "{refused}");
+    // So does a name given twice, or given after the same argument
+    // was already handed over by position.
+    let refused = parse_model("model M Real y; equation y = homotopy(time, actual = 0); end M;")
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refused.contains("both by name and by position"),
+        "{refused}"
+    );
+
     // `semiLinear` is two slopes meeting at zero.
     let m = parse_model(
         "model M Real u; Real y; equation u = time - 1; y = semiLinear(u, 2, 5); end M;",

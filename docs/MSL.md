@@ -41,7 +41,7 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2646 read, 25 not read
-classes: 6539; example models: 733, of which 381 flatten and 39 run
+classes: 6539; example models: 733, of which 381 flatten and 41 run
 ```
 
 Three numbers, and they mean different things. **Read** is the parser:
@@ -138,8 +138,6 @@ features, each used widely:
   does.
 - **The multibody library** — on a chain of lengths and shapes its
   visual parts are drawn with.
-- **`Clock` with named arguments** — the clocked library writes
-  `Clock(interval = 0.1)`.
 
 Two groups of models, 73 between them, are refused for none of those
 reasons: working them out does not finish. What was measured about that,

@@ -4,6 +4,114 @@
 use super::*;
 use std::cell::{Cell, RefCell};
 
+/// What the specification calls the arguments of the operators that
+/// take named ones, in the order they are declared.
+///
+/// The language gives these operators a signature like any function's,
+/// so a model may write `homotopy(actual = a, simplified = s)` and the
+/// standard library does - the limiters, the operational amplifiers and
+/// the clocked blocks all the way through. Nothing else about an
+/// operator needs the names, so this is the whole of what is kept.
+const BUILTIN_ARGUMENTS: &[(&str, &[&str])] = &[
+    ("homotopy", &["actual", "simplified"]),
+    ("Clock", &["interval", "resolution"]),
+    ("smooth", &["p", "u"]),
+    ("noEvent", &["expr"]),
+    ("semiLinear", &["x", "positiveSlope", "negativeSlope"]),
+    ("delay", &["expr", "delayTime", "delayMax"]),
+    ("sample", &["start", "interval"]),
+    ("previous", &["u"]),
+    ("hold", &["u"]),
+    ("subSample", &["u", "factor"]),
+    ("superSample", &["u", "factor"]),
+    ("shiftSample", &["u", "shiftCounter", "resolution"]),
+    ("backSample", &["u", "backCounter", "resolution"]),
+    ("noClock", &["u"]),
+    (
+        "spatialDistribution",
+        &[
+            "in0",
+            "in1",
+            "x",
+            "positiveVelocity",
+            "initialPoints",
+            "initialValues",
+        ],
+    ),
+];
+
+/// Put an operator's named arguments where its declaration says they
+/// go, so everything after this reads one shape.
+///
+/// A name nothing declared, or one given twice, or one given both by
+/// name and by position, is a mistake about the operator rather than
+/// about the model's physics, and is named as one. An operator this
+/// knows nothing about keeps the refusal it had: named arguments are
+/// something a function takes.
+fn order_builtin_arguments(name: &str, args: Vec<Expr>) -> Result<Vec<Expr>, String> {
+    if !args.iter().any(|a| matches!(a, Expr::NamedArg(..))) {
+        return Ok(args);
+    }
+    let Some((_, declared)) = BUILTIN_ARGUMENTS.iter().find(|(known, _)| *known == name) else {
+        return Ok(args);
+    };
+    // Everything before the first named argument stands where it is;
+    // the specification does not allow one to follow a named argument.
+    let positional = args
+        .iter()
+        .position(|a| matches!(a, Expr::NamedArg(..)))
+        .expect("just checked there is one");
+    if args[positional..]
+        .iter()
+        .any(|a| !matches!(a, Expr::NamedArg(..)))
+    {
+        return Err(format!(
+            "`{name}` was given an argument by position after one given by name"
+        ));
+    }
+    let mut out: Vec<Option<Expr>> = args[..positional].iter().cloned().map(Some).collect();
+    for arg in &args[positional..] {
+        let Expr::NamedArg(keyword, value) = arg else {
+            unreachable!("the loop above checked every one of these");
+        };
+        let Some(at) = declared.iter().position(|d| d == keyword) else {
+            return Err(format!(
+                "`{name}` has no argument called `{keyword}`; it takes {}",
+                declared.join(", ")
+            ));
+        };
+        if at < positional {
+            return Err(format!(
+                "`{name}` was given `{keyword}` both by name and by position"
+            ));
+        }
+        if out.len() <= at {
+            out.resize(at + 1, None);
+        }
+        if out[at].is_some() {
+            return Err(format!("`{name}` was given `{keyword}` twice"));
+        }
+        out[at] = Some((**value).clone());
+    }
+    // A gap is an argument the operator was never given. The arity
+    // check further along is what says whether that matters - some of
+    // these take an optional last argument - so what is handed on is
+    // what was written, and a gap simply ends it.
+    let mut settled = Vec::with_capacity(out.len());
+    for (at, value) in out.into_iter().enumerate() {
+        match value {
+            Some(value) => settled.push(value),
+            None => {
+                return Err(format!(
+                    "`{name}` was given nothing for `{}`",
+                    declared.get(at).copied().unwrap_or("an argument")
+                ))
+            }
+        }
+    }
+    Ok(settled)
+}
+
 /// Prefix every component reference in an expression, resolving `outer`
 /// references to the instance that owns them.
 pub(super) fn prefix_expr(expr: &Expr, prefix: &str, outers: &HashMap<String, String>) -> Expr {
@@ -1270,7 +1378,7 @@ pub(super) fn resolve(
         },
         Expr::Call(name, args) => {
             let args: Result<Vec<Expr>, String> = args.iter().map(&recur).collect();
-            let args = args?;
+            let args = order_builtin_arguments(name, args?)?;
             match lookup(registry, name, scope, imports) {
                 Some(class) if class.kind == ClassKind::Function => {
                     // A function may ask how long what it was handed

@@ -533,7 +533,11 @@ back to the `else`. A `when` may stand among the statements of
 a model's algorithm section, but only at the top of one - inside it
 may hold an algorithm of its own. `homotopy` takes the real problem and goes
 straight at it, which the specification permits and which means no
-continuation is run. `Connections.root`, `potentialRoot`, `branch`,
+continuation is run. The operators with declared argument names -
+`homotopy`, `Clock`, `smooth`, `delay`, `semiLinear`, the clocked
+conversions and `spatialDistribution` among them - take their arguments
+by name as well as by position, and a name none of them declares, or one
+given twice, is refused by that name. `Connections.root`, `potentialRoot`, `branch`,
 `isRoot` and `rooted` decide the roots of an overconstrained graph and
 refuse one with no root or with two, but no equality constraints are
 generated or dropped, since overdetermined types are not supported.

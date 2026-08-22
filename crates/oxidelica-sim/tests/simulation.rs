@@ -1374,6 +1374,22 @@ fn clocks_derived_from_one_another_tick_where_the_fractions_put_them() {
 }
 
 #[test]
+fn a_clock_may_be_asked_for_by_the_names_of_its_arguments() {
+    // The clocked library writes its operators out with the argument
+    // names the specification gives them, so the names have to reach
+    // the same clock the positions would. This is the counter of the
+    // test below, said the other way round.
+    let result = run("model M Clock base = Clock(interval = 0.1); \
+         Clock slow = subSample(u = base, factor = 2); \
+         Real u; Real hu; \
+         equation u = previous(u) + interval(slow); hu = hold(u); \
+         annotation(experiment(StopTime = 0.4, Interval = 0.4)); end M;");
+    let hold = result.columns.iter().position(|c| c == "hu").unwrap();
+    // Ticks at 0, 0.2, 0.4 - the slow clock - each adding its interval.
+    assert!((result.rows.last().unwrap()[hold] - 0.6).abs() < 1e-9);
+}
+
+#[test]
 fn a_partition_sees_this_tick_of_the_one_it_reads() {
     // Two clocks that tick together at t = 0, 0.2, 0.4. The slow
     // partition reads the fast one, so it has to run second - a `when`
