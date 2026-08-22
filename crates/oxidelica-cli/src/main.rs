@@ -328,29 +328,68 @@ fn library_check(args: &[String]) -> Result<(), String> {
         .filter(|c| c.name.contains(".Examples.") || c.name.contains(".Test"))
         .map(|c| c.name.clone())
         .collect();
+    // Each model is read on its own and tells the others nothing, so
+    // they are read at once. What a model comes to is put back in the
+    // order the models were listed, so that the report reads the same
+    // however many threads did the reading - a rank that moved with
+    // the weather would be no measurement at all.
+    let hands = std::env::var("OXIDELICA_THREADS")
+        .ok()
+        .and_then(|given| given.parse().ok())
+        .filter(|asked| *asked > 0)
+        .unwrap_or_else(|| {
+            std::thread::available_parallelism()
+                .map(std::num::NonZeroUsize::get)
+                .unwrap_or(1)
+        })
+        .min(models.len().max(1));
+    let mut answers: Vec<(usize, Answer)> = Vec::new();
+    std::thread::scope(|threads| {
+        let classes = &classes;
+        let models = &models;
+        let taken: Vec<_> = (0..hands)
+            .map(|hand| {
+                // A thread of its own starts with a smaller stack than
+                // the one a program starts on, and reading a model is
+                // deep work: a class inside a class inside a class,
+                // and an expression written out through all of them.
+                std::thread::Builder::new()
+                    .stack_size(64 * 1024 * 1024)
+                    .spawn_scoped(threads, move || {
+                        let mut mine = Vec::new();
+                        for (at, name) in models.iter().enumerate().skip(hand).step_by(hands) {
+                            if std::env::var("OXIDELICA_TRACE").is_ok() {
+                                eprintln!("{name}");
+                            }
+                            mine.push((at, how_far(classes, name)));
+                        }
+                        mine
+                    })
+                    .expect("a thread to read models with")
+            })
+            .collect();
+        for hand in taken {
+            answers.extend(hand.join().unwrap_or_default());
+        }
+    });
+    answers.sort_by_key(|(at, _)| *at);
+
     let mut flat: Vec<&String> = Vec::new();
     let mut why_not: Vec<(String, String)> = Vec::new();
     let mut ran: Vec<&String> = Vec::new();
     let mut would_not_run: Vec<(String, String)> = Vec::new();
-    for name in &models {
-        if std::env::var("OXIDELICA_TRACE").is_ok() {
-            eprintln!("{name}");
-        }
-        match oxidelica_parser::flatten_named(&classes, name) {
-            Ok(model) => {
+    for (at, answer) in answers {
+        let name = &models[at];
+        match answer {
+            Answer::Refused(why) => why_not.push((why, name.clone())),
+            Answer::Flat(why) => {
                 flat.push(name);
-                // Flattening is not the whole of it. A flat model still
-                // has to come out as something that runs, and a model
-                // that flattens into equations nothing can solve is one
-                // this compiler has said nothing true about. What that
-                // costs is a few steps apiece, not a whole simulation:
-                // what goes wrong here goes wrong at the start.
-                match run_a_little(&model) {
-                    Ok(()) => ran.push(name),
-                    Err(why) => would_not_run.push((why, name.clone())),
-                }
+                would_not_run.push((why, name.clone()));
             }
-            Err(why) => why_not.push((why, name.clone())),
+            Answer::Ran => {
+                flat.push(name);
+                ran.push(name);
+            }
         }
     }
     println!(
@@ -400,6 +439,31 @@ fn report(reasons: &[(String, String)], indent: &str, all: bool) {
     }
     if ranked.len() > shown {
         println!("{indent}       and {} more kind(s)", ranked.len() - shown);
+    }
+}
+
+/// How far one model got.
+enum Answer {
+    /// Flattening said no, and why.
+    Refused(String),
+    /// It flattened, and then would not run, and why.
+    Flat(String),
+    /// It flattened and took its steps.
+    Ran,
+}
+
+/// Read one model as far as it goes.
+fn how_far(classes: &[oxidelica_parser::ClassDef], name: &str) -> Answer {
+    match oxidelica_parser::flatten_named(classes, name) {
+        // Flattening is not the whole of it. A flat model still has to
+        // come out as something that runs, and a model that flattens
+        // into equations nothing can solve is one this compiler has
+        // said nothing true about.
+        Ok(model) => match run_a_little(&model) {
+            Ok(()) => Answer::Ran,
+            Err(why) => Answer::Flat(why),
+        },
+        Err(why) => Answer::Refused(why),
     }
 }
 
