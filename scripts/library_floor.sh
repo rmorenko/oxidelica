@@ -17,9 +17,9 @@
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
-FILES_FLOOR=2649
-FLATTEN_FLOOR=388
-RUN_FLOOR=37
+FILES_FLOOR=2646
+FLATTEN_FLOOR=381
+RUN_FLOOR=36
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."

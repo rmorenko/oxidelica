@@ -1,7 +1,7 @@
 # The Modelica Standard Library
 
 The Modelica Standard Library (MSL) is what a Modelica tool is measured
-against: 2674 files of models nobody wrote for this compiler. What
+against: 2671 files of models nobody wrote for this compiler. What
 follows is how to get it, what it does here, and what it does not.
 
 Russian version of this file: [MSL.ru.md](MSL.ru.md).
@@ -40,8 +40,8 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2649 read, 25 not read
-classes: 6544; example models: 734, of which 388 flatten and 36 run
+files: 2646 read, 25 not read
+classes: 6539; example models: 733, of which 381 flatten and 37 run
 ```
 
 Three numbers, and they mean different things. **Read** is the parser:
@@ -157,5 +157,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "381 of 734" mean anything — without it, one unparsed file would
+like "381 of 733" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

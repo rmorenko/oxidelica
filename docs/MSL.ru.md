@@ -1,7 +1,7 @@
 # Modelica Standard Library
 
 Стандартная библиотека Modelica (MSL) — то, чем меряют Modelica-среду:
-2674 файла моделей, которые никто не писал под этот компилятор. Ниже —
+2671 файл моделей, которые никто не писал под этот компилятор. Ниже —
 как её получить, что она здесь делает и чего не делает.
 
 Английская версия файла: [MSL.md](MSL.md).
@@ -40,8 +40,8 @@ oxidelica library add https://github.com/example/Library.git --version v2.0 --as
 против MSL 4.1.0:
 
 ```text
-files: 2649 read, 25 not read
-classes: 6544; example models: 734, of which 388 flatten and 36 run
+files: 2646 read, 25 not read
+classes: 6539; example models: 733, of which 381 flatten and 37 run
 ```
 
 Три числа, и они про разное. **Read** — это парсер: файл понят как
