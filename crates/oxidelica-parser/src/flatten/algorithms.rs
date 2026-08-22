@@ -2242,13 +2242,23 @@ fn starts_at(name: &str, registry: &HashMap<&str, &ClassDef>, scope: &str) -> Op
             None => None,
         };
     }
-    // A record named whole is never what the merge asks about:
-    // flattening takes it apart first, so what a branch assigns and
-    // another leaves is `p.cp`, never `p`.
+    // A record named whole starts as its fields do, gathered in the
+    // order the record declares them. A body may assign the whole
+    // record in one branch - the steam tables say `f := Basic.f3(d,
+    // T)` inside a region test and read `f` after it - and then it is
+    // the record's own name the merge is asked about rather than any
+    // field of it.
     if name == root {
-        return None;
+        let mut fields = Vec::new();
+        for field in &record?.components {
+            fields.push(starts_at(
+                &format!("{name}.{}", field.name),
+                registry,
+                scope,
+            )?);
+        }
+        return Some(Expr::Array(fields));
     }
-    record?;
     Some(match starting_type(name, declared, registry, class) {
         Some(Started::Boolean) => Expr::Bool(false),
         Some(Started::Number) => Expr::Number(0.0),

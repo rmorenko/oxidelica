@@ -3671,3 +3671,42 @@ fn an_unset_record_starts_as_its_fields_do() {
         "an unset record should start as its fields do: {cool}"
     );
 }
+
+/// A record set whole in one branch starts as its fields do.
+///
+/// The earlier test leaves the fields alone one by one; the steam
+/// tables assign the record itself - `f := Basic.f3(bpro.d, bpro.T)`
+/// inside the region 3 test - and read it back whichever way the test
+/// went. The merge is then asked about the record's own name, and a
+/// record has no start of its own to give: it starts as its fields
+/// do, gathered in the order the record declares them. Without that
+/// the whole body is turned down before anything else can be looked
+/// at, and the Fluid fitting example that reaches the boiling curve
+/// stops at that refusal rather than at whatever is really wrong
+/// further in.
+#[test]
+fn a_record_assigned_whole_in_one_branch_starts_as_its_fields_do() {
+    let source = "package Top \
+           record Derivs Real d; Real t; end Derivs; \
+           function f3 input Real u; output Derivs g; \
+             algorithm g.d := u; g.t := 2*u; end f3; \
+           function region input Real u; output Real y; \
+           protected Derivs f; \
+           algorithm \
+             if u > 2 then f := f3(u); end if; \
+             y := f.d + f.t; \
+           end region; \
+           model M \
+             Real dry = region(time); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;";
+    let said = match oxidelica_parser::parse_model(source) {
+        Ok(_) => String::new(),
+        Err(error) => error.message,
+    };
+    assert!(
+        !said.contains("assigned in one branch only"),
+        "the record should start at its fields rather than turn the body down: {said}"
+    );
+}
