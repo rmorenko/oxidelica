@@ -44,10 +44,35 @@ pub(super) fn apply_operator(
         ));
     };
     let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
-    let values = args
+    let mut values = args
         .iter()
         .map(&recur)
         .collect::<Result<Vec<_>, String>>()?;
+    // A number standing where the operator wants a record is that
+    // record built from it: `N*i` of a `Complex` and a `Real` is the
+    // multiplication of two complex numbers, the second of them with
+    // no imaginary part. The library writes it that way and declares
+    // no operator for the mixture, because the language says a value
+    // is converted by the record's own constructor where one applies.
+    let inputs: Vec<Component> = function_components(registry, function, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    for (input, value) in inputs.iter().zip(&mut values) {
+        let wants_record = input.dimensions.is_empty()
+            && record_input_fields(registry, function, input).is_some_and(|f| f.len() > 1);
+        if wants_record && matches!(value, Value::Scalar(_)) {
+            let number = value.clone().into_expr();
+            *value = expand(
+                &Expr::Call(input.type_name.clone(), vec![number]),
+                shapes,
+                registry,
+                &function.name,
+                &function.imports,
+                depth + 1,
+            )?;
+        }
+    }
     // An operator written for one record and handed a whole array of
     // them works on each in turn: `v1 - v2` of two `Complex[3]` is
     // three subtractions. The language vectorizes a function this way

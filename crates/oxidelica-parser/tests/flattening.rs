@@ -9052,3 +9052,30 @@ fn a_whole_array_read_beside_an_element_is_that_element() {
         vec!["idq_ss[1] = gap.i_ss[1]", "idq_ss[2] = gap.i_ss[2]"]
     );
 }
+
+/// A number standing where an operator wants a record is that record
+/// built from it: a winding writes `N*i` of a complex number of turns
+/// and a real current, and declares no operator for the mixture.
+#[test]
+fn a_number_beside_a_record_is_built_into_one() {
+    let m = parse_model(
+        "operator record Cx Real re; Real im; \
+         encapsulated operator 'constructor' \
+         function fromReal import Cx; input Real re; input Real im = 0; \
+         output Cx result(re = re, im = im); algorithm end fromReal; \
+         end 'constructor'; \
+         encapsulated operator function '*' input Cx a; input Cx b; \
+         output Cx c; algorithm \
+         c := Cx(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); end '*'; \
+         end Cx; \
+         model M Cx n; Cx v; Real i; \
+         equation n = Cx(1, 2); i = time; v = n * i; end M;",
+    )
+    .expect("a number beside a record");
+    let written = equations_of(&m);
+    assert!(
+        written.contains(&"v.re = (n.re * i) - (n.im * 0)".to_string())
+            && written.contains(&"v.im = (n.re * 0) + (n.im * i)".to_string()),
+        "{written:?}"
+    );
+}
