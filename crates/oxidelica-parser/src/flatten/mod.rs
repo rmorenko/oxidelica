@@ -360,7 +360,34 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                         gather(registry, base, out, depth + 1);
                     }
                 }
-                out.extend(class.components.iter().cloned());
+                for component in &class.components {
+                    // A member that is a record is not one variable
+                    // but the fields it holds: the magnetic ports of
+                    // the fundamental-wave machines carry a complex
+                    // potential and a complex flux, and flattening
+                    // knows those by `V_m.re` and `V_m.im`. Equating
+                    // the record's own name would name a variable the
+                    // flat model does not have. A field with
+                    // dimensions of its own is left whole, since the
+                    // name it would take is not one this knows.
+                    let held = lookup(registry, &component.type_name, &class.name, &class.imports)
+                        .filter(|of| of.kind == ClassKind::Record)
+                        .filter(|_| component.dimensions.is_empty());
+                    match held {
+                        Some(record) => {
+                            let mut fields = Vec::new();
+                            gather(registry, record, &mut fields, depth + 1);
+                            for mut field in fields {
+                                field.name = format!("{}.{}", component.name, field.name);
+                                field.flow = component.flow;
+                                field.stream = component.stream;
+                                field.variability = component.variability;
+                                out.push(field);
+                            }
+                        }
+                        None => out.push(component.clone()),
+                    }
+                }
             }
             gather(&registry, class, &mut out, 0);
             out
@@ -411,6 +438,18 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
         for member_component in &held {
             let var = |path: &str| format!("{path}.{}", member_component.name);
+            // A parameter of a connector is not a variable the
+            // connection solves for: the fluid ports of the heat-flow
+            // library each carry the medium they are filled with, and
+            // joining two of them says the media must agree, not that
+            // one is computed from the other. Equating them would ask
+            // the run to solve for something settled before it began.
+            if matches!(
+                member_component.variability,
+                Variability::Parameter | Variability::Constant
+            ) {
+                continue;
+            }
             if member_component.stream {
                 // A stream variable gets no equation from the
                 // connection: each side's outflow is set by its own

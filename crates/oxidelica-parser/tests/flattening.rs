@@ -9253,3 +9253,49 @@ fn a_connector_holds_what_its_base_class_holds() {
         "the inherited flow is forced to zero where nothing is connected: {written:?}"
     );
 }
+
+#[test]
+fn a_parameter_of_a_connector_is_not_solved_for() {
+    let m = parse_model(
+        "package P \
+         connector Port parameter Real medium = 1; Real p; flow Real m_flow; end Port; \
+         model Source Port a; equation a.p = 2; end Source; \
+         model Sink Port a; equation a.m_flow = 0; end Sink; \
+         model M Source s; Sink k; Real x; \
+         equation connect(s.a, k.a); der(x) = k.a.p; end M; end P;",
+    )
+    .expect("two ports joined, each carrying the medium it is filled with");
+    let written = equations_of(&m);
+    assert!(
+        !written
+            .iter()
+            .any(|e| e.contains("medium") && e.contains("=")),
+        "the medium is settled before the run and no equation solves for it: {written:?}"
+    );
+}
+
+#[test]
+fn a_connector_member_that_is_a_record_joins_field_by_field() {
+    let m = parse_model(
+        "package P record Cx Real re; Real im; end Cx; \
+         connector Port Cx V; flow Cx Phi; end Port; \
+         model Gnd Port p; equation p.V.re = 0; p.V.im = 0; end Gnd; \
+         model Src Port p; equation p.Phi.re = 1; p.Phi.im = 0; end Src; \
+         model M Gnd g; Src s; Real x; \
+         equation connect(g.p, s.p); der(x) = s.p.V.re; end M; end P;",
+    )
+    .expect("two ports whose potential and flow are complex");
+    let written = equations_of(&m);
+    assert!(
+        written
+            .iter()
+            .any(|e| e.contains("s.p.V.re") && e.contains("g.p.V.re")),
+        "the fields are equated one by one: {written:?}"
+    );
+    assert!(
+        written
+            .iter()
+            .any(|e| e.contains("g.p.Phi.im") && e.contains("s.p.Phi.im")),
+        "and each field of the flow is summed on its own: {written:?}"
+    );
+}
