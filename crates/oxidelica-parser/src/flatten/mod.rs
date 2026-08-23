@@ -256,6 +256,39 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // here - which connector a set is named after, which equation is
     // written first, and so which one the index reduction finds left
     // over - would come out differently with it.
+    // A connector that holds connectors - the thermal port of a
+    // machine holds a heat port per winding - is joined by them: a
+    // `connect` of two such ports joins the heat ports in pairs, and
+    // each pair carries the temperature and the heat flow. Written
+    // against the ports themselves the equations would name something
+    // no component of the flat model is called.
+    let mut inside: HashMap<&str, Vec<&str>> = HashMap::new();
+    for path in acc.connectors.keys() {
+        if let Some(cut) = path.rfind('.') {
+            let (outer, member) = (&path[..cut], &path[cut + 1..]);
+            if acc.connectors.contains_key(outer) {
+                inside.entry(outer).or_default().push(member);
+            }
+        }
+    }
+    for members in inside.values_mut() {
+        members.sort_unstable();
+    }
+    let mut joined = Vec::new();
+    for (a, b) in &acc.connects {
+        // A side that names no connector at all is somebody else's
+        // complaint to make, a few lines below.
+        let of = |path: &String| inside.get(path.as_str()).cloned().unwrap_or_default();
+        let (inside_a, inside_b) = (of(a), of(b));
+        match inside_a.is_empty() || inside_a != inside_b {
+            true => joined.push((a.clone(), b.clone())),
+            false => joined.extend(
+                inside_a
+                    .into_iter()
+                    .map(|member| (format!("{a}.{member}"), format!("{b}.{member}"))),
+            ),
+        }
+    }
     let mut paths: Vec<String> = acc.connectors.keys().cloned().collect();
     paths.sort();
     let index: HashMap<&str, usize> = paths.iter().map(|p| p.as_str()).zip(0..).collect();
@@ -267,7 +300,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
         parent[i]
     }
-    for (a, b) in &acc.connects {
+    for (a, b) in &joined {
         let (&ia, &ib) = match (index.get(a.as_str()), index.get(b.as_str())) {
             (Some(ia), Some(ib)) => (ia, ib),
             _ => {

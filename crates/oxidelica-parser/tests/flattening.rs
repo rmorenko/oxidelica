@@ -9079,3 +9079,33 @@ fn a_number_beside_a_record_is_built_into_one() {
         "{written:?}"
     );
 }
+
+/// A thermal port holds a heat port per winding, and the ports a
+/// machine joins are the ones a `redeclare` widened: the members the
+/// connection carries are the ones the instances turned out to have,
+/// not the ones the connector class writes down for itself.
+#[test]
+fn two_connectors_of_connectors_are_joined_by_their_members() {
+    let m = parse_model(
+        "model M connector Heat Real T; flow Real Q_flow; end Heat; \
+         connector Base Heat hs; end Base; \
+         connector More extends Base; Heat hr; end More; \
+         partial model PA replaceable Base thermalPort; end PA; \
+         model Amb extends PA(redeclare final More thermalPort); end Amb; \
+         partial model Mach replaceable Base internalPort; replaceable PA ambient; \
+         equation connect(ambient.thermalPort, internalPort); end Mach; \
+         model Machine extends Mach(redeclare final Amb ambient, \
+           redeclare final More internalPort); end Machine; \
+         Machine c; end M;",
+    )
+    .expect("a connection between two ports of ports is joined by the ports inside");
+    let equations = equations_of(&m);
+    assert!(
+        equations.contains(&"c.internalPort.hr.T = c.ambient.thermalPort.hr.T".to_string()),
+        "the heat port a redeclare added is carried across too: {equations:?}"
+    );
+    assert!(
+        equations.contains(&"c.internalPort.hs.T = c.ambient.thermalPort.hs.T".to_string()),
+        "and so is the one the base connector declares: {equations:?}"
+    );
+}
