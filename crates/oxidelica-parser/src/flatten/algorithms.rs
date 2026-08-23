@@ -1922,7 +1922,15 @@ fn worked_body(
                         ));
                     }
                     for (field, value) in fields.iter().zip(items) {
-                        bindings.insert(format!("{}.{field}", input.name), value.clone());
+                        let here = format!("{}.{field}", input.name);
+                        // A field that is itself an array is bound
+                        // element by element as well: the body of an
+                        // orientation function reads `R.T[1, 1]`, and
+                        // the list bound to `R.T` whole is not
+                        // something a name with a subscript can be read
+                        // off.
+                        by_element(&here, value, &mut Vec::new(), &mut bindings);
+                        bindings.insert(here, value.clone());
                     }
                     position += 1;
                     continue;
@@ -1951,6 +1959,21 @@ fn worked_body(
                             format!("{}.{field}", input.name),
                             Expr::Ref(format!("{given}.{field}")),
                         );
+                    }
+                    // A field with dimensions of its own - an
+                    // orientation carries a three by three - is bound
+                    // element by element as well as whole: a body
+                    // reading `R.T[1, 1]` has to find the caller's own
+                    // `R1.T[1, 1]` under it, and a name alone is not
+                    // something a subscript can be read off here.
+                    for (field, shape) in shaped_record_fields(registry, class, input) {
+                        let here = format!("{}.{field}", input.name);
+                        let there = format!("{given}.{field}");
+                        for indices in index_tuples(&shape) {
+                            let source = Expr::Ref(element_name(&there, &indices));
+                            bindings.insert(element_name(&here, &indices), source);
+                        }
+                        bindings.insert(here, spread_out(&there, &shape, &mut Vec::new()));
                     }
                 }
             }
@@ -1993,7 +2016,26 @@ fn worked_body(
     // naming another local is left alone: the array layer reads an
     // element off a name and cannot read one off the list written in
     // its place.
-    let handed: HashMap<String, Expr> = bindings.clone();
+    // The lengths the call decided go in first: a declared dimension
+    // that is a colon measures nothing on its own, and a result sized
+    // `size(v, 1)` reads its length back out of here.
+    let mut sizes: HashMap<String, Vec<i64>> = given_shapes;
+    // What the call handed over as numbers: a result declared
+    // `Integer[nState]` takes its length from the `nState` it was
+    // given, and nowhere else says what that is.
+    let given: HashMap<String, f64> = bindings
+        .iter()
+        .filter_map(|(name, value)| Some((name.clone(), const_eval(value, consts)?)))
+        .collect();
+    collect_shapes(registry, class, consts, &given, &mut sizes, 0);
+    let no_loop_vars = HashMap::new();
+    let local_shapes = Shapes {
+        sizes: &sizes,
+        loop_vars: &no_loop_vars,
+        consts,
+        records: no_records(),
+    };
+    let mut handed: HashMap<String, Expr> = bindings.clone();
     for component in &class.components {
         if component.causality == Causality::None {
             if let Some(binding) = &component.binding {
@@ -2032,7 +2074,7 @@ fn worked_body(
                     &bound,
                     &HashMap::new(),
                     consts,
-                    &given_shapes,
+                    &sizes,
                     registry,
                     &class.name,
                     &class.imports,
@@ -2041,23 +2083,43 @@ fn worked_body(
                     Some(number) if component.dimensions.is_empty() => Expr::Number(number),
                     _ => bound,
                 };
+                // A local array may be read by a later local, so it
+                // joins what the next value is written against - but
+                // only where its value is a name rather than a list
+                // written out, since the array layer reads an element
+                // off a name and cannot read one off a list.
+                // A local array written out as a list is also bound
+                // element by element - `Real e[3] = n; Real z[3] = e`
+                // of a body that then reads `z[2]` comes through the
+                // array layer as the name `e[2]`, and only an element
+                // name answers that.
+                // The value may be a call the array layer works out -
+                // `Real e_z_aux[3] = cross(e_x, n_y_aux)` of the
+                // multibody frames - and until it is worked out there
+                // is no element to read.
+                let worked = expand(
+                    &bound,
+                    &local_shapes,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    depth + 1,
+                );
+                let bound = match (component.dimensions.is_empty(), worked) {
+                    (false, Ok(value)) => substitute_refs(&value.into_expr(), &bindings),
+                    _ => bound,
+                };
+                if let Expr::Array(_) = &bound {
+                    let mut elements = HashMap::new();
+                    by_element(&component.name, &bound, &mut Vec::new(), &mut elements);
+                    handed.extend(elements.clone());
+                    bindings.extend(elements);
+                }
                 bindings.insert(component.name.clone(), bound);
             }
         }
     }
     let mut assigned = Vec::new();
-    // The lengths the call decided go in first: a declared dimension
-    // that is a colon measures nothing on its own, and a result sized
-    // `size(v, 1)` reads its length back out of here.
-    let mut sizes: HashMap<String, Vec<i64>> = given_shapes;
-    // What the call handed over as numbers: a result declared
-    // `Integer[nState]` takes its length from the `nState` it was
-    // given, and nowhere else says what that is.
-    let given: HashMap<String, f64> = bindings
-        .iter()
-        .filter_map(|(name, value)| Some((name.clone(), const_eval(value, consts)?)))
-        .collect();
-    collect_shapes(registry, class, consts, &given, &mut sizes, 0);
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
     if execute(
@@ -2179,6 +2241,72 @@ fn worked_body(
 /// knows its shape and a bare name written in its place does not, so
 /// binding one would turn a matrix into something of no shape at all.
 /// Those are still reached through the record's own name.
+/// Every element of a value written out as a list, under the name it
+/// is bound to: `e` bound to `{a, b}` also binds `e[1]` and `e[2]`,
+/// which is how a name with a subscript is read.
+fn by_element(name: &str, value: &Expr, so_far: &mut Vec<i64>, out: &mut HashMap<String, Expr>) {
+    match value {
+        Expr::Array(items) => {
+            for (index, item) in items.iter().enumerate() {
+                so_far.push(index as i64 + 1);
+                by_element(name, item, so_far, out);
+                so_far.pop();
+            }
+        }
+        one => {
+            out.insert(element_name(name, so_far), one.clone());
+        }
+    }
+}
+
+/// A name of a given shape written out as the list of its elements:
+/// `T` of three by three is three rows of three names. Written whole a
+/// matrix is a list of lists, the way `T[1, :]` reads a row.
+fn spread_out(name: &str, shape: &[i64], so_far: &mut Vec<i64>) -> Expr {
+    let Some((&length, rest)) = shape.split_first() else {
+        return Expr::Ref(element_name(name, so_far));
+    };
+    let mut items = Vec::new();
+    for index in 1..=length {
+        so_far.push(index);
+        items.push(spread_out(name, rest, so_far));
+        so_far.pop();
+    }
+    Expr::Array(items)
+}
+
+/// The fields of a record-typed argument that have dimensions, with
+/// the shape each one turned out to have.
+fn shaped_record_fields(
+    registry: &HashMap<&str, &ClassDef>,
+    function: &ClassDef,
+    input: &Component,
+) -> Vec<(String, Vec<i64>)> {
+    let Some(of) = lookup(
+        registry,
+        &input.type_name,
+        &function.name,
+        &function.imports,
+    ) else {
+        return Vec::new();
+    };
+    if of.kind != ClassKind::Record {
+        return Vec::new();
+    }
+    of.components
+        .iter()
+        .filter(|field| !field.dimensions.is_empty())
+        .filter_map(|field| {
+            let shape: Option<Vec<i64>> = field
+                .dimensions
+                .iter()
+                .map(|d| const_eval(d, &HashMap::new()).map(|n| n as i64))
+                .collect();
+            Some((field.name.clone(), shape?))
+        })
+        .collect()
+}
+
 fn scalar_record_fields(
     registry: &HashMap<&str, &ClassDef>,
     function: &ClassDef,

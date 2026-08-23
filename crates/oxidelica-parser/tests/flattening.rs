@@ -9190,3 +9190,50 @@ fn a_local_array_of_a_function_reads_what_the_call_handed_in() {
         "the caller's array and the constant's value stand in their place: {written:?}"
     );
 }
+
+#[test]
+fn a_local_array_built_by_a_call_is_read_element_by_element() {
+    let m = parse_model(
+        "package P \
+         function f input Real n[3]; output Real y; \
+         protected Real e[3] = if n[1] < 1e-10 then {1,0,0} else n; \
+         protected Real z[3] = cross(e, {0,1,0}); \
+         algorithm y := z[3]; end f; \
+         model M Real a[3] = {3,4,5}; Real x; equation der(x) = f(a); end M; end P;",
+    )
+    .expect("a body whose local array is a call on another local");
+    let written = equations_of(&m);
+    assert!(
+        !written.iter().any(|e| e.contains("e[")),
+        "the local's own name does not travel out: {written:?}"
+    );
+    assert!(
+        written.iter().any(|e| e.contains("a[1]")),
+        "the caller's array stands in its place: {written:?}"
+    );
+}
+
+#[test]
+fn a_record_argument_with_a_matrix_field_is_read_element_by_element() {
+    let m = parse_model(
+        "package P record Rec Real T[3,3]; Real w[3]; end Rec; \
+         function g input Rec R; input Real v[3]; output Real y; \
+         algorithm y := R.T[1,1]*v[1]; end g; \
+         function f input Rec R1; output Real y; \
+         algorithm y := g(R1, R1.w); end f; \
+         model M Rec r(T = identity(3), w = {1,0,0}); Real x; \
+         equation der(x) = f(r); end M; end P;",
+    )
+    .expect("a record handed on whole from one function to the next");
+    let written = equations_of(&m);
+    assert!(
+        !written
+            .iter()
+            .any(|e| e.contains("R.T") || e.contains("R1.T")),
+        "no name of the bodies travels out: {written:?}"
+    );
+    assert!(
+        written.iter().any(|e| e.contains("r.T[1,1]")),
+        "the caller's own matrix stands in their place: {written:?}"
+    );
+}
