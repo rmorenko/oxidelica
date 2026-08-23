@@ -9400,3 +9400,34 @@ fn a_connector_member_that_is_a_record_joins_field_by_field() {
         "and each field of the flow is summed on its own: {written:?}"
     );
 }
+
+#[test]
+fn a_value_handed_down_may_name_an_array_of_the_class_that_wrote_it() {
+    // A composite step tells the state graph root about its own
+    // suspend ports: `inner outer CompositeStepState stateGraphRoot(
+    // suspend = anyTrue(suspend.reset))`. The value is worked out
+    // inside the root, where `suspend` is not a name at all - it
+    // belongs to the class that wrote the modifier - so what that
+    // class knows to be an array has to travel with the value, or the
+    // call is handed one port instead of a run of them.
+    let m = parse_model(
+        "connector P Boolean reset; end P; \
+         function anyT input Boolean b[:]; output Boolean r; \
+         algorithm r := false; \
+         for i in 1:size(b, 1) loop r := r or b[i]; end for; end anyT; \
+         model Root Boolean s; end Root; \
+         model Sub Root r(s = anyT(suspend.reset)); P suspend[2]; \
+         equation suspend[1].reset = time > 0.5; suspend[2].reset = false; end Sub; \
+         model M Sub sub; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    let about: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| format!("{:?}", e.lhs).contains("sub.r.s"))
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(about.len(), 1, "{about:?}");
+    assert!(about[0].contains("sub.suspend[2].reset"), "{about:?}");
+}

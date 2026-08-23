@@ -218,6 +218,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
 
     let mut acc = Flat::default();
     let env = Env {
+        outer_sizes: &HashMap::new(),
         overrides: &[],
         redeclares: &[],
         inners: &HashMap::new(),
@@ -1236,6 +1237,9 @@ struct Env<'a> {
     /// here at all. Without them a value like `T = T_ref` looks like a
     /// scalar and spreads whole over every element it lands on.
     handed_shapes: &'a HashMap<String, Vec<i64>>,
+    /// The arrays of the class above, whose names a modifier it wrote
+    /// still uses even though it is read down here.
+    outer_sizes: &'a HashMap<String, Vec<i64>>,
 }
 
 /// One component element about to be instantiated: the declaration, the
@@ -1274,6 +1278,10 @@ struct Level<'a> {
     /// How long the arrays in view are, by the name an expression
     /// written here would use: a declaration's value may ask.
     sizes: &'a HashMap<String, Vec<i64>>,
+    /// The same for the class above, whose names a modifier handed
+    /// down still uses. In view for reading such a value and nowhere
+    /// else.
+    outer_sizes: &'a HashMap<String, Vec<i64>>,
     /// `outer` declaration name -> flat path of the `inner` instance.
     outers: &'a HashMap<String, String>,
     /// `inner` instances the components below can bind to.

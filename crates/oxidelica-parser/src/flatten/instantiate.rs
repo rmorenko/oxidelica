@@ -259,6 +259,7 @@ pub(super) fn instantiate(
         let base_env = Env {
             overrides: &mods,
             handed_shapes: &handed_shapes,
+            outer_sizes: env.outer_sizes,
             redeclares: &base_redeclares,
             inners: &inners,
             broken: &extend.broken,
@@ -784,6 +785,7 @@ pub(super) fn instantiate(
         let level = Level {
             prefix,
             sizes: &sizes_here,
+            outer_sizes: env.outer_sizes,
             outers: &outers,
             inners: &inners,
             overrides,
@@ -2116,6 +2118,7 @@ pub(super) fn instantiate_one(
     let Level {
         prefix,
         sizes,
+        outer_sizes,
         outers,
         inners,
         overrides,
@@ -2212,15 +2215,31 @@ pub(super) fn instantiate_one(
                 // nominal voltage is that way, through a function of
                 // the resistance and the brush drop.
                 let no_loop_vars = HashMap::new();
-                let shapes = Shapes {
+                // A value handed down may name an array of the class
+                // that wrote it - `Root r(s = anyTrue(suspend.reset))`
+                // is worked out here, inside `Root`, and `suspend`
+                // belongs to the class holding `r`. Those shapes are
+                // in view only for reading a modifier: taken into the
+                // table this class builds, they would also spread a
+                // value over elements it was never meant for.
+                let mut shapes = Shapes {
                     sizes,
                     loop_vars: &no_loop_vars,
                     consts: local_consts,
                     records: no_records(),
                 };
                 let worked = substitute_class_constants(&value, registry, scope, imports, &[]);
-                let worked = expand(&worked, &shapes, registry, scope, imports, 0)
+                let mut reach;
+                let mut done = expand(&worked, &shapes, registry, scope, imports, 0)
                     .and_then(|value| value.scalar());
+                if done.is_err() && !outer_sizes.is_empty() {
+                    reach = sizes.clone();
+                    reach.extend(outer_sizes.iter().map(|(n, s)| (n.clone(), s.clone())));
+                    shapes.sizes = &reach;
+                    done = expand(&worked, &shapes, registry, scope, imports, 0)
+                        .and_then(|value| value.scalar());
+                }
+                let worked = done;
                 flat.binding = Some(worked.unwrap_or(value));
             }
             // On an array the start has already been handed out
@@ -2401,6 +2420,7 @@ pub(super) fn instantiate_one(
                 inners,
                 broken: &[],
                 handed_shapes: &HashMap::new(),
+                outer_sizes: sizes,
                 inside_a_parameter,
             };
             instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
