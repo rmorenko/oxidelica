@@ -7602,13 +7602,14 @@ fn a_record_valued_parameter_is_handed_down_field_by_field() {
          Real y; equation y = p[2].a * time + p[1].b; end M;"
     ))
     .unwrap();
-    // A field takes its value the way any modifier's does, which for
-    // a field of a record is a declaration equation.
+    // A field takes its value the way any modifier's does, and a
+    // field of a parameter record is a parameter itself, so the value
+    // stays a value rather than becoming an equation.
     let worth = |name: &str| {
-        m.equations
+        m.components
             .iter()
-            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
-            .map(|e| e.rhs.clone())
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
     };
     assert_eq!(worth("p[1].a"), Some(Expr::Number(1.0)));
     assert_eq!(worth("p[1].b"), Some(Expr::Number(2.0)));
@@ -7624,9 +7625,9 @@ fn a_record_valued_parameter_is_handed_down_field_by_field() {
     .unwrap();
     assert_eq!(
         spread
-            .equations
+            .components
             .iter()
-            .filter(|e| e.rhs == Expr::Number(5.0))
+            .filter(|c| c.binding == Some(Expr::Number(5.0)))
             .count(),
         3
     );
@@ -7642,12 +7643,11 @@ fn a_record_valued_parameter_is_handed_down_field_by_field() {
     .unwrap();
     assert!(
         fixed
-            .equations
+            .components
             .iter()
-            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "q.b")
-                && e.rhs == Expr::Number(9.0)),
+            .any(|c| c.name == "q.b" && c.binding == Some(Expr::Number(9.0))),
         "{:?}",
-        fixed.equations
+        fixed.components
     );
 
     // A record built from fewer values than it has fields takes the
@@ -7659,12 +7659,11 @@ fn a_record_valued_parameter_is_handed_down_field_by_field() {
     .unwrap();
     assert!(
         partly
-            .equations
+            .components
             .iter()
-            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "r.b")
-                && e.rhs == Expr::Number(7.0)),
+            .any(|c| c.name == "r.b" && c.binding == Some(Expr::Number(7.0))),
         "{:?}",
-        partly.equations
+        partly.components
     );
 
     // A record that states some of its fields `final` still hands the
@@ -9107,5 +9106,57 @@ fn two_connectors_of_connectors_are_joined_by_their_members() {
     assert!(
         equations.contains(&"c.internalPort.hs.T = c.ambient.thermalPort.hs.T".to_string()),
         "and so is the one the base connector declares: {equations:?}"
+    );
+}
+
+/// A `parameter` record is a parameter all the way down. Its fields
+/// are declared plainly inside the record, and left continuous their
+/// values become declaration equations - so a multibody body, whose
+/// start orientation is a record a function fills in, had nothing to
+/// read `R_start.T[1, 1]` from when the quaternion it starts at asked
+/// for it.
+#[test]
+fn the_fields_of_a_parameter_record_are_parameters_themselves() {
+    let m = parse_model(
+        "model M record Ori Real T[2,2]; end Ori; \
+         parameter Ori R = Ori(T = [1,0;0,2]); \
+         parameter Real q = R.T[1,1] + R.T[2,2]; \
+         Real x; equation der(x) = q; end M;",
+    )
+    .expect("a record parameter filled in field by field");
+    let field = m
+        .components
+        .iter()
+        .find(|c| c.name == "R.T[1,1]")
+        .expect("the record comes apart into its fields");
+    assert_eq!(
+        field.variability,
+        oxidelica_parser::Variability::Parameter,
+        "a field of a parameter record is a parameter"
+    );
+    assert_eq!(
+        field.binding.as_ref().map(|b| b.describe()),
+        Some("1".to_string()),
+        "and its value stays a value rather than becoming an equation"
+    );
+}
+
+/// A class constant may be a vector: the multibody world states the
+/// colour of its axis arrows as `Types.Defaults.FrameColor`, three
+/// numbers under one name. Only a constant worth a single number was
+/// substituted, so the name travelled into the flat model with the
+/// instance path stuck on the front and nothing declared it.
+#[test]
+fn a_class_constant_that_is_a_vector_is_substituted_too() {
+    let m = parse_model(
+        "package P constant Real FrameColor[3] = {1,2,3}; \
+         model W Real c[3] = P.FrameColor; end W; \
+         model M W w; Real x; equation der(x) = w.c[1]; end M; end P;",
+    )
+    .expect("a vector constant read from another package");
+    let written = equations_of(&m);
+    assert!(
+        written.contains(&"w.c[1] = 1".to_string()),
+        "the vector is read element by element: {written:?}"
     );
 }

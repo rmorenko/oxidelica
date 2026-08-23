@@ -502,6 +502,46 @@ fn class_constant_at(
     values.get(member).copied()
 }
 
+/// A class constant that is an array rather than a number: the
+/// multibody world states its axis colours as `Types.Defaults
+/// .FrameColor`, a constant vector of three, and a name that comes to
+/// a vector is not one [`class_constant_at`] can answer. Left
+/// unanswered the name travels into the flat model with the instance
+/// path stuck on the front - `world.Modelica.Mechanics.MultiBody
+/// .Types.Defaults.FrameColor` - which nothing declares.
+fn class_constant_array_at(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    let (class_path, member) = name.rsplit_once('.')?;
+    let class = lookup(registry, class_path, scope, imports)?;
+    let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
+    gather_package_constants(registry, class, 0, &mut constants);
+    let binding = constants
+        .into_iter()
+        .find(|(n, _)| n == member)
+        .and_then(|(_, binding)| binding)?;
+    let binding = substitute_at(
+        &binding,
+        registry,
+        &class.name,
+        &class.imports,
+        &[],
+        depth + 1,
+        true,
+    );
+    // Only a value written out as an array is taken: anything else is
+    // a name this pass has no environment to read, and leaving it
+    // where it was is what happened before.
+    matches!(binding, Expr::Array(_)).then_some(binding)
+}
+
 /// The constants and parameters a package holds, its own and those it
 /// inherits. Bases come first, so a class's own declaration overrides
 /// an inherited one of the same name.
@@ -579,7 +619,8 @@ fn substitute_at(
         Expr::Ref(name) if name.contains('.') => {
             match class_constant_at(registry, name, scope, imports, depth) {
                 Some(value) => Expr::Number(value),
-                None => expr.clone(),
+                None => class_constant_array_at(registry, name, scope, imports, depth)
+                    .unwrap_or_else(|| expr.clone()),
             }
         }
         Expr::Ref(name) => {

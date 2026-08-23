@@ -223,6 +223,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         inners: &HashMap::new(),
         broken: &[],
         handed_shapes: &HashMap::new(),
+        inside_a_parameter: false,
     };
     instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
 
@@ -1142,6 +1143,11 @@ struct Env<'a> {
     inners: &'a HashMap<String, InnerInstance>,
     /// A selective `extends` leaves these elements of this class out.
     broken: &'a [Deselect],
+    /// Whether this instance sits inside a parameter: the fields of a
+    /// `parameter` record are parameters themselves, however the
+    /// record declares them, and a field left continuous turns its
+    /// value into an equation the parameters cannot read.
+    inside_a_parameter: bool,
     /// Shapes of the arrays named by the values in `overrides`, which
     /// are written in the terms of the class above and are not names
     /// here at all. Without them a value like `T = T_ref` looks like a
@@ -1197,6 +1203,8 @@ struct Level<'a> {
     imports: &'a [(String, String)],
     /// Package scope of the enclosing class.
     scope: &'a str,
+    /// Whether the enclosing class is itself part of a parameter.
+    inside_a_parameter: bool,
 }
 
 /// How a statement list finished: fell off the end, hit a `break`, or

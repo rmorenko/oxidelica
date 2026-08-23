@@ -262,6 +262,7 @@ pub(super) fn instantiate(
             redeclares: &base_redeclares,
             inners: &inners,
             broken: &extend.broken,
+            inside_a_parameter: env.inside_a_parameter,
         };
         instantiate(registry, base, prefix, &base_env, acc, depth + 1)?;
     }
@@ -789,6 +790,7 @@ pub(super) fn instantiate(
             consts: &local_consts,
             imports: &imports,
             scope,
+            inside_a_parameter: env.inside_a_parameter,
         };
         // An array bound - or started - as a whole hands each element
         // its own value.
@@ -2120,12 +2122,29 @@ pub(super) fn instantiate_one(
         consts: local_consts,
         imports,
         scope,
+        inside_a_parameter,
     } = *level;
+    // A `parameter` record is a parameter all the way down: its
+    // fields are declared plainly inside the record, and left as they
+    // are each one's value becomes a declaration equation - which the
+    // parameters are worked out without, so `R_start.T[1, 1]` is a
+    // name nothing gives a value to.
+    let of_a_parameter_record = matches!(
+        component.variability,
+        Variability::Parameter | Variability::Constant
+    ) && lookup(registry, &component.type_name, scope, imports)
+        .is_some_and(|of| of.kind == ClassKind::Record);
+    let inside_a_parameter = inside_a_parameter || of_a_parameter_record;
     {
         if is_primitive(&component.type_name) {
             let mut flat = component.clone();
             flat.name = flat_name.to_string();
             flat.dimensions = Vec::new();
+            let made_a_parameter =
+                inside_a_parameter && flat.variability == Variability::Continuous;
+            if made_a_parameter {
+                flat.variability = Variability::Parameter;
+            }
             // What a declaration says about itself has to come to one
             // value, but may be written over arrays to get there:
             // `nout = max([size(q_begin, 1); size(q_end, 1)])` counts
@@ -2244,7 +2263,8 @@ pub(super) fn instantiate_one(
             if matches!(
                 flat.variability,
                 Variability::Parameter | Variability::Constant
-            ) {
+            ) && !made_a_parameter
+            {
                 if let Some(value) = flat
                     .binding
                     .as_ref()
@@ -2375,6 +2395,7 @@ pub(super) fn instantiate_one(
                 inners,
                 broken: &[],
                 handed_shapes: &HashMap::new(),
+                inside_a_parameter,
             };
             instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
         }
