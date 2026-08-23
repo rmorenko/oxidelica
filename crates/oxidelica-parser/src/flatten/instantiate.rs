@@ -2149,6 +2149,12 @@ pub(super) fn instantiate_one(
             // value, but may be written over arrays to get there:
             // `nout = max([size(q_begin, 1); size(q_end, 1)])` counts
             // the longest of four by stacking their lengths.
+            // What every path built so far is a record of, which is
+            // what says that `v*i` of two complex numbers is the
+            // record's own multiplication rather than arithmetic on
+            // two names: a declaration's value is worked out here and
+            // the operands are components of the class holding it.
+            let records_so_far = &acc.records;
             let resolve_value = |e: &Expr| -> Result<Expr, String> {
                 let e = substitute_class_constants(e, registry, scope, imports, &[]);
                 let no_loop_vars = HashMap::new();
@@ -2156,7 +2162,7 @@ pub(super) fn instantiate_one(
                     sizes,
                     loop_vars: &no_loop_vars,
                     consts: local_consts,
-                    records: no_records(),
+                    records: records_so_far,
                 };
                 expand(
                     &prefix_expr(&e, prefix, outers),

@@ -6709,6 +6709,41 @@ fn a_settled_branch_inside_a_loop_carries_what_it_holds() {
 }
 
 #[test]
+fn a_record_valued_constant_and_a_record_in_a_declaration_are_read() {
+    // `import Modelica.ComplexMath.j;` then `v = j*omega*L*i` is how
+    // the quasi-static libraries write an impedance. The constant is a
+    // record built by its own constructor, and only a constant written
+    // out as an array was taken before, so `j` reached the run as an
+    // unknown variable.
+    const C: &str = "operator record C Real re; Real im; \
+         encapsulated operator function '*' input C a; input C b; output C c; \
+         algorithm c := C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); \
+         end '*'; end C; \
+         package K constant C j = C(0, 1); end K;";
+    let m = parse_model(&format!(
+        "{C} model M import K.j; C i; C v; equation v = j * i; \
+         i.re = time; i.im = 1; end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", m.equations);
+    assert!(!said.contains("Ref(\"j\")"), "{said}");
+
+    // The value of a declaration is worked out where the declaration
+    // stands, and what the operands are records of has to be in view
+    // there too: `Real P = real(v*i)` is the active power every
+    // quasi-static port declares.
+    let declared = parse_model(&format!(
+        "{C} function re input C c; output Real r; algorithm r := c.re; end re; \
+         model M C i; C v; Real p = re(v * i); \
+         equation i.re = time; i.im = 1; v.re = 2; v.im = 3; end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", declared.equations);
+    assert!(said.contains("p"), "{said}");
+    assert!(!said.contains("Ref(\"c.re\")"), "{said}");
+}
+
+#[test]
 fn cardinality_is_answered_inside_a_branch_the_run_decides() {
     // A branch nothing could settle here travels to the compiler as it
     // stands, apart from the equations, and the loop that answered the

@@ -536,10 +536,17 @@ fn class_constant_array_at(
         depth + 1,
         true,
     );
-    // Only a value written out as an array is taken: anything else is
-    // a name this pass has no environment to read, and leaving it
-    // where it was is what happened before.
-    matches!(binding, Expr::Array(_)).then_some(binding)
+    // A value written out as an array is taken, and so is a record
+    // built by its own constructor: `constant Complex j = Complex(0,
+    // 1)` is the imaginary unit the quasi-static libraries write their
+    // impedances with, and the layer that knows records makes the
+    // fields of it. Anything else is a name this pass has no
+    // environment to read, and leaving it where it was is what
+    // happened before.
+    let a_record = matches!(&binding, Expr::Call(built, _)
+        if lookup(registry, built, &class.name, &class.imports)
+            .is_some_and(|of| of.kind == ClassKind::Record));
+    (matches!(binding, Expr::Array(_)) || a_record).then_some(binding)
 }
 
 /// The constants and parameters a package holds, its own and those it
@@ -626,12 +633,19 @@ fn substitute_at(
         Expr::Ref(name) => {
             // A constant brought in by name is written without one:
             // `import Modelica.Constants.pi;` and then `pi`.
-            if let Some(value) = imports
+            if let Some(target) = imports
                 .iter()
                 .find(|(local, _)| local == name)
-                .and_then(|(_, target)| class_constant_at(registry, target, scope, imports, depth))
+                .map(|(_, target)| target)
             {
-                return Expr::Number(value);
+                if let Some(value) = class_constant_at(registry, target, scope, imports, depth) {
+                    return Expr::Number(value);
+                }
+                if let Some(value) =
+                    class_constant_array_at(registry, target, scope, imports, depth)
+                {
+                    return value;
+                }
             }
             // A package opened wholesale (`import A.*;`) also brings its
             // constants in, but at the bottom of the pile: a component
