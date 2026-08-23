@@ -3261,6 +3261,29 @@ pub(super) fn bind_outers(
         }
         outers.insert(component.name.clone(), inner.path.clone());
     }
+    // A class may also name an `outer` a component of it holds: a
+    // composite step reads the count of active steps as
+    // `innerState.stateGraphRoot.subgraphStatePort.activeSteps`, where
+    // it is `innerState` that declares the `outer`. An `outer` owns no
+    // variable of its own, so the name has to be answered here or not
+    // at all.
+    for component in class.components.iter().filter(|c| c.scope != Scope::Outer) {
+        let Some(of) = lookup(registry, &component.type_name, scope, &class.imports) else {
+            continue;
+        };
+        // What that component declares `outer` itself, one level down:
+        // going further would follow a class that holds one of its own
+        // kind round for ever, and a name written that deep is one the
+        // instance below answers for itself.
+        for held in of.components.iter().filter(|c| c.scope == Scope::Outer) {
+            if let Some(inner) = inners.get(&held.name) {
+                outers.insert(
+                    format!("{}.{}", component.name, held.name),
+                    inner.path.clone(),
+                );
+            }
+        }
+    }
     Ok(outers)
 }
 
@@ -3462,17 +3485,22 @@ pub(super) fn resolve_type(
 /// declaration points at the enclosing `inner` instance, everything else
 /// gets the instance prefix.
 pub(super) fn flat_name(name: &str, prefix: &str, outers: &HashMap<String, String>) -> String {
-    let (head, rest) = match name.split_once('.') {
-        Some((head, rest)) => (head, Some(rest)),
-        None => (name, None),
-    };
-    if let Some(path) = outers.get(head) {
-        return match rest {
-            Some(rest) => format!("{path}.{rest}"),
-            None => path.clone(),
-        };
+    // The longest lead of the name that was bound, so that a member of
+    // an `outer` a component holds - `innerState.stateGraphRoot` - is
+    // answered by the whole of it rather than by its first word.
+    let mut head = name;
+    loop {
+        if let Some(path) = outers.get(head) {
+            return match name[head.len()..].is_empty() {
+                true => path.clone(),
+                false => format!("{path}{}", &name[head.len()..]),
+            };
+        }
+        match head.rfind('.') {
+            Some(cut) => head = &head[..cut],
+            None => return format!("{prefix}{name}"),
+        }
     }
-    format!("{prefix}{name}")
 }
 
 /// Record one `spatialDistribution` and give the equation section the

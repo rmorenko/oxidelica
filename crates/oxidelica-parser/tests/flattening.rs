@@ -9431,3 +9431,30 @@ fn a_value_handed_down_may_name_an_array_of_the_class_that_wrote_it() {
     assert_eq!(about.len(), 1, "{about:?}");
     assert!(about[0].contains("sub.suspend[2].reset"), "{about:?}");
 }
+
+#[test]
+fn a_name_may_reach_an_outer_declared_by_a_component_it_holds() {
+    // A composite step of the state graph reads its count of active
+    // steps as `innerState.stateGraphRoot.subgraphStatePort
+    // .activeSteps`: the `outer` belongs to the little block called
+    // `innerState`, and the name is written by the class holding that
+    // block. An `outer` owns no variable of its own, so unless the
+    // whole lead of the name is answered here the equation is left
+    // naming something that was never instantiated.
+    let m = parse_model(
+        "model Root Real a; end Root; \
+         model Inner outer Root stateGraphRoot; end Inner; \
+         model Sub Inner innerState; Real y; \
+         equation y = innerState.stateGraphRoot.a; end Sub; \
+         model M inner Root stateGraphRoot(a = time); Sub sub; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    let about: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| format!("{:?}", e.lhs).contains("sub.y"))
+        .map(|e| e.rhs.describe())
+        .collect();
+    assert_eq!(about, vec!["stateGraphRoot.a".to_string()]);
+}
