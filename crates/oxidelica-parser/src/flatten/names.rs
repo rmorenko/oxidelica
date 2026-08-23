@@ -658,6 +658,13 @@ fn substitute_at(
                 if let Some(value) = enclosing_constant(registry, name, scope, depth) {
                     return Expr::Number(value);
                 }
+                // What a package this class is written inside brought
+                // in by name is in view here too: the flux tubes say
+                // `import Modelica.Constants.mu_0` once at the top of
+                // the library and every shape below writes `mu_0`.
+                if let Some(value) = enclosing_import(registry, name, scope, depth) {
+                    return Expr::Number(value);
+                }
             }
             expr.clone()
         }
@@ -805,6 +812,38 @@ thread_local! {
     /// where it was written.
     static NAMED: RefCell<HashMap<(String, String), Option<f64>>> =
         RefCell::new(HashMap::new());
+}
+
+/// What a name written inside a package was brought in as by that
+/// package, or by a package holding it.
+///
+/// An import is written once where it reads well - at the top of a
+/// library - and holds for everything written inside, which is how the
+/// flux tubes name the magnetic constant `mu_0` throughout without
+/// ever importing it again.
+fn enclosing_import(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<f64> {
+    let mut prefix = scope;
+    while let Some((head, _)) = prefix.rsplit_once('.') {
+        if let Some(owner) = registry.get(head) {
+            if let Some(value) = owner
+                .imports
+                .iter()
+                .find(|(local, _)| local == name)
+                .and_then(|(_, target)| {
+                    class_constant_at(registry, target, head, &owner.imports, depth)
+                })
+            {
+                return Some(value);
+            }
+        }
+        prefix = head;
+    }
+    None
 }
 
 /// See [`enclosing_constant`]; this is the walk itself.

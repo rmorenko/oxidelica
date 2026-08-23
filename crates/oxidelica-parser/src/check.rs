@@ -674,6 +674,14 @@ impl UnitLayer {
             // neither says what it is a nothing of. Every other number
             // is dimensionless until something says otherwise.
             Expr::Number(value) if *value == 0.0 => Ok(Units::Any),
+            // A number written whole is a count or a factor and says
+            // what it is; one written with a fraction is as often a
+            // constant of nature that lost its unit on the way here -
+            // the magnetic constant arrives as 1.2566e-6, which is
+            // henry per metre and not a factor of nothing. Taking it
+            // for dimensionless is what turned `B/(mu_0*mu_r)` into a
+            // contradiction, so such a number carries no claim.
+            Expr::Number(value) if value.fract() != 0.0 => Ok(Units::Any),
             Expr::Number(_) | Expr::Bool(_) => Ok(Units::Weak),
             Expr::Ref(name) => Ok(self.vars.get(name).copied().unwrap_or(Units::Any)),
             // `time` is in seconds, but treating it so would flag the

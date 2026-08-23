@@ -7590,6 +7590,51 @@ fn zero_fits_a_unit_of_any_kind() {
 }
 
 #[test]
+fn a_constant_of_nature_makes_no_claim_about_its_unit() {
+    // The magnetic constant reaches the equations as the number
+    // 1.2566e-6, having left its henry per metre behind in the library
+    // it was declared in. Held to be dimensionless it would make
+    // `H = B/(mu_0*mu_r)` a contradiction, which is what kept the flux
+    // tubes from running.
+    let m = parse_model(
+        "model M Real B(unit = \"T\") = 1.5; Real mu_r(unit = \"1\") = 1000; \
+         Real H(unit = \"A/m\"); \
+         equation H = B / (0.00000125663706212 * mu_r); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(m.is_ok(), "{m:?}");
+
+    // A whole number is a count or a factor and says so: scaling by
+    // one keeps the unit it scaled, and a disagreement is still named.
+    let wrong = parse_model(
+        "model M Real w(unit = \"rad/s\"); Real e(unit = \"1\") = 1; \
+         Real v(unit = \"rad/s\") = time; \
+         equation w = v + e * 2; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(wrong.contains("cannot add"), "{wrong}");
+}
+
+#[test]
+fn a_package_brings_a_constant_in_by_name_for_everything_inside_it() {
+    // `import Modelica.Constants.mu_0;` is written once at the top of
+    // the flux tubes and every shape below writes `mu_0` bare. The
+    // import belongs to the package, and what is written inside it is
+    // written in view of it.
+    let m = parse_model(
+        "package P import P.C.k; \
+         package C constant Real k = 3; end C; \
+         package Q model M Real y; equation y = k * time; end M; end Q; end P; \
+         model Top P.Q.M m; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end Top;",
+    )
+    .unwrap();
+    let said = format!("{:?}", m.equations);
+    assert!(said.contains("Number(3.0)"), "{said}");
+}
+
+#[test]
 fn a_record_valued_parameter_is_handed_down_field_by_field() {
     // `parameter RCData rcData[nRC] = {RCData(R = 0, C = 0)}` is how
     // the battery library carries the parameters of its RC elements. A
