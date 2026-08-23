@@ -638,29 +638,30 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
     if known.is_empty() {
         return;
     }
-    /// The array a name reads a member off, longest prefix first: with
-    /// arrays inside arrays the innermost one owns the subscript.
-    fn member_of(name: &str, known: &HashMap<&str, &Vec<i64>>) -> Option<(String, String)> {
-        let mut cut = name.rfind('.')?;
-        loop {
-            let (array, member) = (&name[..cut], &name[cut + 1..]);
-            if known.contains_key(array) {
-                return Some((array.to_string(), member.to_string()));
-            }
-            cut = array.rfind('.')?;
-        }
-    }
     fn answer(expr: &Expr, known: &HashMap<&str, &Vec<i64>>, under_reduction: bool) -> Expr {
         if let Expr::Ref(name) = expr {
             // A name that is already an element - `rs.resistor[1].R` -
             // was written out by whoever knew the shape, and saying so
             // again would subscript it twice.
             if !name.contains('[') && under_reduction {
-                if let Some((array, member)) = member_of(name, known) {
-                    let shape = known[array.as_str()];
-                    let items: Vec<Expr> = index_tuples(shape)
+                // The name may be the array itself - `sum(gap.i_ss)`
+                // - or a member read off one - `sum(rs.resistor.P)`.
+                let spread = match known.get(name.as_str()) {
+                    Some(shape) => Some(((*shape).clone(), name.clone(), None)),
+                    None => member_of(name, known).map(|(array, member)| {
+                        (known[array.as_str()].clone(), array, Some(member))
+                    }),
+                };
+                if let Some((shape, array, member)) = spread {
+                    let items: Vec<Expr> = index_tuples(&shape)
                         .into_iter()
-                        .map(|at| Expr::Ref(format!("{}.{member}", element_name(&array, &at))))
+                        .map(|at| {
+                            let element = element_name(&array, &at);
+                            Expr::Ref(match &member {
+                                Some(member) => format!("{element}.{member}"),
+                                None => element,
+                            })
+                        })
                         .collect();
                     if !items.is_empty() {
                         return Expr::Array(items);
@@ -693,13 +694,150 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
             other => other.clone(),
         }
     }
+    // An equation between two whole arrays that nothing knew the
+    // shape of when it was written - a connection between two
+    // connectors holding a space phasor `Real v_[2]` - is one
+    // equation per element, so it is taken apart rather than
+    // rewritten in place.
+    for equations in [&mut model.equations, &mut model.initial_equations] {
+        let mut written = Vec::with_capacity(equations.len());
+        for equation in equations.drain(..) {
+            let whole = whole_shape(&equation.lhs, &known)
+                .into_iter()
+                .chain(whole_shape(&equation.rhs, &known))
+                .try_fold(None, |so_far: Option<Vec<i64>>, shape| match so_far {
+                    Some(first) if first != shape => Err(()),
+                    _ => Ok(Some(shape)),
+                })
+                .ok()
+                .flatten()
+                .map(|shape| index_tuples(&shape));
+            match whole {
+                Some(indices) if !indices.is_empty() => {
+                    written.extend(indices.into_iter().map(|at| EquationItem {
+                        lhs: per_element(&equation.lhs, &known, &at),
+                        rhs: per_element(&equation.rhs, &known, &at),
+                        origin: equation.origin.clone(),
+                    }));
+                }
+                _ => written.push(equation),
+            }
+        }
+        *equations = written;
+    }
     for equation in model
         .equations
         .iter_mut()
         .chain(model.initial_equations.iter_mut())
     {
+        // An equation already written out one element at a time -
+        // `vs[2] = plug_sp.pin.v - plug_sn.pin.v`, where the left is
+        // an array of this class and the right reads a member off an
+        // array of components - wants the element of the same index
+        // on both sides rather than the whole slice. The subscript
+        // the left carries says which element that is.
+        if let Some(at) = element_read(&equation.lhs, &known) {
+            let (lhs, rhs) = (
+                per_element(&equation.lhs, &known, &at),
+                per_element(&equation.rhs, &known, &at),
+            );
+            equation.lhs = lhs;
+            equation.rhs = rhs;
+            continue;
+        }
         equation.lhs = answer(&equation.lhs, &known, false);
         equation.rhs = answer(&equation.rhs, &known, false);
+    }
+}
+
+/// The array a name reads a member off, longest prefix first: with
+/// arrays inside arrays the innermost one owns the subscript.
+fn member_of(name: &str, known: &HashMap<&str, &Vec<i64>>) -> Option<(String, String)> {
+    let mut cut = name.rfind('.')?;
+    loop {
+        let (array, member) = (&name[..cut], &name[cut + 1..]);
+        if known.contains_key(array) {
+            return Some((array.to_string(), member.to_string()));
+        }
+        cut = array.rfind('.')?;
+    }
+}
+
+/// The shape every whole array standing in `expr` has, or nothing
+/// where there is none or where two disagree. What stands under a
+/// reduction is left out: `sum(rs.resistor.LossPower)` is one number
+/// however long the array inside it is.
+fn whole_shape(expr: &Expr, known: &HashMap<&str, &Vec<i64>>) -> Vec<Vec<i64>> {
+    let gather = |e: &Expr| whole_shape(e, known);
+    match expr {
+        Expr::Ref(name) if !name.contains('[') => known
+            .get(name.as_str())
+            .map(|shape| (*shape).clone())
+            .or_else(|| {
+                let (array, _) = member_of(name, known)?;
+                Some(known[array.as_str()].clone())
+            })
+            .into_iter()
+            .collect(),
+        Expr::Call(name, _) if matches!(name.as_str(), "sum" | "max" | "min") => Vec::new(),
+        Expr::Call(_, args) => args.iter().flat_map(gather).collect(),
+        Expr::Neg(inner) => gather(inner),
+        Expr::Bin(_, l, r) => gather(l).into_iter().chain(gather(r)).collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// The subscripts of `expr`, where it is one element of an array whose
+/// shape is known, and nothing for anything else.
+fn element_read(expr: &Expr, known: &HashMap<&str, &Vec<i64>>) -> Option<Vec<i64>> {
+    let Expr::Ref(name) = expr else {
+        return None;
+    };
+    let (base, rest) = name.split_once('[')?;
+    let shape = known.get(base)?;
+    let at: Vec<i64> = rest
+        .trim_end_matches(']')
+        .split(',')
+        .filter_map(|part| part.trim().parse::<i64>().ok())
+        .collect();
+    match at.len() == shape.len() {
+        true => Some(at),
+        false => None,
+    }
+}
+
+/// Write every whole member slice in `expr` as the one element at
+/// `at`, where the array it reads off has an element there to give.
+fn per_element(expr: &Expr, known: &HashMap<&str, &Vec<i64>>, at: &[i64]) -> Expr {
+    let recur = |e: &Expr| per_element(e, known, at);
+    if let Expr::Ref(name) = expr {
+        if !name.contains('[') {
+            // The name may be an array of the same shape - a machine
+            // writes `idq_ss = airGap.i_ss`, and the air gap was not
+            // built when that was read - or a member read off one.
+            let here = match known.get(name.as_str()) {
+                Some(shape) => Some(((*shape).clone(), name.clone(), None)),
+                None => member_of(name, known)
+                    .map(|(array, member)| (known[array.as_str()].clone(), array, Some(member))),
+            };
+            if let Some((shape, array, member)) = here {
+                let fits = shape.len() == at.len()
+                    && shape.iter().zip(at).all(|(&size, &index)| index <= size);
+                if fits {
+                    let element = element_name(&array, at);
+                    return Expr::Ref(match &member {
+                        Some(member) => format!("{element}.{member}"),
+                        None => element,
+                    });
+                }
+            }
+        }
+    }
+    match expr {
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        other => other.clone(),
     }
 }
 

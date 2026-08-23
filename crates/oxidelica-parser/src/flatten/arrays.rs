@@ -647,6 +647,16 @@ pub(super) fn expand_call(
             }))
         }
         ("min", 1) | ("max", 1) => {
+            // The same name that a sum cannot read yet, for the same
+            // reason: the array it belongs to is not built.
+            if let Expr::Ref(named) = &args[0] {
+                if named.contains('.') && !shapes.sizes.contains_key(named) {
+                    return Ok(Value::Scalar(Expr::Call(
+                        name.to_string(),
+                        vec![args[0].clone()],
+                    )));
+                }
+            }
             let mut terms = Vec::new();
             recur(&args[0])?.flatten_into(&mut terms);
             let reduced = terms

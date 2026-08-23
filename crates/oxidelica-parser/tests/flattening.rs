@@ -8894,3 +8894,161 @@ fn a_name_of_another_length_is_not_spread_over_the_elements() {
         .expect("the one element of the array");
     assert_eq!(bound, "r.T_ref");
 }
+
+/// A member read off an array of components, in an equation already
+/// written out one element at a time, is the element of the same
+/// index rather than the whole slice.
+#[test]
+fn a_member_of_an_array_is_read_element_by_element() {
+    let m = parse_model(
+        "model M model Pin Real v; end Pin; \
+         model Plug parameter Integer m = 3; Pin pin[m]; end Plug; \
+         parameter Integer m = 3; \
+         output Real vs[m] = plug_sp.pin.v - plug_sn.pin.v; \
+         Plug plug_sp(final m = m); Plug plug_sn(final m = m); end M;",
+    )
+    .expect("a member read element by element");
+    let written: Vec<String> = m
+        .equations
+        .iter()
+        .map(|e| format!("{} = {}", e.lhs.describe(), e.rhs.describe()))
+        .collect();
+    assert!(
+        written.contains(&"vs[2] = plug_sp.pin[2].v - plug_sn.pin[2].v".to_string()),
+        "{written:?}"
+    );
+}
+
+/// An equation between two whole arrays nothing had measured yet is
+/// one equation per element. Written on a base, it is read before the
+/// components it names are built, so their shape is not known there.
+#[test]
+fn an_equation_between_two_whole_arrays_is_taken_apart() {
+    let m = parse_model(
+        "model M model Phasor parameter Integer n = 2; Real v_[n]; end Phasor; \
+         model Gap Phasor port; end Gap; model Cage Phasor port; end Cage; \
+         partial model Base equation gap.port.v_ = cage.port.v_; end Base; \
+         model Use extends Base; Gap gap; Cage cage; end Use; Use u; end M;",
+    )
+    .expect("an equation between two whole arrays");
+    let written = equations_of(&m);
+    assert_eq!(
+        written,
+        vec![
+            "u.gap.port.v_[1] = u.cage.port.v_[1]",
+            "u.gap.port.v_[2] = u.cage.port.v_[2]",
+        ]
+    );
+}
+
+/// A reduction over such an array is still one number, so the
+/// equation around it is left whole.
+#[test]
+fn a_sum_over_a_whole_array_is_not_taken_apart() {
+    let m = parse_model(
+        "model M model Phasor parameter Integer n = 2; Real v_[n]; end Phasor; \
+         model Gap Phasor port; end Gap; \
+         partial model Base Real total; equation total = sum(gap.port.v_); end Base; \
+         model Use extends Base; Gap gap; end Use; Use u; end M;",
+    )
+    .expect("a sum over a whole array");
+    assert_eq!(
+        equations_of(&m),
+        vec!["u.total = u.gap.port.v_[1] + u.gap.port.v_[2]"]
+    );
+}
+
+/// Every equation of a flat model, written out as text.
+fn equations_of(m: &oxidelica_parser::Model) -> Vec<String> {
+    m.equations
+        .iter()
+        .map(|e| format!("{} = {}", e.lhs.describe(), e.rhs.describe()))
+        .collect()
+}
+
+/// The largest of an array read the same late way is folded the same
+/// way a sum is, one comparison at a time.
+#[test]
+fn a_maximum_over_a_whole_array_is_folded() {
+    let m = parse_model(
+        "model M model Phasor parameter Integer n = 3; Real v_[n]; end Phasor; \
+         model Gap Phasor port; end Gap; \
+         partial model Base Real top; equation top = max(gap.port.v_); end Base; \
+         model Use extends Base; Gap gap; end Use; Use u; end M;",
+    )
+    .expect("a maximum over a whole array");
+    assert_eq!(
+        equations_of(&m),
+        vec!["u.top = max(max(u.gap.port.v_[1], u.gap.port.v_[2]), u.gap.port.v_[3])"]
+    );
+}
+
+/// An equation whose two sides are arrays of different lengths is not
+/// something a walk over elements could pair up, so it is left as it
+/// stands rather than written out wrongly.
+#[test]
+fn an_equation_between_arrays_of_different_lengths_is_left_alone() {
+    let m = parse_model(
+        "model M model Two parameter Integer n = 2; Real v_[n]; end Two; \
+         model Three parameter Integer n = 3; Real v_[n]; end Three; \
+         partial model Base equation a.v_ = b.v_; end Base; \
+         model Use extends Base; Two a; Three b; end Use; Use u; end M;",
+    )
+    .expect("arrays of different lengths");
+    assert_eq!(equations_of(&m), vec!["u.a.v_ = u.b.v_"]);
+}
+
+/// A name subscripted by something that is not a plain number - a
+/// slice `v_[1:2]` - names no single element, so the walk that pairs
+/// two arrays up element by element passes over it.
+#[test]
+fn a_name_subscripted_by_a_range_is_not_one_element() {
+    let m = parse_model(
+        "model M model Phasor parameter Integer n = 2; Real v_[n]; end Phasor; \
+         model Gap Phasor port; end Gap; Real w[2]; \
+         equation w = gap.port.v_[1:2]; \
+         public Gap gap; end M;",
+    )
+    .expect("a name subscripted by a range");
+    assert_eq!(
+        equations_of(&m),
+        vec!["w[1] = gap.port.v_[1]", "w[2] = gap.port.v_[2]"]
+    );
+}
+
+/// A member read off an array of more dimensions than the subscripts
+/// in hand is not the element they name, so it is left as it stands.
+#[test]
+fn a_member_of_a_deeper_array_is_left_alone() {
+    let m = parse_model(
+        "model M model Pin Real v; end Pin; \
+         model Plug parameter Integer r = 2; Pin pin[r, r]; end Plug; \
+         model Flat parameter Integer n = 2; Real v_[n]; end Flat; \
+         partial model Base equation flat.v_ = plug.pin.v; end Base; \
+         model Use extends Base; Plug plug; Flat flat; end Use; Use u; end M;",
+    )
+    .expect("a member of a deeper array");
+    let written = equations_of(&m);
+    assert!(
+        written.iter().all(|line| line.contains("u.plug.pin.v")),
+        "{written:?}"
+    );
+}
+
+/// A whole array standing where one element is wanted is that
+/// element: a machine writes `idq_ss = airGap.i_ss`, and the air gap
+/// is built after the equation that reads it.
+#[test]
+fn a_whole_array_read_beside_an_element_is_that_element() {
+    let m = parse_model(
+        "model M model Gap parameter Integer n = 2; Real i_ss[n]; end Gap; \
+         Real idq_ss[2]; \
+         equation idq_ss = gap.i_ss; \
+         public Gap gap; end M;",
+    )
+    .expect("a whole array read beside an element");
+    assert_eq!(
+        equations_of(&m),
+        vec!["idq_ss[1] = gap.i_ss[1]", "idq_ss[2] = gap.i_ss[2]"]
+    );
+}
