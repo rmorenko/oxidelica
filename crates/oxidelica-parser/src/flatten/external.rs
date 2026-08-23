@@ -28,6 +28,7 @@ pub(super) fn answered_here(called: &str) -> bool {
     matches!(
         called,
         "ModelicaStrings_length"
+            | "ModelicaStrings_hashString"
             | "ModelicaStrings_substring"
             | "ModelicaStrings_compare"
             | "ModelicaStrings_skipWhiteSpace"
@@ -151,6 +152,27 @@ pub(super) fn number_of(
             let case_matters = const_eval(&args[2], numbers)? != 0.0;
             Some(compare(&text(0)?, &text(1)?, case_matters))
         }
+        ("ModelicaStrings_hashString", 1) => Some(hash_string(&text(0)?)),
         _ => None,
     }
+}
+
+/// A hash of a string, the number the standard library's own C says.
+///
+/// The noise blocks seed themselves from where they sit in the model -
+/// `automaticLocalSeed(getInstanceName())` - so two blocks of the same
+/// model draw different numbers, and the same model run twice draws
+/// the same ones. That only holds if this answers what the library's C
+/// answers, so this is that code and not a hash of one's own choosing:
+/// Arash Partow's, as uthash spells it, over the bytes of the text,
+/// with the result read back as a signed integer.
+fn hash_string(text: &str) -> f64 {
+    let mut hash: u32 = 0xAAAA_AAAA;
+    for (at, byte) in text.bytes().enumerate() {
+        hash ^= match at % 2 == 0 {
+            true => (hash << 7) ^ u32::from(byte).wrapping_mul(hash >> 3),
+            false => !((hash << 11).wrapping_add(u32::from(byte) ^ (hash >> 5))),
+        };
+    }
+    f64::from(hash as i32)
 }

@@ -8759,3 +8759,52 @@ fn an_array_handed_down_an_extends_arrives_as_its_elements() {
         );
     }
 }
+
+/// The hash of a string is the number the standard library's own C
+/// says it is.
+///
+/// A noise block seeds itself from where it sits in the model, by
+/// hashing its own instance name, so that two blocks of one model draw
+/// different numbers and one model run twice draws the same ones. That
+/// only holds if this compiler's hash agrees with the one the library
+/// ships in C; the two numbers checked here are the ones the library's
+/// own documentation prints for these two strings.
+#[test]
+fn a_string_hashes_to_what_the_library_says_it_does() {
+    let m = parse_model(
+        "model M function hashString input String s; output Integer h; \
+         external \"C\" h = ModelicaStrings_hashString(s); end hashString; \
+         Real a, b; equation a = hashString(\"this is a test\"); \
+         b = hashString(\"Controller.noise1\"); end M;",
+    )
+    .expect("a hash worked out here");
+    let value = |at: usize| match m.equations.get(at).map(|e| &e.rhs) {
+        Some(Expr::Number(number)) => *number,
+        other => panic!("expected a number, got {other:?}"),
+    };
+    assert_eq!(value(0), 1_827_717_433.0);
+    assert_eq!(value(1), -1_025_762_750.0);
+}
+
+/// A result as long as a constant of the package around the function.
+///
+/// A random generator declares `output Integer state[nState]` where
+/// `nState` is a constant of the package holding it, and then measures
+/// its own result with `size(state, 1)`. Read without the constants of
+/// that package the length says nothing, the result has no shape, and
+/// the body cannot ask how long it is.
+#[test]
+fn a_result_is_as_long_as_a_constant_of_its_own_package() {
+    let m = parse_model(
+        "model M package P constant Integer n = 3; \
+         function f input Integer a; output Integer s[n]; \
+         algorithm s := fill(a, size(s, 1)); end f; end P; \
+         Real y; equation y = P.f(2)[3]; end M;",
+    )
+    .expect("a result measured by its own package's constant");
+    assert!(
+        matches!(m.equations.first().map(|e| &e.rhs), Some(Expr::Number(two)) if *two == 2.0),
+        "{:?}",
+        m.equations.first()
+    );
+}

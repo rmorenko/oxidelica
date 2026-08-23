@@ -1704,25 +1704,42 @@ fn collect_shapes_under(
             .dimensions
             .iter()
             .enumerate()
-            .map(|(axis, dimension)| match dimension {
-                Expr::Ref(name) if name == "Boolean" => Some(2),
-                // A length the call decided: `output Integer[nState]
-                // state` of a function whose `nState` is an input. The
-                // caller's number is what says how long it is, and it
-                // is only ever a handful of names, so it is asked
-                // first and costs nothing.
-                _ if !given.is_empty() && const_eval(dimension, given).is_some() => {
-                    const_eval(dimension, given).map(|length| length as i64)
+            .map(|(axis, dimension)| {
+                // A length may be a constant of the class around the
+                // declaration, named plainly: a random generator says
+                // `output Integer state[nState]` and `nState` is a
+                // constant of the package holding the function. The
+                // table of constants knows it by its full name, so the
+                // declaration is read the way its writer meant it
+                // before it is measured.
+                let named = super::names::substitute_class_constants(
+                    dimension,
+                    registry,
+                    scope,
+                    &class.imports,
+                    &[],
+                );
+                let dimension = &named;
+                match dimension {
+                    Expr::Ref(name) if name == "Boolean" => Some(2),
+                    // A length the call decided: `output Integer[nState]
+                    // state` of a function whose `nState` is an input. The
+                    // caller's number is what says how long it is, and it
+                    // is only ever a handful of names, so it is asked
+                    // first and costs nothing.
+                    _ if !given.is_empty() && const_eval(dimension, given).is_some() => {
+                        const_eval(dimension, given).map(|length| length as i64)
+                    }
+                    Expr::Ref(name) => lookup(registry, name, scope, &class.imports)
+                        .filter(|c| !c.enumeration.is_empty())
+                        .map(|c| c.enumeration.len() as i64)
+                        .or_else(|| dimension_value(dimension, consts, out)),
+                    Expr::ColonSubscript => component
+                        .binding
+                        .as_ref()
+                        .and_then(|binding| flexible_size(binding, axis)),
+                    _ => dimension_value(dimension, consts, out),
                 }
-                Expr::Ref(name) => lookup(registry, name, scope, &class.imports)
-                    .filter(|c| !c.enumeration.is_empty())
-                    .map(|c| c.enumeration.len() as i64)
-                    .or_else(|| dimension_value(dimension, consts, out)),
-                Expr::ColonSubscript => component
-                    .binding
-                    .as_ref()
-                    .and_then(|binding| flexible_size(binding, axis)),
-                _ => dimension_value(dimension, consts, out),
             })
             .collect();
         if let Some(sizes) = sizes {
