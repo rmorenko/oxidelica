@@ -8808,3 +8808,34 @@ fn a_result_is_as_long_as_a_constant_of_its_own_package() {
         m.equations.first()
     );
 }
+
+/// A sum read across an array that belongs to a neighbour.
+///
+/// A value written on an `extends` may read one member off every
+/// element of an array a neighbour holds: a machine adds up
+/// `sum(rs.resistor.LossPower)` over its phases. The base is built
+/// before the components of the class extending it, so where that
+/// value is read nothing yet knows `rs.resistor` is an array, and the
+/// name travels out whole. Summed there it would come to the name
+/// itself; left standing, it is written out once every shape is in
+/// hand.
+#[test]
+fn a_sum_reaches_across_an_array_a_neighbour_holds() {
+    let m = parse_model(
+        "model M model Leaf Real p; equation p = 2; end Leaf; \
+         model Box parameter Integer m = 3; Leaf leaf[m]; end Box; \
+         partial model Sink input Real w; Real y; equation y = w; end Sink; \
+         Box b(m = 3); extends Sink(w = sum(b.leaf.p)); end M;",
+    )
+    .expect("a sum across a neighbour's array");
+    let summed = m
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(name) if name == "w"))
+        .map(|e| e.rhs.describe())
+        .expect("the value handed to the base");
+    assert!(
+        summed.contains("b.leaf[1].p") && summed.contains("b.leaf[3].p"),
+        "{summed}"
+    );
+}

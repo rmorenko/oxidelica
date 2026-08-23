@@ -616,6 +616,21 @@ pub(super) fn expand_call(
                     return recur(&total);
                 }
             }
+            // A name that reads a member off an array of components -
+            // `sum(rs.resistor.LossPower)` on an `extends` - is read
+            // where the array it names has not been built yet, so
+            // nothing here knows it is one and it looks like a
+            // scalar. Summing it now would come to the name itself.
+            // Left standing, it is written out and summed once every
+            // shape is in hand.
+            if let Expr::Ref(named) = &args[0] {
+                if named.contains('.') && !shapes.sizes.contains_key(named) {
+                    return Ok(Value::Scalar(Expr::Call(
+                        "sum".to_string(),
+                        vec![args[0].clone()],
+                    )));
+                }
+            }
             let mut terms = Vec::new();
             recur(&args[0])?.flatten_into(&mut terms);
             Ok(Value::Scalar(sum_of(terms)))

@@ -603,6 +603,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // `extends SIMO(final nout = size(columns, 1))`, with `columns`
     // further down the same class - could not be settled there. Every
     // shape is in hand now, so it is settled here.
+    settle_member_slices(&mut model, &acc.sizes);
     settle_sizes(&mut model, &acc.sizes);
     let settled = resolve_strings(&mut model)?;
     // A table the model wrote as a matrix is written out here, where
@@ -617,6 +618,89 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // model, so the run can walk them for itself.
     model.functions = programs_used(&model, &registry)?;
     Ok(model)
+}
+
+/// Write out every `a.b.c` still standing that names a member of an
+/// array of components.
+///
+/// A value written on an `extends` may read one member off every
+/// element of an array that belongs to a neighbour: a machine sums
+/// `rs.resistor.LossPower` over its phases. Where that value is read,
+/// the base is being built and the neighbour has not been instantiated
+/// yet, so nothing there knows `rs.resistor` is an array and the name
+/// travels out whole. By now everything is measured, so it is written
+/// out here into the array of names it always meant.
+fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
+    let known: HashMap<&str, &Vec<i64>> = shapes
+        .iter()
+        .map(|(name, shape)| (name.as_str(), shape))
+        .collect();
+    if known.is_empty() {
+        return;
+    }
+    /// The array a name reads a member off, longest prefix first: with
+    /// arrays inside arrays the innermost one owns the subscript.
+    fn member_of(name: &str, known: &HashMap<&str, &Vec<i64>>) -> Option<(String, String)> {
+        let mut cut = name.rfind('.')?;
+        loop {
+            let (array, member) = (&name[..cut], &name[cut + 1..]);
+            if known.contains_key(array) {
+                return Some((array.to_string(), member.to_string()));
+            }
+            cut = array.rfind('.')?;
+        }
+    }
+    fn answer(expr: &Expr, known: &HashMap<&str, &Vec<i64>>, under_reduction: bool) -> Expr {
+        if let Expr::Ref(name) = expr {
+            // A name that is already an element - `rs.resistor[1].R` -
+            // was written out by whoever knew the shape, and saying so
+            // again would subscript it twice.
+            if !name.contains('[') && under_reduction {
+                if let Some((array, member)) = member_of(name, known) {
+                    let shape = known[array.as_str()];
+                    let items: Vec<Expr> = index_tuples(shape)
+                        .into_iter()
+                        .map(|at| Expr::Ref(format!("{}.{member}", element_name(&array, &at))))
+                        .collect();
+                    if !items.is_empty() {
+                        return Expr::Array(items);
+                    }
+                }
+            }
+        }
+        let recur = |e: &Expr| answer(e, known, false);
+        // The operators that take an array and come to one number.
+        // Nothing else may hold an array by the time flattening is
+        // over, so only what a written-out slice can stand inside is
+        // followed at all.
+        if let Expr::Call(name, args) = expr {
+            if let ("sum" | "max" | "min", [inside]) = (name.as_str(), args.as_slice()) {
+                if let Expr::Array(items) = answer(inside, known, true) {
+                    let mut over = items.into_iter();
+                    if let Some(first) = over.next() {
+                        return over.fold(first, |so_far, item| match name.as_str() {
+                            "sum" => Expr::Bin(BinOp::Add, Box::new(so_far), Box::new(item)),
+                            other => Expr::Call(other.to_string(), vec![so_far, item]),
+                        });
+                    }
+                }
+            }
+        }
+        match expr {
+            Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+            Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+            other => other.clone(),
+        }
+    }
+    for equation in model
+        .equations
+        .iter_mut()
+        .chain(model.initial_equations.iter_mut())
+    {
+        equation.lhs = answer(&equation.lhs, &known, false);
+        equation.rhs = answer(&equation.rhs, &known, false);
+    }
 }
 
 /// Answer every `size` still standing in the model from the shapes
