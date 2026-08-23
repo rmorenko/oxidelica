@@ -6709,6 +6709,27 @@ fn a_settled_branch_inside_a_loop_carries_what_it_holds() {
 }
 
 #[test]
+fn cardinality_is_answered_inside_a_branch_the_run_decides() {
+    // A branch nothing could settle here travels to the compiler as it
+    // stands, apart from the equations, and the loop that answered the
+    // connection questions only ever saw copies of it. The state graph
+    // asks how many connections name a port inside such a branch, and
+    // nothing later in the pipeline knows the count, so the question
+    // reached the run and was refused there as an unknown function.
+    let m = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model Part Pin p[2]; Real y; equation \
+         if time > 1 then y = cardinality(p[1]); else y = 0; end if; end Part; \
+         model M Part a; Pin q; equation connect(a.p[1], q); q.v = time; \
+         a.p[2].v = 0; end M;",
+    )
+    .unwrap();
+    let said = format!("{:?}", m.conditional);
+    assert!(!said.contains("cardinality"), "{said}");
+    assert!(said.contains("Number(1.0)"), "{said}");
+}
+
+#[test]
 fn cardinality_decides_a_branch_before_the_run() {
     // How many connections name a port is a question about the model
     // as a whole, so the first pass gathers them and the model is

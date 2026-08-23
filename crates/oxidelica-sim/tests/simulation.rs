@@ -3855,3 +3855,18 @@ fn a_derivative_is_named_wherever_it_is_read() {
         last[at("y")]
     );
 }
+
+#[test]
+fn an_if_equation_asking_whether_the_run_has_begun_takes_the_running_branch() {
+    // The hysteresis models write `if initial() then k = 0.01; else
+    // ... end if` to give a state something to hold in the instant
+    // before the run. Choosing a branch happens before the flag exists,
+    // and what holds for every instant of the run is the other branch.
+    let result = run("model M Real x(start = 0); Real k; \
+         equation der(x) = k; \
+         if initial() then k = 0; else k = 1; end if; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end M;");
+    let last = result.rows.last().unwrap();
+    let k = result.columns.iter().position(|n| n == "k").unwrap();
+    assert!((last[k] - 1.0).abs() < 1e-9, "k = {}", last[k]);
+}

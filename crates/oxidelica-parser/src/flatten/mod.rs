@@ -658,6 +658,22 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         equation.lhs = answer(&equation.lhs);
         equation.rhs = answer(&equation.rhs);
     }
+    // The branches of an `if` equation travel to the compiler apart
+    // from the equations, and copies of them were what went through
+    // the loop above. So they are answered where they live: the state
+    // graph asks `if cardinality(inPort[i]) == 0` to decide what an
+    // unconnected port stands at, and nothing later knows the count.
+    for conditional in &mut acc.conditional {
+        for condition in &mut conditional.conditions {
+            *condition = answer(condition);
+        }
+        for branch in &mut conditional.branches {
+            for equation in branch.iter_mut() {
+                equation.lhs = answer(&equation.lhs);
+                equation.rhs = answer(&equation.rhs);
+            }
+        }
+    }
     // An unconnected port is what `cardinality` is usually asked about,
     // and what it is usually asked about it in is an assertion.
     for (condition, _) in &mut model.asserts {

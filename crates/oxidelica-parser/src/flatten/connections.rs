@@ -543,6 +543,18 @@ pub(super) fn answer_graph_queries(
         // answered here because the specification still defines it.
         Expr::Call(name, args) if name == "cardinality" && args.len() == 1 => match &args[0] {
             Expr::Ref(port) => Expr::Number(connected.get(port).copied().unwrap_or(0.0)),
+            // A port of an array asked about before the array layer
+            // has written the subscript into the name: the count is
+            // kept under the name that layer would have made.
+            Expr::Index(inner, subscripts) => match (&**inner, subscripts.as_slice()) {
+                (Expr::Ref(port), [Expr::Number(at)]) => Expr::Number(
+                    connected
+                        .get(&format!("{port}[{}]", *at as i64))
+                        .copied()
+                        .unwrap_or(0.0),
+                ),
+                _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            },
             _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         },
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),

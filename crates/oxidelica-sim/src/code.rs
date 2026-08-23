@@ -187,6 +187,15 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
             }
             match operator_name(name) {
                 "der" => return err("der() outside a state equation is not supported in M0"),
+                // Whether the run has begun. Asked here rather than of
+                // the event machinery because choosing the branch of
+                // an `if` equation happens before that machinery
+                // exists, and what holds for every instant of the run
+                // is that the initial one is over: the branch guarded
+                // by `initial()` says what a value was for no length
+                // of time. This is how the hysteresis models give a
+                // state something to start from.
+                "initial" | "terminal" => 0.0,
                 // The ordinal of an enumeration value, which is what an
                 // enumeration is carried as.
                 "Integer" => {
