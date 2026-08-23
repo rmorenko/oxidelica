@@ -3870,3 +3870,24 @@ fn an_if_equation_asking_whether_the_run_has_begun_takes_the_running_branch() {
     let k = result.columns.iter().position(|n| n == "k").unwrap();
     assert!((last[k] - 1.0).abs() < 1e-9, "k = {}", last[k]);
 }
+
+#[test]
+fn an_initial_equation_about_a_boolean_says_where_it_starts() {
+    // The state graph writes `active = true` for the step a graph
+    // begins in and `pre(newActive) = pre(localActive)` for the memory
+    // behind it. Neither is a condition on the states - a Boolean keeps
+    // its value between events whatever assigns it - so counting them
+    // among the initial equations left the initialisation with ten
+    // equations for no states at all.
+    let result = run("model M Boolean on; Boolean seen; Real x(start = 0); \
+         initial equation on = true; pre(seen) = true; \
+         equation der(x) = 1; \
+         when x > 0.5 then on = false; end when; \
+         when x > 0.8 then seen = pre(on); end when; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end M;");
+    let last = result.rows.last().unwrap();
+    let on = result.columns.iter().position(|n| n == "on").unwrap();
+    assert_eq!(last[on], 0.0);
+    let first = result.rows.first().unwrap();
+    assert_eq!(first[on], 1.0, "the initial equation says it starts true");
+}

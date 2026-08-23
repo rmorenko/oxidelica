@@ -541,22 +541,25 @@ pub(super) fn answer_graph_queries(
         // and every one of them is already in hand. The specification
         // deprecates the operator and says it will be removed; it is
         // answered here because the specification still defines it.
-        Expr::Call(name, args) if name == "cardinality" && args.len() == 1 => match &args[0] {
-            Expr::Ref(port) => Expr::Number(connected.get(port).copied().unwrap_or(0.0)),
-            // A port of an array asked about before the array layer
-            // has written the subscript into the name: the count is
-            // kept under the name that layer would have made.
-            Expr::Index(inner, subscripts) => match (&**inner, subscripts.as_slice()) {
-                (Expr::Ref(port), [Expr::Number(at)]) => Expr::Number(
-                    connected
-                        .get(&format!("{port}[{}]", *at as i64))
-                        .copied()
-                        .unwrap_or(0.0),
-                ),
-                _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-            },
-            _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        },
+        Expr::Call(name, args) if name == "cardinality" && args.len() == 1 => {
+            // The count is kept under the name the array layer makes,
+            // `inPort[1]`, and a condition that has not been through
+            // that layer still holds the subscript apart.
+            let port = match &args[0] {
+                Expr::Ref(port) => Some(port.clone()),
+                Expr::Index(inner, subscripts) => match (&**inner, subscripts.as_slice()) {
+                    (Expr::Ref(port), [Expr::Number(at)]) => {
+                        Some(format!("{port}[{}]", *at as i64))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            match port {
+                Some(port) => Expr::Number(connected.get(&port).copied().unwrap_or(0.0)),
+                None => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            }
+        }
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),

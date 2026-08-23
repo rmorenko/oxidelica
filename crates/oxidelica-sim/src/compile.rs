@@ -1161,11 +1161,34 @@ fn discrete_layer(
     // settled, and one whose value only the run knows - a count taken
     // off a state - is struck off all the same, leaving the declared
     // start to stand.
+    // A Boolean or an Integer keeps its value between events whatever
+    // assigns it, so an initial equation naming one - or naming what
+    // one was before the first event - says where it starts rather
+    // than putting a condition on the states. The state graph writes
+    // both: `active = true` for the step a graph begins in, and
+    // `pre(newActive) = pre(localActive)` for the memory behind it.
+    fn started(lhs: &Expr) -> Option<&String> {
+        match lhs {
+            Expr::Ref(named) => Some(named),
+            Expr::Call(name, args) if name == "pre" => match args.first() {
+                Some(Expr::Ref(named)) => Some(named),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    let kept_between_events = |name: &String| {
+        discrete_names.contains(name)
+            || model
+                .components
+                .iter()
+                .any(|c| &c.name == name && (c.type_name == "Boolean" || c.type_name == "Integer"))
+    };
     let mut known = params.clone();
     let mut spent: Vec<usize> = Vec::new();
     for (at, equation) in model.initial_equations.iter().enumerate() {
-        if let Expr::Ref(named) = &equation.lhs {
-            if discrete_names.contains(named) {
+        if let Some(named) = started(&equation.lhs) {
+            if kept_between_events(named) {
                 let vars = &known.clone();
                 let now = EvalCtx {
                     vars,
