@@ -1104,11 +1104,15 @@ fn values_at_this_point(
 /// assigns it: either way it keeps its value between events, so the
 /// continuous part treats it as known. They come back in declaration
 /// order, which is what keeps the result columns steady.
+/// The discrete layer: the variables, where each one starts, and
+/// which initial equations were spent saying so.
+type DiscreteLayer = (Vec<String>, Vec<f64>, Vec<usize>);
+
 fn discrete_layer(
     model: &Model,
     params: &HashMap<String, f64>,
     resume: &Option<ResumePoint>,
-) -> Result<(Vec<String>, Vec<f64>), SimError> {
+) -> Result<DiscreteLayer, SimError> {
     // 1b. The discrete layer. A variable is discrete when it says so or
     // when a `when` clause assigns it: either way it keeps its value
     // between events, so the continuous part treats it as known.
@@ -1148,6 +1152,34 @@ fn discrete_layer(
         .filter(|c| discrete_names.contains(&c.name))
         .map(|c| c.name.clone())
         .collect();
+    // An `initial algorithm` that assigns a discrete variable says
+    // where that variable starts, and arrives here as an initial
+    // equation naming it. That is a start value rather than a
+    // condition on the states, so it is read out here and struck off
+    // the list the initialisation is measured against. They are read
+    // in the order written, each against what the ones before
+    // settled, and one whose value only the run knows - a count taken
+    // off a state - is struck off all the same, leaving the declared
+    // start to stand.
+    let mut known = params.clone();
+    let mut spent: Vec<usize> = Vec::new();
+    for (at, equation) in model.initial_equations.iter().enumerate() {
+        if let Expr::Ref(named) = &equation.lhs {
+            if discrete_names.contains(named) {
+                let vars = &known.clone();
+                let now = EvalCtx {
+                    vars,
+                    time: 0.0,
+                    programs: None,
+                    depth: 0,
+                };
+                if let Ok(value) = eval(&equation.rhs, &now) {
+                    known.insert(named.clone(), value);
+                }
+                spent.push(at);
+            }
+        }
+    }
     let discrete_start: Vec<f64> = model
         .components
         .iter()
@@ -1157,6 +1189,7 @@ fn discrete_layer(
                 .as_ref()
                 .and_then(|point| point.values.get(&c.name))
                 .copied()
+                .or_else(|| known.get(&c.name).copied())
                 .or_else(|| {
                     c.start.as_ref().or(c.binding.as_ref()).and_then(|expr| {
                         eval(
@@ -1174,7 +1207,7 @@ fn discrete_layer(
                 .unwrap_or(0.0)
         })
         .collect();
-    Ok((discretes, discrete_start))
+    Ok((discretes, discrete_start, spent))
 }
 
 /// Work out the value of every parameter and constant.
@@ -1456,7 +1489,7 @@ pub(crate) fn compile_at(
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
-    let (discretes, discrete_start) = discrete_layer(model, &params, &resume)?;
+    let (discretes, discrete_start, started_discretes) = discrete_layer(model, &params, &resume)?;
 
     // Where everything stands at the point being compiled for: the
     // pivot that chooses which states to demote reads it, and so does
@@ -1574,7 +1607,7 @@ pub(crate) fn compile_at(
         .initial_equations
         .iter()
         .enumerate()
-        .filter(|(at, _)| !settled_parameters.contains(at))
+        .filter(|(at, _)| !settled_parameters.contains(at) && !started_discretes.contains(at))
         .map(|(_, equation)| equation)
         .map(|equation| {
             Ok(EquationItem {

@@ -3777,3 +3777,81 @@ fn a_logical_operator_settles_what_only_shapes_can_answer() {
         "the vector's own questions should be answered before `and`: {q}"
     );
 }
+
+/// An `initial algorithm` that assigns a discrete variable says where
+/// that variable starts, not what the states must satisfy: a periodic
+/// source works out which period it is in before the first event ever
+/// fires, and would otherwise be counted as a condition on states it
+/// says nothing about.
+#[test]
+fn an_initial_algorithm_starts_the_discrete_variables_it_assigns() {
+    let result = run(
+        "model M parameter Real period = 1; Real T_start; Integer count; \
+         initial algorithm count := integer((time + 2.5) / period); \
+         T_start := count * period; \
+         equation when time >= (pre(count) + 1) * period - 2.5 then \
+         count = pre(count) + 1; T_start = time; end when; \
+         annotation(experiment(StopTime = 0.4, Interval = 0.1, Tolerance = 1e-10)); end M;",
+    );
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|n| n == name).unwrap();
+    assert!(
+        (last[at("count")] - 2.0).abs() < 1e-9,
+        "the count the initial algorithm worked out stands: {}",
+        last[at("count")]
+    );
+    assert!(
+        (last[at("T_start")] - 2.0).abs() < 1e-9,
+        "and what was worked out from it: {}",
+        last[at("T_start")]
+    );
+
+    // The same when the value is one only the run knows: a count taken
+    // off a state is still about where the count starts, not about
+    // where the state does, and the state keeps its declared start.
+    let result = run("model M Real x(start = 3); Integer count; \
+         initial equation count = integer(x); \
+         equation der(x) = 1; \
+         when time >= 0.5 then count = pre(count) + 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1, Tolerance = 1e-10)); end M;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|n| n == name).unwrap();
+    assert!(
+        (last[at("x")] - 4.0).abs() < 1e-9,
+        "the state started where it was declared to: {}",
+        last[at("x")]
+    );
+
+    // An initial equation that is about the states after all is left
+    // where it was, and still says where the run begins.
+    let result = run("model M Real x; Integer count; \
+         initial equation 2 * x = 6; \
+         equation der(x) = 1; \
+         when time >= 0.5 then count = pre(count) + 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1, Tolerance = 1e-10)); end M;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|n| n == name).unwrap();
+    assert!(
+        (last[at("x")] - 4.0).abs() < 1e-9,
+        "the initial equation settled the state: {}",
+        last[at("x")]
+    );
+}
+
+/// A derivative another equation already states may be read anywhere
+/// in a third: inside a comparison, either side of an `and` or an
+/// `or`, under a negation, in any branch of a choice. Each of those
+/// has to hand the derivative on by the name the run knows it by.
+#[test]
+fn a_derivative_is_named_wherever_it_is_read() {
+    let result = run("model M Real x; Real y; equation der(x) = 3; \
+         y = if (der(x) > 0 and not (der(x) < -1)) or der(x) == 0 then -der(x) else 2; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| result.columns.iter().position(|n| n == name).unwrap();
+    assert!(
+        (last[at("y")] + 3.0).abs() < 1e-9,
+        "the branch the derivative chose, and what it came to: {}",
+        last[at("y")]
+    );
+}
