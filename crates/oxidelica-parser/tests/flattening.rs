@@ -9237,3 +9237,19 @@ fn a_record_argument_with_a_matrix_field_is_read_element_by_element() {
         "the caller's own matrix stands in their place: {written:?}"
     );
 }
+
+#[test]
+fn a_connector_holds_what_its_base_class_holds() {
+    let m = parse_model(
+        "package P \
+         connector Base Real e; flow Real f; end Base; \
+         connector Pin extends Base; end Pin; \
+         model M Pin p; Real x; equation p.e = 1; der(x) = p.f; end M; end P;",
+    )
+    .expect("a connector that says what it holds through a base class");
+    let written = equations_of(&m);
+    assert!(
+        written.iter().any(|e| e.contains("p.f") && e.contains("0")),
+        "the inherited flow is forced to zero where nothing is connected: {written:?}"
+    );
+}

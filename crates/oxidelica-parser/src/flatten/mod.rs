@@ -337,9 +337,37 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         // the same members, and connecting them is the whole point.
         let class_name = acc.connectors[members[0]].clone();
         let class = registry[class_name.as_str()];
+        // A connector may say what it holds through a base class: the
+        // multibody frames are one `Frame` with the position, the
+        // orientation and the two flows, and `Frame_a` and `Frame_b`
+        // add nothing to it but an icon. Read from the class alone
+        // those two hold nothing at all, and a flow nobody sums is a
+        // variable no equation ever names.
+        let members_of = |class: &ClassDef| -> Vec<Component> {
+            let mut out = Vec::new();
+            fn gather(
+                registry: &HashMap<&str, &ClassDef>,
+                class: &ClassDef,
+                out: &mut Vec<Component>,
+                depth: usize,
+            ) {
+                if depth > MAX_DEPTH {
+                    return;
+                }
+                for extend in &class.extends {
+                    if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports)
+                    {
+                        gather(registry, base, out, depth + 1);
+                    }
+                }
+                out.extend(class.components.iter().cloned());
+            }
+            gather(&registry, class, &mut out, 0);
+            out
+        };
+        let held = members_of(class);
         let shape = |class: &ClassDef| -> Vec<(String, bool, bool)> {
-            let mut members: Vec<(String, bool, bool)> = class
-                .components
+            let mut members: Vec<(String, bool, bool)> = members_of(class)
                 .iter()
                 .map(|c| (c.name.clone(), c.flow, c.stream))
                 .collect();
@@ -359,8 +387,8 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
         // A stream variable rides on the one flow variable of its
         // connector; without exactly one, `inStream` has no weights.
-        if class.components.iter().any(|c| c.stream) {
-            let flows = class.components.iter().filter(|c| c.flow).count();
+        if held.iter().any(|c| c.stream) {
+            let flows = held.iter().filter(|c| c.flow).count();
             if flows != 1 {
                 return Err(format!(
                     "connector `{class_name}` carries stream variables, so it needs \
@@ -371,7 +399,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         // A connector that is one value rather than a set of members -
         // `connector RealInput = input Real` - joins on itself: there
         // is no member to name, so the paths are the variables.
-        if class.components.is_empty() && class.alias_of.is_some() {
+        if held.is_empty() && class.alias_of.is_some() {
             for other in &members[1..] {
                 acc.equations.push(EquationItem {
                     lhs: Expr::Ref((*other).to_string()),
@@ -381,7 +409,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             }
             continue;
         }
-        for member_component in &class.components {
+        for member_component in &held {
             let var = |path: &str| format!("{path}.{}", member_component.name);
             if member_component.stream {
                 // A stream variable gets no equation from the
