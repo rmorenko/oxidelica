@@ -8839,3 +8839,58 @@ fn a_sum_reaches_across_an_array_a_neighbour_holds() {
         "{summed}"
     );
 }
+
+/// An array of one handed a name is still handed an array.
+///
+/// A resistance connection of star points comes to a single symmetric
+/// base system, so the resistor it holds is one phase wide, and its
+/// `T = T_ref` hands one name to one element. A value that arrives as
+/// a single item is otherwise spread over every element - that is what
+/// a scalar means - but here the item is the array itself, and
+/// spreading it binds the one element to a name no parameter can be
+/// worked out from.
+#[test]
+fn a_name_handed_to_an_array_of_one_is_read_as_its_element() {
+    let m = parse_model(
+        "model M partial model Cond parameter Integer mh = 3; \
+         parameter Real T[mh] = fill(293.15, mh); Real L[mh]; \
+         equation L = T; end Cond; \
+         model Res parameter Integer m = 3; \
+         parameter Real T_ref[m] = fill(300.15, m); \
+         extends Cond(final mh = m, T = T_ref); end Res; \
+         Res r(m = 1); end M;",
+    )
+    .expect("a name handed to an array of one");
+    let bound = m
+        .components
+        .iter()
+        .find(|c| c.name == "r.T[1]")
+        .and_then(|c| c.binding.as_ref())
+        .map(|b| b.describe())
+        .expect("the one element of the array");
+    assert_eq!(bound, "r.T_ref[1]");
+}
+
+/// A name of a different length is not what the elements were, so it
+/// is left to stand: spreading it apiece would bind the wrong ones.
+#[test]
+fn a_name_of_another_length_is_not_spread_over_the_elements() {
+    let m = parse_model(
+        "model M partial model Cond parameter Integer mh = 3; \
+         parameter Real T[mh] = fill(293.15, mh); Real L[mh]; \
+         equation L = T; end Cond; \
+         model Res parameter Integer m = 3; \
+         parameter Real T_ref[2] = fill(300.15, 2); \
+         extends Cond(final mh = m, T = T_ref); end Res; \
+         Res r(m = 1); end M;",
+    )
+    .expect("a name of another length");
+    let bound = m
+        .components
+        .iter()
+        .find(|c| c.name == "r.T[1]")
+        .and_then(|c| c.binding.as_ref())
+        .map(|b| b.describe())
+        .expect("the one element of the array");
+    assert_eq!(bound, "r.T_ref");
+}

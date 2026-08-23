@@ -230,10 +230,27 @@ pub(super) fn instantiate(
         // What the values handed down name, measured here where those
         // names still mean something.
         let mut handed_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+        // A length written as a parameter of this very class - `Real
+        // T_ref[m]` beside `parameter Integer m` - is a short name,
+        // while the table of settled numbers knows it by the full
+        // path it has in the model. The numbers of this class are
+        // offered under the names its own declarations use, so a
+        // length like that can be measured at all.
+        let here: HashMap<String, f64> = acc
+            .const_values
+            .iter()
+            .filter_map(|(named, value)| {
+                let short = named.strip_prefix(prefix)?;
+                match short.contains('.') {
+                    true => None,
+                    false => Some((short.to_string(), *value)),
+                }
+            })
+            .collect();
         collect_shapes(
             registry,
             class,
-            &acc.const_values,
+            &here,
             &HashMap::new(),
             &mut handed_shapes,
             0,
@@ -804,7 +821,13 @@ pub(super) fn instantiate(
             // the parameters cannot evaluate. Where the name is known
             // above to be an array of the same length, its elements
             // are what was meant, one apiece.
-            if items.len() == 1 && element_names.len() > 1 {
+            // An array of one is still an array: a resistance
+            // connection of star points comes to a single base
+            // system, and its `T = T_ref` hands one name to one
+            // element. Spread rather than subscripted, that element
+            // is bound to the array itself, which is a name no
+            // parameter can be worked out from.
+            if items.len() == 1 && !element_names.is_empty() {
                 if let Expr::Ref(name) = &items[0] {
                     if let Some(shape) = env.handed_shapes.get(name.as_str()) {
                         let indices = index_tuples(shape);
