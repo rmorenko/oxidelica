@@ -1974,10 +1974,26 @@ fn worked_body(
                     class.name, input.name
                 ));
             };
-            let default = substitute_refs(default, &bindings);
+            // A default may name a constant of a class - `input Real
+            // eps = 100*Modelica.Constants.eps` is how the standard
+            // library keeps a normalization off zero - and the name
+            // means what it meant where it was written, not where the
+            // call is.
+            let default =
+                substitute_class_constants(default, registry, &class.name, &class.imports, &[]);
+            let default = substitute_refs(&default, &bindings);
             bindings.insert(input.name.clone(), default);
         }
     }
+    // What the call handed in, which a local's value may name: the
+    // multibody world builds an orientation from an axis vector that
+    // way - `Real e_x[3] = if length(n_x) < 1e-10 then {1, 0, 0} else
+    // normalize(n_x)` - and left unbound the body carried `n_x` out
+    // with it, a name meaning nothing outside the function. A local
+    // naming another local is left alone: the array layer reads an
+    // element off a name and cannot read one off the list written in
+    // its place.
+    let handed: HashMap<String, Expr> = bindings.clone();
     for component in &class.components {
         if component.causality == Causality::None {
             if let Some(binding) = &component.binding {
@@ -2005,7 +2021,7 @@ fn worked_body(
                 );
                 let bound = match component.dimensions.is_empty() {
                     true => substitute_refs(binding, &bindings),
-                    false => binding.clone(),
+                    false => substitute_refs(binding, &handed),
                 };
                 // Where it comes to a number, it is stored as one: the
                 // number of base systems of an m-phase winding is a

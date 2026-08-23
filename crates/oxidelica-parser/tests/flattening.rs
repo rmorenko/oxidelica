@@ -9160,3 +9160,33 @@ fn a_class_constant_that_is_a_vector_is_substituted_too() {
         "the vector is read element by element: {written:?}"
     );
 }
+
+/// A local of a function body is an array, and its value names what
+/// the call handed in: the multibody world builds an orientation from
+/// an axis vector that way. Left unbound the body carried the input's
+/// name out with it, and out there `n_x` means nothing. A default that
+/// names a class constant is read where it was written, too.
+#[test]
+fn a_local_array_of_a_function_reads_what_the_call_handed_in() {
+    let m = parse_model(
+        "package P constant Real small = 0.5; \
+         function f input Real n[3]; input Real eps = P.small; output Real y; \
+         protected Real e[3] = if n[1] < eps then {1,0,0} else n; \
+         algorithm y := e[1]; end f; \
+         model M Real a[3] = {3,0,0}; Real x; equation der(x) = f(a); end M; end P;",
+    )
+    .expect("a body whose local array is built from its argument");
+    let written = equations_of(&m);
+    assert!(
+        !written
+            .iter()
+            .any(|e| e.contains("n[1]") || e.contains("P.small")),
+        "neither the argument's name nor the constant's travels out: {written:?}"
+    );
+    assert!(
+        written
+            .iter()
+            .any(|e| e.contains("a[1]") && e.contains("0.5")),
+        "the caller's array and the constant's value stand in their place: {written:?}"
+    );
+}
