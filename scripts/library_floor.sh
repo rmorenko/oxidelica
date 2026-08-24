@@ -16,8 +16,8 @@ set -euo pipefail
 FILES_FLOOR=2646
 FLATTEN_FLOOR=381
 RUN_FLOOR=51
-RUNNABLE_FLATTEN_FLOOR=316
-RUNNABLE_RUN_FLOOR=77
+RUNNABLE_FLATTEN_FLOOR=326
+RUNNABLE_RUN_FLOOR=86
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."

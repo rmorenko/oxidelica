@@ -9556,3 +9556,40 @@ fn a_when_may_give_a_whole_array_at_once() {
         ]
     );
 }
+
+#[test]
+fn a_sample_may_leave_its_clock_to_inference() {
+    // 16.3's `sample(u)` reads a continuous signal at the tick of
+    // whatever clock the equation lands on, and it is what every
+    // sampler block of the standard library writes. It is the same
+    // word as the event operator `sample(start, interval)`, which
+    // rises at every tick and is Boolean - so the one-argument form
+    // has to answer with what it read instead.
+    // Written the way the library builds a sampler: the block samples
+    // with the clock left open, and the model wires a clock to the
+    // block beside it - which is where the clock comes from.
+    let m = parse_model(
+        "block Sampler Real u; Real y; equation y = sample(u); end Sampler; \
+         block Assign Clock clock; Real u; Real y; \
+           equation when clock then y = u; end when; end Assign; \
+         model M Clock c = Clock(0.1); Sampler s; Assign a; Real src; Real out; \
+         equation src = time; s.u = src; a.clock = c; a.u = s.y; \
+         out = hold(a.y); end M;",
+    )
+    .unwrap();
+
+    // The sample is gone by the time the model is flat: reading at a
+    // tick is reading, and nothing named `sample` is left anywhere.
+    let text = format!("{:?}{:?}", m.equations, m.when_clauses);
+    assert!(!text.contains("Call(\"sample\", [Ref"), "{text}");
+    // What the sampler gives is what it read, and it is a Real: the
+    // type layer would have refused a Boolean against `s.y`.
+    let y = m.components.iter().find(|c| c.name == "s.y").unwrap();
+    assert_eq!(y.type_name, "Real");
+    let read = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"s.y\")")
+        .unwrap();
+    assert_eq!(format!("{:?}", read.rhs), "Ref(\"s.u\")");
+}

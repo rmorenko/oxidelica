@@ -414,6 +414,15 @@ impl TypeLayer {
                 }
                 Ok(result)
             }
+            // `sample` is two operators sharing a name. The event
+            // one - `sample(start, interval)` - is a condition that
+            // rises at every tick, and it is Boolean. The synchronous
+            // one of 16.3 reads a continuous signal at the tick of a
+            // clock, and it is whatever it read: `sample(u)` with the
+            // clock left to inference is how every clocked sampler in
+            // the standard library is written, and calling it Boolean
+            // refused ten of them for holding a Real.
+            "sample" if args.len() == 1 => self.infer(&args[0]),
             "edge" | "change" | "initial" | "sample" => {
                 for arg in args {
                     self.infer(arg)?;

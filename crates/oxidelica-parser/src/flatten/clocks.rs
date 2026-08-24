@@ -1095,6 +1095,14 @@ pub(super) fn clocks_touched(
             }
             Ok(())
         }
+        // `sample(u)` with no clock named is a place where one has to
+        // turn up: what it reads is continuous, so nothing under it
+        // says which, and the answer comes from the rest of the
+        // equation - the clock of what the sample is given to.
+        Expr::Call(name, args) if name == "sample" && args.len() == 1 => {
+            found.push(clocks.waiting(None, false, 0));
+            Ok(())
+        }
         Expr::Call(name, args) if name == "interval" && args.len() == 1 => {
             match clock_expr(&args[0], clocks, parameters)? {
                 Some(clock) => {
@@ -1560,9 +1568,14 @@ pub(super) fn at_the_tick(
 ) -> Expr {
     let recur = |e: &Expr| at_the_tick(e, clocks, clock_of, here);
     match expr {
-        // Sampling is reading, at the instant of the tick.
+        // Sampling is reading, at the instant of the tick. The clock
+        // may be named - `sample(u, c)` - or left for inference, which
+        // is what a sampler block writes: `sample(u)` takes the clock
+        // of whatever the equation lands on, and by the time this runs
+        // that is already settled.
         Expr::Call(name, args)
-            if name == "sample" && args.len() == 2 && is_clock_expr(&args[1], clocks) =>
+            if name == "sample"
+                && (args.len() == 1 || (args.len() == 2 && is_clock_expr(&args[1], clocks))) =>
         {
             recur(&args[0])
         }
