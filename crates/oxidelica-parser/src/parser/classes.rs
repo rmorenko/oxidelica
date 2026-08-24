@@ -627,6 +627,7 @@ impl Parser {
         } else {
             (Vec::new(), Vec::new(), Vec::new(), Vec::new())
         };
+        self.opt_string();
         if self.peek() == &Token::Annotation {
             self.annotation_body(&mut Annotated::default())?;
         }

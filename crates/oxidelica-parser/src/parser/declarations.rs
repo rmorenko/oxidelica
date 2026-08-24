@@ -287,12 +287,15 @@ impl Parser {
                     }));
                 }
                 // A binding may follow a nested list: `x(unit = "m") = 3`.
+                // A description string may follow: `x(unit = "m") "description"`.
                 if self.peek() == &Token::Assign {
                     self.bump();
                     if let Some(value) = self.modifier_value()? {
-                        modifiers.push((name, value));
+                        modifiers.push((name.clone(), value));
                     }
-                } else if !self.at_modifier_end() {
+                }
+                self.opt_string();
+                if !self.at_modifier_end() {
                     return Err(self.err(format!(
                         "expected `=` or a nested modifier list after `{name}`, found `{}`",
                         self.peek()
