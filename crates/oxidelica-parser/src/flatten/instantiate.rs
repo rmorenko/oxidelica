@@ -581,6 +581,15 @@ pub(super) fn instantiate(
             // against an enumeration literal - `gravityType ==
             // GravityTypes.UniformGravity` - which no environment holds
             // as a name of its own.
+            //
+            // The condition is written in this class's terms and the
+            // values are filed under the paths they were instantiated
+            // at, so it is put under the path first. That is also what
+            // answers a condition reading an `outer`: every animated
+            // part of the multi-body library is written `if
+            // world.enableAnimation and animation`, and `world` is an
+            // `outer` that owns no value of its own - the parameter
+            // belongs to the `inner` the name stands for.
             let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
             let value = const_eval(&named, &env)
                 .or_else(|| {
@@ -3272,8 +3281,34 @@ pub(super) fn bind_outers(
     class: &ClassDef,
     inners: &HashMap<String, InnerInstance>,
 ) -> Result<HashMap<String, String>, String> {
+    bind_outers_at(registry, class, inners, 0)
+}
+
+/// See [`bind_outers`]; `depth` counts the bases already walked, since
+/// a class may name a base that leads back to it.
+fn bind_outers_at(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    inners: &HashMap<String, InnerInstance>,
+    depth: usize,
+) -> Result<HashMap<String, String>, String> {
     let scope = class.name.as_str();
     let mut outers = HashMap::new();
+    if depth > MAX_DEPTH {
+        return Ok(outers);
+    }
+    // What the class inherits it declares. `outer World world` is
+    // written once in `PartialTwoFrames` and every joint of the
+    // multi-body library extends it rather than repeating it, so a
+    // class asked about its own components alone would say it names no
+    // `outer` at all - and the equations that read `world.something`
+    // would be left pointing at a variable nothing owns. The bases are
+    // walked the way `collect_inners` walks them.
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+            outers.extend(bind_outers_at(registry, base, inners, depth + 1)?);
+        }
+    }
     for component in class.components.iter().filter(|c| c.scope == Scope::Outer) {
         let inner = inners.get(&component.name).ok_or_else(|| {
             format!(

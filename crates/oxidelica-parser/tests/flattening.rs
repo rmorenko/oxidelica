@@ -9593,3 +9593,29 @@ fn a_sample_may_leave_its_clock_to_inference() {
         .unwrap();
     assert_eq!(format!("{:?}", read.rhs), "Ref(\"s.u\")");
 }
+
+#[test]
+fn an_outer_declared_by_a_base_is_bound_like_one_written_here() {
+    // `outer World world` is written once in `PartialTwoFrames` and
+    // every joint of the multi-body library extends it rather than
+    // repeating it. A class asked about its own components alone would
+    // say it names no `outer` at all, and every reference through it
+    // would point at a variable nothing owns.
+    let m = parse_model(
+        "model W parameter Real g = 10; end W; \
+         partial model Framed outer W world; end Framed; \
+         model Joint extends Framed; Real a; equation a = world.g; end Joint; \
+         model M inner W world; Joint j; end M;",
+    )
+    .unwrap();
+
+    // The reference went to the `inner` instance rather than to a
+    // variable of the joint's own.
+    let equation = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"j.a\")")
+        .unwrap();
+    assert_eq!(format!("{:?}", equation.rhs), "Ref(\"world.g\")");
+    assert!(!m.components.iter().any(|c| c.name == "j.world.g"));
+}
