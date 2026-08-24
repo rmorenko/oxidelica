@@ -271,9 +271,7 @@ impl Parser {
         self.expect(&Token::End, "end for")?;
         self.expect(&Token::For, "for after end")?;
         self.expect(&Token::Semi, "semicolon after end for")?;
-        if body.is_empty() {
-            return Err(self.err("for statement has no body".into()));
-        }
+        // Empty for body is valid: for i in 1:n loop end for; is allowed.
         let mut built: Option<Statement> = None;
         for (variable, range) in indices.into_iter().rev() {
             built = Some(Statement::For(

@@ -3094,8 +3094,7 @@ fn algorithm_error_paths() {
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm y := 0; while y < u loop y := y + 1; end while; end M;")
     .contains("the trip count of a loop is not settled here"));
-    // An empty loop body.
-    assert!(err("model M Real y; algorithm for i in 1:2 loop end for; end M;").contains("no body"));
+    // An empty loop body is now allowed (valid Modelica).
 }
 
 #[test]
