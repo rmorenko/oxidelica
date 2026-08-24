@@ -16,17 +16,21 @@ set -euo pipefail
 FILES_FLOOR=2646
 FLATTEN_FLOOR=381
 RUN_FLOOR=51
+RUNNABLE_FLATTEN_FLOOR=313
+RUNNABLE_RUN_FLOOR=77
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
 
 report="$(./target/release/oxidelica library check "$directory")"
 echo "$report" | head -1
-echo "$report" | grep '^classes:'
+echo "$report" | grep -E '^(classes:|runnable examples)'
 
 read_now="$(echo "$report" | sed -n 's/^files: \([0-9]*\) read.*/\1/p')"
-flatten_now="$(echo "$report" | sed -n 's/.*of which \([0-9]*\) flatten.*/\1/p')"
-run_now="$(echo "$report" | sed -n 's/.*flatten and \([0-9]*\) run.*/\1/p')"
+flatten_now="$(echo "$report" | sed -n 's/^classes:.*of which \([0-9]*\) flatten.*/\1/p')"
+run_now="$(echo "$report" | sed -n 's/^classes:.*flatten and \([0-9]*\) run.*/\1/p')"
+runnable_flatten_now="$(echo "$report" | sed -n 's/^runnable.*of which \([0-9]*\) flatten.*/\1/p')"
+runnable_run_now="$(echo "$report" | sed -n 's/^runnable.*flatten and \([0-9]*\) run.*/\1/p')"
 
 status=0
 short() {
@@ -36,8 +40,10 @@ short() {
 [ "${read_now:-0}" -ge "$FILES_FLOOR" ] || short "files read" "${read_now:-none}" "$FILES_FLOOR"
 [ "${flatten_now:-0}" -ge "$FLATTEN_FLOOR" ] || short "models flattened" "${flatten_now:-none}" "$FLATTEN_FLOOR"
 [ "${run_now:-0}" -ge "$RUN_FLOOR" ] || short "models run" "${run_now:-none}" "$RUN_FLOOR"
+[ "${runnable_flatten_now:-0}" -ge "$RUNNABLE_FLATTEN_FLOOR" ] || short "runnable models flattened" "${runnable_flatten_now:-none}" "$RUNNABLE_FLATTEN_FLOOR"
+[ "${runnable_run_now:-0}" -ge "$RUNNABLE_RUN_FLOOR" ] || short "runnable models run" "${runnable_run_now:-none}" "$RUNNABLE_RUN_FLOOR"
 
 if [ "$status" -eq 0 ]; then
-  echo "OK: $read_now files read, $flatten_now flatten, $run_now run"
+  echo "OK: $read_now files read, $flatten_now flatten, $run_now run; runnable $runnable_flatten_now flatten, $runnable_run_now run"
 fi
 exit "$status"

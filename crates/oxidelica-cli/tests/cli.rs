@@ -389,6 +389,41 @@ fn a_library_is_measured_by_reading_it() {
 }
 
 #[test]
+fn a_library_counts_its_runnable_examples_apart() {
+    let library = TempDir::new("runnable");
+    // Three example models: one marked by an experiment annotation, one
+    // by the Example icon inherited through a local template, and one
+    // helper that neither asks to be run nor can be - it has no value
+    // for its parameter. Only the helper may fail without the check
+    // saying the library got worse.
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib            package Icons partial model Example end Example; end Icons;            partial model Template extends Lib.Icons.Example; end Template;            package Examples              model ByExperiment Real x(start = 1); equation der(x) = -x;                annotation(experiment(StopTime = 1)); end ByExperiment;              model ByIcon extends Lib.Template; Real x(start = 1);                equation der(x) = -x; end ByIcon;              model Helper parameter Real k; Real u; equation der(u) = -k * u; end Helper;            end Examples;          end Lib;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    // All three are examples by their path; the helper drags the plain
+    // run count down to two.
+    assert!(
+        text.contains("example models: 3, of which 3 flatten and 2 run"),
+        "{text}"
+    );
+    // The runnable count leaves the helper out: both real examples run,
+    // and the line says two of two rather than two of three.
+    assert!(
+        text.contains(
+            "runnable examples (experiment or Example icon): 2, of which 2 flatten and 2 run"
+        ),
+        "{text}"
+    );
+}
+
+#[test]
 fn checking_nothing_says_so() {
     let empty = TempDir::new("empty");
     let out = bin()

@@ -519,6 +519,23 @@ fn library_check(args: &[String]) -> Result<(), String> {
         .filter(|c| c.name.contains(".Examples.") || c.name.contains(".Test"))
         .map(|c| c.name.clone())
         .collect();
+    // Which of them are meant to be run. A library is full of helper
+    // models that live under Examples but are parts of examples rather
+    // than examples - operational amplifier circuits with open pins,
+    // controllers whose parameters the enclosing model sets. Counting
+    // those as failures says nothing about the compiler. What marks a
+    // real one is what a tool reads: an `experiment` annotation saying
+    // how long to run, or the Example icon inherited for the browser.
+    let by_name: std::collections::HashMap<&str, &oxidelica_parser::ClassDef> =
+        classes.iter().map(|c| (c.name.as_str(), c)).collect();
+    let runnable: std::collections::HashSet<&String> = models
+        .iter()
+        .filter(|name| {
+            by_name
+                .get(name.as_str())
+                .is_some_and(|class| meant_to_run(class, &by_name, 0))
+        })
+        .collect();
     // Each model is read on its own and tells the others nothing, so
     // they are read at once. What a model comes to is put back in the
     // order the models were listed, so that the report reads the same
@@ -590,6 +607,14 @@ fn library_check(args: &[String]) -> Result<(), String> {
         flat.len(),
         ran.len()
     );
+    let runnable_flat = flat.iter().filter(|name| runnable.contains(**name)).count();
+    let runnable_ran = ran.iter().filter(|name| runnable.contains(**name)).count();
+    println!(
+        "runnable examples (experiment or Example icon): {}, of which {} flatten and {} run",
+        runnable.len(),
+        runnable_flat,
+        runnable_ran
+    );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
         named.sort();
@@ -601,6 +626,42 @@ fn library_check(args: &[String]) -> Result<(), String> {
     println!("of the {} that flatten, {} run:", flat.len(), ran.len());
     report(&would_not_run, "  ", list);
     Ok(())
+}
+
+/// Whether a model is written to be run, rather than to be a part of
+/// something else that is.
+///
+/// Two things say so, and either is enough: an `experiment` annotation
+/// with a stop time, which is a tool being told how long to run it, and
+/// the `Icons.Example` icon, which is a model asking to be shown in the
+/// browser as an example. The icon is often inherited through a local
+/// template - `extends ExampleTemplate` where the template extends the
+/// icon - so the extends chain is walked, resolving a written base
+/// either by its full name or by its tail against the classes in view.
+fn meant_to_run(
+    class: &oxidelica_parser::ClassDef,
+    by_name: &std::collections::HashMap<&str, &oxidelica_parser::ClassDef>,
+    depth: usize,
+) -> bool {
+    if class.experiment.stop_time.is_some() {
+        return true;
+    }
+    if depth > 8 {
+        return false;
+    }
+    class.extends.iter().any(|ext| {
+        if ext.base.contains("Icons.Example") {
+            return true;
+        }
+        let named = by_name.get(ext.base.as_str()).copied().or_else(|| {
+            let tail = format!(".{}", ext.base);
+            by_name
+                .iter()
+                .find(|(name, _)| name.ends_with(&tail))
+                .map(|(_, class)| *class)
+        });
+        named.is_some_and(|base| meant_to_run(base, by_name, depth + 1))
+    })
 }
 
 /// The reasons that came up most, with how often each did and one of

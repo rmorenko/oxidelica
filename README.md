@@ -46,7 +46,9 @@ the tree it sits.
 into the place the search already looks, and `oxidelica library check`
 reads a library and says how far this compiler got with it. How much of
 MSL that is, and what stands in the way of the rest:
-[docs/MSL.md](docs/MSL.md) ([Russian](docs/MSL.ru.md)).
+[docs/MSL.md](docs/MSL.md) ([Russian](docs/MSL.ru.md)); the architecture
+behind those numbers, what blocks the rest and in what order to take it
+on: [docs/ANALYSIS.md](docs/ANALYSIS.md) ([Russian](docs/ANALYSIS.ru.md)).
 
 When a model will not run, `oxidelica why <model> <variable>` says where
 the variable's value was meant to come from: what it was declared as,

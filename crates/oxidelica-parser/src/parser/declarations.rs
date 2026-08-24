@@ -287,19 +287,28 @@ impl Parser {
                     }));
                 }
                 // A binding may follow a nested list: `x(unit = "m") = 3`.
-                // A description string may follow: `x(unit = "m") "description"`.
                 if self.peek() == &Token::Assign {
                     self.bump();
                     if let Some(value) = self.modifier_value()? {
-                        modifiers.push((name.clone(), value));
+                        modifiers.push((name, value));
                     }
-                }
-                self.opt_string();
-                if !self.at_modifier_end() {
-                    return Err(self.err(format!(
-                        "expected `=` or a nested modifier list after `{name}`, found `{}`",
-                        self.peek()
-                    )));
+                    // A description may follow the value, as it may
+                    // follow a declaration: `y(unit = "W") = 3 "power"`.
+                    self.opt_string();
+                } else {
+                    // A nested list may be followed by a description
+                    // rather than a value - `extends Sensor(y(unit =
+                    // "W") "enthalpy flow")` is how the standard
+                    // library documents what it redeclares - and the
+                    // description belongs to the modifier, not to the
+                    // list after it.
+                    self.opt_string();
+                    if !self.at_modifier_end() {
+                        return Err(self.err(format!(
+                            "expected `=` or a nested modifier list after `{name}`, found `{}`",
+                            self.peek()
+                        )));
+                    }
                 }
             }
             match self.bump() {
