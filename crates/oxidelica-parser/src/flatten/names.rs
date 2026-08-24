@@ -1334,6 +1334,21 @@ pub(super) fn resolve(
     imports: &[(String, String)],
     depth: usize,
 ) -> Result<Expr, String> {
+    // A value that is already a number has nothing left to resolve,
+    // and nothing below it to run away into. Refusing one for being
+    // deep is refusing the arithmetic that led to it rather than any
+    // expression: the media library folds a property of a property of
+    // a state, and by the time the innermost is a number the count has
+    // been raised thirty times by callers that have all come to an end.
+    // A value that is already a number has nothing left to resolve,
+    // and nothing below it to run away into. Refusing one for being
+    // deep is refusing the arithmetic that led to it rather than any
+    // expression: the media library folds a property of a property of
+    // a state, and by the time the innermost is a number the count has
+    // been raised thirty times by callers that have all come to an end.
+    if matches!(expr, Expr::Number(_) | Expr::Bool(_) | Expr::Str(_)) {
+        return Ok(expr.clone());
+    }
     if depth > MAX_DEPTH {
         return Err(format!(
             "an expression {NO_BOTTOM}, nested deeper than the compiler follows: {}",
@@ -1485,7 +1500,16 @@ pub(super) fn resolve(
                             _ => Vec::new(),
                         })
                         .collect();
-                    inline_function(class, &args, &shapes, consts, registry, depth + 1)?
+                    // The body is entered at the depth the call was
+                    // written at, not one deeper. How many bodies are
+                    // inside one another is counted by the inliner
+                    // itself, which has a bound of its own; what this
+                    // count is for is how deep one expression nests.
+                    // Raising it here spent the expression's budget on
+                    // the calls, so a name at the bottom of a property
+                    // of a property of a state was refused for being
+                    // deep when what was deep was the road to it.
+                    inline_function(class, &args, &shapes, consts, registry, depth)?
                 }
                 // `noEvent(x)` and `smooth(n, x)` are hints about event
                 // generation and continuity; the value is the argument.
