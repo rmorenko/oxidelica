@@ -1842,6 +1842,27 @@ pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result
         let (mut left, mut right) = (Vec::new(), Vec::new());
         lhs.flatten_into(&mut left);
         rhs.flatten_into(&mut right);
+        // Two sides that hold no values at all are the same equation
+        // however their shapes are written. A medium with no mass
+        // fractions gives every port `Xi_outflow[0]`, and the model
+        // says `ports[i].Xi_outflow = medium.Xi` about it: an array of
+        // nothing against a name that was never given a shape, and
+        // nought equations either way. Refusing that refuses the whole
+        // of the Fluid library for saying something empty twice.
+        // A name that was never given a shape comes through as one
+        // value rather than none, so what settles this is the shapes
+        // themselves: an array of nothing against a scalar that stands
+        // for the same nothing. A medium with no mass fractions gives
+        // every port `Xi_outflow[0]`, and the model says
+        // `ports[i].Xi_outflow = medium.Xi` about it - nought
+        // equations either way, and refusing it refuses the whole of
+        // the Fluid library for saying something empty twice.
+        let empty = |shape: &[usize], held: &[Expr]| {
+            shape.contains(&0) || (shape.is_empty() && held.len() == 1)
+        };
+        if empty(&left_shape, &left) && empty(&right_shape, &right) {
+            return Ok(());
+        }
         return Err(format!(
             "an equation between shapes {left_shape:?} and {right_shape:?}: {} = {}",
             left.first().map_or("()".to_string(), |e| format!("{e:?}")),

@@ -9674,3 +9674,36 @@ fn a_package_handed_on_by_its_own_name_is_the_one_it_was_replaced_with() {
         assert_eq!(format!("{:?}", equation.rhs), "Number(2.0)", "{name}");
     }
 }
+
+#[test]
+fn an_equation_between_two_empty_arrays_says_nothing_rather_than_refusing() {
+    // A medium with no mass fractions gives every port `Xi_outflow[0]`,
+    // and the model says `ports[i].Xi_outflow = medium.Xi` about it.
+    // One side is an array of nothing and the other a name that never
+    // got a shape, so the two are written differently and hold the
+    // same nothing. Refusing them for that refused the whole of the
+    // Fluid library for saying something empty twice.
+    let m = parse_model(
+        "partial package PartialMedium constant Integer nXi = 0; \
+           model BaseProperties Real Xi[nXi]; Real p; end BaseProperties; \
+         end PartialMedium; \
+         package Water extends PartialMedium; end Water; \
+         connector FluidPort replaceable package Medium = PartialMedium; \
+           Real p; Real Xi_outflow[Medium.nXi]; end FluidPort; \
+         model Source replaceable package Medium = PartialMedium; \
+           parameter Integer nPorts = 1; Medium.BaseProperties medium; \
+           FluidPort ports[nPorts](redeclare each package Medium = Medium); \
+           equation medium.p = 1; \
+           for i in 1:nPorts loop ports[i].p = medium.p; \
+             ports[i].Xi_outflow = medium.Xi; end for; end Source; \
+         model M Source src(nPorts = 2, redeclare package Medium = Water); end M;",
+    )
+    .unwrap();
+
+    // The ports are there and carry the pressure; the empty equation
+    // left nothing behind.
+    assert!(m.components.iter().any(|c| c.name == "src.ports[2].p"));
+    assert!(!m.components.iter().any(|c| c.name.contains("Xi_outflow")));
+    let text = format!("{:?}", m.equations);
+    assert!(!text.contains("Xi_outflow"), "{text}");
+}
