@@ -189,15 +189,23 @@ register above.
 `library check` counts runnable examples apart, and the floor holds
 313 flatten and 77 run for them.
 
-### Stage 1. The small change in flattening (days)
+### Stage 1. The small change in flattening (days) — done
 
-1. **The rest of F7**: allow an array written in one branch of a function
-   when the scalars have starts (8 Spice3 models).
-2. **F12**: a comprehension over several indices, connect subscripts.
-3. **F9**: connect onto an element of a block's input array (7+).
-4. **Part of F5**: one-argument `sample(u)`, clocked Integer and Boolean.
+1. **F12**: a comprehension over several iterators — +2.
+2. **F9**: a `when` giving a whole array (`y = u` between vectors) — +1.
+3. **Part of F5**: the one-argument `sample(u)` — **+10 flatten, +9 run**.
+   It turned out not to be dispatch but two operators sharing a word: the
+   event `sample(start, interval)`, which is Boolean, and 16.3's
+   `sample(u)`, which is what it read and takes its clock from the
+   equation it lands in.
+4. **The rest of F7**: the one-line change works, but the library check
+   went from three and a half minutes to twenty-one for no model gained -
+   the eight Spice3 models then meet a function nothing can inline.
+   **Put back until stage 4.**
 
-Expect +20 to +30 flatten.
+Result: 400/80 → **413/89**; runnable 313/77 → **326/86**.
+What surfaced: 11 Digital models subscript a table with a discrete
+variable (`NotTable[x]`), which is F1/F3 and waits for stage 3.
 
 ### Stage 2. A resolve pass with identities (1-2 weeks, the foundation)
 
