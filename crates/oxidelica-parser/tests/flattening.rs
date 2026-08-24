@@ -9491,3 +9491,68 @@ fn a_when_on_a_clock_is_a_partition_written_out_by_hand() {
     assert!(text.contains("Call(\"pre\", [Ref(\"n\")])"), "{text}");
     assert!(!text.contains("previous"), "{text}");
 }
+
+#[test]
+fn a_comprehension_may_name_several_iterators() {
+    // `{f(i, j) for i in 1:n, j in 1:m}` is one array of n times m
+    // elements, and 10.4.2 says the last iterator moves fastest.
+    let m = parse_model(
+        "model M parameter Real b[6] = {i * 10 + j for i in 1:2, j in 1:3}; \
+         Real y; equation y = b[1] + b[2] + b[6]; end M;",
+    )
+    .unwrap();
+
+    // Each element's value says which round of each iterator made it:
+    // `i * 10 + j` with the numbers put in.
+    let element = |at: usize| {
+        let name = format!("b[{at}]");
+        let component = m.components.iter().find(|c| c.name == name).unwrap();
+        format!("{:?}", component.binding.as_ref().unwrap())
+    };
+    let made_by = |i: usize, j: usize| {
+        format!("Bin(Add, Bin(Mul, Number({i}.0), Number(10.0)), Number({j}.0))")
+    };
+    // Row-major: the first three are i = 1 with j running fastest.
+    assert_eq!(element(1), made_by(1, 1));
+    assert_eq!(element(2), made_by(1, 2));
+    assert_eq!(element(3), made_by(1, 3));
+    assert_eq!(element(4), made_by(2, 1));
+    assert_eq!(element(6), made_by(2, 3));
+}
+
+#[test]
+fn a_when_may_give_a_whole_array_at_once() {
+    // The clocked samplers pass a bus through with one equation
+    // between two vectors, and an event assigns one variable - so the
+    // assignment is taken apart the way an equation between arrays is.
+    let m = parse_model(
+        "block Pass parameter Integer n = 1; Boolean u[n]; Boolean y[n]; Clock clock; \
+         equation when clock then y = u; end when; end Pass; \
+         model M Clock c = Clock(0.1); Pass p(n = 2); Boolean src[2]; \
+         equation src[1] = time > 0.05; src[2] = time > 0.15; \
+         p.clock = c; p.u[1] = src[1]; p.u[2] = src[2]; end M;",
+    )
+    .unwrap();
+
+    let targets: Vec<String> = m
+        .when_clauses
+        .iter()
+        .flat_map(|clause| &clause.branches)
+        .flat_map(|branch| &branch.actions)
+        .filter_map(|action| match action {
+            oxidelica_parser::WhenAction::Assign(target, value) => {
+                Some(format!("{target} = {value:?}"))
+            }
+            _ => None,
+        })
+        .filter(|line| line.starts_with("p.y"))
+        .collect();
+    // One assignment per element, each reading the element beside it.
+    assert_eq!(
+        targets,
+        vec![
+            "p.y[1] = Ref(\"p.u[1]\")".to_string(),
+            "p.y[2] = Ref(\"p.u[2]\")".to_string(),
+        ]
+    );
+}

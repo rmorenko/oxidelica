@@ -1737,10 +1737,44 @@ pub(super) fn instantiate(
                         flat_name(state, prefix, &outers),
                         resolve_here(value)?,
                     )),
-                    WhenAction::Assign(target, value) => actions.push(WhenAction::Assign(
-                        flat_name(target, prefix, &outers),
-                        resolve_here(value)?,
-                    )),
+                    // A `when` may give a whole array at once -
+                    // `y = u` between two vectors is how the clocked
+                    // samplers pass a bus through - and an event
+                    // assigns one variable, so it is taken apart the
+                    // way an equation between arrays is: one
+                    // assignment per element, refusing sides that do
+                    // not have the same shape. A scalar target goes
+                    // the short way, which is every other `when` in
+                    // the library.
+                    WhenAction::Assign(target, value) => {
+                        let named = flat_name(target, prefix, &outers);
+                        let given = expand_here(value, &HashMap::new())?;
+                        // The shapes are filed under the full path, and
+                        // the target is written as this class named it,
+                        // so it is the flat name that finds one.
+                        match sizes_here.get(&named).filter(|shape| !shape.is_empty()) {
+                            None => actions.push(WhenAction::Assign(named, given.scalar()?)),
+                            Some(shape) => {
+                                let mut elements = Vec::new();
+                                given.flatten_into(&mut elements);
+                                let wanted: usize =
+                                    shape.iter().map(|length| *length as usize).product();
+                                if elements.len() != wanted {
+                                    return Err(format!(
+                                        "`{named}` is given {} value(s) at an event and holds                                          {wanted}",
+                                        elements.len()
+                                    ));
+                                }
+                                for (indices, one) in index_tuples(shape).into_iter().zip(elements)
+                                {
+                                    actions.push(WhenAction::Assign(
+                                        element_name(&named, &indices),
+                                        one,
+                                    ));
+                                }
+                            }
+                        }
+                    }
                     WhenAction::Terminate(message) => {
                         actions.push(WhenAction::Terminate(message.clone()))
                     }

@@ -177,6 +177,34 @@ impl Parser {
         }
     }
 
+    /// The iterators of a comprehension, the `for` already read.
+    ///
+    /// A comprehension may name several: `{f(i, j) for i in 1:n, j in
+    /// 1:m}` is one array of n times m elements, and the specification
+    /// says the last iterator moves fastest. That is what nesting them
+    /// the other way round gives - the first named on the outside, each
+    /// of its rounds holding a whole round of the next - so they are
+    /// read in order and wrapped from the inside out.
+    fn comprehension_over(&mut self, body: Expr) -> Result<Expr, ParseError> {
+        let mut iterators = Vec::new();
+        loop {
+            let variable = self.ident("iterator variable")?;
+            self.expect(&Token::In, "in after the iterator")?;
+            iterators.push((variable, self.expr()?));
+            match self.peek() {
+                Token::Comma => {
+                    self.bump();
+                }
+                _ => break,
+            }
+        }
+        let mut built = body;
+        for (variable, range) in iterators.into_iter().rev() {
+            built = Expr::Comprehension(Box::new(built), variable, Box::new(range));
+        }
+        Ok(built)
+    }
+
     pub(super) fn primary(&mut self) -> Result<Expr, ParseError> {
         if self.in_subscript && self.peek() == &Token::End {
             self.bump();
@@ -214,15 +242,9 @@ impl Parser {
                         // `{expr for i in range}` builds by iterating.
                         if items.is_empty() && self.peek() == &Token::For {
                             self.bump();
-                            let variable = self.ident("iterator variable")?;
-                            self.expect(&Token::In, "in after the iterator")?;
-                            let range = self.expr()?;
+                            let built = self.comprehension_over(item)?;
                             self.expect(&Token::RBrace, "closing brace of a comprehension")?;
-                            return Ok(Expr::Comprehension(
-                                Box::new(item),
-                                variable,
-                                Box::new(range),
-                            ));
+                            return Ok(built);
                         }
                         items.push(item);
                         match self.peek() {
@@ -419,14 +441,7 @@ impl Parser {
                             // form is the comprehension passed whole.
                             if args.is_empty() && self.peek() == &Token::For {
                                 self.bump();
-                                let variable = self.ident("iterator variable")?;
-                                self.expect(&Token::In, "in after the iterator")?;
-                                let range = self.expr()?;
-                                args.push(Expr::Comprehension(
-                                    Box::new(arg),
-                                    variable,
-                                    Box::new(range),
-                                ));
+                                args.push(self.comprehension_over(arg)?);
                                 break;
                             }
                             args.push(arg);
