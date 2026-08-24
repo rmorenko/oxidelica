@@ -654,8 +654,10 @@ pub(super) fn execute(
                         // A flag costs nothing to give a start to: it
                         // decides a branch rather than being folded
                         // into arithmetic, so it cannot grow the value
-                        // the way a run of numbers can.
-                        let is_flag = matches!(start, Expr::Bool(_));
+                        // the way a run of numbers can. Neither does a
+                        // string: it is settled before the run and has
+                        // no place in the arithmetic at all.
+                        let is_flag = matches!(start, Expr::Bool(_) | Expr::Str(_));
                         if writes_arrays && !is_flag {
                             return None;
                         }
@@ -2389,6 +2391,7 @@ fn starts_at(name: &str, registry: &HashMap<&str, &ClassDef>, scope: &str) -> Op
         return match started_by(&declared.type_name, registry, class, 0) {
             Some(Started::Boolean) => Some(Expr::Bool(false)),
             Some(Started::Number) => Some(Expr::Number(0.0)),
+            Some(Started::Text) => Some(Expr::Str(String::new())),
             None => None,
         };
     }
@@ -2412,9 +2415,10 @@ fn starts_at(name: &str, registry: &HashMap<&str, &ClassDef>, scope: &str) -> Op
     Some(match starting_type(name, declared, registry, class) {
         Some(Started::Boolean) => Expr::Bool(false),
         Some(Started::Number) => Expr::Number(0.0),
-        // A start this cannot name - a string, or a record field
-        // whose type is not in view - is left to the refusal, which
-        // says something true about a value that is really missing.
+        Some(Started::Text) => Expr::Str(String::new()),
+        // A start this cannot name - a record field whose type is not
+        // in view - is left to the refusal, which says something true
+        // about a value that is really missing.
         None => return None,
     })
 }
@@ -2425,6 +2429,8 @@ enum Started {
     Number,
     /// A `Boolean`, which starts at false.
     Boolean,
+    /// A `String`, which starts empty.
+    Text,
 }
 
 /// The start of `name`, following it into the record it is a field of.
@@ -2469,7 +2475,7 @@ fn started_by(
     match type_name {
         "Real" | "Integer" => return Some(Started::Number),
         "Boolean" => return Some(Started::Boolean),
-        "String" => return None,
+        "String" => return Some(Started::Text),
         _ => {}
     }
     let class = lookup(registry, type_name, &within.name, &within.imports)?;

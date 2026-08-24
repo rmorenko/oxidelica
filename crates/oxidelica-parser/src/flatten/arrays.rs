@@ -1847,20 +1847,31 @@ pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result
         // fractions gives every port `Xi_outflow[0]`, and the model
         // says `ports[i].Xi_outflow = medium.Xi` about it: an array of
         // nothing against a name that was never given a shape, and
-        // nought equations either way. Refusing that refuses the whole
-        // of the Fluid library for saying something empty twice.
-        // A name that was never given a shape comes through as one
-        // value rather than none, so what settles this is the shapes
-        // themselves: an array of nothing against a scalar that stands
-        // for the same nothing. A medium with no mass fractions gives
-        // every port `Xi_outflow[0]`, and the model says
-        // `ports[i].Xi_outflow = medium.Xi` about it - nought
-        // equations either way, and refusing it refuses the whole of
-        // the Fluid library for saying something empty twice.
-        let empty = |shape: &[usize], held: &[Expr]| {
-            shape.contains(&0) || (shape.is_empty() && held.len() == 1)
-        };
-        if empty(&left_shape, &left) && empty(&right_shape, &right) {
+        // A medium with no mass fractions gives every port
+        // `Xi_outflow[0]`, and the model says `ports[i].Xi_outflow =
+        // medium.Xi` about it: an array of nothing against a name that
+        // never got a shape of its own. The two are written
+        // differently and hold the same nothing between them, and
+        // refusing them refused the whole of the Fluid library for
+        // saying something empty twice.
+        //
+        // What settles it is how many values each side really holds
+        // along the axes it shares. A shape with a nought in it holds
+        // none whatever else it says, and a name with no shape stands
+        // for one place that nothing fills. Where both come to nothing
+        // there is no equation to write and nothing to refuse.
+        // A shape with a nought in it holds nothing whatever else it
+        // says; the side written as names got one place per name, and
+        // those places are the same nothing. What has to agree is the
+        // lengths they share - four ports each carrying nothing is
+        // nothing, four against three is a model saying two different
+        // things.
+        let empty_shape = |shape: &[usize]| shape.contains(&0);
+        let same_outer = left_shape
+            .iter()
+            .zip(&right_shape)
+            .all(|(here, there)| here == there);
+        if (empty_shape(&left_shape) || empty_shape(&right_shape)) && same_outer {
             return Ok(());
         }
         return Err(format!(

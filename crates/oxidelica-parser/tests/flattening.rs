@@ -9707,3 +9707,79 @@ fn an_equation_between_two_empty_arrays_says_nothing_rather_than_refusing() {
     let text = format!("{:?}", m.equations);
     assert!(!text.contains("Xi_outflow"), "{text}");
 }
+
+#[test]
+fn a_replaceable_package_a_base_declared_is_in_view_of_what_extends_it() {
+    // `replaceable package Medium` is written once in `PartialSource`,
+    // and every boundary of the fluid library extends that rather than
+    // repeating it - then names `Medium.AbsolutePressure` in its own
+    // declarations. Read from the class's own aliases alone the name
+    // stands for nothing, and the type it qualifies is unknown.
+    let m = parse_model(
+        "package Types type AbsolutePressure = Real; end Types; \
+         partial package PartialMedium extends Types; constant Real p_default = 1e5; \
+         end PartialMedium; \
+         package Water extends PartialMedium(p_default = 2e5); end Water; \
+         partial model PartialSource replaceable package Medium = PartialMedium; \
+           Real q; equation q = 0; end PartialSource; \
+         model Boundary extends PartialSource; \
+           parameter Medium.AbsolutePressure p = Medium.p_default; \
+           Real y; equation y = p; end Boundary; \
+         model M Boundary b(redeclare package Medium = Water); end M;",
+    )
+    .unwrap();
+
+    // The type was found, and the constant read through the package is
+    // the replacement's rather than the interface's.
+    let held = m.components.iter().find(|c| c.name == "b.p").unwrap();
+    assert_eq!(
+        format!("{:?}", held.binding.as_ref().unwrap()),
+        "Number(200000.0)"
+    );
+
+    // Two bases deep, and what the nearer one says wins: a class may
+    // name a package of its own beside the one it inherits, and the
+    // inherited name is only taken where nothing nearer holds it.
+    let deep = parse_model(
+        "package Types type AbsolutePressure = Real; end Types;          partial package PartialMedium extends Types; constant Real p_default = 1e5;          end PartialMedium;          package Water extends PartialMedium(p_default = 2e5); end Water;          package Oil extends PartialMedium(p_default = 3e5); end Oil;          partial model Innermost replaceable package Medium = PartialMedium;            Real q; equation q = 0; end Innermost;          partial model Middle extends Innermost; end Middle;          model Boundary extends Middle;            parameter Medium.AbsolutePressure p = Medium.p_default;            Real y; equation y = p; end Boundary;          model Own package Medium = Oil;            parameter Medium.AbsolutePressure p = Medium.p_default; end Own;          model M Boundary b(redeclare package Medium = Water); Own o; end M;",
+    )
+    .unwrap();
+    let through_two = deep.components.iter().find(|c| c.name == "b.p").unwrap();
+    assert_eq!(
+        format!("{:?}", through_two.binding.as_ref().unwrap()),
+        "Number(200000.0)"
+    );
+    let its_own = deep.components.iter().find(|c| c.name == "o.p").unwrap();
+    assert_eq!(
+        format!("{:?}", its_own.binding.as_ref().unwrap()),
+        "Number(300000.0)"
+    );
+}
+
+#[test]
+fn a_string_a_body_writes_in_one_branch_starts_empty() {
+    // The language leaves an unassigned local at its type's own start,
+    // and a `String` starts empty. The fluid library checks its
+    // boundary compositions that way: `String X_str;` is built up
+    // inside an `if` that only fires when the check fails, and read
+    // there by the message it raises. Refusing that took forty-four
+    // models out.
+    let m = parse_model(
+        "package Streams function error input String message; \
+           external \"builtin\"; end error; end Streams; \
+         function check input Real x; output Real y; protected String note; \
+         algorithm if x > 1 then note := \"over\"; \
+           Streams.error(\"failed: \" + note); end if; y := x; end check; \
+         model M Real out; equation out = check(time); end M;",
+    )
+    .unwrap();
+
+    // The call was written out rather than refused for a string with
+    // no value before the branch.
+    let out = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"out\")")
+        .unwrap();
+    assert_eq!(format!("{:?}", out.rhs), "Time");
+}

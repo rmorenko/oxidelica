@@ -91,7 +91,7 @@ pub(super) fn instantiate(
 
     // The class's own aliases join its imports, with any redeclarations
     // from outside already applied.
-    let imports = effective_imports(registry, class, scope, &redeclares)?;
+    let imports = effective_imports(registry, class, scope, &redeclares, 0)?;
     // What a component's class keeps to itself is nobody else's to
     // read. This says nothing about the flat model, so it is asked
     // once per class rather than once per instance.
@@ -3190,13 +3190,33 @@ where
 /// environment swaps the target before that - checked against the
 /// alias's `constrainedby` interface, since a replacement medium has to
 /// honour the interface the component was written against.
+/// `depth` counts the bases already walked, since a class may name a
+/// base that leads back to it.
 pub(super) fn effective_imports(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     scope: &str,
     redeclares: &[Redeclare],
+    depth: usize,
 ) -> Result<Vec<(String, String)>, String> {
     let mut imports = class.imports.clone();
+    // An alias a base declared is one this class has. `replaceable
+    // package Medium` is written once in `PartialSource`, and every
+    // boundary of the fluid library extends that rather than repeating
+    // it - then names `Medium.AbsolutePressure` in its own
+    // declarations. Read from this class's aliases alone the name
+    // stands for nothing, and the type it qualifies is unknown.
+    if depth <= MAX_DEPTH {
+        for extend in &class.extends {
+            if let Some(base) = lookup(registry, &extend.base, class.name.as_str(), &imports) {
+                for held in effective_imports(registry, base, scope, redeclares, depth + 1)? {
+                    if !imports.iter().any(|(local, _)| *local == held.0) {
+                        imports.push(held);
+                    }
+                }
+            }
+        }
+    }
     for alias in &class.class_aliases {
         // A body-level `redeclare package X = ...` replaces an alias of
         // a base class; it is routed through the environment instead.
