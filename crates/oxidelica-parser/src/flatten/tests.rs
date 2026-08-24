@@ -312,3 +312,173 @@ fn a_record_may_say_what_its_zero_is() {
         "Bin(Add, Ref(\"arr[1].x\"), Ref(\"arr[2].x\"))"
     );
 }
+
+#[test]
+fn a_constant_may_be_the_length_of_a_constant_array() {
+    // A medium counts its trace substances as
+    // `size(extraPropertiesNames, 1)`, and the names are a constant
+    // array with a value of its own. Nothing else can answer that
+    // length: the array is a constant of a package rather than a
+    // declaration anywhere near the connector it sizes.
+    let m = parse_model(
+        "partial package PartialMedium \
+           constant String extraPropertiesNames[:] = fill(\"\", 0); \
+           final constant Integer nC = size(extraPropertiesNames, 1); \
+         end PartialMedium; \
+         package Water extends PartialMedium; end Water; \
+         model Port replaceable package Medium = PartialMedium; \
+           Real C_outflow[Medium.nC]; Real p; equation p = 1; end Port; \
+         model M Port one(redeclare package Medium = Water); end M;",
+    )
+    .unwrap();
+
+    // The length came out nought, so the connector carries no trace
+    // substances and nothing named `C_outflow` is in the flat model.
+    assert!(m.components.iter().any(|c| c.name == "one.p"));
+    assert!(!m.components.iter().any(|c| c.name.contains("C_outflow")));
+
+    // The other ways a constant array says how long it is, and one
+    // that says nothing: a value written out, `zeros`, and a name.
+    let sized = |names: &str, sizing: &str| {
+        parse_model(&format!(
+            "package Held constant Real known[:] = {names};                final constant Integer n = {sizing}; end Held;              model M Real v[Held.n]; equation v = fill(1.0, Held.n); end M;"
+        ))
+    };
+    // Written out: three elements, so three scalars come through.
+    let three = sized("{1.0, 2.0, 3.0}", "size(known, 1)").unwrap();
+    assert_eq!(
+        three
+            .components
+            .iter()
+            .filter(|c| c.name.starts_with("v["))
+            .count(),
+        3
+    );
+    // `zeros(2)` says two.
+    let two = sized("zeros(2)", "size(known, 1)").unwrap();
+    assert_eq!(
+        two.components
+            .iter()
+            .filter(|c| c.name.starts_with("v["))
+            .count(),
+        2
+    );
+    // A second axis of a one-dimensional array is not a length, and
+    // neither is the size of something that is not an array at all.
+    for asking in ["size(known, 2)", "size(elsewhere, 1)"] {
+        assert!(sized("zeros(2)", asking).is_err(), "{asking}");
+    }
+}
+
+#[test]
+fn a_constant_array_says_its_length_the_several_ways_it_is_written() {
+    use crate::ast::Expr;
+    use crate::flatten::names::array_length;
+
+    let number = |n: f64| Expr::Number(n);
+    let call = |name: &str, args: Vec<Expr>| Expr::Call(name.to_string(), args);
+
+    // Written out, the length is how many were written.
+    let written = Expr::Array(vec![number(1.0), number(2.0), number(3.0)]);
+    assert_eq!(array_length(&written, 0), Some(3));
+    // A written-out array says nothing about a second axis here: the
+    // one place this is asked from wants the first.
+    assert_eq!(array_length(&written, 1), None);
+
+    // `fill` says its lengths after the value it repeats, `zeros` and
+    // `ones` say theirs outright.
+    assert_eq!(
+        array_length(
+            &call("fill", vec![Expr::Str(String::new()), number(0.0)]),
+            0
+        ),
+        Some(0)
+    );
+    assert_eq!(
+        array_length(
+            &call("fill", vec![number(1.0), number(2.0), number(4.0)]),
+            1
+        ),
+        Some(4)
+    );
+    assert_eq!(array_length(&call("zeros", vec![number(2.0)]), 0), Some(2));
+    assert_eq!(array_length(&call("ones", vec![number(5.0)]), 0), Some(5));
+
+    // An axis the value does not have, a length that is not a whole
+    // number, a negative one, and something that is not an array at
+    // all: none of them is a length.
+    assert_eq!(array_length(&call("zeros", vec![number(2.0)]), 1), None);
+    assert_eq!(array_length(&call("zeros", vec![number(1.5)]), 0), None);
+    assert_eq!(array_length(&call("zeros", vec![number(-1.0)]), 0), None);
+    assert_eq!(array_length(&number(3.0), 0), None);
+    assert_eq!(array_length(&call("sin", vec![number(0.0)]), 0), None);
+}
+
+#[test]
+fn a_constant_written_as_a_length_is_measured_or_left_alone() {
+    use crate::ast::Expr;
+    use crate::flatten::names::measured_constant;
+    use std::collections::HashMap;
+
+    let held: Vec<(String, Option<Expr>)> = vec![
+        (
+            "names".to_string(),
+            Some(Expr::Call(
+                "fill".to_string(),
+                vec![Expr::Str(String::new()), Expr::Number(0.0)],
+            )),
+        ),
+        ("bare".to_string(), None),
+    ];
+    let values = HashMap::new();
+    let size = |args: Vec<Expr>| Expr::Call("size".to_string(), args);
+    let named = |n: &str| Expr::Ref(n.to_string());
+
+    // The length of a constant array of the same package.
+    assert_eq!(
+        measured_constant(
+            &size(vec![named("names"), Expr::Number(1.0)]),
+            &held,
+            &values
+        ),
+        Some(0.0)
+    );
+    // Everything that is not that: another call, a call with only the
+    // array, a length off something written out rather than named, a
+    // constant nobody declared, one with no value, and an axis the
+    // value has not got.
+    for asking in [
+        Expr::Call("cos".to_string(), vec![Expr::Number(0.0)]),
+        size(vec![named("names")]),
+        size(vec![Expr::Number(1.0), Expr::Number(1.0)]),
+        size(vec![named("elsewhere"), Expr::Number(1.0)]),
+        size(vec![named("bare"), Expr::Number(1.0)]),
+        size(vec![named("names"), Expr::Number(2.0)]),
+        // An axis that is not a number the compiler can see.
+        size(vec![named("names"), named("later")]),
+    ] {
+        assert_eq!(
+            measured_constant(&asking, &held, &values),
+            None,
+            "{asking:?}"
+        );
+    }
+
+    // And a length that is not one either: the array says how long it
+    // is with a name rather than a number.
+    let unsettled: Vec<(String, Option<Expr>)> = vec![(
+        "names".to_string(),
+        Some(Expr::Call(
+            "zeros".to_string(),
+            vec![Expr::Ref("later".to_string())],
+        )),
+    )];
+    assert_eq!(
+        measured_constant(
+            &size(vec![named("names"), Expr::Number(1.0)]),
+            &unsettled,
+            &values
+        ),
+        None
+    );
+}

@@ -65,6 +65,7 @@ pub(super) fn instantiate(
             class,
             prefix,
             &outers,
+            &[],
         )?);
     }
     redeclares.extend(env.redeclares.iter().cloned());
@@ -223,7 +224,12 @@ pub(super) fn instantiate(
         let mut base_redeclares = Vec::new();
         for redeclare in &extend.redeclares {
             base_redeclares.push(qualify_redeclare(
-                redeclare, registry, class, prefix, &outers,
+                redeclare,
+                registry,
+                class,
+                prefix,
+                &outers,
+                &[],
             )?);
         }
         base_redeclares.extend(redeclares.iter().cloned());
@@ -647,7 +653,7 @@ pub(super) fn instantiate(
         }
         for redeclare in &component.redeclares {
             child_redeclares.push(qualify_redeclare(
-                redeclare, registry, class, prefix, &outers,
+                redeclare, registry, class, prefix, &outers, &imports,
             )?);
         }
 
@@ -3382,16 +3388,30 @@ pub(super) fn extends_class(
 /// Prepare a redeclaration for use further down: its type is resolved in
 /// the scope where the redeclaration is written, and its modifier
 /// expressions are prefixed with the instance path they belong to.
+/// `handed` says what the names in view already stand for. A class
+/// handing its own replaceable package on - `Port one(redeclare package
+/// Medium = Medium)`, which is how every fluid component passes the
+/// medium to its ports - names the package by the name it has here, and
+/// here it has already been replaced. Looked up among the class's own
+/// imports the name is still the interface, so the child was handed the
+/// interface and read its constants: a medium carrying no trace
+/// substances, and a connector sized by that count a run of nothing.
 pub(super) fn qualify_redeclare(
     redeclare: &Redeclare,
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     prefix: &str,
     outers: &HashMap<String, String>,
+    handed: &[(String, String)],
 ) -> Result<Redeclare, String> {
     let scope = class.name.as_str();
+    let class_imports: Vec<(String, String)> = handed
+        .iter()
+        .cloned()
+        .chain(class.imports.iter().cloned())
+        .collect();
     let target =
-        lookup(registry, &redeclare.type_name, scope, &class.imports).ok_or_else(|| {
+        lookup(registry, &redeclare.type_name, scope, &class_imports).ok_or_else(|| {
             format!(
                 "unknown type `{}` in the redeclaration of `{}`",
                 redeclare.type_name, redeclare.name
@@ -3405,7 +3425,7 @@ pub(super) fn qualify_redeclare(
             .modifiers
             .iter()
             .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &class.imports, &[]);
+                let e = substitute_class_constants(e, registry, scope, &class_imports, &[]);
                 (n.clone(), prefix_expr(&e, prefix, outers))
             })
             .collect(),

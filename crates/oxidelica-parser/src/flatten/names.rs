@@ -481,6 +481,13 @@ fn class_constant_at(
             (name, binding)
         })
         .collect();
+    // How long a constant array of the same package is, for the
+    // constants that are written as a measurement of one. A medium
+    // counts its trace substances as `size(extraPropertiesNames, 1)`,
+    // and the names are a constant array with a value of its own -
+    // `fill("", 0)` where there are none. Nothing else can answer that
+    // length: the array is a constant of a package rather than a
+    // declaration anywhere near what it sizes.
     // Constants of one package may build on each other, so resolve the
     // whole set to a fixpoint before reading the one asked for.
     let mut values: HashMap<String, f64> = HashMap::new();
@@ -490,7 +497,9 @@ fn class_constant_at(
             if values.contains_key(name) {
                 continue;
             }
-            if let Some(value) = binding.as_ref().and_then(|expr| const_eval(expr, &values)) {
+            if let Some(value) = binding.as_ref().and_then(|expr| {
+                const_eval(expr, &values).or_else(|| measured_constant(expr, &constants, &values))
+            }) {
                 values.insert(name.clone(), value);
                 progress = true;
             }
@@ -500,6 +509,53 @@ fn class_constant_at(
         }
     }
     values.get(member).copied()
+}
+
+/// A constant written as the length of another constant of the same
+/// package, worked out.
+///
+/// A medium counts its trace substances as `size(extraPropertiesNames,
+/// 1)`, and the names are a constant array with a value of its own -
+/// `fill("", 0)` where there are none. Nothing else can answer that
+/// length: the array is a constant of a package rather than a
+/// declaration anywhere near what it sizes.
+pub(super) fn measured_constant(
+    expr: &Expr,
+    constants: &[(String, Option<Expr>)],
+    values: &HashMap<String, f64>,
+) -> Option<f64> {
+    let Expr::Call(called, args) = expr else {
+        return None;
+    };
+    if called != "size" || args.len() != 2 {
+        return None;
+    }
+    let Expr::Ref(named) = &args[0] else {
+        return None;
+    };
+    let axis = const_eval(&args[1], values)? as usize - 1;
+    let held = constants
+        .iter()
+        .find(|(name, _)| name == named)?
+        .1
+        .as_ref()?;
+    array_length(held, axis).map(|length| length as f64)
+}
+
+/// How many elements a constant value has along one axis, where that
+/// can be told by looking: an array written out, or a `fill` and a
+/// `zeros` and an `ones`, which is how an empty one is usually said.
+pub(super) fn array_length(expr: &Expr, axis: usize) -> Option<i64> {
+    let stated = match expr {
+        Expr::Array(items) if axis == 0 => return Some(items.len() as i64),
+        // `fill(what, n, m)` says its lengths after the value it
+        // repeats; `zeros(n)` and `ones(n)` say theirs outright.
+        Expr::Call(name, args) if name == "fill" => args.get(axis + 1)?,
+        Expr::Call(name, args) if matches!(name.as_str(), "zeros" | "ones") => args.get(axis)?,
+        _ => return None,
+    };
+    let length = const_eval(stated, &HashMap::new())?;
+    (length.fract() == 0.0 && length >= 0.0).then_some(length as i64)
 }
 
 /// A class constant that is an array rather than a number: the
@@ -564,6 +620,21 @@ fn gather_package_constants<'a>(
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
             gather_package_constants(registry, base, depth + 1, out);
+            // What the `extends` says about the base's constants is
+            // what this package holds them to be. A medium of the
+            // standard library is written `extends PartialMedium(nC =
+            // 2)` and declares no `nC` of its own, so the count read
+            // through it came from the interface, which says none -
+            // and every connector sized by it came out a run of
+            // nothing.
+            for (name, value) in &extend.modifiers {
+                if name.contains('.') {
+                    continue;
+                }
+                if let Some(held) = out.iter_mut().find(|(existing, _)| existing == name) {
+                    held.1 = Some(value.clone());
+                }
+            }
         }
     }
     for component in &class.components {

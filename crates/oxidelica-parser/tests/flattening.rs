@@ -9619,3 +9619,58 @@ fn an_outer_declared_by_a_base_is_bound_like_one_written_here() {
     assert_eq!(format!("{:?}", equation.rhs), "Ref(\"world.g\")");
     assert!(!m.components.iter().any(|c| c.name == "j.world.g"));
 }
+
+#[test]
+fn a_package_holds_its_base_constants_to_what_the_extends_said() {
+    // A medium of the standard library is written `extends
+    // PartialMedium(nC = 2)` and declares no `nC` of its own. Read
+    // without what the `extends` said, the count came from the
+    // interface, which says none - and every connector sized by it was
+    // a run of nothing.
+    let m = parse_model(
+        "partial package PartialMedium constant Integer nC = 0; end PartialMedium; \
+         package Water extends PartialMedium(nC = 2); end Water; \
+         model Port replaceable package Medium = PartialMedium; Real seen; \
+           equation seen = Medium.nC; end Port; \
+         model M Port p(redeclare package Medium = Water); end M;",
+    )
+    .unwrap();
+
+    let seen = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"p.seen\")")
+        .unwrap();
+    assert_eq!(format!("{:?}", seen.rhs), "Number(2.0)");
+}
+
+#[test]
+fn a_package_handed_on_by_its_own_name_is_the_one_it_was_replaced_with() {
+    // `Port one(redeclare package Medium = Medium)` is how every fluid
+    // component passes its medium to its ports. The name on the right
+    // is the one this class has, and here it has already been
+    // replaced; looked up among the class's own imports it is still
+    // the interface, and the child was handed that.
+    let m = parse_model(
+        "partial package PartialMedium constant Integer nC = 0; end PartialMedium; \
+         package Water extends PartialMedium(nC = 2); end Water; \
+         model Port replaceable package Medium = PartialMedium; Real seen; \
+           equation seen = Medium.nC; end Port; \
+         model Source replaceable package Medium = PartialMedium; \
+           Port one(redeclare package Medium = Medium); Real mine; \
+           equation mine = Medium.nC; end Source; \
+         model M Source src(redeclare package Medium = Water); end M;",
+    )
+    .unwrap();
+
+    // The class itself saw the medium already; now so does the port it
+    // handed the medium on to.
+    for name in ["src.mine", "src.one.seen"] {
+        let equation = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+            .unwrap();
+        assert_eq!(format!("{:?}", equation.rhs), "Number(2.0)", "{name}");
+    }
+}
