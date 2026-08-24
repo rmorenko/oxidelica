@@ -150,7 +150,7 @@ declaring an input means. The standard library keeps both: no example
 model of it has an input nothing gives a value to.
 
 The count itself is not made per class, and what stands in its way was
-measured rather than argued. Counting every instance of the 381
+measured rather than argued. Counting every instance of the
 standard-library models that flatten started at 10 627 instances whose
 equations and unknowns disagree and came down to 3 428 as each term
 was put right - a record is not an instance of its own, a scalar
@@ -492,8 +492,10 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2671 files, 2646 parse, and 381 of
-its 733 example models flatten. What stands in the way of the rest is
+of the Modelica Standard Library's 2671 files, 2657 parse, and 413 of
+its 767 example models flatten, 89 of them running. Of the 640 written
+to be run - marked by an `experiment` annotation or the Example icon -
+326 flatten and 86 run. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them: a
 local a body assigns in one branch only, which is 46 models and is not

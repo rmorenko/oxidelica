@@ -31,7 +31,11 @@ Usage:
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
 `library add` has fetched; OXIDELICA_LIB names one outright and
-MODELICAPATH names a list.";
+MODELICAPATH names a list.
+
+`library check` reads the models at once, on seven cores in ten, so
+that the machine stays usable while the check runs. OXIDELICA_THREADS
+says how many threads to use instead.";
 
 /// Where the Modelica Standard Library is fetched from, and the release
 /// fetched when none is asked for.
@@ -541,14 +545,22 @@ fn library_check(args: &[String]) -> Result<(), String> {
     // order the models were listed, so that the report reads the same
     // however many threads did the reading - a rank that moved with
     // the weather would be no measurement at all.
+    //
+    // Three cores in ten are left alone, and never fewer than one is
+    // taken. Reading the standard library takes minutes, and taking
+    // every core for all of them leaves the machine it runs on with
+    // nothing to answer a keystroke with - the check is something a
+    // person waits through, not a batch job. `OXIDELICA_THREADS` says
+    // otherwise where the whole machine is the point.
     let hands = std::env::var("OXIDELICA_THREADS")
         .ok()
         .and_then(|given| given.parse().ok())
         .filter(|asked| *asked > 0)
         .unwrap_or_else(|| {
-            std::thread::available_parallelism()
+            let cores = std::thread::available_parallelism()
                 .map(std::num::NonZeroUsize::get)
-                .unwrap_or(1)
+                .unwrap_or(1);
+            (cores * 7).div_ceil(10).max(1)
         })
         .min(models.len().max(1));
     let mut answers: Vec<(usize, Answer)> = Vec::new();

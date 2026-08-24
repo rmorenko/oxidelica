@@ -40,16 +40,33 @@ every example model in it, and says how far each got. At the time of
 writing, against MSL 4.1.0:
 
 ```text
-files: 2646 read, 25 not read
-classes: 6539; example models: 733, of which 381 flatten and 41 run
+files: 2657 read, 14 not read
+classes: 7120; example models: 767, of which 413 flatten and 89 run
+runnable examples (experiment or Example icon): 640, of which 326 flatten and 86 run
 ```
 
-Three numbers, and they mean different things. **Read** is the parser:
+Four numbers, and they mean different things. **Read** is the parser:
 the file was understood as Modelica. **Flatten** is the front end: the
 model was instantiated, its connections resolved, its arrays and
 functions expanded, and what came out is a flat system of equations.
 **Run** is the rest: that system came out as something solvable and
 took ten steps without complaint.
+
+**Runnable** is the last line, and it is the honest denominator. The
+check calls an example anything with `.Examples.` or `.Test` in its
+name, and the library keeps the parts of its examples in the same place
+as the examples: operational amplifier circuits with pins nothing
+drives, controllers whose time constant the model holding them sets. A
+part is not a model of anything on its own and cannot run, so counting
+it against the compiler says the wrong thing twice - it hides what was
+won and it points the work at systems that were never meant to close.
+What marks a real one is what a tool reads: an `experiment` annotation
+saying how long to run, or the `Icons.Example` icon, inherited through
+a template or not.
+
+The reading is done on seven cores in ten, so the machine stays usable
+while it runs; `OXIDELICA_THREADS` says otherwise where the whole
+machine is the point.
 
 The gap between the last two is the point of counting them apart. For
 a long time only the middle number was measured, and it flattered the
@@ -155,5 +172,5 @@ A library is a pile a model uses a corner of. A file of it that will
 not parse is set aside rather than made everyone's problem: the model
 beside it still loads, and one that needed something from the file it
 could not read fails by name further in. That is what makes a number
-like "381 of 733" mean anything — without it, one unparsed file would
+like "413 of 767" mean anything — without it, one unparsed file would
 make the whole library unusable and the number would be zero.

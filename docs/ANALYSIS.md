@@ -1,9 +1,11 @@
 # The architecture, what stands in its way, and the way out
 
-Written 2026-08-24. Measured against MSL 4.1.0: 767 example models,
-of which **400 flatten and 80 run**, and — counting only the ones
-written to be run — **640 runnable, of which 313 flatten and 77 run**
-(`oxidelica library check`). What follows is an honest register of what
+Written 2026-08-24, and kept up to date as the stages land. Measured
+against MSL 4.1.0: 767 example models, of which **413 flatten and 89
+run**, and — counting only the ones written to be run — **640 runnable,
+of which 326 flatten and 86 run** (`oxidelica library check`). The
+register below was taken at 400/80, before stage one; the counts in it
+are what each class cost then. What follows is an honest register of what
 stops the rest, what two other compilers do about the same problems,
 and the order in which to take them on.
 
@@ -64,8 +66,8 @@ and events.
 
 ## The register
 
-The full run: 767 examples = 400 flatten (80 run + 320 that will not) +
-367 that will not flatten.
+Taken at 400 flatten and 80 run, before stage one: 767 examples = 400
+flatten (80 run + 320 that will not) + 367 that will not flatten.
 
 ### What stops flattening (367 models)
 
@@ -105,8 +107,8 @@ an `experiment` annotation or the `Icons.Example` icon, inherited through
 a template or not. Measured on MSL 4.1.0:
 
 ```text
-example models: 767, of which 400 flatten and 80 run
-runnable examples (experiment or Example icon): 640, of which 313 flatten and 77 run
+example models: 767, of which 413 flatten and 89 run
+runnable examples (experiment or Example icon): 640, of which 326 flatten and 86 run
 ```
 
 What that says. Of the 127 that are not runnable, 87 flatten and 3 run:
@@ -187,7 +189,7 @@ register above.
 ### Stage 0. An honest metric (a day) — done
 
 `library check` counts runnable examples apart, and the floor holds
-313 flatten and 77 run for them.
+both pairs.
 
 ### Stage 1. The small change in flattening (days) — done
 
