@@ -9458,3 +9458,37 @@ fn a_name_may_reach_an_outer_declared_by_a_component_it_holds() {
         .collect();
     assert_eq!(about, vec!["stateGraphRoot.a".to_string()]);
 }
+
+#[test]
+fn a_when_on_a_clock_is_a_partition_written_out_by_hand() {
+    let m = parse_model(
+        "model M Clock c = Clock(0.1); Real u; Real s; Real n(start = 0); Real out; \
+         equation u = time; \
+         when Clock() then s = sample(u, c); n = previous(n) + s; end when; \
+         out = hold(n); end M;",
+    )
+    .unwrap();
+
+    // The clause named no rate of its own, so the clock is the one
+    // `sample` brought in, and both of its equations landed there.
+    assert_eq!(m.when_clauses.len(), 1);
+    let branch = &m.when_clauses[0].branches[0];
+    assert_eq!(
+        format!("{:?}", branch.condition),
+        "Call(\"sample\", [Number(0.0), Number(0.1)])"
+    );
+    let targets: Vec<&str> = branch
+        .actions
+        .iter()
+        .filter_map(|action| match action {
+            oxidelica_parser::WhenAction::Assign(target, _) => Some(target.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(targets, vec!["s", "n"]);
+    // `previous` is the value from the tick before, which is `pre`
+    // once the clause it sits in fires on the tick.
+    let text = format!("{:?}", branch.actions);
+    assert!(text.contains("Call(\"pre\", [Ref(\"n\")])"), "{text}");
+    assert!(!text.contains("previous"), "{text}");
+}

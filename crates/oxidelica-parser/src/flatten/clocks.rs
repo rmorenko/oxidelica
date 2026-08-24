@@ -390,6 +390,24 @@ impl Clocks {
         self.specs[index] = spec;
     }
 
+    /// The first entry of the table saying the same thing as this one.
+    ///
+    /// A place waiting for a clock keeps its own row, and settling it
+    /// writes the clock it found into that row rather than pointing at
+    /// the row the clock already had - so the same clock can sit in
+    /// the table twice. A partition is one row, so what a variable is
+    /// put on is the earliest row saying it.
+    fn canonical(&self, index: usize) -> usize {
+        match self
+            .specs
+            .iter()
+            .position(|known| known.same(&self.specs[index]))
+        {
+            Some(first) => first,
+            None => index,
+        }
+    }
+
     fn spec(&self, index: usize) -> &ClockSpec {
         &self.specs[index]
     }
@@ -535,6 +553,44 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         }
     }
 
+    // A `when Clock() then ... end when` is a clocked partition
+    // written out by hand, which is how the standard library's
+    // samplers say that a handful of equations share one tick. The
+    // actions are equations on that clock, so they are read out as
+    // equations here and the clock they were written under is
+    // remembered for each: a clause that named its clock hands it
+    // straight over, and one that left it open - `Clock()` - has it
+    // settled by whatever else the same equations touch, the whole
+    // clause moving together because every target points at the one
+    // place waiting for a clock.
+    let mut grouped: HashMap<String, usize> = HashMap::new();
+    let mut kept_clauses = Vec::new();
+    for clause in model.when_clauses.drain(..) {
+        let plain = clause.branches.len() == 1
+            && clause.branches[0]
+                .actions
+                .iter()
+                .all(|action| matches!(action, WhenAction::Assign(..)));
+        let clock = match plain {
+            true => clock_expr(&clause.branches[0].condition, &mut clocks, &parameters)?,
+            false => None,
+        };
+        let Some(clock) = clock else {
+            kept_clauses.push(clause);
+            continue;
+        };
+        for action in &clause.branches[0].actions {
+            let WhenAction::Assign(target, value) = action else {
+                unreachable!("every action was checked to be an assignment")
+            };
+            grouped.insert(target.clone(), clock);
+            model
+                .equations
+                .push(EquationItem::new(Expr::Ref(target.clone()), value.clone()));
+        }
+    }
+    model.when_clauses = kept_clauses;
+
     // Which variable belongs to which clock. A `sample(u, c)` puts the
     // equation it sits in on `c`, and from there it spreads to
     // whatever those variables define.
@@ -554,6 +610,9 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 continue;
             }
             found.clear();
+            if let Some(clock) = grouped.get(&target) {
+                found.push(*clock);
+            }
             clocks_touched(
                 &equation.rhs,
                 &mut clocks,
@@ -1120,7 +1179,11 @@ pub(super) fn one_clock(
         .copied()
         .filter(|clock| clocks.spec(*clock).waiting().is_none())
         .collect();
-    let Some(first) = settled.first().copied() else {
+    let Some(first) = settled
+        .first()
+        .copied()
+        .map(|clock| clocks.canonical(clock))
+    else {
         return Ok(None);
     };
     if let Some(other) = settled
