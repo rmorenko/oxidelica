@@ -5286,6 +5286,37 @@ fn a_flexible_size_is_measured_from_the_value_it_is_given() {
         3
     );
 
+    // The length of what a function answers with may be a call of its
+    // own: the polyphase functions size their result by the number of
+    // base systems the phase count makes, which arithmetic alone
+    // cannot decide. Read from inside a component, the names have
+    // become the component's - `m` is `conv.m` - and the numbers the
+    // length is read against have to be the caller's for the call to
+    // come to anything.
+    let m = parse_model(
+        "package P \
+         function bases input Integer m = 3; output Integer n; \
+         algorithm n := 1; end bases; \
+         function indices input Integer m = 3; \
+         output Integer ind[bases(m) * (integer(m / bases(m)) - 1)]; \
+         algorithm for k in 1:size(ind, 1) loop ind[k] := k + 1; end for; \
+         end indices; \
+         model Inner parameter Integer m = 3; \
+         final parameter Integer got[:] = indices(m); end Inner; \
+         model M parameter Integer m = 3; Inner conv(m = m); Real y; \
+         equation y = conv.got[1]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("a length that is a call");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("conv.got["))
+            .count(),
+        2
+    );
+
     // A `:` with nothing to measure is still said to be one.
     let error = parse_model(
         "model Lines input Real lines[:, 2]; Real total; \

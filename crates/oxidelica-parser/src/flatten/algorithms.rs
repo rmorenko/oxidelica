@@ -2197,6 +2197,46 @@ fn worked_body(
         .filter_map(|(name, value)| Some((name.clone(), const_eval(value, consts)?)))
         .collect();
     collect_shapes(registry, class, consts, &given, &mut sizes, 0);
+    // A length may be a call rather than arithmetic: the polyphase
+    // functions size their result
+    // `[numberOfSymmetricBaseSystems(m)*(integer(m/...) - 1)]`, where
+    // `m` is an input. Arithmetic alone cannot decide that, and the
+    // shape it leaves unmeasured is what a `:` in the caller then has
+    // nothing to read. Only the declarations the round above could not
+    // measure are asked, and only against what the call handed in, so
+    // a body whose lengths are plain numbers pays nothing.
+    // Substituting the bindings rewrites the body's names into the
+    // caller's - `m` becomes `conv.m` - so the numbers a length is read
+    // against have to be the caller's, with what the call decided on
+    // top of them.
+    let mut caller_numbers = consts.clone();
+    caller_numbers.extend(given.iter().map(|(name, value)| (name.clone(), *value)));
+    for component in &class.components {
+        if component.dimensions.is_empty() || sizes.contains_key(&component.name) {
+            continue;
+        }
+        let measured: Option<Vec<i64>> = component
+            .dimensions
+            .iter()
+            .map(|dimension| {
+                settled_in_body(
+                    dimension,
+                    &bindings,
+                    &caller_numbers,
+                    &sizes,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    depth,
+                )
+                .filter(|length| length.is_finite() && *length >= 0.0)
+                .map(|length| length as i64)
+            })
+            .collect();
+        if let Some(measured) = measured {
+            sizes.insert(component.name.clone(), measured);
+        }
+    }
     let no_loop_vars = HashMap::new();
     let local_shapes = Shapes {
         sizes: &sizes,
