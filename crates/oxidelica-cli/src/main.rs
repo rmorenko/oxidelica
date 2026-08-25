@@ -4,6 +4,7 @@
 use oxidelica_parser::{Variability, WhenAction};
 use oxidelica_sim::compile;
 use std::process::ExitCode;
+use std::sync::atomic::Ordering;
 
 fn main() -> ExitCode {
     match run() {
@@ -503,7 +504,19 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let mut classes = Vec::new();
     let (mut read, mut unread) = (0usize, 0usize);
     let mut refusals: Vec<(String, String)> = Vec::new();
-    for file in &files {
+    // Reading the files is the first quiet minute of the check, so it
+    // says how far along it is the same way the models below do.
+    let quiet = std::env::var("OXIDELICA_QUIET").is_ok();
+    let reading = std::time::Instant::now();
+    let tenth = files.len().div_ceil(10).max(1);
+    for (at, file) in files.iter().enumerate() {
+        if !quiet && at > 0 && at % tenth == 0 {
+            eprintln!(
+                "  read {at} of {} files, {:.0}s so far",
+                files.len(),
+                reading.elapsed().as_secs_f64()
+            );
+        }
         let Ok(source) = std::fs::read_to_string(file) else {
             continue;
         };
@@ -566,10 +579,23 @@ fn library_check(args: &[String]) -> Result<(), String> {
             (cores * 7).div_ceil(10).max(1)
         })
         .min(models.len().max(1));
+    // Reading a library takes minutes, and a person waiting through it
+    // deserves to know it is still going. The count is written to
+    // standard error, so nothing that reads the report is disturbed by
+    // it, and only on a tenth of the way, so a log that nobody watches
+    // holds ten lines rather than a thousand.
+    //
+    // `OXIDELICA_QUIET` says nothing at all, for a caller that wants
+    // the report and no company.
+    let done = std::sync::atomic::AtomicUsize::new(0);
+    let told = std::sync::atomic::AtomicUsize::new(0);
+    let started = std::time::Instant::now();
     let mut answers: Vec<(usize, Answer)> = Vec::new();
     std::thread::scope(|threads| {
         let classes = &classes;
         let models = &models;
+        let done = &done;
+        let told = &told;
         let taken: Vec<_> = (0..hands)
             .map(|hand| {
                 // A thread of its own starts with a smaller stack than
@@ -585,6 +611,40 @@ fn library_check(args: &[String]) -> Result<(), String> {
                                 eprintln!("{name}");
                             }
                             mine.push((at, how_far(classes, name)));
+                            let now = done.fetch_add(1, Ordering::Relaxed) + 1;
+                            if quiet {
+                                continue;
+                            }
+                            // Every tenth of the way. Several threads
+                            // arrive at once and each would say a
+                            // different number, so the one that moves
+                            // the mark says the mark rather than its
+                            // own count: the line then reads the same
+                            // however many hands are at work, and the
+                            // tenths come out in their order.
+                            let tenth = models.len().div_ceil(10).max(1);
+                            let reached = now / tenth;
+                            let mut mark = told.load(Ordering::Relaxed);
+                            while reached > mark {
+                                match told.compare_exchange(
+                                    mark,
+                                    mark + 1,
+                                    Ordering::Relaxed,
+                                    Ordering::Relaxed,
+                                ) {
+                                    Ok(_) => {
+                                        let so_far = (mark + 1) * tenth;
+                                        eprintln!(
+                                            "  read {} of {} models, {:.0}s so far",
+                                            so_far.min(models.len()),
+                                            models.len(),
+                                            started.elapsed().as_secs_f64()
+                                        );
+                                        mark += 1;
+                                    }
+                                    Err(moved) => mark = moved,
+                                }
+                            }
                         }
                         mine
                     })

@@ -718,3 +718,45 @@ fn the_models_that_were_refused_are_named_one_by_one() {
     // The one that flattened is not among them.
     assert!(!text.contains("refused  Lib.Examples.Works"), "{text}");
 }
+
+/// Reading a library takes minutes, so it says how far along it is.
+/// The count goes to standard error, where it disturbs nothing that
+/// reads the report, and `OXIDELICA_QUIET` stops it for a caller that
+/// wants the report and no company.
+#[test]
+fn a_library_check_says_how_far_along_it_is() {
+    let library = TempDir::new("progress");
+    for n in 0..25 {
+        std::fs::write(
+            library.0.join(format!("P{n}.mo")),
+            format!(
+                "package P{n} package Examples model Run Real x(start = 1); \
+                 equation der(x) = -x; end Run; end Examples; end P{n};"
+            ),
+        )
+        .unwrap();
+    }
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let said = stderr(&out);
+    // Both halves of the work say where they are: the files and then
+    // the models.
+    assert!(said.contains("of 25 files"), "{said}");
+    assert!(said.contains("of 25 models"), "{said}");
+    // The report itself is untouched by it.
+    let text = stdout(&out);
+    assert!(text.contains("25 read, 0 not read"), "{text}");
+    assert!(!text.contains("so far"), "the report stays clean: {text}");
+
+    // Asked for quiet, it says nothing at all.
+    let hushed = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .env("OXIDELICA_QUIET", "1")
+        .output()
+        .unwrap();
+    assert!(!stderr(&hushed).contains("so far"), "{}", stderr(&hushed));
+    assert!(stdout(&hushed).contains("25 read"), "{}", stdout(&hushed));
+}

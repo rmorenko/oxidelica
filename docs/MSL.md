@@ -41,8 +41,8 @@ writing, against MSL 4.1.0:
 
 ```text
 files: 2671 read, 0 not read
-classes: 7631; example models: 1043, of which 472 flatten and 131 run
-runnable examples (experiment or Example icon): 912, of which 383 flatten and 128 run
+classes: 7631; example models: 1043, of which 502 flatten and 140 run
+runnable examples (experiment or Example icon): 912, of which 412 flatten and 137 run
 ```
 
 Four numbers, and they mean different things. **Read** is the parser:
@@ -67,6 +67,11 @@ a template or not.
 The reading is done on seven cores in ten, so the machine stays usable
 while it runs; `OXIDELICA_THREADS` says otherwise where the whole
 machine is the point.
+
+The check takes minutes, so it says how far along it is - every tenth
+of the files and then every tenth of the models, written to standard
+error where it disturbs nothing that reads the report. `OXIDELICA_QUIET`
+stops it for a caller that wants the report and no company.
 
 The gap between the last two is the point of counting them apart. For
 a long time only the middle number was measured, and it flattered the

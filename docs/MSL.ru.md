@@ -41,8 +41,8 @@ oxidelica library add https://github.com/example/Library.git --version v2.0 --as
 
 ```text
 files: 2671 read, 0 not read
-classes: 7631; example models: 1043, of which 472 flatten and 131 run
-runnable examples (experiment or Example icon): 912, of which 383 flatten and 128 run
+classes: 7631; example models: 1043, of which 502 flatten and 140 run
+runnable examples (experiment or Example icon): 912, of which 412 flatten and 137 run
 ```
 
 Четыре числа, и они про разное. **Read** — это парсер: файл понят как
@@ -66,6 +66,11 @@ Modelica. **Flatten** — фронтенд: модель инстанциров�
 Чтение идёт на семи ядрах из десяти, чтобы машина оставалась пригодной
 для работы, пока проверка идёт; `OXIDELICA_THREADS` говорит иначе, если
 машина нужна целиком.
+
+Проверка идёт минутами, поэтому она говорит, докуда дошла: каждую
+десятую часть файлов, затем каждую десятую часть моделей, в поток
+ошибок, где это не мешает ничему, что читает отчёт. `OXIDELICA_QUIET`
+велит молчать тому, кому нужен отчёт и ничего больше.
 
 Разрыв между двумя последними — ради него их и считают порознь. Долгое
 время мерилось только среднее число, и оно льстило компилятору: плоская
