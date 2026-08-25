@@ -3891,3 +3891,29 @@ fn an_initial_equation_about_a_boolean_says_where_it_starts() {
     let first = result.rows.first().unwrap();
     assert_eq!(first[on], 1.0, "the initial equation says it starts true");
 }
+
+/// A check among the actions of a `when` is made when the event fires,
+/// not at every step: the steady-state tests of the Fluid library are
+/// written that way, and a run where it does not hold is wrong rather
+/// than over.
+#[test]
+fn an_assert_at_an_event_fires_with_the_event() {
+    // The check holds when the event comes, so the run finishes.
+    let result = run("model M Real x; equation x = time; \
+         when time > 1 then assert(x < 5, \"held\"); end when; \
+         annotation (experiment(StopTime = 2)); end M;");
+    assert!(result.rows.last().is_some_and(|row| row[0] > 1.0));
+
+    // The same check that does not hold stops the run and says so, at
+    // the time the event happened rather than at the first step where
+    // the condition was already false.
+    let model = parse_model(
+        "model M Real x; equation x = time; \
+         when time > 1 then assert(x < 0.5, \"too big at the event\"); end when; \
+         annotation (experiment(StopTime = 2)); end M;",
+    )
+    .unwrap();
+    let why = compile(&model).unwrap().simulate().unwrap_err().to_string();
+    assert!(why.contains("too big at the event"), "{why}");
+    assert!(why.contains("t = 1."), "at the event: {why}");
+}

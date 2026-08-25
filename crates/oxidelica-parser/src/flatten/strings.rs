@@ -101,6 +101,11 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<Settled, String> {
                     | WhenAction::TupleAssign(_, value) => {
                         *value = fold(value, &values, &numbers)?;
                     }
+                    // A check made at the event may be written with a
+                    // string the same way, and it is settled here.
+                    WhenAction::Assert(condition, _) => {
+                        *condition = fold(condition, &values, &numbers)?;
+                    }
                     WhenAction::Terminate(_) => {}
                     // Taken apart while flattening, so neither a loop
                     // nor a choice is left.

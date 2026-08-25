@@ -421,6 +421,10 @@ fn when(clause: &WhenClause, look: &mut impl FnMut(&Expr)) {
                         .for_each(|name| look(&Expr::Ref(name.clone())));
                     look(value);
                 }
+                // A check made at the event reads names like any
+                // other expression, and reaching a protected one
+                // across a component is refused the same way.
+                WhenAction::Assert(condition, _) => look(condition),
                 WhenAction::Loop(loop_) => bodies(loop_, look),
                 WhenAction::Choice(taken) => {
                     taken.branches.iter().for_each(|it| branches(it, look))

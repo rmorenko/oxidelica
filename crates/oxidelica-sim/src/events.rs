@@ -319,6 +319,17 @@ impl CompiledModel {
                             outcome.terminated =
                                 Some(format!("terminated at t = {t:.6}: {message}"));
                         }
+                        // A check made when the event fires: what a
+                        // model means by writing it here is that the
+                        // thing must hold at that moment, and a run
+                        // where it does not is wrong rather than over.
+                        CompiledAction::Assert(condition, message) => {
+                            if condition.run(values, t) == 0.0 {
+                                return crate::err(format!(
+                                    "assertion failed at t = {t:.6}: {message}"
+                                ));
+                            }
+                        }
                         CompiledAction::Reinit(state_index, code) => {
                             pending_reinit.push((*state_index, code.run(values, t)));
                             outcome.reinitialized = true;

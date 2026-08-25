@@ -1601,6 +1601,10 @@ pub(crate) fn compile_at(
                         WhenAction::Reinit(state.clone(), rewrite.expr(value)?)
                     }
                     WhenAction::Terminate(message) => WhenAction::Terminate(message.clone()),
+                    // A check made when the event fires.
+                    WhenAction::Assert(condition, message) => {
+                        WhenAction::Assert(rewrite.expr(condition)?, message.clone())
+                    }
                     // Flattening inlines the call and hands each
                     // target an assignment of its own, so no tuple
                     // reaches this far.
@@ -1917,6 +1921,10 @@ pub(crate) fn compile_at(
                             .position(|discrete| discrete == name)
                             .expect("when targets were collected from these");
                         CompiledAction::Assign(index, table.compile(value)?)
+                    }
+                    // A check made when the event fires.
+                    WhenAction::Assert(condition, message) => {
+                        CompiledAction::Assert(table.compile(condition)?, message.clone())
                     }
                     WhenAction::TupleAssign(..)
                     | WhenAction::Loop(_)

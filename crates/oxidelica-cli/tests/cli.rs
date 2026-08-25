@@ -691,3 +691,30 @@ fn a_refusal_can_be_asked_where_it_was_made() {
     assert!(loud.contains("`nowhere`"), "{loud}");
     assert!(loud.contains("compile.rs:"), "no place given: {loud}");
 }
+
+/// `--refused` names each model that did not flatten with what stopped
+/// it. A count of a kind says how many models stand at a barrier, not
+/// how many a fix would release: behind one barrier there is usually
+/// another, and only the names say which model is where.
+#[test]
+fn the_models_that_were_refused_are_named_one_by_one() {
+    let library = TempDir::new("refused");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Works Real x(start = 1); equation der(x) = -x; end Works; \
+         model Broken Real v[2]; Real y; equation v = {1, 2}; y = v[7]; end Broken; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap(), "--refused"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    // The one that could not be flattened is named, with its reason.
+    assert!(text.contains("refused  Lib.Examples.Broken"), "{text}");
+    // The one that flattened is not among them.
+    assert!(!text.contains("refused  Lib.Examples.Works"), "{text}");
+}

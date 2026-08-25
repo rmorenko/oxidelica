@@ -1136,6 +1136,9 @@ pub(super) fn programs_used(
                     WhenAction::Assign(_, value)
                     | WhenAction::Reinit(_, value)
                     | WhenAction::TupleAssign(_, value) => look(value),
+                    // A check made at the event may call as freely as
+                    // any other expression.
+                    WhenAction::Assert(condition, _) => look(condition),
                     WhenAction::Terminate(_) => {}
                     // Taken apart while flattening, so neither a loop
                     // nor a choice is left.

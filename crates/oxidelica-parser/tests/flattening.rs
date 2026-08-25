@@ -9905,3 +9905,125 @@ fn a_working_array_of_one_branch_needs_no_merged_value() {
     .to_string();
     assert!(err.contains("assigned in one branch only"), "{err}");
 }
+
+/// Three ways the standard library writes something this parser could
+/// not read, each of which kept a whole file out.
+#[test]
+fn the_library_writes_these_and_they_are_read_now() {
+    // A check among the actions of a `when`: made when the event
+    // fires, which is what the Fluid steady-state tests say.
+    let m = parse_model(
+        "model M Real x; equation x = time; \
+         when time > 1 then assert(x < 5, \"too big\"); end when; end M;",
+    )
+    .unwrap();
+    assert_eq!(m.when_clauses.len(), 1);
+
+    // A port reached through a member and a subscript after it, which
+    // is how the polyphase library splits a plug into subsystems.
+    let split = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model M Plug p; Plug q[2]; equation \
+         for k in 1:2 loop connect(p.pin[k], q[k].pin[1]); end for; \
+         p.pin[1].v = 1; p.pin[2].v = 2; \
+         q[1].pin[2].v = 0; q[2].pin[2].v = 0; end M;",
+    )
+    .unwrap();
+    // The connection reached both pins: each joined pair shares a
+    // voltage and sums its currents.
+    let text = format!("{:?}", split.equations);
+    assert!(text.contains("q[1].pin[1].v"), "{text}");
+    assert!(text.contains("q[2].pin[1].v"), "{text}");
+
+    // An `inverse` whose arguments are named, the way the moist air
+    // tables write theirs.
+    let named = parse_model(
+        "function f input Real p; input Real T; output Real h; \
+         algorithm h := p * T; annotation (inverse(T = g(p = p, h = h))); end f; \
+         function g input Real p; input Real h; output Real T; \
+         algorithm T := h / p; end g; \
+         model M Real y; equation y = f(2, 3); end M;",
+    );
+    assert!(named.is_ok(), "{named:?}");
+}
+
+/// Whether a name is read after an `if` decides whether its value has
+/// to be merged, so the walk that answers it has to look through every
+/// kind of expression: a call, a comprehension, a range, a matrix, a
+/// slice. Missing one would drop a value something still reads.
+#[test]
+fn the_walk_for_a_later_read_looks_everywhere() {
+    // Each body writes `o` in one branch only, then reads it after the
+    // `if` through a different kind of expression. Every one must be
+    // merged, and merging a name a branch never set is refused - so a
+    // refusal here is the walk having found the read.
+    let reads = [
+        "T := sum({o[1], o[2]});",                      // an array and a call
+        "T := sum({o[i] for i in 1:2});",               // a comprehension
+        "T := o[1] + (if p > 0 then o[2] else 0);",     // a choice
+        "T := abs(-o[1]);",                             // a negation inside a call
+        "T := if o[1] > 0 and o[2] > 0 then 1 else 2;", // a comparison and an `and`
+        "T := sum(o[1:2]);",                            // a range as a subscript
+    ];
+    for tail in reads {
+        let source = format!(
+            "package P function tph input Real p; output Real T; protected Real[2] o; \
+             algorithm if p < 1 then o[1] := p; else o[1] := 2*p; o[2] := 3*p; end if; \
+             {tail} end tph; \
+             model M Real q; Real y; equation q = 5; y = tph(q); end M; end P;"
+        );
+        let err = parse_model(&source)
+            .map(|_| String::from("accepted"))
+            .unwrap_or_else(|e| e.to_string());
+        assert!(
+            err.contains("assigned in one branch only"),
+            "`{tail}` reads `o` after the `if`, so it must be merged: {err}"
+        );
+    }
+}
+
+/// A port may be reached through as many members and subscripts as the
+/// model wrote, in an equation and in a `connect` alike, and a check
+/// among the actions of a `when` is a truth the checker reads like any
+/// other.
+#[test]
+fn a_port_is_reached_through_as_many_steps_as_are_written() {
+    // Member, subscript, member, subscript, member: the whole chain.
+    let deep = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model Box Plug plug[2]; end Box; \
+         model M Box b[2]; equation \
+         b[1].plug[1].pin[1].v = 1; b[1].plug[1].pin[2].v = 2; \
+         b[1].plug[2].pin[1].v = 0; b[1].plug[2].pin[2].v = 0; \
+         b[2].plug[1].pin[1].v = 0; b[2].plug[1].pin[2].v = 0; \
+         b[2].plug[2].pin[1].v = 0; b[2].plug[2].pin[2].v = 0; \
+         b[1].plug[1].pin[1].i = 0; b[1].plug[1].pin[2].i = 0; \
+         b[1].plug[2].pin[1].i = 0; b[1].plug[2].pin[2].i = 0; \
+         b[2].plug[1].pin[1].i = 0; b[2].plug[1].pin[2].i = 0; \
+         b[2].plug[2].pin[1].i = 0; b[2].plug[2].pin[2].i = 0; end M;",
+    )
+    .unwrap();
+    let text = format!("{:?}", deep.equations);
+    assert!(text.contains("b[1].plug[1].pin[1].v"), "{text}");
+
+    // The same chain inside a `connect`, where the parser reads the
+    // ports rather than an expression.
+    let joined = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model Box Plug plug[2]; end Box; \
+         model M Box b[2]; equation \
+         connect(b[1].plug[1].pin[1], b[2].plug[2].pin[2]); end M;",
+    );
+    assert!(joined.is_ok(), "{joined:?}");
+
+    // A check among the actions of a `when` whose condition compares
+    // two numbers: the checker reads it like any other truth.
+    let checked = parse_model(
+        "model M Real x; Integer n; equation x = time; n = 2; \
+         when time > 1 then assert(x < n, \"held\"); end when; end M;",
+    );
+    assert!(checked.is_ok(), "{checked:?}");
+}

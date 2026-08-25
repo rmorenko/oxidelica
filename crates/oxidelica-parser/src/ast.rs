@@ -510,6 +510,10 @@ pub enum WhenAction {
     /// compile-time constant, and what comes out is one assignment per
     /// round - so nothing downstream meets this form either.
     Loop(ForEquation),
+    /// `assert(c, "m")` among the actions of a `when`: the check is
+    /// made when the event fires rather than at every step, which is
+    /// how a model says a thing must hold at the moment it happens.
+    Assert(Expr, String),
     /// `if c then x = a; else x = b; end if;` inside a `when`. What a
     /// variable is given depends on the condition, so flattening gives
     /// it one assignment whose value is the choice - and a variable a

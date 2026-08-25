@@ -183,6 +183,11 @@ enum CompiledAction {
     Reinit(usize, Code),
     /// Give a discrete variable, by index, a new value.
     Assign(usize, Code),
+    /// Check that something holds at the moment the event fires, and
+    /// stop the run with the message where it does not. A check among
+    /// the equations is made at every step; this one is made when the
+    /// event happens, which is what a model means by writing it here.
+    Assert(Code, String),
 }
 
 /// One `delay(u, T)`: where its value is read from, what to remember,

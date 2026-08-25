@@ -322,13 +322,40 @@ impl Parser {
                 }
             }
         }
-        let indexed = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
-        if self.peek() == &Token::Dot {
-            self.bump();
-            let path = self.component_ref()?;
-            return Ok(Expr::Member(Box::new(indexed), path));
+        let mut reached = Expr::Index(Box::new(Expr::Ref(name)), subscripts);
+        // A port may be reached through as many members and subscripts
+        // as the model wrote: `plugs_n[k].pin[j]` is one of the pins of
+        // one of the plugs, which is how the polyphase library splits a
+        // plug into subsystems. Reading one member and stopping left
+        // the subscript after it unread.
+        loop {
+            if self.peek() == &Token::Dot {
+                self.bump();
+                let path = self.component_ref()?;
+                reached = Expr::Member(Box::new(reached), path);
+                continue;
+            }
+            if self.peek() == &Token::LBracket {
+                self.bump();
+                let mut deeper = Vec::new();
+                loop {
+                    deeper.push(self.subscript()?);
+                    match self.bump() {
+                        Token::Comma => continue,
+                        Token::RBracket => break,
+                        other => {
+                            return Err(self.err(format!(
+                                "expected `,` or `]` in a subscript, found `{other}`"
+                            )))
+                        }
+                    }
+                }
+                reached = Expr::Index(Box::new(reached), deeper);
+                continue;
+            }
+            break;
         }
-        Ok(indexed)
+        Ok(reached)
     }
 
     /// `when <cond> then <action>; … [elsewhen <cond> then …] end when;`
@@ -391,6 +418,20 @@ impl Parser {
             // A choice between assignments.
             if self.peek() == &Token::If {
                 actions.push(WhenAction::Choice(self.if_equation()?));
+                continue;
+            }
+            // A check made when the event fires. The steady-state
+            // tests of the Fluid library are written this way: `when
+            // time > 1 then assert(...)`, which says the thing must
+            // hold at that moment rather than at every step.
+            if matches!(self.peek(), Token::Ident(name) if name == "assert")
+                && self.peek_at(1) == &Token::LParen
+            {
+                self.bump();
+                if let Some((condition, message)) = self.assert_arguments()? {
+                    actions.push(WhenAction::Assert(condition, message));
+                }
+                self.expect(&Token::Semi, "semicolon after assert")?;
                 continue;
             }
             // `(a, b) = f(...)` fills several targets from one call.

@@ -411,7 +411,30 @@ impl Parser {
                                 }
                             }
                         }
-                        return Ok(Expr::Index(Box::new(member), inner));
+                        // And that may be reached into again:
+                        // `q[1].pin[1].v` is one signal of one pin of
+                        // one of several plugs, which is how the
+                        // polyphase library writes a subsystem.
+                        let mut reached = Expr::Index(Box::new(member), inner);
+                        loop {
+                            if self.peek() == &Token::Dot {
+                                self.bump();
+                                let mut path = self.ident("member after `.`")?;
+                                while self.peek() == &Token::Dot {
+                                    self.bump();
+                                    path.push('.');
+                                    path.push_str(&self.ident("member after `.`")?);
+                                }
+                                reached = Expr::Member(Box::new(reached), path);
+                                continue;
+                            }
+                            if self.peek() == &Token::LBracket {
+                                reached = Expr::Index(Box::new(reached), self.subscript_list()?);
+                                continue;
+                            }
+                            break;
+                        }
+                        return Ok(reached);
                     }
                     return Ok(indexed);
                 }

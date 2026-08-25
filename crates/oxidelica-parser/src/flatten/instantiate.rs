@@ -1793,6 +1793,13 @@ pub(super) fn instantiate(
                     WhenAction::Terminate(message) => {
                         actions.push(WhenAction::Terminate(message.clone()))
                     }
+                    // A check made when the event fires: the names it
+                    // was written with are this class's, so it is
+                    // resolved here like any other expression.
+                    WhenAction::Assert(condition, message) => actions.push(WhenAction::Assert(
+                        expand_here(&resolve_here(condition)?, &HashMap::new())?.scalar()?,
+                        message.clone(),
+                    )),
                     // `if c then x = a; else x = b; end if;` at an
                     // event: what `x` is given depends on the
                     // condition, so it gets one assignment whose value

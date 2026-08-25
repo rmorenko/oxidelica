@@ -533,6 +533,11 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                         | WhenAction::TupleAssign(_, value) => {
                             *value = resolve_streams(value, &context)?;
                         }
+                        // A check made at the event may ask after a
+                        // stream the same way an assignment may.
+                        WhenAction::Assert(condition, _) => {
+                            *condition = resolve_streams(condition, &context)?;
+                        }
                         WhenAction::Terminate(_) => {}
                         // Taken apart while flattening, so neither a
                         // loop nor a choice is left.
@@ -690,6 +695,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                     | WhenAction::TupleAssign(_, value) => {
                         *value = answer(value);
                     }
+                    WhenAction::Assert(condition, _) => *condition = answer(condition),
                     WhenAction::Terminate(_) => {}
                     // Taken apart while flattening, so neither a loop
                     // nor a choice is left.

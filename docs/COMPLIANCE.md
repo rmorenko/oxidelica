@@ -56,7 +56,9 @@ mode is matched, torn and solved as its own model and rebuilt when the
 condition flips, so branches may constrain different unknowns, which
 is how an ideal switch is written;
 `initial equation`; runtime
-`assert` with its message; functions with several outputs
+`assert` with its message, among the equations or among the actions of
+a `when`, where it is made at the moment the event fires rather than at
+every step; functions with several outputs
 (`(a, , c) = f(...)` in equations and algorithms), named and defaulted
 call arguments (`f(x, precision = 6)`); algorithm
 sections in models and functions with `:=`, `if`, `for`, and `while`

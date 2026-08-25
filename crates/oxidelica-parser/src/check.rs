@@ -52,6 +52,13 @@ pub fn verify(model: &Model) -> Result<(), String> {
                         units.assignment(name, value)?;
                     }
                     WhenAction::Terminate(_) => {}
+                    // A check made at the event: the condition is a
+                    // truth like any other, and the message is text.
+                    WhenAction::Assert(condition, _) => {
+                        types.condition(condition)?;
+                        types.exact_equality(condition)?;
+                        units.infer(condition)?;
+                    }
                     // Flattening inlines the call and hands each
                     // target its own assignment, and unrolls a loop
                     // into one assignment per round, so by here there

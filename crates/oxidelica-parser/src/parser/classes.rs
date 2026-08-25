@@ -795,7 +795,19 @@ impl Parser {
                         self.expect(&Token::LParen, "parenthesis after the inverse function")?;
                         let mut arguments = Vec::new();
                         while self.peek() != &Token::RParen {
-                            arguments.push(self.ident("an argument of the inverse")?);
+                            // The argument may be named the way any
+                            // call's may - `h_pTX(p=p, T=T, X=X)` is
+                            // how the moist air tables write theirs -
+                            // and what the inverse needs is which
+                            // input it stands for, which is the name
+                            // on the right either way.
+                            let written = self.ident("an argument of the inverse")?;
+                            if self.peek() == &Token::Assign {
+                                self.bump();
+                                arguments.push(self.ident("the value of a named argument")?);
+                            } else {
+                                arguments.push(written);
+                            }
                             if self.peek() == &Token::Comma {
                                 self.bump();
                             }
