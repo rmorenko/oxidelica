@@ -430,178 +430,20 @@ pub(super) fn instantiate(
         }
     }
 
-    // An `algorithm` section of a model is executed symbolically: what
-    // comes out is one equation per variable it assigns, which is what
-    // the rest of the pipeline understands.
-    if class.kind != ClassKind::Function && !class.algorithm.is_empty() {
-        // A `when` written among the statements is an event, not a
-        // step of the algorithm: it becomes a clause of its own and
-        // the rest of the section runs without it.
-        let mut plain = Vec::new();
-        for statement in &class.algorithm {
-            let Statement::When(branches) = statement else {
-                plain.push(statement.clone());
-                continue;
-            };
-            let mut lifted = Vec::new();
-            for branch in branches {
-                // The body of a `when` is an algorithm like any other:
-                // it may hold an `if`, a loop, or a write to one
-                // element. Running it is what says which names it
-                // leaves changed and what each of them is worth, and
-                // that is exactly what an event does.
-                let mut written: HashMap<String, Expr> = HashMap::new();
-                let mut order: Vec<String> = Vec::new();
-                let mut checked: Vec<(Expr, String)> = Vec::new();
-                match execute(
-                    &branch.body,
-                    &mut written,
-                    &mut order,
-                    &mut checked,
-                    &local_consts,
-                    &sizes,
-                    registry,
-                    scope,
-                    &imports,
-                    depth,
-                    false,
-                )? {
-                    Flow::Normal => {}
-                    Flow::Break => {
-                        return Err("`break` outside of a loop, inside a `when`".to_string())
-                    }
-                    Flow::Return => {
-                        return Err(
-                            "`return` belongs in a function, not a `when` of a model".to_string()
-                        )
-                    }
-                }
-                for (condition, message) in checked {
-                    acc.asserts.push((resolve_here(&condition)?, message));
-                }
-                let mut actions = Vec::new();
-                for target in &order {
-                    // Every name the run put in the order it also gave
-                    // a value; there is nothing to say about one that
-                    // is not there.
-                    let Some(value) = written.get(target) else {
-                        continue;
-                    };
-                    actions.push(WhenAction::Assign(
-                        flat_name(target, prefix, &outers),
-                        resolve_here(value)?,
-                    ));
-                }
-                let condition = branch
-                    .condition
-                    .as_ref()
-                    .ok_or_else(|| "a `when` has no `else`".to_string())?;
-                lifted.push(WhenBranch {
-                    condition: resolve_here(condition)?,
-                    actions,
-                });
-            }
-            acc.when_clauses.push(WhenClause {
-                branches: lifted,
-                origin: acc.origin.clone(),
-            });
-        }
-        let mut bindings: HashMap<String, Expr> = HashMap::new();
-        let mut assigned: Vec<String> = Vec::new();
-        let mut section_asserts: Vec<(Expr, String)> = Vec::new();
-        match execute(
-            &plain,
-            &mut bindings,
-            &mut assigned,
-            &mut section_asserts,
-            &local_consts,
-            &sizes,
-            registry,
-            scope,
-            &imports,
-            depth,
-            false,
-        )? {
-            Flow::Normal => {}
-            Flow::Break => return Err("`break` outside of a loop".to_string()),
-            Flow::Return => {
-                return Err("`return` belongs in a function, not a model algorithm".to_string())
-            }
-        }
-        // Checks written among the statements are checks of the model,
-        // and carry its prefix like everything else it says.
-        for (condition, message) in section_asserts {
-            acc.asserts.push((resolve_here(&condition)?, message));
-        }
-        for name in assigned {
-            let value = bindings
-                .get(&name)
-                .ok_or_else(|| format!("`{name}` is assigned by the algorithm but has no value"))?;
-            // Both sides may be arrays: `w := v .* k` assigns a whole
-            // one, and comes out as one equation per element.
-            push_equations(
-                &expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?,
-                &expand_here(value, &no_loop_vars)?,
-                acc,
-            )?;
-        }
-    }
-
-    // `initial algorithm` runs once, before the simulation starts. It
-    // is executed the same way, and what it assigns is an equation of
-    // the initial system: the statements are what decide where the
-    // variables begin rather than how they move.
-    if class.kind != ClassKind::Function && !class.initial_algorithm.is_empty() {
-        if class
-            .initial_algorithm
-            .iter()
-            .any(|s| matches!(s, Statement::When(_)))
-        {
-            return Err(
-                "a `when` belongs in an algorithm that runs, not an initial one".to_string(),
-            );
-        }
-        let mut bindings: HashMap<String, Expr> = HashMap::new();
-        let mut assigned: Vec<String> = Vec::new();
-        let mut section_asserts: Vec<(Expr, String)> = Vec::new();
-        match execute(
-            &class.initial_algorithm,
-            &mut bindings,
-            &mut assigned,
-            &mut section_asserts,
-            &local_consts,
-            &sizes,
-            registry,
-            scope,
-            &imports,
-            depth,
-            false,
-        )? {
-            Flow::Normal => {}
-            Flow::Break => return Err("`break` outside of a loop".to_string()),
-            Flow::Return => {
-                return Err("`return` belongs in a function, not a model algorithm".to_string())
-            }
-        }
-        for (condition, message) in section_asserts {
-            acc.asserts.push((resolve_here(&condition)?, message));
-        }
-        // `push_equations` writes where ordinary equations go; what it
-        // wrote here is the initial system, so it is moved across.
-        let boundary = acc.equations.len();
-        for name in assigned {
-            let value = bindings.get(&name).ok_or_else(|| {
-                format!("`{name}` is assigned by the initial algorithm but has no value")
-            })?;
-            push_equations(
-                &expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?,
-                &expand_here(value, &no_loop_vars)?,
-                acc,
-            )?;
-        }
-        let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
-        acc.initial_equations.extend(written);
-    }
+    // The `algorithm` and `initial algorithm` sections, executed
+    // symbolically into equations.
+    run_algorithm_sections(
+        registry,
+        class,
+        prefix,
+        acc,
+        depth,
+        &imports,
+        &outers,
+        &sizes,
+        &local_consts,
+        &expand_here,
+    )?;
 
     // A call written among the equations takes nothing back from what
     // it calls, so what it is there for is the checks the body makes.
@@ -2385,6 +2227,204 @@ fn instantiate_components(
         local_consts,
         broke_something,
     })
+}
+
+/// A model's `algorithm` and `initial algorithm` sections, executed
+/// symbolically: what comes out is one equation per variable assigned,
+/// which is what the rest of the pipeline understands.
+///
+/// Moved out of `instantiate` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn run_algorithm_sections(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    acc: &mut Flat,
+    depth: usize,
+    imports: &[(String, String)],
+    outers: &HashMap<String, String>,
+    sizes: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+    expand_here: &dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String>,
+) -> Result<(), String> {
+    let scope = class.name.as_str();
+    let no_loop_vars = HashMap::new();
+    let resolve_here =
+        |expr: &Expr| -> Result<Expr, String> { expand_here(expr, &HashMap::new())?.scalar() };
+    // An `algorithm` section of a model is executed symbolically: what
+    // comes out is one equation per variable it assigns, which is what
+    // the rest of the pipeline understands.
+    if class.kind != ClassKind::Function && !class.algorithm.is_empty() {
+        // A `when` written among the statements is an event, not a
+        // step of the algorithm: it becomes a clause of its own and
+        // the rest of the section runs without it.
+        let mut plain = Vec::new();
+        for statement in &class.algorithm {
+            let Statement::When(branches) = statement else {
+                plain.push(statement.clone());
+                continue;
+            };
+            let mut lifted = Vec::new();
+            for branch in branches {
+                // The body of a `when` is an algorithm like any other:
+                // it may hold an `if`, a loop, or a write to one
+                // element. Running it is what says which names it
+                // leaves changed and what each of them is worth, and
+                // that is exactly what an event does.
+                let mut written: HashMap<String, Expr> = HashMap::new();
+                let mut order: Vec<String> = Vec::new();
+                let mut checked: Vec<(Expr, String)> = Vec::new();
+                match execute(
+                    &branch.body,
+                    &mut written,
+                    &mut order,
+                    &mut checked,
+                    &local_consts,
+                    &sizes,
+                    registry,
+                    scope,
+                    &imports,
+                    depth,
+                    false,
+                )? {
+                    Flow::Normal => {}
+                    Flow::Break => {
+                        return Err("`break` outside of a loop, inside a `when`".to_string())
+                    }
+                    Flow::Return => {
+                        return Err(
+                            "`return` belongs in a function, not a `when` of a model".to_string()
+                        )
+                    }
+                }
+                for (condition, message) in checked {
+                    acc.asserts.push((resolve_here(&condition)?, message));
+                }
+                let mut actions = Vec::new();
+                for target in &order {
+                    // Every name the run put in the order it also gave
+                    // a value; there is nothing to say about one that
+                    // is not there.
+                    let Some(value) = written.get(target) else {
+                        continue;
+                    };
+                    actions.push(WhenAction::Assign(
+                        flat_name(target, prefix, &outers),
+                        resolve_here(value)?,
+                    ));
+                }
+                let condition = branch
+                    .condition
+                    .as_ref()
+                    .ok_or_else(|| "a `when` has no `else`".to_string())?;
+                lifted.push(WhenBranch {
+                    condition: resolve_here(condition)?,
+                    actions,
+                });
+            }
+            acc.when_clauses.push(WhenClause {
+                branches: lifted,
+                origin: acc.origin.clone(),
+            });
+        }
+        let mut bindings: HashMap<String, Expr> = HashMap::new();
+        let mut assigned: Vec<String> = Vec::new();
+        let mut section_asserts: Vec<(Expr, String)> = Vec::new();
+        match execute(
+            &plain,
+            &mut bindings,
+            &mut assigned,
+            &mut section_asserts,
+            &local_consts,
+            &sizes,
+            registry,
+            scope,
+            &imports,
+            depth,
+            false,
+        )? {
+            Flow::Normal => {}
+            Flow::Break => return Err("`break` outside of a loop".to_string()),
+            Flow::Return => {
+                return Err("`return` belongs in a function, not a model algorithm".to_string())
+            }
+        }
+        // Checks written among the statements are checks of the model,
+        // and carry its prefix like everything else it says.
+        for (condition, message) in section_asserts {
+            acc.asserts.push((resolve_here(&condition)?, message));
+        }
+        for name in assigned {
+            let value = bindings
+                .get(&name)
+                .ok_or_else(|| format!("`{name}` is assigned by the algorithm but has no value"))?;
+            // Both sides may be arrays: `w := v .* k` assigns a whole
+            // one, and comes out as one equation per element.
+            push_equations(
+                &expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?,
+                &expand_here(value, &no_loop_vars)?,
+                acc,
+            )?;
+        }
+    }
+
+    // `initial algorithm` runs once, before the simulation starts. It
+    // is executed the same way, and what it assigns is an equation of
+    // the initial system: the statements are what decide where the
+    // variables begin rather than how they move.
+    if class.kind != ClassKind::Function && !class.initial_algorithm.is_empty() {
+        if class
+            .initial_algorithm
+            .iter()
+            .any(|s| matches!(s, Statement::When(_)))
+        {
+            return Err(
+                "a `when` belongs in an algorithm that runs, not an initial one".to_string(),
+            );
+        }
+        let mut bindings: HashMap<String, Expr> = HashMap::new();
+        let mut assigned: Vec<String> = Vec::new();
+        let mut section_asserts: Vec<(Expr, String)> = Vec::new();
+        match execute(
+            &class.initial_algorithm,
+            &mut bindings,
+            &mut assigned,
+            &mut section_asserts,
+            &local_consts,
+            &sizes,
+            registry,
+            scope,
+            &imports,
+            depth,
+            false,
+        )? {
+            Flow::Normal => {}
+            Flow::Break => return Err("`break` outside of a loop".to_string()),
+            Flow::Return => {
+                return Err("`return` belongs in a function, not a model algorithm".to_string())
+            }
+        }
+        for (condition, message) in section_asserts {
+            acc.asserts.push((resolve_here(&condition)?, message));
+        }
+        // `push_equations` writes where ordinary equations go; what it
+        // wrote here is the initial system, so it is moved across.
+        let boundary = acc.equations.len();
+        for name in assigned {
+            let value = bindings.get(&name).ok_or_else(|| {
+                format!("`{name}` is assigned by the initial algorithm but has no value")
+            })?;
+            push_equations(
+                &expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?,
+                &expand_here(value, &no_loop_vars)?,
+                acc,
+            )?;
+        }
+        let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
+        acc.initial_equations.extend(written);
+    }
+
+    Ok(())
 }
 
 /// Whether a condition asks the connections a question.
