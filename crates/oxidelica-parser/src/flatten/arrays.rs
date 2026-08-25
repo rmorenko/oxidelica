@@ -1114,7 +1114,29 @@ pub(super) fn expand_call(
                             ),
                         });
                     }
-                    return expand(&result, shapes, registry, scope, imports, depth + 1);
+                    // What the inlining built has to be read once more,
+                    // since a body written in arrays answers with one.
+                    // That reading is a walk of whatever was built, and
+                    // what a steam table builds is enormous: the water
+                    // properties fold a property of a property of a
+                    // state, and the tree runs past the depth this
+                    // compiler follows.
+                    //
+                    // Failing there was fatal, and it need not be. A
+                    // call that could not be built at all is left
+                    // standing for the run to walk, and one that was
+                    // built but cannot be carried means the same
+                    // thing: the run will walk it. So the refusal is
+                    // caught and answered the way the other is, which
+                    // also spares the reading that was going to fail.
+                    let carried = expand(&result, shapes, registry, scope, imports, depth + 1);
+                    return match carried {
+                        Err(why) if why.contains(crate::flatten::algorithms::NO_BOTTOM) => {
+                            let standing = Expr::Call(class.name.clone(), arguments);
+                            Ok(Value::Scalar(standing))
+                        }
+                        answered => answered,
+                    };
                 }
             }
             // Anything else: an ordinary call, applied to every element
