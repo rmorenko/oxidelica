@@ -9827,3 +9827,19 @@ fn a_boolean_subscript_the_run_settles_asks_in_booleans() {
     assert!(text.contains("Bool(false)), Ref(\"B[1]\")"), "{text}");
     assert!(text.contains("Bool(true)), Ref(\"B[2]\")"), "{text}");
 }
+
+/// A subscript the run settles reads its element by asking which place
+/// the index names, and what that builds is a choice among values. A
+/// choice can be read but not assigned: standing on the left it names
+/// no variable, and left alone it came out as a number no one asked
+/// for.
+#[test]
+fn a_subscript_the_run_settles_cannot_be_assigned_to() {
+    let err = parse_model(
+        "model M Real v[3]; Real k; Real t; equation t = time; \
+         k = if t > 0.05 then 3 else 1; v[2] = 2; v[3] = 3; v[k] = 9; end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("must name a variable"), "{err}");
+}

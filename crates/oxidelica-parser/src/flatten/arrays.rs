@@ -1912,6 +1912,19 @@ pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result
     lhs.flatten_into(&mut left);
     rhs.flatten_into(&mut right);
     for (lhs, rhs) in left.into_iter().zip(right) {
+        // A subscript the run settles reads its element by asking
+        // which place the index names, and what that builds is a
+        // choice among values. A choice can be read but not assigned:
+        // standing on the left it names no variable, and the equation
+        // it makes says nothing a solver can hold to. Refused here
+        // rather than left to come out as a number no one asked for.
+        if matches!(lhs, Expr::If(..)) {
+            return Err(format!(
+                "the left of an equation must name a variable, and a subscript \
+                 the run settles gives a choice among them instead: {}",
+                crate::flatten::names::sketch(&lhs)
+            ));
+        }
         let origin = acc.origin.clone();
         acc.equations.push(EquationItem { lhs, rhs, origin });
     }
