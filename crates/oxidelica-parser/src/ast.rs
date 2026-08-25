@@ -510,6 +510,12 @@ pub enum WhenAction {
     /// compile-time constant, and what comes out is one assignment per
     /// round - so nothing downstream meets this form either.
     Loop(ForEquation),
+    /// A call on its own among the actions of a `when`: nothing takes
+    /// its outputs, so what it was written for is what its body does -
+    /// `Streams.close(file)` when the run ends. What the compiler can
+    /// take from it is the checks the body makes; the rest of it is an
+    /// effect this compiler has no way to have.
+    Call(String, Vec<Expr>),
     /// `assert(c, "m")` among the actions of a `when`: the check is
     /// made when the event fires rather than at every step, which is
     /// how a model says a thing must hold at the moment it happens.
@@ -657,6 +663,11 @@ pub struct WhenClause {
 /// Simulation settings from `annotation(experiment(...))`.
 #[derive(Debug, Clone, Default)]
 pub struct Experiment {
+    /// `StartTime` — the time a run begins at, where a model asks for
+    /// one other than zero. The force-stroke curves of the flux tubes
+    /// sweep a coil from `-4` millimetres, and `time` is the position
+    /// rather than a clock.
+    pub start_time: Option<f64>,
     /// `StopTime` — simulation end time.
     pub stop_time: Option<f64>,
     /// `Interval` — output/integration step.

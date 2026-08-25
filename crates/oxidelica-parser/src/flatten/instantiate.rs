@@ -1793,6 +1793,15 @@ pub(super) fn instantiate(
                     WhenAction::Terminate(message) => {
                         actions.push(WhenAction::Terminate(message.clone()))
                     }
+                    // A call on its own at an event: nothing takes its
+                    // outputs, so what the compiler can have of it is
+                    // the checks its body makes - the same as a call
+                    // standing among the equations. The effect itself,
+                    // closing a file at `terminal()`, is one this
+                    // compiler has no way to have.
+                    WhenAction::Call(name, args) => {
+                        take_checks(&Expr::Call(name.clone(), args.clone()), acc)?;
+                    }
                     // A check made when the event fires: the names it
                     // was written with are this class's, so it is
                     // resolved here like any other expression.

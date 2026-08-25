@@ -13,11 +13,16 @@
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
-FILES_FLOOR=2664
-FLATTEN_FLOOR=426
-RUN_FLOOR=91
-RUNNABLE_FLATTEN_FLOOR=337
-RUNNABLE_RUN_FLOOR=88
+FILES_FLOOR=2671
+FLATTEN_FLOOR=472
+RUN_FLOOR=131
+RUNNABLE_FLATTEN_FLOOR=383
+RUNNABLE_RUN_FLOOR=128
+# Every file of the library parses. This is a ceiling reached rather
+# than a floor to hold, so it is written as the number left over: one
+# file that stops parsing takes its whole tree of classes with it, and
+# the counts below would hide that behind a handful of models.
+UNREAD_CEILING=0
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
@@ -27,6 +32,7 @@ echo "$report" | head -1
 echo "$report" | grep -E '^(classes:|runnable examples)'
 
 read_now="$(echo "$report" | sed -n 's/^files: \([0-9]*\) read.*/\1/p')"
+unread_now="$(echo "$report" | sed -n 's/^files: [0-9]* read, \([0-9]*\) not read.*/\1/p')"
 flatten_now="$(echo "$report" | sed -n 's/^classes:.*of which \([0-9]*\) flatten.*/\1/p')"
 run_now="$(echo "$report" | sed -n 's/^classes:.*flatten and \([0-9]*\) run.*/\1/p')"
 runnable_flatten_now="$(echo "$report" | sed -n 's/^runnable.*of which \([0-9]*\) flatten.*/\1/p')"
@@ -38,6 +44,10 @@ short() {
   status=1
 }
 [ "${read_now:-0}" -ge "$FILES_FLOOR" ] || short "files read" "${read_now:-none}" "$FILES_FLOOR"
+[ "${unread_now:-1}" -le "$UNREAD_CEILING" ] || {
+  echo "FLOOR: ${unread_now:-some} file(s) did not parse, and the ceiling is $UNREAD_CEILING"
+  status=1
+}
 [ "${flatten_now:-0}" -ge "$FLATTEN_FLOOR" ] || short "models flattened" "${flatten_now:-none}" "$FLATTEN_FLOOR"
 [ "${run_now:-0}" -ge "$RUN_FLOOR" ] || short "models run" "${run_now:-none}" "$RUN_FLOOR"
 [ "${runnable_flatten_now:-0}" -ge "$RUNNABLE_FLATTEN_FLOOR" ] || short "runnable models flattened" "${runnable_flatten_now:-none}" "$RUNNABLE_FLATTEN_FLOOR"

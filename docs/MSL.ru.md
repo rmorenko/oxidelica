@@ -40,9 +40,9 @@ oxidelica library add https://github.com/example/Library.git --version v2.0 --as
 против MSL 4.1.0:
 
 ```text
-files: 2657 read, 14 not read
-classes: 7120; example models: 767, of which 419 flatten and 89 run
-runnable examples (experiment or Example icon): 640, of which 330 flatten and 86 run
+files: 2671 read, 0 not read
+classes: 7631; example models: 1043, of which 472 flatten and 131 run
+runnable examples (experiment or Example icon): 912, of which 383 flatten and 128 run
 ```
 
 Четыре числа, и они про разное. **Read** — это парсер: файл понят как

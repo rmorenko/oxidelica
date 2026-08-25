@@ -1607,10 +1607,15 @@ pub(crate) fn compile_at(
                     }
                     // Flattening inlines the call and hands each
                     // target an assignment of its own, so no tuple
-                    // reaches this far.
-                    WhenAction::TupleAssign(..) | WhenAction::Loop(_) | WhenAction::Choice(_) => {
-                        return err("a tuple, a loop or a choice inside `when` should have \
-                                    been taken apart while flattening"
+                    // reaches this far - nor a call on its own, whose
+                    // checks flattening took and whose effect this
+                    // compiler has no way to have.
+                    WhenAction::TupleAssign(..)
+                    | WhenAction::Loop(_)
+                    | WhenAction::Choice(_)
+                    | WhenAction::Call(..) => {
+                        return err("a tuple, a loop, a choice or a call inside `when` should \
+                                    have been taken apart while flattening"
                             .to_string())
                     }
                 });
@@ -1928,9 +1933,10 @@ pub(crate) fn compile_at(
                     }
                     WhenAction::TupleAssign(..)
                     | WhenAction::Loop(_)
-                    | WhenAction::Choice(_) => {
-                        return err("a tuple, a loop or a choice inside `when` should have \
-                                    been taken apart while flattening"
+                    | WhenAction::Choice(_)
+                    | WhenAction::Call(..) => {
+                        return err("a tuple, a loop, a choice or a call inside `when` should \
+                                    have been taken apart while flattening"
                             .to_string())
                     }
                 });
@@ -2052,7 +2058,15 @@ pub(crate) fn compile_at(
         tolerance: model.experiment.tolerance.unwrap_or(1e-6),
         method: SolverMethod::default(),
         output_algebraics,
-        start_time: resume.as_ref().map_or(0.0, |point| point.time),
+        // A run continued from a point starts where it left off;
+        // otherwise it starts where the model asked to, which is zero
+        // unless it said otherwise. The force-stroke curves of the
+        // flux tubes sweep a coil from `-4`, `time` standing for the
+        // position rather than for a clock.
+        start_time: resume.as_ref().map_or_else(
+            || model.experiment.start_time.unwrap_or(0.0),
+            |point| point.time,
+        ),
         resume: resume.is_some(),
         reselectable: !dummies.is_empty(),
         selection_monitor,

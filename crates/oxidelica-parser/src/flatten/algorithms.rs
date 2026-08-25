@@ -1136,6 +1136,14 @@ pub(super) fn programs_used(
                     WhenAction::Assign(_, value)
                     | WhenAction::Reinit(_, value)
                     | WhenAction::TupleAssign(_, value) => look(value),
+                    // A call on its own names a body to be walked
+                    // the same way one inside an expression does.
+                    WhenAction::Call(name, args) => {
+                        // The call itself is named the way an
+                        // expression's would be, so it goes through the
+                        // same gathering rather than round it.
+                        look(&Expr::Call(name.clone(), args.clone()));
+                    }
                     // A check made at the event may call as freely as
                     // any other expression.
                     WhenAction::Assert(condition, _) => look(condition),

@@ -836,10 +836,7 @@ impl Parser {
                             "StopTime" => into.experiment.stop_time = Some(value),
                             "Interval" => into.experiment.interval = Some(value),
                             "Tolerance" => into.experiment.tolerance = Some(value),
-                            "StartTime" if value != 0.0 => {
-                                return Err(self.err("M0: StartTime must be 0".into()));
-                            }
-                            "StartTime" => {}
+                            "StartTime" => into.experiment.start_time = Some(value),
                             _ => {} // Unknown keys are silently skipped.
                         }
                         match self.bump() {

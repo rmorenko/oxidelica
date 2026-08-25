@@ -421,6 +421,8 @@ fn when(clause: &WhenClause, look: &mut impl FnMut(&Expr)) {
                         .for_each(|name| look(&Expr::Ref(name.clone())));
                     look(value);
                 }
+                // A call on its own reads its arguments.
+                WhenAction::Call(_, args) => args.iter().for_each(&mut *look),
                 // A check made at the event reads names like any
                 // other expression, and reaching a protected one
                 // across a component is refused the same way.

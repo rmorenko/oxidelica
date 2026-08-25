@@ -10027,3 +10027,42 @@ fn a_port_is_reached_through_as_many_steps_as_are_written() {
     );
     assert!(checked.is_ok(), "{checked:?}");
 }
+
+/// A call on its own among the actions of a `when` goes through the
+/// same passes an assignment's value does: its arguments are resolved,
+/// its strings settled, and the checks its body makes are taken up by
+/// the model.
+#[test]
+fn a_call_at_an_event_goes_through_the_passes() {
+    // Two arguments, one of them a name the class has to resolve and
+    // one a constant to be folded, and a check inside the body.
+    let m = parse_model(
+        "package P \
+         constant Real limit = 3; \
+         function note input Real x; input Real y; output Real z; \
+         algorithm assert(y > 0, \"y must be positive\"); z := x + y; end note; \
+         model M Real t; equation t = time; \
+         when terminal() then note(t, limit); end when; end M; end P;",
+    )
+    .unwrap();
+    // The check travelled out of the body and into the model.
+    let checks = format!("{:?}", m.asserts);
+    assert!(checks.contains("y must be positive"), "{checks}");
+    // The constant was folded where the call was written.
+    assert!(
+        checks.contains("3.0") || format!("{m:?}").contains("3.0"),
+        "{m:?}"
+    );
+
+    // A call whose argument is a string constant: settled before the
+    // run like any other string.
+    let named = parse_model(
+        "package P \
+         constant String what = \"a file\"; \
+         function shut input String name; output Real done; \
+         algorithm done := 1; end shut; \
+         model M Real t; equation t = time; \
+         when terminal() then shut(what); end when; end M; end P;",
+    );
+    assert!(named.is_ok(), "{named:?}");
+}

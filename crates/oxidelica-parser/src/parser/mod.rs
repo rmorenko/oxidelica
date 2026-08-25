@@ -586,11 +586,16 @@ mod tests {
             err_of("model M Real x; equation x = 1; annotation(experiment(")
                 .contains("experiment parameter")
         );
-        // StartTime != 0 is unsupported.
-        assert!(err_of(
-            "model M Real x; equation x = 1; annotation(experiment(StartTime=2)); end M;"
+        // A `StartTime` other than zero is the time a run begins at,
+        // and is read rather than refused: the force-stroke curves of
+        // the flux tubes sweep a coil from `-4`, `time` standing for
+        // the position rather than for a clock.
+        let swept = parse_model(
+            "model M Real x; equation x = 1; \
+             annotation(experiment(StartTime=-4, StopTime=4)); end M;",
         )
-        .contains("StartTime"));
+        .unwrap();
+        assert_eq!(swept.experiment.start_time, Some(-4.0));
         // Not a number in experiment.
         assert!(err_of(
             "model M Real x; equation x = 1; annotation(experiment(StopTime=abc)); end M;"

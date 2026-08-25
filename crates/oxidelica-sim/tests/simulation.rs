@@ -3917,3 +3917,42 @@ fn an_assert_at_an_event_fires_with_the_event() {
     assert!(why.contains("too big at the event"), "{why}");
     assert!(why.contains("t = 1."), "at the event: {why}");
 }
+
+/// A run begins where the model asked it to. The force-stroke curves
+/// of the flux tubes sweep a coil from `-4` millimetres, `time`
+/// standing for the position rather than for a clock.
+#[test]
+fn a_run_begins_where_the_model_asked() {
+    let result = run("model M Real x; equation x = time; \
+         annotation (experiment(StartTime = -4, StopTime = 4)); end M;");
+    let first = result.rows.first().unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((first[0] + 4.0).abs() < 1e-9, "starts at -4: {first:?}");
+    assert!((last[0] - 4.0).abs() < 1e-9, "ends at 4: {last:?}");
+    // `time` is what it says it is on both ends.
+    assert!((first[1] + 4.0).abs() < 1e-9, "{first:?}");
+}
+
+/// A call on its own among the actions of a `when`: nothing takes its
+/// outputs, so what it was written for is what its body does. What the
+/// compiler can take from it is the checks the body makes.
+#[test]
+fn a_call_at_an_event_carries_the_checks_of_its_body() {
+    // The call stands, and the run reaches the end.
+    let result = run("package P function note input Real x; output Real y; \
+         algorithm y := x; end note; \
+         model M Real t; equation t = time; \
+         when terminal() then note(t); end when; end M; end P;");
+    assert!(result.rows.last().is_some());
+
+    // A check inside the called body is taken up by the model.
+    let model = parse_model(
+        "package P function guard input Real x; output Real y; \
+         algorithm assert(x < 0.05, \"guard tripped\"); y := x; end guard; \
+         model M Real t; equation t = time; \
+         when terminal() then guard(t); end when; end M; end P;",
+    )
+    .unwrap();
+    let why = compile(&model).unwrap().simulate().unwrap_err().to_string();
+    assert!(why.contains("guard tripped"), "{why}");
+}

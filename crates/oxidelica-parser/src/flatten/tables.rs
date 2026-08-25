@@ -99,6 +99,9 @@ pub(super) fn resolve_tables(
                     WhenAction::Assign(_, value)
                     | WhenAction::Reinit(_, value)
                     | WhenAction::TupleAssign(_, value) => *value = rewrite(value),
+                    // Taken apart while flattening, so none reaches a
+                    // flat model.
+                    WhenAction::Call(..) => {}
                     // A check made at the event may ask a table the
                     // same way an assignment may.
                     WhenAction::Assert(condition, _) => *condition = rewrite(condition),

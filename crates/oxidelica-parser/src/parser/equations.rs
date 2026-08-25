@@ -483,6 +483,22 @@ impl Parser {
                     self.expect(&Token::RParen, "closing parenthesis of terminate")?;
                     actions.push(WhenAction::Terminate(message));
                 }
+                // A call on its own: nothing takes its outputs, so it
+                // was written for what its body does. `Streams.close`
+                // at `terminal()` is how the library closes a file it
+                // read its parameters from.
+                (_, Token::LParen) => {
+                    self.bump();
+                    let mut args = Vec::new();
+                    while self.peek() != &Token::RParen {
+                        args.push(self.expr()?);
+                        if self.peek() == &Token::Comma {
+                            self.bump();
+                        }
+                    }
+                    self.bump();
+                    actions.push(WhenAction::Call(target, args));
+                }
                 // Anything else is an equation for a discrete variable.
                 (_, _) => {
                     self.expect(&Token::Assign, "`=` in an equation inside when")?;

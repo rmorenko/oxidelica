@@ -52,6 +52,10 @@ pub fn verify(model: &Model) -> Result<(), String> {
                         units.assignment(name, value)?;
                     }
                     WhenAction::Terminate(_) => {}
+                    // A call on its own is checked where it is
+                    // inlined, which is the same place a call in an
+                    // expression is.
+                    WhenAction::Call(..) => {}
                     // A check made at the event: the condition is a
                     // truth like any other, and the message is text.
                     WhenAction::Assert(condition, _) => {

@@ -487,7 +487,10 @@ a port nothing connects to and `mayOnlyConnectOnce` a port named twice,
 each with the message its declaration wrote; `Evaluate = true` refuses
 a parameter whose value the compiler cannot settle, since asking to be
 evaluated and not being is not a thing to pass over. `experiment` says
-how long a run is and how often it writes, and `HideResult` leaves a
+where a run begins, how long it is and how often it writes - a
+`StartTime` other than zero is the time the run starts at, which is
+how the flux tubes sweep a coil from `-4` millimetres with `time`
+standing for the position rather than for a clock - and `HideResult` leaves a
 variable out of the results while changing nothing else about it -
 which the chapter leaves to the tool and this one does.
 
@@ -505,10 +508,10 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2671 files, 2657 parse, and 419 of
-its 767 example models flatten, 89 of them running. Of the 640 written
-to be run - marked by an `experiment` annotation or the Example icon -
-330 flatten and 86 run. What stands in the way of the rest is
+every one of the Modelica Standard Library's 2671 files parses, and 472
+of its 1043 example models flatten, 131 of them running. Of the 912
+written to be run - marked by an `experiment` annotation or the Example
+icon - 383 flatten and 128 run. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them: a
 local a body assigns in one branch only, which is 46 models and is not
