@@ -10375,3 +10375,37 @@ fn a_periodic_table_says_the_same_thing_every_period() {
     ));
     assert!(flat.is_ok(), "{flat:?}");
 }
+
+/// A record with no fields at all is a place kept for another to fill:
+/// a medium interface declares its state empty on purpose, and a
+/// medium redeclares it whole. A function answering with one has not
+/// been reached by that redeclaration, and saying so where it happens
+/// beats handing back an empty list - the caller would then find
+/// nothing to bind and report its own argument as missing, which names
+/// a symptom two steps from its cause.
+#[test]
+fn a_function_answering_with_an_empty_record_says_why() {
+    let err = parse_model(
+        "package P record Empty end Empty; \
+         function make input Real x; output Empty s; end make; \
+         function take input Empty s; output Real y; algorithm y := 1; end take; \
+         model M Real q; Real z; equation q = 5; z = take(make(q)); end M; end P;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("declares no fields"), "{err}");
+    assert!(
+        !err.contains("missing its argument"),
+        "the cause, not the symptom: {err}"
+    );
+
+    // A body that fills its own empty record is not the same thing:
+    // nothing was kept for anyone, and it answers as it always did.
+    let filled = parse_model(
+        "package P record Empty end Empty; \
+         function make input Real x; output Empty s; algorithm s := s; end make; \
+         function take input Empty s; output Real y; algorithm y := 1; end take; \
+         model M Real q; Real z; equation q = 5; z = take(make(q)); end M; end P;",
+    );
+    assert!(filled.is_ok(), "{filled:?}");
+}

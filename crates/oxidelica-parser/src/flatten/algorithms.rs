@@ -2371,7 +2371,23 @@ fn worked_body(
                     );
                     Some(substitute_refs(&value, &bindings))
                 };
-                let fields = record_fields(record)
+                let held = record_fields_of(registry, record, 0);
+                // A record with no fields at all is a place kept for
+                // another to fill: `PartialMedium` declares its state
+                // empty on purpose, and a medium redeclares it whole.
+                // Answering with an empty list would hand the caller a
+                // guess dressed as an answer - and the caller, finding
+                // nothing to bind, would say the argument was missing,
+                // which names a symptom two steps from its cause.
+                if held.is_empty() {
+                    return Err(format!(
+                        "`{}` answers with `{}`, which declares no fields: it is a record \
+                         kept for another to redeclare, and the redeclaration did not \
+                         reach here",
+                        class.name, output.type_name
+                    ));
+                }
+                let fields = held
                     .into_iter()
                     .map(|field| {
                         let member = format!("{name}.{field}");
