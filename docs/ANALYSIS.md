@@ -1,9 +1,9 @@
 # The architecture, what stands in its way, and the way out
 
 Written 2026-08-24, and kept up to date as the stages land. Measured
-against MSL 4.1.0: 767 example models, of which **413 flatten and 89
+against MSL 4.1.0: 767 example models, of which **419 flatten and 89
 run**, and — counting only the ones written to be run — **640 runnable,
-of which 326 flatten and 86 run** (`oxidelica library check`). The
+of which 330 flatten and 86 run** (`oxidelica library check`). The
 register below was taken at 400/80, before stage one; the counts in it
 are what each class cost then. What follows is an honest register of what
 stops the rest, what two other compilers do about the same problems,
@@ -107,8 +107,8 @@ an `experiment` annotation or the `Icons.Example` icon, inherited through
 a template or not. Measured on MSL 4.1.0:
 
 ```text
-example models: 767, of which 413 flatten and 89 run
-runnable examples (experiment or Example icon): 640, of which 326 flatten and 86 run
+example models: 767, of which 419 flatten and 89 run
+runnable examples (experiment or Example icon): 640, of which 330 flatten and 86 run
 ```
 
 What that says. Of the 127 that are not runnable, 87 flatten and 3 run:
@@ -209,20 +209,83 @@ Result: 400/80 → **413/89**; runnable 313/77 → **326/86**.
 What surfaced: 11 Digital models subscript a table with a discrete
 variable (`NotTable[x]`), which is F1/F3 and waits for stage 3.
 
-### Stage 2. A resolve pass with identities (1-2 weeks, the foundation)
+### Stage 2. One pass, and what it cannot see (measured, then reopened)
 
-A layer between the parser and flattening: a tree of scopes, every name
-given an identity, inner/outer and imports and protected settled once
-(F8, and the "unknown variable" tail). Strings stay in the messages.
+This was written as a resolve pass with identities, and costed at one to
+two weeks on the reasoning that stage 3 would need it. Measured before it
+was started, that reasoning did not hold: of 354 refusals at flattening
+**none** are about resolving a name, and of 324 at running **13** are,
+all one narrow shape. `lookup` already resolves names correctly and
+remembers what it found. Identities would have bought about thirteen
+models.
 
-### Stage 3. Typing and dimensions before expansion (1-2 weeks)
+What the same measurement did turn up is a different thing sharing the
+same neighbourhood, and it is worth more. The compiler builds a model in
+one pass, in the order things are declared, so a question asked partway
+through cannot be answered from what has not been reached yet:
+
+- **A condition reading an `inner` declared further down.** Every
+  animated part of the multi-body library is written `if
+world.enableAnimation and animation`, and a diagram declares its
+  components in the order they were drawn. Roughly fifty models.
+- **A record's inherited fields.** `record Mos1Calc extends Mos.MosCalc;
+end` declares nothing of its own; reading it for its own components
+  alone says it has no fields. Nine Spice3 models, and the same shape
+  under the media library's thermodynamic states.
+- **A length read off a value declared above.** `Impedance
+impedance(cellData = cellData)` hands a record over whole, and a `:`
+  among its fields takes its length from the field it was handed - which
+  belongs to a class the pass has not come back to.
+
+Each was tried on its own and each is correct in the small: the tests
+written for them pass, and fail without them. Each also fails to pay,
+and for the same reason. The record fix wins nine models past their
+refusal and loses `ShowImpedance` to the length it uncovers, twice
+measured at −1/+0. The condition fix lets fifty multi-body models past
+the condition and into the inlining of their visualisers, which took the
+library check from three and a half minutes to over an hour.
+
+So the stage is not a resolve pass. It is **an order of instantiation
+that does not depend on the order of declaration**: measure what a class
+holds - shapes, constants, the `inner` instances - before its components
+are built, and let the questions asked during the build be answered from
+that. The three shapes above are one stage's work together and none of
+them alone.
+
+Expect +60 to +80 flatten, and the multi-body models to stop being
+refused for something that is not their fault.
+
+### Stage 3. Typing and dimensions before expansion (started)
 
 A pass over the typed instance tree where every component knows its type,
 its dimensions as numbers and its variability, before scalarization; and
 where a redeclared `Medium` is already in place. This closes **F1 (~50),
 F3 (34) and most of F2 (34)**.
 
-Expect +80 to +110 flatten. This is the profitable one.
+Six layers of it were taken one at a time, each measured on the library
+before and after, each with a test that fails without it:
+
+1. A package holds its base's constants to what the `extends` said -
+   `extends PartialMedium(nC = 2)`, which is how every medium is written.
+2. A package handed on by its own name is the one it was replaced with -
+   `Port one(redeclare package Medium = Medium)`.
+3. A constant may be the length of another: `nC =
+size(extraPropertiesNames, 1)`.
+4. An equation between two empty arrays says nothing rather than being
+   refused for `[0]` against `[]`.
+5. A replaceable package a base declared is in view of what extends it -
+   `Medium.AbsolutePressure` in a class extending `PartialSource`.
+6. A string a body writes in one branch starts empty, as 3.7 says.
+
+Result so far: 415/89 → **419/89**, runnable 328/86 → **330/86**. The
+first four layers won four models; the last two won none directly and
+moved fifty-six models one blocker further along, which is what the
+layers are for.
+
+What is left of this stage runs into stage 2's finding: the media
+library's records are built by `redeclare record extends`, and reaching
+their fields is the same instantiation-order problem. The remaining
++80 to +110 is real but sits behind that.
 
 ### Stage 4. The function interpreter as a first-class citizen (a week)
 
@@ -257,16 +320,21 @@ periodic extrapolation included, answer F10 and F11.
 
 ### What to expect
 
-| Stage             | Cost      | Flatten |    Run |
-| ----------------- | --------- | ------: | -----: |
-| 0. Metric         | a day     |       0 |      0 |
-| 1. Small change   | days      |  +20-30 |     +5 |
-| 2. Resolve        | 1-2 weeks |     +10 |     +5 |
-| 3. Typing         | 1-2 weeks | +80-110 |    +20 |
-| 4. Functions      | a week    |  +50-60 |    +15 |
-| 5. Initialization | a week    |       0 | +15-20 |
-| 6. Clocks         | a week    |     +10 |    +10 |
-| 7. Numeric        | as needed |      +5 | +20-40 |
+| Stage                  | Cost      |                               Flatten |    Run |
+| ---------------------- | --------- | ------------------------------------: | -----: |
+| 0. Metric              | a day     |                                     0 |      0 |
+| 1. Small change        | days      |                               **+13** | **+9** |
+| 2. Instantiation order | 1-2 weeks |                                +60-80 |     +5 |
+| 3. Typing              | 1-2 weeks | **+6** so far, +80-110 behind stage 2 |    +20 |
+| 4. Functions           | a week    |                                +50-60 |    +15 |
+| 5. Initialization      | a week    |                                     0 | +15-20 |
+| 6. Clocks              | a week    |                                   +10 |    +10 |
+| 7. Numeric             | as needed |                                    +5 | +20-40 |
+
+Stages 0, 1 and part of 3 are done: 397/79 at the start of this work,
+**419/89** now, and 313/77 → **330/86** of the ones written to be run.
+The estimates for stage 2 and 3 are the ones that moved, and they moved
+because they were measured rather than reasoned about.
 
 After stages 0 through 6: **around 570-600 flatten and 180-250 run** of
 767, which is over half of the runnable ones. What is left after that is

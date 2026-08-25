@@ -41,8 +41,8 @@ oxidelica library add https://github.com/example/Library.git --version v2.0 --as
 
 ```text
 files: 2657 read, 14 not read
-classes: 7120; example models: 767, of which 413 flatten and 89 run
-runnable examples (experiment or Example icon): 640, of which 326 flatten and 86 run
+classes: 7120; example models: 767, of which 419 flatten and 89 run
+runnable examples (experiment or Example icon): 640, of which 330 flatten and 86 run
 ```
 
 Четыре числа, и они про разное. **Read** — это парсер: файл понят как
@@ -167,5 +167,5 @@ end TableRamp;
 разобрался, откладывается в сторону, а не делается проблемой всех: модель
 рядом всё равно загрузится, а та, которой нужно было что-то из
 непрочитанного файла, упадёт дальше и по имени. Именно это делает
-осмысленным число вроде «413 из 767»: без такого правила один неразобранный
+осмысленным число вроде «419 из 767»: без такого правила один неразобранный
 файл сделал бы всю библиотеку негодной, и число было бы нулём.

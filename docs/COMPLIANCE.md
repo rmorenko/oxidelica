@@ -492,10 +492,10 @@ version. `Inline`, `LateInline`, `smoothOrder`, `singleInstance` and
 them.
 
 **The standard library** is the measure this map is checked against:
-of the Modelica Standard Library's 2671 files, 2657 parse, and 413 of
+of the Modelica Standard Library's 2671 files, 2657 parse, and 419 of
 its 767 example models flatten, 89 of them running. Of the 640 written
 to be run - marked by an `experiment` annotation or the Example icon -
-326 flatten and 86 run. What stands in the way of the rest is
+330 flatten and 86 run. What stands in the way of the rest is
 measured rather than guessed - `oxidelica library check` ranks the
 reasons - and the list is in [MSL.md](MSL.md). The largest of them: a
 local a body assigns in one branch only, which is 46 models and is not
