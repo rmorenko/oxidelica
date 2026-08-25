@@ -60,103 +60,13 @@ pub(super) fn instantiate(
         local_texts,
     } = settle_naming(registry, class, prefix, env, acc, &outers)?;
 
-    let settled_early = settle_parameters_early(
-        registry, class, prefix, env, acc, &imports, &shadow, &outers,
-    );
+    settle_parameters_early(registry, class, prefix, env, acc, &imports, &shadow, &outers);
 
-    // Bases first, with their modifiers (already parent-scoped).
-    for extend in &class.extends {
-        let base = match extend.from_base {
-            true => inherited_class(registry, class, &extend.base, 0).ok_or_else(|| {
-                format!(
-                    "`{}` redeclares `{}` by extending it, and no base of `{}` declares one",
-                    class.name,
-                    extend.base,
-                    class.name.rsplit_once('.').map_or("", |(head, _)| head)
-                )
-            })?,
-            false => lookup(registry, &extend.base, scope, &imports)
-                .ok_or_else(|| format!("unknown base class `{}`", extend.base))?,
-        };
-        // A class reached by more than one path of a diamond is one
-        // class: `Shape` extends both the animation shape and the
-        // partial shape that one is built on, and what they share is
-        // shared rather than doubled. Merging it twice would give the
-        // instance two of every variable its base declares and two of
-        // every equation.
-        if !acc.extended.insert((prefix.to_string(), base.name.clone())) {
-            continue;
-        }
-        let mut base_redeclares = Vec::new();
-        for redeclare in &extend.redeclares {
-            base_redeclares.push(qualify_redeclare(
-                redeclare,
-                registry,
-                class,
-                prefix,
-                &outers,
-                &[],
-            )?);
-        }
-        base_redeclares.extend(redeclares.iter().cloned());
-        // What the values handed down name, measured here where those
-        // names still mean something.
-        let mut handed_shapes: HashMap<String, Vec<i64>> = HashMap::new();
-        // A length written as a parameter of this very class - `Real
-        // T_ref[m]` beside `parameter Integer m` - is a short name,
-        // while the table of settled numbers knows it by the full
-        // path it has in the model. The numbers of this class are
-        // offered under the names its own declarations use, so a
-        // length like that can be measured at all.
-        let here: HashMap<String, f64> = acc
-            .const_values
-            .iter()
-            .filter_map(|(named, value)| {
-                let short = named.strip_prefix(prefix)?;
-                match short.contains('.') {
-                    true => None,
-                    false => Some((short.to_string(), *value)),
-                }
-            })
-            .collect();
-        collect_shapes_given(
-            registry,
-            class,
-            &here,
-            &HashMap::new(),
-            env.overrides,
-            &mut handed_shapes,
-            0,
-        );
-        let handed_shapes = prefixed_sizes(&handed_shapes, prefix);
-        // A value handed to a base is written where this class stands,
-        // and may ask how long an array of this class is: a table
-        // block says `extends MO(final nout = size(columns, 1))` about
-        // itself. The base is instantiated next and has never heard of
-        // `columns`, so the question is answered here, where the
-        // shapes were just measured - which is where the language says
-        // a modifier is worked out anyway.
-        let mods: Vec<(String, Expr)> = extend
-            .modifiers
-            .iter()
-            .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
-                let e = prefix_expr(&e, prefix, &outers);
-                (n.clone(), measured_sizes(&e, &handed_shapes, &here))
-            })
-            .chain(env.overrides.iter().cloned())
-            .collect();
-        let base_env = Env {
-            overrides: &mods,
-            handed_shapes: &handed_shapes,
-            outer_sizes: env.outer_sizes,
-            redeclares: &base_redeclares,
-            inners: &inners,
-            broken: &extend.broken,
-            inside_a_parameter: env.inside_a_parameter,
-        };
-        instantiate(registry, base, prefix, &base_env, acc, depth + 1)?;
-    }
+    instantiate_bases(
+        registry, class, prefix, env, acc, depth, &imports, &shadow, &outers, &inners,
+        &redeclares,
+    )?;
+
     let overrides = env.overrides;
 
     // A selective `extends` leaves out named elements of this class:
@@ -2148,7 +2058,7 @@ fn settle_parameters_early(
     imports: &[(String, String)],
     shadow: &[&str],
     outers: &HashMap<String, String>,
-) -> Vec<String> {
+) {
     let scope = class.name.as_str();
     // A base's parameter may be given a value this class declares:
     // `extends MIMO(final nin = m)` with `m` written below the
@@ -2195,8 +2105,122 @@ fn settle_parameters_early(
             break;
         }
     }
+}
 
-    settled_early
+/// The classes this one extends, merged in under the same prefix
+/// before anything it declares itself.
+///
+/// Moved out of `instantiate` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn instantiate_bases(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    env: &Env,
+    acc: &mut Flat,
+    depth: usize,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    inners: &HashMap<String, InnerInstance>,
+    redeclares: &[Redeclare],
+) -> Result<(), String> {
+    let scope = class.name.as_str();
+    // Bases first, with their modifiers (already parent-scoped).
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0).ok_or_else(|| {
+                format!(
+                    "`{}` redeclares `{}` by extending it, and no base of `{}` declares one",
+                    class.name,
+                    extend.base,
+                    class.name.rsplit_once('.').map_or("", |(head, _)| head)
+                )
+            })?,
+            false => lookup(registry, &extend.base, scope, &imports)
+                .ok_or_else(|| format!("unknown base class `{}`", extend.base))?,
+        };
+        // A class reached by more than one path of a diamond is one
+        // class: `Shape` extends both the animation shape and the
+        // partial shape that one is built on, and what they share is
+        // shared rather than doubled. Merging it twice would give the
+        // instance two of every variable its base declares and two of
+        // every equation.
+        if !acc.extended.insert((prefix.to_string(), base.name.clone())) {
+            continue;
+        }
+        let mut base_redeclares = Vec::new();
+        for redeclare in &extend.redeclares {
+            base_redeclares.push(qualify_redeclare(
+                redeclare,
+                registry,
+                class,
+                prefix,
+                &outers,
+                &[],
+            )?);
+        }
+        base_redeclares.extend(redeclares.iter().cloned());
+        // What the values handed down name, measured here where those
+        // names still mean something.
+        let mut handed_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+        // A length written as a parameter of this very class - `Real
+        // T_ref[m]` beside `parameter Integer m` - is a short name,
+        // while the table of settled numbers knows it by the full
+        // path it has in the model. The numbers of this class are
+        // offered under the names its own declarations use, so a
+        // length like that can be measured at all.
+        let here: HashMap<String, f64> = acc
+            .const_values
+            .iter()
+            .filter_map(|(named, value)| {
+                let short = named.strip_prefix(prefix)?;
+                match short.contains('.') {
+                    true => None,
+                    false => Some((short.to_string(), *value)),
+                }
+            })
+            .collect();
+        collect_shapes_given(
+            registry,
+            class,
+            &here,
+            &HashMap::new(),
+            env.overrides,
+            &mut handed_shapes,
+            0,
+        );
+        let handed_shapes = prefixed_sizes(&handed_shapes, prefix);
+        // A value handed to a base is written where this class stands,
+        // and may ask how long an array of this class is: a table
+        // block says `extends MO(final nout = size(columns, 1))` about
+        // itself. The base is instantiated next and has never heard of
+        // `columns`, so the question is answered here, where the
+        // shapes were just measured - which is where the language says
+        // a modifier is worked out anyway.
+        let mods: Vec<(String, Expr)> = extend
+            .modifiers
+            .iter()
+            .map(|(n, e)| {
+                let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
+                let e = prefix_expr(&e, prefix, &outers);
+                (n.clone(), measured_sizes(&e, &handed_shapes, &here))
+            })
+            .chain(env.overrides.iter().cloned())
+            .collect();
+        let base_env = Env {
+            overrides: &mods,
+            handed_shapes: &handed_shapes,
+            outer_sizes: env.outer_sizes,
+            redeclares: &base_redeclares,
+            inners,
+            broken: &extend.broken,
+            inside_a_parameter: env.inside_a_parameter,
+        };
+        instantiate(registry, base, prefix, &base_env, acc, depth + 1)?;
+    }
+
+    Ok(())
 }
 
 /// Whether a condition asks the connections a question.
