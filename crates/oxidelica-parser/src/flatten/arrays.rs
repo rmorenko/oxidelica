@@ -433,13 +433,41 @@ fn index_into(
     }
     match expand(&with_end, shapes, registry, scope, imports, depth + 1)? {
         Value::Scalar(index) => {
-            let value = constant_here(&index).ok_or_else(|| {
-                format!(
-                    "a subscript into an array of {length} must be a compile-time \
-                     constant, and `{}` is not",
-                    crate::flatten::names::sketch(&index)
-                )
-            })?;
+            let Some(value) = constant_here(&index) else {
+                // A subscript that is not settled until the run - the
+                // logic tables read `NotTable[x]` off a signal - picks
+                // its element by asking. Every element is a candidate,
+                // and what comes out is the one whose place the index
+                // names: a chain of `if index == k then a[k]`. The last
+                // stands as the else, so a well-formed index always
+                // leaves one value behind.
+                let mut picked = Vec::with_capacity(items.len());
+                for item in items {
+                    picked.push(inner(item)?.scalar()?);
+                }
+                let Some(last) = picked.pop() else {
+                    return Err("a subscript into an array of none".to_string());
+                };
+                let mut chosen = last;
+                for (place, candidate) in picked.into_iter().enumerate().rev() {
+                    // A Boolean index counts from its `false` lower
+                    // bound, so the place it names is one less.
+                    let names = match is_boolean(&with_end) {
+                        true => place as f64,
+                        false => place as f64 + 1.0,
+                    };
+                    chosen = Expr::If(
+                        Box::new(Expr::Rel(
+                            crate::ast::RelOp::Eq,
+                            Box::new(index.clone()),
+                            Box::new(Expr::Number(names)),
+                        )),
+                        Box::new(candidate),
+                        Box::new(chosen),
+                    );
+                }
+                return Ok(Value::Scalar(chosen));
+            };
             // A Boolean subscript indexes off its `false` lower bound:
             // `false` is the first element, `true` the second.
             let value = if is_boolean(&with_end) {

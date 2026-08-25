@@ -750,6 +750,15 @@ fn substitute_at(
                 if let Some(value) = enclosing_import(registry, name, scope, depth) {
                     return Expr::Number(value);
                 }
+                // The same walk for a constant that comes to a list
+                // rather than a number: `NotTable` of a logic package
+                // is a constant array, named inside the package as it
+                // stands. Left unanswered the name travels into the
+                // flat model with the instance path on the front,
+                // which nothing declares.
+                if let Some(value) = enclosing_constant_array(registry, name, scope, depth) {
+                    return value;
+                }
             }
             expr.clone()
         }
@@ -856,6 +865,51 @@ fn enclosing_binding(registry: &HashMap<&str, &ClassDef>, name: &str, scope: &st
             gather_package_constants(registry, owner, 0, &mut constants);
             if let Some((_, binding)) = constants.iter().find(|(known, _)| known == name) {
                 return binding.clone();
+            }
+        }
+        let (head, _) = prefix.rsplit_once('.')?;
+        prefix = head;
+    }
+}
+
+/// A constant of an enclosing package that comes to a list rather
+/// than a number.
+///
+/// [`enclosing_constant`] answers a name that is a number; a name that
+/// is a vector - a logic package's `NotTable`, a colour of three - has
+/// no answer there, and left alone it travels into the flat model with
+/// the instance path on the front, which nothing declares. The binding
+/// is read in the package that holds it, since what it is written in
+/// terms of is that package's own.
+fn enclosing_constant_array(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    let mut prefix = scope;
+    loop {
+        if let Some(owner) = registry
+            .get(prefix)
+            .filter(|owner| owner.kind == ClassKind::Package)
+        {
+            let mut constants = Vec::new();
+            gather_package_constants(registry, owner, 0, &mut constants);
+            if let Some((_, binding)) = constants.iter().find(|(known, _)| known == name) {
+                let binding = binding.clone()?;
+                let binding = substitute_at(
+                    &binding,
+                    registry,
+                    &owner.name,
+                    &owner.imports,
+                    &[],
+                    depth + 1,
+                    true,
+                );
+                return matches!(binding, Expr::Array(_)).then_some(binding);
             }
         }
         let (head, _) = prefix.rsplit_once('.')?;

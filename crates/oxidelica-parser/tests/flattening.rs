@@ -192,11 +192,13 @@ fn array_and_function_error_paths() {
         .components
         .is_empty());
     assert!(err("model M Real v[-1]; end M;").contains("not negative"));
-    // A subscript that cannot be folded.
-    assert!(
-        err("model M Real v[2]; Real k; equation k = 1; v[1] = 0; v[2] = v[k]; end M;")
-            .contains("compile-time constant")
-    );
+    // A subscript that cannot be folded is not a refusal: it is read
+    // at the run, by asking which place the index names.
+    let chosen =
+        parse_model("model M Real v[2]; Real k; equation k = 1; v[1] = 0; v[2] = v[k]; end M;")
+            .unwrap();
+    let text = format!("{:?}", chosen.equations);
+    assert!(text.contains("If(Rel(Eq, Ref(\"k\")"), "{text}");
     // A subscript out of range names the bound it broke.
     assert!(
         err("model M Real v[2]; equation v[1] = 0; v[2] = v[0]; end M;")
@@ -1060,10 +1062,14 @@ fn a_tuple_equation_may_sit_inside_a_component() {
 #[test]
 fn the_array_layer_says_what_it_cannot_do() {
     let err = |source: &str| parse_model(source).unwrap_err().to_string();
-    assert!(err(
-        "model M Real v[2]; Real k; Real y; equation v = {1, 2}; k = time; y = v[k]; end M;"
+    // A subscript settled only at the run reads its element there, by
+    // asking which place the index names.
+    let chosen = parse_model(
+        "model M Real v[2]; Real k; Real y; equation v = {1, 2}; k = time; y = v[k]; end M;",
     )
-    .contains("compile-time constant"));
+    .unwrap();
+    let text = format!("{:?}", chosen.equations);
+    assert!(text.contains("If(Rel(Eq, Ref(\"k\")"), "{text}");
     assert!(
         err("model M Real v[2]; Real y; equation v = {1, 2}; y = v[0]; end M;")
             .contains("outside an array of 2")
@@ -9782,4 +9788,21 @@ fn a_string_a_body_writes_in_one_branch_starts_empty() {
         .find(|e| format!("{:?}", e.lhs) == "Ref(\"out\")")
         .unwrap();
     assert_eq!(format!("{:?}", out.rhs), "Time");
+}
+
+/// A constant array of an enclosing package, named as it stands and
+/// read at a place the run settles: the logic libraries write their
+/// tables this way, `NotTable[x]` off a signal of an enumeration.
+#[test]
+fn a_package_constant_array_is_named_and_read() {
+    let m = parse_model(
+        "package T type L = enumeration(u, x, zero, one); \
+         constant L NotTable[L] = {L.u, L.x, L.one, L.zero}; \
+         model M L a = L.zero; L b; equation b = NotTable[a]; end M; end T;",
+    )
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    // The name is gone: what stands is a choice among the elements.
+    assert!(!text.contains("NotTable"), "{text}");
+    assert!(text.contains("If(Rel(Eq, Ref(\"a\")"), "{text}");
 }
