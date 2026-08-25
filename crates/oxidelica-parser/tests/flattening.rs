@@ -10092,3 +10092,76 @@ fn the_newly_read_forms_say_what_is_wrong_with_them() {
          when time > 1 then assert(x < 5, \"m\") end when; end M;")
     .contains("semicolon"));
 }
+
+/// A flexible `:` length is read from the value a component is given,
+/// and a value handed down beats the one the declaration wrote. A
+/// number in the shape table that the model has already overruled is
+/// worse than none: a parameter settled from it is settled for good,
+/// while a name with no shape is asked again later.
+#[test]
+fn a_handed_value_measures_the_flexible_size_not_the_default() {
+    // Two instances of one block, each handed its own vector. The
+    // second used to be measured by the declaration's default and
+    // came out with the first one's length.
+    let m = parse_model(
+        "package P block B \
+         parameter Real v[:] = {0, 1}; \
+         parameter Integer n = size(v, 1); \
+         output Real y[n]; \
+         equation for i in 1:n loop y[i] = v[i]; end for; end B; \
+         model M B a(v = {2, 4, 6, 8}); B b(v = {1, 3, 5, 7}); \
+         Real p; Real q; equation p = a.y[4]; q = b.y[4]; end M; end P;",
+    )
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    // Both reached their fourth element, so both were measured as four.
+    assert!(text.contains("a.y[4]"), "{text}");
+    assert!(text.contains("b.y[4]"), "{text}");
+
+    // A matrix written out says its shape by how it is written.
+    let matrix = parse_model(
+        "package P block B \
+         parameter Real t[:,:] = [0, 1]; \
+         parameter Integer rows = size(t, 1); \
+         output Real y; equation y = rows; end B; \
+         model M B b(t = [0, 10; 1, 20; 2, 30]); Real z; \
+         equation z = b.y; end M; end P;",
+    )
+    .unwrap();
+    // Three rows, so `y` is three: the shape was read from the matrix
+    // handed down rather than from the `[0, 1]` the block declared.
+    let rows = matrix
+        .components
+        .iter()
+        .find(|c| c.name == "b.rows")
+        .and_then(|c| c.binding.clone());
+    assert!(
+        format!("{rows:?}").contains("3.0") || format!("{:?}", matrix.equations).contains("3.0"),
+        "rows: {rows:?} eqs: {:?}",
+        matrix.equations
+    );
+
+    // A range says its length by its bounds, and a bound may ask after
+    // an array already measured: this is how the table blocks write
+    // which columns they take.
+    let ranged = parse_model(
+        "package P block B \
+         parameter Real t[:,:] = [0, 1]; \
+         parameter Integer cols[:] = 2:size(t, 2); \
+         parameter Integer n = size(cols, 1); \
+         output Real y; equation y = n; end B; \
+         model M B b(t = [0, 10, 20; 1, 30, 40]); Real z; \
+         equation z = b.y; end M; end P;",
+    )
+    .unwrap();
+    let n = ranged
+        .components
+        .iter()
+        .find(|c| c.name == "b.n")
+        .and_then(|c| c.binding.clone());
+    assert!(
+        format!("{n:?}").contains("2.0") || format!("{:?}", ranged.equations).contains("2.0"),
+        "columns 2:3 is two: {n:?} eqs: {:?}",
+        ranged.equations
+    );
+}

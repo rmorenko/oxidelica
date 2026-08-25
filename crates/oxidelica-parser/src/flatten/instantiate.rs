@@ -253,11 +253,12 @@ pub(super) fn instantiate(
                 }
             })
             .collect();
-        collect_shapes(
+        collect_shapes_given(
             registry,
             class,
             &here,
             &HashMap::new(),
+            env.overrides,
             &mut handed_shapes,
             0,
         );
@@ -408,11 +409,12 @@ pub(super) fn instantiate(
     // What each array component of this class - and of its bases - is
     // shaped like, so a value may name one as a whole.
     let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
-    collect_shapes(
+    collect_shapes_given(
         registry,
         class,
         &local_consts,
         &HashMap::new(),
+        env.overrides,
         &mut sizes,
         0,
     );
@@ -2514,9 +2516,26 @@ pub(super) fn descends_from_external_object(
 }
 
 /// The length of a value along one axis, for a flexible `:` size. Only
-/// an array literal is measured: a `:` size on a model component is
-/// read from a value written out in full.
+/// a value written out says its length by being written out: a list,
+/// or a matrix of rows. Anything that has to be worked out first -
+/// a range, a list scaled by a factor - is measured where there is an
+/// environment to work it out against.
 pub(super) fn flexible_size(binding: &Expr, axis: usize) -> Option<i64> {
+    // `[a, b; c, d]` says its shape by how it is written: as many rows
+    // as there are semicolons, as many columns as a row holds. Rows of
+    // different widths are no shape at all, and are left unmeasured
+    // rather than guessed at.
+    if let Expr::MatrixRows(rows) = binding {
+        let width = rows.first()?.len();
+        if rows.iter().any(|row| row.len() != width) {
+            return None;
+        }
+        return match axis {
+            0 => Some(rows.len() as i64),
+            1 => Some(width as i64),
+            _ => None,
+        };
+    }
     let mut here = binding;
     for _ in 0..axis {
         here = match here {

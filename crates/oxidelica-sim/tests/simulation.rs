@@ -3956,3 +3956,42 @@ fn a_call_at_an_event_carries_the_checks_of_its_body() {
     let why = compile(&model).unwrap().simulate().unwrap_err().to_string();
     assert!(why.contains("guard tripped"), "{why}");
 }
+
+/// A flexible `:` length is read from the value a component is given,
+/// and a value handed down beats the one its declaration wrote. Two
+/// instances of one block each measure their own.
+#[test]
+fn each_instance_measures_the_value_it_was_handed() {
+    let result = run("package P block B \
+         parameter Real v[:] = {0, 1}; \
+         parameter Integer n = size(v, 1); \
+         output Real y; \
+         equation y = n; end B; \
+         model M B a(v = {2, 4, 6, 8}); B b(v = {1, 3}); \
+         Real p; Real q; equation p = a.y; q = b.y; end M; end P;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|c| c == name)
+            .map(|i| last[i])
+            .unwrap_or_else(|| panic!("no column {name} in {:?}", result.columns))
+    };
+    // Four and two, each from its own value rather than from the
+    // declaration's default of two, and not from each other.
+    assert_eq!(at("p"), 4.0, "{:?}", result.columns);
+    assert_eq!(at("q"), 2.0, "{:?}", result.columns);
+
+    // The same for a matrix and for a range read off one.
+    let table = run("package P block B \
+         parameter Real t[:,:] = [0, 1]; \
+         parameter Integer cols[:] = 2:size(t, 2); \
+         output Real y; \
+         equation y = size(cols, 1); end B; \
+         model M B b(t = [0, 10, 20; 1, 30, 40]); Real z; \
+         equation z = b.y; end M; end P;");
+    let last = table.rows.last().unwrap();
+    let z = table.columns.iter().position(|c| c == "z").unwrap();
+    assert_eq!(last[z], 2.0, "columns 2:3 is two");
+}

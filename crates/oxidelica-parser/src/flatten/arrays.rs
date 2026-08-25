@@ -1721,7 +1721,29 @@ pub(super) fn collect_shapes(
     out: &mut HashMap<String, Vec<i64>>,
     depth: usize,
 ) {
-    collect_shapes_under(registry, class, "", consts, given, out, depth)
+    collect_shapes_under(registry, class, "", consts, given, &[], out, depth)
+}
+
+/// The same, told what the class was handed.
+///
+/// A flexible `:` length is read from the value a component is given,
+/// and a value handed down beats the one the declaration wrote: a
+/// table block declares `table[:] = {0, 1}` and is handed
+/// `{2, 4, 6, 8}`, so its length is four rather than two. Measuring
+/// the declaration would put a number in the table that the model has
+/// already overruled, and a wrong number there is worse than none: a
+/// parameter settled from it is settled for good, while a name with no
+/// shape is simply asked again later.
+pub(super) fn collect_shapes_given(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    consts: &HashMap<String, f64>,
+    given: &HashMap<String, f64>,
+    handed: &[(String, Expr)],
+    out: &mut HashMap<String, Vec<i64>>,
+    depth: usize,
+) {
+    collect_shapes_under(registry, class, "", consts, given, handed, out, depth)
 }
 
 /// The same, for the members of a record below a name.
@@ -1732,6 +1754,7 @@ fn collect_shapes_under(
     prefix: &str,
     consts: &HashMap<String, f64>,
     given: &HashMap<String, f64>,
+    handed: &[(String, Expr)],
     out: &mut HashMap<String, Vec<i64>>,
     depth: usize,
 ) {
@@ -1741,7 +1764,16 @@ fn collect_shapes_under(
     let scope = class.name.as_str();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
-            collect_shapes_under(registry, base, prefix, consts, given, out, depth + 1);
+            collect_shapes_under(
+                registry,
+                base,
+                prefix,
+                consts,
+                given,
+                handed,
+                out,
+                depth + 1,
+            );
         }
     }
     for component in &class.components {
@@ -1757,7 +1789,7 @@ fn collect_shapes_under(
             .filter(|of| of.kind == ClassKind::Record)
         {
             let below = format!("{prefix}{}.", component.name);
-            collect_shapes_under(registry, of, &below, consts, given, out, depth + 1);
+            collect_shapes_under(registry, of, &below, consts, given, &[], out, depth + 1);
         }
         if component.dimensions.is_empty() {
             continue;
@@ -1802,10 +1834,34 @@ fn collect_shapes_under(
                         .filter(|c| !c.enumeration.is_empty())
                         .map(|c| c.enumeration.len() as i64)
                         .or_else(|| dimension_value(dimension, consts, out)),
-                    Expr::ColonSubscript => component
-                        .binding
-                        .as_ref()
-                        .and_then(|binding| flexible_size(binding, axis)),
+                    Expr::ColonSubscript => {
+                        // What the model handed this component beats
+                        // what its declaration wrote: the declaration
+                        // is the default, and the default was
+                        // overruled. Where the handed value cannot be
+                        // measured, nothing is written rather than the
+                        // losing number - a name with no shape is
+                        // asked again, a wrong shape is settled for
+                        // good.
+                        let value = handed
+                            .iter()
+                            .find(|(name, _)| name == &component.name)
+                            .map(|(_, given)| given)
+                            .or(component.binding.as_ref());
+                        value.and_then(|binding| {
+                            // A value written out says its length outright.
+                            if let Some(length) = flexible_size(binding, axis) {
+                                return Some(length);
+                            }
+                            // A range says it by its bounds: the table
+                            // blocks write `columns[:] = 2:size(table, 2)`,
+                            // and how many columns that is depends on the
+                            // table. The bounds are read against the
+                            // numbers in view and the arrays measured so
+                            // far, both of which are here.
+                            range_length(binding, axis, consts, out)
+                        })
+                    }
                     _ => dimension_value(dimension, consts, out),
                 }
             })
@@ -1814,6 +1870,40 @@ fn collect_shapes_under(
             out.insert(format!("{prefix}{}", component.name), sizes);
         }
     }
+}
+
+/// How long a range comes to, for a flexible `:` size read from one.
+///
+/// `2:size(table, 2)` is how the table blocks say which columns they
+/// take, and the length is the count of steps from one bound to the
+/// other. The bounds may themselves ask after an array already
+/// measured, so both tables are read. Nothing that cannot be settled
+/// here is guessed at: an unmeasurable range comes back unmeasured.
+fn range_length(
+    binding: &Expr,
+    axis: usize,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Option<i64> {
+    if axis != 0 {
+        return None;
+    }
+    let Expr::Range(from, step, to) = binding else {
+        return None;
+    };
+    let settle = |e: &Expr| {
+        const_eval(e, consts).or_else(|| dimension_value(e, consts, sizes).map(|n| n as f64))
+    };
+    let (from, to) = (settle(from)?, settle(to)?);
+    let step = match step {
+        None => 1.0,
+        Some(step) => settle(step)?,
+    };
+    if step == 0.0 {
+        return None;
+    }
+    let count = ((to - from) / step).floor() + 1.0;
+    (count.is_finite() && count >= 0.0).then_some(count as i64)
 }
 
 /// An array of the given shape, every element the same.
