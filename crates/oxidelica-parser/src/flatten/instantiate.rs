@@ -60,51 +60,9 @@ pub(super) fn instantiate(
         local_texts,
     } = settle_naming(registry, class, prefix, env, acc, &outers)?;
 
-    // A base's parameter may be given a value this class declares:
-    // `extends MIMO(final nin = m)` with `m` written below the
-    // `extends`, which is how the standard library gives a block as
-    // many inputs as it has phases. The bases are instantiated first,
-    // so what this class says about itself has to be worth something
-    // before that happens. Only what folds on its own is settled here;
-    // anything that needs a base's value waits for the round below.
-    let mut settled_early: Vec<String> = Vec::new();
-    loop {
-        let mut progress = false;
-        for component in &class.components {
-            let named = format!("{prefix}{}", component.name);
-            if !matches!(
-                component.variability,
-                Variability::Parameter | Variability::Constant
-            ) || settled_early.contains(&named)
-            {
-                continue;
-            }
-            let binding = env
-                .overrides
-                .iter()
-                .find(|(n, _)| n == &component.name)
-                .map(|(_, e)| e.clone())
-                .or_else(|| {
-                    component.binding.as_ref().map(|e| {
-                        let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
-                        prefix_expr(&e, prefix, &outers)
-                    })
-                });
-            let Some(binding) = binding else { continue };
-            // What has settled is already in the model's table, so the
-            // table is what the next one is read against - copying it
-            // per declaration would cost more than the whole round.
-            if let Some(value) = const_eval(&binding, &acc.const_values) {
-                settled_early.push(named.clone());
-                acc.const_values.insert(named.clone(), value);
-                acc.numbers.push((named, value));
-                progress = true;
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
+    let settled_early = settle_parameters_early(
+        registry, class, prefix, env, acc, &imports, &shadow, &outers,
+    );
 
     // Bases first, with their modifiers (already parent-scoped).
     for extend in &class.extends {
@@ -2174,6 +2132,71 @@ fn settle_naming<'a>(
         shadow,
         local_texts,
     })
+}
+
+/// What this class's own parameters are worth before its bases are
+/// built, for the bases that are given values written down here.
+///
+/// Moved out of `instantiate` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn settle_parameters_early(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    env: &Env,
+    acc: &mut Flat,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+) -> Vec<String> {
+    let scope = class.name.as_str();
+    // A base's parameter may be given a value this class declares:
+    // `extends MIMO(final nin = m)` with `m` written below the
+    // `extends`, which is how the standard library gives a block as
+    // many inputs as it has phases. The bases are instantiated first,
+    // so what this class says about itself has to be worth something
+    // before that happens. Only what folds on its own is settled here;
+    // anything that needs a base's value waits for the round below.
+    let mut settled_early: Vec<String> = Vec::new();
+    loop {
+        let mut progress = false;
+        for component in &class.components {
+            let named = format!("{prefix}{}", component.name);
+            if !matches!(
+                component.variability,
+                Variability::Parameter | Variability::Constant
+            ) || settled_early.contains(&named)
+            {
+                continue;
+            }
+            let binding = env
+                .overrides
+                .iter()
+                .find(|(n, _)| n == &component.name)
+                .map(|(_, e)| e.clone())
+                .or_else(|| {
+                    component.binding.as_ref().map(|e| {
+                        let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
+                        prefix_expr(&e, prefix, &outers)
+                    })
+                });
+            let Some(binding) = binding else { continue };
+            // What has settled is already in the model's table, so the
+            // table is what the next one is read against - copying it
+            // per declaration would cost more than the whole round.
+            if let Some(value) = const_eval(&binding, &acc.const_values) {
+                settled_early.push(named.clone());
+                acc.const_values.insert(named.clone(), value);
+                acc.numbers.push((named, value));
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+
+    settled_early
 }
 
 /// Whether a condition asks the connections a question.
