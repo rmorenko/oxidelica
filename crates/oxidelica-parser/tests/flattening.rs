@@ -10066,3 +10066,29 @@ fn a_call_at_an_event_goes_through_the_passes() {
     );
     assert!(named.is_ok(), "{named:?}");
 }
+
+/// What the parser says when the things it learned to read this week
+/// are written wrongly.
+#[test]
+fn the_newly_read_forms_say_what_is_wrong_with_them() {
+    let err = |source: &str| parse_model(source).unwrap_err().to_string();
+
+    // A subscript inside a `connect` that never closes.
+    assert!(err("connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model M Plug p; Plug q; equation connect(p.pin[1, q.pin[1]); end M;")
+    .contains("subscript"));
+
+    // An `inverse` whose named argument has no value after the `=`.
+    assert!(
+        err("function f input Real p; output Real h; algorithm h := p; \
+         annotation (inverse(p = g(h = ))); end f; \
+         model M Real y; equation y = f(1); end M;")
+        .contains("argument")
+    );
+
+    // An `assert` among the actions of a `when` with no semicolon.
+    assert!(err("model M Real x; equation x = time; \
+         when time > 1 then assert(x < 5, \"m\") end when; end M;")
+    .contains("semicolon"));
+}
