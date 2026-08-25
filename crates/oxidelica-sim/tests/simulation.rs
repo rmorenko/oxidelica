@@ -3995,3 +3995,107 @@ fn each_instance_measures_the_value_it_was_handed() {
     let z = table.columns.iter().position(|c| c == "z").unwrap();
     assert_eq!(last[z], 2.0, "columns 2:3 is two");
 }
+
+/// A value handed to a base may ask how long an array of the class
+/// handing it down is: `extends MO(final nout = size(columns, 1))` is
+/// how the table blocks say how many outputs they have. The base is
+/// instantiated next and has never heard of `columns`, so the question
+/// is answered where the modifier was written.
+#[test]
+fn a_modifier_handed_to_a_base_is_worked_out_where_it_was_written() {
+    let result = run("package P partial block MO parameter Integer n = 1; \
+         output Real y[n]; end MO; \
+         block Table extends MO(final n = size(cols, 1)); \
+         parameter Real t[:,:] = [0, 1]; \
+         parameter Integer cols[:] = 2:size(t, 2); \
+         equation for i in 1:n loop y[i] = i; end for; end Table; \
+         model M Table b(t = [0, 10, 20; 1, 30, 40]); \
+         Real u; Real v; equation u = b.y[1]; v = b.y[2]; end M; end P;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|c| c == name)
+            .map(|i| last[i])
+            .unwrap_or_else(|| panic!("no column {name} in {:?}", result.columns))
+    };
+    // Two columns, so two outputs, and each is its own place.
+    assert_eq!(at("u"), 1.0);
+    assert_eq!(at("v"), 2.0);
+}
+
+/// `min` and `max` take two numbers or one array. A block takes the
+/// longer of two lengths with `max([size(a, 1); size(b, 1)])`, which
+/// is one argument holding both.
+#[test]
+fn min_and_max_fold_over_one_array_as_well_as_two_numbers() {
+    let result = run("model M parameter Integer n = max([2; 1]); \
+         parameter Integer m = min({5, 3, 4}); \
+         Real y[n]; Real z; \
+         equation for i in 1:n loop y[i] = i; end for; z = m; end M;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|c| c == name)
+            .map(|i| last[i])
+    };
+    // `max([2; 1])` is two, so there is a second element to name.
+    assert!(at("y[2]").is_some(), "{:?}", result.columns);
+    assert_eq!(at("z"), Some(3.0));
+}
+
+/// A check among the actions of a `when` goes through the passes a
+/// flat model is put through: its names are resolved, a string in it
+/// is settled, and a table it asks after is rewritten.
+#[test]
+fn a_check_at_an_event_goes_through_the_flat_passes() {
+    // A string constant compared inside the check: settled before the
+    // run like every other string.
+    let named = parse_model(
+        "model M constant String mode = \"fast\"; Real x; \
+         equation x = time; \
+         when time > 1 then assert(mode == \"fast\", \"wrong mode\"); end when; \
+         annotation (experiment(StopTime = 2)); end M;",
+    )
+    .unwrap();
+    assert!(compile(&named).is_ok());
+
+    // A check that holds lets the run finish; the same one failing
+    // stops it at the event.
+    let result = run("model M Real x; Real k; equation x = time; k = 2; \
+         when time > 1 then assert(x < k * 10, \"held\"); end when; \
+         annotation (experiment(StopTime = 2)); end M;");
+    assert!(result.rows.last().is_some_and(|row| row[0] > 1.0));
+}
+
+/// A model whose components are conditional is compiled once per mode,
+/// and a check among the actions of a `when` is carried into each of
+/// them: the run has to be able to tell when the mode it was compiled
+/// for has been left behind, and the check goes along.
+#[test]
+fn a_check_at_an_event_survives_a_conditional_component() {
+    let result = run("model M parameter Boolean on = true; \
+         Real x if on; Real y; \
+         equation y = time; \
+         if on then x = time; end if; \
+         when time > 1 then assert(y < 5, \"held\"); end when; \
+         annotation (experiment(StopTime = 2)); end M;");
+    let last = result.rows.last().unwrap();
+    assert!((last[0] - 2.0).abs() < 1e-9, "reached the stop time");
+
+    // The same check failing stops the run at the event.
+    let model = parse_model(
+        "model M parameter Boolean on = true; \
+         Real x if on; Real y; \
+         equation y = time; \
+         if on then x = time; end if; \
+         when time > 1 then assert(y < 0.5, \"too big\"); end when; \
+         annotation (experiment(StopTime = 2)); end M;",
+    )
+    .unwrap();
+    let why = compile(&model).unwrap().simulate().unwrap_err().to_string();
+    assert!(why.contains("too big"), "{why}");
+}

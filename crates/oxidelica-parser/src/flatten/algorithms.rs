@@ -246,7 +246,7 @@ pub(super) fn has_return(statements: &[Statement]) -> bool {
 /// is whether a value may be dropped. A name reached through a
 /// subscript counts - `o[3]` reads `o` - and so does one asked for as
 /// the whole, which is how an array is handed to a call.
-fn reads_name(expr: &Expr, wanted: &str) -> bool {
+pub(super) fn reads_name(expr: &Expr, wanted: &str) -> bool {
     let whole = wanted.split('[').next().unwrap_or(wanted);
     let mut found = false;
     walk_expr(expr, &mut |node| {
@@ -321,7 +321,7 @@ fn walk_expr(expr: &Expr, eye: &mut impl FnMut(&Expr)) {
 /// what it should be where a branch never set it, and there is no
 /// answer - but there is no question either, since nothing downstream
 /// asks. What is read after the `if` is what has to be merged.
-fn read_later(statements: &[Statement], name: &str, depth: usize) -> bool {
+pub(super) fn read_later(statements: &[Statement], name: &str, depth: usize) -> bool {
     if depth > MAX_DEPTH {
         // Too deep to say no safely: merging a name that nothing reads
         // costs work, and refusing one that something reads is wrong.

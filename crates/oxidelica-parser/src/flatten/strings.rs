@@ -101,16 +101,14 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<Settled, String> {
                     | WhenAction::TupleAssign(_, value) => {
                         *value = fold(value, &values, &numbers)?;
                     }
-                    // Taken apart while flattening, which reads the
-                    // checks of a call's body and keeps nothing of the
-                    // call, so none reaches a flat model.
-                    WhenAction::Call(..) => {}
                     // A check made at the event may be written with a
                     // string the same way, and it is settled here.
                     WhenAction::Assert(condition, _) => {
                         *condition = fold(condition, &values, &numbers)?;
                     }
-                    WhenAction::Terminate(_) => {}
+                    // A call on its own is taken apart while
+                    // flattening and reaches no flat model.
+                    WhenAction::Terminate(_) | WhenAction::Call(..) => {}
                     // Taken apart while flattening, so neither a loop
                     // nor a choice is left.
                     WhenAction::Loop(_) | WhenAction::Choice(_) => {}

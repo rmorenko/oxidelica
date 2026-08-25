@@ -198,6 +198,27 @@ pub(super) fn prefix_expr_under(
     }
 }
 
+/// Every number a value written out holds, however deeply it nests.
+///
+/// `[a; b]` is a matrix of two rows and `{a, b}` a list of two, and
+/// `min` and `max` of either is over all the numbers in it.
+fn flat_numbers(expr: &Expr, env: &HashMap<String, f64>, out: &mut Vec<f64>) -> Option<()> {
+    match expr {
+        Expr::Array(items) => {
+            for item in items {
+                flat_numbers(item, env, out)?;
+            }
+        }
+        Expr::MatrixRows(rows) => {
+            for cell in rows.iter().flatten() {
+                flat_numbers(cell, env, out)?;
+            }
+        }
+        one => out.push(const_eval(one, env)?),
+    }
+    Some(())
+}
+
 /// Evaluate a compile-time constant expression (array dimensions, loop
 /// bounds, subscripts). Only the arithmetic that can appear there is
 /// supported; anything else means the value is not constant.
@@ -269,6 +290,19 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
         // The numeric builtins fold too: a `while` iterating Newton's
         // method or an AGM lives on `abs` and `sqrt` in its condition.
         Expr::Call(name, args) => {
+            // `min` and `max` take two numbers or one array: a block
+            // takes the longer of two lengths with
+            // `max([size(a, 1); size(b, 1)])`, which is one argument
+            // holding both.
+            if matches!(operator_name(name), "min" | "max") && args.len() == 1 {
+                let mut held = Vec::new();
+                flat_numbers(args.first()?, env, &mut held)?;
+                let (first, rest) = held.split_first()?;
+                return Some(match operator_name(name) {
+                    "min" => rest.iter().fold(*first, |a, b| a.min(*b)),
+                    _ => rest.iter().fold(*first, |a, b| a.max(*b)),
+                });
+            }
             let one = || -> Option<f64> { const_eval(args.first()?, env) };
             let two = || -> Option<(f64, f64)> {
                 Some((

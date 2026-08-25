@@ -482,3 +482,189 @@ fn a_constant_written_as_a_length_is_measured_or_left_alone() {
         None
     );
 }
+
+#[test]
+fn min_and_max_take_two_numbers_or_one_array() {
+    // A block takes the longer of two lengths with
+    // `max([size(a, 1); size(b, 1)])`, which is one argument holding
+    // both. A list is the same question written another way, and two
+    // numbers are the form the folder always knew.
+    let folded = |written: &str| {
+        let source =
+            format!("model M parameter Real k = {written}; Real y; equation y = k; end M;");
+        let m = parse_model(&source).unwrap();
+        let known = std::collections::HashMap::new();
+        super::const_eval(m.components[0].binding.as_ref().unwrap(), &known)
+    };
+    assert_eq!(folded("max([2; 1])"), Some(2.0));
+    assert_eq!(folded("min([2; 1])"), Some(1.0));
+    assert_eq!(folded("max({3, 7, 5})"), Some(7.0));
+    assert_eq!(folded("min({3, 7, 5})"), Some(3.0));
+    // Rows of several cells, and the two-number form.
+    assert_eq!(folded("max([1, 9; 4, 2])"), Some(9.0));
+    assert_eq!(folded("max(2, 5)"), Some(5.0));
+    // A name it cannot settle leaves the whole question unanswered,
+    // wherever in the value it sits.
+    assert_eq!(folded("max({1, unknown})"), None);
+    assert_eq!(folded("max([1; unknown])"), None);
+    assert_eq!(folded("min({{1, 2}, {3, 4}})"), Some(1.0));
+}
+
+#[test]
+fn a_flexible_size_is_measured_only_where_it_can_be() {
+    use crate::ast::Expr;
+    let n = |v: f64| Expr::Number(v);
+    // A matrix says its shape by how it is written.
+    let matrix = Expr::MatrixRows(vec![vec![n(1.0), n(2.0)], vec![n(3.0), n(4.0)]]);
+    assert_eq!(super::flexible_size(&matrix, 0), Some(2));
+    assert_eq!(super::flexible_size(&matrix, 1), Some(2));
+    // Deeper than it has axes, and rows of different widths, are no
+    // shape at all rather than a guess.
+    assert_eq!(super::flexible_size(&matrix, 2), None);
+    let ragged = Expr::MatrixRows(vec![vec![n(1.0), n(2.0)], vec![n(3.0)]]);
+    assert_eq!(super::flexible_size(&ragged, 0), None);
+    let empty = Expr::MatrixRows(vec![]);
+    assert_eq!(super::flexible_size(&empty, 0), None);
+    // A list still says its length, and a name says nothing.
+    assert_eq!(super::flexible_size(&Expr::Array(vec![n(1.0)]), 0), Some(1));
+    assert_eq!(super::flexible_size(&Expr::Ref("v".into()), 0), None);
+}
+
+#[test]
+fn a_range_is_measured_only_along_its_one_axis() {
+    use crate::ast::Expr;
+    use std::collections::HashMap;
+    let n = |v: f64| Box::new(Expr::Number(v));
+    let consts = HashMap::new();
+    let sizes = HashMap::new();
+    let range = |from, step: Option<f64>, to| Expr::Range(n(from), step.map(n), n(to));
+    // Two to five is four places, and a step of two makes it two.
+    assert_eq!(
+        super::arrays::range_length(&range(2.0, None, 5.0), 0, &consts, &sizes),
+        Some(4)
+    );
+    assert_eq!(
+        super::arrays::range_length(&range(2.0, Some(2.0), 5.0), 0, &consts, &sizes),
+        Some(2)
+    );
+    // A range has one axis; there is no second to ask about.
+    assert_eq!(
+        super::arrays::range_length(&range(2.0, None, 5.0), 1, &consts, &sizes),
+        None
+    );
+    // A step of nothing would never arrive, and a value that is not a
+    // range is not one to measure.
+    assert_eq!(
+        super::arrays::range_length(&range(2.0, Some(0.0), 5.0), 0, &consts, &sizes),
+        None
+    );
+    assert_eq!(
+        super::arrays::range_length(&Expr::Number(1.0), 0, &consts, &sizes),
+        None
+    );
+    // A bound the environment cannot settle leaves it unmeasured.
+    let named = Expr::Range(n(1.0), None, Box::new(Expr::Ref("unknown".into())));
+    assert_eq!(
+        super::arrays::range_length(&named, 0, &consts, &sizes),
+        None
+    );
+}
+
+#[test]
+fn the_walk_for_a_read_reaches_every_corner_of_an_expression() {
+    use crate::ast::Expr;
+    // Whether a value may be dropped turns on this answer, so the walk
+    // has to be sure: a name in any corner counts, and a name in none
+    // of them does not. These are the shapes an ordinary parse rarely
+    // puts in front of it.
+    let named = Expr::Ref("o".into());
+    let other = Expr::Ref("p".into());
+    let reads = |e: &Expr| super::algorithms::reads_name(e, "o");
+
+    // A tuple of targets, and a slot left empty.
+    let tuple = Expr::Tuple(vec![None, Some(named.clone())]);
+    assert!(reads(&tuple));
+    assert!(!reads(&Expr::Tuple(vec![None, Some(other.clone())])));
+
+    // A value carrying its own rule of differentiation: the value, the
+    // rule and the seeds are all read.
+    let derived = |value: Expr, rule: Expr, seed: Expr| {
+        Expr::WithDerivative(
+            Box::new(value),
+            Box::new(rule),
+            vec![("x".to_string(), seed)],
+        )
+    };
+    assert!(reads(&derived(named.clone(), other.clone(), other.clone())));
+    assert!(reads(&derived(other.clone(), named.clone(), other.clone())));
+    assert!(reads(&derived(other.clone(), other.clone(), named.clone())));
+    assert!(!reads(&derived(
+        other.clone(),
+        other.clone(),
+        other.clone()
+    )));
+
+    // An argument given by name, and a subscript reaching the whole.
+    assert!(reads(&Expr::NamedArg("k".into(), Box::new(named.clone()))));
+    assert!(reads(&Expr::Ref("o[1]".into())));
+    assert!(!reads(&Expr::Ref("other".into())));
+}
+
+#[test]
+fn whether_a_name_is_read_later_sees_every_kind_of_statement() {
+    use crate::ast::{Expr, Statement, StatementBranch};
+    let named = || Expr::Ref("o".into());
+    let other = || Expr::Ref("p".into());
+    let reads = |body: Vec<Statement>| super::algorithms::read_later(&body, "o", 0);
+
+    // The target of an assignment is written, not read - but the
+    // subscripts that find the place are read, and so is the value.
+    assert!(!reads(vec![Statement::Assign("o".into(), vec![], other())]));
+    assert!(reads(vec![Statement::Assign("q".into(), vec![], named())]));
+    assert!(reads(vec![Statement::Assign(
+        "q".into(),
+        vec![named()],
+        other()
+    )]));
+
+    // A tuple of targets, its subscripts and its value.
+    assert!(reads(vec![Statement::TupleAssign(
+        vec![Some(("q".into(), vec![named()]))],
+        other()
+    )]));
+    assert!(reads(vec![Statement::TupleAssign(vec![None], named())]));
+
+    // A branch reads through its condition and through its body.
+    let branch =
+        |condition: Option<Expr>, body: Vec<Statement>| StatementBranch { condition, body };
+    assert!(reads(vec![Statement::If(vec![branch(
+        Some(named()),
+        vec![]
+    )])]));
+    assert!(reads(vec![Statement::When(vec![branch(
+        None,
+        vec![Statement::Assign("q".into(), vec![], named())]
+    )])]));
+
+    // A loop reads through its range and its body; a `while` through
+    // its condition and its body.
+    assert!(reads(vec![Statement::For(
+        "i".into(),
+        Some(named()),
+        vec![]
+    )]));
+    assert!(reads(vec![Statement::While(named(), vec![])]));
+    assert!(reads(vec![Statement::While(
+        other(),
+        vec![Statement::Assign("q".into(), vec![], named())]
+    )]));
+
+    // A check and a call read their arguments; leaving reads nothing.
+    assert!(reads(vec![Statement::Assert(named(), "m".into())]));
+    assert!(reads(vec![Statement::Call("f".into(), vec![named()])]));
+    assert!(!reads(vec![Statement::Break, Statement::Return]));
+
+    // Too deep to say no safely: merging a name nothing reads costs
+    // work, refusing one something reads is wrong.
+    assert!(super::algorithms::read_later(&[], "o", 1_000));
+}

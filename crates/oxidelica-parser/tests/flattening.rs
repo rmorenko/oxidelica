@@ -10165,3 +10165,167 @@ fn a_handed_value_measures_the_flexible_size_not_the_default() {
         ranged.equations
     );
 }
+
+/// A modifier handed to a base is worked out where it was written, and
+/// what it asks about an array may be buried anywhere in it: inside
+/// arithmetic, a choice, a list, a range, a subscript.
+#[test]
+fn a_size_asked_in_a_handed_value_is_answered_wherever_it_sits() {
+    let flattens = |modifier: &str| {
+        let source = format!(
+            "package P partial block MO parameter Integer n = 1; \
+             output Real y[n]; end MO; \
+             block T extends MO(final n = {modifier}); \
+             parameter Real v[:] = {{0, 1}}; \
+             equation for i in 1:n loop y[i] = i; end for; end T; \
+             model M T b(v = {{1, 2, 3}}); Real u; \
+             equation u = b.y[3]; end M; end P;"
+        );
+        parse_model(&source)
+            .map(|m| format!("{:?}", m.equations).contains("b.y[3]"))
+            .unwrap_or(false)
+    };
+    // Each of these comes to three, and the third element must exist.
+    assert!(flattens("size(v, 1)"), "plain");
+    assert!(flattens("size(v, 1) + 0"), "inside arithmetic");
+    assert!(flattens("-(-size(v, 1))"), "inside a negation");
+    assert!(
+        flattens("if size(v, 1) > 2 then 3 else 1"),
+        "inside a choice"
+    );
+    assert!(flattens("max({size(v, 1), 1})"), "inside a list");
+    assert!(flattens("max([size(v, 1); 1])"), "inside a matrix");
+    assert!(flattens("integer(size(v, 1))"), "inside a call");
+    assert!(flattens("size(v, 1) * 1"), "a product");
+    // A truth and a negation of one, a range read for its length, and
+    // a place picked out of a list.
+    assert!(
+        flattens("if not (size(v, 1) < 2) and size(v, 1) > 1 then 3 else 1"),
+        "inside `not` and `and`"
+    );
+    assert!(
+        flattens("if size(v, 1) > 9 or size(v, 1) == 3 then 3 else 1"),
+        "inside `or`"
+    );
+    // A comprehension over a range whose bound asks the question is
+    // not answered here: what it comes to is worked out by the pass
+    // that expands arrays, and this one only replaces the question
+    // where it stands. The value is still read correctly where the
+    // parameter is settled without an `extends` in the way.
+    let comprehended = parse_model(
+        "model M parameter Real v[3] = {1, 2, 3}; \
+         parameter Integer n = size({0 for i in 1:size(v, 1)}, 1); \
+         Real y; equation y = n; end M;",
+    );
+    assert!(comprehended.is_ok(), "{comprehended:?}");
+}
+
+/// Whether a name is read after an `if` is answered by walking the
+/// statements that follow, and the walk has to look through every kind
+/// of expression there is: missing one would drop a value something
+/// still reads. Each of these reads `o` in a different shape.
+#[test]
+fn the_walk_looks_through_every_shape_an_expression_takes() {
+    let reads = [
+        "T := o[1] + o[2];",                            // arithmetic
+        "T := -o[1] - (-o[2]);",                        // negation
+        "T := if not (o[1] > 0) then o[2] else o[1];",  // `not`
+        "T := if o[1] > 0 or o[2] > 0 then 1 else 2;",  // `or`
+        "T := if o[1] > 0 and o[2] > 0 then 1 else 2;", // `and`
+        "T := sum({o[1], o[2]} .* {1, 1});",            // elementwise
+        "T := sum([o[1], o[2]; 1, 1]);",                // a matrix
+        "T := sum(o[1:2]);",                            // a range
+        "T := sum({o[i] for i in 1:2});",               // a comprehension
+        "T := abs(x = o[1]);",                          // a named argument
+    ];
+    for tail in reads {
+        let source = format!(
+            "package P function tph input Real p; output Real T; protected Real[2] o; \
+             algorithm if p < 1 then o[1] := p; else o[1] := 2*p; o[2] := 3*p; end if; \
+             {tail} end tph; \
+             model M Real q; Real y; equation q = 5; y = tph(q); end M; end P;"
+        );
+        let err = parse_model(&source)
+            .map(|_| String::from("accepted"))
+            .unwrap_or_else(|e| e.to_string());
+        assert!(
+            err.contains("assigned in one branch only") || err.contains("not a function"),
+            "`{tail}` reads `o` after the `if`, so it must be merged: {err}"
+        );
+    }
+}
+
+/// A port is reached through as many members and subscripts as are
+/// written, in an equation and in a `connect` alike, and a subscript
+/// that never closes says so wherever it sits in the chain.
+#[test]
+fn a_chain_of_members_and_subscripts_goes_as_deep_as_it_is_written() {
+    // Four steps: rack, box, plug, pin, each subscripted.
+    let deep = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model Box Plug plug[2]; end Box; \
+         model Rack Box box[2]; end Rack; \
+         model M Rack r[2]; Real z; \
+         equation z = r[1].box[1].plug[1].pin[1].v; end M;",
+    );
+    let text = format!("{deep:?}");
+    assert!(
+        text.contains("r[1].box[1].plug[1].pin[1].v"),
+        "the whole chain: {text}"
+    );
+
+    // The same chain inside a `connect`.
+    let joined = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model Box Plug plug[2]; end Box; \
+         model Rack Box box[2]; end Rack; \
+         model M Rack r[2]; equation \
+         connect(r[1].box[1].plug[1].pin[1], r[2].box[2].plug[2].pin[2]); end M;",
+    );
+    assert!(
+        !format!("{joined:?}").contains("closing parenthesis of connect"),
+        "{joined:?}"
+    );
+
+    // A subscript deep in the chain that never closes.
+    let err = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[2]; end Plug; \
+         model Box Plug plug[2]; end Box; \
+         model M Box b[2]; equation \
+         connect(b[1].plug[1].pin[1, b[2].plug[1].pin[1]); end M;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("subscript"), "{err}");
+}
+
+/// A range says its length by its bounds, and a step of its own counts
+/// the places between them. A range that cannot be settled leaves the
+/// length unmeasured rather than guessing at it.
+#[test]
+fn a_range_read_for_a_flexible_size_counts_its_places() {
+    let n = |written: &str| {
+        let source = format!(
+            "package P block B parameter Integer r[:] = {written}; \
+             parameter Integer n = size(r, 1); output Real y; \
+             equation y = n; end B; \
+             model M B b; Real z; equation z = b.y; end M; end P;"
+        );
+        parse_model(&source).map(|m| {
+            m.components
+                .iter()
+                .find(|c| c.name == "b.n")
+                .and_then(|c| c.binding.clone())
+                .map(|e| format!("{e:?}"))
+                .unwrap_or_default()
+        })
+    };
+    // Two to five is four places; a step of two makes it two.
+    assert!(n("2:5").unwrap().contains("4.0"), "{:?}", n("2:5"));
+    assert!(n("2:2:5").unwrap().contains("2.0"), "{:?}", n("2:2:5"));
+    // A range that runs backwards holds nothing.
+    assert!(n("5:2").unwrap().contains("0.0"), "{:?}", n("5:2"));
+}

@@ -533,15 +533,15 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                         | WhenAction::TupleAssign(_, value) => {
                             *value = resolve_streams(value, &context)?;
                         }
-                        // Taken apart while flattening, so none
-                        // reaches a flat model.
-                        WhenAction::Call(..) => {}
                         // A check made at the event may ask after a
                         // stream the same way an assignment may.
                         WhenAction::Assert(condition, _) => {
                             *condition = resolve_streams(condition, &context)?;
                         }
-                        WhenAction::Terminate(_) => {}
+                        // A call on its own is taken apart while
+                        // flattening, which keeps the checks its body
+                        // makes and nothing of the call.
+                        WhenAction::Terminate(_) | WhenAction::Call(..) => {}
                         // Taken apart while flattening, so neither a
                         // loop nor a choice is left.
                         WhenAction::Loop(_) | WhenAction::Choice(_) => {}
@@ -699,13 +699,12 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                         *value = answer(value);
                     }
                     WhenAction::Assert(condition, _) => *condition = answer(condition),
-                    // Taken apart while flattening, so none reaches a
-                    // flat model.
-                    WhenAction::Call(..) => {}
-                    WhenAction::Terminate(_) => {}
-                    // Taken apart while flattening, so neither a loop
-                    // nor a choice is left.
-                    WhenAction::Loop(_) | WhenAction::Choice(_) => {}
+                    // Taken apart while flattening, so none of these
+                    // reaches a flat model.
+                    WhenAction::Terminate(_)
+                    | WhenAction::Call(..)
+                    | WhenAction::Loop(_)
+                    | WhenAction::Choice(_) => {}
                 }
             }
         }

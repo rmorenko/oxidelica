@@ -212,15 +212,6 @@ pub(super) fn instantiate(
         if !acc.extended.insert((prefix.to_string(), base.name.clone())) {
             continue;
         }
-        let mods: Vec<(String, Expr)> = extend
-            .modifiers
-            .iter()
-            .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
-                (n.clone(), prefix_expr(&e, prefix, &outers))
-            })
-            .chain(env.overrides.iter().cloned())
-            .collect();
         let mut base_redeclares = Vec::new();
         for redeclare in &extend.redeclares {
             base_redeclares.push(qualify_redeclare(
@@ -263,6 +254,23 @@ pub(super) fn instantiate(
             0,
         );
         let handed_shapes = prefixed_sizes(&handed_shapes, prefix);
+        // A value handed to a base is written where this class stands,
+        // and may ask how long an array of this class is: a table
+        // block says `extends MO(final nout = size(columns, 1))` about
+        // itself. The base is instantiated next and has never heard of
+        // `columns`, so the question is answered here, where the
+        // shapes were just measured - which is where the language says
+        // a modifier is worked out anyway.
+        let mods: Vec<(String, Expr)> = extend
+            .modifiers
+            .iter()
+            .map(|(n, e)| {
+                let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
+                let e = prefix_expr(&e, prefix, &outers);
+                (n.clone(), measured_sizes(&e, &handed_shapes, &here))
+            })
+            .chain(env.overrides.iter().cloned())
+            .collect();
         let base_env = Env {
             overrides: &mods,
             handed_shapes: &handed_shapes,
@@ -302,6 +310,7 @@ pub(super) fn instantiate(
     // `parameter Voltage V[m]` is written with it. What the `extends`
     // clause said about a base parameter comes with it.
     let inherited = inherited_parameters(registry, class, 0);
+    let env_overrides = env.overrides;
     loop {
         let mut progress = false;
         // What every declaration is read against: the model's numbers
@@ -310,6 +319,20 @@ pub(super) fn instantiate(
         // with a thousand numbers below it cannot afford.
         let mut env = acc.const_values.clone();
         env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+        // What this class's arrays are shaped like, as far as the
+        // numbers settled so far can say. A value handed down by an
+        // `extends` may ask after one of them, and the round after
+        // this will see whatever settles in this one.
+        let mut shapes_here: HashMap<String, Vec<i64>> = HashMap::new();
+        collect_shapes_given(
+            registry,
+            class,
+            &local_consts,
+            &HashMap::new(),
+            env_overrides,
+            &mut shapes_here,
+            0,
+        );
         for (component, from_extends) in class
             .components
             .iter()
@@ -331,7 +354,13 @@ pub(super) fn instantiate(
                 .iter()
                 .find(|(n, _)| n == &component.name)
                 .map(|(_, e)| e.clone())
-                .or_else(|| from_extends.cloned())
+                // A value the `extends` handed down may ask how long
+                // an array of this class is - `extends MO(final n =
+                // size(cols, 1))` - and the shapes measured so far are
+                // what answers it. The base was handed the same value
+                // already folded; this is the same parameter seen from
+                // the class that wrote it.
+                .or_else(|| from_extends.map(|e| measured_sizes(e, &shapes_here, &local_consts)))
                 .or_else(|| {
                     component
                         .binding
@@ -2513,6 +2542,48 @@ pub(super) fn descends_from_external_object(
         lookup(registry, &extend.base, &class.name, &class.imports)
             .is_some_and(|base| descends_from_external_object(registry, base, depth + 1))
     })
+}
+
+/// Answer every `size(v, k)` an expression asks about an array whose
+/// shape is known, leaving the rest of it alone.
+///
+/// A modifier handed to a base is worked out in the terms of the class
+/// that wrote it: `extends MO(final nout = size(columns, 1))` asks
+/// about a declaration of the block, and the base it is handed to has
+/// never heard of that name. Answering it here is what lets the base
+/// be built with a length rather than with a question.
+fn measured_sizes(
+    expr: &Expr,
+    sizes: &HashMap<String, Vec<i64>>,
+    consts: &HashMap<String, f64>,
+) -> Expr {
+    if let Expr::Call(name, args) = expr {
+        if name == "size" && !args.is_empty() && args.len() <= 2 {
+            if let Some(length) = dimension_value(expr, consts, sizes) {
+                return Expr::Number(length as f64);
+            }
+        }
+    }
+    let recur = |e: &Expr| measured_sizes(e, sizes, consts);
+    match expr {
+        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
+        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
+        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
+        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
+        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+        Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
+        // `max([size(a, 1); size(b, 1)])` is how a block takes the
+        // longer of two, and the questions are inside the matrix.
+        Expr::MatrixRows(rows) => Expr::MatrixRows(
+            rows.iter()
+                .map(|row| row.iter().map(recur).collect())
+                .collect(),
+        ),
+        other => other.clone(),
+    }
 }
 
 /// The length of a value along one axis, for a flexible `:` size. Only

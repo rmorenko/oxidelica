@@ -1879,7 +1879,7 @@ fn collect_shapes_under(
 /// other. The bounds may themselves ask after an array already
 /// measured, so both tables are read. Nothing that cannot be settled
 /// here is guessed at: an unmeasurable range comes back unmeasured.
-fn range_length(
+pub(super) fn range_length(
     binding: &Expr,
     axis: usize,
     consts: &HashMap<String, f64>,
