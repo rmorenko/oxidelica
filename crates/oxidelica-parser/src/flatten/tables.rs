@@ -25,6 +25,8 @@ const CONSTANT_SEGMENTS: f64 = 3.0;
 /// The extrapolation numbers of `Modelica.Blocks.Types.Extrapolation`.
 const HOLD_LAST_POINT: f64 = 1.0;
 const LAST_TWO_POINTS: f64 = 2.0;
+const PERIODIC: f64 = 3.0;
+const NO_EXTRAPOLATION: f64 = 4.0;
 
 /// One table, as the model wrote it.
 struct Table {
@@ -50,6 +52,10 @@ pub(super) fn resolve_tables(
     if handles.is_empty() {
         return Ok(());
     }
+    // A table asked for no extrapolation leaves a check behind where
+    // it is written out, and this is what takes them up: the model
+    // being built is here, and an expression has nowhere to put one.
+    let mark = super::algorithms::checks_mark();
     let (texts, numbers) = (&settled.texts, &settled.numbers);
     let mut tables: HashMap<String, Table> = HashMap::new();
     for (name, built) in handles {
@@ -89,6 +95,8 @@ pub(super) fn resolve_tables(
     for (condition, _) in &mut model.asserts {
         *condition = rewrite(condition);
     }
+    // Whatever the writing out left behind, in the order it came.
+    model.asserts.extend(super::algorithms::checks_taken(mark));
     // A table whose first column is time says when it next turns a
     // corner, and the block asks that at an event.
     for clause in &mut model.when_clauses {
@@ -393,18 +401,42 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
                 .to_string(),
         );
     }
-    if table.extrapolation != LAST_TWO_POINTS && table.extrapolation != HOLD_LAST_POINT {
-        return Err(
-            "a table asks for periodic extrapolation or for none, and this compiler writes \
-             out holding and carrying on only"
-                .to_string(),
-        );
+    if !matches!(
+        table.extrapolation,
+        LAST_TWO_POINTS | HOLD_LAST_POINT | PERIODIC | NO_EXTRAPOLATION
+    ) {
+        return Err("a table asks for an extrapolation this compiler does not know".to_string());
     }
     let value = |row: usize| table.rows[row][column - 1];
     // Where the first column is time, the table may sit shifted along
     // it; everywhere else the shift is zero and this is the column as
     // written.
     let at = |row: usize| table.rows[row][0] + table.shift;
+    // A table asked to repeat says the same thing every period: what
+    // it is asked at is brought back into the one scope it was written
+    // for, and everything below reads that instead. `mod` of the
+    // distance from the near end by the width of the table is where in
+    // it the run has arrived; the value beyond the far end is then
+    // never reached, since nothing gets there.
+    let period = at(table.rows.len() - 1) - at(0);
+    let u = &match table.extrapolation == PERIODIC && period > 0.0 {
+        false => u.clone(),
+        true => Expr::Bin(
+            BinOp::Add,
+            Box::new(Expr::Number(at(0))),
+            Box::new(Expr::Call(
+                "mod".to_string(),
+                vec![
+                    Expr::Bin(
+                        BinOp::Sub,
+                        Box::new(u.clone()),
+                        Box::new(Expr::Number(at(0))),
+                    ),
+                    Expr::Number(period),
+                ],
+            )),
+        ),
+    };
     // What one interval says, as a value or as a slope.
     let piece = |first: usize| -> Expr {
         let last = first + 1;
@@ -469,6 +501,31 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         }),
         false => piece(intervals - 1),
     };
+    // A table asked for no extrapolation says the run has gone wrong
+    // where it is read outside its own scope. The check is left for
+    // the class being instantiated to take up, the way an inlined
+    // body's checks are: an expression has nowhere to put one.
+    if table.extrapolation == NO_EXTRAPOLATION {
+        let (near, far) = (at(0), at(table.rows.len() - 1));
+        super::algorithms::check_aside(
+            Expr::And(
+                Box::new(Expr::Rel(
+                    RelOp::Ge,
+                    Box::new(u.clone()),
+                    Box::new(Expr::Number(near)),
+                )),
+                Box::new(Expr::Rel(
+                    RelOp::Le,
+                    Box::new(u.clone()),
+                    Box::new(Expr::Number(far)),
+                )),
+            ),
+            format!(
+                "a table asked for no extrapolation is read outside \
+                 the scope it was written for, which is {near} to {far}"
+            ),
+        );
+    }
     let mut written = beyond;
     // Built from the far end back, so the nearest test ends up first.
     for first in (0..intervals).rev() {

@@ -7385,15 +7385,31 @@ fn a_table_reads_what_the_model_settled_around_it() {
     .to_string();
     assert!(missing.contains("has no output 2"), "{missing}");
 
-    // So is a periodic table, which this compiler does not write out.
+    // A periodic table says the same thing every period: what it is
+    // asked at is brought back into the one scope it was written for,
+    // so the value beyond the far end is never reached.
     let periodic = parse_model(&format!(
         "{TABLE_BLOCK} model M \
          Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1; 1, 2], {{2}}, 1, 3); \
          Real y; equation y = Blocks.getValue(h, 1, time); end M;"
     ))
-    .unwrap_err()
-    .to_string();
-    assert!(periodic.contains("periodic extrapolation"), "{periodic}");
+    .unwrap();
+    let text = format!("{:?}", periodic.equations);
+    assert!(
+        text.contains("Call(\"mod\""),
+        "brought back into scope: {text}"
+    );
+
+    // A table asked for no extrapolation leaves a check behind rather
+    // than answering outside the scope it was written for.
+    let refused = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 1; 1, 2], {{2}}, 1, 4); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", refused.asserts);
+    assert!(said.contains("no extrapolation"), "{said}");
 }
 
 /// A generator of the shape the standard library declares one: the
@@ -10328,4 +10344,34 @@ fn a_range_read_for_a_flexible_size_counts_its_places() {
     assert!(n("2:2:5").unwrap().contains("2.0"), "{:?}", n("2:2:5"));
     // A range that runs backwards holds nothing.
     assert!(n("5:2").unwrap().contains("0.0"), "{:?}", n("5:2"));
+}
+
+/// A periodic table says the same thing every period: what it is asked
+/// at is brought back into the one scope it was written for, so the
+/// value beyond the far end is never reached.
+#[test]
+fn a_periodic_table_says_the_same_thing_every_period() {
+    // A triangle of period two: nothing at the ends, ten in the middle.
+    let m = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", \
+           [0, 0; 1, 10; 2, 0], {{2}}, 1, 3); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    // What it is asked at is brought back by the width of the table,
+    // so the same places are read again on every round.
+    assert!(text.contains("Call(\"mod\""), "{text}");
+    assert!(text.contains("Number(2.0)"), "by the period: {text}");
+
+    // A table whose scope is a single point has no period to repeat,
+    // and is written out as it stands rather than divided by nothing.
+    let flat = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", \
+           [1, 5; 1, 7], {{2}}, 1, 3); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ));
+    assert!(flat.is_ok(), "{flat:?}");
 }

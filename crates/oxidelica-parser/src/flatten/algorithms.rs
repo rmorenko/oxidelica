@@ -49,6 +49,16 @@ pub(super) fn checks_guarded(mark: usize, condition: &Expr, on_true: bool) {
     });
 }
 
+/// Set a check aside for the class being instantiated to take up.
+///
+/// A table asked for no extrapolation is a table that says the run has
+/// gone wrong where it is read outside its own scope. There is nowhere
+/// in an expression to put that, so it is left here like the checks an
+/// inlined body makes.
+pub(super) fn check_aside(condition: Expr, message: String) {
+    SET_ASIDE.with(|aside| aside.borrow_mut().push((condition, message)));
+}
+
 /// Take every check set aside since `mark`, in the order they came.
 pub(super) fn checks_taken(mark: usize) -> Vec<(Expr, String)> {
     SET_ASIDE.with(|aside| aside.borrow_mut().split_off(mark))
