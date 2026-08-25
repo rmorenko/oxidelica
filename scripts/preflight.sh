@@ -112,6 +112,14 @@ if [ "$quick" -eq 0 ]; then
     ./scripts/coverage.sh --summary-only
   optional_step "TOML" taplo taplo fmt --check --diff
   optional_step "Spelling" typos typos
+  # The workflow checks the prose as well as the code, and a green
+  # commit here that went red there was a formatter this script never
+  # ran: the same versions the workflow names, so what passes here
+  # passes there.
+  optional_step "Markdown, JSON and YAML" npx \
+    npx --yes prettier@3.9.6 --check "**/*.{md,json,yaml,yml}" --log-level warn
+  optional_step "Markdown style" npx \
+    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target"
   step "No Cyrillic outside the files that may hold it" python3 scripts/check_cyrillic.py
   optional_step "Unused dependencies" cargo-machete cargo machete
   step "Documentation builds, and every public item has some" \
