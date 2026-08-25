@@ -2079,7 +2079,16 @@ fn worked_body(
             }
             // A record input arrives as its fields, and the body reads
             // them by name: `c1.re` has to be bound, not `c1`.
-            if let Some(fields) = record_input_fields(registry, class, input) {
+            //
+            // An input declared an array of records is not that: the
+            // quasi-RMS of a polyphase system takes `Complex u[:]`, and
+            // what arrives is three phasors, not the two fields of one.
+            // Taken for fields, three phasors were refused for being
+            // three where two were wanted; left whole, the body reads
+            // `u[k].re` off them, which is what it was written to do.
+            if let Some(fields) =
+                record_input_fields(registry, class, input).filter(|_| input.dimensions.is_empty())
+            {
                 if let Expr::Array(items) = arg {
                     if items.len() != fields.len() {
                         return Err(format!(

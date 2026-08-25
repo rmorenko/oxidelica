@@ -9370,6 +9370,37 @@ fn a_local_array_built_by_a_call_is_read_element_by_element() {
     );
 }
 
+/// An input declared an array of records takes an array, not the
+/// fields of one record.
+#[test]
+fn an_array_of_records_is_not_read_as_one_record_s_fields() {
+    // The quasi-RMS of a polyphase system takes `Complex u[:]` and is
+    // handed as many phasors as there are phases. Taken for the fields
+    // of one record, three phasors were refused for being three where
+    // two were wanted.
+    let m = parse_model(
+        "package P record Cx Real re; Real im; end Cx; \
+         function rms input Cx u[:]; output Real y; \
+         protected Integer m = size(u, 1); \
+         algorithm y := sum({sqrt(u[k].re^2 + u[k].im^2) for k in 1:m})/m; \
+         end rms; \
+         model M parameter Integer m = 3; Cx c[m]; Real y; \
+         equation for k in 1:m loop c[k] = Cx(k, 0); end for; \
+         y = rms(c); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("an array of records handed to a function");
+    let written = equations_of(&m);
+    assert!(
+        written.iter().any(|e| e.contains("c[3].re")),
+        "every phasor the caller holds is read: {written:?}"
+    );
+    assert!(
+        !written.iter().any(|e| e.contains("u[")),
+        "no name of the body travels out: {written:?}"
+    );
+}
+
 #[test]
 fn a_record_argument_with_a_matrix_field_is_read_element_by_element() {
     let m = parse_model(
