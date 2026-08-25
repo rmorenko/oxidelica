@@ -4132,3 +4132,32 @@ fn a_component_may_be_handed_a_constant_array_of_the_class_above() {
     assert_eq!(at("p"), 2.0);
     assert_eq!(at("q"), 3.0);
 }
+
+/// A matrix written with `[ ; ]` stacks what it is given rather than
+/// laying it out: `[v, w]` where `v` is a vector of four is four rows,
+/// not one. Counting the rows as written answers four times too small,
+/// and a shape said wrongly is worse than none.
+#[test]
+fn a_matrix_of_vectors_is_measured_by_what_it_stacks() {
+    let result = run("package P block Sink parameter Real tab[:,:] = [0, 1]; \
+         output Real y; equation y = size(tab, 1); end Sink; \
+         block Src parameter Real v[4] = {1, 2, 3, 4}; \
+         parameter Real w[4] = {5, 6, 7, 8}; \
+         Sink s(final tab = [v, w]); output Real y; \
+         equation y = s.y; end Src; \
+         model M Src a; Real z; equation z = a.y; end M; end P;");
+    let last = result.rows.last().unwrap();
+    let z = result.columns.iter().position(|c| c == "z").unwrap();
+    // Four rows of two, not one row of two.
+    assert_eq!(last[z], 4.0, "{:?}", result.columns);
+
+    // A matrix of plain numbers still says its shape by how it is
+    // written, which is the case this measurement was added for.
+    let plain = run("package P block Sink parameter Real tab[:,:] = [0, 1]; \
+         output Real y; equation y = size(tab, 1); end Sink; \
+         model M Sink s(tab = [0, 10; 1, 20; 2, 30]); Real z; \
+         equation z = s.y; end M; end P;");
+    let last = plain.rows.last().unwrap();
+    let z = plain.columns.iter().position(|c| c == "z").unwrap();
+    assert_eq!(last[z], 3.0);
+}

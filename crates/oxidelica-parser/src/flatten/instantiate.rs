@@ -2622,6 +2622,20 @@ pub(super) fn flexible_size(binding: &Expr, axis: usize) -> Option<i64> {
     // different widths are no shape at all, and are left unmeasured
     // rather than guessed at.
     if let Expr::MatrixRows(rows) = binding {
+        // A matrix written with `[ ; ]` stacks what it is given rather
+        // than laying it out: `[v, w]` where `v` is a vector of four
+        // is four rows, not one. Counting the rows as written would
+        // answer four times too small, and a shape that is wrong is
+        // worse than none - so only a matrix whose every cell is
+        // plainly one number is measured here. Anything else is left
+        // for the pass that knows what the names stand for.
+        let plainly_one = |cell: &Expr| {
+            matches!(cell, Expr::Number(_) | Expr::Bool(_))
+                || matches!(cell, Expr::Neg(inner) if matches!(inner.as_ref(), Expr::Number(_)))
+        };
+        if !rows.iter().flatten().all(plainly_one) {
+            return None;
+        }
         let width = rows.first()?.len();
         if rows.iter().any(|row| row.len() != width) {
             return None;

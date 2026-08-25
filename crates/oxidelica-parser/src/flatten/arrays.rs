@@ -492,6 +492,48 @@ fn index_into(
     }
 }
 
+/// A call left standing for the run to walk, as the value that stands
+/// in for it.
+///
+/// The walk answers with numbers, and how many is what the function
+/// declares: one for a scalar, as many as the length for an array, as
+/// many as the members for a record. The model takes them one at a
+/// time, by the subscript Modelica would write. A shape said wrongly
+/// here is a shape said wrongly everywhere below, so a length that
+/// cannot be seen answers as the one number a walk always gives.
+fn standing_call(
+    call: Expr,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    imports: &[(String, String)],
+) -> Value {
+    let inherited = function_components(registry, class, 0);
+    let answer = inherited.iter().find(|c| c.causality == Causality::Output);
+    let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
+        [Expr::Number(length)] => Some(*length as i64),
+        // A record answers with its members, in the order it declared
+        // them: the walk is handed it written that way.
+        [] => lookup(registry, &answer.type_name, &class.name, imports)
+            .filter(|of| of.kind == ClassKind::Record)
+            .map(|of| record_fields(of).len() as i64)
+            .filter(|members| *members > 0),
+        _ => None,
+    });
+    match length {
+        None => Value::Scalar(call),
+        Some(length) => Value::Array(
+            (1..=length)
+                .map(|index| {
+                    Value::Scalar(Expr::Index(
+                        Box::new(call.clone()),
+                        vec![Expr::Number(index as f64)],
+                    ))
+                })
+                .collect(),
+        ),
+    }
+}
+
 /// The array built-ins, and the ordinary ones applied to every element.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn expand_call(
@@ -1087,32 +1129,7 @@ pub(super) fn expand_call(
                         // was taken for one answering with a record of
                         // as many members as the input had - so a
                         // density came back as a state of two.
-                        let inherited = function_components(registry, class, 0);
-                        let answer = inherited.iter().find(|c| c.causality == Causality::Output);
-                        let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
-                            [Expr::Number(length)] => Some(*length as i64),
-                            // A record answers with its members, in the
-                            // order it declared them: the walk is
-                            // handed it written that way.
-                            [] => lookup(registry, &answer.type_name, &class.name, imports)
-                                .filter(|of| of.kind == ClassKind::Record)
-                                .map(|of| record_fields(of).len() as i64)
-                                .filter(|members| *members > 0),
-                            _ => None,
-                        });
-                        return Ok(match length {
-                            None => Value::Scalar(result),
-                            Some(length) => Value::Array(
-                                (1..=length)
-                                    .map(|index| {
-                                        Value::Scalar(Expr::Index(
-                                            Box::new(result.clone()),
-                                            vec![Expr::Number(index as f64)],
-                                        ))
-                                    })
-                                    .collect(),
-                            ),
-                        });
+                        return Ok(standing_call(result, class, registry, imports));
                     }
                     // What the inlining built has to be read once more,
                     // since a body written in arrays answers with one.
@@ -1132,8 +1149,13 @@ pub(super) fn expand_call(
                     let carried = expand(&result, shapes, registry, scope, imports, depth + 1);
                     return match carried {
                         Err(why) if why.contains(crate::flatten::algorithms::NO_BOTTOM) => {
+                            // Left standing the same way, shape and
+                            // all: a body answering with several
+                            // numbers is taken one at a time, and
+                            // saying it is a scalar would be a shape
+                            // that lies.
                             let standing = Expr::Call(class.name.clone(), arguments);
-                            Ok(Value::Scalar(standing))
+                            Ok(standing_call(standing, class, registry, imports))
                         }
                         answered => answered,
                     };
