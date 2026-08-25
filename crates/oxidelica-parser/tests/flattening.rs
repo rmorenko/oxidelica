@@ -9843,3 +9843,25 @@ fn a_subscript_the_run_settles_cannot_be_assigned_to() {
     .to_string();
     assert!(err.contains("must name a variable"), "{err}");
 }
+
+/// A `redeclare function extends density` writes a body and nothing
+/// else: what it takes and answers with belongs to the function it
+/// extends. Reading only its own declarations found none, so a
+/// function taking a record was taken for one taking nothing, and the
+/// call was spread over the record's fields as if they were elements -
+/// a density of one number came back shaped like the state of two.
+#[test]
+fn a_redeclared_function_takes_what_its_base_declared() {
+    let m = parse_model(
+        "package P record State Real p; Real T; end State; \
+         partial package Base replaceable partial function density \
+         input State state; output Real d; end density; end Base; \
+         package Simple extends Base; redeclare function extends density \
+         algorithm d := 995; end density; end Simple; \
+         model M State st; Real y; equation st.p = 100; st.T = 300; \
+         y = Simple.density(st); end M; end P;",
+    )
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    assert!(text.contains("Ref(\"y\"), rhs: Number(995.0)"), "{text}");
+}

@@ -1079,10 +1079,16 @@ pub(super) fn expand_call(
                         // may answer with several numbers. The model
                         // takes them one at a time, by the subscript
                         // Modelica would write.
-                        let answer = class
-                            .components
-                            .iter()
-                            .find(|c| c.causality == Causality::Output);
+                        // A `redeclare function extends density`
+                        // writes a body and nothing else: what it
+                        // answers with is its base's declaration, not
+                        // its own. Reading the components it wrote
+                        // found none, and a function with no output
+                        // was taken for one answering with a record of
+                        // as many members as the input had - so a
+                        // density came back as a state of two.
+                        let inherited = function_components(registry, class, 0);
+                        let answer = inherited.iter().find(|c| c.causality == Causality::Output);
                         let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
                             [Expr::Number(length)] => Some(*length as i64),
                             // A record answers with its members, in the
@@ -1534,19 +1540,28 @@ pub(super) fn spread_of_records(
 }
 
 fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
-    class.components.iter().any(|component| {
-        if component.causality == Causality::None {
-            return false;
-        }
-        if lookup(registry, &component.type_name, &class.name, &class.imports)
-            .is_some_and(|of| of.kind == ClassKind::Record)
-        {
-            return true;
-        }
-        let mut component = component.clone();
-        resolve_type(registry, &mut component, &class.name, &class.imports);
-        !component.dimensions.is_empty()
-    })
+    // A `redeclare function extends density` writes a body and nothing
+    // else: what it takes and answers with belongs to the function it
+    // extends. Reading only what it wrote for itself found no
+    // declarations at all, so a function taking a record was taken for
+    // one taking nothing, and the call was spread over the record's
+    // fields as if they were elements - a density of one number came
+    // back shaped like the state of two it was asked about.
+    function_components(registry, class, 0)
+        .iter()
+        .any(|component| {
+            if component.causality == Causality::None {
+                return false;
+            }
+            if lookup(registry, &component.type_name, &class.name, &class.imports)
+                .is_some_and(|of| of.kind == ClassKind::Record)
+            {
+                return true;
+            }
+            let mut component = component.clone();
+            resolve_type(registry, &mut component, &class.name, &class.imports);
+            !component.dimensions.is_empty()
+        })
 }
 
 /// What an expression comes to, read against the parameters and the
