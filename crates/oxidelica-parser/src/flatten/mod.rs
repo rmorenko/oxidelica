@@ -48,8 +48,8 @@ use extents::*;
 use inheritance::*;
 use instantiate::*;
 use names::*;
-use scoping::*;
 use operators::*;
+use scoping::*;
 use strings::*;
 
 /// Maximum instantiation depth (guards against recursive classes).
