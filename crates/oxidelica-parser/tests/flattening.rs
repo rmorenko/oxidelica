@@ -9865,3 +9865,43 @@ fn a_redeclared_function_takes_what_its_base_declared() {
     let text = format!("{:?}", m.equations);
     assert!(text.contains("Ref(\"y\"), rhs: Number(995.0)"), "{text}");
 }
+
+/// A working array filled and used inside one branch and never looked
+/// at again needs no merged value: `o` of the steam tables holds the
+/// powers of a pressure while the branch builds a temperature from
+/// them, and asking what it should be where another branch never set
+/// it has no answer and no question.
+#[test]
+fn a_working_array_of_one_branch_needs_no_merged_value() {
+    // Read only inside the branches: nothing to merge.
+    let m = parse_model(
+        "package P function tph input Real p; output Real T; protected Real[3] o; \
+         algorithm if p < 1 then o[1] := p; o[2] := 2*p; o[3] := 3*p; T := o[1] + o[3]; \
+         else o[1] := 5*p; o[2] := 6*p; T := o[1] + o[2]; end if; end tph; \
+         model M Real q; Real y; equation q = 5; y = tph(q); end M; end P;",
+    )
+    .unwrap();
+    assert!(!format!("{:?}", m.equations).contains("Call(\"P.tph\""));
+
+    // Read after the `if`, and set in every branch: merged as before.
+    let after = parse_model(
+        "package P function tph input Real p; output Real T; protected Real[3] o; \
+         algorithm if p < 1 then o[1] := p; o[3] := 3*p; \
+         else o[1] := 5*p; o[3] := 7*p; end if; T := o[1] + o[3]; end tph; \
+         model M Real q; Real y; equation q = 5; y = tph(q); end M; end P;",
+    )
+    .unwrap();
+    assert!(!format!("{:?}", after.equations).contains("Call(\"P.tph\""));
+
+    // Read after the `if` and set in one branch only: still refused,
+    // since now there is a question and no answer.
+    let err = parse_model(
+        "package P function tph input Real p; output Real T; protected Real[3] o; \
+         algorithm if p < 1 then o[1] := p; o[3] := 3*p; \
+         else o[1] := 5*p; end if; T := o[1] + o[3]; end tph; \
+         model M Real q; Real y; equation q = 5; y = tph(q); end M; end P;",
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(err.contains("assigned in one branch only"), "{err}");
+}

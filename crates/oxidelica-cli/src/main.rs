@@ -26,7 +26,7 @@ Usage:
   oxidelica library list
   oxidelica library add <name|git-url> [--version TAG] [--as NAME]
                             names: modelica (the Modelica Standard Library)
-  oxidelica library check [<directory>] [--list]
+  oxidelica library check [<directory>] [--list] [--refused]
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -486,9 +486,12 @@ fn name_of_repository(url: &str) -> String {
 /// count and the reasons that came up most, so that the distance
 /// between this compiler and a library is a number rather than an
 /// impression. `--list` names the models that flatten, which is what
-/// tells a step forward from a step sideways.
+/// tells a step forward from a step sideways; `--refused` names each
+/// model that did not, with what stopped it, which is what tells how
+/// many barriers stand behind one another.
 fn library_check(args: &[String]) -> Result<(), String> {
     let list = args.iter().any(|arg| arg == "--list");
+    let refused_each = args.iter().any(|arg| arg == "--refused");
     let directory = args.iter().find(|arg| !arg.starts_with("--"));
     let files = match directory {
         Some(path) => oxidelica_parser::library_files_in(std::path::Path::new(path)),
@@ -632,6 +635,20 @@ fn library_check(args: &[String]) -> Result<(), String> {
         named.sort();
         for name in named {
             println!("  flat  {name}");
+        }
+    }
+    // What a model was refused for, model by model rather than gathered
+    // into kinds. A count of a kind is the number of models standing at
+    // that barrier, not the number a fix would release: behind one
+    // barrier there is often another, and only the names say which
+    // model is where. This is what to read before choosing what to
+    // work on.
+    if refused_each {
+        let mut each: Vec<&(String, String)> = why_not.iter().collect();
+        each.sort_by(|a, b| a.1.cmp(&b.1));
+        for (why, name) in each {
+            let head = &why[..why.len().min(100)];
+            println!("  refused  {name}\t{head}");
         }
     }
     report(&why_not, "  ", list);

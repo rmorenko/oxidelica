@@ -239,6 +239,123 @@ pub(super) fn has_return(statements: &[Statement]) -> bool {
     })
 }
 
+/// Whether an expression reads the given name anywhere in it.
+///
+/// [`mentions_ref`] answers for the nodes a clock has to look through
+/// and stops at the rest; this has to be sure, since what it decides
+/// is whether a value may be dropped. A name reached through a
+/// subscript counts - `o[3]` reads `o` - and so does one asked for as
+/// the whole, which is how an array is handed to a call.
+fn reads_name(expr: &Expr, wanted: &str) -> bool {
+    let whole = wanted.split('[').next().unwrap_or(wanted);
+    let mut found = false;
+    walk_expr(expr, &mut |node| {
+        if let Expr::Ref(name) = node {
+            let here = name.split('[').next().unwrap_or(name);
+            if name == wanted || here == whole {
+                found = true;
+            }
+        }
+    });
+    found
+}
+
+/// Every node of an expression, handed to the given eye.
+fn walk_expr(expr: &Expr, eye: &mut impl FnMut(&Expr)) {
+    eye(expr);
+    match expr {
+        Expr::Neg(inner) | Expr::Not(inner) | Expr::Member(inner, _) => walk_expr(inner, eye),
+        Expr::Bin(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r)
+        | Expr::Elementwise(_, l, r) => {
+            walk_expr(l, eye);
+            walk_expr(r, eye);
+        }
+        Expr::If(c, a, b) => {
+            walk_expr(c, eye);
+            walk_expr(a, eye);
+            walk_expr(b, eye);
+        }
+        Expr::Call(_, args) | Expr::Array(args) => args.iter().for_each(|a| walk_expr(a, eye)),
+        Expr::Index(base, subscripts) => {
+            walk_expr(base, eye);
+            subscripts.iter().for_each(|s| walk_expr(s, eye));
+        }
+        Expr::Range(a, step, b) => {
+            walk_expr(a, eye);
+            if let Some(step) = step {
+                walk_expr(step, eye);
+            }
+            walk_expr(b, eye);
+        }
+        Expr::Comprehension(body, _, range) => {
+            walk_expr(body, eye);
+            walk_expr(range, eye);
+        }
+        Expr::MatrixRows(rows) => rows.iter().flatten().for_each(|c| walk_expr(c, eye)),
+        Expr::NamedArg(_, value) => walk_expr(value, eye),
+        Expr::Tuple(slots) => slots.iter().flatten().for_each(|s| walk_expr(s, eye)),
+        Expr::WithDerivative(value, rule, seeds) => {
+            walk_expr(value, eye);
+            walk_expr(rule, eye);
+            seeds.iter().for_each(|(_, arg)| walk_expr(arg, eye));
+        }
+        Expr::Ref(_)
+        | Expr::Number(_)
+        | Expr::Bool(_)
+        | Expr::Str(_)
+        | Expr::Time
+        | Expr::ColonSubscript
+        | Expr::EndSubscript => {}
+    }
+}
+
+/// Whether any of these statements still reads the given name.
+///
+/// A working array of a steam table is filled and used inside one
+/// branch of an `if` and never looked at again: `o` of `tph2` holds
+/// the powers of a dimensionless pressure while the branch builds a
+/// temperature from them. Merging such a name across the branches asks
+/// what it should be where a branch never set it, and there is no
+/// answer - but there is no question either, since nothing downstream
+/// asks. What is read after the `if` is what has to be merged.
+fn read_later(statements: &[Statement], name: &str, depth: usize) -> bool {
+    if depth > MAX_DEPTH {
+        // Too deep to say no safely: merging a name that nothing reads
+        // costs work, and refusing one that something reads is wrong.
+        return true;
+    }
+    let in_expr = |expr: &Expr| reads_name(expr, name);
+    let in_subscripts = |subscripts: &[Expr]| subscripts.iter().any(in_expr);
+    statements.iter().any(|statement| match statement {
+        // The target of an assignment is written rather than read, but
+        // its subscripts are read to find the place.
+        Statement::Assign(_, subscripts, value) => in_subscripts(subscripts) || in_expr(value),
+        Statement::TupleAssign(targets, value) => {
+            in_expr(value)
+                || targets
+                    .iter()
+                    .flatten()
+                    .any(|(_, subscripts)| in_subscripts(subscripts))
+        }
+        Statement::If(branches) | Statement::When(branches) => branches.iter().any(|branch| {
+            branch.condition.as_ref().is_some_and(in_expr)
+                || read_later(&branch.body, name, depth + 1)
+        }),
+        Statement::For(_, range, body) => {
+            range.as_ref().is_some_and(in_expr) || read_later(body, name, depth + 1)
+        }
+        Statement::While(condition, body) => {
+            in_expr(condition) || read_later(body, name, depth + 1)
+        }
+        Statement::Assert(condition, _) => in_expr(condition),
+        Statement::Call(_, args) => args.iter().any(in_expr),
+        Statement::Break | Statement::Return => false,
+    })
+}
+
 /// Symbolically execute an algorithm section.
 ///
 /// `bindings` maps every variable the section has written to the
@@ -276,7 +393,7 @@ pub(super) fn execute(
             "an algorithm {NO_BOTTOM}, nested deeper than the compiler follows"
         ));
     }
-    for statement in statements {
+    for (at, statement) in statements.iter().enumerate() {
         match statement {
             Statement::Assign(target, subscripts, value) => {
                 // A body may name a constant of a package the way an
@@ -620,6 +737,35 @@ pub(super) fn execute(
                 }
                 touched.sort();
                 for name in touched {
+                    // A working array filled and used inside one branch
+                    // and never looked at again needs no merged value:
+                    // `o` of the steam tables holds the powers of a
+                    // pressure while the branch builds a temperature
+                    // from them, and asking what it should be where
+                    // another branch never set it has no answer and no
+                    // question. Fifty-three models stood at that
+                    // refusal. What is read after the `if` is merged as
+                    // before; the rest is left in the branch it belongs
+                    // to, which is also the cheaper answer, since a
+                    // merged array is a nest of conditions expanded
+                    // again at every use.
+                    //
+                    // Only an array is left behind this way. A scalar
+                    // costs nothing to merge, and one of them is the
+                    // function's own output, which is read by whoever
+                    // called rather than by any statement here - so
+                    // asking these statements alone would drop it.
+                    // The merged names are the elements - `o[3]` -
+                    // while the declaration is of the whole, so the
+                    // subscripts come off before asking.
+                    let whole = name.split('[').next().unwrap_or(&name);
+                    let an_array = sizes.contains_key(whole);
+                    if an_array
+                        && !read_later(&statements[at + 1..], &name, 0)
+                        && !read_later(&statements[at + 1..], whole, 0)
+                    {
+                        continue;
+                    }
                     // A variable of a function body that no branch
                     // wrote still has a value: the language says an
                     // unassigned local starts at what its type starts
