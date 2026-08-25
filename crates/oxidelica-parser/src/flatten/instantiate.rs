@@ -86,139 +86,15 @@ pub(super) fn instantiate(
         out
     };
 
-    // Parameter values of this class, resolved to numbers where
-    // possible: array dimensions and loop bounds are compile-time
-    // constants and must come from here.
-    let mut local_consts: HashMap<String, f64> = HashMap::new();
+    // What this class's parameters are worth, settled to a fixed
+    // point and joined by what the model settled before it.
     // A base class's parameters are this class's too, and a dimension
     // may be written on one of them: `extends TwoPlug` brings `m`, and
-    // `parameter Voltage V[m]` is written with it. What the `extends`
-    // clause said about a base parameter comes with it.
+    // `parameter Voltage V[m]` is written with it.
     let inherited = inherited_parameters(registry, class, 0);
-    let env_overrides = env.overrides;
-    loop {
-        let mut progress = false;
-        // What every declaration is read against: the model's numbers
-        // and this class's own. It is built once a round and kept up as
-        // values settle - building it per declaration is what a class
-        // with a thousand numbers below it cannot afford.
-        let mut env = acc.const_values.clone();
-        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
-        // What this class's arrays are shaped like, as far as the
-        // numbers settled so far can say. A value handed down by an
-        // `extends` may ask after one of them, and the round after
-        // this will see whatever settles in this one.
-        let mut shapes_here: HashMap<String, Vec<i64>> = HashMap::new();
-        collect_shapes_given(
-            registry,
-            class,
-            &local_consts,
-            &HashMap::new(),
-            env_overrides,
-            &mut shapes_here,
-            0,
-        );
-        for (component, from_extends) in class
-            .components
-            .iter()
-            .map(|component| (component, None))
-            .chain(
-                inherited
-                    .iter()
-                    .map(|(component, value)| (component, value.as_ref())),
-            )
-        {
-            if !matches!(
-                component.variability,
-                Variability::Parameter | Variability::Constant
-            ) || local_consts.contains_key(&component.name)
-            {
-                continue;
-            }
-            let binding = overrides
-                .iter()
-                .find(|(n, _)| n == &component.name)
-                .map(|(_, e)| e.clone())
-                // A value the `extends` handed down may ask how long
-                // an array of this class is - `extends MO(final n =
-                // size(cols, 1))` - and the shapes measured so far are
-                // what answers it. The base was handed the same value
-                // already folded; this is the same parameter seen from
-                // the class that wrote it.
-                .or_else(|| from_extends.map(|e| measured_sizes(e, &shapes_here, &local_consts)))
-                .or_else(|| {
-                    component
-                        .binding
-                        .as_ref()
-                        .or(component.start.as_ref())
-                        .map(|e| {
-                            let e =
-                                substitute_class_constants(e, registry, scope, &imports, &shadow);
-                            prefix_expr(&e, prefix, &outers)
-                        })
-                });
-            let Some(expr) = binding else { continue };
-            // A parameter may be worked out by a function - the
-            // standard library counts the base systems of an m-phase
-            // winding that way - and a call is not something arithmetic
-            // alone can fold, so the call is inlined first. Anything
-            // the inlining will not do leaves the parameter for a
-            // later round, or for no round at all.
-            let settled = const_eval(&expr, &env).or_else(|| {
-                let inlined = resolve(
-                    &expr,
-                    &HashMap::new(),
-                    &env,
-                    &HashMap::new(),
-                    registry,
-                    scope,
-                    &imports,
-                    0,
-                )
-                .ok()?;
-                const_eval(&inlined, &env)
-            });
-            if let Some(value) = settled {
-                local_consts.insert(component.name.clone(), value);
-                Inlined::forget();
-                env.insert(component.name.clone(), value);
-                let named = format!("{prefix}{}", component.name);
-                env.insert(named.clone(), value);
-                acc.const_values.insert(named, value);
-                progress = true;
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
-
-    // The same values under the instance path. A declaration's own
-    // value is written in the terms of this class and then prefixed -
-    // `fill(1, m)` becomes `fill(1, b.m)` - so whatever asks what it
-    // comes to has to find the parameter under either name.
-    if !prefix.is_empty() {
-        for (name, value) in local_consts.clone() {
-            local_consts.insert(format!("{prefix}{name}"), value);
-            Inlined::forget();
-        }
-    }
-    // And every parameter the model has settled so far, by its full
-    // path. Two things need them. A base of this class may have
-    // settled one before another base was reached - `extends
-    // ConditionalHeatPort(T = fill(293.15, m))` is written in a class
-    // whose `m` comes from a base of its own. And a modifier handed
-    // down is written in the terms of the class that wrote it, so a
-    // child asked to make sense of `1:drawn.n` has to know what
-    // `drawn.n` is, and `drawn` is not below it but above. The names
-    // are full paths, so nothing here can be mistaken for anything
-    // else; what this class says itself still wins.
-    for (name, value) in &acc.const_values {
-        if !local_consts.contains_key(name) {
-            local_consts.insert(name.clone(), *value);
-            Inlined::forget();
-        }
-    }
+    let mut local_consts = settle_parameters(
+        registry, class, prefix, env, acc, &imports, &shadow, &outers, &inherited,
+    );
 
     // What each array component of this class - and of its bases - is
     // shaped like, so a value may name one as a whole.
@@ -2221,6 +2097,159 @@ fn instantiate_bases(
     }
 
     Ok(())
+}
+
+/// What every parameter in view is worth, run to a fixed point: this
+/// class's own declarations and the ones its bases hand down, then the
+/// same values under the instance path and everything the model has
+/// settled so far.
+///
+/// Moved out of `instantiate` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn settle_parameters(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    env: &Env,
+    acc: &mut Flat,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    inherited: &[(Component, Option<Expr>)],
+) -> HashMap<String, f64> {
+    let scope = class.name.as_str();
+    // Parameter values of this class, resolved to numbers where
+    // possible: array dimensions and loop bounds are compile-time
+    // constants and must come from here.
+    let mut local_consts: HashMap<String, f64> = HashMap::new();
+    // What the `extends` clause said about a base parameter comes with
+    // the parameter.
+    let env_overrides = env.overrides;
+    loop {
+        let mut progress = false;
+        // What every declaration is read against: the model's numbers
+        // and this class's own. It is built once a round and kept up as
+        // values settle - building it per declaration is what a class
+        // with a thousand numbers below it cannot afford.
+        let mut env = acc.const_values.clone();
+        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+        // What this class's arrays are shaped like, as far as the
+        // numbers settled so far can say. A value handed down by an
+        // `extends` may ask after one of them, and the round after
+        // this will see whatever settles in this one.
+        let mut shapes_here: HashMap<String, Vec<i64>> = HashMap::new();
+        collect_shapes_given(
+            registry,
+            class,
+            &local_consts,
+            &HashMap::new(),
+            env_overrides,
+            &mut shapes_here,
+            0,
+        );
+        for (component, from_extends) in class
+            .components
+            .iter()
+            .map(|component| (component, None))
+            .chain(
+                inherited
+                    .iter()
+                    .map(|(component, value)| (component, value.as_ref())),
+            )
+        {
+            if !matches!(
+                component.variability,
+                Variability::Parameter | Variability::Constant
+            ) || local_consts.contains_key(&component.name)
+            {
+                continue;
+            }
+            let binding = env_overrides
+                .iter()
+                .find(|(n, _)| n == &component.name)
+                .map(|(_, e)| e.clone())
+                // A value the `extends` handed down may ask how long
+                // an array of this class is - `extends MO(final n =
+                // size(cols, 1))` - and the shapes measured so far are
+                // what answers it. The base was handed the same value
+                // already folded; this is the same parameter seen from
+                // the class that wrote it.
+                .or_else(|| from_extends.map(|e| measured_sizes(e, &shapes_here, &local_consts)))
+                .or_else(|| {
+                    component
+                        .binding
+                        .as_ref()
+                        .or(component.start.as_ref())
+                        .map(|e| {
+                            let e =
+                                substitute_class_constants(e, registry, scope, &imports, &shadow);
+                            prefix_expr(&e, prefix, &outers)
+                        })
+                });
+            let Some(expr) = binding else { continue };
+            // A parameter may be worked out by a function - the
+            // standard library counts the base systems of an m-phase
+            // winding that way - and a call is not something arithmetic
+            // alone can fold, so the call is inlined first. Anything
+            // the inlining will not do leaves the parameter for a
+            // later round, or for no round at all.
+            let settled = const_eval(&expr, &env).or_else(|| {
+                let inlined = resolve(
+                    &expr,
+                    &HashMap::new(),
+                    &env,
+                    &HashMap::new(),
+                    registry,
+                    scope,
+                    &imports,
+                    0,
+                )
+                .ok()?;
+                const_eval(&inlined, &env)
+            });
+            if let Some(value) = settled {
+                local_consts.insert(component.name.clone(), value);
+                Inlined::forget();
+                env.insert(component.name.clone(), value);
+                let named = format!("{prefix}{}", component.name);
+                env.insert(named.clone(), value);
+                acc.const_values.insert(named, value);
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+
+    // The same values under the instance path. A declaration's own
+    // value is written in the terms of this class and then prefixed -
+    // `fill(1, m)` becomes `fill(1, b.m)` - so whatever asks what it
+    // comes to has to find the parameter under either name.
+    if !prefix.is_empty() {
+        for (name, value) in local_consts.clone() {
+            local_consts.insert(format!("{prefix}{name}"), value);
+            Inlined::forget();
+        }
+    }
+    // And every parameter the model has settled so far, by its full
+    // path. Two things need them. A base of this class may have
+    // settled one before another base was reached - `extends
+    // ConditionalHeatPort(T = fill(293.15, m))` is written in a class
+    // whose `m` comes from a base of its own. And a modifier handed
+    // down is written in the terms of the class that wrote it, so a
+    // child asked to make sense of `1:drawn.n` has to know what
+    // `drawn.n` is, and `drawn` is not below it but above. The names
+    // are full paths, so nothing here can be mistaken for anything
+    // else; what this class says itself still wins.
+    for (name, value) in &acc.const_values {
+        if !local_consts.contains_key(name) {
+            local_consts.insert(name.clone(), *value);
+            Inlined::forget();
+        }
+    }
+
+    local_consts
 }
 
 /// Whether a condition asks the connections a question.
