@@ -247,9 +247,9 @@ asking which place the index names: this is how the logic tables read
 at all rather than the nearest element. Two things are missing. Such a
 subscript may be read but not assigned, so `v[k] = 9` with a `k` only
 the run knows is refused, where the specification allows it. And an
-index that is a `Boolean` *variable* is refused for want of its
+index that is a `Boolean` _variable_ is refused for want of its
 declared type at the point the subscript is worked out, though a
-Boolean *expression* - `x[a > b]` - is read correctly; the dimension
+Boolean _expression_ - `x[a > b]` - is read correctly; the dimension
 `Real x[Boolean]` itself is built either way.
 
 **Functions** (ch. 12): no functions as arguments. A body written
