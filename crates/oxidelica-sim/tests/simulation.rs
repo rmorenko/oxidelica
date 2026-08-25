@@ -4099,3 +4099,36 @@ fn a_check_at_an_event_survives_a_conditional_component() {
     let why = compile(&model).unwrap().simulate().unwrap_err().to_string();
     assert!(why.contains("too big"), "{why}");
 }
+
+/// A value handed to a component may name a constant array of the
+/// class handing it down: a table block is given one of three curves
+/// the class keeps. A constant has no elements to build, so it never
+/// reached the table of shapes the component is instantiated with, and
+/// the length could not be read from it.
+#[test]
+fn a_component_may_be_handed_a_constant_array_of_the_class_above() {
+    let result = run("package P type Kind = enumeration(A, B); \
+         block Sink parameter Real tab[:,:] = [0, 1]; output Real y; \
+         equation y = size(tab, 1); end Sink; \
+         block Pick parameter Kind k = Kind.A; \
+         Sink s(final tab = if k == Kind.A then One else Two); \
+         output Real y; \
+         protected constant Real One[:,2] = [0,1; 1,0]; \
+         constant Real Two[:,2] = [0,1; 0.5,0.5; 1,0]; \
+         equation y = s.y; end Pick; \
+         model M Pick a(k = Kind.A); Pick b(k = Kind.B); \
+         Real p; Real q; equation p = a.y; q = b.y; end M; end P;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|c| c == name)
+            .map(|i| last[i])
+            .unwrap_or_else(|| panic!("no column {name} in {:?}", result.columns))
+    };
+    // Two rows in the first curve, three in the second, and each
+    // instance reads the one it was given.
+    assert_eq!(at("p"), 2.0);
+    assert_eq!(at("q"), 3.0);
+}

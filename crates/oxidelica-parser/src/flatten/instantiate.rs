@@ -448,6 +448,31 @@ pub(super) fn instantiate(
         0,
     );
     let mut sizes_here = prefixed_sizes(&sizes, prefix);
+    // A constant array of this class is measured here and never
+    // reaches the loop below, which builds the elements of what the
+    // model holds: a constant has no elements to build. But a value
+    // handed to a component may name one - a table block is given
+    // `table = Lin`, one of three curves the class keeps - and the
+    // component is instantiated with the shapes gathered so far.
+    //
+    // Only the constants are offered, and only those nothing else has
+    // measured. Offering every shape this class knows put entries in
+    // front of the ones the components measure for themselves, and
+    // seventeen models were refused for it.
+    let constants_here: Vec<String> = class
+        .components
+        .iter()
+        .filter(|c| c.variability == Variability::Constant && !c.dimensions.is_empty())
+        .map(|c| format!("{prefix}{}", c.name))
+        .collect();
+    for name in constants_here {
+        if acc.sizes.iter().any(|(known, _)| known == &name) {
+            continue;
+        }
+        if let Some(shape) = sizes_here.get(&name) {
+            acc.sizes.push((name, shape.clone()));
+        }
+    }
     // How much of the growing list of measured arrays has been taken
     // into the table above. Each declaration brings its own, and the
     // one after it may be written with them.
