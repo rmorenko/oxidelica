@@ -220,738 +220,26 @@ pub(super) fn instantiate(
         counted += 1;
     }
 
-    // Equations: arrays expanded, subscripts resolved, calls inlined.
-    let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
-        let expr = prefix_expr(&expr, prefix, &outers);
-        let shapes = Shapes {
-            sizes: &sizes_here,
-            loop_vars,
-            consts: &local_consts,
-            records: &records_here,
-        };
-        let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
-        records_written_out(value, &shapes, registry, &|e| {
-            expand(e, &shapes, registry, scope, &imports, 0)
-        })
-    };
-    // What has to come to one value - a condition, what a `when` gives
-    // a variable - still goes through the array layer to get there:
-    // `min({pre(y), u, pre(u)})` is one value made out of three, and
-    // only the array layer knows how to read it.
-    let resolve_here =
-        |expr: &Expr| -> Result<Expr, String> { expand_here(expr, &HashMap::new())?.scalar() };
-    let no_loop_vars = HashMap::new();
-    // A record-valued variable's value, said now that both sides can
-    // be written out as fields. It is an equation because that is what
-    // a variable's declaration value is: `Complex vs[m] = plug.pin.v`
-    // holds for the whole run.
-    // A modifier arrives written in the terms of the class that
-    // supplied it - `Shape s(R = mine)` names a record of the class
-    // holding `s` - so those have to be in view as well as this
-    // class's own. It is put together only where there is a record
-    // value to say it of, since every class would otherwise pay for a
-    // copy of every record the model holds.
-    let records_wider = record_values
-        .iter()
-        .any(|(_, _, prefixed)| *prefixed)
-        .then(|| {
-            let mut all = acc.records.clone();
-            all.extend(records_here.iter().map(|(k, v)| (k.clone(), v.clone())));
-            all
-        });
-    for (name, value, prefixed) in &record_values {
-        let lhs = expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?;
-        let rhs = match prefixed {
-            // A modifier arrives already written in the terms of the
-            // class that supplied it.
-            true => {
-                let shapes = Shapes {
-                    sizes: &sizes_here,
-                    loop_vars: &no_loop_vars,
-                    consts: &local_consts,
-                    records: records_wider.as_ref().unwrap_or(&records_here),
-                };
-                let worked = expand(value, &shapes, registry, scope, &imports, 0)?;
-                records_written_out(worked, &shapes, registry, &|e| {
-                    expand(e, &shapes, registry, scope, &imports, 0)
-                })?
-            }
-            false => expand_here(value, &no_loop_vars)?,
-        };
-        // Where the value cannot be written out as fields - a record
-        // named in a class this one knows nothing about - the two
-        // sides do not line up, and the value is left where it was
-        // rather than half-applied. That is what this compiler did
-        // with every record value until now, so nothing is lost by
-        // leaving it there.
-        let held = acc.equations.len();
-        if push_equations(&lhs, &rhs, acc).is_err() {
-            acc.equations.truncate(held);
-        }
-    }
-    // `(r, a, b, ku) = lowPass(cr, c0, c1, f_cut)`: one call fills
-    // several targets, and a skipped slot costs its output nothing
-    // since the expression is never used. A tuple may stand at the top
-    // of a class or inside a branch the compiler settles, and it is
-    // read the same way in both.
-    let tuple_equation = |equation: &EquationItem, acc: &mut Flat| -> Result<bool, String> {
-        let Expr::Tuple(targets) = &equation.lhs else {
-            return Ok(false);
-        };
-        let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports, &shadow);
-        let rhs = prefix_expr(&rhs, prefix, &outers);
-        let Expr::Call(name, raw_args) = &rhs else {
-            return Err("the right side of a tuple equation must be a function call".into());
-        };
-        // `spatialDistribution` fills a pair the way a function
-        // does, but there is no body to inline: what it stands for
-        // is a profile the run carries, so it is recorded here and
-        // the equation becomes the two boundary values.
-        if name == "spatialDistribution" {
-            let shapes = Shapes {
-                sizes: &sizes_here,
-                loop_vars: &no_loop_vars,
-                consts: &local_consts,
-                records: &records_here,
-            };
-            let arguments = raw_args
-                .iter()
-                .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
-                .collect::<Result<Vec<Expr>, String>>()?;
-            // The targets go through the usual pipeline, so the
-            // names recorded are the flat ones.
-            let mut named = Vec::new();
-            for target in targets {
-                let Some(target) = target else {
-                    named.push(None);
-                    continue;
-                };
-                named.push(Some(expand_here(target, &no_loop_vars)?.into_expr()));
-            }
-            spatial_transport(&named, &arguments, prefix, &outers, &local_consts, acc)?;
-            return Ok(true);
-        }
-        let function = lookup(registry, name, scope, &imports)
-            .filter(|c| c.kind == ClassKind::Function)
-            .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
-        let shapes = Shapes {
-            sizes: &sizes_here,
-            loop_vars: &no_loop_vars,
-            consts: &local_consts,
-            records: &records_here,
-        };
-        let values = raw_args
-            .iter()
-            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
-            .collect::<Result<Vec<_>, String>>()?;
-        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
-        let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
-        let outputs = inline_function_outputs(
-            function,
-            &arguments,
-            &argument_shapes,
-            &local_consts,
-            registry,
-            0,
-        )?;
-        if targets.len() > outputs.len() {
-            return Err(format!(
-                "`{name}` has {} output(s) for {} target(s)",
-                outputs.len(),
-                targets.len()
-            ));
-        }
-        for (slot, (_, value)) in targets.iter().zip(outputs) {
-            let Some(target) = slot else { continue };
-            // The target goes through the usual pipeline; the
-            // inlined value is already resolved and only needs the
-            // array layer, or a second prefix would corrupt it.
-            let lhs = expand_here(target, &no_loop_vars)?;
-            let rhs = expand(&value, &shapes, registry, scope, &imports, 0)?;
-            push_equations(&lhs, &rhs, acc)?;
-        }
-        Ok(true)
-    };
-    for equation in &class.equations {
-        // `(a, , c) = f(...)`: one call fills several targets. The
-        // call is inlined once per output; a skipped slot costs its
-        // computation nothing, since the expression is never used.
-        if tuple_equation(equation, acc)? {
-            continue;
-        }
-        let lhs = expand_here(&equation.lhs, &no_loop_vars)?;
-        let rhs = expand_here(&equation.rhs, &no_loop_vars)?;
-        push_equations(&lhs, &rhs, acc)?;
-    }
-
-    for (condition, message) in &class.asserts {
-        // A check may be written over arrays - `assert(length(n) >
-        // 0, ...)` of an axis of three - so it goes through the array
-        // layer like an equation, and what comes out is the one truth
-        // it has to be.
-        let condition = expand_here(condition, &no_loop_vars)?.scalar()?;
-        acc.asserts.push((condition, message.clone()));
-    }
-
-    // The arrows of a state machine name instances of this class, so
-    // they carry its prefix like everything else.
-    for transition in &class.transitions {
-        acc.transitions.push(Transition {
-            from: flat_name(&transition.from, prefix, &outers),
-            to: flat_name(&transition.to, prefix, &outers),
-            condition: resolve_here(&transition.condition)?,
-            reset: transition.reset,
-            immediate: transition.immediate,
-            synchronize: transition.synchronize,
-            priority: transition.priority,
-        });
-    }
-    if let Some(state) = &class.initial_state {
-        acc.initial_states.push(flat_name(state, prefix, &outers));
-    }
-    for equation in &class.initial_equations {
-        let (lhs, rhs) = (
-            expand_here(&equation.lhs, &no_loop_vars)?,
-            expand_here(&equation.rhs, &no_loop_vars)?,
-        );
-        let (mut left, mut right) = (Vec::new(), Vec::new());
-        lhs.flatten_into(&mut left);
-        rhs.flatten_into(&mut right);
-        if left.len() != right.len() {
-            return Err("an initial equation between shapes that do not match".to_string());
-        }
-        for (lhs, rhs) in left.into_iter().zip(right) {
-            acc.initial_equations.push(EquationItem {
-                lhs,
-                rhs,
-                origin: String::new(),
-            });
-        }
-    }
-
-    // The `algorithm` and `initial algorithm` sections, executed
-    // symbolically into equations.
-    run_algorithm_sections(
+    // Everything the class states outright: its equations, the
+    // branches and `when` clauses among them, its connections, and the
+    // algorithm sections in between.
+    flatten_equations(
         registry,
         class,
         prefix,
+        env,
         acc,
         depth,
         &imports,
+        &shadow,
         &outers,
         &sizes,
+        &sizes_here,
         &local_consts,
-        &expand_here,
+        &records_here,
+        &record_values,
+        &mut broke_something,
     )?;
-
-    // A call written among the equations takes nothing back from what
-    // it calls, so what it is there for is the checks the body makes.
-    // They become the model's, carrying this instance's prefix like
-    // everything else it says.
-    let take_checks = |call: &Expr, acc: &mut Flat| -> Result<(), String> {
-        let call = substitute_class_constants(call, registry, scope, &imports, &shadow);
-        let call = prefix_expr(&call, prefix, &outers);
-        let Expr::Call(name, args) = &call else {
-            return Err("a line of an equation section that is not an equation is a call".into());
-        };
-        let called = lookup(registry, name, scope, &imports)
-            .filter(|c| c.kind == ClassKind::Function)
-            .ok_or_else(|| format!("`{name}` is not a function"))?;
-        let shapes = Shapes {
-            sizes: &sizes_here,
-            loop_vars: &no_loop_vars,
-            consts: &local_consts,
-            records: &records_here,
-        };
-        let values = args
-            .iter()
-            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
-            .collect::<Result<Vec<_>, String>>()?;
-        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
-        let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
-        let checks = inline_function_checks(
-            called,
-            &arguments,
-            &argument_shapes,
-            &local_consts,
-            registry,
-            0,
-        )?;
-        acc.asserts.extend(checks);
-        Ok(())
-    };
-    for call in &class.calls {
-        take_checks(call, acc)?;
-    }
-
-    // `for` equations are unrolled: the loop variable is a constant.
-    for loop_eq in &class.for_equations {
-        unroll(
-            loop_eq,
-            &HashMap::new(),
-            &local_consts,
-            prefix,
-            &outers,
-            &sizes_here,
-            &records_here,
-            registry,
-            scope,
-            &imports,
-            acc,
-        )?;
-    }
-
-    // What a branch the compiler picked says about events joins what
-    // the class says outright: `if use_reset then when reset then
-    // reinit(y, y_start); end when; end if;` is how the standard
-    // library gives a block a reset it can be built without.
-    // What the pass before this one gathered about the connections:
-    // the roots of the overconstrained graph, and how many `connect`
-    // equations named each port. `answered` is what says a pass has
-    // been made - a model with no overconstrained loop has no roots in
-    // earnest, so emptiness says nothing.
-    let known_roots = acc.roots.clone();
-    let known_counts = acc.counts.clone();
-    let answered = acc.answered;
-    let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
-    let mut graph_from_branches: Vec<&GraphClause> = Vec::new();
-    // `if` equations: the branch that holds contributes its equations,
-    // the others contribute nothing. Conditions are structural, so they
-    // must be constant at compile time.
-    for if_equation in &class.if_equations {
-        let mut env = acc.const_values.clone();
-        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
-        // A structural condition picks one branch and the model is
-        // built from it. A condition only the run holds decides
-        // nothing here, so every branch must contribute the same
-        // number of equations and each position becomes one equation
-        // that chooses its residual as it goes.
-        // A condition is read with the constants of the classes it
-        // names put in first: `smoothness == Smoothness.LinearSegments`
-        // compares a parameter against an enumeration literal, and
-        // neither is a name the environment holds on its own. A
-        // question about the connection graph is answered from the
-        // roots, which are in hand on the pass that follows the one
-        // that drew them.
-        let settle = |condition: &Expr| {
-            let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
-            if let Some(value) = const_eval(&named, &env) {
-                return Some(value);
-            }
-            if !answered {
-                return None;
-            }
-            let asked = prefix_expr(&named, prefix, &outers);
-            let told = answer_graph_queries(&asked, &known_roots, &known_counts);
-            const_eval(&told, &env)
-        };
-        let decidable = if_equation.branches.iter().all(|branch| {
-            branch
-                .condition
-                .as_ref()
-                .is_none_or(|condition| settle(condition).is_some())
-        });
-        // A condition that asks the graph where the graph has not been
-        // drawn cannot be answered here, and the branches of such an
-        // `if` are not balanced - a body that is a root carries states
-        // and one that is not carries none. So it is set aside, and
-        // the whole model is built again once the graph is in.
-        if !decidable && !answered && asks_the_graph(if_equation) {
-            acc.graph_asked = true;
-            continue;
-        }
-        if !decidable {
-            push_conditional(
-                if_equation,
-                &class.name,
-                resolve_here,
-                expand_here,
-                &no_loop_vars,
-                acc,
-            )?;
-            continue;
-        }
-        let mut chosen = None;
-        for branch in &if_equation.branches {
-            match &branch.condition {
-                None => {
-                    chosen = Some(branch);
-                    break;
-                }
-                Some(condition) => {
-                    let value = settle(condition).ok_or_else(|| {
-                        format!(
-                            "condition of an `if` equation in `{}` is not a compile-time constant",
-                            class.name
-                        )
-                    })?;
-                    if value != 0.0 {
-                        chosen = Some(branch);
-                        break;
-                    }
-                }
-            }
-        }
-        let Some(branch) = chosen else { continue };
-        // The branch is the one taken, so its checks hold outright.
-        for (condition, message) in &branch.asserts {
-            acc.asserts
-                .push((resolve_here(condition)?, message.clone()));
-        }
-        whens_from_branches.extend(branch.whens.iter());
-        graph_from_branches.extend(branch.graph.iter());
-        for call in &branch.calls {
-            take_checks(call, acc)?;
-        }
-        for loop_eq in &branch.loops {
-            unroll(
-                loop_eq,
-                &HashMap::new(),
-                &local_consts,
-                prefix,
-                &outers,
-                &sizes_here,
-                &records_here,
-                registry,
-                scope,
-                &imports,
-                acc,
-            )?;
-        }
-        for equation in &branch.equations {
-            if tuple_equation(equation, acc)? {
-                continue;
-            }
-            push_equations(
-                &expand_here(&equation.lhs, &no_loop_vars)?,
-                &expand_here(&equation.rhs, &no_loop_vars)?,
-                acc,
-            )?;
-        }
-        for (a, b) in &branch.connects {
-            let shapes = Shapes {
-                sizes: &sizes_here,
-                loop_vars: &no_loop_vars,
-                consts: &local_consts,
-                records: &records_here,
-            };
-            push_connects(
-                a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
-            )?;
-        }
-    }
-
-    // What the class says about the overconstrained graph, and what
-    // the branches the compiler picked said about it.
-    for clause in class
-        .connection_graph
-        .iter()
-        .chain(graph_from_branches.iter().copied())
-    {
-        acc.connection_graph.push(match clause {
-            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, &outers)),
-            GraphClause::PotentialRoot(node, priority) => {
-                GraphClause::PotentialRoot(flat_name(node, prefix, &outers), *priority)
-            }
-            GraphClause::Branch(a, b) => {
-                GraphClause::Branch(flat_name(a, prefix, &outers), flat_name(b, prefix, &outers))
-            }
-        });
-    }
-
-    for clause in class.when_clauses.iter().chain(whens_from_branches) {
-        let mut branches = Vec::new();
-        for branch in &clause.branches {
-            let mut actions = Vec::new();
-            for action in &branch.actions {
-                match action {
-                    WhenAction::Reinit(state, value) => actions.push(WhenAction::Reinit(
-                        flat_name(state, prefix, &outers),
-                        resolve_here(value)?,
-                    )),
-                    // A `when` may give a whole array at once -
-                    // `y = u` between two vectors is how the clocked
-                    // samplers pass a bus through - and an event
-                    // assigns one variable, so it is taken apart the
-                    // way an equation between arrays is: one
-                    // assignment per element, refusing sides that do
-                    // not have the same shape. A scalar target goes
-                    // the short way, which is every other `when` in
-                    // the library.
-                    WhenAction::Assign(target, value) => {
-                        let named = flat_name(target, prefix, &outers);
-                        let given = expand_here(value, &HashMap::new())?;
-                        // The shapes are filed under the full path, and
-                        // the target is written as this class named it,
-                        // so it is the flat name that finds one.
-                        match sizes_here.get(&named).filter(|shape| !shape.is_empty()) {
-                            None => actions.push(WhenAction::Assign(named, given.scalar()?)),
-                            Some(shape) => {
-                                let mut elements = Vec::new();
-                                given.flatten_into(&mut elements);
-                                let wanted: usize =
-                                    shape.iter().map(|length| *length as usize).product();
-                                if elements.len() != wanted {
-                                    return Err(format!(
-                                        "`{named}` is given {} value(s) at an event and holds                                          {wanted}",
-                                        elements.len()
-                                    ));
-                                }
-                                for (indices, one) in index_tuples(shape).into_iter().zip(elements)
-                                {
-                                    actions.push(WhenAction::Assign(
-                                        element_name(&named, &indices),
-                                        one,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    WhenAction::Terminate(message) => {
-                        actions.push(WhenAction::Terminate(message.clone()))
-                    }
-                    // A call on its own at an event: nothing takes its
-                    // outputs, so what the compiler can have of it is
-                    // the checks its body makes - the same as a call
-                    // standing among the equations. The effect itself,
-                    // closing a file at `terminal()`, is one this
-                    // compiler has no way to have.
-                    WhenAction::Call(name, args) => {
-                        take_checks(&Expr::Call(name.clone(), args.clone()), acc)?;
-                    }
-                    // A check made when the event fires: the names it
-                    // was written with are this class's, so it is
-                    // resolved here like any other expression.
-                    WhenAction::Assert(condition, message) => actions.push(WhenAction::Assert(
-                        expand_here(&resolve_here(condition)?, &HashMap::new())?.scalar()?,
-                        message.clone(),
-                    )),
-                    // `if c then x = a; else x = b; end if;` at an
-                    // event: what `x` is given depends on the
-                    // condition, so it gets one assignment whose value
-                    // is the choice. A branch that says nothing about
-                    // a variable leaves it what it had, which is what
-                    // `pre` of it is.
-                    WhenAction::Choice(chosen) => {
-                        let mut targets: Vec<String> = Vec::new();
-                        let mut branches: Vec<GivenBranch> = Vec::new();
-                        for branch in &chosen.branches {
-                            // A connection is drawn once and for all,
-                            // and a check has nowhere to go from here;
-                            // what an `if` at an event holds is values.
-                            if !branch.connects.is_empty()
-                                || !branch.loops.is_empty()
-                                || !branch.asserts.is_empty()
-                                || !branch.whens.is_empty()
-                                || !branch.calls.is_empty()
-                                || !branch.graph.is_empty()
-                            {
-                                return Err(
-                                    "an `if` inside `when` gives values to variables".to_string()
-                                );
-                            }
-                            let mut given = Vec::new();
-                            for equation in &branch.equations {
-                                let Expr::Ref(target) = &equation.lhs else {
-                                    return Err("an `if` inside `when` gives values to variables"
-                                        .to_string());
-                                };
-                                let target = flat_name(target, prefix, &outers);
-                                if !targets.contains(&target) {
-                                    targets.push(target.clone());
-                                }
-                                given.push((target, resolve_here(&equation.rhs)?));
-                            }
-                            let condition =
-                                branch.condition.as_ref().map(&resolve_here).transpose()?;
-                            branches.push((condition, given));
-                        }
-                        for target in targets {
-                            // Built from the last branch back, so the
-                            // conditions are tested in the order they
-                            // were written.
-                            let mut value =
-                                Expr::Call("pre".to_string(), vec![Expr::Ref(target.clone())]);
-                            for (condition, given) in branches.iter().rev() {
-                                let Some(chosen) = given.iter().find(|(name, _)| name == &target)
-                                else {
-                                    continue;
-                                };
-                                value = match condition {
-                                    None => chosen.1.clone(),
-                                    Some(condition) => Expr::If(
-                                        Box::new(condition.clone()),
-                                        Box::new(chosen.1.clone()),
-                                        Box::new(value),
-                                    ),
-                                };
-                            }
-                            actions.push(WhenAction::Assign(target, value));
-                        }
-                    }
-                    // `for i in 1:n loop k[i] = ...; end for;` at an
-                    // event: the loop is unrolled the way one among
-                    // the equations is, and each round's equation
-                    // becomes an assignment of its own. It is unrolled
-                    // into the equations and taken straight back out,
-                    // there being one unroller and no reason for two.
-                    WhenAction::Loop(loop_eq) => {
-                        let boundary = acc.equations.len();
-                        let drawn = acc.connects.len();
-                        unroll(
-                            loop_eq,
-                            &HashMap::new(),
-                            &local_consts,
-                            prefix,
-                            &outers,
-                            &sizes_here,
-                            &records_here,
-                            registry,
-                            scope,
-                            &imports,
-                            acc,
-                        )?;
-                        if acc.connects.len() != drawn {
-                            return Err("a loop inside `when` assigns variables, one per round; \
-                                        a connection is drawn once and for all, not at an event"
-                                .to_string());
-                        }
-                        for round in acc.equations.drain(boundary..).collect::<Vec<_>>() {
-                            let Expr::Ref(target) = round.lhs else {
-                                return Err(
-                                    "a loop inside `when` assigns variables, one per round"
-                                        .to_string(),
-                                );
-                            };
-                            actions.push(WhenAction::Assign(target, round.rhs));
-                        }
-                    }
-                    // `(a, b) = f(x)` at an event: the call is inlined
-                    // once per output, and each target gets an
-                    // assignment of its own. A skipped slot costs its
-                    // output nothing, since it is never used.
-                    WhenAction::TupleAssign(targets, value) => {
-                        // Not through `resolve_here`: that would inline
-                        // the call into the one value an expression can
-                        // carry, and what is wanted here is the call
-                        // itself, to be inlined once per target.
-                        let value =
-                            substitute_class_constants(value, registry, scope, &imports, &shadow);
-                        let value = prefix_expr(&value, prefix, &outers);
-                        let Expr::Call(name, raw_args) = &value else {
-                            return Err(
-                                "the right side of a tuple inside `when` must be a function call"
-                                    .to_string(),
-                            );
-                        };
-                        let function = lookup(registry, name, scope, &imports)
-                            .filter(|c| c.kind == ClassKind::Function)
-                            .ok_or_else(|| {
-                                format!("`{name}` is not a function, so it cannot fill a tuple")
-                            })?;
-                        let shapes = Shapes {
-                            sizes: &sizes_here,
-                            loop_vars: &no_loop_vars,
-                            consts: &local_consts,
-                            records: &records_here,
-                        };
-                        let values = raw_args
-                            .iter()
-                            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
-                            .collect::<Result<Vec<_>, String>>()?;
-                        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
-                        let arguments: Vec<Expr> =
-                            values.into_iter().map(|value| value.into_expr()).collect();
-                        let outputs = inline_function_outputs(
-                            function,
-                            &arguments,
-                            &argument_shapes,
-                            &local_consts,
-                            registry,
-                            0,
-                        )?;
-                        if outputs.len() < targets.len() {
-                            return Err(format!(
-                                "`{name}` has {} output(s) and the tuple asks for {}",
-                                outputs.len(),
-                                targets.len()
-                            ));
-                        }
-                        for (target, (_, worth)) in targets.iter().zip(outputs) {
-                            let Some(target) = target else { continue };
-                            let target = flat_name(target, prefix, &outers);
-                            // An output of several numbers lands on
-                            // several names: a generator answers with
-                            // the state it moved to, and the model
-                            // holds one number per name.
-                            let placed = expand(
-                                &Expr::Ref(target.clone()),
-                                &shapes,
-                                registry,
-                                scope,
-                                &imports,
-                                0,
-                            )?;
-                            let (mut names, mut worths) = (Vec::new(), Vec::new());
-                            placed.flatten_into(&mut names);
-                            expand(&worth, &shapes, registry, scope, &imports, 0)?
-                                .flatten_into(&mut worths);
-                            if names.len() != worths.len() {
-                                return Err(format!(
-                                    "`{target}` is {} name(s) and what it is given at the \
-                                     event is {} value(s)",
-                                    names.len(),
-                                    worths.len()
-                                ));
-                            }
-                            for (name, worth) in names.into_iter().zip(worths) {
-                                let Expr::Ref(name) = name else {
-                                    return Err(format!(
-                                        "`{target}` is not a name an event can assign"
-                                    ));
-                                };
-                                actions.push(WhenAction::Assign(name, worth));
-                            }
-                        }
-                    }
-                }
-            }
-            branches.push(WhenBranch {
-                condition: resolve_here(&branch.condition)?,
-                actions,
-            });
-        }
-        acc.when_clauses.push(WhenClause {
-            branches,
-            origin: acc.origin.clone(),
-        });
-    }
-    // A connection to a component that a condition left out goes with
-    // it: this is how the standard library switches a support flange
-    // between an external connector and an internal ground.
-    for (a, b) in &class.connects {
-        // `break connect(a, b)` drops this exact connection, in either
-        // order, before it becomes a set.
-        let (na, nb) = (connect_side_name(a), connect_side_name(b));
-        if let Some(index) = broken.iter().position(|item| {
-            matches!(item, Deselect::Connection(x, y)
-                if (Some(x) == na.as_ref() && Some(y) == nb.as_ref())
-                    || (Some(x) == nb.as_ref() && Some(y) == na.as_ref()))
-        }) {
-            broke_something[index] = true;
-            continue;
-        }
-        let shapes = Shapes {
-            sizes: &sizes_here,
-            loop_vars: &no_loop_vars,
-            consts: &local_consts,
-            records: no_records(),
-        };
-        push_connects(
-            a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
-        )?;
-    }
 
     // A break that matched nothing is a mistake in the extending class.
     if let Some(index) = broke_something.iter().position(|hit| !hit) {
@@ -971,6 +259,7 @@ pub(super) fn instantiate(
     // of its own, and working one out can leave another behind, so the
     // taking goes round until nothing is left. What comes out already
     // carries this class's prefix, since the call did.
+    let no_loop_vars = HashMap::new();
     loop {
         let taken = checks_taken(checks_from);
         if taken.is_empty() {
@@ -2422,6 +1711,768 @@ fn run_algorithm_sections(
         }
         let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
         acc.initial_equations.extend(written);
+    }
+
+    Ok(())
+}
+
+/// Everything the class states rather than declares: its equations,
+/// the `if` branches and `when` clauses among them, the values of its
+/// record-valued declarations, its connections and its algorithm
+/// sections.
+///
+/// Moved out of `instantiate` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn flatten_equations(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    env: &Env,
+    acc: &mut Flat,
+    depth: usize,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    sizes: &HashMap<String, Vec<i64>>,
+    sizes_here: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+    records_here: &HashMap<String, String>,
+    record_values: &[(String, Expr, bool)],
+    broke_something: &mut [bool],
+) -> Result<(), String> {
+    let scope = class.name.as_str();
+    let broken = env.broken;
+    // Equations: arrays expanded, subscripts resolved, calls inlined.
+    let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
+        let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
+        let expr = prefix_expr(&expr, prefix, &outers);
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars,
+            consts: &local_consts,
+            records: &records_here,
+        };
+        let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
+        records_written_out(value, &shapes, registry, &|e| {
+            expand(e, &shapes, registry, scope, &imports, 0)
+        })
+    };
+    // What has to come to one value - a condition, what a `when` gives
+    // a variable - still goes through the array layer to get there:
+    // `min({pre(y), u, pre(u)})` is one value made out of three, and
+    // only the array layer knows how to read it.
+    let resolve_here =
+        |expr: &Expr| -> Result<Expr, String> { expand_here(expr, &HashMap::new())?.scalar() };
+    let no_loop_vars = HashMap::new();
+    // A record-valued variable's value, said now that both sides can
+    // be written out as fields. It is an equation because that is what
+    // a variable's declaration value is: `Complex vs[m] = plug.pin.v`
+    // holds for the whole run.
+    // A modifier arrives written in the terms of the class that
+    // supplied it - `Shape s(R = mine)` names a record of the class
+    // holding `s` - so those have to be in view as well as this
+    // class's own. It is put together only where there is a record
+    // value to say it of, since every class would otherwise pay for a
+    // copy of every record the model holds.
+    let records_wider = record_values
+        .iter()
+        .any(|(_, _, prefixed)| *prefixed)
+        .then(|| {
+            let mut all = acc.records.clone();
+            all.extend(records_here.iter().map(|(k, v)| (k.clone(), v.clone())));
+            all
+        });
+    for (name, value, prefixed) in record_values {
+        let lhs = expand_here(&Expr::Ref(name.clone()), &no_loop_vars)?;
+        let rhs = match prefixed {
+            // A modifier arrives already written in the terms of the
+            // class that supplied it.
+            true => {
+                let shapes = Shapes {
+                    sizes: &sizes_here,
+                    loop_vars: &no_loop_vars,
+                    consts: &local_consts,
+                    records: records_wider.as_ref().unwrap_or(&records_here),
+                };
+                let worked = expand(value, &shapes, registry, scope, &imports, 0)?;
+                records_written_out(worked, &shapes, registry, &|e| {
+                    expand(e, &shapes, registry, scope, &imports, 0)
+                })?
+            }
+            false => expand_here(value, &no_loop_vars)?,
+        };
+        // Where the value cannot be written out as fields - a record
+        // named in a class this one knows nothing about - the two
+        // sides do not line up, and the value is left where it was
+        // rather than half-applied. That is what this compiler did
+        // with every record value until now, so nothing is lost by
+        // leaving it there.
+        let held = acc.equations.len();
+        if push_equations(&lhs, &rhs, acc).is_err() {
+            acc.equations.truncate(held);
+        }
+    }
+    // `(r, a, b, ku) = lowPass(cr, c0, c1, f_cut)`: one call fills
+    // several targets, and a skipped slot costs its output nothing
+    // since the expression is never used. A tuple may stand at the top
+    // of a class or inside a branch the compiler settles, and it is
+    // read the same way in both.
+    let tuple_equation = |equation: &EquationItem, acc: &mut Flat| -> Result<bool, String> {
+        let Expr::Tuple(targets) = &equation.lhs else {
+            return Ok(false);
+        };
+        let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports, &shadow);
+        let rhs = prefix_expr(&rhs, prefix, &outers);
+        let Expr::Call(name, raw_args) = &rhs else {
+            return Err("the right side of a tuple equation must be a function call".into());
+        };
+        // `spatialDistribution` fills a pair the way a function
+        // does, but there is no body to inline: what it stands for
+        // is a profile the run carries, so it is recorded here and
+        // the equation becomes the two boundary values.
+        if name == "spatialDistribution" {
+            let shapes = Shapes {
+                sizes: &sizes_here,
+                loop_vars: &no_loop_vars,
+                consts: &local_consts,
+                records: &records_here,
+            };
+            let arguments = raw_args
+                .iter()
+                .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
+                .collect::<Result<Vec<Expr>, String>>()?;
+            // The targets go through the usual pipeline, so the
+            // names recorded are the flat ones.
+            let mut named = Vec::new();
+            for target in targets {
+                let Some(target) = target else {
+                    named.push(None);
+                    continue;
+                };
+                named.push(Some(expand_here(target, &no_loop_vars)?.into_expr()));
+            }
+            spatial_transport(&named, &arguments, prefix, &outers, &local_consts, acc)?;
+            return Ok(true);
+        }
+        let function = lookup(registry, name, scope, &imports)
+            .filter(|c| c.kind == ClassKind::Function)
+            .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+            records: &records_here,
+        };
+        let values = raw_args
+            .iter()
+            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+            .collect::<Result<Vec<_>, String>>()?;
+        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+        let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
+        let outputs = inline_function_outputs(
+            function,
+            &arguments,
+            &argument_shapes,
+            &local_consts,
+            registry,
+            0,
+        )?;
+        if targets.len() > outputs.len() {
+            return Err(format!(
+                "`{name}` has {} output(s) for {} target(s)",
+                outputs.len(),
+                targets.len()
+            ));
+        }
+        for (slot, (_, value)) in targets.iter().zip(outputs) {
+            let Some(target) = slot else { continue };
+            // The target goes through the usual pipeline; the
+            // inlined value is already resolved and only needs the
+            // array layer, or a second prefix would corrupt it.
+            let lhs = expand_here(target, &no_loop_vars)?;
+            let rhs = expand(&value, &shapes, registry, scope, &imports, 0)?;
+            push_equations(&lhs, &rhs, acc)?;
+        }
+        Ok(true)
+    };
+    for equation in &class.equations {
+        // `(a, , c) = f(...)`: one call fills several targets. The
+        // call is inlined once per output; a skipped slot costs its
+        // computation nothing, since the expression is never used.
+        if tuple_equation(equation, acc)? {
+            continue;
+        }
+        let lhs = expand_here(&equation.lhs, &no_loop_vars)?;
+        let rhs = expand_here(&equation.rhs, &no_loop_vars)?;
+        push_equations(&lhs, &rhs, acc)?;
+    }
+
+    for (condition, message) in &class.asserts {
+        // A check may be written over arrays - `assert(length(n) >
+        // 0, ...)` of an axis of three - so it goes through the array
+        // layer like an equation, and what comes out is the one truth
+        // it has to be.
+        let condition = expand_here(condition, &no_loop_vars)?.scalar()?;
+        acc.asserts.push((condition, message.clone()));
+    }
+
+    // The arrows of a state machine name instances of this class, so
+    // they carry its prefix like everything else.
+    for transition in &class.transitions {
+        acc.transitions.push(Transition {
+            from: flat_name(&transition.from, prefix, &outers),
+            to: flat_name(&transition.to, prefix, &outers),
+            condition: resolve_here(&transition.condition)?,
+            reset: transition.reset,
+            immediate: transition.immediate,
+            synchronize: transition.synchronize,
+            priority: transition.priority,
+        });
+    }
+    if let Some(state) = &class.initial_state {
+        acc.initial_states.push(flat_name(state, prefix, &outers));
+    }
+    for equation in &class.initial_equations {
+        let (lhs, rhs) = (
+            expand_here(&equation.lhs, &no_loop_vars)?,
+            expand_here(&equation.rhs, &no_loop_vars)?,
+        );
+        let (mut left, mut right) = (Vec::new(), Vec::new());
+        lhs.flatten_into(&mut left);
+        rhs.flatten_into(&mut right);
+        if left.len() != right.len() {
+            return Err("an initial equation between shapes that do not match".to_string());
+        }
+        for (lhs, rhs) in left.into_iter().zip(right) {
+            acc.initial_equations.push(EquationItem {
+                lhs,
+                rhs,
+                origin: String::new(),
+            });
+        }
+    }
+
+    // The `algorithm` and `initial algorithm` sections, executed
+    // symbolically into equations.
+    run_algorithm_sections(
+        registry,
+        class,
+        prefix,
+        acc,
+        depth,
+        &imports,
+        &outers,
+        &sizes,
+        &local_consts,
+        &expand_here,
+    )?;
+
+    // A call written among the equations takes nothing back from what
+    // it calls, so what it is there for is the checks the body makes.
+    // They become the model's, carrying this instance's prefix like
+    // everything else it says.
+    let take_checks = |call: &Expr, acc: &mut Flat| -> Result<(), String> {
+        let call = substitute_class_constants(call, registry, scope, &imports, &shadow);
+        let call = prefix_expr(&call, prefix, &outers);
+        let Expr::Call(name, args) = &call else {
+            return Err("a line of an equation section that is not an equation is a call".into());
+        };
+        let called = lookup(registry, name, scope, &imports)
+            .filter(|c| c.kind == ClassKind::Function)
+            .ok_or_else(|| format!("`{name}` is not a function"))?;
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+            records: &records_here,
+        };
+        let values = args
+            .iter()
+            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+            .collect::<Result<Vec<_>, String>>()?;
+        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+        let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
+        let checks = inline_function_checks(
+            called,
+            &arguments,
+            &argument_shapes,
+            &local_consts,
+            registry,
+            0,
+        )?;
+        acc.asserts.extend(checks);
+        Ok(())
+    };
+    for call in &class.calls {
+        take_checks(call, acc)?;
+    }
+
+    // `for` equations are unrolled: the loop variable is a constant.
+    for loop_eq in &class.for_equations {
+        unroll(
+            loop_eq,
+            &HashMap::new(),
+            &local_consts,
+            prefix,
+            &outers,
+            &sizes_here,
+            &records_here,
+            registry,
+            scope,
+            &imports,
+            acc,
+        )?;
+    }
+
+    // What a branch the compiler picked says about events joins what
+    // the class says outright: `if use_reset then when reset then
+    // reinit(y, y_start); end when; end if;` is how the standard
+    // library gives a block a reset it can be built without.
+    // What the pass before this one gathered about the connections:
+    // the roots of the overconstrained graph, and how many `connect`
+    // equations named each port. `answered` is what says a pass has
+    // been made - a model with no overconstrained loop has no roots in
+    // earnest, so emptiness says nothing.
+    let known_roots = acc.roots.clone();
+    let known_counts = acc.counts.clone();
+    let answered = acc.answered;
+    let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
+    let mut graph_from_branches: Vec<&GraphClause> = Vec::new();
+    // `if` equations: the branch that holds contributes its equations,
+    // the others contribute nothing. Conditions are structural, so they
+    // must be constant at compile time.
+    for if_equation in &class.if_equations {
+        let mut env = acc.const_values.clone();
+        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+        // A structural condition picks one branch and the model is
+        // built from it. A condition only the run holds decides
+        // nothing here, so every branch must contribute the same
+        // number of equations and each position becomes one equation
+        // that chooses its residual as it goes.
+        // A condition is read with the constants of the classes it
+        // names put in first: `smoothness == Smoothness.LinearSegments`
+        // compares a parameter against an enumeration literal, and
+        // neither is a name the environment holds on its own. A
+        // question about the connection graph is answered from the
+        // roots, which are in hand on the pass that follows the one
+        // that drew them.
+        let settle = |condition: &Expr| {
+            let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
+            if let Some(value) = const_eval(&named, &env) {
+                return Some(value);
+            }
+            if !answered {
+                return None;
+            }
+            let asked = prefix_expr(&named, prefix, &outers);
+            let told = answer_graph_queries(&asked, &known_roots, &known_counts);
+            const_eval(&told, &env)
+        };
+        let decidable = if_equation.branches.iter().all(|branch| {
+            branch
+                .condition
+                .as_ref()
+                .is_none_or(|condition| settle(condition).is_some())
+        });
+        // A condition that asks the graph where the graph has not been
+        // drawn cannot be answered here, and the branches of such an
+        // `if` are not balanced - a body that is a root carries states
+        // and one that is not carries none. So it is set aside, and
+        // the whole model is built again once the graph is in.
+        if !decidable && !answered && asks_the_graph(if_equation) {
+            acc.graph_asked = true;
+            continue;
+        }
+        if !decidable {
+            push_conditional(
+                if_equation,
+                &class.name,
+                resolve_here,
+                expand_here,
+                &no_loop_vars,
+                acc,
+            )?;
+            continue;
+        }
+        let mut chosen = None;
+        for branch in &if_equation.branches {
+            match &branch.condition {
+                None => {
+                    chosen = Some(branch);
+                    break;
+                }
+                Some(condition) => {
+                    let value = settle(condition).ok_or_else(|| {
+                        format!(
+                            "condition of an `if` equation in `{}` is not a compile-time constant",
+                            class.name
+                        )
+                    })?;
+                    if value != 0.0 {
+                        chosen = Some(branch);
+                        break;
+                    }
+                }
+            }
+        }
+        let Some(branch) = chosen else { continue };
+        // The branch is the one taken, so its checks hold outright.
+        for (condition, message) in &branch.asserts {
+            acc.asserts
+                .push((resolve_here(condition)?, message.clone()));
+        }
+        whens_from_branches.extend(branch.whens.iter());
+        graph_from_branches.extend(branch.graph.iter());
+        for call in &branch.calls {
+            take_checks(call, acc)?;
+        }
+        for loop_eq in &branch.loops {
+            unroll(
+                loop_eq,
+                &HashMap::new(),
+                &local_consts,
+                prefix,
+                &outers,
+                &sizes_here,
+                &records_here,
+                registry,
+                scope,
+                &imports,
+                acc,
+            )?;
+        }
+        for equation in &branch.equations {
+            if tuple_equation(equation, acc)? {
+                continue;
+            }
+            push_equations(
+                &expand_here(&equation.lhs, &no_loop_vars)?,
+                &expand_here(&equation.rhs, &no_loop_vars)?,
+                acc,
+            )?;
+        }
+        for (a, b) in &branch.connects {
+            let shapes = Shapes {
+                sizes: &sizes_here,
+                loop_vars: &no_loop_vars,
+                consts: &local_consts,
+                records: &records_here,
+            };
+            push_connects(
+                a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
+            )?;
+        }
+    }
+
+    // What the class says about the overconstrained graph, and what
+    // the branches the compiler picked said about it.
+    for clause in class
+        .connection_graph
+        .iter()
+        .chain(graph_from_branches.iter().copied())
+    {
+        acc.connection_graph.push(match clause {
+            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, &outers)),
+            GraphClause::PotentialRoot(node, priority) => {
+                GraphClause::PotentialRoot(flat_name(node, prefix, &outers), *priority)
+            }
+            GraphClause::Branch(a, b) => {
+                GraphClause::Branch(flat_name(a, prefix, &outers), flat_name(b, prefix, &outers))
+            }
+        });
+    }
+
+    for clause in class.when_clauses.iter().chain(whens_from_branches) {
+        let mut branches = Vec::new();
+        for branch in &clause.branches {
+            let mut actions = Vec::new();
+            for action in &branch.actions {
+                match action {
+                    WhenAction::Reinit(state, value) => actions.push(WhenAction::Reinit(
+                        flat_name(state, prefix, &outers),
+                        resolve_here(value)?,
+                    )),
+                    // A `when` may give a whole array at once -
+                    // `y = u` between two vectors is how the clocked
+                    // samplers pass a bus through - and an event
+                    // assigns one variable, so it is taken apart the
+                    // way an equation between arrays is: one
+                    // assignment per element, refusing sides that do
+                    // not have the same shape. A scalar target goes
+                    // the short way, which is every other `when` in
+                    // the library.
+                    WhenAction::Assign(target, value) => {
+                        let named = flat_name(target, prefix, &outers);
+                        let given = expand_here(value, &HashMap::new())?;
+                        // The shapes are filed under the full path, and
+                        // the target is written as this class named it,
+                        // so it is the flat name that finds one.
+                        match sizes_here.get(&named).filter(|shape| !shape.is_empty()) {
+                            None => actions.push(WhenAction::Assign(named, given.scalar()?)),
+                            Some(shape) => {
+                                let mut elements = Vec::new();
+                                given.flatten_into(&mut elements);
+                                let wanted: usize =
+                                    shape.iter().map(|length| *length as usize).product();
+                                if elements.len() != wanted {
+                                    return Err(format!(
+                                        "`{named}` is given {} value(s) at an event and holds                                          {wanted}",
+                                        elements.len()
+                                    ));
+                                }
+                                for (indices, one) in index_tuples(shape).into_iter().zip(elements)
+                                {
+                                    actions.push(WhenAction::Assign(
+                                        element_name(&named, &indices),
+                                        one,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    WhenAction::Terminate(message) => {
+                        actions.push(WhenAction::Terminate(message.clone()))
+                    }
+                    // A call on its own at an event: nothing takes its
+                    // outputs, so what the compiler can have of it is
+                    // the checks its body makes - the same as a call
+                    // standing among the equations. The effect itself,
+                    // closing a file at `terminal()`, is one this
+                    // compiler has no way to have.
+                    WhenAction::Call(name, args) => {
+                        take_checks(&Expr::Call(name.clone(), args.clone()), acc)?;
+                    }
+                    // A check made when the event fires: the names it
+                    // was written with are this class's, so it is
+                    // resolved here like any other expression.
+                    WhenAction::Assert(condition, message) => actions.push(WhenAction::Assert(
+                        expand_here(&resolve_here(condition)?, &HashMap::new())?.scalar()?,
+                        message.clone(),
+                    )),
+                    // `if c then x = a; else x = b; end if;` at an
+                    // event: what `x` is given depends on the
+                    // condition, so it gets one assignment whose value
+                    // is the choice. A branch that says nothing about
+                    // a variable leaves it what it had, which is what
+                    // `pre` of it is.
+                    WhenAction::Choice(chosen) => {
+                        let mut targets: Vec<String> = Vec::new();
+                        let mut branches: Vec<GivenBranch> = Vec::new();
+                        for branch in &chosen.branches {
+                            // A connection is drawn once and for all,
+                            // and a check has nowhere to go from here;
+                            // what an `if` at an event holds is values.
+                            if !branch.connects.is_empty()
+                                || !branch.loops.is_empty()
+                                || !branch.asserts.is_empty()
+                                || !branch.whens.is_empty()
+                                || !branch.calls.is_empty()
+                                || !branch.graph.is_empty()
+                            {
+                                return Err(
+                                    "an `if` inside `when` gives values to variables".to_string()
+                                );
+                            }
+                            let mut given = Vec::new();
+                            for equation in &branch.equations {
+                                let Expr::Ref(target) = &equation.lhs else {
+                                    return Err("an `if` inside `when` gives values to variables"
+                                        .to_string());
+                                };
+                                let target = flat_name(target, prefix, &outers);
+                                if !targets.contains(&target) {
+                                    targets.push(target.clone());
+                                }
+                                given.push((target, resolve_here(&equation.rhs)?));
+                            }
+                            let condition =
+                                branch.condition.as_ref().map(&resolve_here).transpose()?;
+                            branches.push((condition, given));
+                        }
+                        for target in targets {
+                            // Built from the last branch back, so the
+                            // conditions are tested in the order they
+                            // were written.
+                            let mut value =
+                                Expr::Call("pre".to_string(), vec![Expr::Ref(target.clone())]);
+                            for (condition, given) in branches.iter().rev() {
+                                let Some(chosen) = given.iter().find(|(name, _)| name == &target)
+                                else {
+                                    continue;
+                                };
+                                value = match condition {
+                                    None => chosen.1.clone(),
+                                    Some(condition) => Expr::If(
+                                        Box::new(condition.clone()),
+                                        Box::new(chosen.1.clone()),
+                                        Box::new(value),
+                                    ),
+                                };
+                            }
+                            actions.push(WhenAction::Assign(target, value));
+                        }
+                    }
+                    // `for i in 1:n loop k[i] = ...; end for;` at an
+                    // event: the loop is unrolled the way one among
+                    // the equations is, and each round's equation
+                    // becomes an assignment of its own. It is unrolled
+                    // into the equations and taken straight back out,
+                    // there being one unroller and no reason for two.
+                    WhenAction::Loop(loop_eq) => {
+                        let boundary = acc.equations.len();
+                        let drawn = acc.connects.len();
+                        unroll(
+                            loop_eq,
+                            &HashMap::new(),
+                            &local_consts,
+                            prefix,
+                            &outers,
+                            &sizes_here,
+                            &records_here,
+                            registry,
+                            scope,
+                            &imports,
+                            acc,
+                        )?;
+                        if acc.connects.len() != drawn {
+                            return Err("a loop inside `when` assigns variables, one per round; \
+                                        a connection is drawn once and for all, not at an event"
+                                .to_string());
+                        }
+                        for round in acc.equations.drain(boundary..).collect::<Vec<_>>() {
+                            let Expr::Ref(target) = round.lhs else {
+                                return Err(
+                                    "a loop inside `when` assigns variables, one per round"
+                                        .to_string(),
+                                );
+                            };
+                            actions.push(WhenAction::Assign(target, round.rhs));
+                        }
+                    }
+                    // `(a, b) = f(x)` at an event: the call is inlined
+                    // once per output, and each target gets an
+                    // assignment of its own. A skipped slot costs its
+                    // output nothing, since it is never used.
+                    WhenAction::TupleAssign(targets, value) => {
+                        // Not through `resolve_here`: that would inline
+                        // the call into the one value an expression can
+                        // carry, and what is wanted here is the call
+                        // itself, to be inlined once per target.
+                        let value =
+                            substitute_class_constants(value, registry, scope, &imports, &shadow);
+                        let value = prefix_expr(&value, prefix, &outers);
+                        let Expr::Call(name, raw_args) = &value else {
+                            return Err(
+                                "the right side of a tuple inside `when` must be a function call"
+                                    .to_string(),
+                            );
+                        };
+                        let function = lookup(registry, name, scope, &imports)
+                            .filter(|c| c.kind == ClassKind::Function)
+                            .ok_or_else(|| {
+                                format!("`{name}` is not a function, so it cannot fill a tuple")
+                            })?;
+                        let shapes = Shapes {
+                            sizes: &sizes_here,
+                            loop_vars: &no_loop_vars,
+                            consts: &local_consts,
+                            records: &records_here,
+                        };
+                        let values = raw_args
+                            .iter()
+                            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+                            .collect::<Result<Vec<_>, String>>()?;
+                        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                        let arguments: Vec<Expr> =
+                            values.into_iter().map(|value| value.into_expr()).collect();
+                        let outputs = inline_function_outputs(
+                            function,
+                            &arguments,
+                            &argument_shapes,
+                            &local_consts,
+                            registry,
+                            0,
+                        )?;
+                        if outputs.len() < targets.len() {
+                            return Err(format!(
+                                "`{name}` has {} output(s) and the tuple asks for {}",
+                                outputs.len(),
+                                targets.len()
+                            ));
+                        }
+                        for (target, (_, worth)) in targets.iter().zip(outputs) {
+                            let Some(target) = target else { continue };
+                            let target = flat_name(target, prefix, &outers);
+                            // An output of several numbers lands on
+                            // several names: a generator answers with
+                            // the state it moved to, and the model
+                            // holds one number per name.
+                            let placed = expand(
+                                &Expr::Ref(target.clone()),
+                                &shapes,
+                                registry,
+                                scope,
+                                &imports,
+                                0,
+                            )?;
+                            let (mut names, mut worths) = (Vec::new(), Vec::new());
+                            placed.flatten_into(&mut names);
+                            expand(&worth, &shapes, registry, scope, &imports, 0)?
+                                .flatten_into(&mut worths);
+                            if names.len() != worths.len() {
+                                return Err(format!(
+                                    "`{target}` is {} name(s) and what it is given at the \
+                                     event is {} value(s)",
+                                    names.len(),
+                                    worths.len()
+                                ));
+                            }
+                            for (name, worth) in names.into_iter().zip(worths) {
+                                let Expr::Ref(name) = name else {
+                                    return Err(format!(
+                                        "`{target}` is not a name an event can assign"
+                                    ));
+                                };
+                                actions.push(WhenAction::Assign(name, worth));
+                            }
+                        }
+                    }
+                }
+            }
+            branches.push(WhenBranch {
+                condition: resolve_here(&branch.condition)?,
+                actions,
+            });
+        }
+        acc.when_clauses.push(WhenClause {
+            branches,
+            origin: acc.origin.clone(),
+        });
+    }
+    // A connection to a component that a condition left out goes with
+    // it: this is how the standard library switches a support flange
+    // between an external connector and an internal ground.
+    for (a, b) in &class.connects {
+        // `break connect(a, b)` drops this exact connection, in either
+        // order, before it becomes a set.
+        let (na, nb) = (connect_side_name(a), connect_side_name(b));
+        if let Some(index) = broken.iter().position(|item| {
+            matches!(item, Deselect::Connection(x, y)
+                if (Some(x) == na.as_ref() && Some(y) == nb.as_ref())
+                    || (Some(x) == nb.as_ref() && Some(y) == na.as_ref()))
+        }) {
+            broke_something[index] = true;
+            continue;
+        }
+        let shapes = Shapes {
+            sizes: &sizes_here,
+            loop_vars: &no_loop_vars,
+            consts: &local_consts,
+            records: no_records(),
+        };
+        push_connects(
+            a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
+        )?;
     }
 
     Ok(())
