@@ -96,44 +96,9 @@ pub(super) fn instantiate(
         registry, class, prefix, env, acc, &imports, &shadow, &outers, &inherited,
     );
 
-    // What each array component of this class - and of its bases - is
-    // shaped like, so a value may name one as a whole.
-    let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
-    collect_shapes_given(
-        registry,
-        class,
-        &local_consts,
-        &HashMap::new(),
-        env.overrides,
-        &mut sizes,
-        0,
-    );
-    let mut sizes_here = prefixed_sizes(&sizes, prefix);
-    // A constant array of this class is measured here and never
-    // reaches the loop below, which builds the elements of what the
-    // model holds: a constant has no elements to build. But a value
-    // handed to a component may name one - a table block is given
-    // `table = Lin`, one of three curves the class keeps - and the
-    // component is instantiated with the shapes gathered so far.
-    //
-    // Only the constants are offered, and only those nothing else has
-    // measured. Offering every shape this class knows put entries in
-    // front of the ones the components measure for themselves, and
-    // seventeen models were refused for it.
-    let constants_here: Vec<String> = class
-        .components
-        .iter()
-        .filter(|c| c.variability == Variability::Constant && !c.dimensions.is_empty())
-        .map(|c| format!("{prefix}{}", c.name))
-        .collect();
-    for name in constants_here {
-        if acc.sizes.iter().any(|(known, _)| known == &name) {
-            continue;
-        }
-        if let Some(shape) = sizes_here.get(&name) {
-            acc.sizes.push((name, shape.clone()));
-        }
-    }
+    let (mut sizes, mut sizes_here) =
+        measure_shapes(registry, class, prefix, env, acc, &local_consts);
+
     // How much of the growing list of measured arrays has been taken
     // into the table above. Each declaration brings its own, and the
     // one after it may be written with them.
@@ -2250,6 +2215,62 @@ fn settle_parameters(
     }
 
     local_consts
+}
+
+/// What every array of this class is shaped like, as far as the
+/// settled numbers can say - by the class's own names and by the
+/// instance path - with this class's constant arrays offered to the
+/// model for its components to read.
+///
+/// Moved out of `instantiate` unchanged.
+fn measure_shapes(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    prefix: &str,
+    env: &Env,
+    acc: &mut Flat,
+    local_consts: &HashMap<String, f64>,
+) -> (HashMap<String, Vec<i64>>, HashMap<String, Vec<i64>>) {
+    // What each array component of this class - and of its bases - is
+    // shaped like, so a value may name one as a whole.
+    let mut sizes: HashMap<String, Vec<i64>> = HashMap::new();
+    collect_shapes_given(
+        registry,
+        class,
+        &local_consts,
+        &HashMap::new(),
+        env.overrides,
+        &mut sizes,
+        0,
+    );
+    let mut sizes_here = prefixed_sizes(&sizes, prefix);
+    // A constant array of this class is measured here and never
+    // reaches the loop below, which builds the elements of what the
+    // model holds: a constant has no elements to build. But a value
+    // handed to a component may name one - a table block is given
+    // `table = Lin`, one of three curves the class keeps - and the
+    // component is instantiated with the shapes gathered so far.
+    //
+    // Only the constants are offered, and only those nothing else has
+    // measured. Offering every shape this class knows put entries in
+    // front of the ones the components measure for themselves, and
+    // seventeen models were refused for it.
+    let constants_here: Vec<String> = class
+        .components
+        .iter()
+        .filter(|c| c.variability == Variability::Constant && !c.dimensions.is_empty())
+        .map(|c| format!("{prefix}{}", c.name))
+        .collect();
+    for name in constants_here {
+        if acc.sizes.iter().any(|(known, _)| known == &name) {
+            continue;
+        }
+        if let Some(shape) = sizes_here.get(&name) {
+            acc.sizes.push((name, shape.clone()));
+        }
+    }
+
+    (sizes, sizes_here)
 }
 
 /// Whether a condition asks the connections a question.
