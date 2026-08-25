@@ -1074,6 +1074,36 @@ pub(super) fn expand_call(
                     // written out, because the body reads the fields by
                     // name and there is no name for the fields of three
                     // records at once.
+                    // A function whose inputs are all single numbers is
+                    // inlined here only because it answers with a
+                    // record, and handed arrays it is the plain
+                    // vectorization after all: `fromPolar` over three
+                    // amplitudes and three angles is three phasors. Run
+                    // whole, the record's fields flattened into the row
+                    // and the equation came out between a three-by-two
+                    // and a two.
+                    if let Some(spread) = spread_of_scalar_inputs(class, registry, &values) {
+                        let elements = (0..spread)
+                            .map(|index| {
+                                let args = values
+                                    .iter()
+                                    .map(|value| match value {
+                                        Value::Array(items) => items[index].clone().scalar(),
+                                        Value::Scalar(expr) => Ok(expr.clone()),
+                                    })
+                                    .collect::<Result<Vec<_>, String>>()?;
+                                expand(
+                                    &Expr::Call(name.to_string(), args),
+                                    shapes,
+                                    registry,
+                                    scope,
+                                    imports,
+                                    depth + 1,
+                                )
+                            })
+                            .collect::<Result<Vec<_>, String>>()?;
+                        return Ok(Value::Array(elements));
+                    }
                     if let Some(spread) = spread_of_records(class, registry, shapes, &values) {
                         let elements = (0..spread)
                             .map(|index| {
@@ -1215,8 +1245,9 @@ pub(super) fn expand_call(
                         .collect::<Result<Vec<_>, String>>()?;
                     // Through `resolve`, so a user function still
                     // inlines per element instead of surviving as a call.
-                    resolve(
-                        &Expr::Call(name.to_string(), args),
+                    let call = Expr::Call(name.to_string(), args);
+                    let element = resolve(
+                        &call,
                         shapes.loop_vars,
                         shapes.consts,
                         shapes.sizes,
@@ -1224,8 +1255,19 @@ pub(super) fn expand_call(
                         scope,
                         imports,
                         depth + 1,
-                    )
-                    .map(Value::Scalar)
+                    )?;
+                    // A scalar function answering with a record answers
+                    // with a record per element: `fromPolar` over three
+                    // amplitudes and three angles is three phasors, not
+                    // one array of six numbers. Read as a scalar the two
+                    // fields flattened into the row and the equation was
+                    // between a three-by-two and a two.
+                    match &element {
+                        Expr::Array(_) => {
+                            expand(&element, shapes, registry, scope, imports, depth + 1)
+                        }
+                        _ => Ok(Value::Scalar(element)),
+                    }
                 })
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(Value::Array(elements))
@@ -1575,6 +1617,39 @@ pub(super) fn spread_of_records(
         {
             continue;
         }
+        if spread.is_some_and(|already| already != items.len()) {
+            return None;
+        }
+        spread = Some(items.len());
+    }
+    spread
+}
+
+/// How many elements a call spreads over where every input the
+/// function declares is a single number and an argument is an array.
+///
+/// Such a function is inlined whole only because it answers with a
+/// record - `fromPolar` gives a `Complex` - and handed arrays it wants
+/// the vectorization every scalar function gets, one call per element.
+/// Where any input is declared an array, or takes a record, nothing
+/// spreads: the body was written for the whole thing.
+fn spread_of_scalar_inputs(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    values: &[Value],
+) -> Option<usize> {
+    let inputs: Vec<Component> = function_components(registry, class, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .collect();
+    let mut spread = None;
+    for (input, value) in inputs.iter().zip(values) {
+        let mut input = input.clone();
+        resolve_type(registry, &mut input, &class.name, &class.imports);
+        if !input.dimensions.is_empty() || record_input_fields(registry, class, &input).is_some() {
+            return None;
+        }
+        let Value::Array(items) = value else { continue };
         if spread.is_some_and(|already| already != items.len()) {
             return None;
         }

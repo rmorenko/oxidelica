@@ -9370,6 +9370,37 @@ fn a_local_array_built_by_a_call_is_read_element_by_element() {
     );
 }
 
+/// A scalar function answering with a record, handed arrays, is one
+/// call per element.
+#[test]
+fn a_record_valued_function_over_arrays_gives_a_record_per_element() {
+    // `fromPolar` is written for one amplitude and one angle and gives
+    // one phasor. The quasi-static controllers call it over as many of
+    // each as there are phases. Run whole, the record's two fields
+    // flattened into the row and the equation came out between a
+    // three-by-two and a two.
+    let m = parse_model(
+        "package P record Cx Real re; Real im; end Cx; \
+         function fromPolar input Real len; input Real phi; output Cx c; \
+         algorithm c := Cx(len*cos(phi), len*sin(phi)); end fromPolar; \
+         model M parameter Integer m = 3; \
+         parameter Real orientation[m] = {0, 1, 2}; \
+         Real amplitude = 2; Cx y[m]; Real out; \
+         equation y = fromPolar(fill(amplitude, m), orientation); \
+         out = y[1].re; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("one phasor per phase");
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("y[") && c.name.ends_with(".re"))
+            .count(),
+        3,
+        "three phasors, each with its own fields"
+    );
+}
+
 /// An input declared an array of records takes an array, not the
 /// fields of one record.
 #[test]
