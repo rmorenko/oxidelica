@@ -76,6 +76,32 @@ Prefer a test that checks a number came out right over one that checks
 a model flattened. Flattening is not evidence that anything is
 correct.
 
+## Asking fable
+
+Some walls are not worth ramming alone. When a cause has survived a
+few honest attempts at a local fix - each attempt moving the failure
+rather than removing it - that is the sign the question is
+architectural, and there is a standing arrangement for those: a
+consultation with a stronger model that reads this repository.
+
+The convention is a document, `QUESTION_FOR_FABLE.md` at the
+repository root. Append a question to it - the symptom, a reproduction
+small enough to quote whole, the trace that establishes the cause, and
+what was already tried - then run `scripts/ask_fable.sh`. The script
+hands the document to a fresh session of the consulting model, which
+studies the code the question names and appends its answer to the same
+document. The document is the memory: it carries every earlier
+question and answer, so append to it rather than rewriting it, and a
+later consultation can build on an earlier one.
+
+Facts before opinions, in the question as everywhere: a quoted trace
+is worth more than a paragraph of suspicion, and listing the fixes
+already tried saves the answer from recommending them. The document
+and its reproductions are scratch, kept out of the repository by
+`.gitignore` - which is also what lets them be written in Russian.
+Each consultation is a full session on the shared subscription, so it
+is for being stuck, not for code review.
+
 ## Language
 
 Everything in the repository is English - code, comments, commit

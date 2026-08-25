@@ -3,3 +3,7 @@ target/
 .DS_Store
 dist/
 .idea/
+
+# Scratch dialogue with the consulting model and its reproductions.
+/QUESTION_FOR_FABLE.md
+/fable_repro*.mo

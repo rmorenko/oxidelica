@@ -22,7 +22,7 @@ is a question that has no answer section after it yet. Before \
 answering, study the code the question names - the paths in it are \
 real paths in this repository - and verify the claims against the \
 source rather than taking them on faith. Then append your answer to \
-QUESTION_FOR_FABLE.md as a new section titled '# Ответ fable ...' \
-after a '---' separator, written in the language the question was \
-asked in. Do not modify any file other than QUESTION_FOR_FABLE.md. \
-Finally, print the full answer."
+QUESTION_FOR_FABLE.md as a new section after a '---' separator, its \
+heading matching the answer sections already in the document, written \
+in the language the question was asked in. Do not modify any file \
+other than QUESTION_FOR_FABLE.md. Finally, print the full answer."
