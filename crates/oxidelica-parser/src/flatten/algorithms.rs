@@ -2446,6 +2446,38 @@ fn spread_out(name: &str, shape: &[i64], so_far: &mut Vec<i64>) -> Expr {
 
 /// The fields of a record-typed argument that have dimensions, with
 /// the shape each one turned out to have.
+/// Every field a record holds, its bases' first, as the declarations
+/// they are.
+///
+/// `redeclare record extends ThermodynamicState` writes no fields and
+/// means the ones it extends: a medium's state is what its base
+/// declared. A class's own declaration replaces an inherited one of
+/// the same name rather than joining it.
+fn record_components(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    depth: usize,
+) -> Vec<Component> {
+    let mut out: Vec<Component> = Vec::new();
+    if depth > MAX_DEPTH {
+        return out;
+    }
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        };
+        if let Some(base) = base {
+            out.extend(record_components(registry, base, depth + 1));
+        }
+    }
+    for component in &class.components {
+        out.retain(|kept: &Component| kept.name != component.name);
+        out.push(component.clone());
+    }
+    out
+}
+
 fn shaped_record_fields(
     registry: &HashMap<&str, &ClassDef>,
     function: &ClassDef,
@@ -2462,8 +2494,11 @@ fn shaped_record_fields(
     if of.kind != ClassKind::Record {
         return Vec::new();
     }
-    of.components
-        .iter()
+    // A record may take its fields from a base rather than write them:
+    // `redeclare record extends ThermodynamicState` is how a medium
+    // says its state is the one it inherits.
+    record_components(registry, of, 0)
+        .into_iter()
         .filter(|field| !field.dimensions.is_empty())
         .filter_map(|field| {
             let shape: Option<Vec<i64>> = field
@@ -2492,10 +2527,10 @@ fn scalar_record_fields(
     if of.kind != ClassKind::Record {
         return Vec::new();
     }
-    of.components
-        .iter()
+    record_components(registry, of, 0)
+        .into_iter()
         .filter(|field| field.dimensions.is_empty())
-        .map(|field| field.name.clone())
+        .map(|field| field.name)
         .collect()
 }
 
@@ -2511,7 +2546,11 @@ pub(super) fn record_input_fields(
         &function.name,
         &function.imports,
     )?;
-    (of.kind == ClassKind::Record).then(|| record_fields(of))
+    // A record may take its fields from a base rather than write them:
+    // `redeclare record extends ThermodynamicState` is how a medium
+    // says its state is the one it inherits, and a function taking
+    // that state was told it takes nothing at all.
+    (of.kind == ClassKind::Record).then(|| record_fields_of(registry, of, 0))
 }
 
 /// What a name of a function body holds before anything assigns it.

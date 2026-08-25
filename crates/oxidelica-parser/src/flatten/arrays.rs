@@ -157,7 +157,7 @@ pub(super) fn expand(
             // three by three and a rate of three - so each is worked
             // out rather than named.
             Value::Array(
-                record_fields(of)
+                record_fields_of(registry, of, 0)
                     .into_iter()
                     .map(|field| recur(&Expr::Ref(format!("{name}.{field}"))))
                     .collect::<Result<Vec<_>, String>>()?,
@@ -515,7 +515,7 @@ fn standing_call(
         // them: the walk is handed it written that way.
         [] => lookup(registry, &answer.type_name, &class.name, imports)
             .filter(|of| of.kind == ClassKind::Record)
-            .map(|of| record_fields(of).len() as i64)
+            .map(|of| record_fields_of(registry, of, 0).len() as i64)
             .filter(|members| *members > 0),
         _ => None,
     });
@@ -644,7 +644,7 @@ pub(super) fn expand_call(
                     let of = registry
                         .get(record.as_str())
                         .ok_or_else(|| format!("`{record}` is not here"))?;
-                    let fields = record_fields(of);
+                    let fields = record_fields_of(registry, of, 0);
                     let elements: Vec<Expr> = index_tuples(dimensions)
                         .into_iter()
                         .map(|indices| {
@@ -1046,7 +1046,7 @@ pub(super) fn expand_call(
                     // Given in order rather than by name, a record is
                     // built from exactly its fields.
                     let named = args.iter().any(|a| matches!(a, Expr::NamedArg(..)));
-                    let fields = record_fields(class);
+                    let fields = record_fields_of(registry, class, 0);
                     if !named && fields.len() != args.len() {
                         return Err(format!(
                             "`{}` is built from {} field(s), {} given",
@@ -1533,7 +1533,7 @@ fn written_out(
         return Ok(None);
     };
     Ok(Some(Value::Array(
-        record_fields(of)
+        record_fields_of(registry, of, 0)
             .into_iter()
             .map(|field| recur(&Expr::Ref(format!("{path}.{field}"))))
             .collect::<Result<Vec<_>, String>>()?,

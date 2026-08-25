@@ -4161,3 +4161,27 @@ fn a_matrix_of_vectors_is_measured_by_what_it_stacks() {
     let z = plain.columns.iter().position(|c| c == "z").unwrap();
     assert_eq!(last[z], 3.0);
 }
+
+/// A record may take its fields from a base rather than write them:
+/// `redeclare record extends ThermodynamicState` is how a medium says
+/// its state is the one it inherits. A function taking that state was
+/// told it takes nothing at all.
+#[test]
+fn a_record_that_extends_carries_the_fields_it_inherits() {
+    let result = run("package P partial package Base \
+         replaceable record ThermodynamicState Real p; Real T; \
+         end ThermodynamicState; \
+         replaceable partial function density \
+         input ThermodynamicState state; output Real d; end density; \
+         end Base; \
+         package Simple extends Base; \
+         redeclare record extends ThermodynamicState end ThermodynamicState; \
+         redeclare function extends density \
+         algorithm d := state.p / state.T; end density; end Simple; \
+         model M Simple.ThermodynamicState st; Real y; \
+         equation st.p = 100; st.T = 4; y = Simple.density(st); end M; end P;");
+    let last = result.rows.last().unwrap();
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    // A hundred over four: the state carried both its inherited fields.
+    assert_eq!(last[y], 25.0, "{:?}", result.columns);
+}

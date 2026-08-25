@@ -151,12 +151,54 @@ pub(super) fn element_record_of(expr: &Expr, shapes: &Shapes) -> Option<String> 
 }
 
 /// The fields of a record class, in the order they were declared.
+///
+/// Only what the class wrote for itself. A record that takes its
+/// fields from a base - `redeclare record extends ThermodynamicState`,
+/// which is how a medium says its state is the one it inherits - has
+/// none of its own, and [`record_fields_of`] is what answers for it.
 pub(super) fn record_fields(class: &ClassDef) -> Vec<String> {
     class
         .components
         .iter()
         .map(|component| component.name.clone())
         .collect()
+}
+
+/// The same, with the fields of every base first.
+///
+/// `redeclare record extends ThermodynamicState` writes no fields and
+/// means the ones it extends: a medium's state is what its base
+/// declared, and a function taking that state was told it takes
+/// nothing. A class's own declarations replace an inherited one of the
+/// same name rather than joining it, so a record naming a field its
+/// base also names has one field, not two.
+pub(super) fn record_fields_of(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    depth: usize,
+) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    if depth > MAX_DEPTH {
+        return out;
+    }
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        };
+        if let Some(base) = base {
+            for field in record_fields_of(registry, base, depth + 1) {
+                if !out.contains(&field) {
+                    out.push(field);
+                }
+            }
+        }
+    }
+    for component in &class.components {
+        out.retain(|kept| kept != &component.name);
+        out.push(component.name.clone());
+    }
+    out
 }
 
 /// The function a record offers for an operator, by symbol and by how
