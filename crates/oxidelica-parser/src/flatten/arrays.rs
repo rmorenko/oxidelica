@@ -448,17 +448,19 @@ fn index_into(
                 }
                 let mut chosen = Expr::Number(f64::NAN);
                 for (place, candidate) in picked.into_iter().enumerate().rev() {
-                    // A Boolean index counts from its `false` lower
-                    // bound, so the place it names is one less.
+                    // A Boolean index names its place by being `false`
+                    // or `true` rather than by counting: comparing one
+                    // against a number is comparing two different
+                    // kinds, which the checker refuses outright.
                     let names = match is_boolean(&with_end) {
-                        true => place as f64,
-                        false => place as f64 + 1.0,
+                        true => Expr::Bool(place != 0),
+                        false => Expr::Number(place as f64 + 1.0),
                     };
                     chosen = Expr::If(
                         Box::new(Expr::Rel(
                             crate::ast::RelOp::Eq,
                             Box::new(index.clone()),
-                            Box::new(Expr::Number(names)),
+                            Box::new(names),
                         )),
                         Box::new(candidate),
                         Box::new(chosen),

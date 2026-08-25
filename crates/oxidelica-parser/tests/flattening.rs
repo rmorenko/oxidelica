@@ -9810,3 +9810,20 @@ fn a_package_constant_array_is_named_and_read() {
     assert!(!text.contains("NotTable"), "{text}");
     assert!(text.contains("If(Rel(Eq, Ref(\"a\")"), "{text}");
 }
+
+/// A Boolean index names its place by being `false` or `true` rather
+/// than by counting: comparing one against a number is comparing two
+/// different kinds, which the checker refuses outright.
+#[test]
+fn a_boolean_subscript_the_run_settles_asks_in_booleans() {
+    let m = parse_model(
+        "model M constant Real B[2] = {10, 20}; Real k; Real y; \
+         equation k = time; y = B[k > 0.5]; end M;",
+    )
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    // Each place is asked as a Boolean, and `false` comes first: it is
+    // the lower bound of the dimension.
+    assert!(text.contains("Bool(false)), Ref(\"B[1]\")"), "{text}");
+    assert!(text.contains("Bool(true)), Ref(\"B[2]\")"), "{text}");
+}
