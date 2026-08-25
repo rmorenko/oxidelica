@@ -32,6 +32,7 @@ mod instantiate;
 mod names;
 mod operators;
 mod restrictions;
+mod scoping;
 mod strings;
 mod tables;
 #[cfg(test)]
@@ -47,6 +48,7 @@ use extents::*;
 use inheritance::*;
 use instantiate::*;
 use names::*;
+use scoping::*;
 use operators::*;
 use strings::*;
 
