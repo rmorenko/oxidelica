@@ -50,98 +50,15 @@ pub(super) fn instantiate(
     collect_inners(registry, class, prefix, &mut inners, 0);
     let outers = bind_outers(registry, class, &inners)?;
 
-    // Redeclarations that reach this class: those written here as
-    // `redeclare Type name;`, then the ones handed down.
-    let mut redeclares = Vec::new();
-    for component in class.components.iter().filter(|c| c.redeclaration) {
-        redeclares.push(qualify_redeclare(
-            &Redeclare {
-                name: component.name.clone(),
-                type_name: component.type_name.clone(),
-                modifiers: component.modifiers.clone(),
-                class_level: false,
-            },
-            registry,
-            class,
-            prefix,
-            &outers,
-            &[],
-        )?);
-    }
-    redeclares.extend(env.redeclares.iter().cloned());
-
-    // Body-level class redeclarations replace aliases of the bases.
-    for alias in class.class_aliases.iter().filter(|a| a.redeclaration) {
-        let target = lookup(registry, &alias.target, scope, &class.imports)
-            .ok_or_else(|| {
-                format!(
-                    "unknown class `{}` in the redeclaration of `{}`",
-                    alias.target, alias.name
-                )
-            })?
-            .name
-            .clone();
-        redeclares.push(Redeclare {
-            name: alias.name.clone(),
-            type_name: target,
-            modifiers: Vec::new(),
-            class_level: true,
-        });
-    }
-
-    // The class's own aliases join its imports, with any redeclarations
-    // from outside already applied.
-    let imports = effective_imports(registry, class, scope, &redeclares, 0)?;
-    // What a component's class keeps to itself is nobody else's to
-    // read. This says nothing about the flat model, so it is asked
-    // once per class rather than once per instance.
-    if acc.restrictions_checked.insert(class.name.clone()) {
-        restrictions::nothing_reaches_inside(registry, class, &imports)?;
-        restrictions::no_class_kept_back_is_named_from_outside(registry, class, &imports)?;
-    }
-    // Names a wildcard-imported constant may not quietly stand in for:
-    // a component of this class outranks anything `import A.*;` opened.
-    let shadow: Vec<&str> = class
-        .components
-        .iter()
-        .map(|component| component.name.as_str())
-        .collect();
-
-    // What the `String` parameters of this class are worth. A
-    // condition may be written on one - `Star star if
-    // terminalConnection <> "D"` is how a machine is wired - and
-    // strings are otherwise settled at the very end of flattening,
-    // long after a condition has to be decided.
-    let mut local_texts: HashMap<String, String> = HashMap::new();
-    for _ in 0..MAX_DEPTH {
-        let mut progress = false;
-        for component in class.components.iter().chain(
-            inherited_parameters(registry, class, 0)
-                .iter()
-                .map(|(c, _)| c),
-        ) {
-            if component.type_name != "String" || local_texts.contains_key(&component.name) {
-                continue;
-            }
-            let said = env
-                .overrides
-                .iter()
-                .find(|(name, _)| name == &component.name)
-                .map(|(_, value)| value.clone())
-                .or_else(|| component.binding.clone())
-                .or_else(|| component.start.clone());
-            let Some(said) = said else { continue };
-            let said = substitute_class_constants(&said, registry, scope, &imports, &shadow);
-            if let Some(text) = strings::text_of(&said, &local_texts, &HashMap::new()) {
-                local_texts.insert(component.name.clone(), text.clone());
-                local_texts.insert(format!("{prefix}{}", component.name), text);
-                progress = true;
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
+    // What names mean in this class, before anything is built with
+    // them: the redeclarations that reach it, the imports they leave
+    // in force, and the text of its `String` parameters.
+    let Naming {
+        redeclares,
+        imports,
+        shadow,
+        local_texts,
+    } = settle_naming(registry, class, prefix, env, acc, &outers)?;
 
     // A base's parameter may be given a value this class declares:
     // `extends MIMO(final nin = m)` with `m` written below the
@@ -2133,6 +2050,130 @@ pub(super) fn instantiate(
     }
     acc.origin = stamped;
     Ok(())
+}
+
+/// What names mean inside one class: the redeclarations that reach it,
+/// the imports in force once they are applied, the component names a
+/// wildcard import may not stand in for, and what its `String`
+/// parameters are worth.
+///
+/// This is the opening of `instantiate` moved out whole, so that the
+/// walk starts at the walk.
+pub(super) struct Naming<'a> {
+    pub(super) redeclares: Vec<Redeclare>,
+    pub(super) imports: Vec<(String, String)>,
+    pub(super) shadow: Vec<&'a str>,
+    pub(super) local_texts: HashMap<String, String>,
+}
+
+fn settle_naming<'a>(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &'a ClassDef,
+    prefix: &str,
+    env: &Env,
+    acc: &mut Flat,
+    outers: &HashMap<String, String>,
+) -> Result<Naming<'a>, String> {
+    let scope = class.name.as_str();
+    // Redeclarations that reach this class: those written here as
+    // `redeclare Type name;`, then the ones handed down.
+    let mut redeclares = Vec::new();
+    for component in class.components.iter().filter(|c| c.redeclaration) {
+        redeclares.push(qualify_redeclare(
+            &Redeclare {
+                name: component.name.clone(),
+                type_name: component.type_name.clone(),
+                modifiers: component.modifiers.clone(),
+                class_level: false,
+            },
+            registry,
+            class,
+            prefix,
+            &outers,
+            &[],
+        )?);
+    }
+    redeclares.extend(env.redeclares.iter().cloned());
+
+    // Body-level class redeclarations replace aliases of the bases.
+    for alias in class.class_aliases.iter().filter(|a| a.redeclaration) {
+        let target = lookup(registry, &alias.target, scope, &class.imports)
+            .ok_or_else(|| {
+                format!(
+                    "unknown class `{}` in the redeclaration of `{}`",
+                    alias.target, alias.name
+                )
+            })?
+            .name
+            .clone();
+        redeclares.push(Redeclare {
+            name: alias.name.clone(),
+            type_name: target,
+            modifiers: Vec::new(),
+            class_level: true,
+        });
+    }
+
+    // The class's own aliases join its imports, with any redeclarations
+    // from outside already applied.
+    let imports = effective_imports(registry, class, scope, &redeclares, 0)?;
+    // What a component's class keeps to itself is nobody else's to
+    // read. This says nothing about the flat model, so it is asked
+    // once per class rather than once per instance.
+    if acc.restrictions_checked.insert(class.name.clone()) {
+        restrictions::nothing_reaches_inside(registry, class, &imports)?;
+        restrictions::no_class_kept_back_is_named_from_outside(registry, class, &imports)?;
+    }
+    // Names a wildcard-imported constant may not quietly stand in for:
+    // a component of this class outranks anything `import A.*;` opened.
+    let shadow: Vec<&str> = class
+        .components
+        .iter()
+        .map(|component| component.name.as_str())
+        .collect();
+
+    // What the `String` parameters of this class are worth. A
+    // condition may be written on one - `Star star if
+    // terminalConnection <> "D"` is how a machine is wired - and
+    // strings are otherwise settled at the very end of flattening,
+    // long after a condition has to be decided.
+    let mut local_texts: HashMap<String, String> = HashMap::new();
+    for _ in 0..MAX_DEPTH {
+        let mut progress = false;
+        for component in class.components.iter().chain(
+            inherited_parameters(registry, class, 0)
+                .iter()
+                .map(|(c, _)| c),
+        ) {
+            if component.type_name != "String" || local_texts.contains_key(&component.name) {
+                continue;
+            }
+            let said = env
+                .overrides
+                .iter()
+                .find(|(name, _)| name == &component.name)
+                .map(|(_, value)| value.clone())
+                .or_else(|| component.binding.clone())
+                .or_else(|| component.start.clone());
+            let Some(said) = said else { continue };
+            let said = substitute_class_constants(&said, registry, scope, &imports, &shadow);
+            if let Some(text) = strings::text_of(&said, &local_texts, &HashMap::new()) {
+                local_texts.insert(component.name.clone(), text.clone());
+                local_texts.insert(format!("{prefix}{}", component.name), text);
+                progress = true;
+            }
+        }
+        if !progress {
+            break;
+        }
+    }
+
+    Ok(Naming {
+        redeclares,
+        imports,
+        shadow,
+        local_texts,
+    })
 }
 
 /// Whether a condition asks the connections a question.
