@@ -1070,6 +1070,10 @@ fn the_array_layer_says_what_it_cannot_do() {
     .unwrap();
     let text = format!("{:?}", chosen.equations);
     assert!(text.contains("If(Rel(Eq, Ref(\"k\")"), "{text}");
+    // Every place is asked, the last one included: an index outside
+    // the array falls through to a value that is no number rather
+    // than quietly taking the end.
+    assert!(text.contains("NaN"), "{text}");
     assert!(
         err("model M Real v[2]; Real y; equation v = {1, 2}; y = v[0]; end M;")
             .contains("outside an array of 2")

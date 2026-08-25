@@ -438,17 +438,15 @@ fn index_into(
                 // logic tables read `NotTable[x]` off a signal - picks
                 // its element by asking. Every element is a candidate,
                 // and what comes out is the one whose place the index
-                // names: a chain of `if index == k then a[k]`. The last
-                // stands as the else, so a well-formed index always
-                // leaves one value behind.
+                // names: a chain of `if index == k then a[k]`. Every
+                // place is asked, the last one included, so an index
+                // outside the array falls through to a value that is
+                // no number rather than quietly taking the end.
                 let mut picked = Vec::with_capacity(items.len());
                 for item in items {
                     picked.push(inner(item)?.scalar()?);
                 }
-                let Some(last) = picked.pop() else {
-                    return Err("a subscript into an array of none".to_string());
-                };
-                let mut chosen = last;
+                let mut chosen = Expr::Number(f64::NAN);
                 for (place, candidate) in picked.into_iter().enumerate().rev() {
                     // A Boolean index counts from its `false` lower
                     // bound, so the place it names is one less.
