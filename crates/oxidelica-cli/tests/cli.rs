@@ -760,3 +760,32 @@ fn a_library_check_says_how_far_along_it_is() {
     assert!(!stderr(&hushed).contains("so far"), "{}", stderr(&hushed));
     assert!(stdout(&hushed).contains("25 read"), "{}", stdout(&hushed));
 }
+
+/// The check says what the work cost, by the half it was spent on and
+/// per model that reached that half. The total alone cannot tell more
+/// models passing - which is what makes it longer, since the ones that
+/// newly pass are the dear ones - from the same work grown slower.
+#[test]
+fn a_library_check_says_what_the_work_cost() {
+    let library = TempDir::new("cost");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Works Real x(start = 1); equation der(x) = -x; end Works; \
+         model Broken Real v[2]; Real y; equation v = {1, 2}; y = v[7]; end Broken; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    // Both halves are counted, each against the models that reached
+    // it: two were flattened, one of them ran.
+    assert!(text.contains("time: flattening"), "{text}");
+    assert!(text.contains("over 2 models"), "{text}");
+    assert!(text.contains("running"), "{text}");
+    assert!(text.contains("ms each"), "{text}");
+}

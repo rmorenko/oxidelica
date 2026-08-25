@@ -10,6 +10,14 @@
 # A floor rather than an exact number: going up is the point, and
 # should not need the threshold edited in the same commit.
 #
+# The time is reported but not held to anything. The whole check grows
+# longer as more models pass - a model refused early used to cost
+# nothing, and the ones that newly pass are the dear ones, which is
+# why they were stuck - so the total says little on its own. What says
+# something is the time per model that reached each half: that moving
+# is the compiler changing, where the total moving alone is coverage
+# changing. Reading them side by side is what tells one from the other.
+#
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
@@ -29,7 +37,7 @@ cd "$(dirname "$0")/.."
 
 report="$(./target/release/oxidelica library check "$directory")"
 echo "$report" | head -1
-echo "$report" | grep -E '^(classes:|runnable examples)'
+echo "$report" | grep -E '^(classes:|runnable examples|time:)'
 
 read_now="$(echo "$report" | sed -n 's/^files: \([0-9]*\) read.*/\1/p')"
 unread_now="$(echo "$report" | sed -n 's/^files: [0-9]* read, \([0-9]*\) not read.*/\1/p')"

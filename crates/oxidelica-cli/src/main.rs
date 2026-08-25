@@ -590,7 +590,7 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let done = std::sync::atomic::AtomicUsize::new(0);
     let told = std::sync::atomic::AtomicUsize::new(0);
     let started = std::time::Instant::now();
-    let mut answers: Vec<(usize, Answer)> = Vec::new();
+    let mut answers: Vec<(usize, (Answer, Spent))> = Vec::new();
     std::thread::scope(|threads| {
         let classes = &classes;
         let models = &models;
@@ -656,6 +656,23 @@ fn library_check(args: &[String]) -> Result<(), String> {
         }
     });
     answers.sort_by_key(|(at, _)| *at);
+    // The two halves apart, and how many models reached each: what
+    // says whether the check grew because more of it passes or because
+    // the same work grew slower.
+    let mut flattening = std::time::Duration::ZERO;
+    let mut running = std::time::Duration::ZERO;
+    let mut ran_count = 0usize;
+    for (_, (_, spent)) in &answers {
+        flattening += spent.flattening;
+        if !spent.running.is_zero() {
+            ran_count += 1;
+        }
+        running += spent.running;
+    }
+    let answers: Vec<(usize, Answer)> = answers
+        .into_iter()
+        .map(|(at, (answer, _))| (at, answer))
+        .collect();
 
     let mut flat: Vec<&String> = Vec::new();
     let mut why_not: Vec<(String, String)> = Vec::new();
@@ -689,6 +706,26 @@ fn library_check(args: &[String]) -> Result<(), String> {
         runnable.len(),
         runnable_flat,
         runnable_ran
+    );
+    // What the work cost, by the half it was spent on and per model
+    // that reached that half. The total alone cannot tell more models
+    // passing - which is what makes it longer, since the ones that
+    // newly pass are the dear ones - from the same work grown slower.
+    // Per model it can: that number moving is a change in the
+    // compiler, and the total moving alone is a change in coverage.
+    let per = |spent: std::time::Duration, count: usize| match count {
+        0 => 0.0,
+        count => spent.as_secs_f64() * 1000.0 / count as f64,
+    };
+    println!(
+        "time: flattening {:.0}s over {} models ({:.0}ms each); \
+         running {:.0}s over {} ({:.0}ms each)",
+        flattening.as_secs_f64(),
+        models.len(),
+        per(flattening, models.len()),
+        running.as_secs_f64(),
+        ran_count,
+        per(running, ran_count)
     );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
@@ -794,18 +831,41 @@ enum Answer {
 }
 
 /// Read one model as far as it goes.
-fn how_far(classes: &[oxidelica_parser::ClassDef], name: &str) -> Answer {
-    match oxidelica_parser::flatten_named(classes, name) {
+fn how_far(classes: &[oxidelica_parser::ClassDef], name: &str) -> (Answer, Spent) {
+    let mut spent = Spent::default();
+    let started = std::time::Instant::now();
+    let flattened = oxidelica_parser::flatten_named(classes, name);
+    spent.flattening = started.elapsed();
+    match flattened {
         // Flattening is not the whole of it. A flat model still has to
         // come out as something that runs, and a model that flattens
         // into equations nothing can solve is one this compiler has
         // said nothing true about.
-        Ok(model) => match run_a_little(&model) {
-            Ok(()) => Answer::Ran,
-            Err(why) => Answer::Flat(why),
-        },
-        Err(why) => Answer::Refused(why),
+        Ok(model) => {
+            let started = std::time::Instant::now();
+            let ran = run_a_little(&model);
+            spent.running = started.elapsed();
+            match ran {
+                Ok(()) => (Answer::Ran, spent),
+                Err(why) => (Answer::Flat(why), spent),
+            }
+        }
+        Err(why) => (Answer::Refused(why), spent),
     }
+}
+
+/// How long one model took, by the half of the work it was spent on.
+///
+/// The whole check grows longer as more models pass, since a model
+/// that used to be refused early now goes through everything - and the
+/// ones that newly pass are the dear ones, which is why they were
+/// stuck. Watching the total alone cannot tell that from the same work
+/// grown slower, so the halves are counted apart and reported against
+/// the number of models that reached each.
+#[derive(Default, Clone, Copy)]
+struct Spent {
+    flattening: std::time::Duration,
+    running: std::time::Duration,
 }
 
 /// Take a flat model as far as a few steps of a run.
