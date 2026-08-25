@@ -83,7 +83,7 @@ pub(super) fn instantiate(
     // connect(a, b)` drops that one connection. Every break must match
     // something, so what did is tracked and checked at the end.
     let broken = env.broken;
-    let mut broke_something = vec![false; broken.len()];
+    let broke_something = vec![false; broken.len()];
     let component_broken = |name: &str, hit: &mut [bool]| -> bool {
         let mut out = false;
         for (index, item) in broken.iter().enumerate() {
@@ -101,7 +101,7 @@ pub(super) fn instantiate(
     // may be written on one of them: `extends TwoPlug` brings `m`, and
     // `parameter Voltage V[m]` is written with it.
     let inherited = inherited_parameters(registry, class, 0);
-    let mut local_consts = settle_parameters(
+    let local_consts = settle_parameters(
         registry, class, prefix, env, acc, &imports, &shadow, &outers, &inherited,
     );
 
@@ -110,15 +110,15 @@ pub(super) fn instantiate(
     // How much of the growing list of measured arrays has been taken
     // into the table above. Each declaration brings its own, and the
     // one after it may be written with them.
-    let mut taken = 0;
+    let taken = 0;
     // The same, for the numbers each declaration turns out to be worth.
-    let mut counted = 0;
+    let counted = 0;
     // Which of this class's components are records, and of what: an
     // overloaded operator is chosen by the record its operands are of.
     // What a record-valued variable was given as its value, kept until
     // the array layer is ready to say it: the name, the value, and
     // whether it came already written in this class's terms.
-    let mut record_values: Vec<(String, Expr, bool)> = Vec::new();
+    let record_values: Vec<(String, Expr, bool)> = Vec::new();
     let mut records_here: HashMap<String, String> = HashMap::new();
     collect_records(
         registry,
@@ -323,7 +323,7 @@ fn settle_naming<'a>(
             registry,
             class,
             prefix,
-            &outers,
+            outers,
             &[],
         )?);
     }
@@ -452,8 +452,8 @@ fn settle_parameters_early(
                 .map(|(_, e)| e.clone())
                 .or_else(|| {
                     component.binding.as_ref().map(|e| {
-                        let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
-                        prefix_expr(&e, prefix, &outers)
+                        let e = substitute_class_constants(e, registry, scope, imports, shadow);
+                        prefix_expr(&e, prefix, outers)
                     })
                 });
             let Some(binding) = binding else { continue };
@@ -503,7 +503,7 @@ fn instantiate_bases(
                     class.name.rsplit_once('.').map_or("", |(head, _)| head)
                 )
             })?,
-            false => lookup(registry, &extend.base, scope, &imports)
+            false => lookup(registry, &extend.base, scope, imports)
                 .ok_or_else(|| format!("unknown base class `{}`", extend.base))?,
         };
         // A class reached by more than one path of a diamond is one
@@ -522,7 +522,7 @@ fn instantiate_bases(
                 registry,
                 class,
                 prefix,
-                &outers,
+                outers,
                 &[],
             )?);
         }
@@ -568,8 +568,8 @@ fn instantiate_bases(
             .modifiers
             .iter()
             .map(|(n, e)| {
-                let e = substitute_class_constants(e, registry, scope, &imports, &shadow);
-                let e = prefix_expr(&e, prefix, &outers);
+                let e = substitute_class_constants(e, registry, scope, imports, shadow);
+                let e = prefix_expr(&e, prefix, outers);
                 (n.clone(), measured_sizes(&e, &handed_shapes, &here))
             })
             .chain(env.overrides.iter().cloned())
@@ -671,9 +671,8 @@ fn settle_parameters(
                         .as_ref()
                         .or(component.start.as_ref())
                         .map(|e| {
-                            let e =
-                                substitute_class_constants(e, registry, scope, &imports, &shadow);
-                            prefix_expr(&e, prefix, &outers)
+                            let e = substitute_class_constants(e, registry, scope, imports, shadow);
+                            prefix_expr(&e, prefix, outers)
                         })
                 });
             let Some(expr) = binding else { continue };
@@ -691,7 +690,7 @@ fn settle_parameters(
                     &HashMap::new(),
                     registry,
                     scope,
-                    &imports,
+                    imports,
                     0,
                 )
                 .ok()?;
@@ -762,13 +761,13 @@ fn measure_shapes(
     collect_shapes_given(
         registry,
         class,
-        &local_consts,
+        local_consts,
         &HashMap::new(),
         env.overrides,
         &mut sizes,
         0,
     );
-    let mut sizes_here = prefixed_sizes(&sizes, prefix);
+    let sizes_here = prefixed_sizes(&sizes, prefix);
     // A constant array of this class is measured here and never
     // reaches the loop below, which builds the elements of what the
     // model holds: a constant has no elements to build. But a value
@@ -852,7 +851,7 @@ fn instantiate_components(
         mut taken,
         mut counted,
         mut record_values,
-        mut sizes,
+        sizes,
         mut sizes_here,
         mut local_consts,
         mut broke_something,
@@ -905,9 +904,8 @@ fn instantiate_components(
                 let Some(binding) = waiting.binding.as_ref() else {
                     continue;
                 };
-                let binding =
-                    substitute_class_constants(binding, registry, scope, &imports, &shadow);
-                let binding = prefix_expr(&binding, prefix, &outers);
+                let binding = substitute_class_constants(binding, registry, scope, imports, shadow);
+                let binding = prefix_expr(&binding, prefix, outers);
                 // A length may be arithmetic over `size(...)`, which
                 // measures on its own, or written over arrays -
                 // `max([size(a, 1); size(b, 1)])` stacks the lengths of
@@ -923,7 +921,7 @@ fn instantiate_components(
                             records: no_records(),
                         };
                         let mark = checks_mark();
-                        let worked = expand(&binding, &shapes, registry, scope, &imports, 0);
+                        let worked = expand(&binding, &shapes, registry, scope, imports, 0);
                         checks_rewind(mark);
                         let value = const_eval(&worked.ok()?.into_expr(), &local_consts)?;
                         (value.fract() == 0.0).then_some(value as i64)
@@ -992,11 +990,11 @@ fn instantiate_components(
             // world.enableAnimation and animation`, and `world` is an
             // `outer` that owns no value of its own - the parameter
             // belongs to the `inner` the name stands for.
-            let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
+            let named = substitute_class_constants(condition, registry, scope, imports, &[]);
             let value = const_eval(&named, &env)
                 .or_else(|| {
                     // The condition may be a comparison of strings.
-                    let folded = strings::fold(&named, &local_texts, &env).ok()?;
+                    let folded = strings::fold(&named, local_texts, &env).ok()?;
                     const_eval(&folded, &env)
                 })
                 .ok_or_else(|| {
@@ -1049,7 +1047,7 @@ fn instantiate_components(
         }
         for redeclare in &component.redeclares {
             child_redeclares.push(qualify_redeclare(
-                redeclare, registry, class, prefix, &outers, &imports,
+                redeclare, registry, class, prefix, outers, imports,
             )?);
         }
 
@@ -1058,10 +1056,10 @@ fn instantiate_components(
         // the standard library is carried. Resolving the type below
         // leaves the primitive behind, so what class it came from is
         // noted first - a connection to it is still a connection.
-        let value_connector = lookup(registry, &component.type_name, scope, &imports)
+        let value_connector = lookup(registry, &component.type_name, scope, imports)
             .filter(|class| {
                 (class.kind == ClassKind::Connector && class.alias_of.is_some())
-                    || names_a_connector(registry, &component.type_name, scope, &imports)
+                    || names_a_connector(registry, &component.type_name, scope, imports)
             })
             .map(|class| class.name.clone());
 
@@ -1071,7 +1069,7 @@ fn instantiate_components(
         // dimensions are counted: a type may be an array of its own -
         // `type Axis = Real[3]` - and a redeclaration may have just
         // replaced the type with one of a different shape.
-        resolve_type(registry, &mut component, scope, &imports);
+        resolve_type(registry, &mut component, scope, imports);
 
         // Array dimensions expand into scalar elements. A dimension may
         // be a number, but also a type - `Real x[Boolean]` has two
@@ -1082,10 +1080,10 @@ fn instantiate_components(
             let value = match dimension {
                 Expr::Ref(name) if name == "Boolean" => 2,
                 Expr::Ref(name)
-                    if lookup(registry, name, scope, &imports)
+                    if lookup(registry, name, scope, imports)
                         .is_some_and(|c| !c.enumeration.is_empty()) =>
                 {
-                    lookup(registry, name, scope, &imports)
+                    lookup(registry, name, scope, imports)
                         .unwrap()
                         .enumeration
                         .len() as i64
@@ -1110,15 +1108,15 @@ fn instantiate_components(
                             true => binding.clone(),
                             false => {
                                 let binding = substitute_class_constants(
-                                    binding, registry, scope, &imports, &shadow,
+                                    binding, registry, scope, imports, shadow,
                                 );
-                                prefix_expr(&binding, prefix, &outers)
+                                prefix_expr(&binding, prefix, outers)
                             }
                         };
                         // A measurement is not the model asking for a
                         // value, so nothing it works out is kept.
                         let mark = checks_mark();
-                        let value = expand(&binding, &shapes, registry, scope, &imports, 0);
+                        let value = expand(&binding, &shapes, registry, scope, imports, 0);
                         checks_rewind(mark);
                         let value = value.ok()?;
                         value.shape().get(axis).map(|length| *length as i64)
@@ -1150,7 +1148,7 @@ fn instantiate_components(
                             .find(|c| &c.name == name)?
                             .binding
                             .as_ref()?;
-                        let bound = prefix_expr(bound, prefix, &outers);
+                        let bound = prefix_expr(bound, prefix, outers);
                         dimension_value(&bound, &local_consts, &sizes_here)
                     };
                     // A length may be a constant of a package the class
@@ -1158,7 +1156,7 @@ fn instantiate_components(
                     // its substances - and that is a name no
                     // environment holds.
                     let named =
-                        substitute_class_constants(dimension, registry, scope, &imports, &shadow);
+                        substitute_class_constants(dimension, registry, scope, imports, shadow);
                     let value = const_eval(&named, &local_consts)
                         .or_else(|| off_a_length().map(|length| length as f64))
                         .ok_or_else(|| {
@@ -1197,11 +1195,11 @@ fn instantiate_components(
             prefix,
             sizes: &sizes_here,
             outer_sizes: env.outer_sizes,
-            outers: &outers,
-            inners: &inners,
+            outers,
+            inners,
             overrides,
             consts: &local_consts,
-            imports: &imports,
+            imports,
             scope,
             inside_a_parameter: env.inside_a_parameter,
         };
@@ -1212,7 +1210,7 @@ fn instantiate_components(
                 sizes: &sizes_here,
                 loop_vars: &HashMap::new(),
                 consts: &local_consts,
-                records: &records_here,
+                records: records_here,
             };
             // A modifier arrives already written in the terms of the
             // class that supplied it; only a declaration's own value
@@ -1220,10 +1218,10 @@ fn instantiate_components(
             let expr = if prefixed {
                 expr.clone()
             } else {
-                let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
-                prefix_expr(&expr, prefix, &outers)
+                let expr = substitute_class_constants(expr, registry, scope, imports, shadow);
+                prefix_expr(&expr, prefix, outers)
             };
-            let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
+            let value = expand(&expr, &shapes, registry, scope, imports, 0)?;
             let mut items = Vec::new();
             value.flatten_into(&mut items);
             // A scalar start spreads over the whole array - but only
@@ -1317,19 +1315,18 @@ fn instantiate_components(
                 // recognised as a record at all, comes apart into
                 // nothing, and the fields are left to whatever their
                 // declarations said.
-                records: &records_wider_for_fields,
+                records: records_wider_for_fields,
             };
             let expr = match prefixed {
                 true => value.clone(),
                 false => {
-                    let expr =
-                        substitute_class_constants(value, registry, scope, &imports, &shadow);
-                    prefix_expr(&expr, prefix, &outers)
+                    let expr = substitute_class_constants(value, registry, scope, imports, shadow);
+                    prefix_expr(&expr, prefix, outers)
                 }
             };
-            let worked = expand(&expr, &shapes, registry, scope, &imports, 0).and_then(|worked| {
+            let worked = expand(&expr, &shapes, registry, scope, imports, 0).and_then(|worked| {
                 records_written_out(worked, &shapes, registry, &|e| {
-                    expand(e, &shapes, registry, scope, &imports, 0)
+                    expand(e, &shapes, registry, scope, imports, 0)
                 })
             });
             let Ok(worked) = worked else {
@@ -1462,9 +1459,8 @@ fn instantiate_components(
                 .modifiers
                 .iter()
                 .map(|(name, value)| {
-                    let value =
-                        substitute_class_constants(value, registry, scope, &imports, &shadow);
-                    let value = prefix_expr(&value, prefix, &outers);
+                    let value = substitute_class_constants(value, registry, scope, imports, shadow);
+                    let value = prefix_expr(&value, prefix, outers);
                     // A component with no dimensions at all takes its
                     // modifier whole, and so does one written `each`.
                     // An array of a single element is still an array:
@@ -1485,7 +1481,7 @@ fn instantiate_components(
                             &local_consts,
                             registry,
                             scope,
-                            &imports,
+                            imports,
                         )
                     };
                     (name.clone(), value)
@@ -1518,6 +1514,10 @@ fn instantiate_components(
     })
 }
 
+/// Working an expression of this class out where it stands: the array
+/// layer, with the class's names, shapes and loop variables in view.
+type ExpandHere<'a> = dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String> + 'a;
+
 /// A model's `algorithm` and `initial algorithm` sections, executed
 /// symbolically: what comes out is one equation per variable assigned,
 /// which is what the rest of the pipeline understands.
@@ -1534,7 +1534,7 @@ fn run_algorithm_sections(
     outers: &HashMap<String, String>,
     sizes: &HashMap<String, Vec<i64>>,
     local_consts: &HashMap<String, f64>,
-    expand_here: &dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String>,
+    expand_here: &ExpandHere<'_>,
 ) -> Result<(), String> {
     let scope = class.name.as_str();
     let no_loop_vars = HashMap::new();
@@ -1568,11 +1568,11 @@ fn run_algorithm_sections(
                     &mut written,
                     &mut order,
                     &mut checked,
-                    &local_consts,
-                    &sizes,
+                    local_consts,
+                    sizes,
                     registry,
                     scope,
-                    &imports,
+                    imports,
                     depth,
                     false,
                 )? {
@@ -1598,7 +1598,7 @@ fn run_algorithm_sections(
                         continue;
                     };
                     actions.push(WhenAction::Assign(
-                        flat_name(target, prefix, &outers),
+                        flat_name(target, prefix, outers),
                         resolve_here(value)?,
                     ));
                 }
@@ -1624,11 +1624,11 @@ fn run_algorithm_sections(
             &mut bindings,
             &mut assigned,
             &mut section_asserts,
-            &local_consts,
-            &sizes,
+            local_consts,
+            sizes,
             registry,
             scope,
-            &imports,
+            imports,
             depth,
             false,
         )? {
@@ -1679,11 +1679,11 @@ fn run_algorithm_sections(
             &mut bindings,
             &mut assigned,
             &mut section_asserts,
-            &local_consts,
-            &sizes,
+            local_consts,
+            sizes,
             registry,
             scope,
-            &imports,
+            imports,
             depth,
             false,
         )? {
@@ -1744,17 +1744,17 @@ fn flatten_equations(
     let broken = env.broken;
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
-        let expr = substitute_class_constants(expr, registry, scope, &imports, &shadow);
-        let expr = prefix_expr(&expr, prefix, &outers);
+        let expr = substitute_class_constants(expr, registry, scope, imports, shadow);
+        let expr = prefix_expr(&expr, prefix, outers);
         let shapes = Shapes {
-            sizes: &sizes_here,
+            sizes: sizes_here,
             loop_vars,
-            consts: &local_consts,
-            records: &records_here,
+            consts: local_consts,
+            records: records_here,
         };
-        let value = expand(&expr, &shapes, registry, scope, &imports, 0)?;
+        let value = expand(&expr, &shapes, registry, scope, imports, 0)?;
         records_written_out(value, &shapes, registry, &|e| {
-            expand(e, &shapes, registry, scope, &imports, 0)
+            expand(e, &shapes, registry, scope, imports, 0)
         })
     };
     // What has to come to one value - a condition, what a `when` gives
@@ -1789,14 +1789,14 @@ fn flatten_equations(
             // class that supplied it.
             true => {
                 let shapes = Shapes {
-                    sizes: &sizes_here,
+                    sizes: sizes_here,
                     loop_vars: &no_loop_vars,
-                    consts: &local_consts,
-                    records: records_wider.as_ref().unwrap_or(&records_here),
+                    consts: local_consts,
+                    records: records_wider.as_ref().unwrap_or(records_here),
                 };
-                let worked = expand(value, &shapes, registry, scope, &imports, 0)?;
+                let worked = expand(value, &shapes, registry, scope, imports, 0)?;
                 records_written_out(worked, &shapes, registry, &|e| {
-                    expand(e, &shapes, registry, scope, &imports, 0)
+                    expand(e, &shapes, registry, scope, imports, 0)
                 })?
             }
             false => expand_here(value, &no_loop_vars)?,
@@ -1821,8 +1821,8 @@ fn flatten_equations(
         let Expr::Tuple(targets) = &equation.lhs else {
             return Ok(false);
         };
-        let rhs = substitute_class_constants(&equation.rhs, registry, scope, &imports, &shadow);
-        let rhs = prefix_expr(&rhs, prefix, &outers);
+        let rhs = substitute_class_constants(&equation.rhs, registry, scope, imports, shadow);
+        let rhs = prefix_expr(&rhs, prefix, outers);
         let Expr::Call(name, raw_args) = &rhs else {
             return Err("the right side of a tuple equation must be a function call".into());
         };
@@ -1832,14 +1832,14 @@ fn flatten_equations(
         // the equation becomes the two boundary values.
         if name == "spatialDistribution" {
             let shapes = Shapes {
-                sizes: &sizes_here,
+                sizes: sizes_here,
                 loop_vars: &no_loop_vars,
-                consts: &local_consts,
-                records: &records_here,
+                consts: local_consts,
+                records: records_here,
             };
             let arguments = raw_args
                 .iter()
-                .map(|arg| Ok(expand(arg, &shapes, registry, scope, &imports, 0)?.into_expr()))
+                .map(|arg| Ok(expand(arg, &shapes, registry, scope, imports, 0)?.into_expr()))
                 .collect::<Result<Vec<Expr>, String>>()?;
             // The targets go through the usual pipeline, so the
             // names recorded are the flat ones.
@@ -1851,21 +1851,21 @@ fn flatten_equations(
                 };
                 named.push(Some(expand_here(target, &no_loop_vars)?.into_expr()));
             }
-            spatial_transport(&named, &arguments, prefix, &outers, &local_consts, acc)?;
+            spatial_transport(&named, &arguments, prefix, outers, local_consts, acc)?;
             return Ok(true);
         }
-        let function = lookup(registry, name, scope, &imports)
+        let function = lookup(registry, name, scope, imports)
             .filter(|c| c.kind == ClassKind::Function)
             .ok_or_else(|| format!("`{name}` is not a function, so it cannot fill a tuple"))?;
         let shapes = Shapes {
-            sizes: &sizes_here,
+            sizes: sizes_here,
             loop_vars: &no_loop_vars,
-            consts: &local_consts,
-            records: &records_here,
+            consts: local_consts,
+            records: records_here,
         };
         let values = raw_args
             .iter()
-            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+            .map(|arg| expand(arg, &shapes, registry, scope, imports, 0))
             .collect::<Result<Vec<_>, String>>()?;
         let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
         let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
@@ -1873,7 +1873,7 @@ fn flatten_equations(
             function,
             &arguments,
             &argument_shapes,
-            &local_consts,
+            local_consts,
             registry,
             0,
         )?;
@@ -1890,7 +1890,7 @@ fn flatten_equations(
             // inlined value is already resolved and only needs the
             // array layer, or a second prefix would corrupt it.
             let lhs = expand_here(target, &no_loop_vars)?;
-            let rhs = expand(&value, &shapes, registry, scope, &imports, 0)?;
+            let rhs = expand(&value, &shapes, registry, scope, imports, 0)?;
             push_equations(&lhs, &rhs, acc)?;
         }
         Ok(true)
@@ -1920,8 +1920,8 @@ fn flatten_equations(
     // they carry its prefix like everything else.
     for transition in &class.transitions {
         acc.transitions.push(Transition {
-            from: flat_name(&transition.from, prefix, &outers),
-            to: flat_name(&transition.to, prefix, &outers),
+            from: flat_name(&transition.from, prefix, outers),
+            to: flat_name(&transition.to, prefix, outers),
             condition: resolve_here(&transition.condition)?,
             reset: transition.reset,
             immediate: transition.immediate,
@@ -1930,7 +1930,7 @@ fn flatten_equations(
         });
     }
     if let Some(state) = &class.initial_state {
-        acc.initial_states.push(flat_name(state, prefix, &outers));
+        acc.initial_states.push(flat_name(state, prefix, outers));
     }
     for equation in &class.initial_equations {
         let (lhs, rhs) = (
@@ -1960,10 +1960,10 @@ fn flatten_equations(
         prefix,
         acc,
         depth,
-        &imports,
-        &outers,
-        &sizes,
-        &local_consts,
+        imports,
+        outers,
+        sizes,
+        local_consts,
         &expand_here,
     )?;
 
@@ -1972,23 +1972,23 @@ fn flatten_equations(
     // They become the model's, carrying this instance's prefix like
     // everything else it says.
     let take_checks = |call: &Expr, acc: &mut Flat| -> Result<(), String> {
-        let call = substitute_class_constants(call, registry, scope, &imports, &shadow);
-        let call = prefix_expr(&call, prefix, &outers);
+        let call = substitute_class_constants(call, registry, scope, imports, shadow);
+        let call = prefix_expr(&call, prefix, outers);
         let Expr::Call(name, args) = &call else {
             return Err("a line of an equation section that is not an equation is a call".into());
         };
-        let called = lookup(registry, name, scope, &imports)
+        let called = lookup(registry, name, scope, imports)
             .filter(|c| c.kind == ClassKind::Function)
             .ok_or_else(|| format!("`{name}` is not a function"))?;
         let shapes = Shapes {
-            sizes: &sizes_here,
+            sizes: sizes_here,
             loop_vars: &no_loop_vars,
-            consts: &local_consts,
-            records: &records_here,
+            consts: local_consts,
+            records: records_here,
         };
         let values = args
             .iter()
-            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+            .map(|arg| expand(arg, &shapes, registry, scope, imports, 0))
             .collect::<Result<Vec<_>, String>>()?;
         let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
         let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
@@ -1996,7 +1996,7 @@ fn flatten_equations(
             called,
             &arguments,
             &argument_shapes,
-            &local_consts,
+            local_consts,
             registry,
             0,
         )?;
@@ -2012,14 +2012,14 @@ fn flatten_equations(
         unroll(
             loop_eq,
             &HashMap::new(),
-            &local_consts,
+            local_consts,
             prefix,
-            &outers,
-            &sizes_here,
-            &records_here,
+            outers,
+            sizes_here,
+            records_here,
             registry,
             scope,
-            &imports,
+            imports,
             acc,
         )?;
     }
@@ -2057,14 +2057,14 @@ fn flatten_equations(
         // roots, which are in hand on the pass that follows the one
         // that drew them.
         let settle = |condition: &Expr| {
-            let named = substitute_class_constants(condition, registry, scope, &imports, &[]);
+            let named = substitute_class_constants(condition, registry, scope, imports, &[]);
             if let Some(value) = const_eval(&named, &env) {
                 return Some(value);
             }
             if !answered {
                 return None;
             }
-            let asked = prefix_expr(&named, prefix, &outers);
+            let asked = prefix_expr(&named, prefix, outers);
             let told = answer_graph_queries(&asked, &known_roots, &known_counts);
             const_eval(&told, &env)
         };
@@ -2130,14 +2130,14 @@ fn flatten_equations(
             unroll(
                 loop_eq,
                 &HashMap::new(),
-                &local_consts,
+                local_consts,
                 prefix,
-                &outers,
-                &sizes_here,
-                &records_here,
+                outers,
+                sizes_here,
+                records_here,
                 registry,
                 scope,
-                &imports,
+                imports,
                 acc,
             )?;
         }
@@ -2153,14 +2153,12 @@ fn flatten_equations(
         }
         for (a, b) in &branch.connects {
             let shapes = Shapes {
-                sizes: &sizes_here,
+                sizes: sizes_here,
                 loop_vars: &no_loop_vars,
-                consts: &local_consts,
-                records: &records_here,
+                consts: local_consts,
+                records: records_here,
             };
-            push_connects(
-                a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
-            )?;
+            push_connects(a, b, &shapes, prefix, outers, registry, scope, imports, acc)?;
         }
     }
 
@@ -2172,12 +2170,12 @@ fn flatten_equations(
         .chain(graph_from_branches.iter().copied())
     {
         acc.connection_graph.push(match clause {
-            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, &outers)),
+            GraphClause::Root(node) => GraphClause::Root(flat_name(node, prefix, outers)),
             GraphClause::PotentialRoot(node, priority) => {
-                GraphClause::PotentialRoot(flat_name(node, prefix, &outers), *priority)
+                GraphClause::PotentialRoot(flat_name(node, prefix, outers), *priority)
             }
             GraphClause::Branch(a, b) => {
-                GraphClause::Branch(flat_name(a, prefix, &outers), flat_name(b, prefix, &outers))
+                GraphClause::Branch(flat_name(a, prefix, outers), flat_name(b, prefix, outers))
             }
         });
     }
@@ -2189,7 +2187,7 @@ fn flatten_equations(
             for action in &branch.actions {
                 match action {
                     WhenAction::Reinit(state, value) => actions.push(WhenAction::Reinit(
-                        flat_name(state, prefix, &outers),
+                        flat_name(state, prefix, outers),
                         resolve_here(value)?,
                     )),
                     // A `when` may give a whole array at once -
@@ -2202,7 +2200,7 @@ fn flatten_equations(
                     // the short way, which is every other `when` in
                     // the library.
                     WhenAction::Assign(target, value) => {
-                        let named = flat_name(target, prefix, &outers);
+                        let named = flat_name(target, prefix, outers);
                         let given = expand_here(value, &HashMap::new())?;
                         // The shapes are filed under the full path, and
                         // the target is written as this class named it,
@@ -2279,7 +2277,7 @@ fn flatten_equations(
                                     return Err("an `if` inside `when` gives values to variables"
                                         .to_string());
                                 };
-                                let target = flat_name(target, prefix, &outers);
+                                let target = flat_name(target, prefix, outers);
                                 if !targets.contains(&target) {
                                     targets.push(target.clone());
                                 }
@@ -2324,14 +2322,14 @@ fn flatten_equations(
                         unroll(
                             loop_eq,
                             &HashMap::new(),
-                            &local_consts,
+                            local_consts,
                             prefix,
-                            &outers,
-                            &sizes_here,
-                            &records_here,
+                            outers,
+                            sizes_here,
+                            records_here,
                             registry,
                             scope,
-                            &imports,
+                            imports,
                             acc,
                         )?;
                         if acc.connects.len() != drawn {
@@ -2359,28 +2357,28 @@ fn flatten_equations(
                         // carry, and what is wanted here is the call
                         // itself, to be inlined once per target.
                         let value =
-                            substitute_class_constants(value, registry, scope, &imports, &shadow);
-                        let value = prefix_expr(&value, prefix, &outers);
+                            substitute_class_constants(value, registry, scope, imports, shadow);
+                        let value = prefix_expr(&value, prefix, outers);
                         let Expr::Call(name, raw_args) = &value else {
                             return Err(
                                 "the right side of a tuple inside `when` must be a function call"
                                     .to_string(),
                             );
                         };
-                        let function = lookup(registry, name, scope, &imports)
+                        let function = lookup(registry, name, scope, imports)
                             .filter(|c| c.kind == ClassKind::Function)
                             .ok_or_else(|| {
                                 format!("`{name}` is not a function, so it cannot fill a tuple")
                             })?;
                         let shapes = Shapes {
-                            sizes: &sizes_here,
+                            sizes: sizes_here,
                             loop_vars: &no_loop_vars,
-                            consts: &local_consts,
-                            records: &records_here,
+                            consts: local_consts,
+                            records: records_here,
                         };
                         let values = raw_args
                             .iter()
-                            .map(|arg| expand(arg, &shapes, registry, scope, &imports, 0))
+                            .map(|arg| expand(arg, &shapes, registry, scope, imports, 0))
                             .collect::<Result<Vec<_>, String>>()?;
                         let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                         let arguments: Vec<Expr> =
@@ -2389,7 +2387,7 @@ fn flatten_equations(
                             function,
                             &arguments,
                             &argument_shapes,
-                            &local_consts,
+                            local_consts,
                             registry,
                             0,
                         )?;
@@ -2402,7 +2400,7 @@ fn flatten_equations(
                         }
                         for (target, (_, worth)) in targets.iter().zip(outputs) {
                             let Some(target) = target else { continue };
-                            let target = flat_name(target, prefix, &outers);
+                            let target = flat_name(target, prefix, outers);
                             // An output of several numbers lands on
                             // several names: a generator answers with
                             // the state it moved to, and the model
@@ -2412,12 +2410,12 @@ fn flatten_equations(
                                 &shapes,
                                 registry,
                                 scope,
-                                &imports,
+                                imports,
                                 0,
                             )?;
                             let (mut names, mut worths) = (Vec::new(), Vec::new());
                             placed.flatten_into(&mut names);
-                            expand(&worth, &shapes, registry, scope, &imports, 0)?
+                            expand(&worth, &shapes, registry, scope, imports, 0)?
                                 .flatten_into(&mut worths);
                             if names.len() != worths.len() {
                                 return Err(format!(
@@ -2465,14 +2463,12 @@ fn flatten_equations(
             continue;
         }
         let shapes = Shapes {
-            sizes: &sizes_here,
+            sizes: sizes_here,
             loop_vars: &no_loop_vars,
-            consts: &local_consts,
+            consts: local_consts,
             records: no_records(),
         };
-        push_connects(
-            a, b, &shapes, prefix, &outers, registry, scope, &imports, acc,
-        )?;
+        push_connects(a, b, &shapes, prefix, outers, registry, scope, imports, acc)?;
     }
 
     Ok(())
