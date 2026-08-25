@@ -83,6 +83,27 @@ pub(super) fn flexible_size(binding: &Expr, axis: usize) -> Option<i64> {
             _ => None,
         };
     }
+    // `fill(0, 0, 2)` is a table with no rows and two columns, which
+    // is how the table blocks say they were given nothing yet. Written
+    // out it is an empty list, and an empty list has no second
+    // dimension to read - so the lengths are taken from the call,
+    // which states them whether or not any of them is zero. `zeros`
+    // and `ones` say theirs the same way, with no filler in front.
+    if let Expr::Call(name, args) = binding {
+        let lengths = match name
+            .rsplit_once('.')
+            .map_or(name.as_str(), |(_, tail)| tail)
+        {
+            "fill" => args.get(1..),
+            "zeros" | "ones" => args.get(..),
+            _ => None,
+        };
+        if let Some(lengths) = lengths {
+            if let Some(Expr::Number(length)) = lengths.get(axis) {
+                return Some(*length as i64);
+            }
+        }
+    }
     let mut here = binding;
     for _ in 0..axis {
         here = match here {

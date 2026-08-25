@@ -5317,6 +5317,22 @@ fn a_flexible_size_is_measured_from_the_value_it_is_given() {
         2
     );
 
+    // `fill(0, 0, 2)` is a table with no rows and two columns, which
+    // is how the table blocks say they were given nothing yet. Written
+    // out it is an empty list, and an empty list has no second
+    // dimension for the `:` to read.
+    let m = parse_model(
+        "package P model T parameter Real table[:, :] = fill(0.0, 0, 2); \
+         Real y; equation y = size(table, 1); end T; \
+         model M T t; Real z; equation z = t.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a table of no rows and two columns");
+    assert!(
+        !m.components.iter().any(|c| c.name.starts_with("t.table[")),
+        "a table of no rows holds nothing"
+    );
+
     // A `:` with nothing to measure is still said to be one.
     let error = parse_model(
         "model Lines input Real lines[:, 2]; Real total; \
