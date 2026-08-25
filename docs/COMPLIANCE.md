@@ -15,7 +15,7 @@ under a chapter works as specified for the subset this project covers.
 | 7   | Inheritance, redeclaration    | Full    |
 | 8   | Equations                     | Mostly  |
 | 9   | Connectors and connections    | Partial |
-| 10  | Arrays                        | Full    |
+| 10  | Arrays                        | Mostly  |
 | 11  | Statements and algorithms     | Partial |
 | 12  | Functions                     | Partial |
 | 13  | Packages                      | Full    |
@@ -232,7 +232,7 @@ two passes `Connections.isRoot` already needed.
 
 Chapter 3 is complete.
 
-**Arrays** (ch. 10) are complete: literals, ranges, slicing with `end`,
+**Arrays** (ch. 10) are nearly complete: literals, ranges, slicing with `end`,
 comprehensions, elementwise operators and the matrix algebra
 (`transpose`, `identity`, `diagonal`, `cross`, `outerProduct`,
 `symmetric`, `skew`, `cat` and `[ , ; ]`), the reductions and the
@@ -240,6 +240,17 @@ constructors. A dimension may be a number, a type - `Real x[Boolean]`
 has two elements indexed off `false`, `Real x[E]` one per enumeration
 literal - or a `:` that reads its length from the value the component
 is given.
+
+A subscript the compiler cannot settle is read at the run instead, by
+asking which place the index names: this is how the logic tables read
+`NotTable[x]` off a signal. An index outside the array gives no number
+at all rather than the nearest element. Two things are missing. Such a
+subscript may be read but not assigned, so `v[k] = 9` with a `k` only
+the run knows is refused, where the specification allows it. And an
+index that is a `Boolean` *variable* is refused for want of its
+declared type at the point the subscript is worked out, though a
+Boolean *expression* - `x[a > b]` - is read correctly; the dimension
+`Real x[Boolean]` itself is built either way.
 
 **Functions** (ch. 12): no functions as arguments. A body written
 outside Modelica is answered where this compiler has an answer of its
