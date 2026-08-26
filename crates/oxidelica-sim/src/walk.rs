@@ -270,7 +270,27 @@ fn to_scalar(
                 .map(recur)
                 .collect::<Result<Vec<_>, SimError>>()?,
         ),
-        other => other.clone(),
+        // What is already a scalar, or what a walked body cannot hold
+        // by the time it is walked: either way the expression is
+        // itself. They are listed rather than swept up, so that a
+        // variant added to `Expr` has to be decided about here rather
+        // than passing through a walk that cannot carry it.
+        Expr::Number(_)
+        | Expr::Ref(_)
+        | Expr::Bool(_)
+        | Expr::Str(_)
+        | Expr::Time
+        | Expr::WithDerivative(..)
+        | Expr::Member(..)
+        | Expr::Array(_)
+        | Expr::MatrixRows(_)
+        | Expr::Elementwise(..)
+        | Expr::Range(..)
+        | Expr::Comprehension(..)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::NamedArg(..)
+        | Expr::Tuple(_) => expr.clone(),
     })
 }
 

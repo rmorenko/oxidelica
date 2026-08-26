@@ -44,7 +44,25 @@ pub(crate) fn shape_of(expr: &Expr) -> String {
         Expr::EndSubscript => "an `end` subscript".to_string(),
         Expr::NamedArg(name, _) => format!("`{name} = ...`, a named argument"),
         Expr::Tuple(items) => format!("a tuple of {}", items.len()),
-        _ => "an expression of more than one number".to_string(),
+        // The rest are the ones a run can carry, and reaching here
+        // with one means the fault is elsewhere - so they are listed
+        // rather than swept up, and a variant added to `Expr` has to
+        // be given a name here rather than quietly becoming "more
+        // than one number".
+        Expr::Number(_)
+        | Expr::Bool(_)
+        | Expr::Str(_)
+        | Expr::Ref(_)
+        | Expr::Time
+        | Expr::Call(..)
+        | Expr::WithDerivative(..)
+        | Expr::Neg(_)
+        | Expr::Not(_)
+        | Expr::Bin(..)
+        | Expr::Rel(..)
+        | Expr::And(..)
+        | Expr::Or(..)
+        | Expr::If(..) => "an expression of more than one number".to_string(),
     }
 }
 
