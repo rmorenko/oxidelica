@@ -451,10 +451,21 @@ fn settle_parameters_early(
                 .find(|(n, _)| n == &component.name)
                 .map(|(_, e)| e.clone())
                 .or_else(|| {
-                    component.binding.as_ref().map(|e| {
-                        let e = substitute_class_constants(e, registry, scope, imports, shadow);
-                        prefix_expr(&e, prefix, outers)
-                    })
+                    // A parameter given no value but a `start` takes
+                    // the `start`: that is what a parameter's start
+                    // is for. The machine library switches a thermal
+                    // port on with `parameter Boolean
+                    // useDamperCage(start=true)` and nothing else,
+                    // and a component's condition reading that name
+                    // has to find a value behind it.
+                    component
+                        .binding
+                        .as_ref()
+                        .or(component.start.as_ref())
+                        .map(|e| {
+                            let e = substitute_class_constants(e, registry, scope, imports, shadow);
+                            prefix_expr(&e, prefix, outers)
+                        })
                 });
             let Some(binding) = binding else { continue };
             // What has settled is already in the model's table, so the

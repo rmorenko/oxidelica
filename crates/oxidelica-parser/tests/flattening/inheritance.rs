@@ -800,3 +800,25 @@ fn a_redeclared_function_takes_what_its_base_declared() {
     let text = format!("{:?}", m.equations);
     assert!(text.contains("Ref(\"y\"), rhs: Number(995.0)"), "{text}");
 }
+
+/// A parameter with only a `start` is worth what its `start` says.
+///
+/// The machine library switches a thermal port on with `parameter
+/// Boolean useDamperCage(start=true)` and no binding at all, and
+/// hands that name down to a connector's condition through a
+/// modifier on an `extends`. Read as having no value, the condition
+/// could not be settled and sixteen models were refused.
+#[test]
+fn a_parameter_with_only_a_start_settles_a_condition() {
+    let m = parse_model(
+        "connector TP parameter Boolean useCage(start = true); Real p if useCage; Real q; end TP; \
+         partial model Base replaceable TP tp; Real x; equation x = time; tp.q = x; end Base; \
+         model Amb parameter Boolean useCage(start = true); \
+         extends Base(tp(final useCage = useCage)); end Amb; \
+         model M Amb a; Real y; equation y = a.x; end M;",
+    )
+    .unwrap();
+    // The condition holds, so the optional member is there.
+    let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+    assert!(names.contains(&"a.tp.p"), "{names:?}");
+}
