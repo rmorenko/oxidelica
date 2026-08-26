@@ -2125,6 +2125,308 @@ fn flatten_if_equations<'a>(
     Ok(())
 }
 
+/// The `when` clauses of a class: what it says outright, and what the
+/// branches the compiler picked said as well.
+///
+/// A `when` is an event and what to do at it - assign, reinitialize,
+/// check - and each of those is read the way an equation is, with the
+/// arrays expanded and the names of this class put on.
+///
+/// Moved out of `flatten_equations` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn flatten_when_clauses(
+    class: &ClassDef,
+    acc: &mut Flat,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    prefix: &str,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    sizes_here: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+    records_here: &HashMap<String, String>,
+    expand_here: &ExpandHere<'_>,
+    resolve_here: &dyn Fn(&Expr) -> Result<Expr, String>,
+    take_checks: &dyn Fn(&Expr, &mut Flat) -> Result<(), String>,
+    whens_from_branches: &[&WhenClause],
+) -> Result<(), String> {
+    let no_loop_vars = HashMap::new();
+    for clause in class
+        .when_clauses
+        .iter()
+        .chain(whens_from_branches.iter().copied())
+    {
+        let mut branches = Vec::new();
+        for branch in &clause.branches {
+            let mut actions = Vec::new();
+            for action in &branch.actions {
+                match action {
+                    WhenAction::Reinit(state, value) => actions.push(WhenAction::Reinit(
+                        flat_name(state, prefix, outers),
+                        resolve_here(value)?,
+                    )),
+                    // A `when` may give a whole array at once -
+                    // `y = u` between two vectors is how the clocked
+                    // samplers pass a bus through - and an event
+                    // assigns one variable, so it is taken apart the
+                    // way an equation between arrays is: one
+                    // assignment per element, refusing sides that do
+                    // not have the same shape. A scalar target goes
+                    // the short way, which is every other `when` in
+                    // the library.
+                    WhenAction::Assign(target, value) => {
+                        let named = flat_name(target, prefix, outers);
+                        let given = expand_here(value, &HashMap::new())?;
+                        // The shapes are filed under the full path, and
+                        // the target is written as this class named it,
+                        // so it is the flat name that finds one.
+                        match sizes_here.get(&named).filter(|shape| !shape.is_empty()) {
+                            None => actions.push(WhenAction::Assign(named, given.scalar()?)),
+                            Some(shape) => {
+                                let mut elements = Vec::new();
+                                given.flatten_into(&mut elements);
+                                let wanted: usize =
+                                    shape.iter().map(|length| *length as usize).product();
+                                if elements.len() != wanted {
+                                    return Err(format!(
+                                        "`{named}` is given {} value(s) at an event and holds                                          {wanted}",
+                                        elements.len()
+                                    ));
+                                }
+                                for (indices, one) in index_tuples(shape).into_iter().zip(elements)
+                                {
+                                    actions.push(WhenAction::Assign(
+                                        element_name(&named, &indices),
+                                        one,
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                    WhenAction::Terminate(message) => {
+                        actions.push(WhenAction::Terminate(message.clone()))
+                    }
+                    // A call on its own at an event: nothing takes its
+                    // outputs, so what the compiler can have of it is
+                    // the checks its body makes - the same as a call
+                    // standing among the equations. The effect itself,
+                    // closing a file at `terminal()`, is one this
+                    // compiler has no way to have.
+                    WhenAction::Call(name, args) => {
+                        take_checks(&Expr::Call(name.clone(), args.clone()), acc)?;
+                    }
+                    // A check made when the event fires: the names it
+                    // was written with are this class's, so it is
+                    // resolved here like any other expression.
+                    WhenAction::Assert(condition, message) => actions.push(WhenAction::Assert(
+                        expand_here(&resolve_here(condition)?, &HashMap::new())?.scalar()?,
+                        message.clone(),
+                    )),
+                    // `if c then x = a; else x = b; end if;` at an
+                    // event: what `x` is given depends on the
+                    // condition, so it gets one assignment whose value
+                    // is the choice. A branch that says nothing about
+                    // a variable leaves it what it had, which is what
+                    // `pre` of it is.
+                    WhenAction::Choice(chosen) => {
+                        let mut targets: Vec<String> = Vec::new();
+                        let mut branches: Vec<GivenBranch> = Vec::new();
+                        for branch in &chosen.branches {
+                            // A connection is drawn once and for all,
+                            // and a check has nowhere to go from here;
+                            // what an `if` at an event holds is values.
+                            if !branch.connects.is_empty()
+                                || !branch.loops.is_empty()
+                                || !branch.asserts.is_empty()
+                                || !branch.whens.is_empty()
+                                || !branch.calls.is_empty()
+                                || !branch.graph.is_empty()
+                            {
+                                return Err(
+                                    "an `if` inside `when` gives values to variables".to_string()
+                                );
+                            }
+                            let mut given = Vec::new();
+                            for equation in &branch.equations {
+                                let Expr::Ref(target) = &equation.lhs else {
+                                    return Err("an `if` inside `when` gives values to variables"
+                                        .to_string());
+                                };
+                                let target = flat_name(target, prefix, outers);
+                                if !targets.contains(&target) {
+                                    targets.push(target.clone());
+                                }
+                                given.push((target, resolve_here(&equation.rhs)?));
+                            }
+                            let condition =
+                                branch.condition.as_ref().map(&resolve_here).transpose()?;
+                            branches.push((condition, given));
+                        }
+                        for target in targets {
+                            // Built from the last branch back, so the
+                            // conditions are tested in the order they
+                            // were written.
+                            let mut value =
+                                Expr::Call("pre".to_string(), vec![Expr::Ref(target.clone())]);
+                            for (condition, given) in branches.iter().rev() {
+                                let Some(chosen) = given.iter().find(|(name, _)| name == &target)
+                                else {
+                                    continue;
+                                };
+                                value = match condition {
+                                    None => chosen.1.clone(),
+                                    Some(condition) => Expr::If(
+                                        Box::new(condition.clone()),
+                                        Box::new(chosen.1.clone()),
+                                        Box::new(value),
+                                    ),
+                                };
+                            }
+                            actions.push(WhenAction::Assign(target, value));
+                        }
+                    }
+                    // `for i in 1:n loop k[i] = ...; end for;` at an
+                    // event: the loop is unrolled the way one among
+                    // the equations is, and each round's equation
+                    // becomes an assignment of its own. It is unrolled
+                    // into the equations and taken straight back out,
+                    // there being one unroller and no reason for two.
+                    WhenAction::Loop(loop_eq) => {
+                        let boundary = acc.equations.len();
+                        let drawn = acc.connects.len();
+                        unroll(
+                            loop_eq,
+                            &HashMap::new(),
+                            local_consts,
+                            prefix,
+                            outers,
+                            sizes_here,
+                            records_here,
+                            registry,
+                            scope,
+                            imports,
+                            acc,
+                        )?;
+                        if acc.connects.len() != drawn {
+                            return Err("a loop inside `when` assigns variables, one per round; \
+                                        a connection is drawn once and for all, not at an event"
+                                .to_string());
+                        }
+                        for round in acc.equations.drain(boundary..).collect::<Vec<_>>() {
+                            let Expr::Ref(target) = round.lhs else {
+                                return Err(
+                                    "a loop inside `when` assigns variables, one per round"
+                                        .to_string(),
+                                );
+                            };
+                            actions.push(WhenAction::Assign(target, round.rhs));
+                        }
+                    }
+                    // `(a, b) = f(x)` at an event: the call is inlined
+                    // once per output, and each target gets an
+                    // assignment of its own. A skipped slot costs its
+                    // output nothing, since it is never used.
+                    WhenAction::TupleAssign(targets, value) => {
+                        // Not through `resolve_here`: that would inline
+                        // the call into the one value an expression can
+                        // carry, and what is wanted here is the call
+                        // itself, to be inlined once per target.
+                        let value =
+                            substitute_class_constants(value, registry, scope, imports, shadow);
+                        let value = prefix_expr(&value, prefix, outers);
+                        let Expr::Call(name, raw_args) = &value else {
+                            return Err(
+                                "the right side of a tuple inside `when` must be a function call"
+                                    .to_string(),
+                            );
+                        };
+                        let function = lookup(registry, name, scope, imports)
+                            .filter(|c| c.kind == ClassKind::Function)
+                            .ok_or_else(|| {
+                                format!("`{name}` is not a function, so it cannot fill a tuple")
+                            })?;
+                        let shapes = Shapes {
+                            sizes: sizes_here,
+                            loop_vars: &no_loop_vars,
+                            consts: local_consts,
+                            records: records_here,
+                        };
+                        let values = raw_args
+                            .iter()
+                            .map(|arg| expand(arg, &shapes, registry, scope, imports, 0))
+                            .collect::<Result<Vec<_>, String>>()?;
+                        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
+                        let arguments: Vec<Expr> =
+                            values.into_iter().map(|value| value.into_expr()).collect();
+                        let outputs = inline_function_outputs(
+                            function,
+                            &arguments,
+                            &argument_shapes,
+                            local_consts,
+                            registry,
+                            0,
+                        )?;
+                        if outputs.len() < targets.len() {
+                            return Err(format!(
+                                "`{name}` has {} output(s) and the tuple asks for {}",
+                                outputs.len(),
+                                targets.len()
+                            ));
+                        }
+                        for (target, (_, worth)) in targets.iter().zip(outputs) {
+                            let Some(target) = target else { continue };
+                            let target = flat_name(target, prefix, outers);
+                            // An output of several numbers lands on
+                            // several names: a generator answers with
+                            // the state it moved to, and the model
+                            // holds one number per name.
+                            let placed = expand(
+                                &Expr::Ref(target.clone()),
+                                &shapes,
+                                registry,
+                                scope,
+                                imports,
+                                0,
+                            )?;
+                            let (mut names, mut worths) = (Vec::new(), Vec::new());
+                            placed.flatten_into(&mut names);
+                            expand(&worth, &shapes, registry, scope, imports, 0)?
+                                .flatten_into(&mut worths);
+                            if names.len() != worths.len() {
+                                return Err(format!(
+                                    "`{target}` is {} name(s) and what it is given at the \
+                                     event is {} value(s)",
+                                    names.len(),
+                                    worths.len()
+                                ));
+                            }
+                            for (name, worth) in names.into_iter().zip(worths) {
+                                let Expr::Ref(name) = name else {
+                                    return Err(format!(
+                                        "`{target}` is not a name an event can assign"
+                                    ));
+                                };
+                                actions.push(WhenAction::Assign(name, worth));
+                            }
+                        }
+                    }
+                }
+            }
+            branches.push(WhenBranch {
+                condition: resolve_here(&branch.condition)?,
+                actions,
+            });
+        }
+        acc.when_clauses.push(WhenClause {
+            branches,
+            origin: acc.origin.clone(),
+        });
+    }
+
+    Ok(())
+}
+
 /// Everything the class states rather than declares: its equations,
 /// the `if` branches and `when` clauses among them, the values of its
 /// record-valued declarations, its connections and its algorithm
@@ -2431,273 +2733,23 @@ fn flatten_equations(
         });
     }
 
-    for clause in class.when_clauses.iter().chain(whens_from_branches) {
-        let mut branches = Vec::new();
-        for branch in &clause.branches {
-            let mut actions = Vec::new();
-            for action in &branch.actions {
-                match action {
-                    WhenAction::Reinit(state, value) => actions.push(WhenAction::Reinit(
-                        flat_name(state, prefix, outers),
-                        resolve_here(value)?,
-                    )),
-                    // A `when` may give a whole array at once -
-                    // `y = u` between two vectors is how the clocked
-                    // samplers pass a bus through - and an event
-                    // assigns one variable, so it is taken apart the
-                    // way an equation between arrays is: one
-                    // assignment per element, refusing sides that do
-                    // not have the same shape. A scalar target goes
-                    // the short way, which is every other `when` in
-                    // the library.
-                    WhenAction::Assign(target, value) => {
-                        let named = flat_name(target, prefix, outers);
-                        let given = expand_here(value, &HashMap::new())?;
-                        // The shapes are filed under the full path, and
-                        // the target is written as this class named it,
-                        // so it is the flat name that finds one.
-                        match sizes_here.get(&named).filter(|shape| !shape.is_empty()) {
-                            None => actions.push(WhenAction::Assign(named, given.scalar()?)),
-                            Some(shape) => {
-                                let mut elements = Vec::new();
-                                given.flatten_into(&mut elements);
-                                let wanted: usize =
-                                    shape.iter().map(|length| *length as usize).product();
-                                if elements.len() != wanted {
-                                    return Err(format!(
-                                        "`{named}` is given {} value(s) at an event and holds                                          {wanted}",
-                                        elements.len()
-                                    ));
-                                }
-                                for (indices, one) in index_tuples(shape).into_iter().zip(elements)
-                                {
-                                    actions.push(WhenAction::Assign(
-                                        element_name(&named, &indices),
-                                        one,
-                                    ));
-                                }
-                            }
-                        }
-                    }
-                    WhenAction::Terminate(message) => {
-                        actions.push(WhenAction::Terminate(message.clone()))
-                    }
-                    // A call on its own at an event: nothing takes its
-                    // outputs, so what the compiler can have of it is
-                    // the checks its body makes - the same as a call
-                    // standing among the equations. The effect itself,
-                    // closing a file at `terminal()`, is one this
-                    // compiler has no way to have.
-                    WhenAction::Call(name, args) => {
-                        take_checks(&Expr::Call(name.clone(), args.clone()), acc)?;
-                    }
-                    // A check made when the event fires: the names it
-                    // was written with are this class's, so it is
-                    // resolved here like any other expression.
-                    WhenAction::Assert(condition, message) => actions.push(WhenAction::Assert(
-                        expand_here(&resolve_here(condition)?, &HashMap::new())?.scalar()?,
-                        message.clone(),
-                    )),
-                    // `if c then x = a; else x = b; end if;` at an
-                    // event: what `x` is given depends on the
-                    // condition, so it gets one assignment whose value
-                    // is the choice. A branch that says nothing about
-                    // a variable leaves it what it had, which is what
-                    // `pre` of it is.
-                    WhenAction::Choice(chosen) => {
-                        let mut targets: Vec<String> = Vec::new();
-                        let mut branches: Vec<GivenBranch> = Vec::new();
-                        for branch in &chosen.branches {
-                            // A connection is drawn once and for all,
-                            // and a check has nowhere to go from here;
-                            // what an `if` at an event holds is values.
-                            if !branch.connects.is_empty()
-                                || !branch.loops.is_empty()
-                                || !branch.asserts.is_empty()
-                                || !branch.whens.is_empty()
-                                || !branch.calls.is_empty()
-                                || !branch.graph.is_empty()
-                            {
-                                return Err(
-                                    "an `if` inside `when` gives values to variables".to_string()
-                                );
-                            }
-                            let mut given = Vec::new();
-                            for equation in &branch.equations {
-                                let Expr::Ref(target) = &equation.lhs else {
-                                    return Err("an `if` inside `when` gives values to variables"
-                                        .to_string());
-                                };
-                                let target = flat_name(target, prefix, outers);
-                                if !targets.contains(&target) {
-                                    targets.push(target.clone());
-                                }
-                                given.push((target, resolve_here(&equation.rhs)?));
-                            }
-                            let condition =
-                                branch.condition.as_ref().map(&resolve_here).transpose()?;
-                            branches.push((condition, given));
-                        }
-                        for target in targets {
-                            // Built from the last branch back, so the
-                            // conditions are tested in the order they
-                            // were written.
-                            let mut value =
-                                Expr::Call("pre".to_string(), vec![Expr::Ref(target.clone())]);
-                            for (condition, given) in branches.iter().rev() {
-                                let Some(chosen) = given.iter().find(|(name, _)| name == &target)
-                                else {
-                                    continue;
-                                };
-                                value = match condition {
-                                    None => chosen.1.clone(),
-                                    Some(condition) => Expr::If(
-                                        Box::new(condition.clone()),
-                                        Box::new(chosen.1.clone()),
-                                        Box::new(value),
-                                    ),
-                                };
-                            }
-                            actions.push(WhenAction::Assign(target, value));
-                        }
-                    }
-                    // `for i in 1:n loop k[i] = ...; end for;` at an
-                    // event: the loop is unrolled the way one among
-                    // the equations is, and each round's equation
-                    // becomes an assignment of its own. It is unrolled
-                    // into the equations and taken straight back out,
-                    // there being one unroller and no reason for two.
-                    WhenAction::Loop(loop_eq) => {
-                        let boundary = acc.equations.len();
-                        let drawn = acc.connects.len();
-                        unroll(
-                            loop_eq,
-                            &HashMap::new(),
-                            local_consts,
-                            prefix,
-                            outers,
-                            sizes_here,
-                            records_here,
-                            registry,
-                            scope,
-                            imports,
-                            acc,
-                        )?;
-                        if acc.connects.len() != drawn {
-                            return Err("a loop inside `when` assigns variables, one per round; \
-                                        a connection is drawn once and for all, not at an event"
-                                .to_string());
-                        }
-                        for round in acc.equations.drain(boundary..).collect::<Vec<_>>() {
-                            let Expr::Ref(target) = round.lhs else {
-                                return Err(
-                                    "a loop inside `when` assigns variables, one per round"
-                                        .to_string(),
-                                );
-                            };
-                            actions.push(WhenAction::Assign(target, round.rhs));
-                        }
-                    }
-                    // `(a, b) = f(x)` at an event: the call is inlined
-                    // once per output, and each target gets an
-                    // assignment of its own. A skipped slot costs its
-                    // output nothing, since it is never used.
-                    WhenAction::TupleAssign(targets, value) => {
-                        // Not through `resolve_here`: that would inline
-                        // the call into the one value an expression can
-                        // carry, and what is wanted here is the call
-                        // itself, to be inlined once per target.
-                        let value =
-                            substitute_class_constants(value, registry, scope, imports, shadow);
-                        let value = prefix_expr(&value, prefix, outers);
-                        let Expr::Call(name, raw_args) = &value else {
-                            return Err(
-                                "the right side of a tuple inside `when` must be a function call"
-                                    .to_string(),
-                            );
-                        };
-                        let function = lookup(registry, name, scope, imports)
-                            .filter(|c| c.kind == ClassKind::Function)
-                            .ok_or_else(|| {
-                                format!("`{name}` is not a function, so it cannot fill a tuple")
-                            })?;
-                        let shapes = Shapes {
-                            sizes: sizes_here,
-                            loop_vars: &no_loop_vars,
-                            consts: local_consts,
-                            records: records_here,
-                        };
-                        let values = raw_args
-                            .iter()
-                            .map(|arg| expand(arg, &shapes, registry, scope, imports, 0))
-                            .collect::<Result<Vec<_>, String>>()?;
-                        let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
-                        let arguments: Vec<Expr> =
-                            values.into_iter().map(|value| value.into_expr()).collect();
-                        let outputs = inline_function_outputs(
-                            function,
-                            &arguments,
-                            &argument_shapes,
-                            local_consts,
-                            registry,
-                            0,
-                        )?;
-                        if outputs.len() < targets.len() {
-                            return Err(format!(
-                                "`{name}` has {} output(s) and the tuple asks for {}",
-                                outputs.len(),
-                                targets.len()
-                            ));
-                        }
-                        for (target, (_, worth)) in targets.iter().zip(outputs) {
-                            let Some(target) = target else { continue };
-                            let target = flat_name(target, prefix, outers);
-                            // An output of several numbers lands on
-                            // several names: a generator answers with
-                            // the state it moved to, and the model
-                            // holds one number per name.
-                            let placed = expand(
-                                &Expr::Ref(target.clone()),
-                                &shapes,
-                                registry,
-                                scope,
-                                imports,
-                                0,
-                            )?;
-                            let (mut names, mut worths) = (Vec::new(), Vec::new());
-                            placed.flatten_into(&mut names);
-                            expand(&worth, &shapes, registry, scope, imports, 0)?
-                                .flatten_into(&mut worths);
-                            if names.len() != worths.len() {
-                                return Err(format!(
-                                    "`{target}` is {} name(s) and what it is given at the \
-                                     event is {} value(s)",
-                                    names.len(),
-                                    worths.len()
-                                ));
-                            }
-                            for (name, worth) in names.into_iter().zip(worths) {
-                                let Expr::Ref(name) = name else {
-                                    return Err(format!(
-                                        "`{target}` is not a name an event can assign"
-                                    ));
-                                };
-                                actions.push(WhenAction::Assign(name, worth));
-                            }
-                        }
-                    }
-                }
-            }
-            branches.push(WhenBranch {
-                condition: resolve_here(&branch.condition)?,
-                actions,
-            });
-        }
-        acc.when_clauses.push(WhenClause {
-            branches,
-            origin: acc.origin.clone(),
-        });
-    }
+    flatten_when_clauses(
+        class,
+        acc,
+        registry,
+        scope,
+        prefix,
+        imports,
+        shadow,
+        outers,
+        sizes_here,
+        local_consts,
+        records_here,
+        &expand_here,
+        &resolve_here,
+        &take_checks,
+        &whens_from_branches,
+    )?;
     // A connection to a component that a condition left out goes with
     // it: this is how the standard library switches a support flange
     // between an external connector and an internal ground.
