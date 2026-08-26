@@ -405,182 +405,20 @@ pub(super) fn execute(
     }
     for (at, statement) in statements.iter().enumerate() {
         match statement {
-            Statement::Assign(target, subscripts, value) => {
-                // A body may name a constant of a package the way an
-                // equation may, and it is resolved where it was
-                // written - in this class, not at the call site.
-                let value = substitute_class_constants(value, registry, scope, imports, &[]);
-                let value = substitute_refs(&value, bindings);
-                // Through the array layer, so `c := a .* b` binds a whole
-                // array and a scalar stays a scalar.
-                let no_loop_vars = HashMap::new();
-                let shapes = Shapes {
-                    sizes,
-                    loop_vars: &no_loop_vars,
-                    consts,
-                    records: no_records(),
-                };
-                let value =
-                    expand(&value, &shapes, registry, scope, imports, depth + 1)?.into_expr();
-                // Expansion turns `p[i - 1]` into the element's own name,
-                // which may itself be bound by an earlier statement - so
-                // the bindings are applied once more.
-                let value = substitute_refs(&value, bindings);
-                // A name bound whole and then written into element by
-                // element - `a := zeros(3, 3); a[1, 1] := 5` - has to
-                // be taken apart first, or what it was bound to whole
-                // would still be what it answers with.
-                if !subscripts.is_empty() {
-                    if let Some(whole) = bindings.remove(target) {
-                        let mut items = Vec::new();
-                        fn leaves(expr: &Expr, out: &mut Vec<Expr>) {
-                            match expr {
-                                Expr::Array(items) => items.iter().for_each(|i| leaves(i, out)),
-                                one => out.push(one.clone()),
-                            }
-                        }
-                        leaves(&whole, &mut items);
-                        match sizes.get(target) {
-                            Some(shape) if index_tuples(shape).len() == items.len() => {
-                                for (indices, item) in index_tuples(shape).into_iter().zip(items) {
-                                    bindings
-                                        .entry(element_name(target, &indices))
-                                        .or_insert(item);
-                                }
-                            }
-                            // Nothing says what shape it is, so it goes
-                            // back as it was and the write below says
-                            // what it can.
-                            _ => {
-                                bindings.insert(target.clone(), whole);
-                            }
-                        }
-                    }
-                }
-                // `oM[1:mBase, 1:mBase] := ...` names a run of
-                // elements rather than one, and what it is given is
-                // that many values: the standard library fills a
-                // generator's state and a transformation matrix that
-                // way. Each element is assigned its own, which is what
-                // the run of names comes to.
-                if subscripts.iter().any(|s| matches!(s, Expr::Range(_, _, _))) {
-                    let settled = |e: &Expr| {
-                        settled_in_body(e, bindings, consts, sizes, registry, scope, imports, depth)
-                    };
-                    let mut spans: Vec<Vec<i64>> = Vec::new();
-                    for subscript in subscripts {
-                        let span = match subscript {
-                            Expr::Range(from, step, to) => {
-                                let (Some(from), Some(to)) = (settled(from), settled(to)) else {
-                                    return Err(format!(
-                                        "`{target}` is given a run of elements whose bounds \
-                                         this compiler cannot see"
-                                    ));
-                                };
-                                let step = step.as_ref().and_then(|s| settled(s)).unwrap_or(1.0);
-                                std::iter::successors(Some(from), |at| {
-                                    Some(at + step).filter(|next| (next - to) * step <= 0.0)
-                                })
-                                .map(|at| at as i64)
-                                .collect()
-                            }
-                            one => match settled(one) {
-                                Some(at) => vec![at as i64],
-                                None => {
-                                    return Err(format!(
-                                        "the subscript of `{target}` must be a whole number \
-                                         the compiler can see"
-                                    ))
-                                }
-                            },
-                        };
-                        spans.push(span);
-                    }
-                    // Every element the run covers, in the order the
-                    // language writes an array out: the last subscript
-                    // moves fastest.
-                    let mut named: Vec<Vec<i64>> = vec![Vec::new()];
-                    for span in &spans {
-                        named = named
-                            .iter()
-                            .flat_map(|so_far| {
-                                span.iter().map(move |at| {
-                                    let mut with = so_far.clone();
-                                    with.push(*at);
-                                    with
-                                })
-                            })
-                            .collect();
-                    }
-                    // What it is given, written out the same way.
-                    fn leaves(expr: &Expr, out: &mut Vec<Expr>) {
-                        match expr {
-                            Expr::Array(items) => items.iter().for_each(|i| leaves(i, out)),
-                            one => out.push(one.clone()),
-                        }
-                    }
-                    let mut items = Vec::new();
-                    leaves(&value, &mut items);
-                    if items.len() != named.len() {
-                        return Err(format!(
-                            "`{target}` is given a run of {} element(s) and {} value(s)",
-                            named.len(),
-                            items.len()
-                        ));
-                    }
-                    for (indices, item) in named.into_iter().zip(items) {
-                        let one = element_name(target, &indices);
-                        if !assigned.contains(&one) {
-                            assigned.push(one.clone());
-                        }
-                        bindings.insert(one, item);
-                    }
-                    continue;
-                }
-                // `c[i] := ...` lands on the element's own name.
-                let target = if subscripts.is_empty() {
-                    target.clone()
-                } else {
-                    let indices = subscripts
-                        .iter()
-                        .map(|subscript| {
-                            let subscript = substitute_refs(subscript, bindings);
-                            // A subscript may be written with a
-                            // length rather than a digit, and only the
-                            // array layer knows a length.
-                            settled_in_body(
-                                &subscript,
-                                bindings,
-                                consts,
-                                sizes,
-                                registry,
-                                scope,
-                                imports,
-                                depth,
-                            )
-                            .filter(|v| v.fract() == 0.0 && *v >= 1.0)
-                                .map(|v| v as i64)
-                                .ok_or_else(|| {
-                                    format!(
-                                        "the subscript of `{target}` must be a whole number the compiler can see"
-                                    )
-                                })
-                        })
-                        .collect::<Result<Vec<_>, String>>()?;
-                    element_name(target, &indices)
-                };
-                if !assigned.contains(&target) {
-                    assigned.push(target.clone());
-                }
-                // Inside a `while`, a value that folds to a number is
-                // stored as one, or the expressions would double in
-                // size with every round.
-                let value = match const_eval(&value, consts) {
-                    Some(number) if fold => Expr::Number(number),
-                    _ => value,
-                };
-                bindings.insert(target, value);
-            }
+            Statement::Assign(target, subscripts, value) => one_assignment(
+                target,
+                subscripts,
+                value,
+                bindings,
+                assigned,
+                consts,
+                sizes,
+                registry,
+                scope,
+                imports,
+                depth,
+                fold,
+            )?,
             Statement::TupleAssign(targets, value) => {
                 let value = substitute_refs(value, bindings);
                 let Expr::Call(name, raw_args) = &value else {
@@ -815,6 +653,194 @@ pub(super) fn execute(
         }
     }
     Ok(Flow::Normal)
+}
+
+/// One assignment among the statements: what the right-hand side comes
+/// to, put where the left-hand side says - a name, an element of an
+/// array, or a member of a record.
+///
+/// Moved out of `execute` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn one_assignment(
+    target: &str,
+    subscripts: &[Expr],
+    value: &Expr,
+    bindings: &mut HashMap<String, Expr>,
+    assigned: &mut Vec<String>,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+    fold: bool,
+) -> Result<(), String> {
+    // A body may name a constant of a package the way an
+    // equation may, and it is resolved where it was
+    // written - in this class, not at the call site.
+    let value = substitute_class_constants(value, registry, scope, imports, &[]);
+    let value = substitute_refs(&value, bindings);
+    // Through the array layer, so `c := a .* b` binds a whole
+    // array and a scalar stays a scalar.
+    let no_loop_vars = HashMap::new();
+    let shapes = Shapes {
+        sizes,
+        loop_vars: &no_loop_vars,
+        consts,
+        records: no_records(),
+    };
+    let value = expand(&value, &shapes, registry, scope, imports, depth + 1)?.into_expr();
+    // Expansion turns `p[i - 1]` into the element's own name,
+    // which may itself be bound by an earlier statement - so
+    // the bindings are applied once more.
+    let value = substitute_refs(&value, bindings);
+    // A name bound whole and then written into element by
+    // element - `a := zeros(3, 3); a[1, 1] := 5` - has to
+    // be taken apart first, or what it was bound to whole
+    // would still be what it answers with.
+    if !subscripts.is_empty() {
+        if let Some(whole) = bindings.remove(target) {
+            let mut items = Vec::new();
+            fn leaves(expr: &Expr, out: &mut Vec<Expr>) {
+                match expr {
+                    Expr::Array(items) => items.iter().for_each(|i| leaves(i, out)),
+                    one => out.push(one.clone()),
+                }
+            }
+            leaves(&whole, &mut items);
+            match sizes.get(target) {
+                Some(shape) if index_tuples(shape).len() == items.len() => {
+                    for (indices, item) in index_tuples(shape).into_iter().zip(items) {
+                        bindings
+                            .entry(element_name(target, &indices))
+                            .or_insert(item);
+                    }
+                }
+                // Nothing says what shape it is, so it goes
+                // back as it was and the write below says
+                // what it can.
+                _ => {
+                    bindings.insert(target.to_string(), whole);
+                }
+            }
+        }
+    }
+    // `oM[1:mBase, 1:mBase] := ...` names a run of
+    // elements rather than one, and what it is given is
+    // that many values: the standard library fills a
+    // generator's state and a transformation matrix that
+    // way. Each element is assigned its own, which is what
+    // the run of names comes to.
+    if subscripts.iter().any(|s| matches!(s, Expr::Range(_, _, _))) {
+        let settled =
+            |e: &Expr| settled_in_body(e, bindings, consts, sizes, registry, scope, imports, depth);
+        let mut spans: Vec<Vec<i64>> = Vec::new();
+        for subscript in subscripts {
+            let span = match subscript {
+                Expr::Range(from, step, to) => {
+                    let (Some(from), Some(to)) = (settled(from), settled(to)) else {
+                        return Err(format!(
+                            "`{target}` is given a run of elements whose bounds \
+                             this compiler cannot see"
+                        ));
+                    };
+                    let step = step.as_ref().and_then(|s| settled(s)).unwrap_or(1.0);
+                    std::iter::successors(Some(from), |at| {
+                        Some(at + step).filter(|next| (next - to) * step <= 0.0)
+                    })
+                    .map(|at| at as i64)
+                    .collect()
+                }
+                one => match settled(one) {
+                    Some(at) => vec![at as i64],
+                    None => {
+                        return Err(format!(
+                            "the subscript of `{target}` must be a whole number \
+                             the compiler can see"
+                        ))
+                    }
+                },
+            };
+            spans.push(span);
+        }
+        // Every element the run covers, in the order the
+        // language writes an array out: the last subscript
+        // moves fastest.
+        let mut named: Vec<Vec<i64>> = vec![Vec::new()];
+        for span in &spans {
+            named = named
+                .iter()
+                .flat_map(|so_far| {
+                    span.iter().map(move |at| {
+                        let mut with = so_far.clone();
+                        with.push(*at);
+                        with
+                    })
+                })
+                .collect();
+        }
+        // What it is given, written out the same way.
+        fn leaves(expr: &Expr, out: &mut Vec<Expr>) {
+            match expr {
+                Expr::Array(items) => items.iter().for_each(|i| leaves(i, out)),
+                one => out.push(one.clone()),
+            }
+        }
+        let mut items = Vec::new();
+        leaves(&value, &mut items);
+        if items.len() != named.len() {
+            return Err(format!(
+                "`{target}` is given a run of {} element(s) and {} value(s)",
+                named.len(),
+                items.len()
+            ));
+        }
+        for (indices, item) in named.into_iter().zip(items) {
+            let one = element_name(target, &indices);
+            if !assigned.contains(&one) {
+                assigned.push(one.clone());
+            }
+            bindings.insert(one, item);
+        }
+        return Ok(());
+    }
+    // `c[i] := ...` lands on the element's own name.
+    let target = if subscripts.is_empty() {
+        target.to_string()
+    } else {
+        let indices = subscripts
+            .iter()
+            .map(|subscript| {
+                let subscript = substitute_refs(subscript, bindings);
+                // A subscript may be written with a
+                // length rather than a digit, and only the
+                // array layer knows a length.
+                settled_in_body(
+                    &subscript, bindings, consts, sizes, registry, scope, imports, depth,
+                )
+                .filter(|v| v.fract() == 0.0 && *v >= 1.0)
+                .map(|v| v as i64)
+                .ok_or_else(|| {
+                    format!(
+                        "the subscript of `{target}` must be a whole number the compiler can see"
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        element_name(target, &indices)
+    };
+    if !assigned.contains(&target) {
+        assigned.push(target.to_string());
+    }
+    // Inside a `while`, a value that folds to a number is
+    // stored as one, or the expressions would double in
+    // size with every round.
+    let value = match const_eval(&value, consts) {
+        Some(number) if fold => Expr::Number(number),
+        _ => value,
+    };
+    bindings.insert(target, value);
+    Ok(())
 }
 
 /// One `if` among the statements: the branch whose condition holds is
