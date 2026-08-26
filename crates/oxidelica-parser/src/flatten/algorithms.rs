@@ -2142,134 +2142,15 @@ fn worked_body(
         .collect();
     let mut bindings: HashMap<String, Expr> = HashMap::new();
     let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
-    let mut named_seen = false;
-    let mut position = 0;
-    for (index, arg) in args.iter().enumerate() {
-        if let Expr::NamedArg(name, value) = arg {
-            if !inputs.iter().any(|input| &input.name == name) {
-                return Err(format!(
-                    "function `{}` has no input named `{name}`",
-                    class.name
-                ));
-            }
-            if bindings.insert(name.clone(), (**value).clone()).is_some() {
-                return Err(format!(
-                    "argument `{name}` of function `{}` is given twice",
-                    class.name
-                ));
-            }
-            named_seen = true;
-        } else {
-            if named_seen {
-                return Err(format!(
-                    "function `{}`: positional arguments must come before named ones",
-                    class.name
-                ));
-            }
-            let Some(input) = inputs.get(position) else {
-                return Err(format!(
-                    "function `{}` expects {} argument(s), got more",
-                    class.name,
-                    inputs.len()
-                ));
-            };
-            // A `[:]` input is as long as whatever was handed to it.
-            if !input.dimensions.is_empty() {
-                if let Some(shape) = shapes.get(index) {
-                    if !shape.is_empty() {
-                        given_shapes.insert(input.name.clone(), shape.clone());
-                        // The body reads the argument by the caller's
-                        // name once the binding is substituted in, so
-                        // `size(x, 1)` becomes `size(s.i, 1)` and has
-                        // to find the length under that name too.
-                        if let Expr::Ref(given) = arg {
-                            given_shapes.insert(given.clone(), shape.clone());
-                        }
-                    }
-                }
-            }
-            // A record input arrives as its fields, and the body reads
-            // them by name: `c1.re` has to be bound, not `c1`.
-            //
-            // An input declared an array of records is not that: the
-            // quasi-RMS of a polyphase system takes `Complex u[:]`, and
-            // what arrives is three phasors, not the two fields of one.
-            // Taken for fields, three phasors were refused for being
-            // three where two were wanted; left whole, the body reads
-            // `u[k].re` off them, which is what it was written to do.
-            if let Some(fields) =
-                record_input_fields(registry, class, input).filter(|_| input.dimensions.is_empty())
-            {
-                if let Expr::Array(items) = arg {
-                    if items.len() != fields.len() {
-                        return Err(format!(
-                            "function `{}` wants {} field(s) for `{}`, got {}",
-                            class.name,
-                            fields.len(),
-                            input.name,
-                            items.len()
-                        ));
-                    }
-                    for (field, value) in fields.iter().zip(items) {
-                        let here = format!("{}.{field}", input.name);
-                        // A field that is itself an array is bound
-                        // element by element as well: the body of an
-                        // orientation function reads `R.T[1, 1]`, and
-                        // the list bound to `R.T` whole is not
-                        // something a name with a subscript can be read
-                        // off.
-                        by_element(&here, value, &mut Vec::new(), &mut bindings);
-                        bindings.insert(here, value.clone());
-                    }
-                    position += 1;
-                    continue;
-                }
-                // A record handed over by name rather than written out
-                // is the commoner way of it: the caller has the record
-                // as a variable and passes it whole. Flattening has
-                // already taken that variable apart, so its fields are
-                // there to be named one by one - and binding the name
-                // alone would leave the body reading `p.V` with
-                // nothing bound to it, which is a value gone missing
-                // rather than a refusal.
-                //
-                // The name itself is bound too, below: a body may hand
-                // the record on to another function whole, and that
-                // call wants the record and not its fields.
-                //
-                // Only the fields that are single numbers. A field
-                // with dimensions of its own - an orientation carries
-                // a three by three - has a shape the caller knows and
-                // this does not, and binding a bare name to it loses
-                // the shape and refuses the model further along.
-                if let Expr::Ref(given) = arg {
-                    for field in scalar_record_fields(registry, class, input) {
-                        bindings.insert(
-                            format!("{}.{field}", input.name),
-                            Expr::Ref(format!("{given}.{field}")),
-                        );
-                    }
-                    // A field with dimensions of its own - an
-                    // orientation carries a three by three - is bound
-                    // element by element as well as whole: a body
-                    // reading `R.T[1, 1]` has to find the caller's own
-                    // `R1.T[1, 1]` under it, and a name alone is not
-                    // something a subscript can be read off here.
-                    for (field, shape) in shaped_record_fields(registry, class, input) {
-                        let here = format!("{}.{field}", input.name);
-                        let there = format!("{given}.{field}");
-                        for indices in index_tuples(&shape) {
-                            let source = Expr::Ref(element_name(&there, &indices));
-                            bindings.insert(element_name(&here, &indices), source);
-                        }
-                        bindings.insert(here, spread_out(&there, &shape, &mut Vec::new()));
-                    }
-                }
-            }
-            bindings.insert(input.name.clone(), arg.clone());
-            position += 1;
-        }
-    }
+    bind_the_arguments(
+        class,
+        args,
+        shapes,
+        &inputs,
+        registry,
+        &mut bindings,
+        &mut given_shapes,
+    )?;
     // Whatever the call left unsaid falls back to the input's own
     // default. Defaults may name earlier inputs, so they are resolved
     // against what is already bound.
@@ -2694,6 +2575,155 @@ fn body_written_elsewhere(
     }
 
     Ok(None)
+}
+
+/// What the call handed over, under the names the body knows them by.
+///
+/// An argument may be given in order or by name; a record arrives as
+/// its fields, since the body reads them by name; and a `[:]` input is
+/// as long as whatever was handed to it.
+///
+/// Moved out of `worked_body` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn bind_the_arguments(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+    inputs: &[&Component],
+    registry: &HashMap<&str, &ClassDef>,
+    bindings: &mut HashMap<String, Expr>,
+    given_shapes: &mut HashMap<String, Vec<i64>>,
+) -> Result<(), String> {
+    let mut named_seen = false;
+    let mut position = 0;
+    for (index, arg) in args.iter().enumerate() {
+        if let Expr::NamedArg(name, value) = arg {
+            if !inputs.iter().any(|input| &input.name == name) {
+                return Err(format!(
+                    "function `{}` has no input named `{name}`",
+                    class.name
+                ));
+            }
+            if bindings.insert(name.clone(), (**value).clone()).is_some() {
+                return Err(format!(
+                    "argument `{name}` of function `{}` is given twice",
+                    class.name
+                ));
+            }
+            named_seen = true;
+        } else {
+            if named_seen {
+                return Err(format!(
+                    "function `{}`: positional arguments must come before named ones",
+                    class.name
+                ));
+            }
+            let Some(input) = inputs.get(position) else {
+                return Err(format!(
+                    "function `{}` expects {} argument(s), got more",
+                    class.name,
+                    inputs.len()
+                ));
+            };
+            // A `[:]` input is as long as whatever was handed to it.
+            if !input.dimensions.is_empty() {
+                if let Some(shape) = shapes.get(index) {
+                    if !shape.is_empty() {
+                        given_shapes.insert(input.name.clone(), shape.clone());
+                        // The body reads the argument by the caller's
+                        // name once the binding is substituted in, so
+                        // `size(x, 1)` becomes `size(s.i, 1)` and has
+                        // to find the length under that name too.
+                        if let Expr::Ref(given) = arg {
+                            given_shapes.insert(given.clone(), shape.clone());
+                        }
+                    }
+                }
+            }
+            // A record input arrives as its fields, and the body reads
+            // them by name: `c1.re` has to be bound, not `c1`.
+            //
+            // An input declared an array of records is not that: the
+            // quasi-RMS of a polyphase system takes `Complex u[:]`, and
+            // what arrives is three phasors, not the two fields of one.
+            // Taken for fields, three phasors were refused for being
+            // three where two were wanted; left whole, the body reads
+            // `u[k].re` off them, which is what it was written to do.
+            if let Some(fields) =
+                record_input_fields(registry, class, input).filter(|_| input.dimensions.is_empty())
+            {
+                if let Expr::Array(items) = arg {
+                    if items.len() != fields.len() {
+                        return Err(format!(
+                            "function `{}` wants {} field(s) for `{}`, got {}",
+                            class.name,
+                            fields.len(),
+                            input.name,
+                            items.len()
+                        ));
+                    }
+                    for (field, value) in fields.iter().zip(items) {
+                        let here = format!("{}.{field}", input.name);
+                        // A field that is itself an array is bound
+                        // element by element as well: the body of an
+                        // orientation function reads `R.T[1, 1]`, and
+                        // the list bound to `R.T` whole is not
+                        // something a name with a subscript can be read
+                        // off.
+                        by_element(&here, value, &mut Vec::new(), bindings);
+                        bindings.insert(here, value.clone());
+                    }
+                    position += 1;
+                    continue;
+                }
+                // A record handed over by name rather than written out
+                // is the commoner way of it: the caller has the record
+                // as a variable and passes it whole. Flattening has
+                // already taken that variable apart, so its fields are
+                // there to be named one by one - and binding the name
+                // alone would leave the body reading `p.V` with
+                // nothing bound to it, which is a value gone missing
+                // rather than a refusal.
+                //
+                // The name itself is bound too, below: a body may hand
+                // the record on to another function whole, and that
+                // call wants the record and not its fields.
+                //
+                // Only the fields that are single numbers. A field
+                // with dimensions of its own - an orientation carries
+                // a three by three - has a shape the caller knows and
+                // this does not, and binding a bare name to it loses
+                // the shape and refuses the model further along.
+                if let Expr::Ref(given) = arg {
+                    for field in scalar_record_fields(registry, class, input) {
+                        bindings.insert(
+                            format!("{}.{field}", input.name),
+                            Expr::Ref(format!("{given}.{field}")),
+                        );
+                    }
+                    // A field with dimensions of its own - an
+                    // orientation carries a three by three - is bound
+                    // element by element as well as whole: a body
+                    // reading `R.T[1, 1]` has to find the caller's own
+                    // `R1.T[1, 1]` under it, and a name alone is not
+                    // something a subscript can be read off here.
+                    for (field, shape) in shaped_record_fields(registry, class, input) {
+                        let here = format!("{}.{field}", input.name);
+                        let there = format!("{given}.{field}");
+                        for indices in index_tuples(&shape) {
+                            let source = Expr::Ref(element_name(&there, &indices));
+                            bindings.insert(element_name(&here, &indices), source);
+                        }
+                        bindings.insert(here, spread_out(&there, &shape, &mut Vec::new()));
+                    }
+                }
+            }
+            bindings.insert(input.name.clone(), arg.clone());
+            position += 1;
+        }
+    }
+
+    Ok(())
 }
 
 /// The fields of a record-typed argument that are single numbers.
