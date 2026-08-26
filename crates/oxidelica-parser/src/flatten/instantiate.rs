@@ -1120,65 +1120,23 @@ fn instantiate_components(
         // An array bound - or started - as a whole hands each element
         // its own value.
         let spread = |expr: &Expr, what: &str, prefixed: bool| -> Result<Vec<Expr>, String> {
-            let shapes = Shapes {
-                sizes: &sizes_here,
-                loop_vars: &HashMap::new(),
-                consts: &local_consts,
-                records: records_here,
-            };
-            // A modifier arrives already written in the terms of the
-            // class that supplied it; only a declaration's own value
-            // still needs this class's prefix.
-            let expr = if prefixed {
-                expr.clone()
-            } else {
-                let expr = substitute_class_constants(expr, registry, scope, imports, shadow);
-                prefix_expr(&expr, prefix, outers)
-            };
-            let value = expand(&expr, &shapes, registry, scope, imports, 0)?;
-            let mut items = Vec::new();
-            value.flatten_into(&mut items);
-            // A scalar start spreads over the whole array - but only
-            // a real scalar. A value handed down an `extends` is
-            // written in the terms of the class above, where `T =
-            // T_ref` names an array; here that name means nothing, so
-            // it comes back whole and looks exactly like a scalar.
-            // Spread, it binds every element of the array to the
-            // whole array, which is the shape nothing can check and
-            // the parameters cannot evaluate. Where the name is known
-            // above to be an array of the same length, its elements
-            // are what was meant, one apiece.
-            // An array of one is still an array: a resistance
-            // connection of star points comes to a single base
-            // system, and its `T = T_ref` hands one name to one
-            // element. Spread rather than subscripted, that element
-            // is bound to the array itself, which is a name no
-            // parameter can be worked out from.
-            if items.len() == 1 && !element_names.is_empty() {
-                if let Expr::Ref(name) = &items[0] {
-                    if let Some(shape) = env.handed_shapes.get(name.as_str()) {
-                        let indices = index_tuples(shape);
-                        if indices.len() == element_names.len() {
-                            return Ok(indices
-                                .into_iter()
-                                .map(|at| Expr::Ref(element_name(name, &at)))
-                                .collect());
-                        }
-                    }
-                }
-            }
-            if items.len() == 1 && element_names.len() > 1 {
-                return Ok(vec![items[0].clone(); element_names.len()]);
-            }
-            if items.len() != element_names.len() {
-                return Err(format!(
-                    "`{}` has {} element(s) but its {what} has {}",
-                    component.name,
-                    element_names.len(),
-                    items.len()
-                ));
-            }
-            Ok(items)
+            spread_over_elements(
+                expr,
+                what,
+                prefixed,
+                &component,
+                &element_names,
+                registry,
+                scope,
+                prefix,
+                imports,
+                shadow,
+                outers,
+                env,
+                &sizes_here,
+                &local_consts,
+                records_here,
+            )
         };
         // A modifier naming the whole array - `Chain c(m = {1, 2, 3})`
         // - beats the declaration's own value and is handed out to the
@@ -1554,6 +1512,92 @@ fn measure_dimensions(
     }
 
     Ok(sizes)
+}
+
+/// One value of a whole array handed out to its elements.
+///
+/// A declaration bound or started as a whole, as `Real k[3] = {2, 4,
+/// 6}` is, says one thing about three elements, and each element wants
+/// its own of it.
+///
+/// Moved out of `instantiate_components` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn spread_over_elements(
+    expr: &Expr,
+    what: &str,
+    prefixed: bool,
+    component: &Component,
+    element_names: &[String],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    prefix: &str,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    env: &Env,
+    sizes_here: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+    records_here: &HashMap<String, String>,
+) -> Result<Vec<Expr>, String> {
+    let shapes = Shapes {
+        sizes: sizes_here,
+        loop_vars: &HashMap::new(),
+        consts: local_consts,
+        records: records_here,
+    };
+    // A modifier arrives already written in the terms of the
+    // class that supplied it; only a declaration's own value
+    // still needs this class's prefix.
+    let expr = if prefixed {
+        expr.clone()
+    } else {
+        let expr = substitute_class_constants(expr, registry, scope, imports, shadow);
+        prefix_expr(&expr, prefix, outers)
+    };
+    let value = expand(&expr, &shapes, registry, scope, imports, 0)?;
+    let mut items = Vec::new();
+    value.flatten_into(&mut items);
+    // A scalar start spreads over the whole array - but only
+    // a real scalar. A value handed down an `extends` is
+    // written in the terms of the class above, where `T =
+    // T_ref` names an array; here that name means nothing, so
+    // it comes back whole and looks exactly like a scalar.
+    // Spread, it binds every element of the array to the
+    // whole array, which is the shape nothing can check and
+    // the parameters cannot evaluate. Where the name is known
+    // above to be an array of the same length, its elements
+    // are what was meant, one apiece.
+    // An array of one is still an array: a resistance
+    // connection of star points comes to a single base
+    // system, and its `T = T_ref` hands one name to one
+    // element. Spread rather than subscripted, that element
+    // is bound to the array itself, which is a name no
+    // parameter can be worked out from.
+    if items.len() == 1 && !element_names.is_empty() {
+        if let Expr::Ref(name) = &items[0] {
+            if let Some(shape) = env.handed_shapes.get(name.as_str()) {
+                let indices = index_tuples(shape);
+                if indices.len() == element_names.len() {
+                    return Ok(indices
+                        .into_iter()
+                        .map(|at| Expr::Ref(element_name(name, &at)))
+                        .collect());
+                }
+            }
+        }
+    }
+    if items.len() == 1 && element_names.len() > 1 {
+        return Ok(vec![items[0].clone(); element_names.len()]);
+    }
+    if items.len() != element_names.len() {
+        return Err(format!(
+            "`{}` has {} element(s) but its {what} has {}",
+            component.name,
+            element_names.len(),
+            items.len()
+        ));
+    }
+    Ok(items)
 }
 
 /// Working an expression of this class out where it stands: the array
