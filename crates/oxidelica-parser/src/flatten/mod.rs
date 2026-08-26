@@ -201,323 +201,10 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // name, so its members exist only once every `connect` is in.
     expand_buses(&registry, &mut acc)?;
 
-    // Connection sets via union-find over connector instance paths.
-    // The paths are put in order first: what a hash map hands back
-    // comes out differently in every process, and everything below
-    // here - which connector a set is named after, which equation is
-    // written first, and so which one the index reduction finds left
-    // over - would come out differently with it.
-    // A connector that holds connectors - the thermal port of a
-    // machine holds a heat port per winding - is joined by them: a
-    // `connect` of two such ports joins the heat ports in pairs, and
-    // each pair carries the temperature and the heat flow. Written
-    // against the ports themselves the equations would name something
-    // no component of the flat model is called.
-    let mut inside: HashMap<&str, Vec<&str>> = HashMap::new();
-    for path in acc.connectors.keys() {
-        if let Some(cut) = path.rfind('.') {
-            let (outer, member) = (&path[..cut], &path[cut + 1..]);
-            if acc.connectors.contains_key(outer) {
-                inside.entry(outer).or_default().push(member);
-            }
-        }
-    }
-    for members in inside.values_mut() {
-        members.sort_unstable();
-    }
-    let mut joined = Vec::new();
-    for (a, b) in &acc.connects {
-        // A side that names no connector at all is somebody else's
-        // complaint to make, a few lines below.
-        let of = |path: &String| inside.get(path.as_str()).cloned().unwrap_or_default();
-        let (inside_a, inside_b) = (of(a), of(b));
-        match inside_a.is_empty() || inside_a != inside_b {
-            true => joined.push((a.clone(), b.clone())),
-            false => joined.extend(
-                inside_a
-                    .into_iter()
-                    .map(|member| (format!("{a}.{member}"), format!("{b}.{member}"))),
-            ),
-        }
-    }
-    let mut paths: Vec<String> = acc.connectors.keys().cloned().collect();
-    paths.sort();
-    let index: HashMap<&str, usize> = paths.iter().map(|p| p.as_str()).zip(0..).collect();
-    let mut parent: Vec<usize> = (0..paths.len()).collect();
-    fn find(parent: &mut Vec<usize>, i: usize) -> usize {
-        if parent[i] != i {
-            let root = find(parent, parent[i]);
-            parent[i] = root;
-        }
-        parent[i]
-    }
-    for (a, b) in &joined {
-        let (&ia, &ib) = match (index.get(a.as_str()), index.get(b.as_str())) {
-            (Some(ia), Some(ib)) => (ia, ib),
-            _ => {
-                return Err(format!(
-                    "connect({a}, {b}): both sides must be connector instances"
-                ))
-            }
-        };
-        let (ra, rb) = (find(&mut parent, ia), find(&mut parent, ib));
-        if ra != rb {
-            parent[ra] = rb;
-        }
-    }
-    let mut sets: HashMap<usize, Vec<&str>> = HashMap::new();
-    for (i, path) in paths.iter().enumerate() {
-        sets.entry(find(&mut parent, i)).or_default().push(path);
-    }
+    // What the connections come to: the sets they draw, and the
+    // equations those sets stand for.
+    join_the_connections(&registry, &mut acc)?;
 
-    // And the sets themselves in order, by the first connector each
-    // holds. Sorting inside a set is not enough: the sequence of sets
-    // is what decides the order the equations are written in.
-    let mut sets: Vec<Vec<&str>> = sets
-        .into_values()
-        .map(|mut members| {
-            members.sort();
-            members
-        })
-        .collect();
-    sets.sort();
-    for members in sets.iter_mut() {
-        // Connectors in one set must match in shape, not in name: a
-        // signal output and a signal input are different classes with
-        // the same members, and connecting them is the whole point.
-        let class_name = acc.connectors[members[0]].clone();
-        let class = registry[class_name.as_str()];
-        // A connector may say what it holds through a base class: the
-        // multibody frames are one `Frame` with the position, the
-        // orientation and the two flows, and `Frame_a` and `Frame_b`
-        // add nothing to it but an icon. Read from the class alone
-        // those two hold nothing at all, and a flow nobody sums is a
-        // variable no equation ever names.
-        let members_of = |class: &ClassDef| -> Vec<Component> {
-            let mut out = Vec::new();
-            fn gather(
-                registry: &HashMap<&str, &ClassDef>,
-                class: &ClassDef,
-                out: &mut Vec<Component>,
-                depth: usize,
-            ) {
-                if depth > MAX_DEPTH {
-                    return;
-                }
-                for extend in &class.extends {
-                    if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports)
-                    {
-                        gather(registry, base, out, depth + 1);
-                    }
-                }
-                for component in &class.components {
-                    // A member that is a record is not one variable
-                    // but the fields it holds: the magnetic ports of
-                    // the fundamental-wave machines carry a complex
-                    // potential and a complex flux, and flattening
-                    // knows those by `V_m.re` and `V_m.im`. Equating
-                    // the record's own name would name a variable the
-                    // flat model does not have. A field with
-                    // dimensions of its own is left whole, since the
-                    // name it would take is not one this knows.
-                    let held = lookup(registry, &component.type_name, &class.name, &class.imports)
-                        .filter(|of| of.kind == ClassKind::Record)
-                        .filter(|_| component.dimensions.is_empty());
-                    match held {
-                        Some(record) => {
-                            let mut fields = Vec::new();
-                            gather(registry, record, &mut fields, depth + 1);
-                            for mut field in fields {
-                                field.name = format!("{}.{}", component.name, field.name);
-                                field.flow = component.flow;
-                                field.stream = component.stream;
-                                field.variability = component.variability;
-                                out.push(field);
-                            }
-                        }
-                        None => out.push(component.clone()),
-                    }
-                }
-            }
-            gather(&registry, class, &mut out, 0);
-            out
-        };
-        let held = members_of(class);
-        let shape = |class: &ClassDef| -> Vec<(String, bool, bool)> {
-            let mut members: Vec<(String, bool, bool)> = members_of(class)
-                .iter()
-                .map(|c| (c.name.clone(), c.flow, c.stream))
-                .collect();
-            members.sort();
-            members
-        };
-        let wanted = shape(class);
-        for member in members.iter() {
-            let other = registry[acc.connectors[*member].as_str()];
-            if shape(other) != wanted {
-                return Err(format!(
-                    "connection set {members:?} joins `{class_name}` to `{}`, \
-                     which have different members",
-                    other.name
-                ));
-            }
-        }
-        // A stream variable rides on the one flow variable of its
-        // connector; without exactly one, `inStream` has no weights.
-        if held.iter().any(|c| c.stream) {
-            let flows = held.iter().filter(|c| c.flow).count();
-            if flows != 1 {
-                return Err(format!(
-                    "connector `{class_name}` carries stream variables, so it needs \
-                     exactly one flow variable, found {flows}"
-                ));
-            }
-        }
-        // A connector that is one value rather than a set of members -
-        // `connector RealInput = input Real` - joins on itself: there
-        // is no member to name, so the paths are the variables.
-        if held.is_empty() && class.alias_of.is_some() {
-            for other in &members[1..] {
-                acc.equations.push(EquationItem {
-                    lhs: Expr::Ref((*other).to_string()),
-                    rhs: Expr::Ref(members[0].to_string()),
-                    origin: String::new(),
-                });
-            }
-            continue;
-        }
-        for member_component in &held {
-            let var = |path: &str| format!("{path}.{}", member_component.name);
-            // A parameter of a connector is not a variable the
-            // connection solves for: the fluid ports of the heat-flow
-            // library each carry the medium they are filled with, and
-            // joining two of them says the media must agree, not that
-            // one is computed from the other. Equating them would ask
-            // the run to solve for something settled before it began.
-            if matches!(
-                member_component.variability,
-                Variability::Parameter | Variability::Constant
-            ) {
-                continue;
-            }
-            if member_component.stream {
-                // A stream variable gets no equation from the
-                // connection: each side's outflow is set by its own
-                // component, and `inStream` reads the others' below.
-                continue;
-            }
-            if member_component.flow {
-                if members.len() == 1 {
-                    // Unconnected connector: flow forced to zero.
-                    acc.equations.push(EquationItem {
-                        lhs: Expr::Ref(var(members[0])),
-                        rhs: Expr::Number(0.0),
-                        origin: String::new(),
-                    });
-                } else {
-                    // Kirchhoff sum over the set.
-                    let sum = members
-                        .iter()
-                        .map(|m| Expr::Ref(var(m)))
-                        .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
-                        .expect("non-empty set");
-                    acc.equations.push(EquationItem {
-                        lhs: sum,
-                        rhs: Expr::Number(0.0),
-                        origin: String::new(),
-                    });
-                }
-            } else if members.len() > 1 {
-                // Potential equalities against the first member.
-                for other in &members[1..] {
-                    acc.equations.push(EquationItem {
-                        lhs: Expr::Ref(var(other)),
-                        rhs: Expr::Ref(var(members[0])),
-                        origin: String::new(),
-                    });
-                }
-            }
-        }
-    }
-
-    // `inStream` and `actualStream` are functions of the connection
-    // set, so only now, with the sets known, do they have a value.
-    let any_streams = acc.connectors.values().any(|class_name| {
-        registry[class_name.as_str()]
-            .components
-            .iter()
-            .any(|c| c.stream)
-    });
-    if any_streams {
-        let mut node_of: HashMap<String, Vec<String>> = HashMap::new();
-        for members in sets.iter() {
-            for member in members.iter() {
-                node_of.insert(
-                    (*member).to_string(),
-                    members.iter().map(|m| (*m).to_string()).collect(),
-                );
-            }
-        }
-        let context = StreamContext {
-            nodes: node_of,
-            connectors: &acc.connectors,
-            outside: &acc.outside,
-            registry: &registry,
-        };
-        for equation in &mut acc.equations {
-            equation.lhs = resolve_streams(&equation.lhs, &context)?;
-            equation.rhs = resolve_streams(&equation.rhs, &context)?;
-        }
-        for equation in &mut acc.initial_equations {
-            equation.lhs = resolve_streams(&equation.lhs, &context)?;
-            equation.rhs = resolve_streams(&equation.rhs, &context)?;
-        }
-        for clause in &mut acc.when_clauses {
-            for branch in &mut clause.branches {
-                branch.condition = resolve_streams(&branch.condition, &context)?;
-                for action in &mut branch.actions {
-                    match action {
-                        WhenAction::Assign(_, value)
-                        | WhenAction::Reinit(_, value)
-                        | WhenAction::TupleAssign(_, value) => {
-                            *value = resolve_streams(value, &context)?;
-                        }
-                        // A check made at the event may ask after a
-                        // stream the same way an assignment may.
-                        WhenAction::Assert(condition, _) => {
-                            *condition = resolve_streams(condition, &context)?;
-                        }
-                        // A call on its own is taken apart while
-                        // flattening, which keeps the checks its body
-                        // makes and nothing of the call.
-                        WhenAction::Terminate(_) | WhenAction::Call(..) => {}
-                        // Taken apart while flattening, so neither a
-                        // loop nor a choice is left.
-                        WhenAction::Loop(_) | WhenAction::Choice(_) => {}
-                    }
-                }
-            }
-        }
-        for (condition, _) in &mut acc.asserts {
-            *condition = resolve_streams(condition, &context)?;
-        }
-        for conditional in &mut acc.conditional {
-            for condition in &mut conditional.conditions {
-                *condition = resolve_streams(condition, &context)?;
-            }
-            for branch in &mut conditional.branches {
-                for equation in branch {
-                    equation.lhs = resolve_streams(&equation.lhs, &context)?;
-                    equation.rhs = resolve_streams(&equation.rhs, &context)?;
-                }
-            }
-        }
-    }
-
-    // The branches of a run-time `if` are checked one equation at a
-    // time, the way they were written: merged into residuals they
-    // would look like a volt equated to an ampere, which is exactly
-    // what an ideal switch is and not a mistake.
     let mut model = Model {
         transports: acc.transports.clone(),
         name: top_class.name.clone(),
@@ -784,6 +471,337 @@ fn build_the_model(
     }
 
     Ok(acc)
+}
+
+/// What every `connect` of the model comes to.
+///
+/// The connectors joined by connections fall into sets, and a set is
+/// what the equations are written about: the potentials across it are
+/// equal and the flows into it sum to nothing. Stream variables are
+/// answered from the same sets, since `inStream` is a question about
+/// one.
+///
+/// Moved out of `flatten` unchanged.
+fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> Result<(), String> {
+    // Connection sets via union-find over connector instance paths.
+    // The paths are put in order first: what a hash map hands back
+    // comes out differently in every process, and everything below
+    // here - which connector a set is named after, which equation is
+    // written first, and so which one the index reduction finds left
+    // over - would come out differently with it.
+    // A connector that holds connectors - the thermal port of a
+    // machine holds a heat port per winding - is joined by them: a
+    // `connect` of two such ports joins the heat ports in pairs, and
+    // each pair carries the temperature and the heat flow. Written
+    // against the ports themselves the equations would name something
+    // no component of the flat model is called.
+    let mut inside: HashMap<&str, Vec<&str>> = HashMap::new();
+    for path in acc.connectors.keys() {
+        if let Some(cut) = path.rfind('.') {
+            let (outer, member) = (&path[..cut], &path[cut + 1..]);
+            if acc.connectors.contains_key(outer) {
+                inside.entry(outer).or_default().push(member);
+            }
+        }
+    }
+    for members in inside.values_mut() {
+        members.sort_unstable();
+    }
+    let mut joined = Vec::new();
+    for (a, b) in &acc.connects {
+        // A side that names no connector at all is somebody else's
+        // complaint to make, a few lines below.
+        let of = |path: &String| inside.get(path.as_str()).cloned().unwrap_or_default();
+        let (inside_a, inside_b) = (of(a), of(b));
+        match inside_a.is_empty() || inside_a != inside_b {
+            true => joined.push((a.clone(), b.clone())),
+            false => joined.extend(
+                inside_a
+                    .into_iter()
+                    .map(|member| (format!("{a}.{member}"), format!("{b}.{member}"))),
+            ),
+        }
+    }
+    let mut paths: Vec<String> = acc.connectors.keys().cloned().collect();
+    paths.sort();
+    let index: HashMap<&str, usize> = paths.iter().map(|p| p.as_str()).zip(0..).collect();
+    let mut parent: Vec<usize> = (0..paths.len()).collect();
+    fn find(parent: &mut Vec<usize>, i: usize) -> usize {
+        if parent[i] != i {
+            let root = find(parent, parent[i]);
+            parent[i] = root;
+        }
+        parent[i]
+    }
+    for (a, b) in &joined {
+        let (&ia, &ib) = match (index.get(a.as_str()), index.get(b.as_str())) {
+            (Some(ia), Some(ib)) => (ia, ib),
+            _ => {
+                return Err(format!(
+                    "connect({a}, {b}): both sides must be connector instances"
+                ))
+            }
+        };
+        let (ra, rb) = (find(&mut parent, ia), find(&mut parent, ib));
+        if ra != rb {
+            parent[ra] = rb;
+        }
+    }
+    let mut sets: HashMap<usize, Vec<&str>> = HashMap::new();
+    for (i, path) in paths.iter().enumerate() {
+        sets.entry(find(&mut parent, i)).or_default().push(path);
+    }
+
+    // And the sets themselves in order, by the first connector each
+    // holds. Sorting inside a set is not enough: the sequence of sets
+    // is what decides the order the equations are written in.
+    let mut sets: Vec<Vec<&str>> = sets
+        .into_values()
+        .map(|mut members| {
+            members.sort();
+            members
+        })
+        .collect();
+    sets.sort();
+    for members in sets.iter_mut() {
+        // Connectors in one set must match in shape, not in name: a
+        // signal output and a signal input are different classes with
+        // the same members, and connecting them is the whole point.
+        let class_name = acc.connectors[members[0]].clone();
+        let class = registry[class_name.as_str()];
+        // A connector may say what it holds through a base class: the
+        // multibody frames are one `Frame` with the position, the
+        // orientation and the two flows, and `Frame_a` and `Frame_b`
+        // add nothing to it but an icon. Read from the class alone
+        // those two hold nothing at all, and a flow nobody sums is a
+        // variable no equation ever names.
+        let members_of = |class: &ClassDef| -> Vec<Component> {
+            let mut out = Vec::new();
+            fn gather(
+                registry: &HashMap<&str, &ClassDef>,
+                class: &ClassDef,
+                out: &mut Vec<Component>,
+                depth: usize,
+            ) {
+                if depth > MAX_DEPTH {
+                    return;
+                }
+                for extend in &class.extends {
+                    if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports)
+                    {
+                        gather(registry, base, out, depth + 1);
+                    }
+                }
+                for component in &class.components {
+                    // A member that is a record is not one variable
+                    // but the fields it holds: the magnetic ports of
+                    // the fundamental-wave machines carry a complex
+                    // potential and a complex flux, and flattening
+                    // knows those by `V_m.re` and `V_m.im`. Equating
+                    // the record's own name would name a variable the
+                    // flat model does not have. A field with
+                    // dimensions of its own is left whole, since the
+                    // name it would take is not one this knows.
+                    let held = lookup(registry, &component.type_name, &class.name, &class.imports)
+                        .filter(|of| of.kind == ClassKind::Record)
+                        .filter(|_| component.dimensions.is_empty());
+                    match held {
+                        Some(record) => {
+                            let mut fields = Vec::new();
+                            gather(registry, record, &mut fields, depth + 1);
+                            for mut field in fields {
+                                field.name = format!("{}.{}", component.name, field.name);
+                                field.flow = component.flow;
+                                field.stream = component.stream;
+                                field.variability = component.variability;
+                                out.push(field);
+                            }
+                        }
+                        None => out.push(component.clone()),
+                    }
+                }
+            }
+            gather(registry, class, &mut out, 0);
+            out
+        };
+        let held = members_of(class);
+        let shape = |class: &ClassDef| -> Vec<(String, bool, bool)> {
+            let mut members: Vec<(String, bool, bool)> = members_of(class)
+                .iter()
+                .map(|c| (c.name.clone(), c.flow, c.stream))
+                .collect();
+            members.sort();
+            members
+        };
+        let wanted = shape(class);
+        for member in members.iter() {
+            let other = registry[acc.connectors[*member].as_str()];
+            if shape(other) != wanted {
+                return Err(format!(
+                    "connection set {members:?} joins `{class_name}` to `{}`, \
+                     which have different members",
+                    other.name
+                ));
+            }
+        }
+        // A stream variable rides on the one flow variable of its
+        // connector; without exactly one, `inStream` has no weights.
+        if held.iter().any(|c| c.stream) {
+            let flows = held.iter().filter(|c| c.flow).count();
+            if flows != 1 {
+                return Err(format!(
+                    "connector `{class_name}` carries stream variables, so it needs \
+                     exactly one flow variable, found {flows}"
+                ));
+            }
+        }
+        // A connector that is one value rather than a set of members -
+        // `connector RealInput = input Real` - joins on itself: there
+        // is no member to name, so the paths are the variables.
+        if held.is_empty() && class.alias_of.is_some() {
+            for other in &members[1..] {
+                acc.equations.push(EquationItem {
+                    lhs: Expr::Ref((*other).to_string()),
+                    rhs: Expr::Ref(members[0].to_string()),
+                    origin: String::new(),
+                });
+            }
+            continue;
+        }
+        for member_component in &held {
+            let var = |path: &str| format!("{path}.{}", member_component.name);
+            // A parameter of a connector is not a variable the
+            // connection solves for: the fluid ports of the heat-flow
+            // library each carry the medium they are filled with, and
+            // joining two of them says the media must agree, not that
+            // one is computed from the other. Equating them would ask
+            // the run to solve for something settled before it began.
+            if matches!(
+                member_component.variability,
+                Variability::Parameter | Variability::Constant
+            ) {
+                continue;
+            }
+            if member_component.stream {
+                // A stream variable gets no equation from the
+                // connection: each side's outflow is set by its own
+                // component, and `inStream` reads the others' below.
+                continue;
+            }
+            if member_component.flow {
+                if members.len() == 1 {
+                    // Unconnected connector: flow forced to zero.
+                    acc.equations.push(EquationItem {
+                        lhs: Expr::Ref(var(members[0])),
+                        rhs: Expr::Number(0.0),
+                        origin: String::new(),
+                    });
+                } else {
+                    // Kirchhoff sum over the set.
+                    let sum = members
+                        .iter()
+                        .map(|m| Expr::Ref(var(m)))
+                        .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
+                        .expect("non-empty set");
+                    acc.equations.push(EquationItem {
+                        lhs: sum,
+                        rhs: Expr::Number(0.0),
+                        origin: String::new(),
+                    });
+                }
+            } else if members.len() > 1 {
+                // Potential equalities against the first member.
+                for other in &members[1..] {
+                    acc.equations.push(EquationItem {
+                        lhs: Expr::Ref(var(other)),
+                        rhs: Expr::Ref(var(members[0])),
+                        origin: String::new(),
+                    });
+                }
+            }
+        }
+    }
+
+    // `inStream` and `actualStream` are functions of the connection
+    // set, so only now, with the sets known, do they have a value.
+    let any_streams = acc.connectors.values().any(|class_name| {
+        registry[class_name.as_str()]
+            .components
+            .iter()
+            .any(|c| c.stream)
+    });
+    if any_streams {
+        let mut node_of: HashMap<String, Vec<String>> = HashMap::new();
+        for members in sets.iter() {
+            for member in members.iter() {
+                node_of.insert(
+                    (*member).to_string(),
+                    members.iter().map(|m| (*m).to_string()).collect(),
+                );
+            }
+        }
+        let context = StreamContext {
+            nodes: node_of,
+            connectors: &acc.connectors,
+            outside: &acc.outside,
+            registry,
+        };
+        for equation in &mut acc.equations {
+            equation.lhs = resolve_streams(&equation.lhs, &context)?;
+            equation.rhs = resolve_streams(&equation.rhs, &context)?;
+        }
+        for equation in &mut acc.initial_equations {
+            equation.lhs = resolve_streams(&equation.lhs, &context)?;
+            equation.rhs = resolve_streams(&equation.rhs, &context)?;
+        }
+        for clause in &mut acc.when_clauses {
+            for branch in &mut clause.branches {
+                branch.condition = resolve_streams(&branch.condition, &context)?;
+                for action in &mut branch.actions {
+                    match action {
+                        WhenAction::Assign(_, value)
+                        | WhenAction::Reinit(_, value)
+                        | WhenAction::TupleAssign(_, value) => {
+                            *value = resolve_streams(value, &context)?;
+                        }
+                        // A check made at the event may ask after a
+                        // stream the same way an assignment may.
+                        WhenAction::Assert(condition, _) => {
+                            *condition = resolve_streams(condition, &context)?;
+                        }
+                        // A call on its own is taken apart while
+                        // flattening, which keeps the checks its body
+                        // makes and nothing of the call.
+                        WhenAction::Terminate(_) | WhenAction::Call(..) => {}
+                        // Taken apart while flattening, so neither a
+                        // loop nor a choice is left.
+                        WhenAction::Loop(_) | WhenAction::Choice(_) => {}
+                    }
+                }
+            }
+        }
+        for (condition, _) in &mut acc.asserts {
+            *condition = resolve_streams(condition, &context)?;
+        }
+        for conditional in &mut acc.conditional {
+            for condition in &mut conditional.conditions {
+                *condition = resolve_streams(condition, &context)?;
+            }
+            for branch in &mut conditional.branches {
+                for equation in branch {
+                    equation.lhs = resolve_streams(&equation.lhs, &context)?;
+                    equation.rhs = resolve_streams(&equation.rhs, &context)?;
+                }
+            }
+        }
+    }
+
+    // The branches of a run-time `if` are checked one equation at a
+    // time, the way they were written: merged into residuals they
+    // would look like a volt equated to an ampere, which is exactly
+    // what an ideal switch is and not a mistake.
+
+    Ok(())
 }
 
 /// Write out every `a.b.c` still standing that names a member of an
