@@ -350,6 +350,10 @@ fn one_call(
         return Ok(None);
     };
     let abscissa: Vec<f64> = table.rows.iter().map(|row| row[0]).collect();
+    // Whatever the reading below refuses, it is this table's reading:
+    // the handle is the block the model wrote, and naming it is the
+    // difference between a refusal and a place to look.
+    let named = |why: String| format!("{why}, reading `{handle}`");
     match name {
         "ModelicaStandardTables_CombiTable1D_minimumAbscissa" => {
             Ok(Some(Expr::Number(abscissa[0])))
@@ -357,11 +361,11 @@ fn one_call(
         "ModelicaStandardTables_CombiTable1D_maximumAbscissa" => {
             Ok(Some(Expr::Number(abscissa[abscissa.len() - 1])))
         }
-        "ModelicaStandardTables_CombiTable1D_getValue" if args.len() == 3 => {
-            Ok(Some(interpolate(table, &args[1], &args[2], false)?))
-        }
+        "ModelicaStandardTables_CombiTable1D_getValue" if args.len() == 3 => Ok(Some(
+            interpolate(table, &args[1], &args[2], false).map_err(named)?,
+        )),
         "ModelicaStandardTables_CombiTable1D_getDerValue" if args.len() == 4 => {
-            let slope = interpolate(table, &args[1], &args[2], true)?;
+            let slope = interpolate(table, &args[1], &args[2], true).map_err(named)?;
             Ok(Some(Expr::Bin(
                 BinOp::Mul,
                 Box::new(slope),
@@ -382,9 +386,9 @@ fn one_call(
             Expr::Number(table.rows[table.rows.len() - 1][0]),
             Expr::Number(table.rows[0][table.rows[0].len() - 1]),
         ]))),
-        "ModelicaStandardTables_CombiTable2D_getValue" if args.len() == 3 => {
-            Ok(Some(on_the_grid(table, &args[1], &args[2], Wanted::Value)?))
-        }
+        "ModelicaStandardTables_CombiTable2D_getValue" if args.len() == 3 => Ok(Some(
+            on_the_grid(table, &args[1], &args[2], Wanted::Value).map_err(named)?,
+        )),
         // How fast the value moves is how fast each abscissa moves,
         // weighted by the slope along it - the chain rule, written out
         // because the run is what knows the two rates.
@@ -395,11 +399,11 @@ fn one_call(
             Ok(Some(Expr::Bin(
                 BinOp::Add,
                 Box::new(times(
-                    on_the_grid(table, &args[1], &args[2], Wanted::SlopeDown)?,
+                    on_the_grid(table, &args[1], &args[2], Wanted::SlopeDown).map_err(named)?,
                     &args[3],
                 )),
                 Box::new(times(
-                    on_the_grid(table, &args[1], &args[2], Wanted::SlopeAcross)?,
+                    on_the_grid(table, &args[1], &args[2], Wanted::SlopeAcross).map_err(named)?,
                     &args[4],
                 )),
             )))
@@ -416,11 +420,11 @@ fn one_call(
         "ModelicaStandardTables_CombiTimeTable_maximumTime" => Ok(Some(Expr::Number(
             abscissa[abscissa.len() - 1] + table.shift,
         ))),
-        "ModelicaStandardTables_CombiTimeTable_getValue" if args.len() == 5 => {
-            Ok(Some(interpolate(table, &args[1], &args[2], false)?))
-        }
+        "ModelicaStandardTables_CombiTimeTable_getValue" if args.len() == 5 => Ok(Some(
+            interpolate(table, &args[1], &args[2], false).map_err(named)?,
+        )),
         "ModelicaStandardTables_CombiTimeTable_getDerValue" if args.len() >= 6 => {
-            let slope = interpolate(table, &args[1], &args[2], true)?;
+            let slope = interpolate(table, &args[1], &args[2], true).map_err(named)?;
             Ok(Some(Expr::Bin(
                 BinOp::Mul,
                 Box::new(slope),
@@ -579,7 +583,26 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
     // Akima's rule over an ordinary cubic.
     let akima: Vec<f64> = match table.smoothness == AKIMA_SPLINE {
         false => Vec::new(),
-        true => akima_slopes(table.rows.len(), &at, &value),
+        true => {
+            // A spline is drawn through points that follow one another
+            // along the abscissa, and two points at the same place
+            // leave it nothing to be drawn through: the interval
+            // between them has no width, so the line across it is
+            // undefined rather than flat. Left alone it came out as a
+            // slope of zero and the curve quietly went wrong.
+            //
+            // Straight lines and levels are another matter: there a
+            // repeated abscissa is a step, which the table is entitled
+            // to say, and it keeps working as it did.
+            if let Some(repeated) = (1..table.rows.len()).find(|&row| at(row) == at(row - 1)) {
+                return Err(format!(
+                    "a table asked for an Akima spline gives {} twice on its abscissa, \
+                     and a spline needs the points to follow one another",
+                    at(repeated)
+                ));
+            }
+            akima_slopes(table.rows.len(), &at, &value)
+        }
     };
     // What one interval says, as a value or as a slope.
     let piece = |first: usize| -> Expr {

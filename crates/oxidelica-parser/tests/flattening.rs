@@ -7451,6 +7451,39 @@ fn a_table_asked_for_an_akima_spline_is_written_out_as_one() {
     let known = read("[0, 0; 1, 1; 2, 4; 3, 9]", "2.0");
     assert!((known - 4.0).abs() < 1e-9, "a point it was given: {known}");
 
+    // A spline is drawn through points that follow one another along
+    // the abscissa. Two points at the same place leave the interval
+    // between them no width, and the line across it was quietly taken
+    // for flat.
+    let repeated = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         parameter Real data[4, 2] = [0, 0; 1, 1; 1, 2; 2, 4]; \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 2, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, 0.5); end M;"
+    ))
+    .expect_err("a spline through a step")
+    .message;
+    assert!(repeated.contains("twice on its abscissa"), "{repeated}");
+    assert!(repeated.contains('h'), "the table is named: {repeated}");
+
+    // Straight lines and levels are another matter: a repeated
+    // abscissa is a step, which a table is entitled to say and which
+    // goes on being read as it was.
+    let step = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         parameter Real data[4, 2] = [0, 0; 1, 1; 1, 2; 2, 4]; \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 1, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, 0.5); end M;"
+    ))
+    .expect("a step read as straight lines");
+    let held = step
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "y"))
+        .map(|e| folded(&e.rhs))
+        .expect("the value");
+    assert!((held - 0.5).abs() < 1e-9, "a step read straight: {held}");
+
     // A smoothness this compiler still does not write out is refused
     // by number rather than read as something else.
     let refused = parse_model(&format!(
