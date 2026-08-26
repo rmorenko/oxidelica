@@ -667,227 +667,13 @@ pub(super) fn expand_call(
             let length = constant(&args[1])?;
             Ok(nested_value(&[length], &filler))
         }
-        ("transpose", 1) => {
-            let value = recur(&args[0])?;
-            let shape = value.shape();
-            if shape.len() != 2 {
-                return Err(format!(
-                    "transpose works on a matrix, and {} is of shape {shape:?}",
-                    crate::flatten::names::sketch(&args[0])
-                ));
-            }
-            let Value::Array(rows) = &value else {
-                return Err("transpose works on a matrix".to_string());
-            };
-            (0..shape[1])
-                .map(|column| pick_column(rows, column))
-                .collect::<Result<Vec<_>, String>>()
-                .map(Value::Array)
-        }
-        ("identity", 1) => {
-            let n = constant(&args[0])?;
-            Ok(Value::Array(
-                (1..=n)
-                    .map(|i| {
-                        Value::Array(
-                            (1..=n)
-                                .map(|j| {
-                                    Value::Scalar(Expr::Number(if i == j { 1.0 } else { 0.0 }))
-                                })
-                                .collect(),
-                        )
-                    })
-                    .collect(),
-            ))
-        }
-        ("diagonal", 1) => {
-            let Value::Array(items) = recur(&args[0])? else {
-                return Err("diagonal takes a vector".to_string());
-            };
-            let n = items.len();
-            Ok(Value::Array(
-                (0..n)
-                    .map(|i| {
-                        Value::Array(
-                            (0..n)
-                                .map(|j| {
-                                    if i == j {
-                                        items[i].clone()
-                                    } else {
-                                        Value::Scalar(Expr::Number(0.0))
-                                    }
-                                })
-                                .collect(),
-                        )
-                    })
-                    .collect(),
-            ))
-        }
-        ("cross", 2) => {
-            let (a, b) = (recur(&args[0])?, recur(&args[1])?);
-            let (Value::Array(a), Value::Array(b)) = (&a, &b) else {
-                return Err("cross takes two 3-vectors".to_string());
-            };
-            if a.len() != 3 || b.len() != 3 {
-                return Err("cross takes two 3-vectors".to_string());
-            }
-            let term = |i: usize, j: usize| -> Result<Expr, String> {
-                Ok(Expr::Bin(
-                    BinOp::Mul,
-                    Box::new(a[i].clone().scalar()?),
-                    Box::new(b[j].clone().scalar()?),
-                ))
-            };
-            let minus = |p: Expr, q: Expr| Expr::Bin(BinOp::Sub, Box::new(p), Box::new(q));
-            Ok(Value::Array(vec![
-                Value::Scalar(minus(term(1, 2)?, term(2, 1)?)),
-                Value::Scalar(minus(term(2, 0)?, term(0, 2)?)),
-                Value::Scalar(minus(term(0, 1)?, term(1, 0)?)),
-            ]))
-        }
-        // outerProduct(x, y)[i, j] = x[i] * y[j].
-        ("outerProduct", 2) => {
-            let (Value::Array(x), Value::Array(y)) = (recur(&args[0])?, recur(&args[1])?) else {
-                return Err("outerProduct takes two vectors".to_string());
-            };
-            let rows = x
-                .iter()
-                .map(|xi| {
-                    let xi = xi.clone().scalar()?;
-                    let row = y
-                        .iter()
-                        .map(|yj| {
-                            Ok(Value::Scalar(Expr::Bin(
-                                BinOp::Mul,
-                                Box::new(xi.clone()),
-                                Box::new(yj.clone().scalar()?),
-                            )))
-                        })
-                        .collect::<Result<Vec<_>, String>>()?;
-                    Ok(Value::Array(row))
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            Ok(Value::Array(rows))
-        }
-        // symmetric(A) keeps A on and above the diagonal and mirrors it
-        // below: B[i, j] = A[i, j] for i <= j, else A[j, i].
-        ("symmetric", 1) => {
-            let value = recur(&args[0])?;
-            let shape = value.shape();
-            let Value::Array(rows) = &value else {
-                return Err("symmetric takes a square matrix".to_string());
-            };
-            if shape.len() != 2 || shape[0] != shape[1] {
-                return Err("symmetric takes a square matrix".to_string());
-            }
-            let at = |i: usize, j: usize| -> Result<Value, String> {
-                let Value::Array(row) = &rows[i] else {
-                    return Err("symmetric takes a square matrix".to_string());
-                };
-                Ok(row[j].clone())
-            };
-            let n = shape[0];
-            let out = (0..n)
-                .map(|i| {
-                    let row = (0..n)
-                        .map(|j| if i <= j { at(i, j) } else { at(j, i) })
-                        .collect::<Result<Vec<_>, String>>()?;
-                    Ok(Value::Array(row))
-                })
-                .collect::<Result<Vec<_>, String>>()?;
-            Ok(Value::Array(out))
-        }
-        // skew(x) is the 3x3 matrix with skew(x) * y = cross(x, y):
-        // [0, -x3, x2; x3, 0, -x1; -x2, x1, 0].
-        ("skew", 1) => {
-            let Value::Array(x) = recur(&args[0])? else {
-                return Err("skew takes a 3-vector".to_string());
-            };
-            if x.len() != 3 {
-                return Err("skew takes a 3-vector".to_string());
-            }
-            let e = |k: usize| x[k].clone().scalar();
-            let zero = || Expr::Number(0.0);
-            let neg = |v: Expr| Expr::Neg(Box::new(v));
-            let s = |v: Expr| Value::Scalar(v);
-            Ok(Value::Array(vec![
-                Value::Array(vec![s(zero()), s(neg(e(2)?)), s(e(1)?)]),
-                Value::Array(vec![s(e(2)?), s(zero()), s(neg(e(0)?))]),
-                Value::Array(vec![s(neg(e(1)?)), s(e(0)?), s(zero())]),
-            ]))
-        }
-        // cat(1, ...) stacks along the first dimension; cat(2, ...)
-        // joins along the second.
-        ("cat", n) if n >= 2 => {
-            let along = constant(&args[0])?;
-            let values = args[1..]
-                .iter()
-                .map(&recur)
-                .collect::<Result<Vec<_>, String>>()?;
-            match along {
-                1 => {
-                    let mut out = Vec::new();
-                    for value in values {
-                        match value {
-                            Value::Array(items) => out.extend(items),
-                            scalar => out.push(scalar),
-                        }
-                    }
-                    Ok(Value::Array(out))
-                }
-                2 => {
-                    let rows = values
-                        .first()
-                        .map(|value| value.shape().first().copied().unwrap_or(0))
-                        .unwrap_or(0);
-                    (0..rows)
-                        .map(|row| {
-                            let mut cells = Vec::new();
-                            for value in &values {
-                                let Value::Array(these) = value else {
-                                    return Err("cat(2, ...) takes matrices".to_string());
-                                };
-                                let Some(Value::Array(row_cells)) = these.get(row) else {
-                                    return Err("cat(2, ...) needs equal row counts".to_string());
-                                };
-                                cells.extend(row_cells.iter().cloned());
-                            }
-                            Ok(Value::Array(cells))
-                        })
-                        .collect::<Result<Vec<_>, String>>()
-                        .map(Value::Array)
-                }
-                other => Err(format!("cat along dimension {other} is not supported")),
-            }
-        }
-        ("linspace", 3) => {
-            let (from, to) = (recur(&args[0])?.scalar()?, recur(&args[1])?.scalar()?);
-            let length = constant(&args[2])?;
-            if length < 2 {
-                return Err("linspace needs at least two points".to_string());
-            }
-            Ok(Value::Array(
-                (0..length)
-                    .map(|index| {
-                        let fraction = index as f64 / (length - 1) as f64;
-                        // from + (to - from) * fraction
-                        Value::Scalar(Expr::Bin(
-                            BinOp::Add,
-                            Box::new(from.clone()),
-                            Box::new(Expr::Bin(
-                                BinOp::Mul,
-                                Box::new(Expr::Bin(
-                                    BinOp::Sub,
-                                    Box::new(to.clone()),
-                                    Box::new(from.clone()),
-                                )),
-                                Box::new(Expr::Number(fraction)),
-                            )),
-                        ))
-                    })
-                    .collect(),
-            ))
-        }
+        // The array constructors and rearrangers: a shape built or a
+        // shape turned about.
+        (
+            "transpose" | "identity" | "diagonal" | "cross" | "outerProduct" | "symmetric" | "skew"
+            | "cat" | "linspace",
+            _,
+        ) => shaped_by_a_builtin(name, args, shapes, registry, scope, imports, depth),
         (PARTIAL_CALL, _) => Err(format!(
             "a function is given as an argument with some of what it takes already filled \
              in - {} - and there is nothing here to pass a function around in",
@@ -1163,6 +949,265 @@ pub(super) fn expand_call(
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(Value::Array(elements))
         }
+    }
+}
+
+/// The builtins that build a shape or turn one about: `transpose`,
+/// `identity`, `diagonal`, `cross`, `outerProduct`, `symmetric`,
+/// `skew`, `cat` and `linspace`.
+///
+/// Moved out of `expand_call` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn shaped_by_a_builtin(
+    name: &str,
+    args: &[Expr],
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let constant = |e: &Expr| -> Result<i64, String> {
+        let value = recur(e)?.scalar()?;
+        let value = settled_by(&value, shapes).ok_or_else(|| {
+            format!(
+                "`{name}` needs a length the compiler can see: {}",
+                crate::flatten::names::sketch(&value)
+            )
+        })?;
+        if value.fract() != 0.0 || value < 0.0 {
+            return Err(format!(
+                "`{name}`: a length must be a whole number, got {value}"
+            ));
+        }
+        Ok(value as i64)
+    };
+    match (name, args.len()) {
+        ("transpose", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            if shape.len() != 2 {
+                return Err(format!(
+                    "transpose works on a matrix, and {} is of shape {shape:?}",
+                    crate::flatten::names::sketch(&args[0])
+                ));
+            }
+            let Value::Array(rows) = &value else {
+                return Err("transpose works on a matrix".to_string());
+            };
+            (0..shape[1])
+                .map(|column| pick_column(rows, column))
+                .collect::<Result<Vec<_>, String>>()
+                .map(Value::Array)
+        }
+        ("identity", 1) => {
+            let n = constant(&args[0])?;
+            Ok(Value::Array(
+                (1..=n)
+                    .map(|i| {
+                        Value::Array(
+                            (1..=n)
+                                .map(|j| {
+                                    Value::Scalar(Expr::Number(if i == j { 1.0 } else { 0.0 }))
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+        ("diagonal", 1) => {
+            let Value::Array(items) = recur(&args[0])? else {
+                return Err("diagonal takes a vector".to_string());
+            };
+            let n = items.len();
+            Ok(Value::Array(
+                (0..n)
+                    .map(|i| {
+                        Value::Array(
+                            (0..n)
+                                .map(|j| {
+                                    if i == j {
+                                        items[i].clone()
+                                    } else {
+                                        Value::Scalar(Expr::Number(0.0))
+                                    }
+                                })
+                                .collect(),
+                        )
+                    })
+                    .collect(),
+            ))
+        }
+        ("cross", 2) => {
+            let (a, b) = (recur(&args[0])?, recur(&args[1])?);
+            let (Value::Array(a), Value::Array(b)) = (&a, &b) else {
+                return Err("cross takes two 3-vectors".to_string());
+            };
+            if a.len() != 3 || b.len() != 3 {
+                return Err("cross takes two 3-vectors".to_string());
+            }
+            let term = |i: usize, j: usize| -> Result<Expr, String> {
+                Ok(Expr::Bin(
+                    BinOp::Mul,
+                    Box::new(a[i].clone().scalar()?),
+                    Box::new(b[j].clone().scalar()?),
+                ))
+            };
+            let minus = |p: Expr, q: Expr| Expr::Bin(BinOp::Sub, Box::new(p), Box::new(q));
+            Ok(Value::Array(vec![
+                Value::Scalar(minus(term(1, 2)?, term(2, 1)?)),
+                Value::Scalar(minus(term(2, 0)?, term(0, 2)?)),
+                Value::Scalar(minus(term(0, 1)?, term(1, 0)?)),
+            ]))
+        }
+        // outerProduct(x, y)[i, j] = x[i] * y[j].
+        ("outerProduct", 2) => {
+            let (Value::Array(x), Value::Array(y)) = (recur(&args[0])?, recur(&args[1])?) else {
+                return Err("outerProduct takes two vectors".to_string());
+            };
+            let rows = x
+                .iter()
+                .map(|xi| {
+                    let xi = xi.clone().scalar()?;
+                    let row = y
+                        .iter()
+                        .map(|yj| {
+                            Ok(Value::Scalar(Expr::Bin(
+                                BinOp::Mul,
+                                Box::new(xi.clone()),
+                                Box::new(yj.clone().scalar()?),
+                            )))
+                        })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    Ok(Value::Array(row))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Array(rows))
+        }
+        // symmetric(A) keeps A on and above the diagonal and mirrors it
+        // below: B[i, j] = A[i, j] for i <= j, else A[j, i].
+        ("symmetric", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            let Value::Array(rows) = &value else {
+                return Err("symmetric takes a square matrix".to_string());
+            };
+            if shape.len() != 2 || shape[0] != shape[1] {
+                return Err("symmetric takes a square matrix".to_string());
+            }
+            let at = |i: usize, j: usize| -> Result<Value, String> {
+                let Value::Array(row) = &rows[i] else {
+                    return Err("symmetric takes a square matrix".to_string());
+                };
+                Ok(row[j].clone())
+            };
+            let n = shape[0];
+            let out = (0..n)
+                .map(|i| {
+                    let row = (0..n)
+                        .map(|j| if i <= j { at(i, j) } else { at(j, i) })
+                        .collect::<Result<Vec<_>, String>>()?;
+                    Ok(Value::Array(row))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            Ok(Value::Array(out))
+        }
+        // skew(x) is the 3x3 matrix with skew(x) * y = cross(x, y):
+        // [0, -x3, x2; x3, 0, -x1; -x2, x1, 0].
+        ("skew", 1) => {
+            let Value::Array(x) = recur(&args[0])? else {
+                return Err("skew takes a 3-vector".to_string());
+            };
+            if x.len() != 3 {
+                return Err("skew takes a 3-vector".to_string());
+            }
+            let e = |k: usize| x[k].clone().scalar();
+            let zero = || Expr::Number(0.0);
+            let neg = |v: Expr| Expr::Neg(Box::new(v));
+            let s = |v: Expr| Value::Scalar(v);
+            Ok(Value::Array(vec![
+                Value::Array(vec![s(zero()), s(neg(e(2)?)), s(e(1)?)]),
+                Value::Array(vec![s(e(2)?), s(zero()), s(neg(e(0)?))]),
+                Value::Array(vec![s(neg(e(1)?)), s(e(0)?), s(zero())]),
+            ]))
+        }
+        // cat(1, ...) stacks along the first dimension; cat(2, ...)
+        // joins along the second.
+        ("cat", n) if n >= 2 => {
+            let along = constant(&args[0])?;
+            let values = args[1..]
+                .iter()
+                .map(&recur)
+                .collect::<Result<Vec<_>, String>>()?;
+            match along {
+                1 => {
+                    let mut out = Vec::new();
+                    for value in values {
+                        match value {
+                            Value::Array(items) => out.extend(items),
+                            scalar => out.push(scalar),
+                        }
+                    }
+                    Ok(Value::Array(out))
+                }
+                2 => {
+                    let rows = values
+                        .first()
+                        .map(|value| value.shape().first().copied().unwrap_or(0))
+                        .unwrap_or(0);
+                    (0..rows)
+                        .map(|row| {
+                            let mut cells = Vec::new();
+                            for value in &values {
+                                let Value::Array(these) = value else {
+                                    return Err("cat(2, ...) takes matrices".to_string());
+                                };
+                                let Some(Value::Array(row_cells)) = these.get(row) else {
+                                    return Err("cat(2, ...) needs equal row counts".to_string());
+                                };
+                                cells.extend(row_cells.iter().cloned());
+                            }
+                            Ok(Value::Array(cells))
+                        })
+                        .collect::<Result<Vec<_>, String>>()
+                        .map(Value::Array)
+                }
+                other => Err(format!("cat along dimension {other} is not supported")),
+            }
+        }
+        ("linspace", 3) => {
+            let (from, to) = (recur(&args[0])?.scalar()?, recur(&args[1])?.scalar()?);
+            let length = constant(&args[2])?;
+            if length < 2 {
+                return Err("linspace needs at least two points".to_string());
+            }
+            Ok(Value::Array(
+                (0..length)
+                    .map(|index| {
+                        let fraction = index as f64 / (length - 1) as f64;
+                        // from + (to - from) * fraction
+                        Value::Scalar(Expr::Bin(
+                            BinOp::Add,
+                            Box::new(from.clone()),
+                            Box::new(Expr::Bin(
+                                BinOp::Mul,
+                                Box::new(Expr::Bin(
+                                    BinOp::Sub,
+                                    Box::new(to.clone()),
+                                    Box::new(from.clone()),
+                                )),
+                                Box::new(Expr::Number(fraction)),
+                            )),
+                        ))
+                    })
+                    .collect(),
+            ))
+        }
+        _ => Err(format!(
+            "`{name}` is not one this compiler builds shapes with"
+        )),
     }
 }
 
