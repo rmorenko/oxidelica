@@ -1543,12 +1543,14 @@ pub(super) fn resolve(
                 _ => Expr::Call(name.clone(), args),
             }
         }
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
+        // Arithmetic and logic hold expressions and nothing this pass
+        // has an opinion about.
+        Expr::Neg(_)
+        | Expr::Not(_)
+        | Expr::Bin(..)
+        | Expr::Rel(..)
+        | Expr::And(..)
+        | Expr::Or(..) => expr.try_map_children(&mut |child| recur(child))?,
         Expr::If(c, a, b) => {
             let condition = recur(c)?;
             let mut env = consts.clone();
@@ -1594,15 +1596,12 @@ pub(super) fn resolve(
             return Err("`:` and `end` make sense only inside a subscript".to_string())
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
-        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
-            Box::new(recur(value)?),
-            Box::new(recur(rule)?),
-            seeds
-                .iter()
-                .map(|(name, arg)| Ok((name.clone(), recur(arg)?)))
-                .collect::<Result<Vec<_>, String>>()?,
-        ),
-        Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value)?)),
+        // A call kept whole for its derivative, and a keyword naming
+        // an input rather than a component: both hold expressions and
+        // nothing else this pass reads.
+        Expr::WithDerivative(..) | Expr::NamedArg(..) => {
+            expr.try_map_children(&mut |child| recur(child))?
+        }
         Expr::Tuple(_) => {
             return Err("a tuple may only stand on the left of `=` or `:=`".to_string())
         }
