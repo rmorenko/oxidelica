@@ -2235,8 +2235,25 @@ fn worked_body(
     // caller's - `m` becomes `conv.m` - so the numbers a length is read
     // against have to be the caller's, with what the call decided on
     // top of them.
-    let mut caller_numbers = consts.clone();
-    caller_numbers.extend(given.iter().map(|(name, value)| (name.clone(), *value)));
+    //
+    // Copied only where there is a length left to measure. Nearly
+    // every body says its lengths in plain numbers and the round above
+    // measures them all, and every one of those was paying for a copy
+    // of every number the model had settled.
+    let unmeasured = || {
+        class
+            .components
+            .iter()
+            .any(|c| !c.dimensions.is_empty() && !sizes.contains_key(&c.name))
+    };
+    let caller_numbers = match unmeasured() {
+        false => HashMap::new(),
+        true => {
+            let mut numbers = consts.clone();
+            numbers.extend(given.iter().map(|(name, value)| (name.clone(), *value)));
+            numbers
+        }
+    };
     for component in &class.components {
         if component.dimensions.is_empty() || sizes.contains_key(&component.name) {
             continue;
