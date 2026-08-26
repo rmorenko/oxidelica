@@ -7264,6 +7264,66 @@ const TABLE_BLOCK: &str = "package Blocks \
        external \"C\" u = ModelicaStandardTables_CombiTable1D_maximumAbscissa(h); end umax; \
    end Blocks; ";
 
+const GRID_BLOCK: &str = "package Grid \
+     class Handle extends ExternalObject; \
+       function constructor input String tableName; input String fileName; \
+         input Real table[:, :]; input Integer smoothness; \
+         input Integer extrapolation; output Handle h; \
+         external \"C\" h = ModelicaStandardTables_CombiTable2D_init(fileName, tableName, \
+           table, size(table, 1), size(table, 2), smoothness, \
+           extrapolation); end constructor; \
+       function destructor input Handle h; \
+         external \"C\" ModelicaStandardTables_CombiTable2D_close(h); end destructor; \
+     end Handle; \
+     function getValue input Handle h; input Real u1; input Real u2; output Real y; \
+       external \"C\" y = ModelicaStandardTables_CombiTable2D_getValue(h, u1, u2); \
+       end getValue; \
+     function umin input Handle h; output Real u[2]; \
+       external \"C\" ModelicaStandardTables_CombiTable2D_minimumAbscissa(h, u); end umin; \
+     function umax input Handle h; output Real u[2]; \
+       external \"C\" ModelicaStandardTables_CombiTable2D_maximumAbscissa(h, u); end umax; \
+   end Grid; ";
+
+/// A two-dimensional table is read by where two abscissae fall in its
+/// grid, and both ends of the grid come back at once.
+#[test]
+fn a_grid_the_model_wrote_is_read_bilinearly() {
+    // The grid says 10, 20 along the top and 30, 40 below, at 1 and 2
+    // on either abscissa. The middle of it is the four corners
+    // averaged, which is 25.
+    let m = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 2); \
+         Real y; Real low1; Real high2; \
+         equation y = Grid.getValue(h, 1.5, 1.5); \
+         low1 = Grid.umin(h)[1]; high2 = Grid.umax(h)[2]; end M;"
+    ))
+    .unwrap();
+    let said = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| format!("{:?}", e.rhs))
+            .unwrap_or_default()
+    };
+    // Both ends of the grid arrive as a pair, and each parameter takes
+    // its own of it rather than the whole.
+    assert_eq!(said("low1"), "Number(1.0)");
+    assert_eq!(said("high2"), "Number(2.0)");
+    // Nothing outside Modelica is left in the model, and the middle
+    // reads as the average of the corners.
+    let written = said("y");
+    assert!(!written.contains("ModelicaStandardTables"), "{written}");
+    // Written out as the corner it starts from and the three weights
+    // that carry it across the cell: 10 at the near corner, 20 down
+    // and 10 across, which comes to 25 in the middle.
+    assert!(
+        written.contains("Number(10.0)") && written.contains("Number(20.0)"),
+        "the corners of the cell: {written}"
+    );
+}
+
 #[test]
 fn a_table_the_model_wrote_is_written_out_rather_than_run() {
     // Straight lines between the rows, carried on beyond the ends -

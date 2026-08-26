@@ -156,8 +156,18 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
     // far it is shifted.
     let time_table = made.starts_with("ModelicaStandardTables_CombiTimeTable_init");
     let plain = made.starts_with("ModelicaStandardTables_CombiTable1D_init");
-    let wanted = if time_table { 8 } else { 6 };
-    if (!time_table && !plain)
+    // A two-dimensional table is handed the same things in the same
+    // order, and differs in what the matrix means rather than in how
+    // it arrives.
+    let grid = made.starts_with("ModelicaStandardTables_CombiTable2D_init");
+    // A grid says one thing fewer than a list of outputs: it has no
+    // columns to be told about.
+    let wanted = match (time_table, grid) {
+        (true, _) => 8,
+        (_, true) => 5,
+        _ => 6,
+    };
+    if (!time_table && !plain && !grid)
         || args.len() < wanted
         || !matches!(&args[1], Expr::Str(name) if name == "NoName")
     {
@@ -172,15 +182,22 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
         return None;
     }
     let at = |which: usize| which + usize::from(time_table);
-    let columns: Vec<usize> = vector(&args[at(3)], numbers)?
-        .into_iter()
-        .map(|column| column as usize)
-        .collect();
+    // A grid says nothing about which columns to read - it is read by
+    // where the two abscissae fall - and is handed the smoothness
+    // where a list of outputs is handed its columns.
+    let columns: Vec<usize> = match grid {
+        true => Vec::new(),
+        false => vector(&args[at(3)], numbers)?
+            .into_iter()
+            .map(|column| column as usize)
+            .collect(),
+    };
+    let said = |which: usize| at(which) - usize::from(grid);
     Some(Table {
         rows,
         columns,
-        smoothness: const_eval(&args[at(4)], numbers)?,
-        extrapolation: const_eval(&args[at(5)], numbers)?,
+        smoothness: const_eval(&args[said(4)], numbers)?,
+        extrapolation: const_eval(&args[said(5)], numbers)?,
         shift: match time_table {
             true => const_eval(&args[7], numbers)?,
             false => 0.0,
@@ -266,6 +283,20 @@ fn written_out(expr: &Expr, tables: &HashMap<String, Table>) -> Result<Expr, Str
             return Ok(said);
         }
     }
+    // Both ends of a grid come back as a pair, and each of the two
+    // parameters holding them wants one of it: `u_min[1]` is the first
+    // abscissa's least, `u_min[2]` the second's. Flattening has already
+    // made them separate parameters, so the subscript is here to be
+    // read and the pair is not.
+    if let Expr::Index(of, at) = expr {
+        if let Expr::Array(pair) = written_out(of, tables)? {
+            if let [Expr::Number(index)] = at.as_slice() {
+                if let Some(one) = pair.get(*index as usize - 1) {
+                    return Ok(one.clone());
+                }
+            }
+        }
+    }
     Ok(match expr {
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
@@ -328,6 +359,42 @@ fn one_call(
                 Box::new(args[3].clone()),
             )))
         }
+        // A two-dimensional table is read by where two abscissae fall
+        // in the grid: the top row is the second, the left column the
+        // first, and the corner cell belongs to neither.
+        // Both ends of a grid come back at once: the C function is
+        // handed the array to fill rather than asked which one is
+        // wanted, so what answers it is the pair.
+        "ModelicaStandardTables_CombiTable2D_minimumAbscissa" => Ok(Some(Expr::Array(vec![
+            Expr::Number(table.rows[1][0]),
+            Expr::Number(table.rows[0][1]),
+        ]))),
+        "ModelicaStandardTables_CombiTable2D_maximumAbscissa" => Ok(Some(Expr::Array(vec![
+            Expr::Number(table.rows[table.rows.len() - 1][0]),
+            Expr::Number(table.rows[0][table.rows[0].len() - 1]),
+        ]))),
+        "ModelicaStandardTables_CombiTable2D_getValue" if args.len() == 3 => {
+            Ok(Some(on_the_grid(table, &args[1], &args[2], Wanted::Value)?))
+        }
+        // How fast the value moves is how fast each abscissa moves,
+        // weighted by the slope along it - the chain rule, written out
+        // because the run is what knows the two rates.
+        "ModelicaStandardTables_CombiTable2D_getDerValue" if args.len() == 5 => {
+            let times = |slope: Expr, rate: &Expr| {
+                Expr::Bin(BinOp::Mul, Box::new(slope), Box::new(rate.clone()))
+            };
+            Ok(Some(Expr::Bin(
+                BinOp::Add,
+                Box::new(times(
+                    on_the_grid(table, &args[1], &args[2], Wanted::SlopeDown)?,
+                    &args[3],
+                )),
+                Box::new(times(
+                    on_the_grid(table, &args[1], &args[2], Wanted::SlopeAcross)?,
+                    &args[4],
+                )),
+            )))
+        }
         // The same, where the abscissa is time. Both are asked for
         // the instant to look at and, in the time table's case, for
         // the two event instants around it - which say which side of a
@@ -381,6 +448,160 @@ fn one_call(
 /// The last branch is what stands beyond the table, which is the same
 /// line as the last interval where the extrapolation says to carry it
 /// on and a level where it says to hold.
+/// What is wanted of a two-dimensional table at a point: the value
+/// there, or how fast it changes along one abscissa or the other.
+#[derive(Clone, Copy, PartialEq)]
+enum Wanted {
+    Value,
+    SlopeDown,
+    SlopeAcross,
+}
+
+/// What a two-dimensional table says at `(u1, u2)`.
+///
+/// The matrix is a grid: its top row is the second abscissa, its left
+/// column the first, and the corner cell belongs to neither. A point
+/// inside falls in one cell of it, and what the table says there is
+/// the four corners weighted by how far into the cell it is - the
+/// bilinear reading the standard tables do. Outside, the nearest edge
+/// is held, which is what `LastTwoPoints` comes to for a grid whose
+/// edges this does not carry on past.
+fn on_the_grid(table: &Table, u1: &Expr, u2: &Expr, wanted: Wanted) -> Result<Expr, String> {
+    if table.smoothness != LINEAR_SEGMENTS && table.smoothness != CONSTANT_SEGMENTS {
+        return Err(
+            "a table asks for spline interpolation, and this compiler writes out the linear \
+             and the constant only"
+                .to_string(),
+        );
+    }
+    let down: Vec<f64> = table.rows[1..].iter().map(|row| row[0]).collect();
+    let across: Vec<f64> = table.rows[0][1..].to_vec();
+    if down.is_empty() || across.is_empty() {
+        return Err("a two-dimensional table has no grid to read".to_string());
+    }
+    let cell = |i: usize, j: usize| table.rows[1 + i][1 + j];
+    // How far into an interval a value is, held at the ends: the
+    // fraction is written out rather than worked out, since what the
+    // table is asked at is not known until the run.
+    let along = |axis: &[f64], u: &Expr, at: usize| -> Expr {
+        let (near, far) = (axis[at], axis[at + 1]);
+        let run = far - near;
+        if run == 0.0 || table.smoothness == CONSTANT_SEGMENTS {
+            return Expr::Number(0.0);
+        }
+        Expr::Bin(
+            BinOp::Div,
+            Box::new(Expr::Bin(
+                BinOp::Sub,
+                Box::new(u.clone()),
+                Box::new(Expr::Number(near)),
+            )),
+            Box::new(Expr::Number(run)),
+        )
+    };
+    // One cell of the grid, read bilinearly:
+    // `c00 + (c10 - c00)*s + (c01 - c00)*t + (c00 - c10 - c01 + c11)*s*t`
+    //
+    // The slope along either abscissa is that expression differentiated
+    // by the fraction along it, divided by how wide the interval is:
+    // `d/du1 = ((c10 - c00) + (c00 - c10 - c01 + c11)*t) / (u1 span)`.
+    let piece = |i: usize, j: usize| -> Expr {
+        let (c00, c10, c01, c11) = match (down.len() > 1, across.len() > 1) {
+            (true, true) => (
+                cell(i, j),
+                cell(i + 1, j),
+                cell(i, j + 1),
+                cell(i + 1, j + 1),
+            ),
+            (true, false) => (cell(i, j), cell(i + 1, j), cell(i, j), cell(i + 1, j)),
+            (false, true) => (cell(i, j), cell(i, j), cell(i, j + 1), cell(i, j + 1)),
+            (false, false) => (cell(i, j), cell(i, j), cell(i, j), cell(i, j)),
+        };
+        let s = match down.len() > 1 {
+            true => along(&down, u1, i),
+            false => Expr::Number(0.0),
+        };
+        let t = match across.len() > 1 {
+            true => along(&across, u2, j),
+            false => Expr::Number(0.0),
+        };
+        let times = |a: Expr, b: Expr| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b));
+        let plus = |a: Expr, b: Expr| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b));
+        let corner = c00 - c10 - c01 + c11;
+        let span = |axis: &[f64], at: usize| -> f64 {
+            match axis.len() > 1 {
+                true => axis[at + 1] - axis[at],
+                false => 0.0,
+            }
+        };
+        match wanted {
+            Wanted::Value => plus(
+                plus(
+                    plus(Expr::Number(c00), times(Expr::Number(c10 - c00), s.clone())),
+                    times(Expr::Number(c01 - c00), t.clone()),
+                ),
+                times(Expr::Number(corner), times(s, t)),
+            ),
+            Wanted::SlopeDown => {
+                let run = span(&down, i);
+                if run == 0.0 || table.smoothness == CONSTANT_SEGMENTS {
+                    return Expr::Number(0.0);
+                }
+                plus(
+                    Expr::Number((c10 - c00) / run),
+                    times(Expr::Number(corner / run), t),
+                )
+            }
+            Wanted::SlopeAcross => {
+                let run = span(&across, j);
+                if run == 0.0 || table.smoothness == CONSTANT_SEGMENTS {
+                    return Expr::Number(0.0);
+                }
+                plus(
+                    Expr::Number((c01 - c00) / run),
+                    times(Expr::Number(corner / run), s),
+                )
+            }
+        }
+    };
+    // Built from the far end back, so the nearest test ends up first
+    // and a point past the last edge lands on the last cell held.
+    let last_i = down.len().saturating_sub(2);
+    let last_j = across.len().saturating_sub(2);
+    let mut written = piece(last_i, last_j);
+    for i in (0..=last_i).rev() {
+        let mut row = piece(i, last_j);
+        for j in (0..=last_j).rev() {
+            if j == last_j {
+                continue;
+            }
+            row = Expr::If(
+                Box::new(Expr::Rel(
+                    RelOp::Lt,
+                    Box::new(u2.clone()),
+                    Box::new(Expr::Number(across[j + 1])),
+                )),
+                Box::new(piece(i, j)),
+                Box::new(row),
+            );
+        }
+        if i == last_i {
+            written = row;
+            continue;
+        }
+        written = Expr::If(
+            Box::new(Expr::Rel(
+                RelOp::Lt,
+                Box::new(u1.clone()),
+                Box::new(Expr::Number(down[i + 1])),
+            )),
+            Box::new(row),
+            Box::new(written),
+        );
+    }
+    Ok(written)
+}
+
 fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Expr, String> {
     let which = const_eval(column, &HashMap::new())
         .ok_or_else(|| "a table is asked for a column the compiler cannot see".to_string())?;

@@ -41,6 +41,10 @@ pub(super) fn answered_here(called: &str) -> bool {
             | "ModelicaStandardTables_CombiTimeTable_getValue"
             | "ModelicaStandardTables_CombiTimeTable_getDerValue"
             | "ModelicaStandardTables_CombiTimeTable_nextTimeEvent"
+            | "ModelicaStandardTables_CombiTable2D_minimumAbscissa"
+            | "ModelicaStandardTables_CombiTable2D_maximumAbscissa"
+            | "ModelicaStandardTables_CombiTable2D_getValue"
+            | "ModelicaStandardTables_CombiTable2D_getDerValue"
     )
 }
 

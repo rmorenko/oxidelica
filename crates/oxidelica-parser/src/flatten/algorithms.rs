@@ -2015,6 +2015,23 @@ fn worked_body(
             .iter()
             .find(|c| c.causality == Causality::Output)
             .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
+        // An answer declared an array is taken a place at a time: the
+        // two-dimensional tables give both ends of their grid at once
+        // - `output Real uMin[2]` - and the model holds each end as a
+        // parameter of its own. Bound to the call whole, both ends
+        // were the whole pair and neither could be worked out.
+        if let [Expr::Number(length)] = output.dimensions.as_slice() {
+            return Ok(vec![(
+                output.name.clone(),
+                Expr::Array(
+                    (1..=*length as i64)
+                        .map(|index| {
+                            Expr::Index(Box::new(made.clone()), vec![Expr::Number(index as f64)])
+                        })
+                        .collect(),
+                ),
+            )]);
+        }
         return Ok(vec![(output.name.clone(), made)]);
     }
     // What a function takes and answers with may be written in a base
