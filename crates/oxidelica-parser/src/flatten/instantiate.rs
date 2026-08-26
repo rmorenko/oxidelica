@@ -2130,11 +2130,22 @@ fn flatten_if_equations<'a>(
             if tuple_equation(equation, acc)? {
                 continue;
             }
+            // An `if` written in an `initial equation` section says
+            // where the run begins, so what its branch holds joins the
+            // initial equations rather than the running ones - the
+            // integrator's `if initType == ... then y = y_start` is
+            // one, and read as an ordinary equation it left the model
+            // with one equation more than it had unknowns.
+            let boundary = acc.equations.len();
             push_equations(
                 &expand_here(&equation.lhs, &no_loop_vars)?,
                 &expand_here(&equation.rhs, &no_loop_vars)?,
                 acc,
             )?;
+            if if_equation.initial {
+                let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
+                acc.initial_equations.extend(written);
+            }
         }
         for (a, b) in &branch.connects {
             let shapes = Shapes {

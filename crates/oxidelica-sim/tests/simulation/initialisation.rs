@@ -482,3 +482,29 @@ fn an_initial_equation_about_a_boolean_says_where_it_starts() {
     let first = result.rows.first().unwrap();
     assert_eq!(first[on], 1.0, "the initial equation says it starts true");
 }
+
+/// An `if` in an `initial equation` section says where the run begins.
+#[test]
+fn an_if_among_the_initial_equations_stays_initial() {
+    // The standard library's integrator chooses how to start with
+    // `if initType == ... then y = y_start`. Read as an ordinary `if`,
+    // the branch it picked became an equation of the running model,
+    // and the model came out with one equation more than it had
+    // unknowns - which is what nine models were refused for.
+    let result = run("package P block B parameter Boolean pick = false; \
+         parameter Real start_value = 3; Real y; Real u; \
+         initial equation if pick then der(y) = 0; else y = start_value; end if; \
+         equation der(y) = u; end B; \
+         model M B b; Real out; equation b.u = 1; out = b.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;");
+    let at = |name: &str| {
+        let column = result
+            .columns
+            .iter()
+            .position(|held| held == name)
+            .unwrap_or_else(|| panic!("{name} is not a column: {:?}", result.columns));
+        result.rows[result.rows.len() - 1][column]
+    };
+    // Started at three and integrated one for a second.
+    assert!((at("b.y") - 4.0).abs() < 1e-6, "{}", at("b.y"));
+}

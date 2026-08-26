@@ -320,8 +320,17 @@ impl Parser {
                 Token::For => {
                     for_equations.push(self.for_equation()?);
                 }
+                // An `if` written in an `initial equation` section
+                // says where the run begins rather than what holds
+                // throughout it, and what its branch holds has to join
+                // the initial equations. Read as an ordinary `if`, the
+                // branch became an equation of the running model and
+                // the model came out with one equation more than it
+                // had unknowns.
                 Token::If if in_equations => {
-                    if_equations.push(self.if_equation()?);
+                    let mut written = self.if_equation()?;
+                    written.initial = in_initial;
+                    if_equations.push(written);
                 }
                 Token::Annotation => {
                     self.parse_annotation(&mut annotated)?;

@@ -644,6 +644,10 @@ pub struct Transition {
 pub struct IfEquation {
     /// Branches in source order, the `else` one last where present.
     pub branches: Vec<IfBranch>,
+    /// Whether it was written in an `initial equation` section, in
+    /// which case what the branch holds says where the run begins
+    /// rather than what holds throughout it.
+    pub initial: bool,
 }
 
 /// A `when <condition> then <actions> [elsewhen …] end when;` clause.

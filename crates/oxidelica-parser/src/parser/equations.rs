@@ -228,7 +228,10 @@ impl Parser {
         {
             return Err(self.err("if equation has no equations".into()));
         }
-        Ok(IfEquation { branches })
+        Ok(IfEquation {
+            branches,
+            initial: false,
+        })
     }
 
     /// What one branch holds, up to the next `elseif`, `else` or `end`:
