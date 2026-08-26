@@ -750,6 +750,18 @@ fn library_check(args: &[String]) -> Result<(), String> {
     }
     report(&why_not, "  ", list);
     println!("of the {} that flatten, {} run:", flat.len(), ran.len());
+    // The same, for a model that was built and then would not run.
+    // These are the larger half now - the models that flatten outnumber
+    // the ones that run two to one - and until this was printed the
+    // only way to see what they stand at was one model at a time.
+    if refused_each {
+        let mut each: Vec<&(String, String)> = would_not_run.iter().collect();
+        each.sort_by(|a, b| a.1.cmp(&b.1));
+        for (why, name) in each {
+            let head = &why[..why.len().min(100)];
+            println!("  built    {name}\t{head}");
+        }
+    }
     report(&would_not_run, "  ", list);
     Ok(())
 }
