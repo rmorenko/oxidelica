@@ -68,6 +68,14 @@ This replaced the routine of writing a throwaway model, adding
 Where it does not answer the question, the fix is usually to make it
 answer the question rather than to go back to the printlns.
 
+Shrink the failing model rather than growing a synthetic one. A
+synthetic model tests the layer you already imagined: seven of them
+were written against a refusal about redeclared media, all seven
+passed, and the bug turned out to be in the record builder, where no
+redeclaration layer goes. Throwing components out of the real model
+while the refusal survives leads to the layer that could not be
+imagined.
+
 `OXIDELICA_WHERE=1` puts the file and line on a compiler refusal, which
 answers which of the several places raising a message raised this one.
 A debugger was measured against this and lost: it has no Rust plugin
