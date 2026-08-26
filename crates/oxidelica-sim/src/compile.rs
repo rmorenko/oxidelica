@@ -10,6 +10,9 @@ pub(crate) fn substitute_derivatives(
     states: &[String],
     derivatives: &[Expr],
 ) -> Result<Expr, SimError> {
+    // The one case this is about: `der(x)` becomes whatever stands for
+    // the derivative of `x`, and everything else is the same
+    // expression with its children substituted.
     if let Some(state) = expr.as_der_of() {
         let Some(index) = states.iter().position(|s| s == state) else {
             return err(format!(
@@ -18,27 +21,7 @@ pub(crate) fn substitute_derivatives(
         };
         return Ok(derivatives[index].clone());
     }
-    let recur = |e: &Expr| substitute_derivatives(e, states, derivatives);
-    Ok(match expr {
-        Expr::Call(name, args) => Expr::Call(
-            name.clone(),
-            args.iter()
-                .map(recur)
-                .collect::<Result<Vec<_>, SimError>>()?,
-        ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::If(c, a, b) => Expr::If(
-            Box::new(recur(c)?),
-            Box::new(recur(a)?),
-            Box::new(recur(b)?),
-        ),
-        other => other.clone(),
-    })
+    expr.try_map_children(&mut |child| substitute_derivatives(child, states, derivatives))
 }
 
 /// Which states each state's right-hand side depends on, and a grouping

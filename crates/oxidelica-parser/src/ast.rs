@@ -965,6 +965,92 @@ impl Expr {
         }
     }
 
+    /// The same, for a walk that may refuse: the first refusal is the
+    /// answer, and nothing below it is asked.
+    pub fn try_map_children<E>(
+        &self,
+        f: &mut dyn FnMut(&Expr) -> Result<Expr, E>,
+    ) -> Result<Expr, E> {
+        macro_rules! one {
+            ($e:expr) => {
+                Box::new(f($e)?)
+            };
+        }
+        Ok(match self {
+            // Nothing below them to map.
+            Expr::Number(_)
+            | Expr::Bool(_)
+            | Expr::Str(_)
+            | Expr::Ref(_)
+            | Expr::Time
+            | Expr::ColonSubscript
+            | Expr::EndSubscript => self.clone(),
+            Expr::Neg(inner) => Expr::Neg(one!(inner)),
+            Expr::Not(inner) => Expr::Not(one!(inner)),
+            Expr::Member(base, path) => Expr::Member(one!(base), path.clone()),
+            Expr::NamedArg(name, value) => Expr::NamedArg(name.clone(), one!(value)),
+            Expr::Bin(op, l, r) => Expr::Bin(*op, one!(l), one!(r)),
+            Expr::Elementwise(op, l, r) => Expr::Elementwise(*op, one!(l), one!(r)),
+            Expr::Rel(op, l, r) => Expr::Rel(*op, one!(l), one!(r)),
+            Expr::And(l, r) => Expr::And(one!(l), one!(r)),
+            Expr::Or(l, r) => Expr::Or(one!(l), one!(r)),
+            Expr::If(c, a, b) => Expr::If(one!(c), one!(a), one!(b)),
+            Expr::Comprehension(body, name, over) => {
+                Expr::Comprehension(one!(body), name.clone(), one!(over))
+            }
+            Expr::Range(from, step, to) => Expr::Range(
+                one!(from),
+                match step {
+                    None => None,
+                    Some(step) => Some(one!(step)),
+                },
+                one!(to),
+            ),
+            Expr::Call(name, args) => Expr::Call(
+                name.clone(),
+                args.iter().map(&mut *f).collect::<Result<Vec<_>, E>>()?,
+            ),
+            Expr::Array(items) => {
+                Expr::Array(items.iter().map(&mut *f).collect::<Result<Vec<_>, E>>()?)
+            }
+            // A tuple may leave a place empty - `(a, , c) = f(...)`
+            // skips an output - and an empty place has nothing to map.
+            Expr::Tuple(items) => {
+                let mut mapped = Vec::with_capacity(items.len());
+                for item in items {
+                    mapped.push(match item {
+                        None => None,
+                        Some(item) => Some(f(item)?),
+                    });
+                }
+                Expr::Tuple(mapped)
+            }
+            Expr::Index(base, subscripts) => Expr::Index(
+                one!(base),
+                subscripts
+                    .iter()
+                    .map(&mut *f)
+                    .collect::<Result<Vec<_>, E>>()?,
+            ),
+            Expr::MatrixRows(rows) => {
+                let mut mapped = Vec::with_capacity(rows.len());
+                for row in rows {
+                    mapped.push(row.iter().map(&mut *f).collect::<Result<Vec<_>, E>>()?);
+                }
+                Expr::MatrixRows(mapped)
+            }
+            Expr::WithDerivative(value, rule, seeds) => {
+                Expr::WithDerivative(one!(value), one!(rule), {
+                    let mut mapped = Vec::with_capacity(seeds.len());
+                    for (name, arg) in seeds {
+                        mapped.push((name.clone(), f(arg)?));
+                    }
+                    mapped
+                })
+            }
+        })
+    }
+
     /// If the expression is exactly `der(<name>)`, return the state name.
     pub fn as_der_of(&self) -> Option<&str> {
         if let Expr::Call(name, args) = self {

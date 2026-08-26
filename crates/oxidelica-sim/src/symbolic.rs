@@ -110,56 +110,10 @@ fn seeded(rule: &Expr, given: &HashMap<String, Expr>) -> Expr {
 /// Replace every reference to `var` with `value`.
 pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
     match expr {
-        Expr::WithDerivative(worth, rule, seeds) => Expr::WithDerivative(
-            Box::new(substitute(worth, var, value)),
-            Box::new(substitute(rule, var, value)),
-            seeds
-                .iter()
-                .map(|(name, argument)| (name.clone(), substitute(argument, var, value)))
-                .collect(),
-        ),
+        // The one case this is about; everything else is the same
+        // expression with its children substituted.
         Expr::Ref(name) if name == var => Expr::Number(value),
-        Expr::Ref(_) | Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
-        Expr::Call(name, args) => Expr::Call(
-            name.clone(),
-            args.iter().map(|a| substitute(a, var, value)).collect(),
-        ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(substitute(inner, var, value))),
-        Expr::Not(inner) => Expr::Not(Box::new(substitute(inner, var, value))),
-        Expr::Bin(op, l, r) => Expr::Bin(
-            *op,
-            Box::new(substitute(l, var, value)),
-            Box::new(substitute(r, var, value)),
-        ),
-        Expr::Rel(op, l, r) => Expr::Rel(
-            *op,
-            Box::new(substitute(l, var, value)),
-            Box::new(substitute(r, var, value)),
-        ),
-        Expr::And(l, r) => Expr::And(
-            Box::new(substitute(l, var, value)),
-            Box::new(substitute(r, var, value)),
-        ),
-        Expr::Or(l, r) => Expr::Or(
-            Box::new(substitute(l, var, value)),
-            Box::new(substitute(r, var, value)),
-        ),
-        Expr::If(c, a, b) => Expr::If(
-            Box::new(substitute(c, var, value)),
-            Box::new(substitute(a, var, value)),
-            Box::new(substitute(b, var, value)),
-        ),
-        Expr::Index(_, _)
-        | Expr::Member(_, _)
-        | Expr::Array(_)
-        | Expr::Elementwise(_, _, _)
-        | Expr::Range(_, _, _)
-        | Expr::Comprehension(_, _, _)
-        | Expr::ColonSubscript
-        | Expr::EndSubscript
-        | Expr::MatrixRows(_)
-        | Expr::NamedArg(_, _)
-        | Expr::Tuple(_) => expr.clone(),
+        _ => expr.map_children(&mut |child| substitute(child, var, value)),
     }
 }
 
