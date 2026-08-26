@@ -118,8 +118,13 @@ if [ "$quick" -eq 0 ]; then
   # passes there.
   optional_step "Markdown, JSON and YAML" npx \
     npx --yes prettier@3.9.6 --check "**/*.{md,json,yaml,yml}" --log-level warn
+  # The same files CI lints, which is the ones git tracks: the running
+  # note left for fable is ignored by git and is a journal rather than
+  # a document - one heading per round, the same headings every round -
+  # so linting it here made the preflight red for something CI never
+  # sees, and a check that is always red is a check nobody runs.
   optional_step "Markdown style" npx \
-    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target"
+    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target" "!QUESTION_FOR_FABLE.md"
   step "No Cyrillic outside the files that may hold it" python3 scripts/check_cyrillic.py
   optional_step "Unused dependencies" cargo-machete cargo machete
   step "Documentation builds, and every public item has some" \

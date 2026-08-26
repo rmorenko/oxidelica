@@ -16,6 +16,14 @@ floors it will not let drop. Quote the numbers before and after a
 change; a change that moves none of them should say why it was worth
 making anyway.
 
+A commit that moves the numbers moves the floors in the same commit.
+This was learned the hard way: twenty-three models were won over a
+session and the floors left where they were, so a regression giving
+all twenty-three back would have passed CI without a word. A ratchet
+that is not wound is not a ratchet. There are five floors and the
+runnable pair is easy to forget - take all five from one run of the
+script rather than from what the commit messages said.
+
 `oxidelica library check <library>` ranks what the library stumbles
 over, commonest first. That ranking is the work queue. Take the top of
 it, not whatever is most interesting.
