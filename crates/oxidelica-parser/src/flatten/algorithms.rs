@@ -829,6 +829,29 @@ fn one_assignment(
             .collect::<Result<Vec<_>, String>>()?;
         element_name(target, &indices)
     };
+    // A record assigned whole - `qm := mosCalcDEVqmeyer(...)` - is
+    // given the fields the function gathered, one list in the order
+    // the record declares them. Kept under its own name it answers
+    // nothing when a later statement asks for `qm.qm_capgd`, and the
+    // model was refused for an unknown variable. So it is taken apart
+    // here, into the field names the rest of the body reads.
+    if subscripts.is_empty() {
+        if let Some(fields) = record_fields_named(&target, registry, scope, imports) {
+            if let Expr::Array(items) = &value {
+                if items.len() == fields.len() {
+                    bindings.remove(&target);
+                    for (field, item) in fields.into_iter().zip(items.iter()) {
+                        let member = format!("{target}.{field}");
+                        if !assigned.contains(&member) {
+                            assigned.push(member.clone());
+                        }
+                        bindings.insert(member, item.clone());
+                    }
+                    return Ok(());
+                }
+            }
+        }
+    }
     if !assigned.contains(&target) {
         assigned.push(target.to_string());
     }
@@ -841,6 +864,31 @@ fn one_assignment(
     };
     bindings.insert(target, value);
     Ok(())
+}
+
+/// The fields a name's declaration holds, where that declaration is a
+/// record of the class being worked out. `None` for anything else: a
+/// number, an array, a name from somewhere other than this body.
+fn record_fields_named(
+    name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<Vec<String>> {
+    let class = registry.get(scope)?;
+    let declared = class.components.iter().find(|c| c.name == name)?;
+    if !declared.dimensions.is_empty() {
+        return None;
+    }
+    let held = lookup(registry, &declared.type_name, scope, imports)?;
+    if held.kind != ClassKind::Record {
+        return None;
+    }
+    let fields = record_fields_of(registry, held, 0);
+    match fields.is_empty() {
+        true => None,
+        false => Some(fields),
+    }
 }
 
 /// One `if` among the statements: the branch whose condition holds is

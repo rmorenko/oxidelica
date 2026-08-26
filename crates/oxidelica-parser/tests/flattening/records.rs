@@ -889,3 +889,35 @@ fn a_function_answering_with_an_empty_record_says_why() {
     );
     assert!(filled.is_ok(), "{filled:?}");
 }
+
+/// A record a body assigns whole is taken apart into its fields.
+///
+/// `qm := mosCalcDEVqmeyer(...)` binds a record to one name, and the
+/// statements after it ask for `qm.qm_capgd`. Kept whole the name
+/// answered nothing, and the model was refused for an unknown
+/// variable - the fields the function gathered were there all along,
+/// under a name nothing looked up.
+#[test]
+fn a_record_assigned_whole_in_a_body_is_taken_apart() {
+    let m = parse_model(
+        "record R Real a; Real b; end R; \
+         function g input Real x; output R r; algorithm r.a := x; r.b := 2 * x; end g; \
+         function f input Real x; output Real y; protected R qm; \
+         algorithm qm := g(x); qm.a := qm.b; y := qm.a + 10 * qm.b; end f; \
+         model M Real z; equation z = f(2); end M;",
+    )
+    .unwrap();
+    // `g(2)` gives 2 and 4; the swap makes both 4, so `4 + 40`.
+    let z = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"z\")")
+        .unwrap();
+    let text = format!("{:?}", z.rhs);
+    assert!(!text.contains("Ref("), "{text}");
+    assert_eq!(
+        text,
+        "Bin(Add, Bin(Mul, Number(2.0), Number(2.0)), \
+         Bin(Mul, Number(10.0), Bin(Mul, Number(2.0), Number(2.0))))"
+    );
+}
