@@ -639,215 +639,21 @@ pub(super) fn execute(
                 }
             }
             Statement::If(branches) => {
-                // A condition the compiler can decide picks one branch,
-                // and only that one runs. Merging both would be the
-                // same answer written at greater length - and where a
-                // body calls itself, it would be no answer at all: the
-                // branch that ends the recursion cannot end it if the
-                // branch that continues it is taken as well.
-                let decidable = branches.iter().all(|branch| {
-                    branch.condition.as_ref().is_none_or(|condition| {
-                        const_eval(&substitute_refs(condition, bindings), consts).is_some()
-                    })
-                });
-                // A branch that may `break` or `return` cannot be
-                // merged symbolically either - whether it fires must be
-                // known. The conditions are decided and only the taken
-                // branch runs, its flow passed on.
-                if decidable || branches.iter().any(|b| has_flow_control(&b.body)) {
-                    let mut taken = None;
-                    for branch in branches {
-                        match &branch.condition {
-                            None => {
-                                taken = Some(&branch.body);
-                                break;
-                            }
-                            Some(condition) => {
-                                let condition = substitute_refs(condition, bindings);
-                                let value = const_eval(&condition, consts).ok_or_else(|| {
-                                    format!(
-                                        "a branch holding `break` or `return` \
-                                         {UNDECIDABLE_LEAVING}"
-                                    )
-                                })?;
-                                if value != 0.0 {
-                                    taken = Some(&branch.body);
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if let Some(body) = taken {
-                        let flow = execute(
-                            body,
-                            bindings,
-                            assigned,
-                            asserts,
-                            consts,
-                            sizes,
-                            registry,
-                            scope,
-                            imports,
-                            depth + 1,
-                            fold,
-                        )?;
-                        if flow != Flow::Normal {
-                            return Ok(flow);
-                        }
-                    }
-                    continue;
-                }
-                let before = bindings.clone();
-                let mut outcomes: Vec<(Option<Expr>, HashMap<String, Expr>)> = Vec::new();
-                for branch in branches {
-                    let mut local = before.clone();
-                    execute(
-                        &branch.body,
-                        &mut local,
-                        assigned,
-                        asserts,
-                        consts,
-                        sizes,
-                        registry,
-                        scope,
-                        imports,
-                        depth + 1,
-                        fold,
-                    )?;
-                    let condition = branch
-                        .condition
-                        .as_ref()
-                        .map(|c| {
-                            let c = substitute_class_constants(c, registry, scope, imports, &[]);
-                            let c = substitute_refs(&c, &before);
-                            // The condition has to come to one truth,
-                            // but may be written over arrays to get
-                            // there: `if Q*Q_guess >= 0` asks which of
-                            // two four-vectors points the same way.
-                            let no_loop_vars = HashMap::new();
-                            let shapes = Shapes {
-                                sizes,
-                                loop_vars: &no_loop_vars,
-                                consts,
-                                records: no_records(),
-                            };
-                            expand(&c, &shapes, registry, scope, imports, depth + 1)?.scalar()
-                        })
-                        .transpose()?;
-                    outcomes.push((condition, local));
-                }
-                // Every variable any branch wrote gets one merged value.
-                let mut touched: Vec<String> = Vec::new();
-                for (_, local) in &outcomes {
-                    for name in local.keys() {
-                        if before.get(name) != local.get(name) && !touched.contains(name) {
-                            touched.push(name.clone());
-                        }
-                    }
-                }
-                touched.sort();
-                for name in touched {
-                    // A working array filled and used inside one branch
-                    // and never looked at again needs no merged value:
-                    // `o` of the steam tables holds the powers of a
-                    // pressure while the branch builds a temperature
-                    // from them, and asking what it should be where
-                    // another branch never set it has no answer and no
-                    // question. Fifty-three models stood at that
-                    // refusal. What is read after the `if` is merged as
-                    // before; the rest is left in the branch it belongs
-                    // to, which is also the cheaper answer, since a
-                    // merged array is a nest of conditions expanded
-                    // again at every use.
-                    //
-                    // Only an array is left behind this way. A scalar
-                    // costs nothing to merge, and one of them is the
-                    // function's own output, which is read by whoever
-                    // called rather than by any statement here - so
-                    // asking these statements alone would drop it.
-                    // The merged names are the elements - `o[3]` -
-                    // while the declaration is of the whole, so the
-                    // subscripts come off before asking.
-                    let whole = name.split('[').next().unwrap_or(&name);
-                    let an_array = sizes.contains_key(whole);
-                    if an_array
-                        && !read_later(&statements[at + 1..], &name, 0)
-                        && !read_later(&statements[at + 1..], whole, 0)
-                    {
-                        continue;
-                    }
-                    // A variable of a function body that no branch
-                    // wrote still has a value: the language says an
-                    // unassigned local starts at what its type starts
-                    // at, and a `Real` starts at zero. The steam
-                    // tables are written that way on purpose - the
-                    // boiling curve fills `cp` on one side of the
-                    // region 3 boundary and `cv` on the other, and
-                    // each is meant to be left at zero where the other
-                    // was set. Refusing that took thirty-two models
-                    // out, the whole of the Fluid examples among them.
-                    // Outside a function the same shape is a real
-                    // mistake and is still refused: a model's
-                    // algorithm has to say what the variable is before
-                    // the `if` decides whether to change it.
-                    // An `if` whose branches write arrays is left
-                    // alone: a quaternion conversion assigns four
-                    // elements in each of four branches, and giving
-                    // its scalars a start lets the whole thing be
-                    // inlined - four elements of nested conditions,
-                    // expanded again at every use. One multi-body
-                    // model went from a second and a half to half a
-                    // minute that way, and the library from seventeen
-                    // seconds to a quarter of an hour. What the
-                    // library needs this rule for is bodies that
-                    // decide a scalar or a record field one way or
-                    // another, and those cost nothing.
-                    let writes_arrays = outcomes.iter().any(|(_, local)| {
-                        local.keys().any(|written| sizes.contains_key(written))
-                    });
-                    let fallback = before.get(&name).cloned().or_else(|| {
-                        let start = starts_at(&name, registry, scope)?;
-                        // A flag costs nothing to give a start to: it
-                        // decides a branch rather than being folded
-                        // into arithmetic, so it cannot grow the value
-                        // the way a run of numbers can. Neither does a
-                        // string: it is settled before the run and has
-                        // no place in the arithmetic at all.
-                        let is_flag = matches!(start, Expr::Bool(_) | Expr::Str(_));
-                        if writes_arrays && !is_flag {
-                            return None;
-                        }
-                        Some(start)
-                    });
-                    let mut value = match outcomes.last() {
-                        // A trailing `else` supplies the last value.
-                        Some((None, local)) => local.get(&name).cloned().or(fallback.clone()),
-                        _ => fallback.clone(),
-                    };
-                    for (condition, local) in outcomes.iter().rev() {
-                        let Some(condition) = condition else { continue };
-                        let taken = local.get(&name).cloned().or_else(|| fallback.clone());
-                        match (taken, value) {
-                            (Some(taken), Some(otherwise)) => {
-                                value = Some(Expr::If(
-                                    Box::new(condition.clone()),
-                                    Box::new(taken),
-                                    Box::new(otherwise),
-                                ));
-                            }
-                            _ => {
-                                return Err(format!(
-                                    "`{name}` is assigned in one branch only and has no value before the `if`"
-                                ))
-                            }
-                        }
-                    }
-                    let Some(value) = value else {
-                        return Err(format!(
-                            "`{name}` is assigned in one branch only and has no value before the `if`"
-                        ));
-                    };
-                    bindings.insert(name, value);
+                if let Some(flow) = one_if_statement(
+                    branches,
+                    &statements[at + 1..],
+                    bindings,
+                    assigned,
+                    asserts,
+                    consts,
+                    sizes,
+                    registry,
+                    scope,
+                    imports,
+                    depth,
+                    fold,
+                )? {
+                    return Ok(flow);
                 }
             }
             // A check written where the statements are, carried out
@@ -1009,6 +815,240 @@ pub(super) fn execute(
         }
     }
     Ok(Flow::Normal)
+}
+
+/// One `if` among the statements: the branch whose condition holds is
+/// executed, and where the condition cannot be settled the branches
+/// are executed apart and what they assign is merged into one value
+/// per variable.
+///
+/// `Some(flow)` where the branch left the body early, `None` where
+/// execution goes on with the statement after.
+///
+/// Moved out of `execute` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn one_if_statement(
+    branches: &[StatementBranch],
+    rest: &[Statement],
+    bindings: &mut HashMap<String, Expr>,
+    assigned: &mut Vec<String>,
+    asserts: &mut Vec<(Expr, String)>,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+    fold: bool,
+) -> Result<Option<Flow>, String> {
+    // A condition the compiler can decide picks one branch,
+    // and only that one runs. Merging both would be the
+    // same answer written at greater length - and where a
+    // body calls itself, it would be no answer at all: the
+    // branch that ends the recursion cannot end it if the
+    // branch that continues it is taken as well.
+    let decidable = branches.iter().all(|branch| {
+        branch.condition.as_ref().is_none_or(|condition| {
+            const_eval(&substitute_refs(condition, bindings), consts).is_some()
+        })
+    });
+    // A branch that may `break` or `return` cannot be
+    // merged symbolically either - whether it fires must be
+    // known. The conditions are decided and only the taken
+    // branch runs, its flow passed on.
+    if decidable || branches.iter().any(|b| has_flow_control(&b.body)) {
+        let mut taken = None;
+        for branch in branches {
+            match &branch.condition {
+                None => {
+                    taken = Some(&branch.body);
+                    break;
+                }
+                Some(condition) => {
+                    let condition = substitute_refs(condition, bindings);
+                    let value = const_eval(&condition, consts).ok_or_else(|| {
+                        format!(
+                            "a branch holding `break` or `return` \
+                             {UNDECIDABLE_LEAVING}"
+                        )
+                    })?;
+                    if value != 0.0 {
+                        taken = Some(&branch.body);
+                        break;
+                    }
+                }
+            }
+        }
+        if let Some(body) = taken {
+            let flow = execute(
+                body,
+                bindings,
+                assigned,
+                asserts,
+                consts,
+                sizes,
+                registry,
+                scope,
+                imports,
+                depth + 1,
+                fold,
+            )?;
+            if flow != Flow::Normal {
+                return Ok(Some(flow));
+            }
+        }
+        return Ok(None);
+    }
+    let before = bindings.clone();
+    let mut outcomes: Vec<(Option<Expr>, HashMap<String, Expr>)> = Vec::new();
+    for branch in branches {
+        let mut local = before.clone();
+        execute(
+            &branch.body,
+            &mut local,
+            assigned,
+            asserts,
+            consts,
+            sizes,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+            fold,
+        )?;
+        let condition = branch
+            .condition
+            .as_ref()
+            .map(|c| {
+                let c = substitute_class_constants(c, registry, scope, imports, &[]);
+                let c = substitute_refs(&c, &before);
+                // The condition has to come to one truth,
+                // but may be written over arrays to get
+                // there: `if Q*Q_guess >= 0` asks which of
+                // two four-vectors points the same way.
+                let no_loop_vars = HashMap::new();
+                let shapes = Shapes {
+                    sizes,
+                    loop_vars: &no_loop_vars,
+                    consts,
+                    records: no_records(),
+                };
+                expand(&c, &shapes, registry, scope, imports, depth + 1)?.scalar()
+            })
+            .transpose()?;
+        outcomes.push((condition, local));
+    }
+    // Every variable any branch wrote gets one merged value.
+    let mut touched: Vec<String> = Vec::new();
+    for (_, local) in &outcomes {
+        for name in local.keys() {
+            if before.get(name) != local.get(name) && !touched.contains(name) {
+                touched.push(name.clone());
+            }
+        }
+    }
+    touched.sort();
+    for name in touched {
+        // A working array filled and used inside one branch
+        // and never looked at again needs no merged value:
+        // `o` of the steam tables holds the powers of a
+        // pressure while the branch builds a temperature
+        // from them, and asking what it should be where
+        // another branch never set it has no answer and no
+        // question. Fifty-three models stood at that
+        // refusal. What is read after the `if` is merged as
+        // before; the rest is left in the branch it belongs
+        // to, which is also the cheaper answer, since a
+        // merged array is a nest of conditions expanded
+        // again at every use.
+        //
+        // Only an array is left behind this way. A scalar
+        // costs nothing to merge, and one of them is the
+        // function's own output, which is read by whoever
+        // called rather than by any statement here - so
+        // asking these statements alone would drop it.
+        // The merged names are the elements - `o[3]` -
+        // while the declaration is of the whole, so the
+        // subscripts come off before asking.
+        let whole = name.split('[').next().unwrap_or(&name);
+        let an_array = sizes.contains_key(whole);
+        if an_array && !read_later(rest, &name, 0) && !read_later(rest, whole, 0) {
+            continue;
+        }
+        // A variable of a function body that no branch
+        // wrote still has a value: the language says an
+        // unassigned local starts at what its type starts
+        // at, and a `Real` starts at zero. The steam
+        // tables are written that way on purpose - the
+        // boiling curve fills `cp` on one side of the
+        // region 3 boundary and `cv` on the other, and
+        // each is meant to be left at zero where the other
+        // was set. Refusing that took thirty-two models
+        // out, the whole of the Fluid examples among them.
+        // Outside a function the same shape is a real
+        // mistake and is still refused: a model's
+        // algorithm has to say what the variable is before
+        // the `if` decides whether to change it.
+        // An `if` whose branches write arrays is left
+        // alone: a quaternion conversion assigns four
+        // elements in each of four branches, and giving
+        // its scalars a start lets the whole thing be
+        // inlined - four elements of nested conditions,
+        // expanded again at every use. One multi-body
+        // model went from a second and a half to half a
+        // minute that way, and the library from seventeen
+        // seconds to a quarter of an hour. What the
+        // library needs this rule for is bodies that
+        // decide a scalar or a record field one way or
+        // another, and those cost nothing.
+        let writes_arrays = outcomes
+            .iter()
+            .any(|(_, local)| local.keys().any(|written| sizes.contains_key(written)));
+        let fallback = before.get(&name).cloned().or_else(|| {
+            let start = starts_at(&name, registry, scope)?;
+            // A flag costs nothing to give a start to: it
+            // decides a branch rather than being folded
+            // into arithmetic, so it cannot grow the value
+            // the way a run of numbers can. Neither does a
+            // string: it is settled before the run and has
+            // no place in the arithmetic at all.
+            let is_flag = matches!(start, Expr::Bool(_) | Expr::Str(_));
+            if writes_arrays && !is_flag {
+                return None;
+            }
+            Some(start)
+        });
+        let mut value = match outcomes.last() {
+            // A trailing `else` supplies the last value.
+            Some((None, local)) => local.get(&name).cloned().or(fallback.clone()),
+            _ => fallback.clone(),
+        };
+        for (condition, local) in outcomes.iter().rev() {
+            let Some(condition) = condition else { continue };
+            let taken = local.get(&name).cloned().or_else(|| fallback.clone());
+            match (taken, value) {
+                (Some(taken), Some(otherwise)) => {
+                    value = Some(Expr::If(
+                        Box::new(condition.clone()),
+                        Box::new(taken),
+                        Box::new(otherwise),
+                    ));
+                }
+                _ => {
+                    return Err(format!(
+                        "`{name}` is assigned in one branch only and has no value before the `if`"
+                    ))
+                }
+            }
+        }
+        let Some(value) = value else {
+            return Err(format!(
+                "`{name}` is assigned in one branch only and has no value before the `if`"
+            ));
+        };
+        bindings.insert(name, value);
+    }
+    Ok(None)
 }
 
 /// Inline a function call: arguments are bound to the inputs, the
