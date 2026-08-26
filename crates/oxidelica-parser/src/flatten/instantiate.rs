@@ -875,8 +875,18 @@ fn instantiate_components(
     // once `lines` has been measured. Nothing outside the loop reads
     // them.
     let mut settled: HashMap<String, f64> = HashMap::new();
+    let mut first_round = true;
     for component in &class.components {
-        let fresh = taken < acc.sizes.len();
+        // Whether anything new was measured since the last round of
+        // this loop. The first time through it is true whatever the
+        // model has measured elsewhere: the parameters of this class
+        // have not been asked yet, and asking them is what the round
+        // below is for. Read as `taken < acc.sizes.len()` alone, a
+        // class whose neighbours happened to measure nothing while it
+        // was being reached never asked them at all - which made one
+        // instance's parameters depend on what stood beside it.
+        let fresh = first_round || taken < acc.sizes.len();
+        first_round = false;
         while taken < acc.sizes.len() {
             // Every array measured so far, whatever it belongs to: a
             // modifier handed down is written in the terms of the

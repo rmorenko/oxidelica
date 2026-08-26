@@ -7306,6 +7306,42 @@ const GRID_BLOCK: &str = "package Grid \
        external \"C\" ModelicaStandardTables_CombiTable2D_maximumAbscissa(h, u); end umax; \
    end Grid; ";
 
+/// A class asks its own parameters whatever its neighbours measured.
+#[test]
+fn a_class_measures_its_parameters_whoever_stands_beside_it() {
+    // `n = size(lines, 1)` is a number as soon as `lines` is measured,
+    // and the round that asks the waiting parameters used to run only
+    // where the model's list of measured arrays had grown since the
+    // last component. A class reached when nothing had grown never
+    // asked at all - so what one instance came to depended on what
+    // stood beside it.
+    let source = |before: &str| {
+        format!(
+            "package P model Inner \
+             parameter Real lines[:, 2] = {{{{0, 0}}, {{1, 1}}, {{2, 2}}}}; \
+             parameter Integer n = size(lines, 1); Real y = n; end Inner; \
+             model M {before} Inner alone; Real out; \
+             equation out = alone.y; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;"
+        )
+    };
+    let value_of = |before: &str| {
+        let m = parse_model(&source(before)).expect("a length read off a neighbour");
+        m.components
+            .iter()
+            .find(|c| c.name == "alone.n")
+            .and_then(|c| c.binding.clone())
+            .map(|binding| format!("{binding:?}"))
+            .unwrap_or_default()
+    };
+    // Alone, and with a neighbour that measures nothing at all: the
+    // same number either way, which is what not depending on the
+    // neighbours means.
+    assert!(value_of("").contains("3"), "{}", value_of(""));
+    assert_eq!(value_of(""), value_of("Real quiet = time;"));
+    assert_eq!(value_of(""), value_of("Inner ahead; Real quiet = time;"));
+}
+
 /// A body remembered for one caller answers another only where the
 /// values it folds with are worth the same.
 #[test]
