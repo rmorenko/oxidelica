@@ -550,82 +550,19 @@ fn reduce_index(
         }
     };
 
-        // Demote a state the constraint actually constrains. The
-        // choice is a pivot: the constraint has to *determine* the
-        // demoted variable, so prefer the state with the largest
-        // sensitivity at the start point. (The selection is static;
-        // models that need it to change mid-run - a pendulum swinging
-        // full circle - are the known limit of this implementation.)
-        // Reachable states: the constraint may pin a state only
-        // indirectly, through the definition of an algebraic unknown
-        // (`u = 3` with `u = 2*x` constrains x).
-        let mut reachable: Vec<String> = Vec::new();
-        {
-            let mut queue: Vec<String> = Vec::new();
-            let mut direct = Vec::new();
-            residual.collect_refs(&mut direct);
-            queue.extend(direct.into_iter().map(str::to_string));
-            let mut seen: Vec<String> = Vec::new();
-            while let Some(name) = queue.pop() {
-                if seen.contains(&name) {
-                    continue;
-                }
-                seen.push(name.clone());
-                if states.iter().any(|s| s == &name) {
-                    reachable.push(name.clone());
-                } else if let Some(definition) = alg_defs.get(&name) {
-                    let mut more = Vec::new();
-                    definition.collect_refs(&mut more);
-                    queue.extend(more.into_iter().map(str::to_string));
-                }
-            }
-        }
-        let sensitivity = |name: &str| -> f64 {
-            differentiate(&residual, &DiffTarget::Variable(name))
-                .ok()
-                .map(|d| simplify(&d))
-                .and_then(|d| {
-                    eval(
-                        &d,
-                        &EvalCtx {
-                            vars: start_env,
-                            time: at_time,
-                            programs: None,
-                            depth: 0,
-                        },
-                    )
-                    .ok()
-                })
-                .map(f64::abs)
-                .unwrap_or(0.0)
-        };
-        // Companions of earlier victims first, by sensitivity; anything
-        // else only when no companion is constrained here at all.
-        let favoured: Vec<String> = reachable
-            .iter()
-            .filter(|name| companions.contains(name) && sensitivity(name) > 0.0)
-            .cloned()
-            .collect();
-        let candidates = if favoured.is_empty() {
-            reachable
-        } else {
-            favoured
-        };
-        // The runtime monitor compares the victim against exactly the
-        // set the pivot weighed - alternatives of another derivative
-        // level would make a healthy selection look wrong.
-        let all_candidates = candidates.clone();
-        let Some(victim) = candidates.into_iter().max_by(|a, b| {
-            sensitivity(a)
-                .partial_cmp(&sensitivity(b))
-                .unwrap_or(std::cmp::Ordering::Equal)
-        }) else {
-            return err(format!(
-            "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
-        ));
-        };
-
-        selection_records.push((residual.clone(), victim.clone(), all_candidates));
+        // Demote a state the constraint actually constrains, choosing
+        // the one it determines most strongly.
+        let victim = choose_the_victim(
+            &residual,
+            &lhs,
+            &rhs,
+            &states,
+            &alg_defs,
+            &companions,
+            start_env,
+            at_time,
+            &mut selection_records,
+        )?;
         let dummy = derivative_name(&victim);
         let victim_rhs = state_rhs
             .remove(&victim)
@@ -667,6 +604,107 @@ fn reduce_index(
         eq_vars,
         n_alg,
     })
+}
+
+/// Which state a constraint demotes.
+///
+/// The choice is a pivot: the constraint has to *determine* the
+/// demoted variable, so the state with the largest sensitivity at the
+/// start point wins. The selection is static, and models needing it to
+/// change mid-run - a pendulum swinging full circle - are the known
+/// limit of this implementation.
+///
+/// Moved out of `reduce_index` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn choose_the_victim(
+    residual: &Expr,
+    lhs: &Expr,
+    rhs: &Expr,
+    states: &[String],
+    alg_defs: &HashMap<String, Expr>,
+    companions: &[String],
+    start_env: &HashMap<String, f64>,
+    at_time: f64,
+    selection_records: &mut Vec<(Expr, String, Vec<String>)>,
+) -> Result<String, SimError> {
+    // Demote a state the constraint actually constrains. The
+    // choice is a pivot: the constraint has to *determine* the
+    // demoted variable, so prefer the state with the largest
+    // sensitivity at the start point. (The selection is static;
+    // models that need it to change mid-run - a pendulum swinging
+    // full circle - are the known limit of this implementation.)
+    // Reachable states: the constraint may pin a state only
+    // indirectly, through the definition of an algebraic unknown
+    // (`u = 3` with `u = 2*x` constrains x).
+    let mut reachable: Vec<String> = Vec::new();
+    {
+        let mut queue: Vec<String> = Vec::new();
+        let mut direct = Vec::new();
+        residual.collect_refs(&mut direct);
+        queue.extend(direct.into_iter().map(str::to_string));
+        let mut seen: Vec<String> = Vec::new();
+        while let Some(name) = queue.pop() {
+            if seen.contains(&name) {
+                continue;
+            }
+            seen.push(name.clone());
+            if states.iter().any(|s| s == &name) {
+                reachable.push(name.clone());
+            } else if let Some(definition) = alg_defs.get(&name) {
+                let mut more = Vec::new();
+                definition.collect_refs(&mut more);
+                queue.extend(more.into_iter().map(str::to_string));
+            }
+        }
+    }
+    let sensitivity = |name: &str| -> f64 {
+        differentiate(residual, &DiffTarget::Variable(name))
+            .ok()
+            .map(|d| simplify(&d))
+            .and_then(|d| {
+                eval(
+                    &d,
+                    &EvalCtx {
+                        vars: start_env,
+                        time: at_time,
+                        programs: None,
+                        depth: 0,
+                    },
+                )
+                .ok()
+            })
+            .map(f64::abs)
+            .unwrap_or(0.0)
+    };
+    // Companions of earlier victims first, by sensitivity; anything
+    // else only when no companion is constrained here at all.
+    let favoured: Vec<String> = reachable
+        .iter()
+        .filter(|name| companions.contains(name) && sensitivity(name) > 0.0)
+        .cloned()
+        .collect();
+    let candidates = if favoured.is_empty() {
+        reachable
+    } else {
+        favoured
+    };
+    // The runtime monitor compares the victim against exactly the
+    // set the pivot weighed - alternatives of another derivative
+    // level would make a healthy selection look wrong.
+    let all_candidates = candidates.clone();
+    let Some(victim) = candidates.into_iter().max_by(|a, b| {
+        sensitivity(a)
+            .partial_cmp(&sensitivity(b))
+            .unwrap_or(std::cmp::Ordering::Equal)
+    }) else {
+        return err(format!(
+        "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
+    ));
+    };
+
+    selection_records.push((residual.clone(), victim.clone(), all_candidates));
+
+    Ok(victim)
 }
 
 /// The equations of a model, sorted: what each state's derivative is,
