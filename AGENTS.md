@@ -137,6 +137,29 @@ and its reproductions are scratch, kept out of the repository by
 Each consultation is a full session on the shared subscription, so it
 is for being stuck, not for code review.
 
+## Refactoring
+
+Refactor by friction, not by schedule. The planned rounds are over;
+what remains is to cut when the code says it is time, which it does in
+three ways:
+
+- a fix had to be threaded through three or more places;
+- what you needed was not findable in a file inside a minute;
+- a new kind of silent mistake turned up - a walk that skipped a node,
+  a catch-all that swallowed a case.
+
+Any of those is the signal. Cut then and there, in the middle of the
+feature work, rather than writing it down for a round that may not
+come: one step per commit, the thresholds unmoved, the preflight
+before the push, exactly as the rounds did it.
+
+Cutting because a file is long is not on the list. Several files
+carved this way turned out to need nothing - `check.rs` was already
+one function per check, and the component loop in `instantiate` reads
+eleven things its neighbours worked out, so naming it would have moved
+the names rather than explained them. Say so and move on; a stage that
+was considered and left is worth a sentence saying it was considered.
+
 ## Walking an expression
 
 `Expr::map_children` applies a function to each expression one level
