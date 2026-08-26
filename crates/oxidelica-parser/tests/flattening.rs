@@ -7306,6 +7306,42 @@ const GRID_BLOCK: &str = "package Grid \
        external \"C\" ModelicaStandardTables_CombiTable2D_maximumAbscissa(h, u); end umax; \
    end Grid; ";
 
+/// A body remembered for one caller answers another only where the
+/// values it folds with are worth the same.
+#[test]
+fn a_remembered_body_is_told_apart_by_what_it_folds_with() {
+    // Two instances of the same class, each with as many values in
+    // view as the other and a different value among them. The answers
+    // are remembered under a key that once counted the values rather
+    // than reading them, which made these one question.
+    let m = parse_model(
+        "package P function grow input Integer n; output Real out[n]; \
+         algorithm for i in 1:n loop out[i] := n; end for; end grow; \
+         model Inner parameter Integer n = 3; \
+         parameter Real got[:] = grow(n); Real y = got[1]; end Inner; \
+         model M Inner a(n = 3); Inner b(n = 4); Real out; \
+         equation out = a.y * 100 + b.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("two instances of one class");
+    // Each instance is as long as its own `n` says, and says its own
+    // number: three threes and four fours.
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("a.got["))
+            .count(),
+        3
+    );
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("b.got["))
+            .count(),
+        4
+    );
+}
+
 /// A two-dimensional table is read by where two abscissae fall in its
 /// grid, and both ends of the grid come back at once.
 #[test]

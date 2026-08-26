@@ -1900,6 +1900,98 @@ impl Drop for Inlined {
     }
 }
 
+/// Every name a function body mentions, gathered once and remembered.
+///
+/// What a body folds with is part of what it comes to, so the answers
+/// remembered for one call are only the answers for another where
+/// these are worth the same. A model's table of numbers holds
+/// thousands and a body reads a handful, so the handful is what is
+/// looked up rather than the table compared.
+pub(super) fn names_read(class: &ClassDef) -> std::rc::Rc<Vec<String>> {
+    thread_local! {
+        static READ: std::cell::RefCell<HashMap<String, std::rc::Rc<Vec<String>>>> =
+            std::cell::RefCell::new(HashMap::new());
+    }
+    if let Some(known) = READ.with(|read| read.borrow().get(&class.name).cloned()) {
+        return known;
+    }
+    let mut names: Vec<String> = Vec::new();
+    let mut note = |expr: &Expr| {
+        walk_expr(expr, &mut |node| {
+            if let Expr::Ref(name) = node {
+                names.push(name.clone());
+            }
+        });
+    };
+    for component in &class.components {
+        for expr in component.binding.iter().chain(component.start.iter()) {
+            note(expr);
+        }
+        for dimension in &component.dimensions {
+            note(dimension);
+        }
+    }
+    for statement in &class.algorithm {
+        statement_expressions(statement, &mut note);
+    }
+    names.sort();
+    names.dedup();
+    let names = std::rc::Rc::new(names);
+    READ.with(|read| read.borrow_mut().insert(class.name.clone(), names.clone()));
+    names
+}
+
+/// Every expression a statement holds, its branches and loops among
+/// them.
+fn statement_expressions(statement: &Statement, note: &mut impl FnMut(&Expr)) {
+    fn branches(branches: &[StatementBranch], note: &mut impl FnMut(&Expr)) {
+        for branch in branches {
+            if let Some(condition) = &branch.condition {
+                note(condition);
+            }
+            for statement in &branch.body {
+                statement_expressions(statement, note);
+            }
+        }
+    }
+    match statement {
+        Statement::Assign(_, subscripts, value) => {
+            for subscript in subscripts {
+                note(subscript);
+            }
+            note(value);
+        }
+        Statement::TupleAssign(targets, value) => {
+            for subscript in targets.iter().flatten().flat_map(|(_, at)| at) {
+                note(subscript);
+            }
+            note(value);
+        }
+        Statement::If(inner) | Statement::When(inner) => branches(inner, note),
+        Statement::For(_, over, body) => {
+            if let Some(over) = over {
+                note(over);
+            }
+            for statement in body {
+                statement_expressions(statement, note);
+            }
+        }
+        Statement::While(condition, body) => {
+            note(condition);
+            for statement in body {
+                statement_expressions(statement, note);
+            }
+        }
+        Statement::Assert(condition, _) => note(condition),
+        Statement::Call(_, args) => {
+            for arg in args {
+                note(arg);
+            }
+        }
+        Statement::Break | Statement::Return => {}
+    }
+}
+
 /// Run a function body and give back what each output came to, with
 /// the checks the body made collected into `checks`.
 ///
@@ -1919,13 +2011,22 @@ fn inline_body(
     // How deep the asking is belongs to the question: a body that
     // will not come to an end is refused at a depth rather than by
     // what it was handed, and the same asking higher up may be
-    // answered. So does how many values are in view, since a body
-    // folds with them and a caller further along has more.
-    let asked = format!(
-        "{}|{depth}|{}|{args:?}|{shapes:?}",
-        class.name,
-        consts.len()
-    );
+    // answered.
+    //
+    // So do the values the body folds with. Counting them was not
+    // enough: two instances of the same class hand the same arguments
+    // to the same body with the same number of values in view and
+    // different values among them, and the second was answered with
+    // the first's. Only the names the body actually reads are looked
+    // up, since a model's table holds thousands and a body reads a
+    // handful.
+    let read = names_read(class);
+    let mut folded: Vec<(&str, f64)> = read
+        .iter()
+        .filter_map(|name| Some((name.as_str(), *consts.get(name)?)))
+        .collect();
+    folded.sort_by_key(|(name, _)| *name);
+    let asked = format!("{}|{depth}|{folded:?}|{args:?}|{shapes:?}", class.name);
     if let Some(told) = INLINED.with(|held| held.borrow().get(&asked).cloned()) {
         let (outputs, said) = told?;
         checks.extend(said);
