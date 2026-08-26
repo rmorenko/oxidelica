@@ -2122,85 +2122,12 @@ fn worked_body(
     if depth > MAX_DEPTH {
         return Err(format!("`{}` {NO_BOTTOM}", class.name));
     }
-    // `external "builtin" y = asin(u)` says the function is the
-    // operator the language already has, given a place in a library's
-    // tree. The call becomes a call to the operator, arguments in the
-    // order they were written.
-    if let Some(builtin) = &class.builtin {
-        let output = class
-            .components
-            .iter()
-            .find(|c| c.causality == Causality::Output)
-            .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
-        return Ok(vec![(
-            output.name.clone(),
-            Expr::Call(builtin.clone(), args.to_vec()),
-        )]);
+    // A body the language or this compiler already answers for is
+    // answered there rather than walked.
+    if let Some(answer) = body_written_elsewhere(class, args, shapes, consts, registry)? {
+        return Ok(answer);
     }
-    // A function whose body is written outside Modelica is read as far
-    // as its declaration and no further. Where this compiler answers
-    // for the name itself, the call is written as that name and left
-    // standing for whoever can work it out; where nobody answers, the
-    // refusal says which name was wanted.
-    if class.external {
-        let Some(call) = class.external_call.as_ref().filter(|call| {
-            external::answered_here(&call.called) || crate::outside::written_here(&call.called)
-        }) else {
-            return Err(outside_this_language(class));
-        };
-        let made = Expr::Call(call.called.clone(), args.to_vec());
-        // A body written here in Rust answers with numbers rather than
-        // with a string, and may answer with several: the generators
-        // give a value and the state they moved to. Each output takes
-        // its own place of that answer, the way a walked body's does.
-        let handed: Vec<usize> = args.iter().map(numbers_in).collect();
-        if let Some((_, answers)) = crate::outside::shape(&call.called, &handed) {
-            // The shapes the call handed over, under the names the
-            // declaration knows them by: an answer as long as `size(A,
-            // 1)` reads its length back out of here.
-            let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
-            for (input, shape) in function_components(registry, class, 0)
-                .iter()
-                .filter(|c| c.causality == Causality::Input)
-                .zip(shapes)
-            {
-                given_shapes.insert(input.name.clone(), shape.clone());
-            }
-            return numbered_outputs(class, registry, consts, &given_shapes, &made, answers);
-        }
-        if crate::outside::written_here(&call.called) {
-            return Err(format!(
-                "`{}` is written here, and not for what it was handed: {} argument(s) of {} \
-                 number(s) in all",
-                call.called,
-                handed.len(),
-                handed.iter().sum::<usize>()
-            ));
-        }
-        let output = class
-            .components
-            .iter()
-            .find(|c| c.causality == Causality::Output)
-            .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
-        // An answer declared an array is taken a place at a time: the
-        // two-dimensional tables give both ends of their grid at once
-        // - `output Real uMin[2]` - and the model holds each end as a
-        // parameter of its own. Bound to the call whole, both ends
-        // were the whole pair and neither could be worked out.
-        if let [Expr::Number(length)] = output.dimensions.as_slice() {
-            return Ok(vec![(
-                output.name.clone(),
-                Expr::Array(
-                    (1..=*length as i64)
-                        .map(|index| {
-                            Expr::Index(Box::new(made.clone()), vec![Expr::Number(index as f64)])
-                        })
-                        .collect(),
-                ),
-            )]);
-        }
-        return Ok(vec![(output.name.clone(), made)]);
-    }
+
     // What a function takes and answers with may be written in a base
     // of it: `redeclare function extends bubbleEnthalpy` says only what
     // the body is, and the base says what goes in and comes out.
@@ -2668,6 +2595,105 @@ fn worked_body(
             ))
         })
         .collect()
+}
+
+/// A function whose body is not Modelica: `external "builtin"` names
+/// an operator the language already has, and `external "C"` names
+/// something this compiler either answers for itself or refuses by
+/// name.
+///
+/// `None` where the body is ordinary and the caller walks it.
+///
+/// Moved out of `worked_body` unchanged.
+fn body_written_elsewhere(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+    consts: &HashMap<String, f64>,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Result<Option<Vec<(String, Expr)>>, String> {
+    // `external "builtin" y = asin(u)` says the function is the
+    // operator the language already has, given a place in a library's
+    // tree. The call becomes a call to the operator, arguments in the
+    // order they were written.
+    if let Some(builtin) = &class.builtin {
+        let output = class
+            .components
+            .iter()
+            .find(|c| c.causality == Causality::Output)
+            .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
+        return Ok(Some(vec![(
+            output.name.clone(),
+            Expr::Call(builtin.clone(), args.to_vec()),
+        )]));
+    }
+    // A function whose body is written outside Modelica is read as far
+    // as its declaration and no further. Where this compiler answers
+    // for the name itself, the call is written as that name and left
+    // standing for whoever can work it out; where nobody answers, the
+    // refusal says which name was wanted.
+    if class.external {
+        let Some(call) = class.external_call.as_ref().filter(|call| {
+            external::answered_here(&call.called) || crate::outside::written_here(&call.called)
+        }) else {
+            return Err(outside_this_language(class));
+        };
+        let made = Expr::Call(call.called.clone(), args.to_vec());
+        // A body written here in Rust answers with numbers rather than
+        // with a string, and may answer with several: the generators
+        // give a value and the state they moved to. Each output takes
+        // its own place of that answer, the way a walked body's does.
+        let handed: Vec<usize> = args.iter().map(numbers_in).collect();
+        if let Some((_, answers)) = crate::outside::shape(&call.called, &handed) {
+            // The shapes the call handed over, under the names the
+            // declaration knows them by: an answer as long as `size(A,
+            // 1)` reads its length back out of here.
+            let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+            for (input, shape) in function_components(registry, class, 0)
+                .iter()
+                .filter(|c| c.causality == Causality::Input)
+                .zip(shapes)
+            {
+                given_shapes.insert(input.name.clone(), shape.clone());
+            }
+            return numbered_outputs(class, registry, consts, &given_shapes, &made, answers)
+                .map(Some);
+        }
+        if crate::outside::written_here(&call.called) {
+            return Err(format!(
+                "`{}` is written here, and not for what it was handed: {} argument(s) of {} \
+                 number(s) in all",
+                call.called,
+                handed.len(),
+                handed.iter().sum::<usize>()
+            ));
+        }
+        let output = class
+            .components
+            .iter()
+            .find(|c| c.causality == Causality::Output)
+            .ok_or_else(|| format!("function `{}` declares no output", class.name))?;
+        // An answer declared an array is taken a place at a time: the
+        // two-dimensional tables give both ends of their grid at once
+        // - `output Real uMin[2]` - and the model holds each end as a
+        // parameter of its own. Bound to the call whole, both ends
+        // were the whole pair and neither could be worked out.
+        if let [Expr::Number(length)] = output.dimensions.as_slice() {
+            return Ok(Some(vec![(
+                output.name.clone(),
+                Expr::Array(
+                    (1..=*length as i64)
+                        .map(|index| {
+                            Expr::Index(Box::new(made.clone()), vec![Expr::Number(index as f64)])
+                        })
+                        .collect(),
+                ),
+            )]));
+        }
+        return Ok(Some(vec![(output.name.clone(), made)]));
+    }
+
+    Ok(None)
 }
 
 /// The fields of a record-typed argument that are single numbers.
