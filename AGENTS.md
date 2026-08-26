@@ -34,13 +34,17 @@ Coverage is measured by `scripts/coverage.sh --summary-only`. Write
 its output to a file rather than piping it to `tail`, which eats it.
 
 `cargo build` and `cargo test` passing is not the same as CI passing,
-and the difference is the linters. Clippy's lints are warnings on a
-local build and errors under CI's `-D warnings`, so a change can be
-green on the desk and red three commits later on the server - which is
-exactly what a refactor does, since turning owned locals into borrowed
-arguments leaves `&x` where `x` is now wanted, sixty times over. Run
-the preflight, or at least `cargo clippy --all-targets -- -D
-warnings`, before pushing rather than after.
+and the difference is the linters and the coverage floor. Clippy's
+lints are warnings on a local build and errors under CI's `-D
+warnings`, so a change can be green on the desk and red three commits
+later on the server - which is exactly what a refactor does, since
+turning owned locals into borrowed arguments leaves `&x` where `x` is
+now wanted, sixty times over. The coverage floor catches the other
+half: three hundred new lines with two tests over them will hold every
+threshold this project measures and still turn the build red.
+
+Both are in `scripts/preflight.sh`. Run it before pushing rather than
+after; the round trip of ten red commits was paid for once already.
 
 ## Finding out why a model will not run
 
