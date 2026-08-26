@@ -508,3 +508,38 @@ fn a_check_at_an_event_survives_a_conditional_component() {
     let why = compile(&model).unwrap().simulate().unwrap_err().to_string();
     assert!(why.contains("too big"), "{why}");
 }
+
+/// A connection between signals is defined by the side that states a
+/// value, not by the order the set happened to be in.
+#[test]
+fn a_signal_connection_defines_the_input_rather_than_the_output() {
+    // `connect(sink.u, src.y)` is an equation between two names, and
+    // which of them it defines is not the side it was written on: the
+    // `output` states a value and the `input` takes one. Written the
+    // other way round, the output got a second definition and the
+    // input none - which on a clocked signal is a model refused as
+    // unbalanced, and here is a source that would be solved for.
+    let m = oxidelica_parser::parse_model(
+        "package P connector RIn = input Real; connector ROut = output Real; \
+         block Src ROut y; equation y = time; end Src; \
+         block Sink RIn u; ROut y; equation y = 2 * u; end Sink; \
+         model M Src src; Sink sink; Real out; \
+         equation connect(sink.u, src.y); out = sink.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("two signals connected");
+    let joined = m
+        .equations
+        .iter()
+        .find(|equation| {
+            let text = format!("{:?} {:?}", equation.lhs, equation.rhs);
+            text.contains("sink.u") && text.contains("src.y")
+        })
+        .expect("the connection is an equation");
+    assert!(
+        matches!(&joined.lhs, oxidelica_parser::Expr::Ref(name) if name == "sink.u"),
+        "the input is what the connection defines: {:?} = {:?}",
+        joined.lhs,
+        joined.rhs
+    );
+}

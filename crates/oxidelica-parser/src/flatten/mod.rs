@@ -580,10 +580,30 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         // `connector RealInput = input Real` - joins on itself: there
         // is no member to name, so the paths are the variables.
         if held.is_empty() && class.alias_of.is_some() {
-            for other in &members[1..] {
+            // Which side the equation defines is not the order the
+            // set happened to be in: an `input` takes its value from
+            // whatever it was connected to, and an `output` states
+            // one. Written the other way round, a signal that already
+            // had a definition of its own got a second and the input
+            // got none - and on a clocked signal that is a model
+            // refused as unbalanced.
+            let states_it = |path: &str| {
+                acc.connectors
+                    .get(path)
+                    .and_then(|of| registry.get(of.as_str()))
+                    .is_some_and(|of| of.alias_causality == Causality::Output)
+            };
+            let source = members
+                .iter()
+                .find(|path| states_it(path))
+                .unwrap_or(&members[0]);
+            for other in members.iter() {
+                if other == source {
+                    continue;
+                }
                 acc.equations.push(EquationItem {
                     lhs: Expr::Ref((*other).to_string()),
-                    rhs: Expr::Ref(members[0].to_string()),
+                    rhs: Expr::Ref((*source).to_string()),
                     origin: String::new(),
                 });
             }
