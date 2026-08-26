@@ -51,8 +51,14 @@ now wanted, sixty times over. The coverage floor catches the other
 half: three hundred new lines with two tests over them will hold every
 threshold this project measures and still turn the build red.
 
-Both are in `scripts/preflight.sh`. Run it before pushing rather than
-after; the round trip of ten red commits was paid for once already.
+Both are in `scripts/preflight.sh`, along with the formatters that
+check the prose. Run it before pushing rather than after; the round
+trip of ten red commits was paid for once already, and three more went
+red for a note whose emphasis was written with the wrong character.
+
+Editing a note counts. The Markdown is held to a style, and a commit
+that only touches `AGENTS.md` can turn the build red exactly as a
+commit touching the compiler can.
 
 ## Finding out why a model will not run
 
