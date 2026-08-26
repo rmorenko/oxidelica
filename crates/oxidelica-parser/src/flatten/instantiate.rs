@@ -1150,123 +1150,25 @@ fn instantiate_components(
         };
         // The same value where the declaration is a parameter, which
         // may not become an equation: a parameter has to stay a value
-        // the run works out at the start. It is handed down as one
-        // modifier per field instead, which is what `rcData(R = ..., C
-        // = ...)` would have said. A field the record declares `final`
-        // is not one a value may hand down, and where the value will
-        // not come apart at all it is left where it was.
+        // the run works out at the start.
         let per_field = |value: &Expr, of: &ClassDef, prefixed: bool| -> Vec<Vec<(String, Expr)>> {
-            // The value comes apart into every field the record has,
-            // final ones among them, because that is what the record
-            // is. Which of them may be handed on is a separate
-            // question, answered once the value has been taken apart:
-            // a `final` field is worked out from the others where it
-            // lands and is not one a value may set. Refusing the whole
-            // record for having one was what left the machines' loss
-            // parameters unset, since a friction record states its
-            // reference torque as a `final` field.
-            let fields: Vec<String> = of
-                .components
-                .iter()
-                .map(|field| field.name.clone())
-                .collect();
-            let settable: Vec<bool> = of.components.iter().map(|field| !field.is_final).collect();
-            if fields.is_empty() || !settable.iter().any(|may| *may) {
-                return Vec::new();
-            }
-            let shapes = Shapes {
-                sizes: &sizes_here,
-                loop_vars: &HashMap::new(),
-                consts: &local_consts,
-                // A value handed down arrives written in the terms of
-                // the class that supplied it - `Machine m(friction =
-                // data.friction)` names a record that class holds, not
-                // one of this one - so what every class built so far
-                // knows has to be in view, as it is for a record-valued
-                // variable further down. Without it the value is not
-                // recognised as a record at all, comes apart into
-                // nothing, and the fields are left to whatever their
-                // declarations said.
-                records: records_wider_for_fields,
-            };
-            let expr = match prefixed {
-                true => value.clone(),
-                false => {
-                    let expr = substitute_class_constants(value, registry, scope, imports, shadow);
-                    prefix_expr(&expr, prefix, outers)
-                }
-            };
-            let worked = expand(&expr, &shapes, registry, scope, imports, 0).and_then(|worked| {
-                records_written_out(worked, &shapes, registry, &|e| {
-                    expand(e, &shapes, registry, scope, imports, 0)
-                })
-            });
-            let Ok(worked) = worked else {
-                return Vec::new();
-            };
-            // One record is its fields, and a field may be an array of
-            // its own, so what is counted here is fields rather than
-            // numbers.
-            let one = |item: &Value| -> Option<Vec<Expr>> {
-                match item {
-                    Value::Array(given) if given.len() == fields.len() => {
-                        Some(given.iter().cloned().map(Value::into_expr).collect())
-                    }
-                    _ => None,
-                }
-            };
-            // An array of records comes apart twice over: once into its
-            // elements and once into each element's fields. The
-            // elements lie as many levels down as the declaration has
-            // dimensions, so that is how far to go - `Complex sTM[m,
-            // m]` is m rows of m records, and counting entries at one
-            // level instead would take the two rows of a 2 by 2 for
-            // the two fields of one record.
-            let one_apiece = || -> Option<Vec<Vec<Expr>>> {
-                let mut elements = Vec::new();
-                levels_down(&worked, sizes.len(), &mut elements);
-                match elements.len() == element_names.len() {
-                    true => elements.iter().map(one).collect(),
-                    false => None,
-                }
-            };
-            // One record for all of them, which is what a scalar value
-            // does for an array.
-            let over_all = || one(&worked).map(|whole| vec![whole; element_names.len()]);
-            // Which of the two the value is under is a question about
-            // how many numbers it holds rather than about how many
-            // entries any one level has: a record of two fields handed
-            // to an array of two elements has the same length either
-            // way, and reading it wrongly gives every element the same
-            // wrong value with nothing said. One record of this class
-            // is so many numbers, and the value is either that many or
-            // that many times over.
-            let mut leaves = Vec::new();
-            worked.flatten_into(&mut leaves);
-            let of_one = numbers_of_one(registry, of, 0);
-            let per_element = match of_one {
-                // A record whose shape holds a length the compiler
-                // cannot see says nothing either way, and the reading
-                // that was here before has its say.
-                None | Some(0) => one_apiece().or_else(over_all),
-                Some(each) if leaves.len() == each * element_names.len() => one_apiece(),
-                Some(each) if leaves.len() == each => over_all(),
-                Some(_) => None,
-            }
-            .unwrap_or_default();
-            per_element
-                .into_iter()
-                .map(|given| {
-                    fields
-                        .iter()
-                        .cloned()
-                        .zip(given)
-                        .zip(&settable)
-                        .filter(|(_, may)| **may)
-                        .map(|(field, _)| field)
-                        .collect()
-                })
-                .collect()
+            record_value_per_field(
+                value,
+                of,
+                prefixed,
+                class,
+                &element_names,
+                registry,
+                scope,
+                prefix,
+                imports,
+                shadow,
+                outers,
+                &sizes_here,
+                &local_consts,
+                records_wider_for_fields,
+                &sizes,
+            )
         };
         // A record's value is not one number per element: `Complex
         // vs[m] = plug.pin.v` says as much about `vs[1].re` as about
@@ -1598,6 +1500,147 @@ fn spread_over_elements(
         ));
     }
     Ok(items)
+}
+
+/// A record value handed down as one modifier per field.
+///
+/// A parameter may not become an equation - it has to stay a value the
+/// run works out at the start - so `rcData = data` is handed on as `R
+/// = ..., C = ...`, which is what the writer would have said. A field
+/// the record declares `final` is worked out from the others where it
+/// lands and is not one a value may set; refusing the whole record for
+/// having one left the machines' loss parameters unset.
+///
+/// Moved out of `instantiate_components` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn record_value_per_field(
+    value: &Expr,
+    of: &ClassDef,
+    prefixed: bool,
+    _class: &ClassDef,
+    element_names: &[String],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    prefix: &str,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    sizes_here: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+    records_wider_for_fields: &HashMap<String, String>,
+    sizes: &[i64],
+) -> Vec<Vec<(String, Expr)>> {
+    // The value comes apart into every field the record has,
+    // final ones among them, because that is what the record
+    // is. Which of them may be handed on is a separate
+    // question, answered once the value has been taken apart:
+    // a `final` field is worked out from the others where it
+    // lands and is not one a value may set. Refusing the whole
+    // record for having one was what left the machines' loss
+    // parameters unset, since a friction record states its
+    // reference torque as a `final` field.
+    let fields: Vec<String> = of
+        .components
+        .iter()
+        .map(|field| field.name.clone())
+        .collect();
+    let settable: Vec<bool> = of.components.iter().map(|field| !field.is_final).collect();
+    if fields.is_empty() || !settable.iter().any(|may| *may) {
+        return Vec::new();
+    }
+    let shapes = Shapes {
+        sizes: sizes_here,
+        loop_vars: &HashMap::new(),
+        consts: local_consts,
+        // A value handed down arrives written in the terms of
+        // the class that supplied it - `Machine m(friction =
+        // data.friction)` names a record that class holds, not
+        // one of this one - so what every class built so far
+        // knows has to be in view, as it is for a record-valued
+        // variable further down. Without it the value is not
+        // recognised as a record at all, comes apart into
+        // nothing, and the fields are left to whatever their
+        // declarations said.
+        records: records_wider_for_fields,
+    };
+    let expr = match prefixed {
+        true => value.clone(),
+        false => {
+            let expr = substitute_class_constants(value, registry, scope, imports, shadow);
+            prefix_expr(&expr, prefix, outers)
+        }
+    };
+    let worked = expand(&expr, &shapes, registry, scope, imports, 0).and_then(|worked| {
+        records_written_out(worked, &shapes, registry, &|e| {
+            expand(e, &shapes, registry, scope, imports, 0)
+        })
+    });
+    let Ok(worked) = worked else {
+        return Vec::new();
+    };
+    // One record is its fields, and a field may be an array of
+    // its own, so what is counted here is fields rather than
+    // numbers.
+    let one = |item: &Value| -> Option<Vec<Expr>> {
+        match item {
+            Value::Array(given) if given.len() == fields.len() => {
+                Some(given.iter().cloned().map(Value::into_expr).collect())
+            }
+            _ => None,
+        }
+    };
+    // An array of records comes apart twice over: once into its
+    // elements and once into each element's fields. The
+    // elements lie as many levels down as the declaration has
+    // dimensions, so that is how far to go - `Complex sTM[m,
+    // m]` is m rows of m records, and counting entries at one
+    // level instead would take the two rows of a 2 by 2 for
+    // the two fields of one record.
+    let one_apiece = || -> Option<Vec<Vec<Expr>>> {
+        let mut elements = Vec::new();
+        levels_down(&worked, sizes.len(), &mut elements);
+        match elements.len() == element_names.len() {
+            true => elements.iter().map(one).collect(),
+            false => None,
+        }
+    };
+    // One record for all of them, which is what a scalar value
+    // does for an array.
+    let over_all = || one(&worked).map(|whole| vec![whole; element_names.len()]);
+    // Which of the two the value is under is a question about
+    // how many numbers it holds rather than about how many
+    // entries any one level has: a record of two fields handed
+    // to an array of two elements has the same length either
+    // way, and reading it wrongly gives every element the same
+    // wrong value with nothing said. One record of this class
+    // is so many numbers, and the value is either that many or
+    // that many times over.
+    let mut leaves = Vec::new();
+    worked.flatten_into(&mut leaves);
+    let of_one = numbers_of_one(registry, of, 0);
+    let per_element = match of_one {
+        // A record whose shape holds a length the compiler
+        // cannot see says nothing either way, and the reading
+        // that was here before has its say.
+        None | Some(0) => one_apiece().or_else(over_all),
+        Some(each) if leaves.len() == each * element_names.len() => one_apiece(),
+        Some(each) if leaves.len() == each => over_all(),
+        Some(_) => None,
+    }
+    .unwrap_or_default();
+    per_element
+        .into_iter()
+        .map(|given| {
+            fields
+                .iter()
+                .cloned()
+                .zip(given)
+                .zip(&settable)
+                .filter(|(_, may)| **may)
+                .map(|(field, _)| field)
+                .collect()
+        })
+        .collect()
 }
 
 /// Working an expression of this class out where it stands: the array
