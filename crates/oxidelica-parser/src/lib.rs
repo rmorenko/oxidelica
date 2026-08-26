@@ -9,6 +9,7 @@ pub mod lexer;
 pub mod library;
 pub mod outside;
 pub mod parser;
+mod units;
 
 pub use ast::{
     operator_name, BinOp, Causality, ClassDef, ClassKind, Component, EquationItem, Experiment,
