@@ -1473,6 +1473,32 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
 /// again at the current point re-makes the choice with the sensitivities
 /// of *now*, and everything downstream (matching, tearing, slots) simply
 /// follows.
+/// Compile the model as it stands at one point of a run.
+///
+/// The stages, in the order they happen, which is the order the
+/// numbered comments below follow:
+///
+/// 0. `spatialDistribution` becomes ordinary equations, so that
+///    everything after this sees equations and nothing else.
+/// 1. Parameters and constants are worked out, in whatever order they
+///    depend on one another, and the discrete layer with them: what
+///    changes only at an event, and what each of those starts at.
+/// 1b. The mode is settled: an `if` equation the compiler could not
+///    decide contributes whichever branch holds here, and the run is
+///    told what to watch so it can ask for a fresh compilation.
+/// 2. The equations are split into those giving a state its derivative
+///    and those that are algebraic.
+/// 3. What is left to solve for is counted, and every name in the
+///    model is checked to be something the run can reach.
+/// 4. Structural analysis: equations are matched to unknowns, and
+///    where the match fails the index is reduced by differentiating.
+/// 5. The order to evaluate in: what can be solved on its own is
+///    solved on its own, and what cannot is torn into blocks.
+/// 6. What the run needs beside the equations: event indicators, the
+///    Jacobian's shape, the slots `pre` reads, the function bodies
+///    nothing could inline, and where every value lives in one array.
+///
+/// Each of these is being given a name of its own, one at a time.
 pub(crate) fn compile_at(
     model: &Model,
     resume: Option<ResumePoint>,
