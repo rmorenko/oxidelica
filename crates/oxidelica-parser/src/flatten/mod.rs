@@ -193,67 +193,9 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;
 
-    // A package holds classes and constants and nothing else: the
-    // specification forbids a parameter or a variable in one, since a
-    // package has no instance for a value to belong to.
-    for class in classes.iter().filter(|c| c.kind == ClassKind::Package) {
-        if let Some(loose) = class
-            .components
-            .iter()
-            .find(|c| !matches!(c.variability, Variability::Constant))
-        {
-            return Err(format!(
-                "`{}.{}` is a {} in a package; a package may hold only classes and constants",
-                class.name,
-                loose.name,
-                match loose.variability {
-                    Variability::Parameter => "parameter",
-                    Variability::Discrete => "discrete variable",
-                    _ => "variable",
-                }
-            ));
-        }
-    }
+    what_a_class_may_hold(classes, &registry)?;
 
-    // A `block` is a model whose connectors all have a direction. The
-    // classes are looked over rather than the instances, so that a
-    // `partial block` others are built on is looked over too.
-    for class in classes.iter().filter(|c| c.kind == ClassKind::Block) {
-        restrictions::every_connector_of_a_block_is_causal(&registry, class)?;
-        restrictions::every_output_of_a_block_is_settled_inside(&registry, class)?;
-    }
-
-    let mut acc = Flat::default();
-    let env = Env {
-        outer_sizes: &HashMap::new(),
-        overrides: &[],
-        redeclares: &[],
-        inners: &HashMap::new(),
-        broken: &[],
-        handed_shapes: &HashMap::new(),
-        inside_a_parameter: false,
-    };
-    instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
-
-    // `Connections.isRoot(frame_a.R)` is a question about the model as
-    // a whole: a multibody body has states when nothing else settles
-    // its orientation, and which body that is comes out of the graph
-    // the connections draw. A class asking it cannot be built until
-    // the graph is drawn, and the graph is drawn from what building
-    // gathers - so the first pass sets those `if` equations aside and
-    // is kept only for its graph, and everything is built again with
-    // the answers in hand.
-    if acc.graph_asked {
-        let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
-        let counts = tally(&acc.connects);
-        acc = Flat {
-            roots,
-            counts,
-            answered: true,
-            ..Flat::default()
-        };
-        instantiate(&registry, top_class, "", &env, &mut acc, 0)?;
-    }
+    let mut acc = build_the_model(&registry, top_class)?;
 
     // An expandable connector holds whatever the connections to it
     // name, so its members exist only once every `connect` is in.
@@ -754,6 +696,94 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // model, so the run can walk them for itself.
     model.functions = programs_used(&model, &registry)?;
     Ok(model)
+}
+
+/// What the language asks of a class however it is used, checked over
+/// the classes rather than the instances so that a `partial` one
+/// others are built on is checked too.
+///
+/// Moved out of `flatten` unchanged.
+fn what_a_class_may_hold(
+    classes: &[ClassDef],
+    registry: &HashMap<&str, &ClassDef>,
+) -> Result<(), String> {
+    // A package holds classes and constants and nothing else: the
+    // specification forbids a parameter or a variable in one, since a
+    // package has no instance for a value to belong to.
+    for class in classes.iter().filter(|c| c.kind == ClassKind::Package) {
+        if let Some(loose) = class
+            .components
+            .iter()
+            .find(|c| !matches!(c.variability, Variability::Constant))
+        {
+            return Err(format!(
+                "`{}.{}` is a {} in a package; a package may hold only classes and constants",
+                class.name,
+                loose.name,
+                match loose.variability {
+                    Variability::Parameter => "parameter",
+                    Variability::Discrete => "discrete variable",
+                    _ => "variable",
+                }
+            ));
+        }
+    }
+
+    // A `block` is a model whose connectors all have a direction.
+    for class in classes.iter().filter(|c| c.kind == ClassKind::Block) {
+        restrictions::every_connector_of_a_block_is_causal(registry, class)?;
+        restrictions::every_output_of_a_block_is_settled_inside(registry, class)?;
+    }
+    Ok(())
+}
+
+/// The whole model built from the top class down, twice where it has
+/// to be.
+///
+/// `Connections.isRoot(frame_a.R)` is a question about the model as a
+/// whole: a class asking it cannot be built until the graph is drawn,
+/// and the graph is drawn from what building gathers. So the first
+/// pass sets those `if` equations aside and is kept only for its
+/// graph, and everything is built again with the answers in hand.
+///
+/// Moved out of `flatten` unchanged.
+fn build_the_model(
+    registry: &HashMap<&str, &ClassDef>,
+    top_class: &ClassDef,
+) -> Result<Flat, String> {
+    let mut acc = Flat::default();
+    let env = Env {
+        outer_sizes: &HashMap::new(),
+        overrides: &[],
+        redeclares: &[],
+        inners: &HashMap::new(),
+        broken: &[],
+        handed_shapes: &HashMap::new(),
+        inside_a_parameter: false,
+    };
+    instantiate(registry, top_class, "", &env, &mut acc, 0)?;
+
+    // `Connections.isRoot(frame_a.R)` is a question about the model as
+    // a whole: a multibody body has states when nothing else settles
+    // its orientation, and which body that is comes out of the graph
+    // the connections draw. A class asking it cannot be built until
+    // the graph is drawn, and the graph is drawn from what building
+    // gathers - so the first pass sets those `if` equations aside and
+    // is kept only for its graph, and everything is built again with
+    // the answers in hand.
+    if acc.graph_asked {
+        let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
+        let counts = tally(&acc.connects);
+        acc = Flat {
+            roots,
+            counts,
+            answered: true,
+            ..Flat::default()
+        };
+        instantiate(registry, top_class, "", &env, &mut acc, 0)?;
+    }
+
+    Ok(acc)
 }
 
 /// Write out every `a.b.c` still standing that names a member of an
