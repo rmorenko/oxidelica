@@ -30,6 +30,7 @@ mod external;
 mod grids;
 mod inheritance;
 mod instantiate;
+mod lookup;
 mod names;
 mod operators;
 mod restrictions;
@@ -48,6 +49,7 @@ use connections::*;
 use extents::*;
 use inheritance::*;
 use instantiate::*;
+use lookup::*;
 use names::*;
 use operators::*;
 use scoping::*;
@@ -188,7 +190,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // what a name is found to mean in it is worth remembering: the
     // walk out of the enclosing packages is asked the same question
     // thousands of times over.
-    let _standing = names::StandingNames::open();
+    let _standing = lookup::StandingNames::open();
     let top_class = registry
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;
