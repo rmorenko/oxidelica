@@ -146,6 +146,17 @@ it subscripts, or a call and not a matrix - and that is deliberate,
 so they go on saying it themselves. The helper is for the walk that
 means "and the same, further down".
 
+A pass that has to *decide* about a node is another matter, and there
+a catch-all is a trap: `const_eval` answering `None`, `shape_of`
+naming the node, `to_scalar` reducing it. A variant added to `Expr`
+then joins the catch-all silently, and what that looks like from
+outside is a dimension that cannot be measured or a value that cannot
+be carried, three layers further on. Those match every variant by
+name, so the next one has to be decided about rather than absorbed.
+A `matches!` asking whether a node is *one of a set* - is this a
+Boolean, is this a list - is not one of these: the question there is
+membership, and the catch-all is the answer.
+
 ## Language
 
 Everything in the repository is English - code, comments, commit
