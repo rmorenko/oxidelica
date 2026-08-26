@@ -1955,6 +1955,176 @@ fn one_tuple_equation(
     Ok(true)
 }
 
+/// What the pass before this one gathered about the connections: the
+/// roots of the overconstrained graph and how many `connect` equations
+/// named each port. `answered` is what says a pass has been made - a
+/// model with no overconstrained loop has no roots in earnest, so
+/// emptiness says nothing.
+pub(super) struct Graph<'a> {
+    pub(super) known_roots: &'a HashMap<String, bool>,
+    pub(super) known_counts: &'a HashMap<String, f64>,
+    pub(super) answered: bool,
+}
+
+/// The `if` equations of a class: the branch that holds contributes its
+/// equations, the others contribute nothing. Conditions are structural,
+/// so they must be constant at compile time.
+///
+/// The `when` clauses and graph clauses inside a branch the compiler
+/// picked are gathered as they are met: they belong to the class as
+/// much as the ones it wrote outright.
+///
+/// Moved out of `flatten_equations` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn flatten_if_equations<'a>(
+    class: &'a ClassDef,
+    acc: &mut Flat,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    prefix: &str,
+    imports: &[(String, String)],
+    outers: &HashMap<String, String>,
+    sizes_here: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+    records_here: &HashMap<String, String>,
+    expand_here: &ExpandHere<'_>,
+    resolve_here: &dyn Fn(&Expr) -> Result<Expr, String>,
+    take_checks: &dyn Fn(&Expr, &mut Flat) -> Result<(), String>,
+    tuple_equation: &dyn Fn(&EquationItem, &mut Flat) -> Result<bool, String>,
+    graph: &Graph<'_>,
+    whens_from_branches: &mut Vec<&'a WhenClause>,
+    graph_from_branches: &mut Vec<&'a GraphClause>,
+) -> Result<(), String> {
+    let no_loop_vars = HashMap::new();
+    let Graph {
+        known_roots,
+        known_counts,
+        answered,
+    } = *graph;
+    for if_equation in &class.if_equations {
+        let mut env = acc.const_values.clone();
+        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+        // A structural condition picks one branch and the model is
+        // built from it. A condition only the run holds decides
+        // nothing here, so every branch must contribute the same
+        // number of equations and each position becomes one equation
+        // that chooses its residual as it goes.
+        // A condition is read with the constants of the classes it
+        // names put in first: `smoothness == Smoothness.LinearSegments`
+        // compares a parameter against an enumeration literal, and
+        // neither is a name the environment holds on its own. A
+        // question about the connection graph is answered from the
+        // roots, which are in hand on the pass that follows the one
+        // that drew them.
+        let settle = |condition: &Expr| {
+            let named = substitute_class_constants(condition, registry, scope, imports, &[]);
+            if let Some(value) = const_eval(&named, &env) {
+                return Some(value);
+            }
+            if !answered {
+                return None;
+            }
+            let asked = prefix_expr(&named, prefix, outers);
+            let told = answer_graph_queries(&asked, known_roots, known_counts);
+            const_eval(&told, &env)
+        };
+        let decidable = if_equation.branches.iter().all(|branch| {
+            branch
+                .condition
+                .as_ref()
+                .is_none_or(|condition| settle(condition).is_some())
+        });
+        // A condition that asks the graph where the graph has not been
+        // drawn cannot be answered here, and the branches of such an
+        // `if` are not balanced - a body that is a root carries states
+        // and one that is not carries none. So it is set aside, and
+        // the whole model is built again once the graph is in.
+        if !decidable && !answered && asks_the_graph(if_equation) {
+            acc.graph_asked = true;
+            continue;
+        }
+        if !decidable {
+            push_conditional(
+                if_equation,
+                &class.name,
+                resolve_here,
+                expand_here,
+                &no_loop_vars,
+                acc,
+            )?;
+            continue;
+        }
+        let mut chosen = None;
+        for branch in &if_equation.branches {
+            match &branch.condition {
+                None => {
+                    chosen = Some(branch);
+                    break;
+                }
+                Some(condition) => {
+                    let value = settle(condition).ok_or_else(|| {
+                        format!(
+                            "condition of an `if` equation in `{}` is not a compile-time constant",
+                            class.name
+                        )
+                    })?;
+                    if value != 0.0 {
+                        chosen = Some(branch);
+                        break;
+                    }
+                }
+            }
+        }
+        let Some(branch) = chosen else { continue };
+        // The branch is the one taken, so its checks hold outright.
+        for (condition, message) in &branch.asserts {
+            acc.asserts
+                .push((resolve_here(condition)?, message.clone()));
+        }
+        whens_from_branches.extend(branch.whens.iter());
+        graph_from_branches.extend(branch.graph.iter());
+        for call in &branch.calls {
+            take_checks(call, acc)?;
+        }
+        for loop_eq in &branch.loops {
+            unroll(
+                loop_eq,
+                &HashMap::new(),
+                local_consts,
+                prefix,
+                outers,
+                sizes_here,
+                records_here,
+                registry,
+                scope,
+                imports,
+                acc,
+            )?;
+        }
+        for equation in &branch.equations {
+            if tuple_equation(equation, acc)? {
+                continue;
+            }
+            push_equations(
+                &expand_here(&equation.lhs, &no_loop_vars)?,
+                &expand_here(&equation.rhs, &no_loop_vars)?,
+                acc,
+            )?;
+        }
+        for (a, b) in &branch.connects {
+            let shapes = Shapes {
+                sizes: sizes_here,
+                loop_vars: &no_loop_vars,
+                consts: local_consts,
+                records: records_here,
+            };
+            push_connects(a, b, &shapes, prefix, outers, registry, scope, imports, acc)?;
+        }
+    }
+
+    Ok(())
+}
+
 /// Everything the class states rather than declares: its equations,
 /// the `if` branches and `when` clauses among them, the values of its
 /// record-valued declarations, its connections and its algorithm
@@ -2219,126 +2389,29 @@ fn flatten_equations(
     // `if` equations: the branch that holds contributes its equations,
     // the others contribute nothing. Conditions are structural, so they
     // must be constant at compile time.
-    for if_equation in &class.if_equations {
-        let mut env = acc.const_values.clone();
-        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
-        // A structural condition picks one branch and the model is
-        // built from it. A condition only the run holds decides
-        // nothing here, so every branch must contribute the same
-        // number of equations and each position becomes one equation
-        // that chooses its residual as it goes.
-        // A condition is read with the constants of the classes it
-        // names put in first: `smoothness == Smoothness.LinearSegments`
-        // compares a parameter against an enumeration literal, and
-        // neither is a name the environment holds on its own. A
-        // question about the connection graph is answered from the
-        // roots, which are in hand on the pass that follows the one
-        // that drew them.
-        let settle = |condition: &Expr| {
-            let named = substitute_class_constants(condition, registry, scope, imports, &[]);
-            if let Some(value) = const_eval(&named, &env) {
-                return Some(value);
-            }
-            if !answered {
-                return None;
-            }
-            let asked = prefix_expr(&named, prefix, outers);
-            let told = answer_graph_queries(&asked, &known_roots, &known_counts);
-            const_eval(&told, &env)
-        };
-        let decidable = if_equation.branches.iter().all(|branch| {
-            branch
-                .condition
-                .as_ref()
-                .is_none_or(|condition| settle(condition).is_some())
-        });
-        // A condition that asks the graph where the graph has not been
-        // drawn cannot be answered here, and the branches of such an
-        // `if` are not balanced - a body that is a root carries states
-        // and one that is not carries none. So it is set aside, and
-        // the whole model is built again once the graph is in.
-        if !decidable && !answered && asks_the_graph(if_equation) {
-            acc.graph_asked = true;
-            continue;
-        }
-        if !decidable {
-            push_conditional(
-                if_equation,
-                &class.name,
-                resolve_here,
-                expand_here,
-                &no_loop_vars,
-                acc,
-            )?;
-            continue;
-        }
-        let mut chosen = None;
-        for branch in &if_equation.branches {
-            match &branch.condition {
-                None => {
-                    chosen = Some(branch);
-                    break;
-                }
-                Some(condition) => {
-                    let value = settle(condition).ok_or_else(|| {
-                        format!(
-                            "condition of an `if` equation in `{}` is not a compile-time constant",
-                            class.name
-                        )
-                    })?;
-                    if value != 0.0 {
-                        chosen = Some(branch);
-                        break;
-                    }
-                }
-            }
-        }
-        let Some(branch) = chosen else { continue };
-        // The branch is the one taken, so its checks hold outright.
-        for (condition, message) in &branch.asserts {
-            acc.asserts
-                .push((resolve_here(condition)?, message.clone()));
-        }
-        whens_from_branches.extend(branch.whens.iter());
-        graph_from_branches.extend(branch.graph.iter());
-        for call in &branch.calls {
-            take_checks(call, acc)?;
-        }
-        for loop_eq in &branch.loops {
-            unroll(
-                loop_eq,
-                &HashMap::new(),
-                local_consts,
-                prefix,
-                outers,
-                sizes_here,
-                records_here,
-                registry,
-                scope,
-                imports,
-                acc,
-            )?;
-        }
-        for equation in &branch.equations {
-            if tuple_equation(equation, acc)? {
-                continue;
-            }
-            push_equations(
-                &expand_here(&equation.lhs, &no_loop_vars)?,
-                &expand_here(&equation.rhs, &no_loop_vars)?,
-                acc,
-            )?;
-        }
-        for (a, b) in &branch.connects {
-            let shapes = Shapes {
-                sizes: sizes_here,
-                loop_vars: &no_loop_vars,
-                consts: local_consts,
-                records: records_here,
-            };
-            push_connects(a, b, &shapes, prefix, outers, registry, scope, imports, acc)?;
-        }
-    }
+    flatten_if_equations(
+        class,
+        acc,
+        registry,
+        scope,
+        prefix,
+        imports,
+        outers,
+        sizes_here,
+        local_consts,
+        records_here,
+        &expand_here,
+        &resolve_here,
+        &take_checks,
+        &tuple_equation,
+        &Graph {
+            known_roots: &known_roots,
+            known_counts: &known_counts,
+            answered,
+        },
+        &mut whens_from_branches,
+        &mut graph_from_branches,
+    )?;
 
     // What the class says about the overconstrained graph, and what
     // the branches the compiler picked said about it.
