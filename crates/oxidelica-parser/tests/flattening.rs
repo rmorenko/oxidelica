@@ -7315,6 +7315,23 @@ const TABLE_BLOCK: &str = "package Blocks \
        external \"C\" u = ModelicaStandardTables_CombiTable1D_maximumAbscissa(h); end umax; \
    end Blocks; ";
 
+/// A subscript outside its array says which array, and where.
+#[test]
+fn a_subscript_outside_its_array_names_what_was_being_read() {
+    // `subscript 1 is outside an array of 0` says which model was
+    // refused and nothing at all about where to look in it. The name
+    // is what turns a refusal into a place to start.
+    let refused = parse_model(
+        "package P model M parameter Integer n = 0; \
+         Real empty[n]; Real y; \
+         equation y = empty[1]; end M; end P;",
+    )
+    .expect_err("a subscript into nothing")
+    .message;
+    assert!(refused.contains("outside an array of 0"), "{refused}");
+    assert!(refused.contains("empty"), "the array is named: {refused}");
+}
+
 /// The Akima spline: a cubic between each pair of points, leaving
 /// each point at a slope worked out from its neighbours.
 #[test]

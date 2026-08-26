@@ -344,7 +344,18 @@ pub(super) fn expand(
             match base_value {
                 Value::Array(_) => index_into(
                     base_value, subscripts, shapes, registry, scope, imports, depth,
-                )?,
+                )
+                .map_err(|why| match why.starts_with("subscript ") {
+                    // A refusal about a subscript is worth little
+                    // without the name it was written on: `subscript 1
+                    // is outside an array of 0` said which model was
+                    // refused and nothing about where to look in it.
+                    true => format!(
+                        "{why}, reading `{}`",
+                        names::sketch(&Expr::Index(base.clone(), subscripts.clone()))
+                    ),
+                    false => why,
+                })?,
                 _ => scalar(expr)?,
             }
         }
