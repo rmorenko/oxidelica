@@ -368,93 +368,11 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
 /// inlining and loop-variable substitution).
 pub(super) fn substitute_refs(expr: &Expr, map: &HashMap<String, Expr>) -> Expr {
     match expr {
+        // The one case this pass is about: a name the map speaks for
+        // becomes what the map says, and everything else is the same
+        // expression with its children substituted.
         Expr::Ref(name) => map.get(name).cloned().unwrap_or_else(|| expr.clone()),
-        Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
-        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
-            Box::new(substitute_refs(value, map)),
-            Box::new(substitute_refs(rule, map)),
-            seeds
-                .iter()
-                .map(|(name, arg)| (name.clone(), substitute_refs(arg, map)))
-                .collect(),
-        ),
-        Expr::Call(name, args) => Expr::Call(
-            name.clone(),
-            args.iter().map(|a| substitute_refs(a, map)).collect(),
-        ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(substitute_refs(inner, map))),
-        Expr::Not(inner) => Expr::Not(Box::new(substitute_refs(inner, map))),
-        Expr::Bin(op, l, r) => Expr::Bin(
-            *op,
-            Box::new(substitute_refs(l, map)),
-            Box::new(substitute_refs(r, map)),
-        ),
-        Expr::Rel(op, l, r) => Expr::Rel(
-            *op,
-            Box::new(substitute_refs(l, map)),
-            Box::new(substitute_refs(r, map)),
-        ),
-        Expr::And(l, r) => Expr::And(
-            Box::new(substitute_refs(l, map)),
-            Box::new(substitute_refs(r, map)),
-        ),
-        Expr::Or(l, r) => Expr::Or(
-            Box::new(substitute_refs(l, map)),
-            Box::new(substitute_refs(r, map)),
-        ),
-        Expr::If(c, a, b) => Expr::If(
-            Box::new(substitute_refs(c, map)),
-            Box::new(substitute_refs(a, map)),
-            Box::new(substitute_refs(b, map)),
-        ),
-        Expr::Index(base, subscripts) => Expr::Index(
-            Box::new(substitute_refs(base, map)),
-            subscripts.iter().map(|s| substitute_refs(s, map)).collect(),
-        ),
-        Expr::Member(base, path) => {
-            Expr::Member(Box::new(substitute_refs(base, map)), path.clone())
-        }
-        Expr::Array(items) => Expr::Array(
-            items
-                .iter()
-                .map(|item| substitute_refs(item, map))
-                .collect(),
-        ),
-        Expr::Elementwise(op, l, r) => Expr::Elementwise(
-            *op,
-            Box::new(substitute_refs(l, map)),
-            Box::new(substitute_refs(r, map)),
-        ),
-        Expr::Range(a, step, b) => Expr::Range(
-            Box::new(substitute_refs(a, map)),
-            step.as_ref().map(|s| Box::new(substitute_refs(s, map))),
-            Box::new(substitute_refs(b, map)),
-        ),
-        Expr::Comprehension(body, var, range) => {
-            // The iterator shadows any outer binding of the same name.
-            let mut inner = map.clone();
-            inner.remove(var);
-            Expr::Comprehension(
-                Box::new(substitute_refs(body, &inner)),
-                var.clone(),
-                Box::new(substitute_refs(range, map)),
-            )
-        }
-        Expr::MatrixRows(rows) => Expr::MatrixRows(
-            rows.iter()
-                .map(|row| row.iter().map(|item| substitute_refs(item, map)).collect())
-                .collect(),
-        ),
-        Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
-        Expr::NamedArg(keyword, value) => {
-            Expr::NamedArg(keyword.clone(), Box::new(substitute_refs(value, map)))
-        }
-        Expr::Tuple(targets) => Expr::Tuple(
-            targets
-                .iter()
-                .map(|slot| slot.as_ref().map(|target| substitute_refs(target, map)))
-                .collect(),
-        ),
+        _ => expr.map_children(&mut |child| substitute_refs(child, map)),
     }
 }
 

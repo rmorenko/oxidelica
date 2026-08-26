@@ -892,6 +892,79 @@ pub enum Expr {
 }
 
 impl Expr {
+    /// The same expression with `f` applied to each expression it
+    /// holds, one level down.
+    ///
+    /// Nearly every pass over an expression is one interesting case
+    /// and then the same twenty lines of taking every other variant
+    /// apart and putting it back together. Written out by hand in
+    /// fourteen places, a variant added to `Expr` is a variant fourteen
+    /// passes quietly walk past - and walking past is not an error the
+    /// compiler can see. Written here once, the compiler asks for it
+    /// once.
+    ///
+    /// A pass whose recursion is not this mechanical - one that reads
+    /// the children in an order of its own, or stops at some of them -
+    /// still writes what it means by hand. This takes only the
+    /// machinery.
+    pub fn map_children(&self, f: &mut dyn FnMut(&Expr) -> Expr) -> Expr {
+        let one = |e: &Expr, f: &mut dyn FnMut(&Expr) -> Expr| Box::new(f(e));
+        match self {
+            // Nothing below them to map.
+            Expr::Number(_)
+            | Expr::Bool(_)
+            | Expr::Str(_)
+            | Expr::Ref(_)
+            | Expr::Time
+            | Expr::ColonSubscript
+            | Expr::EndSubscript => self.clone(),
+            Expr::Neg(inner) => Expr::Neg(one(inner, f)),
+            Expr::Not(inner) => Expr::Not(one(inner, f)),
+            Expr::Member(base, path) => Expr::Member(one(base, f), path.clone()),
+            Expr::NamedArg(name, value) => Expr::NamedArg(name.clone(), one(value, f)),
+            Expr::Bin(op, l, r) => Expr::Bin(*op, one(l, f), one(r, f)),
+            Expr::Elementwise(op, l, r) => Expr::Elementwise(*op, one(l, f), one(r, f)),
+            Expr::Rel(op, l, r) => Expr::Rel(*op, one(l, f), one(r, f)),
+            Expr::And(l, r) => Expr::And(one(l, f), one(r, f)),
+            Expr::Or(l, r) => Expr::Or(one(l, f), one(r, f)),
+            Expr::If(c, a, b) => Expr::If(one(c, f), one(a, f), one(b, f)),
+            Expr::Comprehension(body, name, over) => {
+                Expr::Comprehension(one(body, f), name.clone(), one(over, f))
+            }
+            Expr::Range(from, step, to) => Expr::Range(
+                one(from, f),
+                step.as_ref().map(|step| one(step, f)),
+                one(to, f),
+            ),
+            Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(|a| f(a)).collect()),
+            Expr::Array(items) => Expr::Array(items.iter().map(|i| f(i)).collect()),
+            // A tuple may leave a place empty - `(a, , c) = f(...)`
+            // skips an output - and an empty place has nothing to map.
+            Expr::Tuple(items) => Expr::Tuple(
+                items
+                    .iter()
+                    .map(|item| item.as_ref().map(|item| f(item)))
+                    .collect(),
+            ),
+            Expr::Index(base, subscripts) => {
+                Expr::Index(one(base, f), subscripts.iter().map(|s| f(s)).collect())
+            }
+            Expr::MatrixRows(rows) => Expr::MatrixRows(
+                rows.iter()
+                    .map(|row| row.iter().map(|cell| f(cell)).collect())
+                    .collect(),
+            ),
+            Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
+                one(value, f),
+                one(rule, f),
+                seeds
+                    .iter()
+                    .map(|(name, arg)| (name.clone(), f(arg)))
+                    .collect(),
+            ),
+        }
+    }
+
     /// If the expression is exactly `der(<name>)`, return the state name.
     pub fn as_der_of(&self) -> Option<&str> {
         if let Expr::Call(name, args) = self {
