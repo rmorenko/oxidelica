@@ -1480,3 +1480,35 @@ fn a_record_that_extends_carries_the_fields_it_inherits() {
     // A hundred over four: the state carried both its inherited fields.
     assert_eq!(last[y], 25.0, "{:?}", result.columns);
 }
+
+/// A bus member nobody connects to stands at zero.
+#[test]
+fn a_declared_bus_member_nothing_connects_to_stands_at_zero() {
+    // An expandable connector usually declares nothing and takes the
+    // members its connections name. The standard library's control bus
+    // declares the five it expects as well, and a declared member no
+    // `connect` reaches has no equation at all - so the model came out
+    // with one unknown more than it had equations. 9.1.3 says what it
+    // is worth: a potential variable with no connections is zero.
+    let result = run(
+        "package P expandable connector Bus Real signal1; Real signal2; \
+         Boolean flag; end Bus; \
+         connector Signal = output Real; \
+         model Source Signal y; equation y = time; end Source; \
+         model M Bus bus; Source src; Real y; \
+         equation connect(src.y, bus.signal1); y = bus.signal1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    );
+    let at = |name: &str| {
+        let column = result
+            .columns
+            .iter()
+            .position(|held| held == name)
+            .unwrap_or_else(|| panic!("{name} is not a column: {:?}", result.columns));
+        result.rows[result.rows.len() - 1][column]
+    };
+    assert_eq!(at("bus.signal2"), 0.0);
+    // A Boolean member stands at false, which is zero carried as a
+    // truth rather than a number equated to one.
+    assert_eq!(at("bus.flag"), 0.0);
+}

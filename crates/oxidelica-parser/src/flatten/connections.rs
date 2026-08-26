@@ -199,7 +199,51 @@ pub(super) fn expand_buses(
         ));
     }
     acc.connects.append(&mut fresh);
+    // A bus may declare members of its own as well as taking the ones
+    // its connections name - the standard library's control bus writes
+    // out the five signals it expects - and a declared member nothing
+    // connects to has no equation at all. 9.1.3 says what it is worth:
+    // a potential variable with no connections is zero, the same as
+    // any unconnected connector variable. Left without one it was an
+    // unknown more than the model had equations, which is what two
+    // hundred and twenty-three models were refused for.
+    for bus in &buses {
+        let Some(class_name) = acc.connectors.get(bus) else {
+            continue;
+        };
+        let class = registry[class_name.as_str()];
+        for member in &class.components {
+            let path = format!("{bus}.{}", member.name);
+            let stated = acc
+                .equations
+                .iter()
+                .any(|equation| names_it(&equation.lhs, &path) || names_it(&equation.rhs, &path));
+            if stated || acc.connectors.contains_key(&path) {
+                continue;
+            }
+            if !acc.components.iter().any(|c| c.name == path) {
+                continue;
+            }
+            // What "zero" is depends on the type: a Boolean signal
+            // stands at false, and equating it to a number is a type
+            // error rather than a value.
+            let rhs = match member.type_name.as_str() {
+                "Boolean" => Expr::Bool(false),
+                _ => Expr::Number(0.0),
+            };
+            acc.equations.push(EquationItem {
+                lhs: Expr::Ref(path),
+                rhs,
+                origin: acc.origin.clone(),
+            });
+        }
+    }
     Ok(())
+}
+
+/// Whether an expression names exactly this variable.
+fn names_it(expr: &Expr, path: &str) -> bool {
+    matches!(expr, Expr::Ref(name) if name == path)
 }
 
 /// Replace `inStream(...)` and `actualStream(...)` with the mix the
