@@ -936,22 +936,22 @@ impl Expr {
                 step.as_ref().map(|step| one(step, f)),
                 one(to, f),
             ),
-            Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(|a| f(a)).collect()),
-            Expr::Array(items) => Expr::Array(items.iter().map(|i| f(i)).collect()),
+            Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(&mut *f).collect()),
+            Expr::Array(items) => Expr::Array(items.iter().map(&mut *f).collect()),
             // A tuple may leave a place empty - `(a, , c) = f(...)`
             // skips an output - and an empty place has nothing to map.
             Expr::Tuple(items) => Expr::Tuple(
                 items
                     .iter()
-                    .map(|item| item.as_ref().map(|item| f(item)))
+                    .map(|item| item.as_ref().map(&mut *f))
                     .collect(),
             ),
             Expr::Index(base, subscripts) => {
-                Expr::Index(one(base, f), subscripts.iter().map(|s| f(s)).collect())
+                Expr::Index(one(base, f), subscripts.iter().map(&mut *f).collect())
             }
             Expr::MatrixRows(rows) => Expr::MatrixRows(
                 rows.iter()
-                    .map(|row| row.iter().map(|cell| f(cell)).collect())
+                    .map(|row| row.iter().map(&mut *f).collect())
                     .collect(),
             ),
             Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
