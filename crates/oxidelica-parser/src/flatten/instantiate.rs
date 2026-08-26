@@ -1356,7 +1356,7 @@ fn measure_dimensions(
                 // its axis labels - has to be worked out before it
                 // can be measured.
                 let measured = |(binding, prefixed): &(Expr, bool)| -> Option<i64> {
-                    if let Some(length) = flexible_size(binding, axis) {
+                    if let Some(length) = flexible_size(binding, axis, registry, scope, imports) {
                         return Some(length);
                     }
                     let shapes = Shapes {

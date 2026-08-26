@@ -5333,6 +5333,28 @@ fn a_flexible_size_is_measured_from_the_value_it_is_given() {
         "a table of no rows holds nothing"
     );
 
+    // A package may write a `fill` of its own, and it says nothing
+    // about how long it is: the language's `fill(0, 0, 2)` states its
+    // lengths after the filler, and a namesake's arguments mean
+    // whatever its writer meant.
+    let mine = parse_model(
+        "package P function fill input Real x; input Integer a; input Integer b; \
+         output Real y[2, 2]; algorithm y := {{x, x}, {x, x}}; end fill; \
+         model T parameter Real table[:, :] = P.fill(0.0, 0, 2); \
+         Real y; equation y = table[1, 1]; end T; \
+         model M T t; Real z; equation z = t.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a namesake of the language's own fill");
+    assert_eq!(
+        mine.components
+            .iter()
+            .filter(|c| c.name.starts_with("t.table["))
+            .count(),
+        4,
+        "the namesake's own shape, not the lengths its arguments look like"
+    );
+
     // A `:` with nothing to measure is still said to be one.
     let error = parse_model(
         "model Lines input Real lines[:, 2]; Real total; \

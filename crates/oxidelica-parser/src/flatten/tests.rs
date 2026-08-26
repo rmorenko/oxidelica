@@ -516,18 +516,51 @@ fn a_flexible_size_is_measured_only_where_it_can_be() {
     let n = |v: f64| Expr::Number(v);
     // A matrix says its shape by how it is written.
     let matrix = Expr::MatrixRows(vec![vec![n(1.0), n(2.0)], vec![n(3.0), n(4.0)]]);
-    assert_eq!(super::flexible_size(&matrix, 0), Some(2));
-    assert_eq!(super::flexible_size(&matrix, 1), Some(2));
+    assert_eq!(
+        super::flexible_size(&matrix, 0, &std::collections::HashMap::new(), "", &[]),
+        Some(2)
+    );
+    assert_eq!(
+        super::flexible_size(&matrix, 1, &std::collections::HashMap::new(), "", &[]),
+        Some(2)
+    );
     // Deeper than it has axes, and rows of different widths, are no
     // shape at all rather than a guess.
-    assert_eq!(super::flexible_size(&matrix, 2), None);
+    assert_eq!(
+        super::flexible_size(&matrix, 2, &std::collections::HashMap::new(), "", &[]),
+        None
+    );
     let ragged = Expr::MatrixRows(vec![vec![n(1.0), n(2.0)], vec![n(3.0)]]);
-    assert_eq!(super::flexible_size(&ragged, 0), None);
+    assert_eq!(
+        super::flexible_size(&ragged, 0, &std::collections::HashMap::new(), "", &[]),
+        None
+    );
     let empty = Expr::MatrixRows(vec![]);
-    assert_eq!(super::flexible_size(&empty, 0), None);
+    assert_eq!(
+        super::flexible_size(&empty, 0, &std::collections::HashMap::new(), "", &[]),
+        None
+    );
     // A list still says its length, and a name says nothing.
-    assert_eq!(super::flexible_size(&Expr::Array(vec![n(1.0)]), 0), Some(1));
-    assert_eq!(super::flexible_size(&Expr::Ref("v".into()), 0), None);
+    assert_eq!(
+        super::flexible_size(
+            &Expr::Array(vec![n(1.0)]),
+            0,
+            &std::collections::HashMap::new(),
+            "",
+            &[]
+        ),
+        Some(1)
+    );
+    assert_eq!(
+        super::flexible_size(
+            &Expr::Ref("v".into()),
+            0,
+            &std::collections::HashMap::new(),
+            "",
+            &[]
+        ),
+        None
+    );
 }
 
 #[test]

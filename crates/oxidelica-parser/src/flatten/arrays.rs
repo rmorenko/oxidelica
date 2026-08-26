@@ -1969,7 +1969,9 @@ fn collect_shapes_under(
                             .or(component.binding.as_ref());
                         value.and_then(|binding| {
                             // A value written out says its length outright.
-                            if let Some(length) = flexible_size(binding, axis) {
+                            if let Some(length) =
+                                flexible_size(binding, axis, registry, scope, &class.imports)
+                            {
                                 return Some(length);
                             }
                             // A range says it by its bounds: the table

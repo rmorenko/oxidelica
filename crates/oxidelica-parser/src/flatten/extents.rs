@@ -53,7 +53,13 @@ pub(super) fn measured_sizes(
 /// or a matrix of rows. Anything that has to be worked out first -
 /// a range, a list scaled by a factor - is measured where there is an
 /// environment to work it out against.
-pub(super) fn flexible_size(binding: &Expr, axis: usize) -> Option<i64> {
+pub(super) fn flexible_size(
+    binding: &Expr,
+    axis: usize,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<i64> {
     // `[a, b; c, d]` says its shape by how it is written: as many rows
     // as there are semicolons, as many columns as a row holds. Rows of
     // different widths are no shape at all, and are left unmeasured
@@ -89,14 +95,23 @@ pub(super) fn flexible_size(binding: &Expr, axis: usize) -> Option<i64> {
     // dimension to read - so the lengths are taken from the call,
     // which states them whether or not any of them is zero. `zeros`
     // and `ones` say theirs the same way, with no filler in front.
+    //
+    // The three are the language's own, and a package may write a
+    // function of the same name: `Utilities.fill` is whatever its
+    // writer meant and says nothing about how long it is. Where the
+    // name resolves to a class in view, it is that class's and not
+    // this.
     if let Expr::Call(name, args) = binding {
-        let lengths = match name
+        let plainly = name
             .rsplit_once('.')
-            .map_or(name.as_str(), |(_, tail)| tail)
-        {
-            "fill" => args.get(1..),
-            "zeros" | "ones" => args.get(..),
-            _ => None,
+            .map_or(name.as_str(), |(_, tail)| tail);
+        let lengths = match lookup(registry, name, scope, imports).is_none() {
+            false => None,
+            true => match plainly {
+                "fill" => args.get(1..),
+                "zeros" | "ones" => args.get(..),
+                _ => None,
+            },
         };
         if let Some(lengths) = lengths {
             if let Some(Expr::Number(length)) = lengths.get(axis) {
