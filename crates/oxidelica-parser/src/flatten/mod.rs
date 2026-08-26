@@ -260,57 +260,8 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
     }
 
-    let answer = |expr: &Expr| answer_graph_queries(expr, &roots, &connected);
-    for equation in model
-        .equations
-        .iter_mut()
-        .chain(model.initial_equations.iter_mut())
-    {
-        equation.lhs = answer(&equation.lhs);
-        equation.rhs = answer(&equation.rhs);
-    }
-    // The branches of an `if` equation travel to the compiler apart
-    // from the equations, and copies of them were what went through
-    // the loop above. So they are answered where they live: the state
-    // graph asks `if cardinality(inPort[i]) == 0` to decide what an
-    // unconnected port stands at, and nothing later knows the count.
-    for conditional in &mut acc.conditional {
-        for condition in &mut conditional.conditions {
-            *condition = answer(condition);
-        }
-        for branch in &mut conditional.branches {
-            for equation in branch.iter_mut() {
-                equation.lhs = answer(&equation.lhs);
-                equation.rhs = answer(&equation.rhs);
-            }
-        }
-    }
-    // An unconnected port is what `cardinality` is usually asked about,
-    // and what it is usually asked about it in is an assertion.
-    for (condition, _) in &mut model.asserts {
-        *condition = answer(condition);
-    }
-    for clause in &mut model.when_clauses {
-        for branch in &mut clause.branches {
-            branch.condition = answer(&branch.condition);
-            for action in &mut branch.actions {
-                match action {
-                    WhenAction::Assign(_, value)
-                    | WhenAction::Reinit(_, value)
-                    | WhenAction::TupleAssign(_, value) => {
-                        *value = answer(value);
-                    }
-                    WhenAction::Assert(condition, _) => *condition = answer(condition),
-                    // Taken apart while flattening, so none of these
-                    // reaches a flat model.
-                    WhenAction::Terminate(_)
-                    | WhenAction::Call(..)
-                    | WhenAction::Loop(_)
-                    | WhenAction::Choice(_) => {}
-                }
-            }
-        }
-    }
+    // Those answers put wherever the model asked the question.
+    say_what_the_graph_answered(&mut model, &mut acc.conditional, &roots, &connected);
 
     // Clocked equations are lifted out before anything is checked:
     // what they leave behind is a `when` clause per clock, which the
@@ -841,6 +792,71 @@ fn what_the_graph_answers(
     }
 
     Ok(GraphAnswers { roots, connected })
+}
+
+/// The graph's answers put wherever the model asked the question:
+/// among the equations, inside the branches of an `if` that travel to
+/// the compiler on their own, and in the assertions and `when` clauses
+/// where `cardinality` is usually asked about an unconnected port.
+///
+/// Moved out of `flatten` unchanged.
+fn say_what_the_graph_answered(
+    model: &mut Model,
+    conditional: &mut [ConditionalEquations],
+    roots: &HashMap<String, bool>,
+    connected: &HashMap<String, f64>,
+) {
+    let answer = |expr: &Expr| answer_graph_queries(expr, roots, connected);
+    for equation in model
+        .equations
+        .iter_mut()
+        .chain(model.initial_equations.iter_mut())
+    {
+        equation.lhs = answer(&equation.lhs);
+        equation.rhs = answer(&equation.rhs);
+    }
+    // The branches of an `if` equation travel to the compiler apart
+    // from the equations, and copies of them were what went through
+    // the loop above. So they are answered where they live: the state
+    // graph asks `if cardinality(inPort[i]) == 0` to decide what an
+    // unconnected port stands at, and nothing later knows the count.
+    for conditional in conditional.iter_mut() {
+        for condition in &mut conditional.conditions {
+            *condition = answer(condition);
+        }
+        for branch in &mut conditional.branches {
+            for equation in branch.iter_mut() {
+                equation.lhs = answer(&equation.lhs);
+                equation.rhs = answer(&equation.rhs);
+            }
+        }
+    }
+    // An unconnected port is what `cardinality` is usually asked about,
+    // and what it is usually asked about it in is an assertion.
+    for (condition, _) in &mut model.asserts {
+        *condition = answer(condition);
+    }
+    for clause in &mut model.when_clauses {
+        for branch in &mut clause.branches {
+            branch.condition = answer(&branch.condition);
+            for action in &mut branch.actions {
+                match action {
+                    WhenAction::Assign(_, value)
+                    | WhenAction::Reinit(_, value)
+                    | WhenAction::TupleAssign(_, value) => {
+                        *value = answer(value);
+                    }
+                    WhenAction::Assert(condition, _) => *condition = answer(condition),
+                    // Taken apart while flattening, so none of these
+                    // reaches a flat model.
+                    WhenAction::Terminate(_)
+                    | WhenAction::Call(..)
+                    | WhenAction::Loop(_)
+                    | WhenAction::Choice(_) => {}
+                }
+            }
+        }
+    }
 }
 
 /// Write out every `a.b.c` still standing that names a member of an
