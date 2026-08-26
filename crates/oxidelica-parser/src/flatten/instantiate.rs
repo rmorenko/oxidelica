@@ -615,28 +615,41 @@ fn settle_parameters(
     // What the `extends` clause said about a base parameter comes with
     // the parameter.
     let env_overrides = env.overrides;
-    loop {
-        let mut progress = false;
-        // What every declaration is read against: the model's numbers
-        // and this class's own. It is built once a round and kept up as
-        // values settle - building it per declaration is what a class
-        // with a thousand numbers below it cannot afford.
-        let mut env = acc.const_values.clone();
-        env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
-        // What this class's arrays are shaped like, as far as the
-        // numbers settled so far can say. A value handed down by an
-        // `extends` may ask after one of them, and the round after
-        // this will see whatever settles in this one.
-        let mut shapes_here: HashMap<String, Vec<i64>> = HashMap::new();
+    // What every declaration is read against: the model's numbers and
+    // this class's own. The round keeps it up itself - every value it
+    // settles goes in here as well as into the two tables it is
+    // settling - so it is built once for all the rounds rather than
+    // once each. A class with a thousand numbers below it copied them
+    // per round for nothing.
+    let mut env = acc.const_values.clone();
+    env.extend(local_consts.iter().map(|(k, v)| (k.clone(), *v)));
+    // What this class's arrays are shaped like, as far as the numbers
+    // settled so far can say. A value handed down by an `extends` may
+    // ask after one of them, and the round after this sees whatever
+    // settled in this one - so it is gathered again only where a round
+    // settled something, since nothing else can have changed a shape.
+    //
+    // Measured rather than assumed: a second round almost never
+    // happens, so this saves less than the noise between two runs of
+    // the same build. It is kept because the work it removes is work
+    // that cannot be needed, not because the clock showed it.
+    let mut shapes_here: HashMap<String, Vec<i64>> = HashMap::new();
+    let gather = |shapes_here: &mut HashMap<String, Vec<i64>>,
+                  local_consts: &HashMap<String, f64>| {
+        shapes_here.clear();
         collect_shapes_given(
             registry,
             class,
-            &local_consts,
+            local_consts,
             &HashMap::new(),
             env_overrides,
-            &mut shapes_here,
+            shapes_here,
             0,
         );
+    };
+    gather(&mut shapes_here, &local_consts);
+    loop {
+        let mut progress = false;
         for (component, from_extends) in class
             .components
             .iter()
@@ -709,6 +722,8 @@ fn settle_parameters(
         if !progress {
             break;
         }
+        // A value settled in this round may be a length in the next.
+        gather(&mut shapes_here, &local_consts);
     }
 
     // The same values under the instance path. A declaration's own
