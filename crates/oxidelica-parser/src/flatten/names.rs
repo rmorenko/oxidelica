@@ -323,7 +323,25 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
                 _ => return None,
             }
         }
-        _ => return None,
+        // Nothing else is a number: a value written out is several, a
+        // range is a span, a `:` is a question for the caller. They
+        // are listed rather than swept up, so that a variant added to
+        // `Expr` has to be decided about here rather than quietly
+        // becoming "not a constant" and surfacing as a refusal three
+        // layers further on.
+        Expr::Str(_)
+        | Expr::Time
+        | Expr::WithDerivative(..)
+        | Expr::Member(..)
+        | Expr::Array(_)
+        | Expr::MatrixRows(_)
+        | Expr::Elementwise(..)
+        | Expr::Range(..)
+        | Expr::Comprehension(..)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::NamedArg(..)
+        | Expr::Tuple(_) => return None,
     })
 }
 
