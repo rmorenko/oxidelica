@@ -640,131 +640,11 @@ pub(super) fn expand_call(
         // `'+'`, starting from its `'0'` - which is what that operator
         // is for. Without a `'0'` the first element starts it off, and
         // an empty array has nothing to start from at all.
-        ("sum", 1) => {
-            if let Some(record) = element_record_of(&args[0], shapes) {
-                if operator_function(registry, &record, "+", 2).is_some() {
-                    // Each element goes in as the array of its fields,
-                    // which is the shape a record argument arrives in.
-                    let Expr::Ref(array) = &args[0] else {
-                        return Err(format!("`sum` of a `{record}` that is not an array"));
-                    };
-                    let dimensions = shapes
-                        .sizes
-                        .get(array)
-                        .ok_or_else(|| format!("`{array}` has no shape"))?;
-                    let of = registry
-                        .get(record.as_str())
-                        .ok_or_else(|| format!("`{record}` is not here"))?;
-                    let fields = record_fields_of(registry, of, 0);
-                    let elements: Vec<Expr> = index_tuples(dimensions)
-                        .into_iter()
-                        .map(|indices| {
-                            let element = element_name(array, &indices);
-                            Expr::Array(
-                                fields
-                                    .iter()
-                                    .map(|field| Expr::Ref(format!("{element}.{field}")))
-                                    .collect(),
-                            )
-                        })
-                        .collect();
-                    let zero = operator_function(registry, &record, "0", 0).is_some();
-                    if elements.is_empty() && !zero {
-                        return Err(format!(
-                            "`sum` of an empty array of `{record}`, which declares no `'0'`"
-                        ));
-                    }
-                    let mut total = if zero {
-                        apply_operator(&record, "0", &[], shapes, registry, scope, imports, depth)?
-                            .into_expr()
-                    } else {
-                        elements[0].clone()
-                    };
-                    let rest = if zero { &elements[..] } else { &elements[1..] };
-                    for item in rest {
-                        total = apply_operator(
-                            &record,
-                            "+",
-                            &[total, item.clone()],
-                            shapes,
-                            registry,
-                            scope,
-                            imports,
-                            depth,
-                        )?
-                        .into_expr();
-                    }
-                    return recur(&total);
-                }
-            }
-            // A name that reads a member off an array of components -
-            // `sum(rs.resistor.LossPower)` on an `extends` - is read
-            // where the array it names has not been built yet, so
-            // nothing here knows it is one and it looks like a
-            // scalar. Summing it now would come to the name itself.
-            // Left standing, it is written out and summed once every
-            // shape is in hand.
-            if let Expr::Ref(named) = &args[0] {
-                if named.contains('.') && !shapes.sizes.contains_key(named) {
-                    return Ok(Value::Scalar(Expr::Call(
-                        "sum".to_string(),
-                        vec![args[0].clone()],
-                    )));
-                }
-            }
-            let mut terms = Vec::new();
-            recur(&args[0])?.flatten_into(&mut terms);
-            Ok(Value::Scalar(sum_of(terms)))
+        // `sum`, `product`, `min`, `max` and `vector`: one value
+        // read off a whole array.
+        ("sum" | "product" | "min" | "max" | "vector", 1) => {
+            folded_over_an_array(name, &args[0], shapes, registry, scope, imports, depth)
         }
-        ("product", 1) => {
-            let mut terms = Vec::new();
-            recur(&args[0])?.flatten_into(&mut terms);
-            Ok(Value::Scalar(match name {
-                "sum" => sum_of(terms),
-                _ => terms
-                    .into_iter()
-                    .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
-                    .unwrap_or(Expr::Number(1.0)),
-            }))
-        }
-        ("min", 1) | ("max", 1) => {
-            // The same name that a sum cannot read yet, for the same
-            // reason: the array it belongs to is not built.
-            if let Expr::Ref(named) = &args[0] {
-                if named.contains('.') && !shapes.sizes.contains_key(named) {
-                    return Ok(Value::Scalar(Expr::Call(
-                        name.to_string(),
-                        vec![args[0].clone()],
-                    )));
-                }
-            }
-            let mut terms = Vec::new();
-            recur(&args[0])?.flatten_into(&mut terms);
-            let reduced = terms
-                .into_iter()
-                .reduce(|a, b| Expr::Call(name.to_string(), vec![a, b]))
-                .ok_or_else(|| format!("`{name}` of an empty array"))?;
-            Ok(Value::Scalar(reduced))
-        }
-        // Constructors.
-        // `vector(A)` reads an array with at most one dimension worth
-        // more than one as the values along it: `[v; 0]` is a column,
-        // and `vector` of it is the vector again, one longer.
-        ("vector", 1) => {
-            let value = recur(&args[0])?;
-            let shape = value.shape();
-            if shape.iter().filter(|length| **length > 1).count() > 1 {
-                return Err(format!(
-                    "`vector` reads an array with one dimension worth more than one, \
-                     and this is of shape {shape:?}"
-                ));
-            }
-            let mut items = Vec::new();
-            value.flatten_into(&mut items);
-            Ok(Value::Array(items.into_iter().map(Value::Scalar).collect()))
-        }
-        // `zeros(n)`, `zeros(n, m)`, `zeros(n, m, k)` - as many
-        // dimensions as it is given, and the same for `ones`.
         ("zeros", _) | ("ones", _) if !args.is_empty() => {
             let value = if name == "ones" { 1.0 } else { 0.0 };
             let lengths = args
@@ -1283,6 +1163,152 @@ pub(super) fn expand_call(
                 .collect::<Result<Vec<_>, String>>()?;
             Ok(Value::Array(elements))
         }
+    }
+}
+
+/// One value read off a whole array: what `sum`, `product`, `min`,
+/// `max` and `vector` come to.
+///
+/// Moved out of `expand_call` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn folded_over_an_array(
+    name: &str,
+    arg: &Expr,
+    shapes: &Shapes,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Result<Value, String> {
+    let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
+    let args = std::slice::from_ref(arg);
+    match (name, args.len()) {
+        ("sum", 1) => {
+            if let Some(record) = element_record_of(&args[0], shapes) {
+                if operator_function(registry, &record, "+", 2).is_some() {
+                    // Each element goes in as the array of its fields,
+                    // which is the shape a record argument arrives in.
+                    let Expr::Ref(array) = &args[0] else {
+                        return Err(format!("`sum` of a `{record}` that is not an array"));
+                    };
+                    let dimensions = shapes
+                        .sizes
+                        .get(array)
+                        .ok_or_else(|| format!("`{array}` has no shape"))?;
+                    let of = registry
+                        .get(record.as_str())
+                        .ok_or_else(|| format!("`{record}` is not here"))?;
+                    let fields = record_fields_of(registry, of, 0);
+                    let elements: Vec<Expr> = index_tuples(dimensions)
+                        .into_iter()
+                        .map(|indices| {
+                            let element = element_name(array, &indices);
+                            Expr::Array(
+                                fields
+                                    .iter()
+                                    .map(|field| Expr::Ref(format!("{element}.{field}")))
+                                    .collect(),
+                            )
+                        })
+                        .collect();
+                    let zero = operator_function(registry, &record, "0", 0).is_some();
+                    if elements.is_empty() && !zero {
+                        return Err(format!(
+                            "`sum` of an empty array of `{record}`, which declares no `'0'`"
+                        ));
+                    }
+                    let mut total = if zero {
+                        apply_operator(&record, "0", &[], shapes, registry, scope, imports, depth)?
+                            .into_expr()
+                    } else {
+                        elements[0].clone()
+                    };
+                    let rest = if zero { &elements[..] } else { &elements[1..] };
+                    for item in rest {
+                        total = apply_operator(
+                            &record,
+                            "+",
+                            &[total, item.clone()],
+                            shapes,
+                            registry,
+                            scope,
+                            imports,
+                            depth,
+                        )?
+                        .into_expr();
+                    }
+                    return recur(&total);
+                }
+            }
+            // A name that reads a member off an array of components -
+            // `sum(rs.resistor.LossPower)` on an `extends` - is read
+            // where the array it names has not been built yet, so
+            // nothing here knows it is one and it looks like a
+            // scalar. Summing it now would come to the name itself.
+            // Left standing, it is written out and summed once every
+            // shape is in hand.
+            if let Expr::Ref(named) = &args[0] {
+                if named.contains('.') && !shapes.sizes.contains_key(named) {
+                    return Ok(Value::Scalar(Expr::Call(
+                        "sum".to_string(),
+                        vec![args[0].clone()],
+                    )));
+                }
+            }
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            Ok(Value::Scalar(sum_of(terms)))
+        }
+        ("product", 1) => {
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            Ok(Value::Scalar(match name {
+                "sum" => sum_of(terms),
+                _ => terms
+                    .into_iter()
+                    .reduce(|a, b| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b)))
+                    .unwrap_or(Expr::Number(1.0)),
+            }))
+        }
+        ("min", 1) | ("max", 1) => {
+            // The same name that a sum cannot read yet, for the same
+            // reason: the array it belongs to is not built.
+            if let Expr::Ref(named) = &args[0] {
+                if named.contains('.') && !shapes.sizes.contains_key(named) {
+                    return Ok(Value::Scalar(Expr::Call(
+                        name.to_string(),
+                        vec![args[0].clone()],
+                    )));
+                }
+            }
+            let mut terms = Vec::new();
+            recur(&args[0])?.flatten_into(&mut terms);
+            let reduced = terms
+                .into_iter()
+                .reduce(|a, b| Expr::Call(name.to_string(), vec![a, b]))
+                .ok_or_else(|| format!("`{name}` of an empty array"))?;
+            Ok(Value::Scalar(reduced))
+        }
+        // Constructors.
+        // `vector(A)` reads an array with at most one dimension worth
+        // more than one as the values along it: `[v; 0]` is a column,
+        // and `vector` of it is the vector again, one longer.
+        ("vector", 1) => {
+            let value = recur(&args[0])?;
+            let shape = value.shape();
+            if shape.iter().filter(|length| **length > 1).count() > 1 {
+                return Err(format!(
+                    "`vector` reads an array with one dimension worth more than one, \
+                     and this is of shape {shape:?}"
+                ));
+            }
+            let mut items = Vec::new();
+            value.flatten_into(&mut items);
+            Ok(Value::Array(items.into_iter().map(Value::Scalar).collect()))
+        }
+        // `zeros(n)`, `zeros(n, m)`, `zeros(n, m, k)` - as many
+        // dimensions as it is given, and the same for `ones`.
+        _ => unreachable!("only the folds reach here"),
     }
 }
 
