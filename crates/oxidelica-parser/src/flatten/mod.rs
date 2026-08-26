@@ -226,50 +226,16 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             model.equations.extend(branch.iter().cloned());
         }
     }
-    // An overconstrained graph is broken open before anything else
-    // looks at it, and `Connections.isRoot` is answered from what that
-    // came to. `cardinality` is answered from the same place: how many
-    // `connect` equations named a port. Both are questions about the
-    // connections, and this is the last moment the answers are known.
-    let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
-    // The second pass was built on the roots the first pass's graph
-    // gave. If building on them drew a different graph, the model asks
-    // the graph a question whose answer changes the graph, and there is
-    // no answer to give.
-    if !acc.roots.is_empty() && roots != acc.roots {
-        return Err(
-            "the model asks `Connections.isRoot` where the answer changes the graph it is \
-             asked about"
-                .to_string(),
-        );
-    }
-    let connected = tally(&acc.connects);
-    // What a connector's declaration asked of the connections to it.
-    // The chapter says these make it an error rather than leaving it to
-    // the tool, so they are checked here, where how often each port was
-    // named is already known.
-    for (port, said) in &acc.connect_rules {
-        let times = connected.get(port).copied().unwrap_or(0.0);
-        if let Some(why) = annotation_says(said, "mustBeConnected") {
-            if times == 0.0 {
-                return Err(match why.is_empty() {
-                    true => format!("`{port}` must be connected, and nothing connects to it"),
-                    false => format!("`{port}` must be connected: {why}"),
-                });
-            }
-        }
-        if let Some(why) = annotation_says(said, "mayOnlyConnectOnce") {
-            if times > 1.0 {
-                return Err(match why.is_empty() {
-                    true => format!(
-                        "`{port}` may only be connected once, and {times} \
-                                     connections name it"
-                    ),
-                    false => format!("`{port}` may only be connected once: {why}"),
-                });
-            }
-        }
-    }
+    // What the connections can still be asked, now that they are all
+    // in: which ports are roots of the overconstrained graph, and how
+    // many connections named each.
+    let GraphAnswers { roots, connected } = what_the_graph_answers(
+        &acc.connection_graph,
+        &acc.connects,
+        &acc.roots,
+        &acc.connect_rules,
+        &model,
+    )?;
 
     // `Evaluate = true` says the parameter has to be one the compiler
     // settles rather than one the run carries. Where it cannot be
@@ -802,6 +768,79 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
     // what an ideal switch is and not a mistake.
 
     Ok(())
+}
+
+/// What the connections answer once they are all in: which ports are
+/// roots of the overconstrained graph, and how many connections named
+/// each port.
+struct GraphAnswers {
+    roots: HashMap<String, bool>,
+    connected: HashMap<String, f64>,
+}
+
+/// The two questions a model may ask about its own connections, and
+/// the checks a connector's declaration asked for.
+///
+/// An overconstrained graph is broken open before anything else looks
+/// at it, and `Connections.isRoot` is answered from what that came to.
+/// `cardinality` is answered from the same place: how many `connect`
+/// equations named a port. This is the last moment either answer is
+/// known.
+///
+/// Moved out of `flatten` unchanged.
+fn what_the_graph_answers(
+    connection_graph: &[GraphClause],
+    connects: &[(String, String)],
+    already: &HashMap<String, bool>,
+    connect_rules: &[(String, Vec<Expr>)],
+    _model: &Model,
+) -> Result<GraphAnswers, String> {
+    // An overconstrained graph is broken open before anything else
+    // looks at it, and `Connections.isRoot` is answered from what that
+    // came to. `cardinality` is answered from the same place: how many
+    // `connect` equations named a port. Both are questions about the
+    // connections, and this is the last moment the answers are known.
+    let roots = choose_roots(connection_graph, connects)?;
+    // The second pass was built on the roots the first pass's graph
+    // gave. If building on them drew a different graph, the model asks
+    // the graph a question whose answer changes the graph, and there is
+    // no answer to give.
+    if !already.is_empty() && &roots != already {
+        return Err(
+            "the model asks `Connections.isRoot` where the answer changes the graph it is \
+             asked about"
+                .to_string(),
+        );
+    }
+    let connected = tally(connects);
+    // What a connector's declaration asked of the connections to it.
+    // The chapter says these make it an error rather than leaving it to
+    // the tool, so they are checked here, where how often each port was
+    // named is already known.
+    for (port, said) in connect_rules {
+        let times = connected.get(port).copied().unwrap_or(0.0);
+        if let Some(why) = annotation_says(said, "mustBeConnected") {
+            if times == 0.0 {
+                return Err(match why.is_empty() {
+                    true => format!("`{port}` must be connected, and nothing connects to it"),
+                    false => format!("`{port}` must be connected: {why}"),
+                });
+            }
+        }
+        if let Some(why) = annotation_says(said, "mayOnlyConnectOnce") {
+            if times > 1.0 {
+                return Err(match why.is_empty() {
+                    true => format!(
+                        "`{port}` may only be connected once, and {times} \
+                                     connections name it"
+                    ),
+                    false => format!("`{port}` may only be connected once: {why}"),
+                });
+            }
+        }
+    }
+
+    Ok(GraphAnswers { roots, connected })
 }
 
 /// Write out every `a.b.c` still standing that names a member of an
