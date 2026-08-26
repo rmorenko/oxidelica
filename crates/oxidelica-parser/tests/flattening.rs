@@ -5,7 +5,7 @@
 //! connections, clocks, state machines - checked through `parse_model`,
 //! which is how everything but the compiler itself sees this crate.
 
-use oxidelica_parser::ast::BinOp;
+use oxidelica_parser::ast::{BinOp, RelOp};
 use oxidelica_parser::{parse_model, parse_model_with_libraries, Expr};
 
 /// Sources that share the shape of a standard-library package: a
@@ -7322,6 +7322,129 @@ fn a_grid_the_model_wrote_is_read_bilinearly() {
         written.contains("Number(10.0)") && written.contains("Number(20.0)"),
         "the corners of the cell: {written}"
     );
+}
+
+/// What a constant expression comes to, for the handful of operators a
+/// written-out table uses.
+fn folded(expr: &Expr) -> f64 {
+    match expr {
+        Expr::Number(n) => *n,
+        Expr::Neg(inner) => -folded(inner),
+        Expr::Bin(op, l, r) => {
+            let (l, r) = (folded(l), folded(r));
+            match op {
+                BinOp::Add => l + r,
+                BinOp::Sub => l - r,
+                BinOp::Mul => l * r,
+                BinOp::Div => l / r,
+                other => panic!("a table wrote {other:?}"),
+            }
+        }
+        Expr::Call(name, args) => {
+            let args: Vec<f64> = args.iter().map(folded).collect();
+            match name.as_str() {
+                "min" => args[0].min(args[1]),
+                "max" => args[0].max(args[1]),
+                "mod" => args[0] - (args[0] / args[1]).floor() * args[1],
+                other => panic!("a table wrote {other}"),
+            }
+        }
+        Expr::If(condition, yes, no) => match holds(condition) {
+            true => folded(yes),
+            false => folded(no),
+        },
+        other => panic!("a table wrote {other:?}"),
+    }
+}
+
+/// The same, for the comparisons a written-out table branches on.
+fn holds(expr: &Expr) -> bool {
+    match expr {
+        Expr::Rel(op, l, r) => {
+            let (l, r) = (folded(l), folded(r));
+            match op {
+                RelOp::Lt => l < r,
+                RelOp::Le => l <= r,
+                RelOp::Gt => l > r,
+                RelOp::Ge => l >= r,
+                other => panic!("a table wrote {other:?}"),
+            }
+        }
+        other => panic!("a table branched on {other:?}"),
+    }
+}
+
+/// What a grid says beyond its own edges is what it was asked for.
+#[test]
+fn a_grid_says_what_its_extrapolation_asked_for_beyond_its_edges() {
+    // The grid is 10, 20 over 30, 40 at 1 and 2 on either abscissa, so
+    // the plane over the one cell rises by 20 down and 10 across.
+    // Asked at 3 on the first abscissa - one span past the edge -
+    // carrying the plane on says 50, holding the edge says 30.
+    let read = |extrapolation: u32, u1: &str, u2: &str| {
+        let m = parse_model(&format!(
+            "{GRID_BLOCK} model M \
+             parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
+             Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, {extrapolation}); \
+             Real y; equation y = Grid.getValue(h, {u1}, {u2}); end M;"
+        ))
+        .unwrap_or_else(|e| panic!("extrapolation {extrapolation}: {}", e.message));
+        let rhs = m
+            .equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "y"))
+            .map(|e| e.rhs.clone())
+            .expect("the value");
+        (folded(&rhs), m)
+    };
+
+    // `LastTwoPoints` carries the edge cell's plane on.
+    let (carried, _) = read(2, "3.0", "1.0");
+    assert!(
+        (carried - 50.0).abs() < 1e-9,
+        "the plane carried on: {carried}"
+    );
+
+    // `HoldLastPoint` holds the edge instead.
+    let (held, _) = read(1, "3.0", "1.0");
+    assert!((held - 30.0).abs() < 1e-9, "the edge held: {held}");
+
+    // `Periodic` repeats the grid: the first abscissa spans 1 to 2, a
+    // period of one, so 3 is 1 again and the near corner is what the
+    // table says there.
+    let (repeated, _) = read(3, "3.0", "1.0");
+    assert!(
+        (repeated - 10.0).abs() < 1e-9,
+        "the grid repeated: {repeated}"
+    );
+
+    // `NoExtrapolation` says the run has gone wrong, on either
+    // abscissa, and holds rather than carrying on meanwhile.
+    let (_, refused) = read(4, "3.0", "1.0");
+    assert!(
+        refused
+            .asserts
+            .iter()
+            .any(|(_, message)| message.contains("first abscissa"))
+            && refused
+                .asserts
+                .iter()
+                .any(|(_, message)| message.contains("second abscissa")),
+        "both abscissae are checked: {:?}",
+        refused.asserts
+    );
+
+    // An extrapolation nobody here knows is refused by number rather
+    // than answered with a guess.
+    let unknown = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 9); \
+         Real y; equation y = Grid.getValue(h, 1.5, 1.5); end M;"
+    ))
+    .expect_err("an extrapolation nobody knows")
+    .message;
+    assert!(unknown.contains("extrapolation 9"), "{unknown}");
 }
 
 #[test]
