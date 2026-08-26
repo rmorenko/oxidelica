@@ -5355,6 +5355,35 @@ fn a_flexible_size_is_measured_from_the_value_it_is_given() {
         "the namesake's own shape, not the lengths its arguments look like"
     );
 
+    // `zeros` and `ones` state their lengths the same way, with no
+    // filler in front of them, and a call that is neither states
+    // nothing this way at all.
+    let zeroed = parse_model(
+        "package P model T parameter Real table[:, :] = zeros(0, 4); \
+         Real y; equation y = size(table, 1); end T; \
+         model M T t; Real z; equation z = t.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a table of no rows and four columns");
+    assert!(!zeroed
+        .components
+        .iter()
+        .any(|c| c.name.starts_with("t.table[")));
+    let oned = parse_model(
+        "package P model T parameter Real table[:] = ones(3); \
+         Real y; equation y = table[1]; end T; \
+         model M T t; Real z; equation z = t.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("three ones");
+    assert_eq!(
+        oned.components
+            .iter()
+            .filter(|c| c.name.starts_with("t.table["))
+            .count(),
+        3
+    );
+
     // A `:` with nothing to measure is still said to be one.
     let error = parse_model(
         "model Lines input Real lines[:, 2]; Real total; \
@@ -7300,6 +7329,10 @@ const GRID_BLOCK: &str = "package Grid \
      function getValue input Handle h; input Real u1; input Real u2; output Real y; \
        external \"C\" y = ModelicaStandardTables_CombiTable2D_getValue(h, u1, u2); \
        end getValue; \
+     function getDerValue input Handle h; input Real u1; input Real u2; \
+       input Real der_u1; input Real der_u2; output Real der_y; \
+       external \"C\" der_y = ModelicaStandardTables_CombiTable2D_getDerValue(h, u1, u2, \
+         der_u1, der_u2); end getDerValue; \
      function umin input Handle h; output Real u[2]; \
        external \"C\" ModelicaStandardTables_CombiTable2D_minimumAbscissa(h, u); end umin; \
      function umax input Handle h; output Real u[2]; \
@@ -7466,6 +7499,122 @@ fn holds(expr: &Expr) -> bool {
         }
         other => panic!("a table branched on {other:?}"),
     }
+}
+
+/// How fast a grid's value moves is each abscissa's rate weighted by
+/// the slope along it.
+#[test]
+fn a_grid_says_how_fast_its_value_moves() {
+    // Over the one cell the value rises by 20 down and 10 across, so
+    // moving down at 1 and across at 0 is 20 a second, and the other
+    // way round is 10.
+    let m = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 2); \
+         Real down; Real across; \
+         equation down = Grid.getDerValue(h, 1.5, 1.5, 1.0, 0.0); \
+         across = Grid.getDerValue(h, 1.5, 1.5, 0.0, 1.0); end M;"
+    ))
+    .expect("how fast the grid moves");
+    let said = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| folded(&e.rhs))
+            .expect("the rate")
+    };
+    assert!((said("down") - 20.0).abs() < 1e-9, "{}", said("down"));
+    assert!((said("across") - 10.0).abs() < 1e-9, "{}", said("across"));
+}
+
+/// A grid one cell wide, or one tall, and how fast it moves.
+#[test]
+fn a_grid_of_one_row_and_the_rate_it_changes_at() {
+    // A grid with a single row under its top one says the same thing
+    // whatever the first abscissa is: there is no interval down it to
+    // be in.
+    let flat = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[2, 3] = [0, 1, 2; 1, 10, 20]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 2); \
+         Real near; Real far; \
+         equation near = Grid.getValue(h, 1.0, 1.0); \
+         far = Grid.getValue(h, 9.0, 1.0); end M;"
+    ))
+    .expect("a grid of one row");
+    let said = |name: &str| {
+        flat.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == name))
+            .map(|e| folded(&e.rhs))
+            .expect("the value")
+    };
+    assert!((said("near") - 10.0).abs() < 1e-9, "{}", said("near"));
+    assert!(
+        (said("far") - said("near")).abs() < 1e-9,
+        "one row says one thing"
+    );
+
+    // And one column, the same the other way round.
+    let narrow = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[3, 2] = [0, 1; 1, 10; 2, 30]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 2); \
+         Real y; equation y = Grid.getValue(h, 1.5, 9.0); end M;"
+    ))
+    .expect("a grid of one column");
+    let middle = narrow
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "y"))
+        .map(|e| folded(&e.rhs))
+        .expect("the value");
+    assert!(
+        (middle - 20.0).abs() < 1e-9,
+        "halfway down one column: {middle}"
+    );
+}
+
+/// A grid this compiler cannot read says so rather than guessing.
+#[test]
+fn a_grid_says_what_it_cannot_read() {
+    // Splines are not written out here, and a grid asking for them is
+    // refused by name rather than read as straight lines.
+    let spline = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 2, 2); \
+         Real y; equation y = Grid.getValue(h, 1.5, 1.5); end M;"
+    ))
+    .expect_err("a smoothness this compiler does not write out")
+    .message;
+    assert!(spline.contains("spline interpolation"), "{spline}");
+
+    // A matrix with a top row and nothing under it is a grid with no
+    // crossings to read.
+    let empty = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[1, 3] = [0, 1, 2]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 2); \
+         Real y; equation y = Grid.getValue(h, 1.5, 1.5); end M;"
+    ))
+    .expect_err("a grid with no rows under its top one")
+    .message;
+    assert!(empty.contains("no grid to read"), "{empty}");
+
+    // A subscript that is no place in the pair of ends is left alone
+    // rather than counted from the wrong side.
+    let outside = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 1, 2); \
+         Real low; equation low = Grid.umin(h)[3]; end M;"
+    ));
+    assert!(
+        outside.is_err(),
+        "a third end of a pair is not a place in it"
+    );
 }
 
 /// What a grid says beyond its own edges is what it was asked for.
