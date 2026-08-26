@@ -971,3 +971,27 @@ fn a_sample_may_leave_its_clock_to_inference() {
         .unwrap();
     assert_eq!(format!("{:?}", read.rhs), "Ref(\"s.u\")");
 }
+
+/// An undecided `if` next to a clock keeps every equation.
+///
+/// The branches of an `if` the compiler cannot settle are appended to
+/// the model so it can be counted whole, and taken off again once it
+/// has been. Lifting the clocked equations into their `when` clauses
+/// first left something else at the end of that list, and the branches
+/// then came off as equations the model still needed.
+#[test]
+fn an_undecided_if_beside_a_clock_keeps_the_rest_of_the_model() {
+    let m = parse_model(
+        "model M Clock c = Clock(0.1); Real src; Real s; Real gate; Real out; \
+         equation src = time; gate = time; s = sample(src, c); \
+         if gate > 1 then out = s; else out = 0; end if; end M;",
+    )
+    .unwrap();
+    // The clocked reading left for a `when`, so what remains of the
+    // model is what was written beside it - and all of it remains.
+    let text = format!("{:?}", m.equations);
+    assert!(text.contains("Ref(\"src\")"), "{text}");
+    assert!(text.contains("Ref(\"gate\")"), "{text}");
+    assert_eq!(m.conditional.len(), 1);
+    assert_eq!(m.conditional[0].branches.len(), 2);
+}

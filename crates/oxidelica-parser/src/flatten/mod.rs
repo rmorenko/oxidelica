@@ -270,14 +270,32 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // Clocked equations are lifted out before anything is checked:
     // what they leave behind is a `when` clause per clock, which the
     // rest of the pipeline already understands.
-    partition_clocks(&mut model)?;
-    crate::check::verify(&model)?;
+    // The branches of an undecided `if` were appended to the model so
+    // that it could be counted whole; they come off again before
+    // anything moves them about. Lifting the clocked equations out
+    // first left the tail of the list something else - a `when` per
+    // clock rather than the branches - and the truncation then took
+    // equations the model still needed.
     for conditional in &acc.conditional {
         for branch in &conditional.branches {
             model
                 .equations
                 .truncate(model.equations.len() - branch.len());
         }
+    }
+    partition_clocks(&mut model)?;
+    crate::check::verify(&model)?;
+    // Each branch is still checked as it was written, against the
+    // model it belongs to: a mistake inside a branch the run may take
+    // is a mistake whether or not the run takes it.
+    if !acc.conditional.is_empty() {
+        let mut with_branches = model.clone();
+        for conditional in &acc.conditional {
+            for branch in &conditional.branches {
+                with_branches.equations.extend(branch.iter().cloned());
+            }
+        }
+        crate::check::verify(&with_branches)?;
     }
     // The branches themselves travel to the compiler, which settles
     // which one applies and compiles that mode as its own model.
