@@ -373,7 +373,7 @@ fn a_constant_may_be_the_length_of_a_constant_array() {
 #[test]
 fn a_constant_array_says_its_length_the_several_ways_it_is_written() {
     use crate::ast::Expr;
-    use crate::flatten::names::array_length;
+    use crate::flatten::constants::array_length;
 
     let number = |n: f64| Expr::Number(n);
     let call = |name: &str, args: Vec<Expr>| Expr::Call(name.to_string(), args);
@@ -417,7 +417,7 @@ fn a_constant_array_says_its_length_the_several_ways_it_is_written() {
 #[test]
 fn a_constant_written_as_a_length_is_measured_or_left_alone() {
     use crate::ast::Expr;
-    use crate::flatten::names::measured_constant;
+    use crate::flatten::constants::measured_constant;
     use std::collections::HashMap;
 
     let held: Vec<(String, Option<Expr>)> = vec![

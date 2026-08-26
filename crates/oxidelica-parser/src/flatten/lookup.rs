@@ -312,7 +312,7 @@ impl StandingNames {
     /// Start remembering, forgetting whatever came before.
     pub(super) fn open() -> Self {
         WALKED.with(|walked| walked.borrow_mut().clear());
-        super::names::NAMED.with(|named| named.borrow_mut().clear());
+        super::constants::NAMED.with(|named| named.borrow_mut().clear());
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames
     }
@@ -322,7 +322,7 @@ impl Drop for StandingNames {
     fn drop(&mut self) {
         REGISTRY_STANDS.with(|stands| stands.set(false));
         WALKED.with(|walked| walked.borrow_mut().clear());
-        super::names::NAMED.with(|named| named.borrow_mut().clear());
+        super::constants::NAMED.with(|named| named.borrow_mut().clear());
     }
 }
 
