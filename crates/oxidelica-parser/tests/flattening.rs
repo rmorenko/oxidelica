@@ -7315,6 +7315,59 @@ const TABLE_BLOCK: &str = "package Blocks \
        external \"C\" u = ModelicaStandardTables_CombiTable1D_maximumAbscissa(h); end umax; \
    end Blocks; ";
 
+/// The Akima spline: a cubic between each pair of points, leaving
+/// each point at a slope worked out from its neighbours.
+#[test]
+fn a_table_asked_for_an_akima_spline_is_written_out_as_one() {
+    let read = |table: &str, u: &str| {
+        let m = parse_model(&format!(
+            "{TABLE_BLOCK} model M \
+             parameter Real data[4, 2] = {table}; \
+             Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 2, 2); \
+             Real y; equation y = Blocks.getValue(h, 1, {u}); end M;"
+        ))
+        .expect("an Akima spline");
+        m.equations
+            .iter()
+            .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "y"))
+            .map(|e| folded(&e.rhs))
+            .expect("the value")
+    };
+
+    // A straight table stays straight: where a point sits between two
+    // lines of the same slope, the weighted mean of them is that
+    // slope, and the cubic between two such points is the line. This
+    // is what Akima's rule buys over an ordinary cubic spline.
+    let straight = read("[0, 0; 1, 2; 2, 4; 3, 6]", "1.5");
+    assert!(
+        (straight - 3.0).abs() < 1e-9,
+        "a straight table: {straight}"
+    );
+
+    // A table of squares comes back as squares, both at a point it
+    // was given and between two: 1.5 squared is 2.25, where straight
+    // lines between the points would have said 2.5.
+    let squares = read("[0, 0; 1, 1; 2, 4; 3, 9]", "1.5");
+    assert!(
+        (squares - 2.25).abs() < 1e-9,
+        "halfway up a square: {squares}"
+    );
+    let known = read("[0, 0; 1, 1; 2, 4; 3, 9]", "2.0");
+    assert!((known - 4.0).abs() < 1e-9, "a point it was given: {known}");
+
+    // A smoothness this compiler still does not write out is refused
+    // by number rather than read as something else.
+    let refused = parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         parameter Real data[3, 2] = [0, 0; 1, 2; 2, 6]; \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 4, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, 1.5); end M;"
+    ))
+    .expect_err("a smoothness nobody here writes out")
+    .message;
+    assert!(refused.contains("smoothness 4"), "{refused}");
+}
+
 const GRID_BLOCK: &str = "package Grid \
      class Handle extends ExternalObject; \
        function constructor input String tableName; input String fileName; \
@@ -7480,6 +7533,9 @@ fn folded(expr: &Expr) -> f64 {
             true => folded(yes),
             false => folded(no),
         },
+        // A call the run walks carries its own rule for
+        // differentiating it beside it; the value is the value.
+        Expr::WithDerivative(value, _, _) => folded(value),
         other => panic!("a table wrote {other:?}"),
     }
 }
@@ -7750,15 +7806,17 @@ fn a_table_the_model_wrote_is_written_out_rather_than_run() {
         "{outside}"
     );
 
-    // Spline interpolation is not written out, and says so.
+    // The Akima spline is written out; the three others - Fritsch,
+    // Steffen, modified Akima - are not, and say which was asked for
+    // rather than calling them all splines.
     let spline = parse_model(&format!(
         "{TABLE_BLOCK} model M \
-         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1], {{2}}, 2, 2); \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1], {{2}}, 5, 2); \
          Real y; equation y = Blocks.getValue(h, 1, time); end M;"
     ))
     .unwrap_err()
     .to_string();
-    assert!(spline.contains("spline interpolation"), "{spline}");
+    assert!(spline.contains("smoothness 5"), "{spline}");
 }
 
 #[test]

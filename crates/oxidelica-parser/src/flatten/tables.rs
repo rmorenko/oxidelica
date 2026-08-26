@@ -21,6 +21,7 @@ use super::*;
 /// The smoothness numbers of `Modelica.Blocks.Types.Smoothness`,
 /// counted from one the way an enumeration is.
 pub(super) const LINEAR_SEGMENTS: f64 = 1.0;
+pub(super) const AKIMA_SPLINE: f64 = 2.0;
 pub(super) const CONSTANT_SEGMENTS: f64 = 3.0;
 
 /// The extrapolation numbers of `Modelica.Blocks.Types.Extrapolation`.
@@ -449,6 +450,61 @@ fn one_call(
     }
 }
 
+/// The slope the Akima spline gives each point of a table.
+///
+/// A weighted mean of the two straight lines meeting there, the
+/// weights taken from how sharply the lines beyond them turn: where
+/// the neighbours bend little the near line counts for more. Akima's
+/// rule needs two lines on either side, and a table has none past its
+/// ends, so the missing ones are made by carrying the end lines on -
+/// which is what the standard tables do.
+fn akima_slopes(rows: usize, at: &dyn Fn(usize) -> f64, value: &dyn Fn(usize) -> f64) -> Vec<f64> {
+    // The straight line of each interval, with two made up at either
+    // end. Index `k + 2` of this is the line from point `k` to `k + 1`.
+    let line = |first: usize| -> f64 {
+        let run = at(first + 1) - at(first);
+        match run == 0.0 {
+            true => 0.0,
+            false => (value(first + 1) - value(first)) / run,
+        }
+    };
+    let mut lines: Vec<f64> = Vec::with_capacity(rows + 3);
+    lines.push(0.0);
+    lines.push(0.0);
+    for first in 0..rows.saturating_sub(1) {
+        lines.push(line(first));
+    }
+    lines.push(0.0);
+    lines.push(0.0);
+    let inner = rows.saturating_sub(1);
+    if inner >= 2 {
+        // Beyond the ends, the line carried on as the two before it
+        // turned: `m[-1] = 2*m[0] - m[1]`, and the same at the far end.
+        lines[1] = 2.0 * lines[2] - lines[3];
+        lines[0] = 2.0 * lines[1] - lines[2];
+        lines[inner + 2] = 2.0 * lines[inner + 1] - lines[inner];
+        lines[inner + 3] = 2.0 * lines[inner + 2] - lines[inner + 1];
+    } else if inner == 1 {
+        // One interval: nothing turns, so every made-up line is that
+        // one line and the spline comes out straight.
+        for slot in [0, 1, 3, 4] {
+            lines[slot] = lines[2];
+        }
+    }
+    (0..rows)
+        .map(|k| {
+            let (before, near, far, beyond) = (lines[k], lines[k + 1], lines[k + 2], lines[k + 3]);
+            let (turn_near, turn_far) = ((near - before).abs(), (beyond - far).abs());
+            // Both sides straight: the two lines meeting here are the
+            // answer, and where they differ their mean is.
+            match turn_near + turn_far == 0.0 {
+                true => (near + far) / 2.0,
+                false => (turn_far * near + turn_near * far) / (turn_near + turn_far),
+            }
+        })
+        .collect()
+}
+
 /// The table's value - or its slope - at `u`, written out.
 ///
 /// Each interval of the abscissa is one branch of a chain of `if`s,
@@ -469,12 +525,15 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             table.rows[0].len()
         ));
     }
-    if table.smoothness != LINEAR_SEGMENTS && table.smoothness != CONSTANT_SEGMENTS {
-        return Err(
-            "a table asks for spline interpolation, and this compiler writes out the linear \
-             and the constant only"
-                .to_string(),
-        );
+    if !matches!(
+        table.smoothness,
+        LINEAR_SEGMENTS | CONSTANT_SEGMENTS | AKIMA_SPLINE
+    ) {
+        return Err(format!(
+            "a table asks for smoothness {}, and this compiler writes out the linear, the \
+             constant and the Akima spline only",
+            table.smoothness
+        ));
     }
     if !matches!(
         table.extrapolation,
@@ -512,6 +571,16 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             )),
         ),
     };
+    // The slope the Akima spline gives each point: a weighted mean of
+    // the two straight lines meeting there, the weights taken from how
+    // sharply the lines on either side turn. Where a point sits between
+    // two lines of the same slope the mean is that slope, so a straight
+    // stretch of table stays straight - which is the whole point of
+    // Akima's rule over an ordinary cubic.
+    let akima: Vec<f64> = match table.smoothness == AKIMA_SPLINE {
+        false => Vec::new(),
+        true => akima_slopes(table.rows.len(), &at, &value),
+    };
     // What one interval says, as a value or as a slope.
     let piece = |first: usize| -> Expr {
         let last = first + 1;
@@ -523,6 +592,46 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             });
         }
         let rise = (value(last) - value(first)) / run;
+        // Between two points the Akima spline is the cubic that starts
+        // and ends where the table says and leaves each end at the
+        // slope worked out above. Written in how far along the
+        // interval the run is - `t` from nothing to one - it is
+        // `y0 + (m0*t + (3*rise - 2*m0 - m1)*t^2 + (m0 + m1 - 2*rise)*t^3) * run`,
+        // and its slope is that differentiated by `u`.
+        if table.smoothness == AKIMA_SPLINE {
+            let (m0, m1) = (akima[first], akima[last]);
+            let (a, b) = (3.0 * rise - 2.0 * m0 - m1, m0 + m1 - 2.0 * rise);
+            let t = Expr::Bin(
+                BinOp::Div,
+                Box::new(Expr::Bin(
+                    BinOp::Sub,
+                    Box::new(u.clone()),
+                    Box::new(Expr::Number(at(first))),
+                )),
+                Box::new(Expr::Number(run)),
+            );
+            let times =
+                |k: f64, of: Expr| Expr::Bin(BinOp::Mul, Box::new(Expr::Number(k)), Box::new(of));
+            let plus = |l: Expr, r: Expr| Expr::Bin(BinOp::Add, Box::new(l), Box::new(r));
+            let squared = Expr::Bin(BinOp::Mul, Box::new(t.clone()), Box::new(t.clone()));
+            let cubed = Expr::Bin(BinOp::Mul, Box::new(squared.clone()), Box::new(t.clone()));
+            return match slope {
+                // `m0 + 2*a*t + 3*b*t^2`: the cubic differentiated by
+                // `u`, where the `run` of the chain rule cancels the
+                // one the value is multiplied by.
+                true => plus(
+                    plus(Expr::Number(m0), times(2.0 * a, t)),
+                    times(3.0 * b, squared),
+                ),
+                false => plus(
+                    Expr::Number(value(first)),
+                    times(
+                        run,
+                        plus(plus(times(m0, t), times(a, squared)), times(b, cubed)),
+                    ),
+                ),
+            };
+        }
         if slope {
             return Expr::Number(rise);
         }
