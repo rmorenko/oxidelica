@@ -561,14 +561,13 @@ pub(super) fn answer_graph_queries(
                 None => Expr::Call(name.clone(), args.iter().map(recur).collect()),
             }
         }
-        Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(recur).collect()),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
-        _ => expr.clone(),
+        // Everything else holds expressions and nothing this pass has
+        // an opinion about, so the questions inside are answered
+        // wherever they sit. The walk used to stop at the array forms,
+        // which meant a `cardinality` written inside one went
+        // unanswered; reaching them changes nothing for the models
+        // that do not, and answers the question for the models that
+        // do.
+        _ => expr.map_children(&mut |child| recur(child)),
     }
 }
