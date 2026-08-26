@@ -1223,6 +1223,12 @@ fn instantiate_components(
         };
 
         let element_count = element_names.len();
+        // Every element of the declaration, instantiated where it
+        // stands. This is the one part of the loop left inline: it
+        // reads eleven of the things worked out above - the modifiers,
+        // the redeclarations, the values, the starts, the connector -
+        // and handing all eleven to a stage would say less than
+        // leaving them where they were worked out.
         for (position, local_name) in element_names.iter().enumerate() {
             let flat_name = format!("{prefix}{local_name}");
             // This element's own modifiers: each value substituted and
