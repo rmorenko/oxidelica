@@ -1482,16 +1482,17 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
 ///    everything after this sees equations and nothing else.
 /// 1. Parameters and constants are worked out, in whatever order they
 ///    depend on one another, and the discrete layer with them: what
-///    changes only at an event, and what each of those starts at.
-/// 1b. The mode is settled: an `if` equation the compiler could not
-///    decide contributes whichever branch holds here, and the run is
-///    told what to watch so it can ask for a fresh compilation.
+///    changes only at an event, and what each of those starts at. The
+///    mode is settled with them: an `if` equation the compiler could
+///    not decide contributes whichever branch holds here, and the run
+///    is told what to watch so it can ask for a fresh compilation.
 /// 2. The equations are split into those giving a state its derivative
 ///    and those that are algebraic.
 /// 3. What is left to solve for is counted, and every name in the
 ///    model is checked to be something the run can reach.
 /// 4. Structural analysis: equations are matched to unknowns, and
-///    where the match fails the index is reduced by differentiating.
+///    where the match fails the index is reduced by differentiating
+///    the constraint that could not be matched.
 /// 5. The order to evaluate in: what can be solved on its own is
 ///    solved on its own, and what cannot is torn into blocks.
 /// 6. What the run needs beside the equations: event indicators, the
@@ -1771,34 +1772,10 @@ pub(crate) fn compile_at(
         })
         .collect();
 
-    // Event indicators: one per relation anywhere in the model.
-    let indicators: Vec<Expr> = {
-        let mut out = Vec::new();
-        let mut collect = |expr: &Expr| collect_relations(expr, &mut out);
-        for (lhs, rhs) in &algebraic_eqs {
-            collect(lhs);
-            collect(rhs);
-        }
-        for expr in state_rhs.values() {
-            collect(expr);
-        }
-        for clause in &when_clauses {
-            for branch in &clause.branches {
-                collect(&branch.condition);
-            }
-        }
-        // The condition of a run-time `if` equation belongs here even
-        // though the branch it chose may not mention it: the step has
-        // to land on the switch, or the mode would change somewhere
-        // inside a step that was taken under the old one.
-        for conditions in &mode_conditions {
-            for condition in conditions {
-                collect(condition);
-            }
-        }
-        out
-    };
-
+    // What the run has to watch: one indicator per relation anywhere
+    // in the model.
+    let indicators =
+        what_the_run_watches(&algebraic_eqs, &state_rhs, &when_clauses, &mode_conditions);
     let fixed_starts: Vec<(String, usize, f64)> = ordered_algs
         .iter()
         .enumerate()
@@ -2131,6 +2108,45 @@ pub(crate) fn compile_at(
         compiled.check_block_regularity()?;
     }
     Ok(compiled)
+}
+
+/// One event indicator per relation anywhere in the model: the run
+/// steps onto each of them rather than through it.
+///
+/// The condition of a run-time `if` belongs here even though the
+/// branch it chose may not mention it: the step has to land on the
+/// switch, or the mode would change somewhere inside a step that was
+/// taken under the old one.
+///
+/// Moved out of `compile_at` unchanged.
+fn what_the_run_watches(
+    algebraic_eqs: &[(Expr, Expr)],
+    state_rhs: &HashMap<String, Expr>,
+    when_clauses: &[WhenClause],
+    mode_conditions: &[Vec<Expr>],
+) -> Vec<Expr> {
+    let mut out = Vec::new();
+    let mut collect = |expr: &Expr| collect_relations(expr, &mut out);
+    for (lhs, rhs) in algebraic_eqs {
+        collect(lhs);
+        collect(rhs);
+    }
+    for expr in state_rhs.values() {
+        collect(expr);
+    }
+    for clause in when_clauses {
+        for branch in &clause.branches {
+            collect(&branch.condition);
+        }
+    }
+    // The condition of a run-time `if` equation belongs here even
+    // though the branch it chose may not mention it.
+    for conditions in mode_conditions {
+        for condition in conditions {
+            collect(condition);
+        }
+    }
+    out
 }
 
 /// Symbolic time-differentiation of an expression.
