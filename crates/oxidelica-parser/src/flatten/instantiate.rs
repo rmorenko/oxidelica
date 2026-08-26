@@ -1071,108 +1071,22 @@ fn instantiate_components(
         // replaced the type with one of a different shape.
         resolve_type(registry, &mut component, scope, imports);
 
-        // Array dimensions expand into scalar elements. A dimension may
-        // be a number, but also a type - `Real x[Boolean]` has two
-        // elements, `Real x[E]` one per enumeration literal - or a `:`
-        // that reads its length from the value the component is given.
-        let mut sizes = Vec::new();
-        for (axis, dimension) in component.dimensions.iter().enumerate() {
-            let value = match dimension {
-                Expr::Ref(name) if name == "Boolean" => 2,
-                Expr::Ref(name)
-                    if lookup(registry, name, scope, imports)
-                        .is_some_and(|c| !c.enumeration.is_empty()) =>
-                {
-                    lookup(registry, name, scope, imports)
-                        .unwrap()
-                        .enumeration
-                        .len() as i64
-                }
-                Expr::ColonSubscript => {
-                    // A value written out says its length by being
-                    // written out. Anything else - a list scaled by a
-                    // factor, which is how the standard library draws
-                    // its axis labels - has to be worked out before it
-                    // can be measured.
-                    let measured = |(binding, prefixed): &(Expr, bool)| -> Option<i64> {
-                        if let Some(length) = flexible_size(binding, axis) {
-                            return Some(length);
-                        }
-                        let shapes = Shapes {
-                            sizes: &sizes_here,
-                            loop_vars: &HashMap::new(),
-                            consts: &local_consts,
-                            records: no_records(),
-                        };
-                        let binding = match prefixed {
-                            true => binding.clone(),
-                            false => {
-                                let binding = substitute_class_constants(
-                                    binding, registry, scope, imports, shadow,
-                                );
-                                prefix_expr(&binding, prefix, outers)
-                            }
-                        };
-                        // A measurement is not the model asking for a
-                        // value, so nothing it works out is kept.
-                        let mark = checks_mark();
-                        let value = expand(&binding, &shapes, registry, scope, imports, 0);
-                        checks_rewind(mark);
-                        let value = value.ok()?;
-                        value.shape().get(axis).map(|length| *length as i64)
-                    };
-                    sizing_binding.as_ref().and_then(measured).ok_or_else(|| {
-                        format!(
-                            "the flexible size `:` of `{flat_name}` needs a value to read \
-                             its length from, and {} is not one",
-                            sizing_binding.as_ref().map_or_else(
-                                || "nothing".to_string(),
-                                |(binding, _)| crate::flatten::names::sketch(binding)
-                            )
-                        )
-                    })?
-                }
-                _ => {
-                    // `Shape cylinders[n]` where `n = size(lines, 1)`:
-                    // the length was written with one that only the
-                    // declarations before it can give, and by now they
-                    // have given it.
-                    let off_a_length = || -> Option<i64> {
-                        let Expr::Ref(name) = dimension else {
-                            return dimension_value(dimension, &local_consts, &sizes_here);
-                        };
-                        let bound = class
-                            .components
-                            .iter()
-                            .chain(inherited.iter().map(|(component, _)| component))
-                            .find(|c| &c.name == name)?
-                            .binding
-                            .as_ref()?;
-                        let bound = prefix_expr(bound, prefix, outers);
-                        dimension_value(&bound, &local_consts, &sizes_here)
-                    };
-                    // A length may be a constant of a package the class
-                    // is written inside - `Xi[nXi]` of a medium counts
-                    // its substances - and that is a name no
-                    // environment holds.
-                    let named =
-                        substitute_class_constants(dimension, registry, scope, imports, shadow);
-                    let value = const_eval(&named, &local_consts)
-                        .or_else(|| off_a_length().map(|length| length as f64))
-                        .ok_or_else(|| {
-                            format!("dimension of `{flat_name}` is not a compile-time constant")
-                        })?;
-                    if value.fract() != 0.0 || value < 0.0 {
-                        return Err(format!(
-                            "dimension of `{flat_name}` must be a whole number that is not \
-                             negative, got {value}"
-                        ));
-                    }
-                    value as i64
-                }
-            };
-            sizes.push(value);
-        }
+        // How long the declaration is along each axis.
+        let sizes = measure_dimensions(
+            class,
+            inherited,
+            &component,
+            &flat_name,
+            sizing_binding.as_ref(),
+            registry,
+            scope,
+            prefix,
+            imports,
+            shadow,
+            outers,
+            &sizes_here,
+            &local_consts,
+        )?;
         if !sizes.is_empty() {
             acc.sizes
                 .push((format!("{prefix}{}", component.name), sizes.clone()));
@@ -1512,6 +1426,134 @@ fn instantiate_components(
         local_consts,
         broke_something,
     })
+}
+
+/// How long one declaration is along each axis.
+///
+/// A dimension may be a number, a type - `Real x[Boolean]` has two
+/// elements, `Real x[E]` one per enumeration literal - or a `:` that
+/// reads its length from the value the component was given.
+///
+/// Moved out of `instantiate_components` unchanged.
+#[allow(clippy::too_many_arguments)]
+fn measure_dimensions(
+    class: &ClassDef,
+    inherited: &[(Component, Option<Expr>)],
+    component: &Component,
+    flat_name: &str,
+    sizing_binding: Option<&(Expr, bool)>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    prefix: &str,
+    imports: &[(String, String)],
+    shadow: &[&str],
+    outers: &HashMap<String, String>,
+    sizes_here: &HashMap<String, Vec<i64>>,
+    local_consts: &HashMap<String, f64>,
+) -> Result<Vec<i64>, String> {
+    // Array dimensions expand into scalar elements. A dimension may
+    // be a number, but also a type - `Real x[Boolean]` has two
+    // elements, `Real x[E]` one per enumeration literal - or a `:`
+    // that reads its length from the value the component is given.
+    let mut sizes = Vec::new();
+    for (axis, dimension) in component.dimensions.iter().enumerate() {
+        let value = match dimension {
+            Expr::Ref(name) if name == "Boolean" => 2,
+            Expr::Ref(name)
+                if lookup(registry, name, scope, imports)
+                    .is_some_and(|c| !c.enumeration.is_empty()) =>
+            {
+                lookup(registry, name, scope, imports)
+                    .unwrap()
+                    .enumeration
+                    .len() as i64
+            }
+            Expr::ColonSubscript => {
+                // A value written out says its length by being
+                // written out. Anything else - a list scaled by a
+                // factor, which is how the standard library draws
+                // its axis labels - has to be worked out before it
+                // can be measured.
+                let measured = |(binding, prefixed): &(Expr, bool)| -> Option<i64> {
+                    if let Some(length) = flexible_size(binding, axis) {
+                        return Some(length);
+                    }
+                    let shapes = Shapes {
+                        sizes: sizes_here,
+                        loop_vars: &HashMap::new(),
+                        consts: local_consts,
+                        records: no_records(),
+                    };
+                    let binding = match prefixed {
+                        true => binding.clone(),
+                        false => {
+                            let binding = substitute_class_constants(
+                                binding, registry, scope, imports, shadow,
+                            );
+                            prefix_expr(&binding, prefix, outers)
+                        }
+                    };
+                    // A measurement is not the model asking for a
+                    // value, so nothing it works out is kept.
+                    let mark = checks_mark();
+                    let value = expand(&binding, &shapes, registry, scope, imports, 0);
+                    checks_rewind(mark);
+                    let value = value.ok()?;
+                    value.shape().get(axis).map(|length| *length as i64)
+                };
+                sizing_binding.and_then(measured).ok_or_else(|| {
+                    format!(
+                        "the flexible size `:` of `{flat_name}` needs a value to read \
+                             its length from, and {} is not one",
+                        sizing_binding.map_or_else(
+                            || "nothing".to_string(),
+                            |(binding, _)| crate::flatten::names::sketch(binding)
+                        )
+                    )
+                })?
+            }
+            _ => {
+                // `Shape cylinders[n]` where `n = size(lines, 1)`:
+                // the length was written with one that only the
+                // declarations before it can give, and by now they
+                // have given it.
+                let off_a_length = || -> Option<i64> {
+                    let Expr::Ref(name) = dimension else {
+                        return dimension_value(dimension, local_consts, sizes_here);
+                    };
+                    let bound = class
+                        .components
+                        .iter()
+                        .chain(inherited.iter().map(|(component, _)| component))
+                        .find(|c| &c.name == name)?
+                        .binding
+                        .as_ref()?;
+                    let bound = prefix_expr(bound, prefix, outers);
+                    dimension_value(&bound, local_consts, sizes_here)
+                };
+                // A length may be a constant of a package the class
+                // is written inside - `Xi[nXi]` of a medium counts
+                // its substances - and that is a name no
+                // environment holds.
+                let named = substitute_class_constants(dimension, registry, scope, imports, shadow);
+                let value = const_eval(&named, local_consts)
+                    .or_else(|| off_a_length().map(|length| length as f64))
+                    .ok_or_else(|| {
+                        format!("dimension of `{flat_name}` is not a compile-time constant")
+                    })?;
+                if value.fract() != 0.0 || value < 0.0 {
+                    return Err(format!(
+                        "dimension of `{flat_name}` must be a whole number that is not \
+                             negative, got {value}"
+                    ));
+                }
+                value as i64
+            }
+        };
+        sizes.push(value);
+    }
+
+    Ok(sizes)
 }
 
 /// Working an expression of this class out where it stands: the array
