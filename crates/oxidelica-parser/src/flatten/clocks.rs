@@ -441,117 +441,18 @@ impl Clocks {
 ///
 /// A model with no clocks in it passes through untouched.
 pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
-    let declared: Vec<String> = model
-        .components
-        .iter()
-        .filter(|component| component.type_name == "Clock")
-        .map(|component| component.name.clone())
-        .collect();
-    if declared.is_empty() {
-        // A machine with no clock to run on still has to hear about
-        // it, so it is asked before this pass gives up.
-        return build_state_machines(model, &Clocks::default(), &mut HashMap::new());
-    }
-    // Parameters may be built on one another - the standard library's
-    // exact clock reads its factor out of a table of constants - so
-    // they are worked out until nothing new settles rather than in one
-    // pass against nothing.
-    let mut parameters: HashMap<String, f64> = HashMap::new();
-    loop {
-        let before = parameters.len();
-        for component in &model.components {
-            if parameters.contains_key(&component.name) {
-                continue;
-            }
-            let Some(value) = component
-                .binding
-                .as_ref()
-                .and_then(|value| const_eval(value, &parameters))
-            else {
-                continue;
-            };
-            parameters.insert(component.name.clone(), value);
-        }
-        if parameters.len() == before {
-            break;
-        }
-    }
-
-    // A clock says what it is either in its declaration or in an
-    // equation of its own, and it may say it in terms of another -
-    // `Clock fast = superSample(slow, 3)` - so the definitions are
-    // gathered first and worked out until nothing new settles.
-    let mut definitions: Vec<(String, Expr)> = model
-        .components
-        .iter()
-        .filter(|component| component.type_name == "Clock")
-        .filter_map(|component| Some((component.name.clone(), component.binding.clone()?)))
-        .collect();
-    let mut kept = Vec::new();
-    for equation in model.equations.drain(..) {
-        // Either side may be the clock being said: a connection
-        // between two of them - a clock signal drawn from one block to
-        // another - comes out with whichever name sorts first on the
-        // left, and that one may be the one already known.
-        let spoken_for = |name: &String| definitions.iter().any(|(known, _)| known == name);
-        let said = match (&equation.lhs, &equation.rhs) {
-            // Where both are clocks - a clock signal drawn from one
-            // block to another is exactly that - the one being said is
-            // the one nothing has said yet.
-            (Expr::Ref(left), Expr::Ref(right))
-                if declared.contains(left) && declared.contains(right) =>
-            {
-                match spoken_for(left) {
-                    true => Some((right.clone(), equation.lhs.clone())),
-                    false => Some((left.clone(), equation.rhs.clone())),
-                }
-            }
-            (Expr::Ref(target), _) if declared.contains(target) => {
-                Some((target.clone(), equation.rhs.clone()))
-            }
-            (_, Expr::Ref(target)) if declared.contains(target) => {
-                Some((target.clone(), equation.lhs.clone()))
-            }
-            _ => None,
-        };
-        match said {
-            Some(said) => definitions.push(said),
-            None => kept.push(equation),
-        }
-    }
-    model.equations = kept;
-
-    let mut clocks = Clocks::default();
-    for _ in 0..MAX_DEPTH {
-        let mut settled = true;
-        for (name, value) in &definitions {
-            if clocks.by_name(name).is_some() {
-                continue;
-            }
-            if let Some(index) = clock_expr(value, &mut clocks, &parameters)? {
-                clocks.named.insert(name.clone(), index);
-                settled = false;
-            }
-        }
-        if settled {
-            break;
-        }
-    }
-    for name in &declared {
-        let Some(index) = clocks.by_name(name) else {
-            return Err(format!(
-                "`{name}` is a Clock, so it needs an interval the compiler can see: \
-                 `Clock {name} = Clock(0.1);`"
-            ));
-        };
-        if clocks
-            .spec(index)
-            .interval()
-            .is_some_and(|seconds| seconds <= 0.0)
-        {
-            return Err(format!("the interval of `{name}` must be positive"));
-        }
-    }
+    // What every clock of the model ticks at, read off the
+    // declarations and the equations that name them. `None` where the
+    // model declares no clock at all, and the machines have been asked
+    // about it already.
+    let Some(DeclaredClocks {
+        mut clocks,
+        parameters,
+        declared,
+    }) = clocks_of_the_model(model)?
+    else {
+        return Ok(());
+    };
 
     // A `when Clock() then ... end when` is a clocked partition
     // written out by hand, which is how the standard library's
@@ -889,6 +790,147 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         .components
         .retain(|component| component.type_name != "Clock");
     Ok(())
+}
+
+/// The clocks a model declares, what they tick at, and the numbers
+/// they were read against.
+struct DeclaredClocks {
+    clocks: Clocks,
+    parameters: HashMap<String, f64>,
+    declared: Vec<String>,
+}
+
+/// What every clock the model declares ticks at.
+///
+/// A clock says what it is either in its declaration or in an equation
+/// naming it, and either may be written in terms of parameters built
+/// on other parameters - the standard library's exact clock reads its
+/// factor out of a table of constants - so the numbers are settled
+/// first and the clocks read against them.
+///
+/// `None` where the model declares no clock: a machine with no clock
+/// to run on still has to hear about it, and hears here.
+///
+/// Moved out of `partition_clocks` unchanged.
+fn clocks_of_the_model(model: &mut Model) -> Result<Option<DeclaredClocks>, String> {
+    let declared: Vec<String> = model
+        .components
+        .iter()
+        .filter(|component| component.type_name == "Clock")
+        .map(|component| component.name.clone())
+        .collect();
+    if declared.is_empty() {
+        // A machine with no clock to run on still has to hear about
+        // it, so it is asked before this pass gives up.
+        build_state_machines(model, &Clocks::default(), &mut HashMap::new())?;
+        return Ok(None);
+    }
+    // Parameters may be built on one another - the standard library's
+    // exact clock reads its factor out of a table of constants - so
+    // they are worked out until nothing new settles rather than in one
+    // pass against nothing.
+    let mut parameters: HashMap<String, f64> = HashMap::new();
+    loop {
+        let before = parameters.len();
+        for component in &model.components {
+            if parameters.contains_key(&component.name) {
+                continue;
+            }
+            let Some(value) = component
+                .binding
+                .as_ref()
+                .and_then(|value| const_eval(value, &parameters))
+            else {
+                continue;
+            };
+            parameters.insert(component.name.clone(), value);
+        }
+        if parameters.len() == before {
+            break;
+        }
+    }
+
+    // A clock says what it is either in its declaration or in an
+    // equation of its own, and it may say it in terms of another -
+    // `Clock fast = superSample(slow, 3)` - so the definitions are
+    // gathered first and worked out until nothing new settles.
+    let mut definitions: Vec<(String, Expr)> = model
+        .components
+        .iter()
+        .filter(|component| component.type_name == "Clock")
+        .filter_map(|component| Some((component.name.clone(), component.binding.clone()?)))
+        .collect();
+    let mut kept = Vec::new();
+    for equation in model.equations.drain(..) {
+        // Either side may be the clock being said: a connection
+        // between two of them - a clock signal drawn from one block to
+        // another - comes out with whichever name sorts first on the
+        // left, and that one may be the one already known.
+        let spoken_for = |name: &String| definitions.iter().any(|(known, _)| known == name);
+        let said = match (&equation.lhs, &equation.rhs) {
+            // Where both are clocks - a clock signal drawn from one
+            // block to another is exactly that - the one being said is
+            // the one nothing has said yet.
+            (Expr::Ref(left), Expr::Ref(right))
+                if declared.contains(left) && declared.contains(right) =>
+            {
+                match spoken_for(left) {
+                    true => Some((right.clone(), equation.lhs.clone())),
+                    false => Some((left.clone(), equation.rhs.clone())),
+                }
+            }
+            (Expr::Ref(target), _) if declared.contains(target) => {
+                Some((target.clone(), equation.rhs.clone()))
+            }
+            (_, Expr::Ref(target)) if declared.contains(target) => {
+                Some((target.clone(), equation.lhs.clone()))
+            }
+            _ => None,
+        };
+        match said {
+            Some(said) => definitions.push(said),
+            None => kept.push(equation),
+        }
+    }
+    model.equations = kept;
+
+    let mut clocks = Clocks::default();
+    for _ in 0..MAX_DEPTH {
+        let mut settled = true;
+        for (name, value) in &definitions {
+            if clocks.by_name(name).is_some() {
+                continue;
+            }
+            if let Some(index) = clock_expr(value, &mut clocks, &parameters)? {
+                clocks.named.insert(name.clone(), index);
+                settled = false;
+            }
+        }
+        if settled {
+            break;
+        }
+    }
+    for name in &declared {
+        let Some(index) = clocks.by_name(name) else {
+            return Err(format!(
+                "`{name}` is a Clock, so it needs an interval the compiler can see: \
+                 `Clock {name} = Clock(0.1);`"
+            ));
+        };
+        if clocks
+            .spec(index)
+            .interval()
+            .is_some_and(|seconds| seconds <= 0.0)
+        {
+            return Err(format!("the interval of `{name}` must be positive"));
+        }
+    }
+
+    Ok(Some(DeclaredClocks {
+        clocks,
+        parameters,
+        declared,
+    }))
 }
 
 /// The names a sub-clock conversion goes by, and whether it takes a
