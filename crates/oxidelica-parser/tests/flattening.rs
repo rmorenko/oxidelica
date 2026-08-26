@@ -7315,6 +7315,85 @@ const TABLE_BLOCK: &str = "package Blocks \
        external \"C\" u = ModelicaStandardTables_CombiTable1D_maximumAbscissa(h); end umax; \
    end Blocks; ";
 
+/// A record written out is built from every member it has, its bases'
+/// among them.
+#[test]
+fn a_record_written_out_holds_what_its_bases_declared_too() {
+    // The water states are four fields of their own over a `phase`
+    // inherited from the two-phase medium. Built from its own fields
+    // alone, the value came out one shorter than the record, and the
+    // caller measuring the same record honestly said it wanted five
+    // and got four.
+    let m = parse_model(
+        "package P record B Real phase; end B; \
+         record S extends B; Real p; Real T; end S; \
+         function make input Real p; input Real T; output S s; \
+         algorithm s := S(p = p, T = T, phase = 1); end make; \
+         function temp input S s; output Real T; algorithm T := s.T; end temp; \
+         model M Real y; equation y = P.temp(P.make(2, 3)); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a record built with its base's field among the others");
+    let written = equations_of(&m);
+    assert!(
+        written.iter().any(|e| e.contains('3')),
+        "the temperature comes back out: {written:?}"
+    );
+
+    // Given in order, the members run bases first, which is the order
+    // everything else reads a record in: `S(1, 2, 3)` is `phase = 1`.
+    let ordered = parse_model(
+        "package P record B Real phase; end B; \
+         record S extends B; Real p; Real T; end S; \
+         function make output S s; algorithm s := S(1, 2, 3); end make; \
+         function first input S s; output Real y; algorithm y := s.phase; end first; \
+         model M Real y; equation y = P.first(P.make()); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a record built in order");
+    assert!(
+        equations_of(&ordered).iter().any(|e| e.contains('1')),
+        "the base's field is the first place: {:?}",
+        equations_of(&ordered)
+    );
+
+    // A name that is nobody's member is a value going nowhere, and was
+    // dropped without a word.
+    let stranger = parse_model(
+        "package P record S Real p; end S; \
+         function make output Real y; protected S s; \
+         algorithm s := S(p = 1, nowhere = 2); y := 1; end make; \
+         model M Real y; equation y = P.make(); end M; end P;",
+    )
+    .expect_err("a member nobody declared");
+    assert!(
+        stranger.message.contains("no such member"),
+        "{}",
+        stranger.message
+    );
+
+    // A constant of a record belongs to the class rather than to any
+    // value of it: the battery parameter records inherit a `constant
+    // String CellType`, and counting it made one record five things
+    // where the declaration held four.
+    let held = parse_model(
+        "package P partial record Kind constant String name = \"cell\"; end Kind; \
+         record S extends Kind; Real r; Real c; end S; \
+         model M parameter S data[1] = {S(r = 1, c = 2)}; Real y; \
+         equation y = data[1].r; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a record whose base holds a constant");
+    assert_eq!(
+        held.components
+            .iter()
+            .filter(|c| c.name.starts_with("data[1]."))
+            .count(),
+        2,
+        "two members, not three"
+    );
+}
+
 /// A subscript outside its array says which array, and where.
 #[test]
 fn a_subscript_outside_its_array_names_what_was_being_read() {

@@ -2653,7 +2653,7 @@ fn spread_out(name: &str, shape: &[i64], so_far: &mut Vec<i64>) -> Expr {
 /// means the ones it extends: a medium's state is what its base
 /// declared. A class's own declaration replaces an inherited one of
 /// the same name rather than joining it.
-fn record_components(
+pub(super) fn record_components(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
     depth: usize,

@@ -1066,7 +1066,7 @@ pub(super) fn expand_call(
                             args.len()
                         ));
                     }
-                    return record_written_out(class, args, &recur);
+                    return record_written_out(class, args, registry, &recur);
                 }
             }
             // A user function that takes or returns an array is inlined
@@ -1369,11 +1369,43 @@ pub(super) fn combine(
 fn record_written_out(
     class: &ClassDef,
     args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
     recur: &dyn Fn(&Expr) -> Result<Value, String>,
 ) -> Result<Value, String> {
+    // Every member the record has, its bases' among them and in their
+    // order: `record S extends B; Real p; end S` is `B`'s fields and
+    // then `p`, which is the order everything else reads a record in.
+    //
+    // Reading only what the record wrote itself built a value shorter
+    // than the record - the water states are four fields over a fifth
+    // inherited from the two-phase medium - and the caller measuring
+    // the same record honestly then said it wanted five and got four.
+    // A constant of a record is not one of its members: the battery
+    // parameter records inherit a `constant String CellType` that says
+    // what kind of cell they describe, and it belongs to the class
+    // rather than to any value of it. Counted among the members, one
+    // record written out came to five things where the declaration
+    // held four.
+    let held: Vec<Component> = record_components(registry, class, 0)
+        .into_iter()
+        .filter(|member| member.variability != Variability::Constant)
+        .collect();
     let mut members = Vec::new();
     let mut position = 0;
-    for member in &class.components {
+    // A name that is nobody's member is a value going nowhere: the
+    // states were built with `phase = 1` and the `phase` was dropped
+    // without a word, which is a guess dressed as an answer.
+    for arg in args {
+        if let Expr::NamedArg(name, _) = arg {
+            if !held.iter().any(|member| &member.name == name) {
+                return Err(format!(
+                    "`{}` written out is given `{name}`, and the record has no such member",
+                    class.name
+                ));
+            }
+        }
+    }
+    for member in &held {
         let given = args.iter().find_map(|arg| match arg {
             Expr::NamedArg(name, value) if name == &member.name => Some((**value).clone()),
             _ => None,
