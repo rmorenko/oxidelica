@@ -679,14 +679,6 @@ fn substitute_at(
             expr.clone()
         }
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) | Expr::Time => expr.clone(),
-        Expr::WithDerivative(value, rule, seeds) => Expr::WithDerivative(
-            Box::new(recur(value)),
-            Box::new(recur(rule)),
-            seeds
-                .iter()
-                .map(|(name, arg)| (name.clone(), recur(arg)))
-                .collect(),
-        ),
         // A library gives the language's own operators a place in its
         // tree with `external "builtin" y = asin(u)`; a call to one of
         // those is a call to the operator.
@@ -723,43 +715,7 @@ fn substitute_at(
                 _ => Expr::Call(name.clone(), args),
             }
         }
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)), Box::new(recur(r))),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
-        Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
-        Expr::Index(base, subscripts) => Expr::Index(
-            Box::new(recur(base)),
-            subscripts.iter().map(recur).collect(),
-        ),
-        Expr::Member(base, path) => Expr::Member(Box::new(recur(base)), path.clone()),
-        Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
-        Expr::Elementwise(op, l, r) => {
-            Expr::Elementwise(*op, Box::new(recur(l)), Box::new(recur(r)))
-        }
-        Expr::Range(a, step, b) => Expr::Range(
-            Box::new(recur(a)),
-            step.as_ref().map(|s| Box::new(recur(s))),
-            Box::new(recur(b)),
-        ),
-        Expr::Comprehension(body, var, range) => {
-            Expr::Comprehension(Box::new(recur(body)), var.clone(), Box::new(recur(range)))
-        }
-        Expr::MatrixRows(rows) => Expr::MatrixRows(
-            rows.iter()
-                .map(|row| row.iter().map(recur).collect())
-                .collect(),
-        ),
-        Expr::ColonSubscript | Expr::EndSubscript => expr.clone(),
-        Expr::NamedArg(keyword, value) => Expr::NamedArg(keyword.clone(), Box::new(recur(value))),
-        Expr::Tuple(targets) => Expr::Tuple(
-            targets
-                .iter()
-                .map(|slot| slot.as_ref().map(recur))
-                .collect(),
-        ),
+        _ => expr.map_children(&mut |child| recur(child)),
     }
 }
 
