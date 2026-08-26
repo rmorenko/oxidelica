@@ -131,6 +131,21 @@ and its reproductions are scratch, kept out of the repository by
 Each consultation is a full session on the shared subscription, so it
 is for being stuck, not for code review.
 
+## Walking an expression
+
+`Expr::map_children` applies a function to each expression one level
+down, and `try_map_children` does it for a walk that may refuse. Nearly
+every pass is one interesting case and then the same twenty lines of
+taking every variant apart and putting it back together; written out
+by hand, a variant added to `Expr` is a variant that pass quietly walks
+past, which no compiler can see.
+
+Use them for the machinery only. Several walks in this repository stop
+at the variants they do not name - they read a subscript and not what
+it subscripts, or a call and not a matrix - and that is deliberate,
+so they go on saying it themselves. The helper is for the walk that
+means "and the same, further down".
+
 ## Language
 
 Everything in the repository is English - code, comments, commit
