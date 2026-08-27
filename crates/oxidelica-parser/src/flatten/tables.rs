@@ -462,7 +462,11 @@ fn one_call(
 /// rule needs two lines on either side, and a table has none past its
 /// ends, so the missing ones are made by carrying the end lines on -
 /// which is what the standard tables do.
-fn akima_slopes(rows: usize, at: &dyn Fn(usize) -> f64, value: &dyn Fn(usize) -> f64) -> Vec<f64> {
+pub(super) fn akima_slopes(
+    rows: usize,
+    at: &dyn Fn(usize) -> f64,
+    value: &dyn Fn(usize) -> f64,
+) -> Vec<f64> {
     // The straight line of each interval, with two made up at either
     // end. Index `k + 2` of this is the line from point `k` to `k + 1`.
     let line = |first: usize| -> f64 {

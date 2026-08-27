@@ -628,17 +628,17 @@ fn a_grid_of_one_row_and_the_rate_it_changes_at() {
 /// A grid this compiler cannot read says so rather than guessing.
 #[test]
 fn a_grid_says_what_it_cannot_read() {
-    // Splines are not written out here, and a grid asking for them is
-    // refused by name rather than read as straight lines.
+    // The Akima spline is written out; the smoothnesses beyond it are
+    // refused by number rather than read as something else.
     let spline = parse_model(&format!(
         "{GRID_BLOCK} model M \
          parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
-         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 2, 2); \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 4, 2); \
          Real y; equation y = Grid.getValue(h, 1.5, 1.5); end M;"
     ))
     .expect_err("a smoothness this compiler does not write out")
     .message;
-    assert!(spline.contains("spline interpolation"), "{spline}");
+    assert!(spline.contains("smoothness 4"), "{spline}");
 
     // A matrix with a top row and nothing under it is a grid with no
     // crossings to read.
@@ -1021,4 +1021,62 @@ fn a_periodic_table_says_the_same_thing_every_period() {
          Real y; equation y = Blocks.getValue(h, 1, time); end M;"
     ));
     assert!(flat.is_ok(), "{flat:?}");
+}
+
+/// A grid asked for a spline is drawn as a bicubic through its points.
+///
+/// Akima's rule along one abscissa and then along the other gives
+/// every crossing a slope down, a slope across and a cross slope, and
+/// the cell between four crossings is the bicubic that meets all of
+/// them. Twenty-six models stood at a grid refusing to be splined.
+#[test]
+fn a_grid_may_be_splined() {
+    // `z = u1^2 + u2^2` on a grid of whole numbers. A bicubic drawn
+    // through a surface of that degree is that surface, so the value
+    // between the crossings is exact and says the spline was built
+    // rather than the plane.
+    let m = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[5, 5] = [0, 0, 1, 2, 3; 0, 0, 1, 4, 9; 1, 1, 2, 5, 10; \
+           2, 4, 5, 8, 13; 3, 9, 10, 13, 18]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 2, 2); \
+         Real y; equation y = Grid.getValue(h, 1.5, 2.5); end M;"
+    ))
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    // Everything in it is a number, so what it comes to is a number:
+    // 1.5^2 + 2.5^2, which the plane between the crossings would have
+    // put a whole unit away.
+    let value = folded(&y.rhs);
+    assert!((value - (1.5 * 1.5 + 2.5 * 2.5)).abs() < 1e-9, "{value}");
+}
+
+/// A grid of one row is splined along the abscissa it has.
+///
+/// A cell is drawn from four crossings, and a grid with one row or
+/// one column has only two: the other two are that edge again. Read
+/// without holding the index there, the compiler walked off the end
+/// of the table and the whole library check died with the thread.
+#[test]
+fn a_grid_of_one_row_may_be_splined() {
+    let m = parse_model(&format!(
+        "{GRID_BLOCK} model M \
+         parameter Real data[2, 4] = [0, 0, 1, 2; 0, 0, 1, 4]; \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 2, 2); \
+         Real y; equation y = Grid.getValue(h, 0, 1.5); end M;"
+    ))
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    // The one row reads `0, 1, 4` against `0, 1, 2`, and a spline
+    // through those three points passes between the last two.
+    let value = folded(&y.rhs);
+    assert!((1.0..=4.0).contains(&value), "{value}");
 }

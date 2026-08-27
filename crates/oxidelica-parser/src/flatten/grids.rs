@@ -8,6 +8,192 @@
 use super::tables::*;
 use super::*;
 
+/// The Hermite basis written in powers of the fraction: row `a` is
+/// how basis function `a` is made of `1`, `t`, `t^2`, `t^3`.
+///
+/// The four are `h00 = 1 - 3t^2 + 2t^3`, `h10 = t - 2t^2 + t^3`,
+/// `h01 = 3t^2 - 2t^3` and `h11 = -t^2 + t^3`: the first pair carry
+/// the values at the ends of an interval, the second pair the slopes.
+const HERMITE: [[f64; 4]; 4] = [
+    [1.0, 0.0, -3.0, 2.0],
+    [0.0, 1.0, -2.0, 1.0],
+    [0.0, 0.0, 3.0, -2.0],
+    [0.0, 0.0, -1.0, 1.0],
+];
+
+/// The slopes an Akima spline gives a grid, along each abscissa and
+/// across both.
+///
+/// A two-dimensional table is splined the way the standard tables do
+/// it: Akima's rule along one abscissa, then along the other. What
+/// comes out is a slope down, a slope across and a cross slope at
+/// every crossing of the grid, which is what a bicubic needs to be
+/// drawn through them.
+struct GridSlopes {
+    down: Vec<Vec<f64>>,
+    across: Vec<Vec<f64>>,
+    corner: Vec<Vec<f64>>,
+}
+
+fn grid_slopes(down: &[f64], across: &[f64], cell: &dyn Fn(usize, usize) -> f64) -> GridSlopes {
+    let (rows, columns) = (down.len(), across.len());
+    // Along the first abscissa, one column at a time.
+    let mut slope_down = vec![vec![0.0; columns]; rows];
+    for j in 0..columns {
+        let at = |i: usize| down[i];
+        let value = |i: usize| cell(i, j);
+        let along = akima_slopes(rows, &at, &value);
+        for (row, m) in slope_down.iter_mut().zip(along) {
+            row[j] = m;
+        }
+    }
+    // Along the second, one row at a time.
+    let mut slope_across = vec![vec![0.0; columns]; rows];
+    for (i, row) in slope_across.iter_mut().enumerate() {
+        let at = |j: usize| across[j];
+        let value = |j: usize| cell(i, j);
+        for (j, m) in akima_slopes(columns, &at, &value).into_iter().enumerate() {
+            row[j] = m;
+        }
+    }
+    // Across both: the slope down, splined along the second abscissa.
+    // Which of the two orders it is worked out in makes no difference
+    // to a grid whose points follow one another.
+    let mut corner = vec![vec![0.0; columns]; rows];
+    for (i, row) in corner.iter_mut().enumerate() {
+        let at = |j: usize| across[j];
+        let value = |j: usize| slope_down[i][j];
+        for (j, m) in akima_slopes(columns, &at, &value).into_iter().enumerate() {
+            row[j] = m;
+        }
+    }
+    GridSlopes {
+        down: slope_down,
+        across: slope_across,
+        corner,
+    }
+}
+
+/// One cell of a splined grid, written in powers of how far into it
+/// the point is: `C[p][q]` multiplies `s^p * t^q`.
+///
+/// The cell is the bicubic that meets the four corners at the values
+/// the table gives and leaves each corner at the slopes worked out
+/// above. In the Hermite basis that is `basis(s) * M * basis(t)`,
+/// where `M` holds the corner values and their slopes; written in
+/// powers it is `H' * M * H`, which is what this comes to.
+fn cell_powers(
+    slopes: &GridSlopes,
+    cell: &dyn Fn(usize, usize) -> f64,
+    i: usize,
+    j: usize,
+    span_down: f64,
+    span_across: f64,
+) -> [[f64; 4]; 4] {
+    // The far corner of the cell, held at the edge of the grid: an
+    // abscissa of one point has no interval along it, and all four
+    // corners are then that one point.
+    let (rows, columns) = (slopes.down.len(), slopes.down[0].len());
+    let (i, j) = (i.min(rows - 1), j.min(columns - 1));
+    let (i1, j1) = ((i + 1).min(rows - 1), (j + 1).min(columns - 1));
+    // Values and slopes at the four corners. A slope is written in
+    // the fraction rather than in the abscissa, so it is multiplied
+    // by how wide the interval is.
+    let m = [
+        [
+            cell(i, j),
+            slopes.across[i][j] * span_across,
+            cell(i, j1),
+            slopes.across[i][j1] * span_across,
+        ],
+        [
+            slopes.down[i][j] * span_down,
+            slopes.corner[i][j] * span_down * span_across,
+            slopes.down[i][j1] * span_down,
+            slopes.corner[i][j1] * span_down * span_across,
+        ],
+        [
+            cell(i1, j),
+            slopes.across[i1][j] * span_across,
+            cell(i1, j1),
+            slopes.across[i1][j1] * span_across,
+        ],
+        [
+            slopes.down[i1][j] * span_down,
+            slopes.corner[i1][j] * span_down * span_across,
+            slopes.down[i1][j1] * span_down,
+            slopes.corner[i1][j1] * span_down * span_across,
+        ],
+    ];
+    let mut powers = [[0.0f64; 4]; 4];
+    for (p, row) in powers.iter_mut().enumerate() {
+        for (q, out) in row.iter_mut().enumerate() {
+            for (a, m_row) in m.iter().enumerate() {
+                for (b, value) in m_row.iter().enumerate() {
+                    *out += HERMITE[a][p] * value * HERMITE[b][q];
+                }
+            }
+        }
+    }
+    powers
+}
+
+/// A cell of powers written out as an expression in the two
+/// fractions, as a value or as a slope along one abscissa.
+///
+/// The slope is the polynomial differentiated by the fraction and
+/// divided by how wide the interval is, which is the chain rule
+/// written once.
+fn powers_written(
+    powers: &[[f64; 4]; 4],
+    s: &Expr,
+    t: &Expr,
+    wanted: Wanted,
+    span_down: f64,
+    span_across: f64,
+) -> Expr {
+    let raised = |base: &Expr, power: usize| -> Option<Expr> {
+        match power {
+            0 => None,
+            _ => {
+                let mut out = base.clone();
+                for _ in 1..power {
+                    out = Expr::Bin(BinOp::Mul, Box::new(out), Box::new(base.clone()));
+                }
+                Some(out)
+            }
+        }
+    };
+    let mut written: Option<Expr> = None;
+    for (p, row) in powers.iter().enumerate() {
+        for (q, coefficient) in row.iter().enumerate() {
+            // What the differentiation does to one term: `s^p`
+            // becomes `p * s^(p-1)`, and a term it wipes out is left
+            // out of the sum entirely.
+            let (factor, p, q) = match wanted {
+                Wanted::Value => (1.0, p, q),
+                Wanted::SlopeDown if p == 0 => continue,
+                Wanted::SlopeDown => (p as f64 / span_down, p - 1, q),
+                Wanted::SlopeAcross if q == 0 => continue,
+                Wanted::SlopeAcross => (q as f64 / span_across, p, q - 1),
+            };
+            let coefficient = coefficient * factor;
+            if coefficient == 0.0 {
+                continue;
+            }
+            let mut term = Expr::Number(coefficient);
+            for part in [raised(s, p), raised(t, q)].into_iter().flatten() {
+                term = Expr::Bin(BinOp::Mul, Box::new(term), Box::new(part));
+            }
+            written = Some(match written {
+                None => term,
+                Some(so_far) => Expr::Bin(BinOp::Add, Box::new(so_far), Box::new(term)),
+            });
+        }
+    }
+    written.unwrap_or(Expr::Number(0.0))
+}
+
 /// What is wanted of a two-dimensional table at a point: the value
 /// there, or how fast it changes along one abscissa or the other.
 #[derive(Clone, Copy, PartialEq)]
@@ -35,12 +221,15 @@ pub(super) fn on_the_grid(
     u2: &Expr,
     wanted: Wanted,
 ) -> Result<Expr, String> {
-    if table.smoothness != LINEAR_SEGMENTS && table.smoothness != CONSTANT_SEGMENTS {
-        return Err(
-            "a table asks for spline interpolation, and this compiler writes out the linear \
-             and the constant only"
-                .to_string(),
-        );
+    if !matches!(
+        table.smoothness,
+        LINEAR_SEGMENTS | CONSTANT_SEGMENTS | AKIMA_SPLINE
+    ) {
+        return Err(format!(
+            "a two-dimensional table asks for smoothness {}, and this compiler writes out the \
+             linear, the constant and the Akima spline only",
+            table.smoothness
+        ));
     }
     if !matches!(
         table.extrapolation,
@@ -56,7 +245,15 @@ pub(super) fn on_the_grid(
     if down.is_empty() || across.is_empty() {
         return Err("a two-dimensional table has no grid to read".to_string());
     }
-    let cell = |i: usize, j: usize| table.rows[1 + i][1 + j];
+    // An abscissa of one point is read at that point however far the
+    // index reaches: a cell of the grid is drawn from four corners,
+    // and where there is only one row to take them from, all four
+    // come from it.
+    let cell = |i: usize, j: usize| {
+        let i = i.min(table.rows.len() - 2);
+        let j = j.min(table.rows[0].len() - 2);
+        table.rows[1 + i][1 + j]
+    };
     // A grid asked to repeat says the same thing every period along
     // each abscissa on its own: what it is asked at is brought back
     // into the one grid it was written for, the way the one
@@ -153,6 +350,27 @@ pub(super) fn on_the_grid(
     // The slope along either abscissa is that expression differentiated
     // by the fraction along it, divided by how wide the interval is:
     // `d/du1 = ((c10 - c00) + (c00 - c10 - c01 + c11)*t) / (u1 span)`.
+    // The slopes a spline gives the grid, worked out once for the
+    // whole table. A spline needs the points to follow one another
+    // along both abscissas: two rows at the same place leave the line
+    // between them undefined rather than flat, and a slope of zero
+    // there would be a quiet mistake rather than an answer.
+    let splined = match table.smoothness == AKIMA_SPLINE {
+        false => None,
+        true => {
+            for (axis, which) in [(&down, "first"), (&across, "second")] {
+                if let Some(repeated) = (1..axis.len()).find(|&k| axis[k] == axis[k - 1]) {
+                    return Err(format!(
+                        "a two-dimensional table asked for an Akima spline gives {} twice on \
+                         its {which} abscissa, and a spline needs the points to follow one \
+                         another",
+                        axis[repeated]
+                    ));
+                }
+            }
+            Some(grid_slopes(&down, &across, &cell))
+        }
+    };
     let piece = |i: usize, j: usize| -> Expr {
         let (c00, c10, c01, c11) = match (down.len() > 1, across.len() > 1) {
             (true, true) => (
@@ -173,6 +391,55 @@ pub(super) fn on_the_grid(
             true => along(&across, u2, j),
             false => Expr::Number(0.0),
         };
+        // A splined cell is a bicubic rather than a plane: the four
+        // corners, the slopes along each abscissa there and the cross
+        // slope, written in powers of the two fractions.
+        if let Some(slopes) = &splined {
+            let (span_down, span_across) = (
+                match down.len() > 1 {
+                    true => down[i + 1] - down[i],
+                    false => 1.0,
+                },
+                match across.len() > 1 {
+                    true => across[j + 1] - across[j],
+                    false => 1.0,
+                },
+            );
+            // An abscissa of one point has no interval along it, so
+            // the cell is drawn as if the grid repeated there and the
+            // fraction stays at nothing.
+            let (last_i, last_j) = (
+                match down.len() > 1 {
+                    true => i,
+                    false => 0,
+                },
+                match across.len() > 1 {
+                    true => j,
+                    false => 0,
+                },
+            );
+            let powers = match (down.len() > 1, across.len() > 1) {
+                (true, true) => cell_powers(slopes, &cell, i, j, span_down, span_across),
+                _ => {
+                    // With one row or one column there is no bicubic
+                    // to draw: what the table says along the abscissa
+                    // it does have is a cubic, and the other fraction
+                    // multiplies nothing.
+                    let mut powers = [[0.0f64; 4]; 4];
+                    let held = cell_powers(
+                        slopes,
+                        &|a: usize, b: usize| cell(a.min(last_i + 1), b.min(last_j + 1)),
+                        last_i,
+                        last_j,
+                        span_down,
+                        span_across,
+                    );
+                    powers.copy_from_slice(&held);
+                    powers
+                }
+            };
+            return powers_written(&powers, &s, &t, wanted, span_down, span_across);
+        }
         let times = |a: Expr, b: Expr| Expr::Bin(BinOp::Mul, Box::new(a), Box::new(b));
         let plus = |a: Expr, b: Expr| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b));
         let corner = c00 - c10 - c01 + c11;
