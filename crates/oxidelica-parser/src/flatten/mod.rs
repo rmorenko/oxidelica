@@ -1455,6 +1455,10 @@ struct Level<'a> {
     overrides: &'a [(String, Expr)],
     /// Parameter values of the enclosing class, by local name.
     consts: &'a HashMap<String, f64>,
+    /// What the `String` parameters of this class are worth: a value
+    /// worked out by a function may be handed one, and a name is
+    /// nothing a body can measure.
+    texts: &'a HashMap<String, String>,
     /// Imports of the enclosing class.
     imports: &'a [(String, String)],
     /// Package scope of the enclosing class.

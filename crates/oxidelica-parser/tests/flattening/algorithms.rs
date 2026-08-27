@@ -2991,3 +2991,20 @@ fn a_function_may_inherit_its_body() {
         .unwrap();
     assert_eq!(folded(&z.rhs), 6.0);
 }
+
+/// A value worked out of a `String` parameter is worked out.
+///
+/// A table block asks `findLast(fileName, ".csv")` what kind of file
+/// it was given, and `fileName` is a parameter of the block rather
+/// than a string written where the call is. Handed the name, the body
+/// had nothing to measure, and the parameter stayed a call that
+/// nothing could evaluate.
+#[test]
+fn a_string_parameter_reaches_the_body_it_is_handed_to() {
+    let m = parse_model(
+        r#"function len input String s; output Integer n; protected Integer i; algorithm i := 0; while i < 1 loop i := i + 1; end while; n := ModelicaStrings_length(s) + i - 1; end len; model M parameter String path = "a/b/test.txt"; parameter Integer k = len(path); Real y; equation y = k; end M;"#,
+    )
+    .unwrap();
+    let k = m.components.iter().find(|c| c.name == "k").unwrap();
+    assert_eq!(format!("{:?}", k.binding), "Some(Number(12.0))");
+}

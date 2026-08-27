@@ -102,7 +102,16 @@ pub(super) fn instantiate(
     // `parameter Voltage V[m]` is written with it.
     let inherited = inherited_parameters(registry, class, 0);
     let local_consts = settle_parameters(
-        registry, class, prefix, env, acc, &imports, &shadow, &outers, &inherited,
+        registry,
+        class,
+        prefix,
+        env,
+        acc,
+        &imports,
+        &shadow,
+        &outers,
+        &inherited,
+        &local_texts,
     );
 
     let (sizes, sizes_here) = measure_shapes(registry, class, prefix, env, acc, &local_consts);
@@ -607,6 +616,24 @@ fn instantiate_bases(
 ///
 /// Moved out of `instantiate` unchanged.
 #[allow(clippy::too_many_arguments)]
+/// Every `String` name of an expression put back as the text it
+/// stands for.
+///
+/// A parameter worked out by a function may be handed one - a table
+/// block asks `findLast(fileName, ".csv")` what kind of file it was
+/// given - and a name is nothing a body can measure. What each string
+/// is worth is known where the class is instantiated, so it is put in
+/// before the call is inlined.
+fn substitute_texts(expr: &Expr, texts: &HashMap<String, String>) -> Expr {
+    if let Expr::Ref(name) = expr {
+        if let Some(text) = texts.get(name) {
+            return Expr::Str(text.clone());
+        }
+    }
+    expr.map_children(&mut |child| substitute_texts(child, texts))
+}
+
+#[allow(clippy::too_many_arguments)]
 fn settle_parameters(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
@@ -617,6 +644,7 @@ fn settle_parameters(
     shadow: &[&str],
     outers: &HashMap<String, String>,
     inherited: &[(Component, Option<Expr>)],
+    local_texts: &HashMap<String, String>,
 ) -> HashMap<String, f64> {
     let scope = class.name.as_str();
     // Parameter values of this class, resolved to numbers where
@@ -706,6 +734,13 @@ fn settle_parameters(
             // alone can fold, so the call is inlined first. Anything
             // the inlining will not do leaves the parameter for a
             // later round, or for no round at all.
+            // A call may be handed a `String` parameter of this class
+            // - `findLast(fileName, ".csv")` is how a table block
+            // decides what kind of file it was given - and a name is
+            // not something the body can measure. What each string is
+            // worth is known here, so it is put in before the call is
+            // inlined.
+            let expr = substitute_texts(&expr, local_texts);
             let settled = const_eval(&expr, &env).or_else(|| {
                 let inlined = resolve(
                     &expr,
@@ -718,7 +753,13 @@ fn settle_parameters(
                     0,
                 )
                 .ok()?;
-                const_eval(&inlined, &env)
+                // What the body worked out of the strings it was
+                // handed folds to a number here, the way a condition
+                // written on strings does.
+                const_eval(&inlined, &env).or_else(|| {
+                    let folded = strings::fold(&inlined, local_texts, &env).ok()?;
+                    const_eval(&folded, &env)
+                })
             });
             if let Some(value) = settled {
                 local_consts.insert(component.name.clone(), value);
@@ -1149,6 +1190,7 @@ fn instantiate_components(
             inners,
             overrides,
             consts: &local_consts,
+            texts: local_texts,
             imports,
             scope,
             inside_a_parameter: env.inside_a_parameter,
@@ -2877,6 +2919,7 @@ pub(super) fn instantiate_one(
         inners,
         overrides,
         consts: local_consts,
+        texts: local_texts,
         imports,
         scope,
         inside_a_parameter,
@@ -2914,6 +2957,12 @@ pub(super) fn instantiate_one(
             let records_so_far = &acc.records;
             let resolve_value = |e: &Expr| -> Result<Expr, String> {
                 let e = substitute_class_constants(e, registry, scope, imports, &[]);
+                // A value may be worked out of a `String` this class
+                // settled - `findLast(fileName, ".csv")` is how a
+                // table block asks what kind of file it was given -
+                // and a name is nothing a body can measure. What each
+                // string is worth is known here.
+                let e = substitute_texts(&e, local_texts);
                 let no_loop_vars = HashMap::new();
                 let shapes = Shapes {
                     sizes,
