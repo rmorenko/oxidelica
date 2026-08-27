@@ -1405,3 +1405,71 @@ fn a_table_file_says_what_it_cannot_read() {
     let why = read_table_file(&path, "t").unwrap_err();
     assert!(why.contains("no table called `t`"), "{why}");
 }
+
+/// A file written the other way round says so by name.
+///
+/// The first word of a MATLAB level 4 header says how the rest is
+/// written, and its thousands digit is the byte order: a file written
+/// on a big-endian machine has it as one. Nothing here swaps the
+/// bytes back, so such a file is refused by name rather than read as
+/// a table of nonsense.
+#[test]
+fn a_table_file_of_the_other_byte_order_is_refused() {
+    let scratch = std::env::temp_dir().join("oxidelica-table-order");
+    std::fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("big.mat");
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend(1000u32.to_be_bytes()); // big-endian doubles
+    bytes.extend(2u32.to_be_bytes());
+    bytes.extend(2u32.to_be_bytes());
+    bytes.extend(0u32.to_be_bytes());
+    bytes.extend(2u32.to_be_bytes());
+    bytes.extend(b"t\0");
+    for down_a_column in [0.0f64, 1.0, 3.0, 4.0] {
+        bytes.extend(f64::to_be_bytes(down_a_column));
+    }
+    std::fs::write(&path, &bytes).unwrap();
+    let why = read_table_file(path.to_str().unwrap(), "t").unwrap_err();
+    assert!(why.contains("byte order"), "{why}");
+    assert!(why.contains("big.mat"), "{why}");
+}
+
+/// A header cut short is refused rather than read past the end.
+#[test]
+fn a_table_file_cut_short_is_refused() {
+    let scratch = std::env::temp_dir().join("oxidelica-table-order");
+    std::fs::create_dir_all(&scratch).unwrap();
+    let path = scratch.join("short.mat");
+    // Four bytes of a twenty-byte header.
+    std::fs::write(&path, 0u32.to_le_bytes()).unwrap();
+    let why = read_table_file(path.to_str().unwrap(), "t").unwrap_err();
+    assert!(why.contains("short.mat"), "{why}");
+}
+
+/// A table read from a file the standard library ships.
+///
+/// The file name is written as a `modelica://` URI, which names a
+/// library and a path inside it; what it comes to is a file beside
+/// that library. This is the whole road at once - the URI resolved,
+/// the file read, the numbers written into the model - against the
+/// text table the standard library ships for the purpose.
+#[test]
+fn a_table_may_be_read_from_the_library_it_names() {
+    let Some(directory) = oxidelica_parser::library_directory(None) else {
+        // No library in view: nothing to read from, and nothing this
+        // test can say about reading it.
+        return;
+    };
+    let shipped = directory
+        .join("Modelica")
+        .join("Modelica/Resources/Data/Tables/test.txt");
+    if !shipped.is_file() {
+        return;
+    }
+    // `tab1` of that file is `0, 1, 1, 2, 3, 4` against `0, 0, 1, 4,
+    // 9, 16`: the squares, with a step at one.
+    let rows = read_table_file(shipped.to_str().unwrap(), "tab1").unwrap();
+    assert_eq!(rows.len(), 6, "{rows:?}");
+    assert_eq!(rows[3], vec![2.0, 4.0], "{rows:?}");
+    assert_eq!(rows[5], vec![4.0, 16.0], "{rows:?}");
+}

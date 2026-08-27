@@ -269,6 +269,30 @@ pub(crate) fn differentiate_at(
             };
             bin(Mul, outer, du)
         }
+        // `mod(a, b)` is `a - floor(a / b) * b` and is differentiated
+        // as that: the staircase is flat wherever it is defined, so
+        // what is left is `da - floor(a / b) * db`. A table asked to
+        // repeat wraps its abscissa this way and the period is a
+        // number, so `db` is nothing and the derivative comes out as
+        // the derivative of the abscissa - which is what the table
+        // would have been differentiated to had it never been wrapped.
+        //
+        // At the instant the wrap happens there is no derivative at
+        // all. Nothing is claimed about it: the conditions of the
+        // chain the table is written as are event indicators, and the
+        // solver stops at each of them rather than integrating across.
+        Expr::Call(name, args) if name == "mod" && args.len() == 2 => {
+            let (a, b) = (&args[0], &args[1]);
+            let steps = call("floor", bin(Div, a.clone(), b.clone()));
+            bin(Sub, d(a)?, bin(Mul, steps, d(b)?))
+        }
+        // `rem(a, b)` is the same with the staircase rounded towards
+        // nothing rather than downwards, and differentiates alike.
+        Expr::Call(name, args) if name == "rem" && args.len() == 2 => {
+            let (a, b) = (&args[0], &args[1]);
+            let steps = call("integer", bin(Div, a.clone(), b.clone()));
+            bin(Sub, d(a)?, bin(Mul, steps, d(b)?))
+        }
         Expr::If(cond, then_branch, else_branch) => Expr::If(
             cond.clone(),
             Box::new(d(then_branch)?),

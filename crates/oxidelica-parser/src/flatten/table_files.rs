@@ -21,6 +21,21 @@ pub fn table_in_file(path: &str, wanted: &str) -> Result<Vec<Vec<f64>>, String> 
     if looks_like_matlab(&bytes) {
         return in_matlab(&bytes, wanted, path);
     }
+    // A file written on a machine that puts the high byte first says
+    // so in the same word, read the other way round. Nothing here
+    // swaps the bytes back, so it is refused by name rather than read
+    // as a table of nonsense.
+    if bytes.len() >= 20 {
+        let swapped = u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+        if let Some((order, _, _)) = reads_as_a_header(swapped) {
+            if order == 1 || swapped >= 1000 {
+                return Err(format!(
+                    "`{path}` is a MATLAB level 4 file of the other byte order, which this \
+                     compiler does not read - `{wanted}` cannot be taken from it"
+                ));
+            }
+        }
+    }
     Err(format!(
         "`{path}` is neither a text table nor a MATLAB level 4 file, and those are the two \
          this compiler reads"
@@ -41,9 +56,19 @@ fn looks_like_matlab(bytes: &[u8]) -> bool {
         return false;
     }
     let kind = u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    reads_as_a_header(kind).is_some()
+}
+
+/// The digits of a level 4 header's first word, where they are ones
+/// the format uses: the byte order, the precision, and whether the
+/// matrix holds numbers or text. The hundreds are always nothing.
+fn reads_as_a_header(kind: u32) -> Option<(u32, u32, u32)> {
     let (order, hundreds, precision, matrix) =
         (kind / 1000, (kind / 100) % 10, (kind / 10) % 10, kind % 10);
-    order <= 1 && hundreds == 0 && precision <= 5 && matrix <= 2
+    match order <= 1 && hundreds == 0 && precision <= 5 && matrix <= 2 {
+        true => Some((order, precision, matrix)),
+        false => None,
+    }
 }
 
 /// The table named in a text file.
@@ -163,7 +188,8 @@ fn in_matlab(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, St
         let ends = numbers_at + held * width;
         if ends > bytes.len() {
             return Err(format!(
-                "a matrix of `{path}` reaches past the end of the file"
+                "a matrix of `{path}` says it is {rows} by {columns} and reaches past the end \
+                 of the file, so `{wanted}` cannot be taken from it"
             ));
         }
         // The name is written with a zero after it, the way C writes

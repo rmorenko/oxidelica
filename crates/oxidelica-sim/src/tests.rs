@@ -107,6 +107,16 @@ fn differentiates_every_elementary_function() {
     let d = |source: &str| {
         simplify(&differentiate(&expr_of(source), &DiffTarget::Variable("a")).unwrap())
     };
+    // `mod` and `rem` are a straight line with a staircase taken off
+    // it: between the steps the derivative is the argument's own, and
+    // a table asked to repeat wraps its abscissa exactly this way.
+    assert_eq!(value_of(&d("mod(a, 2)"), &[("a", 0.7)]), 1.0);
+    assert_eq!(value_of(&d("mod(a, 2)"), &[("a", 3.4)]), 1.0);
+    assert_eq!(value_of(&d("rem(a, 2)"), &[("a", 3.4)]), 1.0);
+    // Where the period moves too, the staircase counts: at `a = 3.4`
+    // and `b = 2` the wrap has happened once, so a period growing by
+    // one takes one off what `mod` comes to.
+    assert_eq!(value_of(&d("mod(3.4, a)"), &[("a", 2.0)]), -1.0);
     assert_eq!(value_of(&d("a * b"), &[("a", 3.0), ("b", 2.0)]), 2.0);
     assert_eq!(value_of(&d("a / b"), &[("a", 3.0), ("b", 2.0)]), 0.5);
     assert_eq!(value_of(&d("a ^ 3"), &[("a", 2.0)]), 12.0);

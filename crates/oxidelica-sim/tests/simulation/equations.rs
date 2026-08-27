@@ -1512,3 +1512,43 @@ fn a_declared_bus_member_nothing_connects_to_stands_at_zero() {
     // truth rather than a number equated to one.
     assert_eq!(at("bus.flag"), 0.0);
 }
+
+/// A table asked to repeat may be differentiated.
+///
+/// A periodic table wraps its abscissa with `mod`, and the derivative
+/// of the block that reads it could not be taken: `mod` was not a
+/// call the differentiator knew, so sixteen models came out
+/// structurally singular. What the wrap comes to between its steps is
+/// a straight line, so the derivative is the one the table would have
+/// had were it never wrapped.
+#[test]
+fn a_repeating_time_table_may_be_differentiated() {
+    // `0, 2, 6` against `0, 1, 2`, repeating: a slope of 2 over the
+    // first second of each period and 4 over the second.
+    let source = |extrapolation: u32| {
+        format!(
+            "{TIME_TABLE} model M \
+             Times.Handle h = Times.Handle(\"NoName\", \"NoName\", [0, 0; 1, 2; 2, 6], \
+               0, {{2}}, 1, {extrapolation}, 0); \
+             Real y; Real slope; \
+             equation y = Times.getValue(h, 1, time, 0, 0); slope = der(y); \
+             annotation(experiment(StopTime = 0.75, Interval = 0.25, \
+               Tolerance = 1e-10)); end M;"
+        )
+    };
+    let slope_of = |extrapolation: u32| {
+        let result = run(&source(extrapolation));
+        let which = result.columns.iter().position(|c| c == "slope").unwrap();
+        result.rows.last().unwrap()[which]
+    };
+    // Periodic is 3; carrying the last line on is 2. Inside the first
+    // period the two tables are the same table, so their slopes are
+    // the same slope - which is the whole of what the rule claims.
+    let repeating = slope_of(3);
+    assert!((repeating - 2.0).abs() < 1e-6, "{repeating}");
+    assert!(
+        (repeating - slope_of(2)).abs() < 1e-9,
+        "wrapped {repeating} against unwrapped {}",
+        slope_of(2)
+    );
+}
