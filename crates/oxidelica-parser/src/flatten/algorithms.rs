@@ -198,7 +198,12 @@ fn settled_in_body(
         records: no_records(),
     };
     let worked = expand(&expr, &shapes, registry, scope, imports, depth).ok()?;
-    const_eval(&worked.into_expr(), consts)
+    // A local of a body may be worked out of a string - `Integer len =
+    // Strings.length(s)` is how every search the standard library
+    // writes begins - and the arithmetic layer has no strings to work
+    // it out with. The strings the class settled are in view, so what
+    // measures one comes to a number here.
+    settled_truth(&worked.into_expr(), consts, &texts_in_view())
 }
 
 /// What `for i loop` runs over among statements: the size of the array
@@ -608,7 +613,7 @@ pub(super) fn execute(
                 let mut rounds = 0;
                 loop {
                     let now = substitute_refs(condition, bindings);
-                    let truth = const_eval(&now, consts).ok_or_else(|| {
+                    let truth = settled_truth(&now, consts, &texts_in_view()).ok_or_else(|| {
                         format!(
                             "{UNDECIDABLE_LOOP}: a `while` here is unrolled, so the trip \
                              count cannot depend on a simulated variable"
@@ -855,15 +860,35 @@ fn one_assignment(
     if !assigned.contains(&target) {
         assigned.push(target.to_string());
     }
-    // Inside a `while`, a value that folds to a number is
-    // stored as one, or the expressions would double in
-    // size with every round.
-    let value = match const_eval(&value, consts) {
-        Some(number) if fold => Expr::Number(number),
+    // Inside a `while`, a value that folds to a number is stored as
+    // one, or the expressions would double in size with every round.
+    // A value worked out of a string folds to a number as well, and a
+    // loop that counts back from the length of a piece of text cannot
+    // start without it: `i := length(s) - length(needle) + 1` is the
+    // first line of every search the standard library writes.
+    let value = match settled_truth(&value, consts, &texts_in_view()) {
+        Some(number) if fold || holds_a_string(&value) => Expr::Number(number),
         _ => value,
     };
     bindings.insert(target, value);
     Ok(())
+}
+
+/// Whether an expression asks something of a string.
+///
+/// A value that only does arithmetic is left as it was written, so
+/// that what the model says stays legible; one that measures or
+/// compares a piece of text is worth folding wherever it stands,
+/// because the layers after this one have no strings to fold it
+/// with.
+fn holds_a_string(expr: &Expr) -> bool {
+    let mut found = false;
+    super::clocks::walk_calls(expr, &mut |name| {
+        if name.starts_with("ModelicaStrings_") {
+            found = true;
+        }
+    });
+    found
 }
 
 /// The fields a name's declaration holds, where that declaration is a
@@ -889,6 +914,41 @@ fn record_fields_named(
         true => None,
         false => Some(fields),
     }
+}
+
+/// What an expression comes to, where a string may stand in it.
+///
+/// `const_eval` works out arithmetic and knows nothing of strings, so
+/// a condition that compares two of them has no truth to it as far as
+/// that layer can see: `substring(s, i, i) == "c"` is a comparison it
+/// cannot make. Folding the strings first turns such a comparison
+/// into the Boolean it stands for, and then the arithmetic layer can
+/// finish.
+///
+/// It is the same two steps a component's condition is settled by,
+/// and `findLast` needs them: its `while` goes round until the piece
+/// of text it is looking at is the one it was looking for.
+fn settled_truth(
+    expr: &Expr,
+    consts: &HashMap<String, f64>,
+    texts: &HashMap<String, String>,
+) -> Option<f64> {
+    if let Some(number) = const_eval(expr, consts) {
+        return Some(number);
+    }
+    let folded = strings::fold(expr, texts, consts).ok()?;
+    const_eval(&folded, consts)
+}
+
+/// The strings in view, for a fold that may need them.
+///
+/// Nothing puts any here yet: what a body works out of a string it
+/// works out of one written in the body itself - `substring(s, i, i)`
+/// where `s` came in as an argument - and those arrive as literals.
+/// A class's own `String` parameters do not reach this far, which is
+/// why a file name held in one still stands.
+fn texts_in_view() -> HashMap<String, String> {
+    HashMap::new()
 }
 
 /// One `if` among the statements: the branch whose condition holds is
@@ -923,7 +983,12 @@ fn one_if_statement(
     // branch that continues it is taken as well.
     let decidable = branches.iter().all(|branch| {
         branch.condition.as_ref().is_none_or(|condition| {
-            const_eval(&substitute_refs(condition, bindings), consts).is_some()
+            settled_truth(
+                &substitute_refs(condition, bindings),
+                consts,
+                &texts_in_view(),
+            )
+            .is_some()
         })
     });
     // A branch that may `break` or `return` cannot be
@@ -940,12 +1005,13 @@ fn one_if_statement(
                 }
                 Some(condition) => {
                     let condition = substitute_refs(condition, bindings);
-                    let value = const_eval(&condition, consts).ok_or_else(|| {
-                        format!(
-                            "a branch holding `break` or `return` \
+                    let value =
+                        settled_truth(&condition, consts, &texts_in_view()).ok_or_else(|| {
+                            format!(
+                                "a branch holding `break` or `return` \
                              {UNDECIDABLE_LEAVING}"
-                        )
-                    })?;
+                            )
+                        })?;
                     if value != 0.0 {
                         taken = Some(&branch.body);
                         break;
@@ -1119,6 +1185,15 @@ fn one_if_statement(
             return Err(format!(
                 "`{name}` is assigned in one branch only and has no value before the `if`"
             ));
+        };
+        // A merged value that comes to a number is kept as one. Inside
+        // a `while` this is what stops the branches piling up: the
+        // loop counter of a search comes out of the `if` as a nest of
+        // conditions, and the next round's head cannot be decided
+        // through it.
+        let value = match settled_truth(&value, consts, &texts_in_view()) {
+            Some(number) if fold => Expr::Number(number),
+            _ => value,
         };
         bindings.insert(name, value);
     }
@@ -1939,6 +2014,36 @@ fn is_real(
 /// bubbleEnthalpy` - and leave what it takes and answers with to the
 /// one it extends. The base's declarations come first, since that is
 /// the order the arguments are given in.
+/// The body a function runs: its own, or the one it inherited.
+///
+/// A function may say what it takes and answers with in one class and
+/// how it works in another - `loadResource` of the standard library
+/// extends the declaration from one base and the algorithm from a
+/// second. A class that writes an algorithm of its own means that
+/// one; a class that writes none runs the first it inherits.
+fn function_body<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    class: &'a ClassDef,
+    depth: usize,
+) -> &'a [Statement] {
+    if !class.algorithm.is_empty() || depth > MAX_DEPTH {
+        return &class.algorithm;
+    }
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        };
+        if let Some(base) = base {
+            let body = function_body(registry, base, depth + 1);
+            if !body.is_empty() {
+                return body;
+            }
+        }
+    }
+    &class.algorithm
+}
+
 pub(super) fn function_components(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
@@ -2398,7 +2503,7 @@ fn worked_body(
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
     if execute(
-        &class.algorithm,
+        function_body(registry, class, 0),
         &mut bindings,
         &mut assigned,
         checks,

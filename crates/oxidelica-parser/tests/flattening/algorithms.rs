@@ -2951,3 +2951,43 @@ fn the_walk_looks_through_every_shape_an_expression_takes() {
         );
     }
 }
+
+/// A body may fold what it works out of a string.
+///
+/// `Strings.findLast` counts back from the length of a piece of text
+/// until it finds what it was looking for, and every step of that is
+/// a number the arithmetic layer cannot reach on its own: the length
+/// of a string, and whether two of them are the same. Left unfolded,
+/// the loop head had no truth to it and the call stood.
+#[test]
+fn a_body_folds_what_it_works_out_of_a_string() {
+    let m = parse_model(
+        r#"function len input String s; output Integer n; external "C" n = ModelicaStrings_length(s); end len; function part input String s; input Integer from; input Integer to; output String piece; external "C" piece = ModelicaStrings_substring(s, from, to); end part; function last input String s; input String needle; output Integer index; protected Integer i; algorithm i := len(s) - 4 + 1; index := 0; while i >= 1 loop if part(s, i, i + 3) == needle then index := i; i := 0; else i := i - 1; end if; end while; end last; model M parameter Integer k = last("a/b/test.txt", ".txt"); Real y; equation y = k; end M;"#,
+    )
+    .unwrap();
+    let k = m.components.iter().find(|c| c.name == "k").unwrap();
+    assert_eq!(format!("{:?}", k.binding), "Some(Number(9.0))");
+}
+
+/// A function may take its body from a base.
+///
+/// `loadResource` of the standard library says what it takes and
+/// answers with in one base and how it works in a second. Only the
+/// class's own algorithm was run, so a function written that way
+/// never assigned its output and the model was refused for it.
+#[test]
+fn a_function_may_inherit_its_body() {
+    let m = parse_model(
+        "partial function Base input Real x; output Real y; end Base; \
+         function Mid extends Base; algorithm y := 2 * x; end Mid; \
+         function Top extends Base; extends Mid; end Top; \
+         model M Real z; equation z = Top(3); end M;",
+    )
+    .unwrap();
+    let z = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"z\")")
+        .unwrap();
+    assert_eq!(folded(&z.rhs), 6.0);
+}

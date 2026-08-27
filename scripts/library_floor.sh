@@ -22,10 +22,10 @@
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=599
-RUN_FLOOR=244
-RUNNABLE_FLATTEN_FLOOR=509
-RUNNABLE_RUN_FLOOR=241
+FLATTEN_FLOOR=602
+RUN_FLOOR=247
+RUNNABLE_FLATTEN_FLOOR=512
+RUNNABLE_RUN_FLOOR=244
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

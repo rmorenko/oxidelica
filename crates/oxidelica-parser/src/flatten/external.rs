@@ -32,6 +32,7 @@ pub(super) fn answered_here(called: &str) -> bool {
             | "ModelicaStrings_substring"
             | "ModelicaStrings_compare"
             | "ModelicaStrings_skipWhiteSpace"
+            | "ModelicaInternal_fullPathName"
             | "ModelicaStandardTables_CombiTable1D_minimumAbscissa"
             | "ModelicaStandardTables_CombiTable1D_maximumAbscissa"
             | "ModelicaStandardTables_CombiTable1D_getValue"

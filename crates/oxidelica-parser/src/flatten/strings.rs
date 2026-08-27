@@ -264,15 +264,19 @@ pub(super) fn text_of(
         // is looked for; a URI naming a library nobody has says so by
         // answering with nothing, which is what a file name that
         // cannot be settled already means.
+        // Written in the standard library as `fullPathName(uri)`, so
+        // that is the name that arrives once the body is inlined.
+        // Either is answered: a URI becomes the file it names, and an
+        // ordinary path is already what it stands for.
         Expr::Call(name, args)
-            if name
-                .rsplit_once('.')
-                .map_or(name.as_str(), |(_, tail)| tail)
-                == "loadResource"
-                && args.len() == 1 =>
+            if matches!(
+                name.rsplit_once('.')
+                    .map_or(name.as_str(), |(_, tail)| tail),
+                "loadResource" | "ModelicaInternal_fullPathName"
+            ) && args.len() == 1 =>
         {
             let uri = text_of(&args[0], values, numbers)?;
-            external::resource_named(&uri)
+            Some(external::resource_named(&uri).unwrap_or(uri))
         }
         Expr::Call(name, args) if name == "String" && args.len() == 1 => {
             let number = const_eval(&args[0], numbers)?;
