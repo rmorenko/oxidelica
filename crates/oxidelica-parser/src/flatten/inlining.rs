@@ -1751,8 +1751,8 @@ fn bind_the_arguments(
             // Taken for fields, three phasors were refused for being
             // three where two were wanted; left whole, the body reads
             // `u[k].re` off them, which is what it was written to do.
-            if let Some(fields) =
-                record_input_fields(registry, class, input).filter(|_| input.dimensions.is_empty())
+            if let Some(fields) = record_fields::record_input_fields(registry, class, input)
+                .filter(|_| input.dimensions.is_empty())
             {
                 if let Expr::Array(items) = arg {
                     if items.len() != fields.len() {
@@ -1798,7 +1798,7 @@ fn bind_the_arguments(
                 // this does not, and binding a bare name to it loses
                 // the shape and refuses the model further along.
                 if let Expr::Ref(given) = arg {
-                    for field in algorithms::scalar_record_fields(registry, class, input) {
+                    for field in record_fields::scalar_record_fields(registry, class, input) {
                         bindings.insert(
                             format!("{}.{field}", input.name),
                             Expr::Ref(format!("{given}.{field}")),
@@ -1810,7 +1810,9 @@ fn bind_the_arguments(
                     // reading `R.T[1, 1]` has to find the caller's own
                     // `R1.T[1, 1]` under it, and a name alone is not
                     // something a subscript can be read off here.
-                    for (field, shape) in algorithms::shaped_record_fields(registry, class, input) {
+                    for (field, shape) in
+                        record_fields::shaped_record_fields(registry, class, input)
+                    {
                         let here = format!("{}.{field}", input.name);
                         let there = format!("{given}.{field}");
                         for indices in index_tuples(&shape) {

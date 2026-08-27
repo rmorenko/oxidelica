@@ -893,7 +893,7 @@ fn one_if_statement(
             .iter()
             .any(|(_, local)| local.keys().any(|written| sizes.contains_key(written)));
         let fallback = before.get(&name).cloned().or_else(|| {
-            let start = algorithms::starts_at(&name, registry, scope)?;
+            let start = record_fields::starts_at(&name, registry, scope)?;
             // A flag costs nothing to give a start to: it
             // decides a branch rather than being folded
             // into arithmetic, so it cannot grow the value

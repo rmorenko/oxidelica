@@ -37,6 +37,7 @@ mod instantiate;
 mod lookup;
 mod names;
 mod operators;
+mod record_fields;
 mod restrictions;
 mod scoping;
 mod statements;

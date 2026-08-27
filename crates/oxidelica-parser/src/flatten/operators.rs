@@ -60,7 +60,8 @@ pub(super) fn apply_operator(
         .collect();
     for (input, value) in inputs.iter().zip(&mut values) {
         let wants_record = input.dimensions.is_empty()
-            && record_input_fields(registry, function, input).is_some_and(|f| f.len() > 1);
+            && record_fields::record_input_fields(registry, function, input)
+                .is_some_and(|f| f.len() > 1);
         if wants_record && matches!(value, Value::Scalar(_)) {
             let number = value.clone().into_expr();
             *value = expand(

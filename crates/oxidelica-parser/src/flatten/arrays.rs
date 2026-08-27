@@ -1508,7 +1508,7 @@ fn record_written_out(
     // rather than to any value of it. Counted among the members, one
     // record written out came to five things where the declaration
     // held four.
-    let held: Vec<Component> = record_components(registry, class, 0)
+    let held: Vec<Component> = record_fields::record_components(registry, class, 0)
         .into_iter()
         .filter(|member| member.variability != Variability::Constant)
         .collect();
@@ -1768,7 +1768,9 @@ pub(super) fn spread_of_records(
         .collect();
     let mut spread = None;
     for (input, value) in inputs.iter().zip(values) {
-        if !input.dimensions.is_empty() || record_input_fields(registry, class, input).is_none() {
+        if !input.dimensions.is_empty()
+            || record_fields::record_input_fields(registry, class, input).is_none()
+        {
             continue;
         }
         let Value::Array(items) = value else { continue };
@@ -1811,7 +1813,9 @@ fn spread_of_scalar_inputs(
     for (input, value) in inputs.iter().zip(values) {
         let mut input = input.clone();
         resolve_type(registry, &mut input, &class.name, &class.imports);
-        if !input.dimensions.is_empty() || record_input_fields(registry, class, &input).is_some() {
+        if !input.dimensions.is_empty()
+            || record_fields::record_input_fields(registry, class, &input).is_some()
+        {
             return None;
         }
         let Value::Array(items) = value else { continue };
