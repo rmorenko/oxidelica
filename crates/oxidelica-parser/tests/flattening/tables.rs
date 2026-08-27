@@ -1473,3 +1473,114 @@ fn a_table_may_be_read_from_the_library_it_names() {
     assert_eq!(rows[3], vec![2.0, 4.0], "{rows:?}");
     assert_eq!(rows[5], vec![4.0, 16.0], "{rows:?}");
 }
+
+/// The shapes a text table may be written in, and the ones it may
+/// not.
+///
+/// The format is read by hand, so what it accepts and what it turns
+/// away are both worth saying: a table named among others, one whose
+/// numbers run over several lines, and a header that is not a header
+/// at all.
+#[test]
+fn a_text_table_is_read_line_by_line() {
+    let scratch = std::env::temp_dir().join("oxidelica-table-text");
+    std::fs::create_dir_all(&scratch).unwrap();
+    let written = |name: &str, text: &str| -> String {
+        let path = scratch.join(name);
+        std::fs::write(&path, text).unwrap();
+        path.to_str().unwrap().to_string()
+    };
+
+    // Numbers spread over more lines than there are rows, blank lines
+    // and comments among them.
+    let spread = written(
+        "spread.txt",
+        "#1\ndouble t(3,2)\n# a comment first\n0 0\n\n1\n2 # half a row above\n2 4\n",
+    );
+    let rows = read_table_file(&spread, "t").unwrap();
+    assert_eq!(rows, vec![vec![0.0, 0.0], vec![1.0, 2.0], vec![2.0, 4.0]]);
+
+    // A line that is not a header at all is passed over rather than
+    // taken for one.
+    let noise = written(
+        "noise.txt",
+        "#1\nsomething else entirely\ndouble t(1,2)\n5 6\n",
+    );
+    assert_eq!(read_table_file(&noise, "t").unwrap(), vec![vec![5.0, 6.0]]);
+
+    // A header without its closing bracket names no table.
+    let unclosed = written("unclosed.txt", "#1\ndouble t(1,2\n5 6\n");
+    assert!(read_table_file(&unclosed, "t").is_err());
+
+    // Nor one without a bracket at all.
+    let flat = written("flat.txt", "#1\ndouble t\n5 6\n");
+    assert!(read_table_file(&flat, "t").is_err());
+}
+
+/// A MATLAB matrix of a precision other than double.
+///
+/// The format allows six, and the standard tables are written as
+/// doubles - but a file may hold a matrix of shorter numbers beside
+/// them, and the name asked for may be that one.
+#[test]
+fn a_matlab_table_may_be_written_shorter() {
+    let scratch = std::env::temp_dir().join("oxidelica-table-widths");
+    std::fs::create_dir_all(&scratch).unwrap();
+    let written = |name: &str, bytes: &[u8]| -> String {
+        let path = scratch.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        path.to_str().unwrap().to_string()
+    };
+    let header = |precision: u32, rows: u32, columns: u32, named: &[u8]| -> Vec<u8> {
+        let mut head: Vec<u8> = Vec::new();
+        head.extend((precision * 10).to_le_bytes());
+        head.extend(rows.to_le_bytes());
+        head.extend(columns.to_le_bytes());
+        head.extend(0u32.to_le_bytes());
+        head.extend((named.len() as u32).to_le_bytes());
+        head.extend(named);
+        head
+    };
+
+    // Four-byte whole numbers.
+    let mut bytes = header(2, 2, 2, b"t\0");
+    for down_a_column in [0i32, 1, 3, 4] {
+        bytes.extend(down_a_column.to_le_bytes());
+    }
+    let path = written("ints.mat", &bytes);
+    assert_eq!(
+        read_table_file(&path, "t").unwrap(),
+        vec![vec![0.0, 3.0], vec![1.0, 4.0]]
+    );
+
+    // Two-byte ones, signed and unsigned.
+    let mut bytes = header(3, 1, 2, b"t\0");
+    bytes.extend((-2i16).to_le_bytes());
+    bytes.extend(7i16.to_le_bytes());
+    let path = written("shorts.mat", &bytes);
+    assert_eq!(read_table_file(&path, "t").unwrap(), vec![vec![-2.0, 7.0]]);
+
+    let mut bytes = header(4, 1, 2, b"t\0");
+    bytes.extend(60000u16.to_le_bytes());
+    bytes.extend(7u16.to_le_bytes());
+    let path = written("words.mat", &bytes);
+    assert_eq!(
+        read_table_file(&path, "t").unwrap(),
+        vec![vec![60000.0, 7.0]]
+    );
+
+    // Single bytes.
+    let mut bytes = header(5, 1, 2, b"t\0");
+    bytes.extend([200u8, 7]);
+    let path = written("bytes.mat", &bytes);
+    assert_eq!(read_table_file(&path, "t").unwrap(), vec![vec![200.0, 7.0]]);
+
+    // A matrix passed over on the way to the one asked for: the
+    // reader steps past its numbers by their own width.
+    let mut bytes = header(2, 1, 1, b"other\0");
+    bytes.extend(9i32.to_le_bytes());
+    bytes.extend(header(0, 1, 1, b"t\0"));
+    bytes.extend(f64::to_le_bytes(3.5));
+    let path = written("second.mat", &bytes);
+    assert_eq!(read_table_file(&path, "t").unwrap(), vec![vec![3.5]]);
+}

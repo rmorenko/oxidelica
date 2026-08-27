@@ -1094,7 +1094,11 @@ fn a_body_written_here_takes_the_numbers_it_was_written_for() {
     );
     let r = result.columns.iter().position(|c| c == "r").unwrap();
     let last = result.rows.last().unwrap()[r];
-    assert!((last - 0.554353923013482).abs() < 1e-15, "{last}");
+    // What the standard library's own C answers for this seed:
+    // `x*INVM64 + 0.5` of the word the state moved to, the word read
+    // as signed. Checked against a run of that C rather than worked
+    // out here, because agreeing with it is the whole point.
+    assert!((last - 0.054353923013481964).abs() < 1e-15, "{last}");
 
     // Handed more numbers than the body was written for, the compiler
     // says so rather than reading past the end of them.
@@ -1551,4 +1555,27 @@ fn a_repeating_time_table_may_be_differentiated() {
         "wrapped {repeating} against unwrapped {}",
         slope_of(2)
     );
+}
+
+/// A body written here may answer several numbers to a parameter.
+///
+/// A random generator gives a value and the state it moved to, and
+/// the standard library builds a generator's first state by drawing
+/// ten numbers from a seed - so the whole nest of calls has to come
+/// to a number before the run starts, not during it.
+#[test]
+fn a_body_written_here_answers_a_parameter_too() {
+    let result = run("model M \
+         function draw input Integer low; input Integer high; output Real r; \
+           protected Integer s[2]; \
+           algorithm (r, s) := random({low, high}); end draw; \
+         function random input Integer state[2]; output Real r; output Integer out[2]; \
+           external \"C\" ModelicaRandom_xorshift64star(state, out, r); end random; \
+         parameter Real drawn = draw(126247697, 0); \
+         Real y; equation y = drawn; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let value = result.rows.last().unwrap()[y];
+    // The same number the run would have drawn, worked out before it.
+    assert!((value - 0.054353923013481964).abs() < 1e-15, "{value}");
 }

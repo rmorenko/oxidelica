@@ -163,7 +163,10 @@ fn random_draw_draws_the_stream_the_algorithm_defines() {
         state ^= state >> 12;
         state ^= state << 25;
         state ^= state >> 27;
-        let value = state.wrapping_mul(2685821657736338717) as f64 * 5.421_010_862_427_522e-20;
+        // The word is read as signed and moved half a step up, which
+        // is what the standard library's own C does: `x*INVM64 + 0.5`.
+        let value =
+            state.wrapping_mul(2685821657736338717) as i64 as f64 * 5.421_010_862_427_522e-20 + 0.5;
         let half = |value: u64| ((value & 0xffff_ffff) as u32 as i32) as f64;
         drawn.push((value, half(state), half(state >> 32)));
     }

@@ -3044,3 +3044,21 @@ fn a_nested_if_sees_what_follows_the_one_around_it() {
     let q = m.components.iter().find(|c| c.name == "Qs[4]").unwrap();
     assert_eq!(q.binding.as_ref().map(folded), Some(0.5), "{:?}", q.binding);
 }
+
+/// A body walked at run time may answer as long as a constant says.
+///
+/// The run carries numbers, so an answer has to be numbers the model
+/// can name. A random generator answers with `state[nState]`, and
+/// `nState` is a number its package states outright - that counts as
+/// a length the compiler can see, and the walk can hand it back.
+#[test]
+fn a_walked_body_says_what_it_may_answer_with() {
+    let m = with_lib(
+        "package Gen constant Integer nState = 2; \
+           function make input Real seed; output Real state[nState]; \
+             algorithm state := {seed, seed + 1}; end make; \
+         end Gen; \
+         model M Real y; equation y = Gen.make(time)[2]; end M;",
+    );
+    assert!(m.is_ok(), "{:?}", m.err());
+}

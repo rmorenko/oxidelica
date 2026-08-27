@@ -793,6 +793,47 @@ fn one_assignment(
         }
         let mut items = Vec::new();
         leaves(&value, &mut items);
+        // A run of elements may be given one call that answers with
+        // as many: a random generator's first state is `state :=
+        // initialState(seed, global)`, and what stands here is the
+        // call rather than the list it comes to. Each element takes
+        // its own place of the answer, which is how a body written
+        // outside Modelica hands over several numbers at once.
+        if items.len() == 1 && named.len() > 1 {
+            // The call answers with several numbers and what stands
+            // here is one place of it: the array output of a random
+            // generator arrives as `call(...)[k]`, where `k` is where
+            // its first element sits among the answers. The elements
+            // after it are the places after that.
+            let spread = match &items[0] {
+                // Already one place of an answer: the elements after
+                // it are the places after that.
+                Expr::Index(call, subscripts) => match (call.as_ref(), subscripts.as_slice()) {
+                    (Expr::Call(called, _), [Expr::Number(first)])
+                        if crate::outside::written_here(called) =>
+                    {
+                        Some((call.as_ref().clone(), *first as usize))
+                    }
+                    _ => None,
+                },
+                // A call still whole: its answer starts at the first
+                // place. A function of the standard library is named
+                // by its path, which is how one is told from a name
+                // the body itself declared.
+                Expr::Call(called, _) if called.contains('.') => Some((items[0].clone(), 1)),
+                _ => None,
+            };
+            if let Some((call, first)) = spread {
+                items = (0..named.len())
+                    .map(|step| {
+                        Expr::Index(
+                            Box::new(call.clone()),
+                            vec![Expr::Number((first + step) as f64)],
+                        )
+                    })
+                    .collect();
+            }
+        }
         if items.len() != named.len() {
             return Err(format!(
                 "`{target}` is given a run of {} element(s) and {} value(s)",
@@ -1304,7 +1345,7 @@ pub(super) fn inline_function(
         Err(why)
             if why.starts_with(UNDECIDABLE_LOOP)
                 || why.contains(NO_BOTTOM)
-                || (why.contains(UNDECIDABLE_LEAVING) && walkable(class).is_ok()) =>
+                || (why.contains(UNDECIDABLE_LEAVING) && walkable(class, registry).is_ok()) =>
         {
             return standing()
         }
@@ -1405,7 +1446,7 @@ pub(super) fn programs_used(
             continue;
         }
         let class = registry[name.as_str()];
-        walkable(class)?;
+        walkable(class, registry)?;
         // A body names what it calls the way it was written there; the
         // walk looks names up in one table, so they are made to agree.
         let mut carried = (*class).clone();
@@ -1679,14 +1720,35 @@ fn gather_calls_in_statements(
 /// What a body the run walks may be made of. The run carries numbers,
 /// so anything shaped otherwise is refused here rather than left to
 /// fail at the first step.
-fn walkable(class: &ClassDef) -> Result<(), String> {
+fn walkable(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> Result<(), String> {
     for component in &class.components {
         // An array goes in, is held while the walk runs, and may come
         // back: a body answering with several numbers is asked once for
         // each of them. Only a length the compiler can see, though -
         // the model has to name every element it takes.
         if component.causality == Causality::Output && !component.dimensions.is_empty() {
+            // A length written as a constant of the package the
+            // function belongs to counts as one the compiler can see:
+            // a random generator answers with `state[nState]`, and
+            // `nState` is a number the package states outright.
+            let settled = |dimension: &Expr| -> bool {
+                let named = substitute_class_constants(
+                    dimension,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    &[],
+                );
+                const_eval(&named, &HashMap::new()).is_some()
+            };
+            let settled_length = match component.dimensions.as_slice() {
+                [only] => settled(only),
+                _ => false,
+            };
             let [Expr::Number(_)] = component.dimensions.as_slice() else {
+                if settled_length {
+                    continue;
+                }
                 return Err(format!(
                     "`{}` is called where nothing could inline it, so the run walks its body \
                      - and it answers with `{}`, whose length is not one the compiler can \

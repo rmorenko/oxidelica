@@ -157,7 +157,45 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                 Pow => a.powf(b),
             }
         }
-        Expr::Index(base, _) | Expr::Member(base, _) => {
+        // A body written here in Rust may answer with several numbers
+        // at once - a generator gives a value and the state it moved
+        // to - and each place of that answer is read by subscript.
+        // The standard library builds a generator's first state by
+        // drawing ten numbers from a seed, so this is a parameter
+        // rather than anything the run works out.
+        Expr::Index(base, subscripts) => {
+            if let (Expr::Call(called, args), [which]) = (base.as_ref(), subscripts.as_slice()) {
+                if oxidelica_parser::outside::written_here(called) {
+                    // However the declaration grouped them, what the
+                    // body takes is the numbers: an array argument is
+                    // as many of them as it holds.
+                    let mut given = Vec::new();
+                    for arg in args {
+                        match arg {
+                            Expr::Array(items) => {
+                                for item in items {
+                                    given.push(eval(item, ctx)?);
+                                }
+                            }
+                            one => given.push(eval(one, ctx)?),
+                        }
+                    }
+                    let place = eval(which, ctx)? as usize;
+                    let answer = oxidelica_parser::outside::answer(called, &given)
+                        .and_then(|answer| answer.get(place.checked_sub(1)?).copied());
+                    return answer.ok_or_else(|| {
+                        SimError(format!(
+                            "`{called}` was handed {} number(s) and asked for place {place}",
+                            given.len()
+                        ))
+                    });
+                }
+            }
+            return err(format!(
+                "unresolved array subscript on {base:?}: flattening should have expanded it"
+            ));
+        }
+        Expr::Member(base, _) => {
             return err(format!(
                 "unresolved array subscript on {base:?}: flattening should have expanded it"
             ))
@@ -754,5 +792,62 @@ mod tests {
             vec![Expr::ColonSubscript],
         ));
         assert!(nested.contains("a `:` subscript"), "{nested}");
+    }
+}
+
+#[cfg(test)]
+mod outside_places {
+    use super::*;
+
+    /// A body written here answers several numbers, and each place of
+    /// that answer is read by subscript. Asked for a place it does
+    /// not have, it says which name it was and what it was handed.
+    #[test]
+    fn a_place_past_the_answer_is_refused_by_name() {
+        let ctx = EvalCtx {
+            vars: &HashMap::new(),
+            time: 0.0,
+            programs: None,
+            depth: 0,
+        };
+        let call = |place: f64| {
+            Expr::Index(
+                Box::new(Expr::Call(
+                    "ModelicaRandom_xorshift64star".to_string(),
+                    vec![Expr::Array(vec![Expr::Number(1.0), Expr::Number(0.0)])],
+                )),
+                vec![Expr::Number(place)],
+            )
+        };
+        // Three places: the value drawn and the two halves of the
+        // state it moved to.
+        assert!(eval(&call(1.0), &ctx).is_ok());
+        assert!(eval(&call(3.0), &ctx).is_ok());
+        let why = eval(&call(4.0), &ctx).unwrap_err().0;
+        assert!(why.contains("xorshift64star"), "{why}");
+        assert!(why.contains("place 4"), "{why}");
+        // A subscript of nothing is past the answer the other way.
+        assert!(eval(&call(0.0), &ctx).is_err());
+        // An argument that is not settled leaves the refusal to the
+        // layer that knows the name.
+        let unsettled = Expr::Index(
+            Box::new(Expr::Call(
+                "ModelicaRandom_xorshift64star".to_string(),
+                vec![Expr::Ref("nowhere".to_string())],
+            )),
+            vec![Expr::Number(1.0)],
+        );
+        assert!(eval(&unsettled, &ctx).is_err());
+        // A member is not a place of an answer and keeps its own
+        // refusal.
+        let member = Expr::Member(Box::new(Expr::Ref("r".to_string())), "x".to_string());
+        assert!(eval(&member, &ctx).is_err());
+        // A name nobody here answers for keeps the old refusal.
+        let elsewhere = Expr::Index(
+            Box::new(Expr::Call("nobody".to_string(), vec![])),
+            vec![Expr::Number(1.0)],
+        );
+        let why = eval(&elsewhere, &ctx).unwrap_err().0;
+        assert!(why.contains("unresolved array subscript"), "{why}");
     }
 }

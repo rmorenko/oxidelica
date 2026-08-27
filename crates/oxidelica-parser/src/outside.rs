@@ -21,7 +21,13 @@
 
 /// Whether a body of this name is one written here.
 pub fn written_here(called: &str) -> bool {
-    matches!(called, "ModelicaRandom_xorshift64star" | "dgesv")
+    matches!(
+        called,
+        "ModelicaRandom_xorshift64star"
+            | "ModelicaRandom_xorshift128plus"
+            | "ModelicaRandom_xorshift1024star"
+            | "dgesv"
+    )
 }
 
 /// How many numbers a body of this name takes and how many it answers
@@ -39,6 +45,11 @@ pub fn shape(called: &str, given: &[usize]) -> Option<(usize, usize)> {
         // next state out. However the declaration grouped them, what
         // the body takes is the two numbers.
         ("ModelicaRandom_xorshift64star", _) if all == 2 => Some((2, 3)),
+        // Four halves of a state in; a value and the four halves out.
+        ("ModelicaRandom_xorshift128plus", _) if all == 4 => Some((4, 5)),
+        // Thirty-two halves and the place the generator is looking at;
+        // a value, the halves again, and the place it moved to.
+        ("ModelicaRandom_xorshift1024star", _) if all == 33 => Some((33, 34)),
         // A square matrix and a right-hand side of its width; the
         // solution and word of whether there was one.
         ("dgesv", [square, width]) if *width * *width == *square && *width > 0 => {
@@ -59,6 +70,29 @@ pub fn answer(called: &str, given: &[f64]) -> Option<Vec<f64>> {
             let (state, value) = xorshift64star(halves_to_state(*low, *high));
             let (low, high) = state_to_halves(state);
             Some(vec![value, low, high])
+        }
+        ("ModelicaRandom_xorshift128plus", [a, b, c, d]) => {
+            let mut state = [halves_to_state(*a, *b), halves_to_state(*c, *d)];
+            let value = xorshift128plus(&mut state);
+            let (low0, high0) = state_to_halves(state[0]);
+            let (low1, high1) = state_to_halves(state[1]);
+            Some(vec![value, low0, high0, low1, high1])
+        }
+        ("ModelicaRandom_xorshift1024star", _) if given.len() == 33 => {
+            let mut state = [0u64; 16];
+            for (at, held) in state.iter_mut().enumerate() {
+                *held = halves_to_state(given[at * 2], given[at * 2 + 1]);
+            }
+            let mut at = given[32] as i64 as usize;
+            let value = xorshift1024star(&mut state, &mut at);
+            let mut answer = vec![value];
+            for held in state {
+                let (low, high) = state_to_halves(held);
+                answer.push(low);
+                answer.push(high);
+            }
+            answer.push(at as f64);
+            Some(answer)
         }
         // The matrix comes row by row and the right-hand side after
         // it, which is how a value written out arrives.
@@ -142,7 +176,46 @@ pub fn xorshift64star(state: u64) -> (u64, f64) {
     state ^= state << 25;
     state ^= state >> 27;
     let drawn = state.wrapping_mul(2685821657736338717);
-    (state, drawn as f64 * 5.421_010_862_427_522e-20)
+    (state, drawn_to_number(drawn))
+}
+
+/// One draw of the xorshift128+ generator: the state moves on and the
+/// number it lands on is read off the second half of it.
+///
+/// The two halves are swapped every draw, so what is written back is
+/// the state the standard library's own C writes back - which is what
+/// makes two tools draw the same stream from the same seed.
+pub fn xorshift128plus(state: &mut [u64; 2]) -> f64 {
+    let mut s1 = state[0];
+    let s0 = state[1];
+    state[0] = s0;
+    s1 ^= s1 << 23;
+    state[1] = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26)).wrapping_add(s0);
+    drawn_to_number(state[1])
+}
+
+/// One draw of the xorshift1024* generator: sixteen words of state and
+/// the place the generator is looking at, which moves on with it.
+pub fn xorshift1024star(state: &mut [u64; 16], at: &mut usize) -> f64 {
+    let s0 = state[*at & 15];
+    *at = (*at + 1) & 15;
+    let mut s1 = state[*at];
+    s1 ^= s1 << 31;
+    s1 ^= s1 >> 11;
+    let s0 = s0 ^ (s0 >> 30);
+    state[*at] = s0 ^ s1;
+    let drawn = state[*at].wrapping_mul(1181783497276652981);
+    drawn_to_number(drawn)
+}
+
+/// The number a word of state stands for: read as signed, scaled by
+/// two to the minus sixty-fourth, and moved half a step up so that
+/// what comes out lies between nothing and one rather than either
+/// side of the middle. That last half is what the standard library's
+/// own C does, and a generator is only useful if every tool draws the
+/// same stream from the same seed.
+fn drawn_to_number(word: u64) -> f64 {
+    word as i64 as f64 * 5.421_010_862_427_522e-20 + 0.5
 }
 
 /// The two halves Modelica carries a state in, put back together.
@@ -186,7 +259,42 @@ mod tests {
 
         // A state of zero stays zero, which is why the standard
         // library refuses a seed of zero and uses a prime instead.
-        assert_eq!(xorshift64star(0), (0, 0.0));
+        // The number it stands for is the middle of the range: a word
+        // is read as signed and moved half a step up, so nothing is
+        // a half rather than a nothing.
+        assert_eq!(xorshift64star(0), (0, 0.5));
+
+        // The stream, against the standard library's own C run on the
+        // same seed: `x*INVM64 + 0.5` of the word the state moved to.
+        // Copied from a run of that C rather than worked out here,
+        // because agreeing with it is the whole point.
+        let (_, first) = xorshift64star(1);
+        assert!((first - 0.780_835_050_050_359_6).abs() < 1e-15, "{first}");
+
+        // The other two generators the standard library ships, each
+        // moving its state the way its own definition says.
+        let mut pair = [1u64, 2];
+        let drawn = xorshift128plus(&mut pair);
+        assert!((0.0..=1.0).contains(&drawn), "{drawn}");
+        // `s1 = 1` shifted and xored against `s0 = 2`, plus `s0`.
+        let (mut s1, s0) = (1u64, 2u64);
+        s1 ^= s1 << 23;
+        let expected = (s1 ^ s0 ^ (s1 >> 17) ^ (s0 >> 26)).wrapping_add(s0);
+        assert_eq!(pair, [2, expected]);
+
+        let mut long = [0u64; 16];
+        long[0] = 1;
+        long[1] = 2;
+        let mut at = 0usize;
+        let drawn = xorshift1024star(&mut long, &mut at);
+        assert!((0.0..=1.0).contains(&drawn), "{drawn}");
+        // The place moved on by one, and the word it now looks at is
+        // the two words it was drawn from.
+        assert_eq!(at, 1);
+        let (mut s1, s0) = (2u64, 1u64);
+        s1 ^= s1 << 31;
+        s1 ^= s1 >> 11;
+        assert_eq!(long[1], (s0 ^ (s0 >> 30)) ^ s1);
     }
 
     #[test]
@@ -251,8 +359,23 @@ mod tests {
             Some((2, 3))
         );
         assert_eq!(shape("ModelicaRandom_xorshift64star", &[3]), None);
-        assert!(!written_here("ModelicaRandom_xorshift1024star"));
+        // The other two generators the standard library ships are
+        // answered for as well, each by the count it takes.
+        assert!(written_here("ModelicaRandom_xorshift1024star"));
+        assert_eq!(shape("ModelicaRandom_xorshift128plus", &[4]), Some((4, 5)));
+        assert_eq!(shape("ModelicaRandom_xorshift128plus", &[2]), None);
+        assert_eq!(
+            shape("ModelicaRandom_xorshift1024star", &[32, 1]),
+            Some((33, 34))
+        );
+        // Handed the wrong count, either answers nothing.
         assert!(answer("ModelicaRandom_xorshift1024star", &[1.0]).is_none());
+        assert!(answer("ModelicaRandom_xorshift128plus", &[1.0, 2.0]).is_none());
+        let long = answer("ModelicaRandom_xorshift1024star", &[1.0; 33]).unwrap();
+        assert_eq!(long.len(), 34);
+        let pair = answer("ModelicaRandom_xorshift128plus", &[1.0, 0.0, 2.0, 0.0]).unwrap();
+        assert_eq!(pair.len(), 5);
+        assert!((0.0..=1.0).contains(&pair[0]), "{pair:?}");
         // The right name handed the wrong count answers nothing.
         assert!(answer("ModelicaRandom_xorshift64star", &[1.0]).is_none());
 
