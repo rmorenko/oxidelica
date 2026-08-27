@@ -720,6 +720,13 @@ pub(super) fn expand_call(
                     )));
                 }
                 if class.kind == ClassKind::Record {
+                    // A record a class keeps a place for is built as
+                    // the one the class asked under redeclared: a
+                    // medium's `ThermodynamicState` has the fields
+                    // that medium uses, and the base's has none at
+                    // all. Where nothing was asked under, or the two
+                    // are the same, this is the record it was.
+                    let class = super::algorithms::record_asked_under(class, registry);
                     // Given in order rather than by name, a record is
                     // built from exactly its fields.
                     let named = args.iter().any(|a| matches!(a, Expr::NamedArg(..)));

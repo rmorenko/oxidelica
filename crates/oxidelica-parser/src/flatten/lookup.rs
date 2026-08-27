@@ -284,6 +284,10 @@ pub struct Trail;
 
 impl Trail {
     /// Start keeping one, forgetting whatever was being kept.
+    ///
+    /// A person debugging a media model asks for this from the
+    /// outside - `OXIDELICA_NAME_TRAIL` on the library check - and a
+    /// test asks for it outright.
     pub fn kept() -> Trail {
         ASKED.with(|held| *held.borrow_mut() = Some(Vec::new()));
         Trail

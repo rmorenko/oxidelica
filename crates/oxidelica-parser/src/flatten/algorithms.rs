@@ -806,8 +806,6 @@ fn one_assignment(
             // its first element sits among the answers. The elements
             // after it are the places after that.
             let spread = match &items[0] {
-                // Already one place of an answer: the elements after
-                // it are the places after that.
                 Expr::Index(call, subscripts) => match (call.as_ref(), subscripts.as_slice()) {
                     (Expr::Call(called, _), [Expr::Number(first)])
                         if crate::outside::written_here(called) =>
@@ -816,11 +814,6 @@ fn one_assignment(
                     }
                     _ => None,
                 },
-                // A call still whole: its answer starts at the first
-                // place. A function of the standard library is named
-                // by its path, which is how one is told from a name
-                // the body itself declared.
-                Expr::Call(called, _) if called.contains('.') => Some((items[0].clone(), 1)),
                 _ => None,
             };
             if let Some((call, first)) = spread {
@@ -2176,7 +2169,12 @@ fn function_body<'a>(
         let under = asked_under(class);
         if under != class.name {
             if let Some(tail) = class.name.rsplit_once('.').map(|(_, tail)| tail) {
-                if let Some(theirs) = registry.get(format!("{under}.{tail}").as_str()) {
+                // Written by the class asked under, or inherited by
+                // it: a medium says `redeclare function extends
+                // setState_pTX` in a package of its own, and the one
+                // that reaches the medium is the one that runs.
+                let theirs = lookup(registry, tail, &under, &class.imports);
+                if let Some(theirs) = theirs.filter(|found| found.name != class.name) {
                     let body = function_body(registry, theirs, depth + 1);
                     if !body.is_empty() {
                         return body;
@@ -2402,6 +2400,31 @@ impl Drop for AskedAs {
             held.borrow_mut().pop();
         });
     }
+}
+
+/// The record a class keeps a place for, as the class asked under
+/// redeclared it.
+///
+/// `PartialMedium` declares `ThermodynamicState` with no fields, and
+/// every medium redeclares it with the ones it uses. A body of the
+/// base building that record has to build the medium's, or it builds
+/// a record with nothing in it.
+pub(super) fn record_asked_under<'a>(
+    record: &'a ClassDef,
+    registry: &HashMap<&'a str, &'a ClassDef>,
+) -> &'a ClassDef {
+    // Only a record with no fields is a place kept for another: one
+    // that states its own is built as itself, whatever it was asked
+    // under.
+    let kept_for_another = record.components.is_empty() && record.kind == ClassKind::Record;
+    let under = asked_under(record);
+    let theirs = kept_for_another
+        .then(|| record.name.rsplit_once('.'))
+        .flatten()
+        .filter(|_| under != record.name)
+        .and_then(|(_, tail)| lookup(registry, tail, &under, &record.imports))
+        .filter(|found| found.kind == ClassKind::Record && found.name != record.name);
+    theirs.unwrap_or(record)
 }
 
 /// The scope a body is being worked out under: what it was asked as,

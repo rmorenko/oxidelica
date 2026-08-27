@@ -855,6 +855,38 @@ fn a_class_alias_is_looked_up_where_it_was_written() {
     assert_eq!(folded(&y.rhs), 1.0);
 }
 
+/// A body a base left unwritten runs the one the class asked under
+/// wrote, whether that class wrote it outright or inherited it.
+#[test]
+fn a_partial_body_comes_from_the_class_asked_under() {
+    let m = with_lib(
+        "package Lib \
+           package Base \
+             replaceable partial function value input Real a; output Real v; end value; \
+           end Base; \
+           package Middle \
+             extends Base; \
+             redeclare function extends value algorithm v := a + 1; end value; \
+           end Middle; \
+           package Thing extends Middle; end Thing; \
+         end Lib; \
+         model M Real y; equation y = Lib.Thing.value(4); end M;",
+    );
+    match m {
+        Ok(model) => {
+            let y = model
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+                .unwrap();
+            assert_eq!(folded(&y.rhs), 5.0);
+        }
+        // Whatever else it says, it is not the base's empty body that
+        // assigned nothing.
+        Err(why) => assert!(!why.contains("Base.value"), "{why}"),
+    }
+}
+
 /// A body is worked out under the name it was asked for.
 ///
 /// A media function is written once, in the base every medium
@@ -935,6 +967,12 @@ fn a_trail_says_where_the_names_landed() {
         asked.iter().any(|(_, _, landed)| landed.is_none()),
         "{asked:?}"
     );
+    // A name asked from nowhere in particular keeps its answer to
+    // itself: the trail is for telling two scopes apart, and there is
+    // only one here.
+    let _ = parse_model("model M Real y; equation y = sin(1); end M;");
+    assert!(!oxidelica_parser::Trail::so_far().is_empty());
+
     // How much work the asking took, for a change to how names are
     // resolved: the count only grows, and a model asks for more names
     // than none.
@@ -976,6 +1014,9 @@ fn a_trail_says_where_the_names_landed() {
     // A name that landed on itself says nothing worth saying, and is
     // left out: only the ones that went somewhere else are the point.
     assert!(!told.contains("`Real` asked"), "{told}");
+    // At most a handful, however long the flattening was: a list of
+    // every name a model asks for is not what a person wants.
+    assert!(told.matches("landed on").count() <= 4, "{told}");
 }
 
 /// The name a call wrote is used where it says something new.
@@ -1069,4 +1110,71 @@ fn asking_under_a_name_falls_back_where_it_says_nothing() {
         }
         Err(why) => assert!(why.contains("field"), "{why}"),
     }
+}
+
+/// A record a class keeps a place for is built as the class asked
+/// under redeclared it.
+///
+/// `PartialMedium` declares `ThermodynamicState` with no fields, and
+/// every medium redeclares it with the ones it uses. A body of the
+/// base building that record - `state := ThermodynamicState(p, T)` -
+/// has to build the medium's, or it builds a record with nothing in
+/// it and the model is refused for a member the empty one has not.
+#[test]
+fn a_record_kept_for_another_is_built_as_the_other_wrote_it() {
+    let m = with_lib(
+        "package Lib \
+           package Base \
+             replaceable record State end State; \
+             replaceable partial function make input Real a; output State s; end make; \
+             replaceable function twice input Real a; output Real v; \
+               algorithm v := 2 * make(a).x; end twice; \
+           end Base; \
+           package Thing \
+             extends Base; \
+             redeclare record extends State Real x; end State; \
+             redeclare function extends make algorithm s := State(3 * a); end make; \
+           end Thing; \
+         end Lib; \
+         model M Real y; equation y = Lib.Thing.twice(2); end M;",
+    );
+    match m {
+        // `make(2)` builds the medium's state with `x = 6`, and twice
+        // that is twelve.
+        Ok(model) => {
+            let y = model
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+                .unwrap();
+            assert_eq!(folded(&y.rhs), 12.0);
+        }
+        // Whatever else it says, it does not say the empty record was
+        // given a member it has not: that is the refusal this rule is
+        // against.
+        Err(why) => assert!(!why.contains("no such member"), "{why}"),
+    }
+}
+
+/// The trail is kept where the surroundings ask for it.
+///
+/// A person debugging a media model wants to see where each name
+/// went, and says so by the environment rather than by editing the
+/// compiler. Where one is already being kept, a flattening under it
+/// leaves it alone: a test holds a trail across several models, and
+/// starting a new one would throw away what it came for.
+#[test]
+fn a_trail_is_kept_where_the_surroundings_ask() {
+    // Nothing kept: the flattening asks for names as usual and the
+    // trail stays empty afterwards.
+    let _ = parse_model("model M Real y; equation y = 1; end M;");
+    assert!(oxidelica_parser::Trail::so_far().is_empty());
+
+    // One kept by hand, across two flattenings: the second does not
+    // throw away what the first put there.
+    let _kept = oxidelica_parser::Trail::kept();
+    let _ = parse_model("model M Real y; equation y = sin(1); end M;");
+    let after_one = oxidelica_parser::Trail::so_far().len();
+    let _ = parse_model("model M Real y; equation y = cos(1); end M;");
+    assert!(oxidelica_parser::Trail::so_far().len() >= after_one);
 }

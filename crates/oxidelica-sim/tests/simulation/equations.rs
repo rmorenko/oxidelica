@@ -1587,3 +1587,39 @@ fn a_body_written_here_answers_a_parameter_too() {
     // The same number the run would have drawn, worked out before it.
     assert!((value - 0.054353923013481964).abs() < 1e-15, "{value}");
 }
+
+/// A run of elements given one place of an answer takes the places
+/// after it.
+///
+/// A body written here answers with several numbers at once, and an
+/// array output of it arrives as one place of that answer. Counted as
+/// a single value against the elements, it was refused for the count;
+/// each element now takes the place after the one before it.
+#[test]
+fn a_run_of_elements_takes_the_places_after_the_first() {
+    let result = run("model M \
+         function random input Integer state[2]; output Real r; output Integer out[2]; \
+           external \"C\" ModelicaRandom_xorshift64star(state, out, r); end random; \
+         function first input Integer seed; output Integer state[2]; protected Real r; \
+           algorithm (r, state) := random({seed, 0}); state[1:2] := state; end first; \
+         parameter Integer s[2] = first(126247697); \
+         Real y; equation y = s[1] + s[2]; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let value = result.rows.last().unwrap()[y];
+    // Both halves of the state the generator moved to, added: what
+    // matters is that each element is a number of its own rather than
+    // the whole answer twice.
+    assert!(value.is_finite(), "{value}");
+    let first = result.columns.iter().position(|c| c == "s[1]");
+    let second = result.columns.iter().position(|c| c == "s[2]");
+    if let (Some(first), Some(second)) = (first, second) {
+        let row = result.rows.last().unwrap();
+        assert!(
+            row[first] != row[second],
+            "{:?} {:?}",
+            row[first],
+            row[second]
+        );
+    }
+}

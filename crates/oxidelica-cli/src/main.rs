@@ -63,9 +63,15 @@ fn run() -> Result<(), String> {
 fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
     let source = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
     let libraries = oxidelica_parser::library_sources(Some(std::path::Path::new(path)));
-    let read = oxidelica_parser::parse_model_with_libraries(&libraries, &source);
-    told_the_name_counts();
-    read.map_err(|e| format!("{path}: {e}"))
+    // Where somebody asked to see where each name went: a refusal
+    // that names a class of the base rather than of the medium at
+    // hand is the whole of the media question, and the trail is what
+    // says which of the two a name landed on.
+    let _trail = std::env::var("OXIDELICA_NAME_TRAIL")
+        .is_ok()
+        .then(oxidelica_parser::Trail::kept);
+    oxidelica_parser::parse_model_with_libraries(&libraries, &source)
+        .map_err(|e| format!("{path}: {e}"))
 }
 
 /// Read a model named either as a file or as a class of the libraries.
@@ -101,22 +107,7 @@ fn load_named(what: &str) -> Result<oxidelica_parser::Model, String> {
     if !classes.iter().any(|c| c.name == what) {
         return Err(format!("no class called {what} in the libraries"));
     }
-    let flattened = oxidelica_parser::flatten_named(&classes, what);
-    told_the_name_counts();
-    flattened
-}
-
-/// How much work finding the names took, where somebody asked.
-///
-/// A change to how names are resolved has to leave everything outside
-/// what it is for alone, and counting says so before a whole library
-/// check does: equal counts on the same model mean the same work was
-/// done, whatever the clock happened to say.
-fn told_the_name_counts() {
-    if std::env::var("OXIDELICA_NAME_COUNTS").is_ok() {
-        let (asked, walked) = oxidelica_parser::name_counts();
-        eprintln!("names: {asked} asked, {walked} walked out");
-    }
+    oxidelica_parser::flatten_named(&classes, what)
 }
 
 /// `why` subcommand: where a variable's value comes from.

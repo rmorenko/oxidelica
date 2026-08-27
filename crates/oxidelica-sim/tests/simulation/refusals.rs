@@ -58,3 +58,27 @@ fn differentiation_says_what_it_cannot_reach_through() {
     assert!(refused("model M Real x(start = 1); Real a; Real b; equation a = b; b = a; x * a = 1; der(x) = -x; end M;")
         .contains("unbalanced model"));
 }
+
+/// A parameter waiting on a call says which call, not which cycle.
+///
+/// A parameter written as a function of literals waits on nobody: it
+/// names no free variable at all, so calling that a cycle names a
+/// shape the model does not have.
+#[test]
+fn a_parameter_waiting_on_a_call_says_which_call() {
+    // A call nothing works out, with nothing free in it.
+    let why =
+        compile_err("model M parameter Real a = nowhere(1, 2); Real x; equation x = 1; end M;");
+    assert!(why.contains("nothing works out"), "{why}");
+    assert!(why.contains("`nowhere`"), "{why}");
+
+    // A name nothing declares is still named outright.
+    let why = compile_err("model M parameter Real a = nowhere; Real x; equation x = 1; end M;");
+    assert!(why.contains("nothing gives a value"), "{why}");
+
+    // And two parameters naming each other are still a cycle.
+    let why = compile_err(
+        "model M parameter Real a = b; parameter Real b = a; Real x; equation x = 1; end M;",
+    );
+    assert!(why.contains("wait on each other"), "{why}");
+}
