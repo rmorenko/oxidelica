@@ -62,7 +62,16 @@ pub(super) fn effective_imports(
                 // Qualified already, at the site that wrote it.
                 redeclare.type_name.clone()
             }
-            None => lookup(registry, &alias.target, scope, &imports)
+            // The target is written in the terms of the class that
+            // wrote the alias, not of whoever is using it: a pump
+            // says `replaceable function flowCharacteristic =
+            // PumpCharacteristics.baseFlow`, and that package is a
+            // neighbour of the pump rather than of the model built
+            // from it. So the class's own scope answers first, and
+            // the site's after - which is what keeps an alias
+            // written against a name in view at the site working.
+            None => lookup(registry, &alias.target, class.name.as_str(), &imports)
+                .or_else(|| lookup(registry, &alias.target, scope, &imports))
                 .ok_or_else(|| {
                     format!(
                         "unknown class `{}` behind the alias `{}`",

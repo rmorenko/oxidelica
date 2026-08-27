@@ -822,3 +822,35 @@ fn a_parameter_with_only_a_start_settles_a_condition() {
     let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
     assert!(names.contains(&"a.tp.p"), "{names:?}");
 }
+
+/// A class alias is looked up where it was written.
+///
+/// A pump of the standard library says `replaceable function
+/// flowCharacteristic = PumpCharacteristics.baseFlow`, and that
+/// package is a neighbour of the pump rather than of the model built
+/// from it. Looked up at the site instead, the name meant nothing and
+/// fourteen models were refused for a class that was there all along.
+#[test]
+fn a_class_alias_is_looked_up_where_it_was_written() {
+    let m = parse_model(
+        "package Deep \
+           package Chars \
+             partial function baseFlow input Real v; output Real head; end baseFlow; \
+             function linearFlow extends baseFlow; algorithm head := 2 - v; end linearFlow; \
+           end Chars; \
+           partial model PartialPump \
+             replaceable function flowCharacteristic = Chars.baseFlow; \
+             Real y; equation y = flowCharacteristic(1); \
+           end PartialPump; \
+         end Deep; \
+         model M extends Deep.PartialPump( \
+           redeclare function flowCharacteristic = Deep.Chars.linearFlow); end M;",
+    )
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    assert_eq!(folded(&y.rhs), 1.0);
+}
