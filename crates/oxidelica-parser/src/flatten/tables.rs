@@ -23,6 +23,19 @@ use super::*;
 pub(super) const LINEAR_SEGMENTS: f64 = 1.0;
 pub(super) const AKIMA_SPLINE: f64 = 2.0;
 pub(super) const CONSTANT_SEGMENTS: f64 = 3.0;
+pub(super) const FRITSCH_BUTLAND: f64 = 4.0;
+pub(super) const STEFFEN: f64 = 5.0;
+pub(super) const MODIFIED_AKIMA: f64 = 6.0;
+
+/// Whether a smoothness is one of the splines: a curve drawn through
+/// the points with a slope worked out at each, rather than the
+/// straight lines or the levels between them.
+pub(super) fn is_a_spline(smoothness: f64) -> bool {
+    matches!(
+        smoothness,
+        AKIMA_SPLINE | FRITSCH_BUTLAND | STEFFEN | MODIFIED_AKIMA
+    )
+}
 
 /// The extrapolation numbers of `Modelica.Blocks.Types.Extrapolation`.
 pub(super) const HOLD_LAST_POINT: f64 = 1.0;
@@ -513,6 +526,176 @@ pub(super) fn akima_slopes(
         .collect()
 }
 
+/// The slopes a spline gives a run of points, by the rule asked for.
+///
+/// The four splines differ only in how they choose a slope at each
+/// point; what is drawn between two points is the same cubic either
+/// way. This is where the choice is made, so that a table and a grid
+/// make it the same way.
+pub(super) fn spline_slopes(
+    rows: usize,
+    at: &dyn Fn(usize) -> f64,
+    value: &dyn Fn(usize) -> f64,
+    smoothness: f64,
+) -> Vec<f64> {
+    match smoothness {
+        FRITSCH_BUTLAND | STEFFEN => monotone_slopes(rows, at, value, smoothness),
+        MODIFIED_AKIMA => modified_akima_slopes(rows, at, value),
+        _ => akima_slopes(rows, at, value),
+    }
+}
+
+/// The slope a monotone spline gives each point of a table.
+///
+/// Akima's rule draws a smooth curve but may overshoot: between two
+/// points that rise, the curve is entitled to dip. Where a table
+/// stands for something that only ever rises - a characteristic
+/// curve, a lookup of one quantity against another - that dip is
+/// wrong, and the standard tables offer two rules that cannot make
+/// one.
+///
+/// Fritsch-Butland takes the harmonic mean of the two lines meeting
+/// at a point, weighted towards the shorter interval, and nothing at
+/// all where they disagree in sign - a peak or a trough of the table
+/// is flat, which is what keeps each stretch going the way it went.
+///
+/// Steffen starts from the ordinary central difference and then pulls
+/// it back to twice the smaller of the two lines, which is the most a
+/// cubic can be given at a point and still not turn back on itself.
+fn monotone_slopes(
+    rows: usize,
+    at: &dyn Fn(usize) -> f64,
+    value: &dyn Fn(usize) -> f64,
+    rule: f64,
+) -> Vec<f64> {
+    let line = |first: usize| -> f64 {
+        let run = at(first + 1) - at(first);
+        match run == 0.0 {
+            true => 0.0,
+            false => (value(first + 1) - value(first)) / run,
+        }
+    };
+    let width = |first: usize| at(first + 1) - at(first);
+    (0..rows)
+        .map(|k| {
+            // The ends take the line they have, which is what both
+            // rules come to where there is only one.
+            if rows < 2 {
+                return 0.0;
+            }
+            if k == 0 || k == rows - 1 {
+                let only = match k == 0 {
+                    true => line(0),
+                    false => line(rows - 2),
+                };
+                if rule != STEFFEN || rows < 3 {
+                    return only;
+                }
+                // Steffen's end: the parabola through the three
+                // points nearest the end, held to twice the line so
+                // that the end cannot overshoot either.
+                let (near, far, h1, h2) = match k == 0 {
+                    true => (line(0), line(1), width(0), width(1)),
+                    false => (
+                        line(rows - 2),
+                        line(rows - 3),
+                        width(rows - 2),
+                        width(rows - 3),
+                    ),
+                };
+                let guessed = ((2.0 * h1 + h2) * near - h1 * far) / (h1 + h2);
+                if guessed * near <= 0.0 {
+                    return 0.0;
+                }
+                if (guessed).abs() > 2.0 * near.abs() {
+                    return 2.0 * near;
+                }
+                return guessed;
+            }
+            let (before, after) = (line(k - 1), line(k));
+            // A peak or a trough: the two lines disagree in sign, or
+            // one of them is flat. Either way the point is where the
+            // table turns, and a monotone curve is flat there.
+            if before * after <= 0.0 {
+                return 0.0;
+            }
+            let (h1, h2) = (width(k - 1), width(k));
+            match rule == STEFFEN {
+                // Steffen: the central difference, held to twice the
+                // smaller line.
+                true => {
+                    let central = (before * h2 + after * h1) / (h1 + h2);
+                    let most = 2.0 * before.abs().min(after.abs());
+                    match central.abs() > most {
+                        true => most * central.signum(),
+                        false => central,
+                    }
+                }
+                // Fritsch-Butland: the weighted harmonic mean, which
+                // is never larger than three times the smaller line
+                // and so never overshoots.
+                false => {
+                    let alpha = (h1 + 2.0 * h2) / (3.0 * (h1 + h2));
+                    before * after / (alpha * after + (1.0 - alpha) * before)
+                }
+            }
+        })
+        .collect()
+}
+
+/// The slope the modified Akima spline gives each point.
+///
+/// Akima weights the two lines meeting at a point by how sharply the
+/// lines beyond them turn, and where two neighbouring intervals are
+/// flat those weights are nothing and the rule falls back on an
+/// average that puts a kink in a straight stretch. The modification
+/// adds the width of the turn to each weight, which leaves the rule
+/// as it was wherever it worked and settles the flat case towards the
+/// nearer line. It is what MATLAB calls `makima`.
+fn modified_akima_slopes(
+    rows: usize,
+    at: &dyn Fn(usize) -> f64,
+    value: &dyn Fn(usize) -> f64,
+) -> Vec<f64> {
+    let line = |first: usize| -> f64 {
+        let run = at(first + 1) - at(first);
+        match run == 0.0 {
+            true => 0.0,
+            false => (value(first + 1) - value(first)) / run,
+        }
+    };
+    let mut lines: Vec<f64> = Vec::with_capacity(rows + 3);
+    lines.push(0.0);
+    lines.push(0.0);
+    for first in 0..rows.saturating_sub(1) {
+        lines.push(line(first));
+    }
+    lines.push(0.0);
+    lines.push(0.0);
+    let inner = rows.saturating_sub(1);
+    if inner >= 2 {
+        lines[1] = 2.0 * lines[2] - lines[3];
+        lines[0] = 2.0 * lines[1] - lines[2];
+        lines[inner + 2] = 2.0 * lines[inner + 1] - lines[inner];
+        lines[inner + 3] = 2.0 * lines[inner + 2] - lines[inner + 1];
+    } else if inner == 1 {
+        for slot in [0, 1, 3, 4] {
+            lines[slot] = lines[2];
+        }
+    }
+    (0..rows)
+        .map(|k| {
+            let (before, near, far, beyond) = (lines[k], lines[k + 1], lines[k + 2], lines[k + 3]);
+            let weight_near = (beyond - far).abs() + (beyond + far).abs() / 2.0;
+            let weight_far = (near - before).abs() + (near + before).abs() / 2.0;
+            match weight_near + weight_far == 0.0 {
+                true => (near + far) / 2.0,
+                false => (weight_near * near + weight_far * far) / (weight_near + weight_far),
+            }
+        })
+        .collect()
+}
+
 /// The table's value - or its slope - at `u`, written out.
 ///
 /// Each interval of the abscissa is one branch of a chain of `if`s,
@@ -533,13 +716,11 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             table.rows[0].len()
         ));
     }
-    if !matches!(
-        table.smoothness,
-        LINEAR_SEGMENTS | CONSTANT_SEGMENTS | AKIMA_SPLINE
-    ) {
+    if !matches!(table.smoothness, LINEAR_SEGMENTS | CONSTANT_SEGMENTS)
+        && !is_a_spline(table.smoothness)
+    {
         return Err(format!(
-            "a table asks for smoothness {}, and this compiler writes out the linear, the \
-             constant and the Akima spline only",
+            "a table asks for smoothness {}, which this compiler does not know",
             table.smoothness
         ));
     }
@@ -585,7 +766,7 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
     // two lines of the same slope the mean is that slope, so a straight
     // stretch of table stays straight - which is the whole point of
     // Akima's rule over an ordinary cubic.
-    let akima: Vec<f64> = match table.smoothness == AKIMA_SPLINE {
+    let akima: Vec<f64> = match is_a_spline(table.smoothness) {
         false => Vec::new(),
         true => {
             // A spline is drawn through points that follow one another
@@ -600,12 +781,12 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
             // to say, and it keeps working as it did.
             if let Some(repeated) = (1..table.rows.len()).find(|&row| at(row) == at(row - 1)) {
                 return Err(format!(
-                    "a table asked for an Akima spline gives {} twice on its abscissa, \
+                    "a table asked for a spline gives {} twice on its abscissa, \
                      and a spline needs the points to follow one another",
                     at(repeated)
                 ));
             }
-            akima_slopes(table.rows.len(), &at, &value)
+            spline_slopes(table.rows.len(), &at, &value, table.smoothness)
         }
     };
     // What one interval says, as a value or as a slope.
@@ -625,7 +806,7 @@ fn interpolate(table: &Table, column: &Expr, u: &Expr, slope: bool) -> Result<Ex
         // interval the run is - `t` from nothing to one - it is
         // `y0 + (m0*t + (3*rise - 2*m0 - m1)*t^2 + (m0 + m1 - 2*rise)*t^3) * run`,
         // and its slope is that differentiated by `u`.
-        if table.smoothness == AKIMA_SPLINE {
+        if is_a_spline(table.smoothness) {
             let (m0, m1) = (akima[first], akima[last]);
             let (a, b) = (3.0 * rise - 2.0 * m0 - m1, m0 + m1 - 2.0 * rise);
             let t = Expr::Bin(

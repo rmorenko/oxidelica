@@ -35,14 +35,19 @@ struct GridSlopes {
     corner: Vec<Vec<f64>>,
 }
 
-fn grid_slopes(down: &[f64], across: &[f64], cell: &dyn Fn(usize, usize) -> f64) -> GridSlopes {
+fn grid_slopes(
+    down: &[f64],
+    across: &[f64],
+    cell: &dyn Fn(usize, usize) -> f64,
+    smoothness: f64,
+) -> GridSlopes {
     let (rows, columns) = (down.len(), across.len());
     // Along the first abscissa, one column at a time.
     let mut slope_down = vec![vec![0.0; columns]; rows];
     for j in 0..columns {
         let at = |i: usize| down[i];
         let value = |i: usize| cell(i, j);
-        let along = akima_slopes(rows, &at, &value);
+        let along = spline_slopes(rows, &at, &value, smoothness);
         for (row, m) in slope_down.iter_mut().zip(along) {
             row[j] = m;
         }
@@ -52,7 +57,10 @@ fn grid_slopes(down: &[f64], across: &[f64], cell: &dyn Fn(usize, usize) -> f64)
     for (i, row) in slope_across.iter_mut().enumerate() {
         let at = |j: usize| across[j];
         let value = |j: usize| cell(i, j);
-        for (j, m) in akima_slopes(columns, &at, &value).into_iter().enumerate() {
+        for (j, m) in spline_slopes(columns, &at, &value, smoothness)
+            .into_iter()
+            .enumerate()
+        {
             row[j] = m;
         }
     }
@@ -63,7 +71,10 @@ fn grid_slopes(down: &[f64], across: &[f64], cell: &dyn Fn(usize, usize) -> f64)
     for (i, row) in corner.iter_mut().enumerate() {
         let at = |j: usize| across[j];
         let value = |j: usize| slope_down[i][j];
-        for (j, m) in akima_slopes(columns, &at, &value).into_iter().enumerate() {
+        for (j, m) in spline_slopes(columns, &at, &value, smoothness)
+            .into_iter()
+            .enumerate()
+        {
             row[j] = m;
         }
     }
@@ -221,13 +232,11 @@ pub(super) fn on_the_grid(
     u2: &Expr,
     wanted: Wanted,
 ) -> Result<Expr, String> {
-    if !matches!(
-        table.smoothness,
-        LINEAR_SEGMENTS | CONSTANT_SEGMENTS | AKIMA_SPLINE
-    ) {
+    if !matches!(table.smoothness, LINEAR_SEGMENTS | CONSTANT_SEGMENTS)
+        && !is_a_spline(table.smoothness)
+    {
         return Err(format!(
-            "a two-dimensional table asks for smoothness {}, and this compiler writes out the \
-             linear, the constant and the Akima spline only",
+            "a two-dimensional table asks for smoothness {}, which this compiler does not know",
             table.smoothness
         ));
     }
@@ -355,20 +364,20 @@ pub(super) fn on_the_grid(
     // along both abscissas: two rows at the same place leave the line
     // between them undefined rather than flat, and a slope of zero
     // there would be a quiet mistake rather than an answer.
-    let splined = match table.smoothness == AKIMA_SPLINE {
+    let splined = match is_a_spline(table.smoothness) {
         false => None,
         true => {
             for (axis, which) in [(&down, "first"), (&across, "second")] {
                 if let Some(repeated) = (1..axis.len()).find(|&k| axis[k] == axis[k - 1]) {
                     return Err(format!(
-                        "a two-dimensional table asked for an Akima spline gives {} twice on \
+                        "a two-dimensional table asked for a spline gives {} twice on \
                          its {which} abscissa, and a spline needs the points to follow one \
                          another",
                         axis[repeated]
                     ));
                 }
             }
-            Some(grid_slopes(&down, &across, &cell))
+            Some(grid_slopes(&down, &across, &cell, table.smoothness))
         }
     };
     let piece = |i: usize, j: usize| -> Expr {

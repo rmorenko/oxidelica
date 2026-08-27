@@ -502,12 +502,12 @@ fn a_table_asked_for_an_akima_spline_is_written_out_as_one() {
     let refused = parse_model(&format!(
         "{TABLE_BLOCK} model M \
          parameter Real data[3, 2] = [0, 0; 1, 2; 2, 6]; \
-         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 4, 2); \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, 7, 2); \
          Real y; equation y = Blocks.getValue(h, 1, 1.5); end M;"
     ))
     .expect_err("a smoothness nobody here writes out")
     .message;
-    assert!(refused.contains("smoothness 4"), "{refused}");
+    assert!(refused.contains("smoothness 7"), "{refused}");
 }
 
 /// A two-dimensional table is read by where two abscissae fall in its
@@ -628,17 +628,17 @@ fn a_grid_of_one_row_and_the_rate_it_changes_at() {
 /// A grid this compiler cannot read says so rather than guessing.
 #[test]
 fn a_grid_says_what_it_cannot_read() {
-    // The Akima spline is written out; the smoothnesses beyond it are
-    // refused by number rather than read as something else.
+    // The splines are written out; a smoothness that is none of them
+    // is refused by number rather than read as something else.
     let spline = parse_model(&format!(
         "{GRID_BLOCK} model M \
          parameter Real data[3, 3] = [0, 1, 2; 1, 10, 20; 2, 30, 40]; \
-         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 4, 2); \
+         Grid.Handle h = Grid.Handle(\"NoName\", \"NoName\", data, 7, 2); \
          Real y; equation y = Grid.getValue(h, 1.5, 1.5); end M;"
     ))
     .expect_err("a smoothness this compiler does not write out")
     .message;
-    assert!(spline.contains("smoothness 4"), "{spline}");
+    assert!(spline.contains("smoothness 7"), "{spline}");
 
     // A matrix with a top row and nothing under it is a grid with no
     // crossings to read.
@@ -799,17 +799,16 @@ fn a_table_the_model_wrote_is_written_out_rather_than_run() {
         "{outside}"
     );
 
-    // The Akima spline is written out; the three others - Fritsch,
-    // Steffen, modified Akima - are not, and say which was asked for
-    // rather than calling them all splines.
+    // The four splines are written out; a smoothness that is none of
+    // them says which was asked for rather than being read as one.
     let spline = parse_model(&format!(
         "{TABLE_BLOCK} model M \
-         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1], {{2}}, 5, 2); \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1], {{2}}, 7, 2); \
          Real y; equation y = Blocks.getValue(h, 1, time); end M;"
     ))
     .unwrap_err()
     .to_string();
-    assert!(spline.contains("smoothness 5"), "{spline}");
+    assert!(spline.contains("smoothness 7"), "{spline}");
 }
 
 #[test]
@@ -1079,4 +1078,142 @@ fn a_grid_of_one_row_may_be_splined() {
     // through those three points passes between the last two.
     let value = folded(&y.rhs);
     assert!((1.0..=4.0).contains(&value), "{value}");
+}
+
+/// The monotone splines keep a stretch of table going the way it went.
+///
+/// Akima's rule draws a smooth curve but is entitled to dip between
+/// two points that do not: a table that rises, levels off and rises
+/// again comes out with a hollow in the level part. Fritsch-Butland
+/// and Steffen cannot make one, which is what a table standing for a
+/// characteristic curve needs.
+#[test]
+fn a_monotone_spline_does_not_overshoot() {
+    // `0, 1, 1, 10` against `0, 1, 2, 3`: the middle is level, and a
+    // spline that overshoots would leave it.
+    let read = |smoothness: u32, u: &str| -> f64 {
+        let m = parse_model(&format!(
+            "{TABLE_BLOCK} model M \
+             parameter Real data[4, 2] = [0, 0; 1, 1; 2, 1; 3, 10]; \
+             Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", data, {{2}}, {smoothness}, 2); \
+             Real y; equation y = Blocks.getValue(h, 1, {u}); end M;"
+        ))
+        .unwrap();
+        let y = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+            .unwrap();
+        folded(&y.rhs)
+    };
+    for smoothness in [4, 5] {
+        // Anywhere along the level stretch the answer is the level.
+        for u in ["1.25", "1.5", "1.75"] {
+            let value = read(smoothness, u);
+            assert!(
+                (value - 1.0).abs() < 1e-9,
+                "smoothness {smoothness} at {u}: {value}"
+            );
+        }
+        // And the rise after it stays inside the two points it joins.
+        let value = read(smoothness, "2.5");
+        assert!(
+            (1.0..=10.0).contains(&value),
+            "smoothness {smoothness}: {value}"
+        );
+    }
+    // The Akima spline is the one that may overshoot, and does here:
+    // this is what the monotone rules were added for.
+    let akima = read(2, "1.75");
+    assert!(akima < 1.0, "an Akima spline dips on this table: {akima}");
+}
+
+/// Each spline rule is written out, and each is drawn where the
+/// others would be drawn differently.
+///
+/// The rules agree on a straight table and part company on one that
+/// turns, so a table with a turn in it is what tells them apart. What
+/// is asserted is what each rule promises: the monotone two never
+/// leave the two points they join, and the Akima two are smooth.
+#[test]
+fn every_spline_rule_is_written_out() {
+    let read = |smoothness: u32, table: &str, u: &str| -> f64 {
+        let m = parse_model(&format!(
+            "{TABLE_BLOCK} model M \
+             Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", {table}, {{2}}, {smoothness}, 2); \
+             Real y; equation y = Blocks.getValue(h, 1, {u}); end M;"
+        ))
+        .unwrap();
+        let y = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+            .unwrap();
+        folded(&y.rhs)
+    };
+    // A table that turns: down, then up.
+    let turning = "[0, 3; 1, 1; 2, 1; 3, 4]";
+    for smoothness in [2, 4, 5, 6] {
+        // Every rule meets the points it was given.
+        for (u, at) in [("0", 3.0), ("1", 1.0), ("3", 4.0)] {
+            let value = read(smoothness, turning, u);
+            assert!(
+                (value - at).abs() < 1e-9,
+                "smoothness {smoothness} at {u}: {value}"
+            );
+        }
+    }
+    // The monotone rules stay level along the level stretch; the two
+    // Akima rules are free to leave it and do.
+    for smoothness in [4, 5] {
+        let value = read(smoothness, turning, "1.5");
+        assert!(
+            (value - 1.0).abs() < 1e-9,
+            "smoothness {smoothness}: {value}"
+        );
+    }
+    // Two points, and every rule draws the straight line between
+    // them: there is nothing else a cubic through two points with
+    // matching slopes can be.
+    for smoothness in [2, 4, 5, 6] {
+        let value = read(smoothness, "[0, 0; 2, 4]", "1");
+        assert!(
+            (value - 2.0).abs() < 1e-9,
+            "smoothness {smoothness}: {value}"
+        );
+    }
+    // Steffen's end rule is a parabola through the three points
+    // nearest the end, so a table of three is where it shows: the
+    // curve still meets each point.
+    let value = read(5, "[0, 0; 1, 3; 2, 4]", "0.5");
+    assert!((0.0..=3.0).contains(&value), "{value}");
+}
+
+/// A spline needs the points of its abscissa to follow one another.
+///
+/// Two rows at the same place leave the line between them undefined
+/// rather than flat, and a slope of zero there would be a quiet
+/// mistake. A table of straight lines may say the same thing twice -
+/// that is a step, which a table is entitled to.
+#[test]
+fn a_spline_refuses_a_repeated_abscissa() {
+    for smoothness in [2, 4, 5, 6] {
+        let refused = parse_model(&format!(
+            "{TABLE_BLOCK} model M \
+             Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1; 1, 2; 2, 3], \
+               {{2}}, {smoothness}, 2); \
+             Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(refused.contains("twice on its abscissa"), "{refused}");
+    }
+    // The same table read as straight lines is a step and is allowed.
+    parse_model(&format!(
+        "{TABLE_BLOCK} model M \
+         Blocks.Handle h = Blocks.Handle(\"NoName\", \"NoName\", [0, 0; 1, 1; 1, 2; 2, 3], \
+           {{2}}, 1, 2); \
+         Real y; equation y = Blocks.getValue(h, 1, time); end M;"
+    ))
+    .unwrap();
 }
