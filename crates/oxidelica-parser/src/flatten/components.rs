@@ -123,9 +123,9 @@ pub(super) fn instantiate_components(
                     });
                 if let Some(length) = measured {
                     local_consts.insert(waiting.name.clone(), length as f64);
-                    Inlined::forget();
+                    inlining::Inlined::forget();
                     local_consts.insert(format!("{prefix}{}", waiting.name), length as f64);
-                    Inlined::forget();
+                    inlining::Inlined::forget();
                     acc.const_values
                         .insert(format!("{prefix}{}", waiting.name), length as f64);
                     settled.insert(waiting.name.clone(), length as f64);

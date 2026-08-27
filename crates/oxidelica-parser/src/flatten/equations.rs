@@ -362,7 +362,7 @@ fn one_tuple_equation(
         .collect::<Result<Vec<_>, String>>()?;
     let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
     let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
-    let outputs = inline_function_outputs(
+    let outputs = inlining::inline_function_outputs(
         function,
         &arguments,
         &argument_shapes,
@@ -804,7 +804,7 @@ fn flatten_when_clauses(
                         let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                         let arguments: Vec<Expr> =
                             values.into_iter().map(|value| value.into_expr()).collect();
-                        let outputs = inline_function_outputs(
+                        let outputs = inlining::inline_function_outputs(
                             function,
                             &arguments,
                             &argument_shapes,
@@ -1087,7 +1087,7 @@ pub(super) fn flatten_equations(
             .collect::<Result<Vec<_>, String>>()?;
         let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
         let arguments: Vec<Expr> = values.into_iter().map(|value| value.into_expr()).collect();
-        let checks = inline_function_checks(
+        let checks = inlining::inline_function_checks(
             called,
             &arguments,
             &argument_shapes,

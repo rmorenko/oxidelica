@@ -15,7 +15,7 @@ pub(super) fn instantiate(
     // What a body comes to is remembered for as long as one class is
     // being instantiated: the parameter values a body folds with are
     // this class's, and they do not move while it is built.
-    let _remembering = Inlined::open();
+    let _remembering = inlining::Inlined::open();
     if depth > MAX_DEPTH {
         return Err(format!(
             "instantiation deeper than {MAX_DEPTH} levels at `{}` (recursive classes?)",
@@ -763,7 +763,7 @@ fn settle_parameters(
             });
             if let Some(value) = settled {
                 local_consts.insert(component.name.clone(), value);
-                Inlined::forget();
+                inlining::Inlined::forget();
                 env.insert(component.name.clone(), value);
                 let named = format!("{prefix}{}", component.name);
                 env.insert(named.clone(), value);
@@ -785,7 +785,7 @@ fn settle_parameters(
     if !prefix.is_empty() {
         for (name, value) in local_consts.clone() {
             local_consts.insert(format!("{prefix}{name}"), value);
-            Inlined::forget();
+            inlining::Inlined::forget();
         }
     }
     // And every parameter the model has settled so far, by its full
@@ -801,7 +801,7 @@ fn settle_parameters(
     for (name, value) in &acc.const_values {
         if !local_consts.contains_key(name) {
             local_consts.insert(name.clone(), *value);
-            Inlined::forget();
+            inlining::Inlined::forget();
         }
     }
 

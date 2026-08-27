@@ -518,7 +518,7 @@ fn standing_call(
     registry: &HashMap<&str, &ClassDef>,
     imports: &[(String, String)],
 ) -> Value {
-    let inherited = function_components(registry, class, 0);
+    let inherited = inlining::function_components(registry, class, 0);
     let answer = inherited.iter().find(|c| c.causality == Causality::Output);
     let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
         [Expr::Number(length)] => Some(*length as i64),
@@ -726,7 +726,7 @@ pub(super) fn expand_call(
                     // that medium uses, and the base's has none at
                     // all. Where nothing was asked under, or the two
                     // are the same, this is the record it was.
-                    let class = super::algorithms::record_asked_under(class, registry);
+                    let class = super::inlining::record_asked_under(class, registry);
                     // Given in order rather than by name, a record is
                     // built from exactly its fields.
                     let named = args.iter().any(|a| matches!(a, Expr::NamedArg(..)));
@@ -851,10 +851,10 @@ pub(super) fn expand_call(
                     let _asked = name.rsplit_once('.').and_then(|(head, _)| {
                         (!class.name.starts_with(head)).then(|| {
                             let package = lookup(registry, head, scope, imports)?;
-                            super::algorithms::AskedAs::under(&package.name)
+                            super::inlining::AskedAs::under(&package.name)
                         })?
                     });
-                    let result = inline_function(
+                    let result = inlining::inline_function(
                         class,
                         &arguments,
                         &argument_shapes,
@@ -1585,7 +1585,7 @@ fn handle_arguments(
     );
     let inputs: Vec<Component> = made
         .map(|made| {
-            function_components(registry, made, 0)
+            inlining::function_components(registry, made, 0)
                 .into_iter()
                 .filter(|c| c.causality == Causality::Input)
                 .collect()
@@ -1762,7 +1762,7 @@ pub(super) fn spread_of_records(
     shapes: &Shapes,
     values: &[Value],
 ) -> Option<usize> {
-    let inputs: Vec<Component> = function_components(registry, class, 0)
+    let inputs: Vec<Component> = inlining::function_components(registry, class, 0)
         .into_iter()
         .filter(|c| c.causality == Causality::Input)
         .collect();
@@ -1803,7 +1803,7 @@ fn spread_of_scalar_inputs(
     registry: &HashMap<&str, &ClassDef>,
     values: &[Value],
 ) -> Option<usize> {
-    let inputs: Vec<Component> = function_components(registry, class, 0)
+    let inputs: Vec<Component> = inlining::function_components(registry, class, 0)
         .into_iter()
         .filter(|c| c.causality == Causality::Input)
         .collect();
@@ -1831,7 +1831,7 @@ fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>
     // one taking nothing, and the call was spread over the record's
     // fields as if they were elements - a density of one number came
     // back shaped like the state of two it was asked about.
-    function_components(registry, class, 0)
+    inlining::function_components(registry, class, 0)
         .iter()
         .any(|component| {
             if component.causality == Causality::None {

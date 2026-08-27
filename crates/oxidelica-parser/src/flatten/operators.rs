@@ -54,7 +54,7 @@ pub(super) fn apply_operator(
     // no imaginary part. The library writes it that way and declares
     // no operator for the mixture, because the language says a value
     // is converted by the record's own constructor where one applies.
-    let inputs: Vec<Component> = function_components(registry, function, 0)
+    let inputs: Vec<Component> = inlining::function_components(registry, function, 0)
         .into_iter()
         .filter(|c| c.causality == Causality::Input)
         .collect();
@@ -97,7 +97,7 @@ pub(super) fn apply_operator(
     }
     let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
     let arguments: Vec<Expr> = values.into_iter().map(Value::into_expr).collect();
-    let result = inline_function_outputs(
+    let result = inlining::inline_function_outputs(
         function,
         &arguments,
         &argument_shapes,

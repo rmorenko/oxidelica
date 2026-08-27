@@ -381,8 +381,15 @@ fn substitute_at(
             match found.filter(|_| settle_calls && depth <= MAX_CONSTANT_DEPTH) {
                 Some(class) if class.kind == ClassKind::Function => {
                     let shapes: Vec<Vec<i64>> = args.iter().map(|_| Vec::new()).collect();
-                    inline_function(class, &args, &shapes, &HashMap::new(), registry, depth)
-                        .unwrap_or_else(|_| Expr::Call(name.clone(), args))
+                    inlining::inline_function(
+                        class,
+                        &args,
+                        &shapes,
+                        &HashMap::new(),
+                        registry,
+                        depth,
+                    )
+                    .unwrap_or_else(|_| Expr::Call(name.clone(), args))
                 }
                 _ => Expr::Call(name.clone(), args),
             }

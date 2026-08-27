@@ -91,7 +91,7 @@ pub(super) fn execute(
                     .into_iter()
                     .map(|value| substitute_refs(&value.into_expr(), bindings))
                     .collect();
-                let outputs = inline_function_outputs(
+                let outputs = inlining::inline_function_outputs(
                     function,
                     &arguments,
                     &argument_shapes,
@@ -183,7 +183,7 @@ pub(super) fn execute(
                     .into_iter()
                     .map(|value| substitute_refs(&value.into_expr(), bindings))
                     .collect();
-                let checks = inline_function_checks(
+                let checks = inlining::inline_function_checks(
                     called,
                     &arguments,
                     &argument_shapes,

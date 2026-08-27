@@ -32,6 +32,7 @@ mod extents;
 mod external;
 mod grids;
 mod inheritance;
+mod inlining;
 mod instantiate;
 mod lookup;
 mod names;
@@ -330,7 +331,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // Whatever calls are still standing in the flat model are calls
     // nothing could inline. The bodies behind them travel with the
     // model, so the run can walk them for itself.
-    model.functions = programs_used(&model, &registry)?;
+    model.functions = inlining::programs_used(&model, &registry)?;
     Ok(model)
 }
 

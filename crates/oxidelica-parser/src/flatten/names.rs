@@ -601,7 +601,7 @@ pub(super) fn resolve(
                     // the calls, so a name at the bottom of a property
                     // of a property of a state was refused for being
                     // deep when what was deep was the road to it.
-                    inline_function(class, &args, &shapes, consts, registry, depth)?
+                    inlining::inline_function(class, &args, &shapes, consts, registry, depth)?
                 }
                 // `noEvent(x)` and `smooth(n, x)` are hints about event
                 // generation and continuity; the value is the argument.
