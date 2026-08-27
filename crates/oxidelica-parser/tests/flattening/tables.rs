@@ -1,7 +1,7 @@
 //! Tables written as rows or as a grid: how they are read, and what they say beyond their edges.
 
 use super::shared::*;
-use oxidelica_parser::{parse_model, Expr};
+use oxidelica_parser::{parse_model, read_table_file, Expr};
 
 /// A parameter built on an element of a constant array, and a clock
 /// whose factor is one.
@@ -1216,4 +1216,192 @@ fn a_spline_refuses_a_repeated_abscissa() {
          Real y; equation y = Blocks.getValue(h, 1, time); end M;"
     ))
     .unwrap();
+}
+
+/// A table may be read out of a file rather than written in the model.
+///
+/// The standard tables read two formats: a text file that says the
+/// shape of each table before its numbers, and a MATLAB level 4 file,
+/// which is a run of matrices with nothing compressed and nothing
+/// referring to anything else. Both are read here rather than by a C
+/// library, so a build without one reads them too.
+#[test]
+fn a_table_may_be_read_from_a_file() {
+    let scratch = std::env::temp_dir().join("oxidelica-table-probe");
+    std::fs::create_dir_all(&scratch).unwrap();
+
+    // The text format: a header of name and shape, then the numbers,
+    // with `#` starting a comment and a file free to hold more than
+    // one table.
+    let text = scratch.join("probe.txt");
+    std::fs::write(
+        &text,
+        "#1\ndouble other(1,2) # not this one\n0 0\ndouble wanted(3,2)\n0 0\n1 2 # a comment\n2 4\n",
+    )
+    .unwrap();
+    let rows = read_table_file(text.to_str().unwrap(), "wanted").unwrap();
+    assert_eq!(rows, vec![vec![0.0, 0.0], vec![1.0, 2.0], vec![2.0, 4.0]]);
+
+    // A name the file does not hold says so rather than answering
+    // with whatever was nearest.
+    let missing = read_table_file(text.to_str().unwrap(), "absent").unwrap_err();
+    assert!(missing.contains("no table called `absent`"), "{missing}");
+
+    // The MATLAB format: five little-endian numbers, the name, then
+    // the numbers themselves written down the columns.
+    let matlab = scratch.join("probe.mat");
+    let mut bytes: Vec<u8> = Vec::new();
+    bytes.extend(0u32.to_le_bytes()); // little-endian doubles
+    bytes.extend(3u32.to_le_bytes()); // rows
+    bytes.extend(2u32.to_le_bytes()); // columns
+    bytes.extend(0u32.to_le_bytes()); // nothing imaginary
+    bytes.extend(7u32.to_le_bytes()); // `wanted` and its zero
+    bytes.extend(b"wanted\0");
+    for down_a_column in [0.0, 1.0, 2.0, 0.0, 2.0, 4.0] {
+        bytes.extend(f64::to_le_bytes(down_a_column));
+    }
+    std::fs::write(&matlab, &bytes).unwrap();
+    let rows = read_table_file(matlab.to_str().unwrap(), "wanted").unwrap();
+    assert_eq!(rows, vec![vec![0.0, 0.0], vec![1.0, 2.0], vec![2.0, 4.0]]);
+
+    // A file that is neither says so by name.
+    let neither = scratch.join("probe.bin");
+    std::fs::write(&neither, b"not a table at all, nor anything like one").unwrap();
+    let refused = read_table_file(neither.to_str().unwrap(), "wanted").unwrap_err();
+    assert!(refused.contains("neither a text table"), "{refused}");
+}
+
+/// `skipWhiteSpace` may be called without saying where to start.
+///
+/// The standard library declares the second argument with a default
+/// of one, and `Strings.isEmpty` calls it with the string alone.
+/// Answered only for two arguments, the call stood unresolved and the
+/// file name of every table block read from a file stayed unsettled
+/// behind it.
+#[test]
+fn skipping_white_space_starts_at_one_by_default() {
+    let m = parse_model(
+        "function skip input String s; input Integer from = 1; output Integer next; \
+           external \"C\" next = ModelicaStrings_skipWhiteSpace(s, from); end skip; \
+         model M Real y; equation y = skip(\"  ab\"); end M;",
+    )
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    // Two spaces, so the text starts at the third character.
+    assert_eq!(folded(&y.rhs), 3.0);
+}
+
+/// What a file that cannot be read says, and the shapes a MATLAB file
+/// may be written in.
+///
+/// The formats are read by hand rather than by a library, so what
+/// they refuse matters as much as what they accept: a shape that is
+/// not two numbers, a promise of more rows than the file holds, a
+/// matrix of text where a table belongs.
+#[test]
+fn a_table_file_says_what_it_cannot_read() {
+    let scratch = std::env::temp_dir().join("oxidelica-table-refusals");
+    std::fs::create_dir_all(&scratch).unwrap();
+    let written = |name: &str, bytes: &[u8]| -> String {
+        let path = scratch.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        path.to_str().unwrap().to_string()
+    };
+
+    // A file that is not there at all.
+    let missing = read_table_file("/oxidelica/no/such/file.txt", "t").unwrap_err();
+    assert!(missing.contains("cannot be read"), "{missing}");
+
+    // A header whose shape is not rows and columns.
+    let odd = written("odd.txt", b"#1\ndouble t(3)\n0 0\n");
+    let why = read_table_file(&odd, "t").unwrap_err();
+    assert!(why.contains("not rows and columns"), "{why}");
+
+    // A header that says something other than a number.
+    let letters = written("letters.txt", b"#1\ndouble t(two,2)\n0 0\n");
+    let why = read_table_file(&letters, "t").unwrap_err();
+    assert!(why.contains("whole number"), "{why}");
+
+    // A table that promises more numbers than it gives.
+    let short = written("short.txt", b"#1\ndouble t(3,2)\n0 0\n1 2\n");
+    let why = read_table_file(&short, "t").unwrap_err();
+    assert!(why.contains("number(s)"), "{why}");
+
+    // A number that is not one.
+    let words = written("words.txt", b"#1\ndouble t(1,2)\n0 nought\n");
+    let why = read_table_file(&words, "t").unwrap_err();
+    assert!(why.contains("where a number belongs"), "{why}");
+
+    // A MATLAB matrix of text rather than of numbers: the last digit
+    // of the header says which.
+    let mut text_matrix: Vec<u8> = Vec::new();
+    text_matrix.extend(1u32.to_le_bytes()); // text
+    text_matrix.extend(1u32.to_le_bytes());
+    text_matrix.extend(1u32.to_le_bytes());
+    text_matrix.extend(0u32.to_le_bytes());
+    text_matrix.extend(2u32.to_le_bytes());
+    text_matrix.extend(b"t\0");
+    text_matrix.extend(f64::to_le_bytes(65.0));
+    let path = written("text.mat", &text_matrix);
+    let why = read_table_file(&path, "t").unwrap_err();
+    assert!(why.contains("text rather than a table"), "{why}");
+
+    // A matrix that says it is longer than the file.
+    let mut past_the_end: Vec<u8> = Vec::new();
+    past_the_end.extend(0u32.to_le_bytes());
+    past_the_end.extend(100u32.to_le_bytes());
+    past_the_end.extend(100u32.to_le_bytes());
+    past_the_end.extend(0u32.to_le_bytes());
+    past_the_end.extend(2u32.to_le_bytes());
+    past_the_end.extend(b"t\0");
+    let path = written("past.mat", &past_the_end);
+    let why = read_table_file(&path, "t").unwrap_err();
+    assert!(why.contains("past the end"), "{why}");
+
+    // Single precision: the same table, written four bytes at a time.
+    let mut single: Vec<u8> = Vec::new();
+    single.extend(10u32.to_le_bytes()); // precision 1: single
+    single.extend(2u32.to_le_bytes());
+    single.extend(2u32.to_le_bytes());
+    single.extend(0u32.to_le_bytes());
+    single.extend(2u32.to_le_bytes());
+    single.extend(b"t\0");
+    for down_a_column in [0.0f32, 1.0, 3.0, 4.0] {
+        single.extend(f32::to_le_bytes(down_a_column));
+    }
+    let path = written("single.mat", &single);
+    let rows = read_table_file(&path, "t").unwrap();
+    assert_eq!(rows, vec![vec![0.0, 3.0], vec![1.0, 4.0]]);
+
+    // A header whose digits are none the format uses is not a MATLAB
+    // file at all, and is refused as neither format rather than read
+    // as a table of nonsense.
+    let mut odd_precision: Vec<u8> = Vec::new();
+    odd_precision.extend(60u32.to_le_bytes());
+    odd_precision.extend(1u32.to_le_bytes());
+    odd_precision.extend(1u32.to_le_bytes());
+    odd_precision.extend(0u32.to_le_bytes());
+    odd_precision.extend(2u32.to_le_bytes());
+    odd_precision.extend(b"t\0");
+    odd_precision.extend(f64::to_le_bytes(1.0));
+    let path = written("precision.mat", &odd_precision);
+    let why = read_table_file(&path, "t").unwrap_err();
+    assert!(why.contains("neither a text table"), "{why}");
+
+    // A MATLAB file that holds no table of that name.
+    let mut named_otherwise: Vec<u8> = Vec::new();
+    named_otherwise.extend(0u32.to_le_bytes());
+    named_otherwise.extend(1u32.to_le_bytes());
+    named_otherwise.extend(1u32.to_le_bytes());
+    named_otherwise.extend(0u32.to_le_bytes());
+    named_otherwise.extend(6u32.to_le_bytes());
+    named_otherwise.extend(b"other\0");
+    named_otherwise.extend(f64::to_le_bytes(1.0));
+    let path = written("other.mat", &named_otherwise);
+    let why = read_table_file(&path, "t").unwrap_err();
+    assert!(why.contains("no table called `t`"), "{why}");
 }

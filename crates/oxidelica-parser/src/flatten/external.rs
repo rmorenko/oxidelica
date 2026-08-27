@@ -142,9 +142,16 @@ pub(super) fn number_of(
         ("ModelicaStrings_length", 1) => Some(text(0)?.chars().count() as f64),
         // Where the white space at `startIndex` ends, counted from
         // one; past the end of the text where there is nothing else.
-        ("ModelicaStrings_skipWhiteSpace", 2) => {
+        // The second argument says where to start, and the standard
+        // library's declaration gives it a default of one - a call
+        // that leaves it out arrives here with one argument.
+        ("ModelicaStrings_skipWhiteSpace", 1 | 2) => {
             let text = text(0)?;
-            let from = const_eval(&args[1], numbers)?.max(1.0) as usize;
+            let from = match args.get(1) {
+                None => 1.0,
+                Some(given) => const_eval(given, numbers)?,
+            }
+            .max(1.0) as usize;
             let past = text
                 .chars()
                 .skip(from - 1)
@@ -179,4 +186,34 @@ fn hash_string(text: &str) -> f64 {
         };
     }
     f64::from(hash as i32)
+}
+
+/// The file a `modelica://Library/path` URI names, where it is in
+/// view.
+///
+/// A resource belongs to the library it is written under and sits
+/// beside that library's own files, so the directories the compiler
+/// reads libraries from are where it is looked for. The library part
+/// of the URI may be a class inside one - `modelica://Modelica.Blocks/
+/// x.txt` is a file of the Modelica library - so it is the first
+/// segment that names the directory.
+///
+/// `None` where the file is not there, which is what a file name that
+/// cannot be settled already means: the model says what it wanted and
+/// nothing pretends to have read it.
+pub(super) fn resource_named(uri: &str) -> Option<String> {
+    let rest = uri.strip_prefix("modelica://")?;
+    let (named, path) = rest.split_once('/')?;
+    let library = named.split('.').next()?;
+    for directory in crate::library::library_directories(None) {
+        // A library is a directory of its own name, or a file beside
+        // one - the resources are under the directory either way.
+        for root in [directory.join(library), directory.clone()] {
+            let candidate = root.join(path);
+            if candidate.is_file() {
+                return Some(candidate.to_string_lossy().into_owned());
+            }
+        }
+    }
+    None
 }

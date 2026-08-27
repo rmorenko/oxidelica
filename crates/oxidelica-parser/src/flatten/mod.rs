@@ -37,11 +37,13 @@ mod operators;
 mod restrictions;
 mod scoping;
 mod strings;
+mod table_files;
 mod tables;
 #[cfg(test)]
 mod tests;
 
 pub(crate) use names::const_eval;
+pub use table_files::table_in_file as read_table_file;
 
 use algorithms::*;
 use arrays::*;

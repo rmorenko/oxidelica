@@ -258,6 +258,22 @@ pub(super) fn text_of(
                 const_eval(&args[2], numbers)?,
             ))
         }
+        // `loadResource` turns a `modelica://Library/path` URI into
+        // the file it names. A resource is next to the library it
+        // belongs to, so the library directories in view are where it
+        // is looked for; a URI naming a library nobody has says so by
+        // answering with nothing, which is what a file name that
+        // cannot be settled already means.
+        Expr::Call(name, args)
+            if name
+                .rsplit_once('.')
+                .map_or(name.as_str(), |(_, tail)| tail)
+                == "loadResource"
+                && args.len() == 1 =>
+        {
+            let uri = text_of(&args[0], values, numbers)?;
+            external::resource_named(&uri)
+        }
         Expr::Call(name, args) if name == "String" && args.len() == 1 => {
             let number = const_eval(&args[0], numbers)?;
             Some(if number.fract() == 0.0 {

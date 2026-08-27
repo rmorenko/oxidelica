@@ -182,16 +182,28 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
         (_, true) => 5,
         _ => 6,
     };
-    if (!time_table && !plain && !grid)
-        || args.len() < wanted
-        || !matches!(&args[1], Expr::Str(name) if name == "NoName")
-    {
+    if (!time_table && !plain && !grid) || args.len() < wanted {
         return None;
     }
+    // A table told where to find its numbers is read from there: the
+    // file first, then the name of the table inside it, which is the
+    // order every one of these constructors takes them in.
+    let (Expr::Str(file), Expr::Str(named)) = (&args[0], &args[1]) else {
+        return None;
+    };
     // One row is a table too: the standard library's clutches give a
     // friction coefficient that way, and what it says is that value
     // everywhere.
-    let rows = matrix(&args[2], numbers)?;
+    let rows = match file.as_str() {
+        "NoName" => matrix(&args[2], numbers)?,
+        path => match super::table_files::table_in_file(path, named) {
+            Ok(rows) => rows,
+            // A file that cannot be read leaves the call standing, and
+            // the model says so by the name of the function it could
+            // not answer - which is where the file name is in view.
+            Err(_) => return None,
+        },
+    };
     let width = rows.first()?.len();
     if rows.iter().any(|row| row.len() != width) {
         return None;
