@@ -132,7 +132,7 @@ fn run_algorithm_sections(
                 let mut written: HashMap<String, Expr> = HashMap::new();
                 let mut order: Vec<String> = Vec::new();
                 let mut checked: Vec<(Expr, String)> = Vec::new();
-                match execute(
+                match statements::execute(
                     &branch.body,
                     &mut written,
                     &mut order,
@@ -188,7 +188,7 @@ fn run_algorithm_sections(
         let mut bindings: HashMap<String, Expr> = HashMap::new();
         let mut assigned: Vec<String> = Vec::new();
         let mut section_asserts: Vec<(Expr, String)> = Vec::new();
-        match execute(
+        match statements::execute(
             &plain,
             &mut bindings,
             &mut assigned,
@@ -243,7 +243,7 @@ fn run_algorithm_sections(
         let mut bindings: HashMap<String, Expr> = HashMap::new();
         let mut assigned: Vec<String> = Vec::new();
         let mut section_asserts: Vec<(Expr, String)> = Vec::new();
-        match execute(
+        match statements::execute(
             &class.initial_algorithm,
             &mut bindings,
             &mut assigned,

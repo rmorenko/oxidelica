@@ -38,6 +38,7 @@ mod names;
 mod operators;
 mod restrictions;
 mod scoping;
+mod statements;
 mod strings;
 mod table_files;
 mod tables;
