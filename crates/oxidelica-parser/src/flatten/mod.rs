@@ -26,6 +26,7 @@ mod arrays;
 mod clocks;
 mod connections;
 mod constants;
+mod equations;
 mod extents;
 mod external;
 mod grids;

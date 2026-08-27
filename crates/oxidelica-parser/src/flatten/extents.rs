@@ -475,7 +475,10 @@ pub(super) fn unroll(
                     if !decidable
                         && !answered
                         && if_equation.branches.iter().any(|branch| {
-                            branch.condition.as_ref().is_some_and(asks_the_connections)
+                            branch
+                                .condition
+                                .as_ref()
+                                .is_some_and(equations::asks_the_connections)
                         })
                     {
                         acc.graph_asked = true;
