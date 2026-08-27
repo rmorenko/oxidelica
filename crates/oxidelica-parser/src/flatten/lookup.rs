@@ -242,12 +242,82 @@ pub(super) fn lookup<'a>(
     LOOKING.with(|deep| deep.set(deep.get() + 1));
     let found = lookup_at(registry, name, scope, imports);
     LOOKING.with(|deep| deep.set(deep.get() - 1));
+    COUNTED.with(|counted| {
+        let (asked, walked) = counted.get();
+        let walked_out =
+            found.is_some_and(|class| !class.name.starts_with(scope) && !scope.is_empty());
+        counted.set((asked + 1, walked + u64::from(walked_out)));
+    });
+    // What a name was asked as, where it was asked from, and what it
+    // came to. A refusal that names a class of the base rather than
+    // of the medium at hand is the whole of the media wall, and this
+    // is what says which of the two a name landed on.
+    ASKED.with(|held| {
+        if let Some(trail) = held.borrow_mut().as_mut() {
+            trail.push((
+                name.to_string(),
+                scope.to_string(),
+                found.map(|class| class.name.clone()),
+            ));
+        }
+    });
     found
+}
+
+thread_local! {
+    /// The names asked for while a trail is being kept, each with the
+    /// scope it was asked from and the class it landed on.
+    ///
+    /// Nothing is kept unless something asked for a trail: a library
+    /// check asks for a name a hundred thousand times, and a list of
+    /// those is not what a person wants unless they said so.
+    static ASKED: RefCell<Option<Vec<Asking>>> = const { RefCell::new(None) };
+}
+
+/// One asking: the name, the scope it was asked from, and the class
+/// it came to.
+pub type Asking = (String, String, Option<String>);
+
+/// Keep a trail of the names asked for while this lives, and give it
+/// back when it is done.
+pub struct Trail;
+
+impl Trail {
+    /// Start keeping one, forgetting whatever was being kept.
+    pub fn kept() -> Trail {
+        ASKED.with(|held| *held.borrow_mut() = Some(Vec::new()));
+        Trail
+    }
+
+    /// What has been asked for so far.
+    pub fn so_far() -> Vec<Asking> {
+        ASKED.with(|held| held.borrow().clone().unwrap_or_default())
+    }
+}
+
+impl Drop for Trail {
+    fn drop(&mut self) {
+        ASKED.with(|held| *held.borrow_mut() = None);
+    }
 }
 
 thread_local! {
     /// How deep the search for a name is into itself.
     static LOOKING: Cell<usize> = const { Cell::new(0) };
+    /// How many names have been asked for, and how many of those were
+    /// answered by walking out of the scope they were asked from.
+    ///
+    /// A change to how names are resolved has to leave everything
+    /// outside the media alone, and counting is what says so before a
+    /// whole library check does: equal counts on the same model mean
+    /// the same work was done, whatever the clock happened to say.
+    static COUNTED: Cell<(u64, u64)> = const { Cell::new((0, 0)) };
+}
+
+/// How many names were asked for and how many walked out, since the
+/// counts were last read.
+pub fn counts() -> (u64, u64) {
+    COUNTED.with(Cell::get)
 }
 
 fn lookup_at<'a>(

@@ -854,3 +854,219 @@ fn a_class_alias_is_looked_up_where_it_was_written() {
         .unwrap();
     assert_eq!(folded(&y.rhs), 1.0);
 }
+
+/// A body is worked out under the name it was asked for.
+///
+/// A media function is written once, in the base every medium
+/// extends, and called through the medium at hand:
+/// `Medium.prandtlNumber(state)`. Its own names - the record its
+/// argument is, the functions it calls - were asked under the class
+/// that wrote it, which is the base, where the record is the empty
+/// one kept for a medium to redeclare. Asked under the name the call
+/// wrote, they land on the medium's own.
+#[test]
+fn a_body_is_worked_out_under_the_name_it_was_asked_for() {
+    let m = parse_model(
+        "package Base \
+           replaceable record State end State; \
+           replaceable partial function value input State s; output Real v; end value; \
+           replaceable function twice input State s; output Real v; \
+             algorithm v := 2 * value(s); end twice; \
+           replaceable function make input Real a; output State s; end make; \
+         end Base; \
+         package Thing \
+           extends Base; \
+           redeclare record extends State Real a; Real b; end State; \
+           redeclare function extends value algorithm v := s.a + s.b; end value; \
+           redeclare function extends make algorithm s := State(a, 2 * a); end make; \
+         end Thing; \
+         model M Real y; equation y = Thing.twice(Thing.make(3)); end M;",
+    )
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    // `make(3)` is the state `{3, 6}`, `value` of it is nine, and
+    // `twice` is eighteen. Asked under the base instead, the state
+    // has no fields and none of it can be worked out.
+    assert_eq!(folded(&y.rhs), 18.0);
+}
+
+/// A refusal may say where each name it asked for landed.
+///
+/// Which of two classes a name came to is the whole of the media
+/// question, and reading it out of the model by hand is what a person
+/// would otherwise do. The trail says it: what was asked, from where,
+/// and what it came to.
+#[test]
+fn a_trail_says_where_the_names_landed() {
+    let _trail = oxidelica_parser::Trail::kept();
+    let _ = parse_model(
+        "package Base \
+           replaceable record State end State; \
+           replaceable partial function value input State s; output Real v; end value; \
+         end Base; \
+         package Thing extends Base; \
+           redeclare record extends State Real a; end State; \
+           redeclare function extends value algorithm v := s.a; end value; \
+         end Thing; \
+         model M Real y; equation y = Thing.value(Thing.State(2)); end M;",
+    );
+    let asked = oxidelica_parser::Trail::so_far();
+    // Something was asked for, and each asking says where from.
+    assert!(!asked.is_empty());
+    assert!(
+        asked
+            .iter()
+            .any(|(name, from, _)| name == "State" && !from.is_empty()),
+        "{asked:?}"
+    );
+    // And a name that landed somewhere says where.
+    assert!(
+        asked.iter().any(|(_, _, landed)| landed.is_some()),
+        "{asked:?}"
+    );
+    // A name nobody declares lands on nothing, and says that too.
+    let _ = parse_model("model M Real y; equation y = Nowhere.at(1); end M;");
+    let asked = oxidelica_parser::Trail::so_far();
+    assert!(
+        asked.iter().any(|(_, _, landed)| landed.is_none()),
+        "{asked:?}"
+    );
+    // How much work the asking took, for a change to how names are
+    // resolved: the count only grows, and a model asks for more names
+    // than none.
+    let (asked_before, _) = oxidelica_parser::name_counts();
+    let _ = parse_model("model M Real y; equation y = 1; end M;");
+    let (asked_after, walked) = oxidelica_parser::name_counts();
+    assert!(asked_after >= asked_before, "{asked_before} {asked_after}");
+    assert!(walked <= asked_after);
+
+    // Nothing is kept once the trail is done with, and a refusal
+    // made with nothing kept says nothing extra: the suffix is for
+    // somebody who asked to see where the names went.
+    drop(_trail);
+    assert!(oxidelica_parser::Trail::so_far().is_empty());
+    let refused = |trail: bool| -> String {
+        let _kept = trail.then(oxidelica_parser::Trail::kept);
+        parse_model(
+            "package Lib \
+               package Base \
+                 replaceable record State end State; \
+                 replaceable function value input State s; output Real v; \
+                   algorithm v := s.a; end value; \
+               end Base; \
+               package Thing extends Base; \
+                 redeclare record extends State Real a; end State; \
+               end Thing; \
+             end Lib; \
+             model M Real y; equation y = Lib.Base.value(Lib.Thing.State(2)); end M;",
+        )
+        .unwrap_err()
+        .to_string()
+    };
+    // With nothing kept, the refusal says nothing extra.
+    assert!(!refused(false).contains("the names it asked for"));
+    // With a trail kept, it says where the names it asked for landed.
+    let told = refused(true);
+    assert!(told.contains("the names it asked for"), "{told}");
+    assert!(told.contains("landed on"), "{told}");
+    // A name that landed on itself says nothing worth saying, and is
+    // left out: only the ones that went somewhere else are the point.
+    assert!(!told.contains("`Real` asked"), "{told}");
+}
+
+/// The name a call wrote is used where it says something new.
+///
+/// A call written by the path a class actually has says nothing the
+/// class does not already say, and the body is worked out as before.
+/// A call through a name of the model's own is the case the asking is
+/// for - and where a body's own class answers, it still answers.
+#[test]
+fn a_body_asked_by_its_own_path_reads_as_before() {
+    // Called by its full path: nothing about the body changes.
+    let m = parse_model(
+        "package Deep function twice input Real a; output Real b; \
+           algorithm b := 2 * a; end twice; end Deep; \
+         model M Real y; equation y = Deep.twice(4); end M;",
+    )
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    assert_eq!(folded(&y.rhs), 8.0);
+
+    // Called through a name the model gave a package: the body is
+    // worked out under that name, and a body with nothing to
+    // redeclare reads the same either way.
+    let m = parse_model(
+        "package Deep function twice input Real a; output Real b; \
+           algorithm b := 2 * a; end twice; end Deep; \
+         model M package P = Deep; Real y; equation y = P.twice(4); end M;",
+    )
+    .unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    assert_eq!(folded(&y.rhs), 8.0);
+}
+
+/// Both halves of asking under a name, and the fallbacks between.
+///
+/// A body asked under a name that says nothing new reads exactly as
+/// before; one asked under a medium finds the medium's records; and
+/// one asked under a name that holds no such record falls back on the
+/// class that wrote it rather than refusing.
+#[test]
+fn asking_under_a_name_falls_back_where_it_says_nothing() {
+    // The record the base kept a place for, redeclared by one package
+    // and left alone by another. Asked through the one that
+    // redeclared, the fields are its own.
+    let built = |through: &str| {
+        with_lib(&format!(
+            "package Lib \
+               package Base \
+                 replaceable record State Real a; end State; \
+                 replaceable function sum input State s; output Real v; \
+                   algorithm v := s.a; end sum; \
+               end Base; \
+               package Wider \
+                 extends Base; \
+                 redeclare record extends State Real b; end State; \
+                 redeclare function extends sum algorithm v := s.a + s.b; end sum; \
+               end Wider; \
+             end Lib; \
+             model M Real y; equation y = {through}(Lib.Wider.State(2, 3)); end M;"
+        ))
+    };
+    // Through the wider package: both fields, so five.
+    let m = built("Lib.Wider.sum").unwrap();
+    let y = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+        .unwrap();
+    assert_eq!(folded(&y.rhs), 5.0);
+
+    // Through the base, handed the wider record: the base's own body
+    // reads the field it knows about, and says so rather than
+    // pretending the other is not there.
+    let through_base = built("Lib.Base.sum");
+    match through_base {
+        Ok(model) => {
+            let y = model
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == "Ref(\"y\")")
+                .unwrap();
+            assert_eq!(folded(&y.rhs), 2.0);
+        }
+        Err(why) => assert!(why.contains("field"), "{why}"),
+    }
+}

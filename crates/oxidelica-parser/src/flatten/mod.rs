@@ -42,6 +42,7 @@ mod tables;
 #[cfg(test)]
 mod tests;
 
+pub use lookup::{counts as name_counts, Trail};
 pub(crate) use names::const_eval;
 pub use table_files::table_in_file as read_table_file;
 
@@ -184,6 +185,15 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // written as ordinary classes so that everything downstream reads
     // them the way it reads any other, and they are put in first so a
     // library that declares its own of that name wins.
+    // The names asked for on the way, kept where a refusal may want
+    // to say which of two classes a name landed on - a media function
+    // is declared in a base and called with the state of the medium
+    // at hand, and telling those apart is the whole question. Kept
+    // only where asked for, since a library check asks a hundred
+    // thousand times.
+    let _trail = std::env::var("OXIDELICA_NAME_TRAIL")
+        .is_ok()
+        .then(lookup::Trail::kept);
     let built_in = built_in_classes();
     let registry: HashMap<&str, &ClassDef> = built_in
         .iter()

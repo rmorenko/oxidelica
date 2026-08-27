@@ -81,6 +81,14 @@ fn compile_error_paths() {
     // called a cycle it is not.
     let missing = compile_err("model M parameter Real a = nowhere; Real x; equation x = 1; end M;");
     assert!(missing.contains("`nowhere`"), "{missing}");
+    // A call nothing worked out is the other cause, and it waits on
+    // nobody: a parameter written as a function of literals names no
+    // free variable at all, so calling that a cycle names a shape the
+    // model does not have. The call is what is said instead.
+    let standing =
+        compile_err("model M parameter Real a = nowhere(1, 2); Real x; equation x = 1; end M;");
+    assert!(standing.contains("nothing works out"), "{standing}");
+    assert!(standing.contains("`nowhere`"), "{standing}");
     // der of a parameter.
     assert!(
         compile_err("model M parameter Real p = 1; equation der(p) = 1; end M;")

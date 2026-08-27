@@ -803,6 +803,50 @@ pub(super) fn expand_call(
                     let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                     let arguments: Vec<Expr> =
                         values.into_iter().map(|value| value.into_expr()).collect();
+                    // Worked out under the name the call wrote: a
+                    // media function called as `Medium.density` has
+                    // to find the medium's own records, not the ones
+                    // of the base that wrote it.
+                    // The name as the call wrote it, and where the
+                    // site could resolve its head: `Medium.density`
+                    // is written against a package the model named,
+                    // and the body has never heard that name.
+                    // Worked out under the name the call wrote, with
+                    // the head of that name put through the same
+                    // lookup as any class: `Medium.density` names a
+                    // package the model called `Medium`, and the body
+                    // has never heard that name. A call written with
+                    // no path at all - one body calling another of
+                    // the same base - keeps whatever scope it was
+                    // already being worked out under, which is how a
+                    // medium's own functions are reached from a body
+                    // of the base.
+                    // Only where the body might want it: a function
+                    // that takes a record of a kind its own class
+                    // leaves for another to fill is the one this is
+                    // for, and asking for anything else is work for
+                    // nothing. The head of the name is put through
+                    // the same lookup as any class, since a call may
+                    // be written against a package the model named.
+                    // The head of the name put through the same
+                    // lookup as any class, since a call may be
+                    // written against a package the model named:
+                    // `Medium.density` where `Medium` is whatever
+                    // this model said it was.
+                    // Only where the class was reached through a name
+                    // of its own rather than by its full path: a
+                    // media function is called as `Medium.density`,
+                    // where `Medium` is whatever this model said it
+                    // was, and that is the one case the body's own
+                    // names may mean something else. A call written
+                    // by the path the class actually has says nothing
+                    // new, and nothing is asked about it.
+                    let _asked = name.rsplit_once('.').and_then(|(head, _)| {
+                        (!class.name.starts_with(head)).then(|| {
+                            let package = lookup(registry, head, scope, imports)?;
+                            super::algorithms::AskedAs::under(&package.name)
+                        })?
+                    });
                     let result = inline_function(
                         class,
                         &arguments,

@@ -1414,16 +1414,36 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
                 .iter()
                 .map(|(name, value)| format!("{name} = {}", value.describe()))
                 .collect();
-            let because = match undeclared.is_empty() {
-                true => "they wait on each other".to_string(),
-                false => format!(
+            // A call nothing worked out is the other usual cause, and
+            // it names no free variable at all: a parameter written as
+            // a function of literals waits on nobody, so calling that
+            // a cycle names a shape the model does not have. What it
+            // waits on is the call, so the call is what is said.
+            let mut standing: std::collections::BTreeSet<String> =
+                std::collections::BTreeSet::new();
+            for (_, value) in &pending {
+                value.for_each(&mut |part| {
+                    if let Expr::Call(called, _) = part {
+                        standing.insert(called.clone());
+                    }
+                });
+            }
+            let listed = |names: Vec<String>| names.join(", ");
+            let because = match (undeclared.is_empty(), standing.is_empty()) {
+                (false, _) => format!(
                     "nothing gives a value to {}",
-                    undeclared
-                        .iter()
-                        .map(|name| format!("`{name}`"))
-                        .collect::<Vec<String>>()
-                        .join(", ")
+                    listed(undeclared.iter().map(|name| format!("`{name}`")).collect())
                 ),
+                (true, false) => format!(
+                    "nothing works out {}",
+                    listed(
+                        standing
+                            .iter()
+                            .map(|called| format!("`{called}`"))
+                            .collect()
+                    )
+                ),
+                (true, true) => "they wait on each other".to_string(),
             };
             return err(format!(
                 "cannot evaluate parameters [{}]: {because}",

@@ -932,6 +932,36 @@ fn holds_a_string(expr: &Expr) -> bool {
     found
 }
 
+/// The trail of names asked for while a refusal was being made, as a
+/// suffix for it.
+///
+/// A media function is declared in a base and called with the state
+/// of the medium at hand, and which of the two a name landed on is
+/// the whole of the question. The trail says it: what was asked, from
+/// where, and what it came to. Only the last few, and only the ones
+/// that landed somewhere other than where they were asked - the rest
+/// is the ordinary business of finding a class and says nothing.
+pub(super) fn where_the_names_landed() -> String {
+    let trail = super::lookup::Trail::so_far();
+    let told: Vec<String> = trail
+        .iter()
+        .rev()
+        .filter(|(asked, from, landed)| match landed {
+            None => false,
+            Some(landed) => landed != asked && !from.is_empty(),
+        })
+        .take(4)
+        .map(|(asked, from, landed)| {
+            let landed = landed.as_deref().unwrap_or("nothing");
+            format!("`{asked}` asked from `{from}` landed on `{landed}`")
+        })
+        .collect();
+    match told.is_empty() {
+        true => String::new(),
+        false => format!("; the names it asked for: {}", told.join(", ")),
+    }
+}
+
 /// The fields a name's declaration holds, where that declaration is a
 /// record of the class being worked out. `None` for anything else: a
 /// number, an array, a name from somewhere other than this body.
@@ -2132,6 +2162,29 @@ fn function_body<'a>(
     class: &'a ClassDef,
     depth: usize,
 ) -> &'a [Statement] {
+    // A function the base declared and left for another to write is
+    // written in the class it was asked under: `PartialMedium` states
+    // `dynamicViscosity` and every medium redeclares it with a body.
+    // Asked under the medium, the medium's own is the one that runs.
+    // A function left deliberately unwritten is looked for in the
+    // class it was asked under: `partial` is how a base says the body
+    // belongs to whoever redeclares it, and `PartialMedium` states
+    // `dynamicViscosity` for every medium to write. The redeclaration
+    // may write it outright or take it from a base of its own, which
+    // is what `redeclare function extends` says.
+    if class.algorithm.is_empty() && class.partial && depth == 0 {
+        let under = asked_under(class);
+        if under != class.name {
+            if let Some(tail) = class.name.rsplit_once('.').map(|(_, tail)| tail) {
+                if let Some(theirs) = registry.get(format!("{under}.{tail}").as_str()) {
+                    let body = function_body(registry, theirs, depth + 1);
+                    if !body.is_empty() {
+                        return body;
+                    }
+                }
+            }
+        }
+    }
     if !class.algorithm.is_empty() || depth > MAX_DEPTH {
         return &class.algorithm;
     }
@@ -2315,6 +2368,51 @@ fn statement_expressions(statement: &Statement, note: &mut impl FnMut(&Expr)) {
         }
         Statement::Break | Statement::Return => {}
     }
+}
+
+thread_local! {
+    /// The name a body was asked for, and the scope it was asked
+    /// from: the pair the class alone cannot say.
+    ///
+    /// A media function is written once in `PartialMedium` and called
+    /// as `Medium.prandtlNumber`, where `Medium` is the medium at
+    /// hand. Its body then asks for `ThermodynamicState`, and asking
+    /// under the class that wrote it lands on the empty record of the
+    /// base rather than on the medium's own. Asking under the name it
+    /// was called by lands on the medium - which is what the language
+    /// means by a redeclaration reaching the functions that use it.
+    static ASKED_AS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Let a body be worked out under the name it was asked for, and take
+/// that name away again after.
+pub(super) struct AskedAs;
+
+impl AskedAs {
+    /// The scope the caller worked out the head of the name to mean.
+    pub(super) fn under(scope: &str) -> Option<AskedAs> {
+        ASKED_AS.with(|held| held.borrow_mut().push(scope.to_string()));
+        Some(AskedAs)
+    }
+}
+
+impl Drop for AskedAs {
+    fn drop(&mut self) {
+        ASKED_AS.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
+}
+
+/// The scope a body is being worked out under: what it was asked as,
+/// where that is known, and the class that wrote it otherwise.
+fn asked_under(class: &ClassDef) -> String {
+    ASKED_AS.with(|held| {
+        held.borrow()
+            .last()
+            .cloned()
+            .unwrap_or_else(|| class.name.clone())
+    })
 }
 
 /// Run a function body and give back what each output came to, with
@@ -2670,9 +2768,17 @@ fn worked_body(
             // A record-typed output built up field by field - `v.x :=`,
             // `v.y :=`, as an operator record's constructor does - is
             // gathered into the record value its fields make.
-            if let Some(record) = lookup(registry, &output.type_name, &class.name, &class.imports)
-                .filter(|c| c.kind == ClassKind::Record)
-            {
+            // Asked under the name the body was called by, the way an
+            // input's record is: a medium's `setState_pTX` answers
+            // with the state that medium redeclared, not with the
+            // empty one its base kept a place for.
+            let under = asked_under(class);
+            let found = match under == class.name {
+                true => lookup(registry, &output.type_name, &class.name, &class.imports),
+                false => lookup(registry, &output.type_name, &under, &class.imports)
+                    .or_else(|| lookup(registry, &output.type_name, &class.name, &class.imports)),
+            };
+            if let Some(record) = found.filter(|c| c.kind == ClassKind::Record) {
                 // A field the body never assigned may have been given
                 // on the declaration instead: `output Complex result(re
                 // = re, im = im)` is how a record says what it is made
@@ -2700,8 +2806,10 @@ fn worked_body(
                     return Err(format!(
                         "`{}` answers with `{}`, which declares no fields: it is a record \
                          kept for another to redeclare, and the redeclaration did not \
-                         reach here",
-                        class.name, output.type_name
+                         reach here{}",
+                        class.name,
+                        output.type_name,
+                        where_the_names_landed()
                     ));
                 }
                 let fields = held
@@ -2914,11 +3022,12 @@ fn bind_the_arguments(
                 if let Expr::Array(items) = arg {
                     if items.len() != fields.len() {
                         return Err(format!(
-                            "function `{}` wants {} field(s) for `{}`, got {}",
+                            "function `{}` wants {} field(s) for `{}`, got {}{}",
                             class.name,
                             fields.len(),
                             input.name,
-                            items.len()
+                            items.len(),
+                            where_the_names_landed()
                         ));
                     }
                     for (field, value) in fields.iter().zip(items) {
@@ -3121,12 +3230,39 @@ pub(super) fn record_input_fields(
     function: &ClassDef,
     input: &Component,
 ) -> Option<Vec<String>> {
-    let of = lookup(
-        registry,
-        &input.type_name,
-        &function.name,
-        &function.imports,
-    )?;
+    // Asked under the name the body was called by, where that is
+    // known: a media function takes `ThermodynamicState`, and which
+    // record that is depends on the medium it was called through
+    // rather than on the base that wrote the function. Where nothing
+    // said, the class that wrote it answers as before.
+    // The name a call wrote may be a short one - `Medium.density`,
+    // where `Medium` is a package the model named - so it is put
+    // through the same lookup as any other class name first. What
+    // comes back is where the medium really lives, and that is the
+    // scope the body's own names are asked from.
+    // Asked under the name the body was called by, where that says
+    // something the class does not: a media function takes
+    // `ThermodynamicState`, and which record that is depends on the
+    // medium it was called through. Where the two are the same, one
+    // lookup is all that happens - which is what keeps the models
+    // that have nothing to do with media asking exactly as before.
+    let under = asked_under(function);
+    let of = match under == function.name {
+        true => lookup(
+            registry,
+            &input.type_name,
+            &function.name,
+            &function.imports,
+        )?,
+        false => lookup(registry, &input.type_name, &under, &function.imports).or_else(|| {
+            lookup(
+                registry,
+                &input.type_name,
+                &function.name,
+                &function.imports,
+            )
+        })?,
+    };
     // A record may take its fields from a base rather than write them:
     // `redeclare record extends ThermodynamicState` is how a medium
     // says its state is the one it inherits, and a function taking
