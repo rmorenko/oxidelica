@@ -3008,3 +3008,39 @@ fn a_string_parameter_reaches_the_body_it_is_handed_to() {
     let k = m.components.iter().find(|c| c.name == "k").unwrap();
     assert_eq!(format!("{:?}", k.binding), "Some(Number(12.0))");
 }
+
+/// An `if` inside an `if` knows what is read after the outer one.
+///
+/// A branch is executed on its own, and which of its variables need a
+/// merged value is decided by what reads them afterwards. For an `if`
+/// nested inside another, the statements that follow are only the
+/// rest of the branch it sits in - the quaternion conversion of the
+/// multi-body library writes its four elements in four branches two
+/// deep and reads them in the line after the outer `if`. Read as
+/// nothing, the array was left in the branch it was written in and
+/// came out of the body under the name it had inside.
+#[test]
+fn a_nested_if_sees_what_follows_the_one_around_it() {
+    let m = parse_model(
+        "function fromT input Real T[3, 3]; output Real Q[4]; protected Real t; \
+         algorithm \
+           if T[3, 3] < 0 then \
+             if T[1, 1] > T[2, 2] then t := 1 + T[1, 1]; Q := {t, 1, 2, 3}; \
+             else t := 1 + T[2, 2]; Q := {1, t, 2, 3}; end if; \
+           else \
+             if T[1, 1] < -T[2, 2] then t := 1 - T[1, 1]; Q := {1, 2, t, 3}; \
+             else t := 1 + T[3, 3]; Q := {1, 2, 3, t}; end if; \
+           end if; \
+           Q := Q * 0.5 / t; \
+         end fromT; \
+         model M parameter Real Qs[4] = fromT([1, 0, 0; 0, 1, 0; 0, 0, 0]); \
+           Real y; equation y = Qs[4]; end M;",
+    )
+    .unwrap();
+    // The last branch holds, so `t` is 1 and the fourth element is
+    // `1 * 0.5 / 1`. What matters is that it comes to a number at
+    // all: read as unmerged, the array came out of the body under
+    // the name it had inside and nothing could evaluate it.
+    let q = m.components.iter().find(|c| c.name == "Qs[4]").unwrap();
+    assert_eq!(q.binding.as_ref().map(folded), Some(0.5), "{:?}", q.binding);
+}

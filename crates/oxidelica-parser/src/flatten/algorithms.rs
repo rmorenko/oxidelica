@@ -951,6 +951,47 @@ fn texts_in_view() -> HashMap<String, String> {
     HashMap::new()
 }
 
+thread_local! {
+    /// What runs after the `if` being worked out, for the `if`s
+    /// nested inside it.
+    ///
+    /// A branch is executed on its own, and what its variables are
+    /// read by afterwards decides which of them need a merged value.
+    /// The statements after an inner `if` are only the rest of the
+    /// branch it sits in - `Q := Q*0.5/sqrt(t)` of a quaternion
+    /// conversion is after the outer one - so the outer `if` leaves
+    /// its own rest here for the inner ones to look at.
+    static AFTERWARDS: RefCell<Vec<Vec<Statement>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Let what follows an `if` be seen while its branches are worked
+/// out, and take it away again after.
+struct Afterwards;
+
+impl Afterwards {
+    fn holding(rest: &[Statement]) -> Afterwards {
+        AFTERWARDS.with(|held| held.borrow_mut().push(rest.to_vec()));
+        Afterwards
+    }
+}
+
+impl Drop for Afterwards {
+    fn drop(&mut self) {
+        AFTERWARDS.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
+}
+
+/// Whether a name is read after the statements given, counting what
+/// runs after every `if` these sit inside.
+fn read_after(rest: &[Statement], name: &str) -> bool {
+    if read_later(rest, name, 0) {
+        return true;
+    }
+    AFTERWARDS.with(|held| held.borrow().iter().any(|outer| read_later(outer, name, 0)))
+}
+
 /// One `if` among the statements: the branch whose condition holds is
 /// executed, and where the condition cannot be settled the branches
 /// are executed apart and what they assign is merged into one value
@@ -1040,6 +1081,9 @@ fn one_if_statement(
         return Ok(None);
     }
     let before = bindings.clone();
+    // What follows this `if` is what the `if`s inside its branches
+    // are read by: their own rest ends where the branch does.
+    let _afterwards = Afterwards::holding(rest);
     let mut outcomes: Vec<(Option<Expr>, HashMap<String, Expr>)> = Vec::new();
     for branch in branches {
         let mut local = before.clone();
@@ -1112,7 +1156,7 @@ fn one_if_statement(
         // subscripts come off before asking.
         let whole = name.split('[').next().unwrap_or(&name);
         let an_array = sizes.contains_key(whole);
-        if an_array && !read_later(rest, &name, 0) && !read_later(rest, whole, 0) {
+        if an_array && !read_after(rest, &name) && !read_after(rest, whole) {
             continue;
         }
         // A variable of a function body that no branch
