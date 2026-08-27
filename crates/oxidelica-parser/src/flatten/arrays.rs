@@ -1521,8 +1521,9 @@ fn record_written_out(
         if let Expr::NamedArg(name, _) = arg {
             if !held.iter().any(|member| &member.name == name) {
                 return Err(format!(
-                    "`{}` written out is given `{name}`, and the record has no such member",
-                    class.name
+                    "`{}` written out is given `{name}`, and the record has no such member{}",
+                    class.name,
+                    statements::where_the_names_landed()
                 ));
             }
         }
