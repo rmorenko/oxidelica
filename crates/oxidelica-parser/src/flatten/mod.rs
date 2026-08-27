@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 mod algorithms;
 mod arrays;
 mod clocks;
+mod components;
 mod connections;
 mod constants;
 mod equations;
@@ -44,6 +45,10 @@ mod tables;
 mod tests;
 
 pub use lookup::{counts as name_counts, Trail};
+/// Working an expression of this class out where it stands: the array
+/// layer, with the class's names, shapes and loop variables in view.
+type ExpandHere<'a> = dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String> + 'a;
+
 pub(crate) use names::const_eval;
 pub use table_files::table_in_file as read_table_file;
 
