@@ -2472,7 +2472,20 @@ fn inline_body(
         .filter_map(|name| Some((name.as_str(), *consts.get(name)?)))
         .collect();
     folded.sort_by_key(|(name, _)| *name);
-    let asked = format!("{}|{depth}|{folded:?}|{args:?}|{shapes:?}", class.name);
+    // And the name the body was asked under, where it says something
+    // the class does not: the body's own records and its `partial`
+    // functions are found through that name, so two media sharing one
+    // wrapper of their base ask the same class the same arguments and
+    // must not be given each other's answer.
+    let under = asked_under(class);
+    let under = match under == class.name {
+        true => String::new(),
+        false => under,
+    };
+    let asked = format!(
+        "{}|{under}|{depth}|{folded:?}|{args:?}|{shapes:?}",
+        class.name
+    );
     if let Some(told) = INLINED.with(|held| held.borrow().get(&asked).cloned()) {
         let (outputs, said) = told?;
         checks.extend(said);

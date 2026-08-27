@@ -1178,3 +1178,47 @@ fn a_trail_is_kept_where_the_surroundings_ask() {
     let _ = parse_model("model M Real y; equation y = cos(1); end M;");
     assert!(oxidelica_parser::Trail::so_far().len() >= after_one);
 }
+
+/// What a body came to is remembered under the name it was asked for.
+///
+/// A body's own records and the `partial` functions it calls are
+/// found through the name it was asked under, so what it comes to
+/// depends on that name as much as on its arguments. Two media
+/// sharing one wrapper of their base call the same class with the
+/// same arguments and must not be handed each other's answer - which
+/// is what remembering by the class alone would do, quietly and with
+/// numbers that look like numbers.
+#[test]
+fn what_a_body_came_to_is_remembered_by_the_name_it_was_asked_for() {
+    let m = with_lib(
+        "package Lib \
+           package Base \
+             replaceable partial function scale input Real a[1]; output Real v; end scale; \
+             replaceable function through input Real a[1]; output Real v; \
+               algorithm v := scale(a); end through; \
+           end Base; \
+           package One extends Base; \
+             redeclare function extends scale algorithm v := 10 * a[1]; end scale; \
+           end One; \
+           package Two extends Base; \
+             redeclare function extends scale algorithm v := 100 * a[1]; end scale; \
+           end Two; \
+         end Lib; \
+         model M Real a; Real b; \
+           equation a = Lib.One.through({2}); b = Lib.Two.through({2}); end M;",
+    )
+    .unwrap();
+    let value = |name: &str| {
+        let found = m
+            .equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == format!("Ref(\"{name}\")"))
+            .unwrap();
+        folded(&found.rhs)
+    };
+    // The same wrapper, the same argument, two media: twenty and two
+    // hundred. Remembered by the class alone, the second would be
+    // twenty as well.
+    assert_eq!(value("a"), 20.0);
+    assert_eq!(value("b"), 200.0);
+}
