@@ -70,8 +70,12 @@ fn load(path: &str) -> Result<oxidelica_parser::Model, String> {
     let _trail = std::env::var("OXIDELICA_NAME_TRAIL")
         .is_ok()
         .then(oxidelica_parser::Trail::kept);
-    oxidelica_parser::parse_model_with_libraries(&libraries, &source)
-        .map_err(|e| format!("{path}: {e}"))
+    let read = oxidelica_parser::parse_model_with_libraries(&libraries, &source);
+    if std::env::var("OXIDELICA_NAME_COUNTS").is_ok() {
+        let (asked, walked) = oxidelica_parser::name_counts();
+        eprintln!("names: {asked} asked, {walked} walked out");
+    }
+    read.map_err(|e| format!("{path}: {e}"))
 }
 
 /// Read a model named either as a file or as a class of the libraries.

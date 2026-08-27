@@ -1112,10 +1112,16 @@ pub(super) fn record_asked_under<'a>(
     record: &'a ClassDef,
     registry: &HashMap<&'a str, &'a ClassDef>,
 ) -> &'a ClassDef {
-    // Only a record with no fields is a place kept for another: one
-    // that states its own is built as itself, whatever it was asked
-    // under.
-    let kept_for_another = record.components.is_empty() && record.kind == ClassKind::Record;
+    // A place kept for another to fill: a record with no fields at
+    // all, or one written as `redeclare record extends` - which adds
+    // to whatever the class below it says rather than stating the
+    // whole. `PartialTwoPhaseMedium` adds `phase` that way, and the
+    // medium under it adds the four fields a state is really made
+    // of; built as the middle one, a state comes out with the phase
+    // and none of the rest.
+    let adds_to_another = record.extends.iter().any(|extend| extend.from_base);
+    let kept_for_another =
+        record.kind == ClassKind::Record && (record.components.is_empty() || adds_to_another);
     let under = asked_under(record);
     let theirs = kept_for_another
         .then(|| record.name.rsplit_once('.'))

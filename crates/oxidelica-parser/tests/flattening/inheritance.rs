@@ -1126,9 +1126,9 @@ fn a_record_kept_for_another_is_built_as_the_other_wrote_it() {
         "package Lib \
            package Base \
              replaceable record State end State; \
-             replaceable partial function make input Real a; output State s; end make; \
              replaceable function twice input Real a; output Real v; \
-               algorithm v := 2 * make(a).x; end twice; \
+               protected State s; \
+               algorithm s := State(1, 3 * a); v := 2 * s.x; end twice; \
            end Base; \
            package Thing \
              extends Base; \
@@ -1221,4 +1221,43 @@ fn what_a_body_came_to_is_remembered_by_the_name_it_was_asked_for() {
     // twenty as well.
     assert_eq!(value("a"), 20.0);
     assert_eq!(value("b"), 200.0);
+}
+
+/// A record that adds to another is a place kept for another too.
+///
+/// `PartialTwoPhaseMedium` writes `redeclare record extends
+/// ThermodynamicState` with one field of its own, and the medium
+/// under it writes the four a state is really made of. Counted as a
+/// record that states its own, a body of the middle class built a
+/// state with the one field and none of the rest.
+///
+/// The middle class is what the rule turns on: a record reached
+/// through it must be built as the class asked under wrote it, not as
+/// the middle one did.
+#[test]
+fn a_record_that_adds_to_another_is_a_place_kept_for_another() {
+    let m = with_lib(
+        "package Lib \
+           package Base replaceable record State Real p; end State; end Base; \
+           package Middle extends Base; \
+             redeclare replaceable record extends State Real tag; end State; \
+           end Middle; \
+           package Thing extends Middle; \
+             redeclare record extends State Real d; end State; \
+           end Thing; \
+         end Lib; \
+         model M Lib.Thing.State s(p = 1, tag = 2, d = 6); Real y; \
+           equation y = s.d; end M;",
+    )
+    .unwrap();
+    // The state a class three deep declares is the fields of all
+    // three: what the base kept a place for, what the middle added,
+    // and what the class itself wrote.
+    for name in ["s.p", "s.tag", "s.d"] {
+        assert!(
+            m.components.iter().any(|c| c.name == name),
+            "{name} among {:?}",
+            m.components.iter().map(|c| &c.name).collect::<Vec<_>>()
+        );
+    }
 }
