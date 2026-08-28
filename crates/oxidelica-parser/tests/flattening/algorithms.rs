@@ -3062,3 +3062,28 @@ fn a_walked_body_says_what_it_may_answer_with() {
     );
     assert!(m.is_ok(), "{:?}", m.err());
 }
+
+/// A body folds a comparison against a string the class settled.
+///
+/// A `while` that goes round until a piece of text is what it was
+/// looking for has to know what the text says, and what a `String`
+/// parameter says is worked out by the class the call was written in.
+/// Left out of view, the loop head had no truth to it and the call
+/// stood as one nothing worked out.
+#[test]
+fn a_body_folds_a_string_the_class_settled() {
+    let m = with_lib(
+        "model M parameter String kind = \"csv\"; parameter Integer k = f(); \
+         function f output Integer y; protected Integer i; \
+           algorithm i := 3; y := 0; \
+             while i >= 1 loop \
+               if kind == \"csv\" then y := i; i := 0; else i := i - 1; end if; \
+             end while; \
+         end f; \
+         Real z; equation z = k; end M;",
+    )
+    .unwrap();
+    // The text matches on the first round, so the loop stops at three.
+    let k = m.components.iter().find(|c| c.name == "k").unwrap();
+    assert_eq!(format!("{:?}", k.binding), "Some(Number(3.0))");
+}

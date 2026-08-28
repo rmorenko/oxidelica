@@ -31,6 +31,11 @@ pub(super) fn instantiate_components(
     built: Built,
 ) -> Result<Built, String> {
     let scope = class.name.as_str();
+    // The strings this class settled, in view while its bodies are
+    // worked out: a `while` that goes round until it finds a piece of
+    // text needs to know what the text says, and this is where that
+    // is known.
+    let _texts = statements::Texts::in_view(local_texts);
     let overrides = env.overrides;
     let Built {
         mut taken,

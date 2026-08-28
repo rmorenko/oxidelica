@@ -652,7 +652,35 @@ pub(super) fn settled_truth(
 /// A class's own `String` parameters do not reach this far, which is
 /// why a file name held in one still stands.
 pub(super) fn texts_in_view() -> HashMap<String, String> {
-    HashMap::new()
+    TEXTS.with(|held| held.borrow().clone())
+}
+
+thread_local! {
+    /// The `String` parameters the class being instantiated settled.
+    ///
+    /// A body folds a comparison of two strings only if it knows what
+    /// they say, and what they say is worked out by the class the
+    /// call was written in - long before this pass runs. The class
+    /// leaves them here on its way in, because the road from there to
+    /// a loop head runs through a dozen signatures that have no
+    /// business carrying a dictionary of text.
+    static TEXTS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}
+
+/// Let the strings a class settled be seen while its bodies are
+/// worked out, and put back whatever was in view before.
+pub(super) struct Texts(HashMap<String, String>);
+
+impl Texts {
+    pub(super) fn in_view(texts: &HashMap<String, String>) -> Texts {
+        Texts(TEXTS.with(|held| held.replace(texts.clone())))
+    }
+}
+
+impl Drop for Texts {
+    fn drop(&mut self) {
+        TEXTS.with(|held| *held.borrow_mut() = std::mem::take(&mut self.0));
+    }
 }
 
 thread_local! {
