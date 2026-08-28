@@ -948,6 +948,37 @@ fn an_ideal_diode_defines_its_switch_outside_any_when() {
 }
 
 #[test]
+fn a_walked_body_may_answer_with_several_numbers() {
+    // `dofpt3` gives a density and an error code; `regFun3` a value
+    // and a flag. A body the run walks used to be held to one output,
+    // which refused four models of the standard library outright. The
+    // numbers of the answer are laid out in the order the outputs are
+    // declared, and a call takes the one it asked for - including
+    // through a tuple assignment inside another walked body, which is
+    // how the inverse functions of the water tables are written.
+    //
+    // The trip count comes from a variable, so nothing can unroll the
+    // loop and the run really does walk the body: inlined instead,
+    // this would pass without the fix.
+    let result = run("function pair input Real x; output Real d; output Real e; \
+         protected Real acc; \
+         algorithm acc := 0; for k in 1:3 loop acc := acc + x; end for; \
+         d := acc; e := acc * 2; end pair; \
+         function total input Real x; input Integer n; output Real y; \
+         protected Real d; Real e; \
+         algorithm y := 0; \
+         for k in 1:n loop (d, e) := pair(x); y := y + d + e; end for; \
+         end total; \
+         model M Real y; Real u; Integer n; \
+         equation u = time + 1; n = integer(2 + 0 * time); y = total(u, n); \
+         annotation(experiment(StopTime = 0.5, Interval = 0.5)); end M;");
+    let index = result.columns.iter().position(|c| c == "y").unwrap();
+    // u is 1.5, so d is 4.5 and e is 9; twice round the loop is 27.
+    let last = result.rows.last().unwrap()[index];
+    assert!((last - 27.0).abs() < 1e-9, "{last}");
+}
+
+#[test]
 fn a_bound_over_a_whole_array_is_not_an_assertion_per_element() {
     // `Ron[m](final min = zeros(m))` bounds the array as a whole. The
     // flattener leaves such a bound standing rather than refusing it,

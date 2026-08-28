@@ -114,21 +114,29 @@ pub(crate) fn walk(
     // The answer, in the order the flat model asks for it: one number
     // for a plain output, and the elements in turn for an array. What
     // a body may answer with at all was settled before the run began.
-    let output = class
+    // Every output, in the order they were declared: a body may answer
+    // with more than one number - `dofpt3` gives a density and an
+    // error - and the call asks for the one it wants by its place
+    // here. What was laid out before the run said the same order, so
+    // the two agree without either being told.
+    let outputs = class
         .components
         .iter()
-        .find(|component| component.causality == Causality::Output)
-        .expect("a walked body gives an answer");
+        .filter(|component| component.causality == Causality::Output);
     // What a body answers with was laid out before it ran, so an
     // element it never filled stands at nothing - which is what the
     // language says an unassigned local is worth.
     let want = |named: &str| frame.numbers.get(named).copied().unwrap_or(0.0);
-    Ok(match frame.lengths.get(&output.name).copied() {
-        None => vec![want(&output.name)],
-        Some(length) => (1..=length)
-            .map(|index| want(&format!("{}[{index}]", output.name)))
-            .collect(),
-    })
+    let mut answer = Vec::new();
+    for output in outputs {
+        match frame.lengths.get(&output.name).copied() {
+            None => answer.push(want(&output.name)),
+            Some(length) => {
+                answer.extend((1..=length).map(|index| want(&format!("{}[{index}]", output.name))))
+            }
+        }
+    }
+    Ok(answer)
 }
 
 /// What a body carries while it is walked: numbers by name, and how
@@ -497,12 +505,49 @@ fn run(
             }
             Statement::Break => return Ok(Flow::Broke),
             Statement::Return => return Ok(Flow::Returned),
-            Statement::TupleAssign(_, _) => {
-                return err(
-                    "a body the run walks gives one answer, so it fills one target and not \
-                     a tuple of them"
-                        .to_string(),
-                )
+            Statement::TupleAssign(targets, value) => {
+                // `(d, T) := dTofph(...)`: a body answering with
+                // several numbers fills several targets, in the order
+                // it declares them. A hole - `(d, ) := ...` - takes
+                // its number and drops it.
+                let Expr::Call(name, args) = value else {
+                    return err(
+                        "the right of a tuple assignment is a call to something that \
+                         answers with several things"
+                            .to_string(),
+                    );
+                };
+                let mut given = Vec::new();
+                for arg in args {
+                    given.push(number_of(arg, frame, programs, time, depth)?);
+                }
+                // One number per argument: what stands here is a
+                // scalar, and an array argument would say how many.
+                let lengths: Vec<usize> = vec![0; given.len()];
+                let answer = walk(programs, name, &given, &lengths, time, depth + 1)?;
+                if answer.len() < targets.len() {
+                    return err(format!(
+                        "`{name}` answers with {} thing(s), and {} were asked for",
+                        answer.len(),
+                        targets.len()
+                    ));
+                }
+                for (target, worth) in targets.iter().zip(answer) {
+                    let Some((named, subscripts)) = target else {
+                        continue;
+                    };
+                    let mut held = named.clone();
+                    if !subscripts.is_empty() {
+                        let mut indices = Vec::new();
+                        for subscript in subscripts {
+                            indices.push(
+                                index_of(subscript, frame, programs, time, depth)?.to_string(),
+                            );
+                        }
+                        held = format!("{named}[{}]", indices.join(","));
+                    }
+                    frame.numbers.insert(held, worth);
+                }
             }
             Statement::When(_) => {
                 return err(

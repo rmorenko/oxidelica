@@ -487,23 +487,37 @@ fn walkable(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> Result<(),
             ));
         }
     }
-    if class
+    // A body may answer with several numbers, and the call asks for
+    // the one it wants: `(d, T) := dTofph(...)` takes both, `f(x)[2]`
+    // the second. What the run cannot carry is a mixture of shapes -
+    // the numbers of the answer are laid out one after another, and
+    // an array among them would need a length at every call site to
+    // say where the next one starts.
+    let outputs: Vec<&Component> = class
         .components
         .iter()
         .filter(|c| c.causality == Causality::Output)
-        .count()
-        != 1
-    {
-        return Err(format!(
-            "`{}` is called where nothing could inline it, so the run walks its body - \
-             and a body walked at run time gives one output, not {}",
-            class.name,
-            class
-                .components
-                .iter()
-                .filter(|c| c.causality == Causality::Output)
-                .count()
-        ));
+        .collect();
+    match outputs.len() {
+        0 => {
+            return Err(format!(
+                "`{}` is called where nothing could inline it, so the run walks its body - \
+                 and a body walked at run time answers with something, not nothing",
+                class.name
+            ))
+        }
+        1 => {}
+        several => {
+            if let Some(spread) = outputs.iter().find(|c| !c.dimensions.is_empty()) {
+                return Err(format!(
+                    "`{}` is called where nothing could inline it, so the run walks its \
+                     body - and it answers with {several} things, of which `{}` is an \
+                     array: the run lays the answers end to end, and cannot say where \
+                     one of unknown length leaves off",
+                    class.name, spread.name
+                ));
+            }
+        }
     }
     Ok(())
 }
