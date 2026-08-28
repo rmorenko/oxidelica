@@ -1105,6 +1105,29 @@ impl AskedAs {
         ASKED_AS.with(|held| held.borrow_mut().push(scope.to_string()));
         Some(AskedAs)
     }
+
+    /// The name a written path was asked as, where resolving it walked
+    /// out of the class that was named into a base of it.
+    ///
+    /// `Medium.BaseProperties` resolves to the base that declares
+    /// `BaseProperties`, and the medium the model named - the one
+    /// place its own functions can be found - is dropped on the way.
+    /// This holds on to it, so that a body written in the base can ask
+    /// again under the name it was reached by.
+    pub(super) fn resolving<'a>(
+        written: &str,
+        found: &ClassDef,
+        registry: &HashMap<&'a str, &'a ClassDef>,
+        scope: &str,
+        imports: &[(String, String)],
+    ) -> Option<AskedAs> {
+        let (head, _) = written.rsplit_once('.')?;
+        if found.name.starts_with(head) {
+            return None;
+        }
+        let named = super::lookup::lookup(registry, head, scope, imports)?;
+        (named.name != found.name).then(|| AskedAs::under(&named.name))?
+    }
 }
 
 impl Drop for AskedAs {
@@ -1148,6 +1171,64 @@ pub(super) fn record_asked_under<'a>(
 
 /// The scope a body is being worked out under: what it was asked as,
 /// where that is known, and the class that wrote it otherwise.
+/// Whether one class reaches another by extending it, however many
+/// steps away.
+///
+/// The bases are resolved plainly - walking out of the scope rather
+/// than through the whole machinery of names - because this is a
+/// question about the shape of the registry, and asking it the long
+/// way would colour the counts of every model that has no media in
+/// it. What is found is remembered for as long as the registry stands.
+fn descends_from(registry: &HashMap<&str, &ClassDef>, from: &str, wanted: &str) -> bool {
+    super::lookup::kindred_remembers(from, wanted, || reaches(registry, from, wanted, 0))
+}
+
+fn reaches(registry: &HashMap<&str, &ClassDef>, from: &str, wanted: &str, depth: usize) -> bool {
+    if from == wanted {
+        return true;
+    }
+    if depth > MAX_DEPTH {
+        return false;
+    }
+    let Some(class) = registry.get(from) else {
+        return false;
+    };
+    class.extends.iter().any(|extend| {
+        super::lookup::plain_lookup(registry, &extend.base, &class.name)
+            .is_some_and(|base| reaches(registry, &base.name, wanted, depth + 1))
+    })
+}
+
+/// A name that could not be found where it was written, looked for
+/// once more under the name the body was reached by.
+///
+/// The body of a partial medium calls `specificEnthalpy_pT`, which a
+/// package extending it declares; in the base there is no such
+/// function, and in the medium the model named there is. Only the one
+/// name already in hand is tried - nothing is searched for.
+pub(super) fn found_under_the_asked_name<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<&'a ClassDef> {
+    let under = ASKED_AS.with(|held| held.borrow().last().cloned())?;
+    if under == scope {
+        return None;
+    }
+    // Only where the name the body was reached by is a relative of
+    // the class the body belongs to. A medium extends the package
+    // whose body is being worked out, and what it declares is what
+    // that body meant; a name that happens to stand under some
+    // unrelated class is not an answer to this call, and guessing one
+    // is worse than refusing.
+    let package = scope.rsplit_once('.').map(|(head, _)| head)?;
+    if !descends_from(registry, &under, package) {
+        return None;
+    }
+    super::lookup::lookup(registry, name, &under, imports)
+}
+
 pub(super) fn asked_under(class: &ClassDef) -> String {
     ASKED_AS.with(|held| {
         held.borrow()

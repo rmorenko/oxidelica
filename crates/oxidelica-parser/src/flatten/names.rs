@@ -580,7 +580,14 @@ pub(super) fn resolve(
         Expr::Call(name, args) => {
             let args: Result<Vec<Expr>, String> = args.iter().map(&recur).collect();
             let args = order_builtin_arguments(name, args?)?;
-            match lookup(registry, name, scope, imports) {
+            // A body written in a base may call what only a class
+            // extending it declares. Asked where it was written there
+            // is no such name; asked under the name the body was
+            // reached by - the medium the model itself wrote - there
+            // is, and that is the one meant.
+            let found = lookup(registry, name, scope, imports)
+                .or_else(|| inlining::found_under_the_asked_name(registry, name, scope, imports));
+            match found {
                 Some(class) if class.kind == ClassKind::Function => {
                     // A function may ask how long what it was handed
                     // is - `size(x, 1)` of an input declared `[:]` -

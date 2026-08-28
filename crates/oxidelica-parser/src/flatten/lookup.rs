@@ -132,7 +132,7 @@ pub(super) fn names_a_connector(
 /// This is the walk out of the enclosing packages and nothing else. It
 /// is what `member_of_base` names a base with: going through `lookup`
 /// would ask about inherited members again, and about the same ones.
-fn plain_lookup<'a>(
+pub(super) fn plain_lookup<'a>(
     registry: &HashMap<&'a str, &'a ClassDef>,
     name: &str,
     scope: &str,
@@ -374,6 +374,24 @@ thread_local! {
     pub(super) static REGISTRY_STANDS: Cell<bool> = const { Cell::new(false) };
 }
 
+thread_local! {
+    /// Which classes reach which others by extending them, for as
+    /// long as one registry stands. Asked once per pair, it costs the
+    /// models that never ask nothing at all.
+    static KINDRED: RefCell<HashMap<(String, String), bool>> = RefCell::new(HashMap::new());
+}
+
+/// What was found about kinship before, or what is found now.
+pub(super) fn kindred_remembers(under: &str, wrote: &str, ask: impl FnOnce() -> bool) -> bool {
+    let key = (under.to_string(), wrote.to_string());
+    if let Some(told) = KINDRED.with(|kindred| kindred.borrow().get(&key).copied()) {
+        return told;
+    }
+    let found = ask();
+    KINDRED.with(|kindred| kindred.borrow_mut().insert(key, found));
+    found
+}
+
 /// A registry that stands still, so what is found in it may be
 /// remembered.
 ///
@@ -386,6 +404,7 @@ impl StandingNames {
     /// Start remembering, forgetting whatever came before.
     pub(super) fn open() -> Self {
         WALKED.with(|walked| walked.borrow_mut().clear());
+        KINDRED.with(|kindred| kindred.borrow_mut().clear());
         super::constants::NAMED.with(|named| named.borrow_mut().clear());
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames

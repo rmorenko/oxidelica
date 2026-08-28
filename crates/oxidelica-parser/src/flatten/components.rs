@@ -1185,6 +1185,14 @@ pub(super) fn instantiate_one(
                 outer_sizes: sizes,
                 inside_a_parameter,
             };
+            // The medium the model named, held while its own body is
+            // worked out. `Medium.BaseProperties` resolves to the base
+            // that declares it, and the equations of that base call
+            // functions only the medium declares: without this the
+            // body is worked out under the base alone, where those
+            // names mean nothing.
+            let _asked =
+                inlining::AskedAs::resolving(&component.type_name, child, registry, scope, imports);
             instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
         }
     }
