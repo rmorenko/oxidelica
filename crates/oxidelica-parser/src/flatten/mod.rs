@@ -459,23 +459,65 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         members.sort_unstable();
     }
     let mut joined = Vec::new();
-    for (a, b) in &acc.connects {
+    for (a, out_a, b, out_b) in &acc.connects {
         // A side that names no connector at all is somebody else's
         // complaint to make, a few lines below.
         let of = |path: &String| inside.get(path.as_str()).cloned().unwrap_or_default();
         let (inside_a, inside_b) = (of(a), of(b));
         match inside_a.is_empty() || inside_a != inside_b {
-            true => joined.push((a.clone(), b.clone())),
-            false => joined.extend(
-                inside_a
-                    .into_iter()
-                    .map(|member| (format!("{a}.{member}"), format!("{b}.{member}"))),
-            ),
+            true => joined.push(((a.clone(), *out_a), (b.clone(), *out_b))),
+            false => joined.extend(inside_a.into_iter().map(|member| {
+                (
+                    (format!("{a}.{member}"), *out_a),
+                    (format!("{b}.{member}"), *out_b),
+                )
+            })),
         }
     }
-    let mut paths: Vec<String> = acc.connectors.keys().cloned().collect();
+    // A member of a connection set is a connector together with the
+    // side of the class boundary it is joined from, not a path. The
+    // port of a submodel is one thing in the `connect` its parent
+    // writes and another in the `connect` its own class writes, and a
+    // set keyed by the path alone grows through the boundary and
+    // joins the two into a single sum. What that costs is exactly one
+    // equation for every port connected on both sides: the flow
+    // through the boundary, which nothing else writes.
+    // A connector stands in the sets on the sides it is actually
+    // joined from, and only those. A port joined from both is two
+    // members of two sets - that is the whole of this - but a port
+    // joined from one side has one member, and giving it the other as
+    // well would leave a half-set of one, which is read as unconnected
+    // and given a second equation for the flow the first set already
+    // sums.
+    let mut paths: Vec<(String, bool)> = Vec::new();
+    for ((a, out_a), (b, out_b)) in &joined {
+        for (path, outside) in [(a, out_a), (b, out_b)] {
+            if acc.connectors.contains_key(path.as_str()) {
+                paths.push((path.clone(), *outside));
+            }
+        }
+    }
     paths.sort();
-    let index: HashMap<&str, usize> = paths.iter().map(|p| p.as_str()).zip(0..).collect();
+    paths.dedup();
+    // What no connection names at all is a connector on its own: it
+    // keeps its inside standing, so that the flow through it is set to
+    // zero below.
+    let joined_paths: HashSet<&str> = paths.iter().map(|(p, _)| p.as_str()).collect();
+    let mut alone: Vec<(String, bool)> = acc
+        .connectors
+        .keys()
+        .filter(|path| !joined_paths.contains(path.as_str()))
+        .map(|path| (path.clone(), false))
+        .collect();
+    alone.sort();
+    paths.extend(alone);
+    paths.sort();
+    paths.sort();
+    let index: HashMap<(&str, bool), usize> = paths
+        .iter()
+        .map(|(p, side)| (p.as_str(), *side))
+        .zip(0..)
+        .collect();
     let mut parent: Vec<usize> = (0..paths.len()).collect();
     fn find(parent: &mut Vec<usize>, i: usize) -> usize {
         if parent[i] != i {
@@ -484,8 +526,11 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         }
         parent[i]
     }
-    for (a, b) in &joined {
-        let (&ia, &ib) = match (index.get(a.as_str()), index.get(b.as_str())) {
+    for ((a, out_a), (b, out_b)) in &joined {
+        let (&ia, &ib) = match (
+            index.get(&(a.as_str(), *out_a)),
+            index.get(&(b.as_str(), *out_b)),
+        ) {
             (Some(ia), Some(ib)) => (ia, ib),
             _ => {
                 return Err(format!(
@@ -498,15 +543,17 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
             parent[ra] = rb;
         }
     }
-    let mut sets: HashMap<usize, Vec<&str>> = HashMap::new();
-    for (i, path) in paths.iter().enumerate() {
-        sets.entry(find(&mut parent, i)).or_default().push(path);
+    let mut sets: HashMap<usize, Vec<(&str, bool)>> = HashMap::new();
+    for (i, (path, side)) in paths.iter().enumerate() {
+        sets.entry(find(&mut parent, i))
+            .or_default()
+            .push((path.as_str(), *side));
     }
 
     // And the sets themselves in order, by the first connector each
     // holds. Sorting inside a set is not enough: the sequence of sets
     // is what decides the order the equations are written in.
-    let mut sets: Vec<Vec<&str>> = sets
+    let mut sets: Vec<Vec<(&str, bool)>> = sets
         .into_values()
         .map(|mut members| {
             members.sort();
@@ -518,7 +565,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         // Connectors in one set must match in shape, not in name: a
         // signal output and a signal input are different classes with
         // the same members, and connecting them is the whole point.
-        let class_name = acc.connectors[members[0]].clone();
+        let class_name = acc.connectors[members[0].0].clone();
         let class = registry[class_name.as_str()];
         // A connector may say what it holds through a base class: the
         // multibody frames are one `Frame` with the position, the
@@ -586,7 +633,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         };
         let wanted = shape(class);
         for member in members.iter() {
-            let other = registry[acc.connectors[*member].as_str()];
+            let other = registry[acc.connectors[member.0].as_str()];
             if shape(other) != wanted {
                 return Err(format!(
                     "connection set {members:?} joins `{class_name}` to `{}`, \
@@ -625,15 +672,15 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
             };
             let source = members
                 .iter()
-                .find(|path| states_it(path))
+                .find(|(path, _)| states_it(path))
                 .unwrap_or(&members[0]);
             for other in members.iter() {
                 if other == source {
                     continue;
                 }
                 acc.equations.push(EquationItem {
-                    lhs: Expr::Ref((*other).to_string()),
-                    rhs: Expr::Ref((*source).to_string()),
+                    lhs: Expr::Ref(other.0.to_string()),
+                    rhs: Expr::Ref(source.0.to_string()),
                     origin: String::new(),
                 });
             }
@@ -663,15 +710,23 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 if members.len() == 1 {
                     // Unconnected connector: flow forced to zero.
                     acc.equations.push(EquationItem {
-                        lhs: Expr::Ref(var(members[0])),
+                        lhs: Expr::Ref(var(members[0].0)),
                         rhs: Expr::Number(0.0),
                         origin: String::new(),
                     });
                 } else {
-                    // Kirchhoff sum over the set.
+                    // Kirchhoff sum over the set, with the two sides
+                    // of the boundary against each other. What flows
+                    // into a set from inside leaves it on the outside,
+                    // and the convention - inside positive into the
+                    // node, outside negative - is the one the stream
+                    // weights already keep.
                     let sum = members
                         .iter()
-                        .map(|m| Expr::Ref(var(m)))
+                        .map(|(path, outside)| match outside {
+                            false => Expr::Ref(var(path)),
+                            true => Expr::Neg(Box::new(Expr::Ref(var(path)))),
+                        })
                         .reduce(|a, b| Expr::Bin(BinOp::Add, Box::new(a), Box::new(b)))
                         .expect("non-empty set");
                     acc.equations.push(EquationItem {
@@ -682,10 +737,10 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 }
             } else if members.len() > 1 {
                 // Potential equalities against the first member.
-                for other in &members[1..] {
+                for (other, _) in &members[1..] {
                     acc.equations.push(EquationItem {
                         lhs: Expr::Ref(var(other)),
-                        rhs: Expr::Ref(var(members[0])),
+                        rhs: Expr::Ref(var(members[0].0)),
                         origin: String::new(),
                     });
                 }
@@ -705,10 +760,16 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         let mut node_of: HashMap<String, Vec<String>> = HashMap::new();
         for members in sets.iter() {
             for member in members.iter() {
-                node_of.insert(
-                    (*member).to_string(),
-                    members.iter().map(|m| (*m).to_string()).collect(),
-                );
+                // What a port hears is what stands in the node with
+                // it, and a port on the boundary stands in two: the
+                // set its own class joins it into and the set its
+                // parent does. `inStream` inside that class reads
+                // both, since what comes in through the port is part
+                // of what the components inside it hear.
+                node_of
+                    .entry(member.0.to_string())
+                    .or_default()
+                    .extend(members.iter().map(|m| m.0.to_string()));
             }
         }
         let context = StreamContext {
@@ -795,7 +856,7 @@ struct GraphAnswers {
 /// Moved out of `flatten` unchanged.
 fn what_the_graph_answers(
     connection_graph: &[GraphClause],
-    connects: &[(String, String)],
+    connects: &[(String, bool, String, bool)],
     already: &HashMap<String, bool>,
     connect_rules: &[(String, Vec<Expr>)],
     _model: &Model,
@@ -1297,7 +1358,7 @@ struct Flat {
     /// by the port's flat path, with the message each carries.
     connect_rules: Vec<(String, Vec<Expr>)>,
     /// Connect statements with fully prefixed paths.
-    connects: Vec<(String, String)>,
+    connects: Vec<(String, bool, String, bool)>,
     /// Values of parameters already instantiated, by flat name: array
     /// dimensions and loop bounds are resolved against them.
     const_values: HashMap<String, f64>,
@@ -1358,9 +1419,9 @@ struct Flat {
 }
 
 /// How many `connect` equations name each connector.
-fn tally(connects: &[(String, String)]) -> HashMap<String, f64> {
+fn tally(connects: &[(String, bool, String, bool)]) -> HashMap<String, f64> {
     let mut counted: HashMap<String, f64> = HashMap::new();
-    for (a, b) in connects {
+    for (a, _, b, _) in connects {
         for port in [a, b] {
             *counted.entry(port.clone()).or_insert(0.0) += 1.0;
         }

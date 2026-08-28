@@ -74,7 +74,13 @@ pub(super) fn push_connects(
                 acc.outside.push(side.clone());
             }
         }
-        acc.connects.push((a, b));
+        // Which side of the class boundary each end stands on, kept
+        // with the end rather than in a list beside it. A port on the
+        // boundary is outside in the `connect` its own class writes
+        // and inside in the one its parent writes, and a list of
+        // paths cannot hold both readings of the same path.
+        let (side_a, side_b) = (is_outside(&a), is_outside(&b));
+        acc.connects.push((a, side_a, b, side_b));
     }
     Ok(())
 }
@@ -111,7 +117,7 @@ pub(super) fn expand_buses(
         }
         parent[i]
     }
-    for (a, b) in &acc.connects {
+    for (a, _, b, _) in &acc.connects {
         if let (Some(&ia), Some(&ib)) = (index.get(a.as_str()), index.get(b.as_str())) {
             let (ra, rb) = (root(&mut parent, ia), root(&mut parent, ib));
             if ra != rb {
@@ -128,7 +134,7 @@ pub(super) fn expand_buses(
     // Every `<bus>.<member>` a connection names, with the other side
     // of that connection: the only place its type can come from.
     let mut pending: Vec<(usize, String, String)> = Vec::new();
-    for (a, b) in &acc.connects {
+    for (a, _, b, _) in &acc.connects {
         for (side, other) in [(a, b), (b, a)] {
             if acc.connectors.contains_key(side) {
                 continue;
@@ -156,7 +162,7 @@ pub(super) fn expand_buses(
         handed_shapes: &HashMap::new(),
         inside_a_parameter: false,
     };
-    let mut fresh: Vec<(String, String)> = Vec::new();
+    let mut fresh: Vec<(String, bool, String, bool)> = Vec::new();
     loop {
         let mut progress = false;
         let mut waiting = Vec::new();
@@ -183,7 +189,7 @@ pub(super) fn expand_buses(
             }
             // Matching members of joined buses are connected.
             for path in &paths[1..] {
-                fresh.push((paths[0].clone(), path.clone()));
+                fresh.push((paths[0].clone(), false, path.clone(), false));
             }
             progress = true;
         }
@@ -401,7 +407,7 @@ pub(super) fn stream_mix(
 /// model always breaks the same way.
 pub(super) fn choose_roots(
     clauses: &[GraphClause],
-    connects: &[(String, String)],
+    connects: &[(String, bool, String, bool)],
 ) -> Result<HashMap<String, bool>, String> {
     if clauses.is_empty() {
         return Ok(HashMap::new());
@@ -452,7 +458,7 @@ pub(super) fn choose_roots(
         });
     loop {
         let mut joined = false;
-        for (a, b) in connects {
+        for (a, _, b, _) in connects {
             for member in &members {
                 let (left, right) = (format!("{a}.{member}"), format!("{b}.{member}"));
                 match (nodes.contains(&left), nodes.contains(&right)) {
@@ -472,7 +478,7 @@ pub(super) fn choose_roots(
             break;
         }
     }
-    for (a, b) in connects {
+    for (a, _, b, _) in connects {
         if nodes.contains(a) && nodes.contains(b) {
             edges.push((a.clone(), b.clone()));
             continue;

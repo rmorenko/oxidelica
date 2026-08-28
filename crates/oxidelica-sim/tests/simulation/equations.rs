@@ -873,10 +873,16 @@ fn a_port_of_the_model_pushes_the_other_way() {
          annotation(experiment(StopTime = 1, Interval = 1)); end M;"
     ));
     let index = result.columns.iter().position(|c| c == "z").unwrap();
-    // b pushes 20 with weight 1; the outside port brings 500 in with
-    // weight 2, since the two inside ports each send 1 out of the node.
+    // b pushes 20 with weight 1, and the outside port brings nothing:
+    // a flow variable passes through a port rather than being summed
+    // against it, so what the port carries is what the inside sends
+    // out - both components push 1 out, the port carries 2 out - and a
+    // port carrying flow outwards has nothing to push in. Read the
+    // other way round, as it was while the two sides of a port were
+    // summed into one node, the port carried 2 inwards at the same
+    // time as the components it feeds were emptying into it.
     assert!(
-        (result.rows.last().unwrap()[index] - 340.0).abs() < 1e-6,
+        (result.rows.last().unwrap()[index] - 20.0).abs() < 1e-6,
         "heard {}",
         result.rows.last().unwrap()[index]
     );
