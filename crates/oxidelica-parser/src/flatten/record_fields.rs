@@ -159,7 +159,19 @@ pub(super) fn starts_at(
     scope: &str,
 ) -> Option<Expr> {
     let class = registry.get(scope)?;
-    if class.kind != ClassKind::Function {
+    // A function body, or the algorithm section of a model. Both
+    // decide a local one way or another, and a variable a branch
+    // leaves alone holds what it held - which the first time round is
+    // its start value. A digital gate writes `y_auxiliary` in one
+    // branch of a `when` and reads it outside.
+    //
+    // In a model only what it keeps to itself: a variable the rest of
+    // the model can see is one the equations may be solving for, and
+    // a branch that leaves it alone is the model saying nothing about
+    // it rather than saying it stays. That is still a mistake worth
+    // refusing.
+    let a_model = class.kind == ClassKind::Model;
+    if !matches!(class.kind, ClassKind::Function) && !a_model {
         return None;
     }
     // Only a name the body declares, reached through the record it
@@ -168,6 +180,9 @@ pub(super) fn starts_at(
     let root = name.split('.').next()?;
     let declared = class.components.iter().find(|c| c.name == root)?;
     if declared.causality == Causality::Input || !declared.dimensions.is_empty() {
+        return None;
+    }
+    if a_model && !declared.protected {
         return None;
     }
     // Only a record, whole or by one of its fields. A plain local

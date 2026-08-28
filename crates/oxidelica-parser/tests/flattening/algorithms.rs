@@ -909,6 +909,28 @@ fn algorithm_error_paths() {
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm if u > 1 then y := 1; end if; end M;")
     .contains("assigned in one branch only"));
+
+    // A model's own protected variable, written in one branch of a
+    // `when` and read outside it: what the branch leaves alone holds
+    // what it held, and the first time round that is its start. A
+    // digital gate is written this way - `y_auxiliary` set when the
+    // delay expires, read every step - and eleven models stood at
+    // this refusal.
+    let after = parse_model(
+        "type Logic = enumeration(U, X0, X1); \
+         model M Real x; Logic y; protected Logic held(start = Logic.U, fixed = true); \
+         algorithm if x > 0.5 then held := Logic.X1; end if; y := held; \
+         equation x = time; end M;",
+    )
+    .unwrap();
+    assert!(format!("{:?}", after.equations).contains("held"));
+    // What the rest of the model can see is another matter: an
+    // equation may be solving for it, and a branch that says nothing
+    // about it is a gap rather than a variable holding still.
+    assert!(err("model M Real u; Real y; equation u = time; \
+         algorithm if u > 1 then y := 1; end if; end M;")
+    .contains("assigned in one branch only"));
+
     // A loop whose bounds are not constant.
     assert!(err("model M Real u; Real y; equation u = time; \
          algorithm y := 0; for i in 1:u loop y := y + i; end for; end M;")
