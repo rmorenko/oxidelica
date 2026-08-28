@@ -514,9 +514,61 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         .filter(|path| !joined_paths.contains(path.as_str()))
         .map(|path| (path.clone(), false))
         .collect();
+    // A port its own class joins from the inside, and the level above
+    // leaves alone, carries nothing through: nothing outside it is
+    // there to take the flow. It stands as a set of one on the side
+    // the level above would have joined, and the flow through it is
+    // set to zero below - "not connected from the outside". Without
+    // this the port's own half of the seam is the only one there is,
+    // and the flow it carries is a variable no equation names.
+    // A port its own class joins from the inside, and the level above
+    // leaves alone, carries nothing through: there is nothing outside
+    // it to take the flow. Its outside half stands as a set of one,
+    // and the flow through it is set to zero below - "not connected
+    // from the outside". Without this the port has one half where it
+    // should have two, and the flow it carries is a variable no
+    // equation names.
+    let mut sides: HashMap<&str, (bool, bool)> = HashMap::new();
+    for (path, outside) in &paths {
+        let seen = sides.entry(path.as_str()).or_insert((false, false));
+        match outside {
+            true => seen.1 = true,
+            false => seen.0 = true,
+        }
+    }
+    // What the model already writes about a port by hand. A port the
+    // level above says nothing about carries nothing and is set to
+    // zero; one that level writes equations against - the flow named
+    // outright, rather than joined - is spoken for, and a zero would
+    // be one equation more than the model has unknowns.
+    let mut spoken_for: HashSet<String> = HashSet::new();
+    for equation in &acc.equations {
+        let mut refs = Vec::new();
+        equation.lhs.collect_refs(&mut refs);
+        equation.rhs.collect_refs(&mut refs);
+        for name in refs {
+            let Some((path, _)) = name.rsplit_once('.') else {
+                continue;
+            };
+            spoken_for.insert(path.to_string());
+        }
+    }
+    let mut half_seams: Vec<(String, bool)> = sides
+        .iter()
+        .filter(|(path, (has_inside, has_outside))| {
+            // A port of the top model has no level above it to be
+            // joined from, and closes its own count without one.
+            *has_outside && !has_inside && path.contains('.') && !spoken_for.contains(**path)
+        })
+        .map(|(path, _)| ((*path).to_string(), false))
+        .collect();
+    half_seams.sort();
+    alone.extend(half_seams);
     alone.sort();
+    alone.dedup();
     paths.extend(alone);
     paths.sort();
+    paths.dedup();
     paths.sort();
     let index: HashMap<(&str, bool), usize> = paths
         .iter()

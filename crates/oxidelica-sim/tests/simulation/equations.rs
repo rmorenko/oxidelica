@@ -892,6 +892,35 @@ fn one_phase_of_a_port_stands_where_its_port_stands() {
 }
 
 #[test]
+fn a_port_joined_only_from_inside_carries_nothing() {
+    // A machine's internal thermal port is joined by the windings
+    // inside it, and the model above it is free to leave it alone -
+    // the ambient it feeds is a component of the machine, switched on
+    // by `useThermalPort = false`. Nothing outside such a port is
+    // there to take the flow, so the flow through it is zero: "not
+    // connected from the outside". Without that equation the port has
+    // one half of a seam where it should have two, and the flow it
+    // carries is a variable nothing determines.
+    let result = run("connector HP Real T; flow Real Q_flow; end HP; \
+         model Amb HP port; parameter Real Ta = 300; equation port.T = Ta; end Amb; \
+         model Src HP heatPort; parameter Real P = 5; \
+         equation heatPort.Q_flow = -P; end Src; \
+         model Machine HP internalPort; Amb ambient(Ta = 300); Src core(P = 5); \
+         equation connect(core.heatPort, internalPort); \
+         connect(ambient.port, internalPort); end Machine; \
+         model M Machine m; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    // The heat the core gives off goes to the ambient inside, and the
+    // port to the outside world carries none of it.
+    assert!((at("m.internalPort.Q_flow")).abs() < 1e-9);
+    assert!((at("m.ambient.port.Q_flow") - 5.0).abs() < 1e-9);
+}
+
+#[test]
 fn a_port_of_the_model_pushes_the_other_way() {
     // Inside a class, its own port is an "outside" connector: flow
     // entering the node is positive there, where an inside connector's
