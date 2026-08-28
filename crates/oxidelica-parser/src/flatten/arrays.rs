@@ -854,6 +854,10 @@ pub(super) fn expand_call(
                             super::inlining::AskedAs::under(&package.name)
                         })?
                     });
+                    // The function the call really means: the medium
+                    // this was asked under may have redeclared it
+                    // with inputs its base never had.
+                    let class = inlining::function_asked_under(class, registry);
                     let result = inlining::inline_function(
                         class,
                         &arguments,

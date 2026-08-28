@@ -948,6 +948,35 @@ fn an_ideal_diode_defines_its_switch_outside_any_when() {
 }
 
 #[test]
+fn a_medium_redeclaring_a_function_is_the_one_the_call_means() {
+    // The water tables redeclare `specificEnthalpy_pT` with a
+    // `region` their base never had, and the body of the base's own
+    // BaseProperties calls it with that argument by name. Bound
+    // against the base's declaration - which is what the written name
+    // resolves to - `region` is an input nothing has, and forty-five
+    // models were refused for it. Asked under the medium the model
+    // named, the medium's own function is what the call means.
+    let result = run("package Base partial package Two \
+         replaceable function enthalpy input Real p; input Real T; \
+         input Integer phase = 0; output Real h; \
+         algorithm h := p + T; end enthalpy; \
+         replaceable model BaseProperties input Real p; input Real T; Real h; \
+         equation h = enthalpy(p, T, region = 3); end BaseProperties; \
+         end Two; end Base; \
+         package Water extends Base.Two; \
+         redeclare function enthalpy input Real p; input Real T; \
+         input Integer phase = 0; input Integer region = 0; output Real h; \
+         algorithm h := 2 * p + T + region; end enthalpy; end Water; \
+         model M package Medium = Water; Medium.BaseProperties props; \
+         equation props.p = 1; props.T = 2; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let index = result.columns.iter().position(|c| c == "props.h").unwrap();
+    // The redeclaration: 2*1 + 2 + 3. The base would give 1 + 2, and
+    // could not take `region` at all.
+    assert!((result.rows.last().unwrap()[index] - 7.0).abs() < 1e-9);
+}
+
+#[test]
 fn a_walked_body_may_answer_with_several_numbers() {
     // `dofpt3` gives a density and an error code; `regFun3` a value
     // and a flag. A body the run walks used to be held to one output,

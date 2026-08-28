@@ -381,6 +381,10 @@ fn substitute_at(
             match found.filter(|_| settle_calls && depth <= MAX_CONSTANT_DEPTH) {
                 Some(class) if class.kind == ClassKind::Function => {
                     let shapes: Vec<Vec<i64>> = args.iter().map(|_| Vec::new()).collect();
+                    // The function the call really means: the medium this
+                    // was asked under may have redeclared it with inputs
+                    // its base never had.
+                    let class = inlining::function_asked_under(class, registry);
                     inlining::inline_function(
                         class,
                         &args,

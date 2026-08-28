@@ -1199,6 +1199,36 @@ fn reaches(registry: &HashMap<&str, &ClassDef>, from: &str, wanted: &str, depth:
     })
 }
 
+/// The function a call really means, where the name it was asked
+/// under redeclared what the class it resolved to declares.
+///
+/// A medium redeclares `specificEnthalpy_pT` with a `region` its base
+/// never had, and a call written against the medium hands one over.
+/// Bound against the base's declaration that argument is an input
+/// nothing has; asked under the medium, the medium's own function is
+/// what the call means, and everything about it - the inputs, the
+/// body - is read from that one class.
+pub(super) fn function_asked_under<'a>(
+    class: &'a ClassDef,
+    registry: &HashMap<&'a str, &'a ClassDef>,
+) -> &'a ClassDef {
+    if class.kind != ClassKind::Function {
+        return class;
+    }
+    let Some(under) = ASKED_AS.with(|held| held.borrow().last().cloned()) else {
+        return class;
+    };
+    let Some((wrote, tail)) = class.name.rsplit_once('.') else {
+        return class;
+    };
+    if under == wrote || !descends_from(registry, &under, wrote) {
+        return class;
+    }
+    super::lookup::lookup(registry, tail, &under, &class.imports)
+        .filter(|found| found.kind == ClassKind::Function && found.name != class.name)
+        .unwrap_or(class)
+}
+
 /// A name that could not be found where it was written, looked for
 /// once more under the name the body was reached by.
 ///
