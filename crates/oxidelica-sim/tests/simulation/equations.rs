@@ -112,6 +112,19 @@ fn compile_error_paths() {
         compile_err("model M Real x; equation der(x) = 1; x = 2; end M;").contains("unbalanced")
     );
 
+    // The refusal names what nothing determines, not every unknown of
+    // the model. The counts alone stand for many different illnesses,
+    // and a survey of a library cannot tell them apart until the
+    // refusal says which name is missing its equation.
+    let said = compile_err("model M Real y; Real z; equation y = 1; end M;");
+    assert!(said.contains("nothing determines z"), "{said}");
+    // Too many equations instead: the equation with nothing left to
+    // solve for is the one to name. Two equations on one unknown are
+    // caught earlier, as a model whose extra equation constrains no
+    // state, so this asks for a model that is unbalanced the other way.
+    let said = compile_err("model M Real y; equation y = 1; y + 1 = 2; end M;");
+    assert!(said.contains("nothing is left for"), "{said}");
+
     // der inside an algebraic expression is read where it stands.
     assert!(compile(
         &parse_model("model M Real x; Real y; equation der(x) = 1; y = der(x) + 1; end M;")

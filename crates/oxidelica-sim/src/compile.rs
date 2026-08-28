@@ -369,6 +369,85 @@ struct Reduction {
     n_alg: usize,
 }
 
+/// Which unknowns nothing gives a value to, or which equations have
+/// nothing left to determine.
+///
+/// The counts alone say a model is unbalanced; they do not say what is
+/// missing, and a list of every unknown in the model - thousands of
+/// them - says no more than the count did. The matching that index
+/// reduction already uses answers it: run it over the equations there
+/// are, and whatever is left unmatched is what the model is short of.
+/// Naming those few is what turns one wording of a refusal into the
+/// several illnesses standing behind it.
+fn unbalanced_because(algebraic_eqs: &[(Expr, Expr)], unknowns: &[String]) -> String {
+    let var_index: HashMap<&str, usize> = unknowns
+        .iter()
+        .enumerate()
+        .map(|(i, n)| (n.as_str(), i))
+        .collect();
+    let eq_vars: Vec<Vec<usize>> = algebraic_eqs
+        .iter()
+        .map(|(lhs, rhs)| {
+            let mut refs = Vec::new();
+            lhs.collect_refs(&mut refs);
+            rhs.collect_refs(&mut refs);
+            let mut vars: Vec<usize> = refs
+                .iter()
+                .filter_map(|r| var_index.get(r).copied())
+                .collect();
+            vars.sort_unstable();
+            vars.dedup();
+            vars
+        })
+        .collect();
+    let mut matched_eq: Vec<Option<usize>> = vec![None; unknowns.len()];
+    let mut unmatched_eqs: Vec<usize> = Vec::new();
+    for eq in 0..algebraic_eqs.len() {
+        let mut visited = vec![false; unknowns.len()];
+        if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
+            unmatched_eqs.push(eq);
+        }
+    }
+    let (kind, mut named): (&str, Vec<String>) = if algebraic_eqs.len() < unknowns.len() {
+        // Too few equations: name what nothing determines.
+        (
+            "nothing determines",
+            matched_eq
+                .iter()
+                .enumerate()
+                .filter(|(_, eq)| eq.is_none())
+                .map(|(v, _)| unknowns[v].clone())
+                .collect(),
+        )
+    } else {
+        // Too many: name the equations with nothing left to solve for.
+        (
+            "nothing is left for",
+            unmatched_eqs
+                .iter()
+                .map(|eq| {
+                    let (lhs, rhs) = &algebraic_eqs[*eq];
+                    format!("{} = {}", describe(lhs), describe(rhs))
+                })
+                .collect(),
+        )
+    };
+    named.sort();
+    named.dedup();
+    // A handful of names is a barrier one can go and look at; the whole
+    // list is the noise this refusal used to print.
+    let shown = named.iter().take(6).cloned().collect::<Vec<_>>().join(", ");
+    let rest = match named.len() {
+        0..=6 => String::new(),
+        n => format!(" and {} more", n - 6),
+    };
+    format!(
+        "unbalanced model: {} algebraic equation(s) for {} unknown(s); {kind} {shown}{rest}",
+        algebraic_eqs.len(),
+        unknowns.len(),
+    )
+}
+
 // Augmenting-path maximum matching.
 fn try_match(
     eq: usize,
@@ -1736,12 +1815,7 @@ pub(crate) fn compile_at(
     let (states, unknowns) = unknowns_of(&continuous, &state_rhs, &implicit);
     check_references(&state_rhs, &algebraic_eqs, &continuous, &params, &discretes)?;
     if algebraic_eqs.len() != unknowns.len() {
-        return err(format!(
-            "unbalanced model: {} algebraic equation(s) for {} unknown(s) {:?}",
-            algebraic_eqs.len(),
-            unknowns.len(),
-            unknowns
-        ));
+        return err(unbalanced_because(&algebraic_eqs, &unknowns));
     }
 
     // 4. Structural analysis: match equations to unknowns. An equation
