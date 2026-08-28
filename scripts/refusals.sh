@@ -8,11 +8,24 @@
 # whole list rather than grepped for one name.
 #
 # Usage: scripts/refusals.sh <library directory> [half]
-#   half: refused (default), built, or both
+#   half: refused (default), built, both, or unbalanced
 set -euo pipefail
 
-directory="${1:?usage: refusals.sh <library directory> [refused|stalled|both]}"
+usage="usage: refusals.sh <library directory> [refused|built|both|unbalanced]"
+directory="${1:?$usage}"
 half="${2:-refused}"
+# An argument this script does not know is a failure, not an empty
+# report. A pipe that answers a mistyped question with nothing prints
+# the same as a pipe that found nothing, and that reading has cost
+# this project three rounds of work already.
+case "$half" in
+refused | built | both | unbalanced) ;;
+*)
+    echo "refusals.sh: unknown half \`$half'" >&2
+    echo "$usage" >&2
+    exit 2
+    ;;
+esac
 cd "$(dirname "$0")/.."
 
 report="$(./target/release/oxidelica library check "$directory" --refused)"
@@ -30,6 +43,28 @@ kinds() {
         sort | uniq -c | sort -rn
 }
 
+# The largest family of all, split along the two axes that are already
+# printed: by how far the balance misses and which way, and by the
+# chapter the model comes from. A count is taken with the sign because
+# too few equations and too many are different illnesses; the chapter
+# is there because a hundred models of one chapter behind one figure
+# are one shared component rather than a hundred illnesses.
+unbalanced() {
+    echo "$report" | awk -F'\t' '
+        $1 ~ /^  built/ && $2 ~ /unbalanced model/ {
+            split($1, a, " ")
+            match($2, /[0-9]+ algebraic/); eqs = substr($2, RSTART) + 0
+            match($2, /[0-9]+ unknown/);   unk = substr($2, RSTART) + 0
+            printf "%+d\t%s\n", eqs - unk, a[2]
+        }'
+}
+
+if [ "$half" = unbalanced ]; then
+    echo "=== how far the balance misses ==="
+    unbalanced | cut -f1 | sort -n | uniq -c
+    echo "=== how far it misses, by chapter ==="
+    unbalanced | awk -F'[\t.]' '{ print $1, $3 }' | sort | uniq -c | sort -rn
+fi
 if [ "$half" = refused ] || [ "$half" = both ]; then
     echo "=== would not flatten ==="
     echo "$report" | sed -n 's/^  refused  [^	]*	//p' | kinds
