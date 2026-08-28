@@ -466,6 +466,11 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         let (inside_a, inside_b) = (of(a), of(b));
         match inside_a.is_empty() || inside_a != inside_b {
             true => joined.push(((a.clone(), *out_a), (b.clone(), *out_b))),
+            // A port of ports is joined by its members, and each
+            // member stands on the side its own port stands on: the
+            // members of a boundary port are boundary ports too, one
+            // per phase, and cutting the join open must not lose
+            // which side of the class each end was written from.
             false => joined.extend(inside_a.into_iter().map(|member| {
                 (
                     (format!("{a}.{member}"), *out_a),

@@ -857,6 +857,33 @@ fn a_stream_junction_weighs_only_what_flows_into_it() {
 }
 
 #[test]
+fn one_phase_of_a_port_stands_where_its_port_stands() {
+    // A class whose ports are plugs may join one phase of each:
+    // `connect(a.pin[1], b.pin[1])` names two ports of the class
+    // itself, not of its components, and both ends are outside. Read
+    // as inside - which is what looking for a dot in the whole path
+    // does - the two halves of every boundary grow together into one
+    // node, and the flow through each plug loses its equation.
+    const P: &str = "connector Pin Real v; flow Real i; end Pin; \
+         connector Plug Pin pin[1]; end Plug; \
+         model Box Plug a; Plug b; equation connect(a.pin[1], b.pin[1]); end Box; ";
+    let result = run(&format!(
+        "{P} model M Plug src; Box box; Plug snk; \
+         equation connect(src, box.a); connect(box.b, snk); \
+         src.pin[1].v = 10; snk.pin[1].i = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;"
+    ));
+    // What is pushed in at one end comes out at the other, and the
+    // current through the box is the same current all the way.
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    assert!((at("box.a.pin[1].i") - 1.0).abs() < 1e-9, "{}", at("box.a.pin[1].i"));
+    assert!((at("src.pin[1].i") + 1.0).abs() < 1e-9, "{}", at("src.pin[1].i"));
+}
+
+#[test]
 fn a_port_of_the_model_pushes_the_other_way() {
     // Inside a class, its own port is an "outside" connector: flow
     // entering the node is positive there, where an inside connector's

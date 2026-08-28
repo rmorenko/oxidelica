@@ -59,11 +59,23 @@ pub(super) fn push_connects(
     // The top-level model is nobody's component, so nothing there is
     // outside; an empty prefix would otherwise call every connector
     // outside and flip the sign of the whole node.
+    // A member of an outside port is outside too: `connect(a.pin[1],
+    // b.pin[1])` written in a class whose ports are `a` and `b` joins
+    // two ports of that class, one phase of each, and both ends stand
+    // where their ports stand. What decides the side is the head of
+    // the path - the component the port belongs to - and a member
+    // named below it does not move it inside.
     let is_outside = |path: &str| {
         !prefix.is_empty()
-            && path
-                .strip_prefix(prefix)
-                .is_some_and(|rest| !rest.contains('.'))
+            && path.strip_prefix(prefix).is_some_and(|rest| {
+                // The head of what is left is the component the port
+                // belongs to, and it is the class's own port when
+                // nothing stands above it. What is named below - one
+                // phase of a plug - belongs to that same port and
+                // stands where it stands.
+                let head = rest.split('.').next().unwrap_or(rest);
+                acc.connectors.contains_key(&format!("{prefix}{head}"))
+            })
     };
     for (a, b) in left.into_iter().zip(right) {
         if acc.is_disabled(&a) || acc.is_disabled(&b) {
