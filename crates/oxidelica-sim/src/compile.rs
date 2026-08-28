@@ -2082,6 +2082,17 @@ pub(crate) fn compile_at(
     // where it writes: `off = s < 0` compiles to the relation and the
     // slot `off` is read from. The side that names the variable is the
     // one being written; the other side is what it is worth.
+    let pre_slots: Vec<(Slot, Slot)> = discretes
+        .iter()
+        .chain(&pre_wanted)
+        .map(|name| (table.slot(name), table.slot(&format!("$pre.{name}"))))
+        .collect();
+    // The definitions of the discrete-valued names are compiled after
+    // the `pre` slots exist: a switch may be written in terms of what
+    // it was - `off = s < 0 or pre(off) and not fire` is how a
+    // thyristor holds itself on - and the slot that holds what it was
+    // has to be in the table before the expression naming it is
+    // turned into code.
     let discrete_definitions: Vec<(Slot, Code)> = discrete_defs
         .iter()
         .map(|equation| {
@@ -2102,11 +2113,6 @@ pub(crate) fn compile_at(
     // Every variable `pre` was asked about needs the slot it is read
     // from beside the one holding what it was when the event began:
     // the `when` targets, and whatever else was asked for by type.
-    let pre_slots: Vec<(Slot, Slot)> = discretes
-        .iter()
-        .chain(&pre_wanted)
-        .map(|name| (table.slot(name), table.slot(&format!("$pre.{name}"))))
-        .collect();
     let initial_slot = table.slot("$initial");
     let terminal_slot = table.slot("$terminal");
     let sample_slots: Vec<Slot> = (0..samples.len())

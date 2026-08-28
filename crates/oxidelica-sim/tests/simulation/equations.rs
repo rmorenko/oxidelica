@@ -948,6 +948,49 @@ fn an_ideal_diode_defines_its_switch_outside_any_when() {
 }
 
 #[test]
+fn a_switch_may_be_written_in_terms_of_what_it_was() {
+    // A thyristor holds itself on: `off = s < 0 or pre(off) and not
+    // fire` says it stays off until fired and stays on until the
+    // current reverses. The definition moved to the event layer, and
+    // the slot holding what the switch was is made when the event
+    // layer is laid out - after the definitions were being compiled,
+    // so the compiler met `$pre.off` with nothing to point it at.
+    let result = run("connector Pin Real v; flow Real i; end Pin; \
+         model Thy Pin p; Pin n; Real v; Real i; Real s(start = 0); \
+         Boolean off(start = true); Boolean fire; \
+         parameter Real Ron = 1e-5; parameter Real Goff = 1e-5; \
+         equation v = p.v - n.v; i = p.i; p.i + n.i = 0; \
+         fire = time > 0.004; off = s < 0 or pre(off) and not fire; \
+         v = s * (if off then 1 else Ron); \
+         i = s * (if off then Goff else 1); end Thy; \
+         model Src Pin p; Pin n; \
+         equation p.v - n.v = sin(time * 314); p.i + n.i = 0; end Src; \
+         model Res Pin p; Pin n; parameter Real R = 1; \
+         equation p.v - n.v = R * p.i; p.i + n.i = 0; end Res; \
+         model M Thy d; Src src; Res load(R = 1); Pin g; \
+         equation connect(src.p, d.p); connect(d.n, load.p); \
+         connect(load.n, g); connect(src.n, g); g.v = 0; \
+         annotation(experiment(StopTime = 0.02, Interval = 0.0002)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let (off, current) = (index("d.off"), index("d.i"));
+    // It fires and it turns itself off again, and the current runs
+    // one way only - a thyristor that leaked backwards would mean the
+    // switch was reading its own value as something else.
+    let mut flips = 0;
+    for (before, row) in result.rows.iter().zip(result.rows.iter().skip(1)) {
+        if (before[off] > 0.5) != (row[off] > 0.5) {
+            flips += 1;
+        }
+        assert!(
+            row[current] > -1e-4,
+            "current ran backwards: {}",
+            row[current]
+        );
+    }
+    assert!(flips >= 2, "the thyristor never switched: {flips}");
+}
+
+#[test]
 fn a_medium_redeclaring_a_function_is_the_one_the_call_means() {
     // The water tables redeclare `specificEnthalpy_pT` with a
     // `region` their base never had, and the body of the base's own
