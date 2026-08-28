@@ -755,8 +755,8 @@ fn library_check(args: &[String]) -> Result<(), String> {
         let mut each: Vec<&(String, String)> = why_not.iter().collect();
         each.sort_by(|a, b| a.1.cmp(&b.1));
         for (why, name) in each {
-            let head = &why[..why.len().min(100)];
-            println!("  refused  {name}\t{head}");
+            let why = why.replace('\n', " ");
+            println!("  refused  {name}\t{why}");
         }
     }
     report(&why_not, "  ", list);
@@ -769,8 +769,8 @@ fn library_check(args: &[String]) -> Result<(), String> {
         let mut each: Vec<&(String, String)> = would_not_run.iter().collect();
         each.sort_by(|a, b| a.1.cmp(&b.1));
         for (why, name) in each {
-            let head = &why[..why.len().min(100)];
-            println!("  built    {name}\t{head}");
+            let why = why.replace('\n', " ");
+            println!("  built    {name}\t{why}");
         }
     }
     report(&would_not_run, "  ", list);

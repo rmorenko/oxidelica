@@ -101,6 +101,29 @@ Guessing is worse than refusing. A value quietly defaulted to zero is
 a wrong answer presented as a right one, and every one of those found
 so far had been silently wrong for a long time.
 
+## Measuring a barrier
+
+A barrier is a pair of numbers from one pipe: how many models stood at
+it before a change, and how many stand at it after. `scripts/refusals.sh`
+is that pipe, and it prints both halves - the models that would not
+flatten and the models that flattened and would not run - because a
+plan made from one half alone is made half blind.
+
+A zero counts only where the same pipe can print something other than
+zero. This rule is written because of what happened without it: a
+barrier was measured for three rounds of work with
+`./scripts/why_not.sh`, a script that does not exist. The shell said
+so on stderr, the measuring command sent stderr to `/dev/null`, `grep
+-c` counted an empty input, and `0` was printed and read as "the
+barrier is gone". It had not moved at all: the true count was the same
+before and after, and three rounds of work were built on the reading.
+
+So: a measuring pipe does not silence stderr. A script lives in
+`scripts/` under `set -euo pipefail`, where a missing file is a
+failure and not a zero. And before a number is believed to have fallen
+to nothing, the same command is run on unchanged code to see it print
+the number it is supposed to have removed.
+
 ## Tests
 
 A bug fix comes with a test that fails without it. Check that it does:
