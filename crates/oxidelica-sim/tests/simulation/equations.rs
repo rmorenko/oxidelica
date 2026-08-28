@@ -879,8 +879,16 @@ fn one_phase_of_a_port_stands_where_its_port_stands() {
         let index = result.columns.iter().position(|c| c == name).unwrap();
         result.rows.last().unwrap()[index]
     };
-    assert!((at("box.a.pin[1].i") - 1.0).abs() < 1e-9, "{}", at("box.a.pin[1].i"));
-    assert!((at("src.pin[1].i") + 1.0).abs() < 1e-9, "{}", at("src.pin[1].i"));
+    assert!(
+        (at("box.a.pin[1].i") - 1.0).abs() < 1e-9,
+        "{}",
+        at("box.a.pin[1].i")
+    );
+    assert!(
+        (at("src.pin[1].i") + 1.0).abs() < 1e-9,
+        "{}",
+        at("src.pin[1].i")
+    );
 }
 
 #[test]
