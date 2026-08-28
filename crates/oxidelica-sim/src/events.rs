@@ -291,12 +291,18 @@ impl CompiledModel {
 
         // Every branch fires at most once per event, so one round per
         // branch plus a final quiet one is all the iteration can need.
+        // Each branch may fire once, and each discrete definition may
+        // settle once more after it: that many rounds are enough for
+        // an event that comes to rest, and one more is the round that
+        // proves it has.
         let rounds = self
             .when_clauses
             .iter()
             .map(|clause| clause.branches.len())
             .sum::<usize>()
+            + self.discrete_definitions.len()
             + 1;
+        let mut settled = false;
         for _ in 0..rounds {
             // The algebraic part follows the discrete values, so it is
             // re-evaluated before the conditions are tested again.
@@ -365,8 +371,29 @@ impl CompiledModel {
                 }
             }
             if !acted {
+                settled = true;
                 break;
             }
+        }
+        // An event that never comes to rest is a model whose switches
+        // chase each other: saying so with the names of what was still
+        // moving is worth more than a step that quietly carries the
+        // last round's values forward as though they had settled.
+        if !settled {
+            // The discrete-valued names, which is where a definition
+            // that keeps moving has to be: the slots run alongside.
+            let names: Vec<&String> = self
+                .discrete_definitions
+                .iter()
+                .filter_map(|(slot, _)| {
+                    let at = self.discrete_slots.iter().position(|held| held == slot)?;
+                    self.discretes.get(at)
+                })
+                .collect();
+            return Err(SimError(format!(
+                "the event at t = {t} does not come to rest after {rounds} round(s): \
+                 what changes on every round is among {names:?}"
+            )));
         }
         // The one-shot flags go down with the event, so the conditions
         // remembered for the next one do not see them still raised - a

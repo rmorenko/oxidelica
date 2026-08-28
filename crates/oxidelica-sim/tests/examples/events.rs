@@ -65,6 +65,32 @@ fn ideal_diode_never_conducts_while_blocking() {
 }
 
 #[test]
+fn an_event_that_never_settles_says_so() {
+    // Two switches defined in terms of each other chase round the
+    // event iteration for ever. The rounds are bounded, and what the
+    // bound used to do was carry the last round's values forward as
+    // though they had settled - a quiet wrong answer. It says so now,
+    // and names what was still moving.
+    let model = compile(
+        &oxidelica_parser::parse_model(
+            "model M Boolean a; Boolean b; Real x; \
+             equation x = time + 1; a = not b and x > 0; b = a or x < 0; \
+             annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;",
+        )
+        .unwrap(),
+    );
+    let why = match model {
+        Ok(compiled) => match compiled.simulate() {
+            Ok(_) => panic!("an event that never settles was allowed to pass"),
+            Err(why) => why.to_string(),
+        },
+        Err(why) => why.to_string(),
+    };
+    assert!(why.contains("does not come to rest"), "{why}");
+    assert!(why.contains('a') && why.contains('b'), "{why}");
+}
+
+#[test]
 fn the_textbook_ideal_switch_rectifies_exactly() {
     // The switch's branches constrain different unknowns: blocking
     // is an equation on the current, conducting one on the voltage.
