@@ -258,6 +258,12 @@ pub struct CompiledModel {
     output_algebraics: Vec<(String, Slot)>,
     /// See [`CompiledModel::state_slots`].
     discrete_slots: Vec<Slot>,
+    /// The equations that say what a discrete-valued name is, with the
+    /// slot each one writes: `off = s < 0` of an ideal switch. They
+    /// are asked once a round of the event iteration, in the order
+    /// they were written, so that a later one sees what an earlier one
+    /// settled - and a value that changes asks for another round.
+    discrete_definitions: Vec<(Slot, Code)>,
     /// The slot a variable is read from, paired with the slot holding
     /// what it was when the event began. Not one per `when` target:
     /// a Boolean or an Integer is discrete-valued whatever assigns it,

@@ -301,8 +301,23 @@ impl CompiledModel {
             // The algebraic part follows the discrete values, so it is
             // re-evaluated before the conditions are tested again.
             self.eval_point(t, y, values, &mut scratch, alg_guess)?;
-            let now = self.when_conditions(t, values);
             let mut acted = false;
+            // What a discrete-valued name is worth now. Unlike the
+            // body of a `when`, which fires on an edge, these hold at
+            // every moment of the event, so they are asked every round
+            // rather than when something just became true. A value
+            // that moves is a reason to go round again: the algebraic
+            // part is solved with the switches held still, and a
+            // switch that flips changes the system it was solved in.
+            for (slot, code) in &self.discrete_definitions {
+                let new = code.run(values, t);
+                if values[*slot] != new {
+                    values[*slot] = new;
+                    outcome.changed = true;
+                    acted = true;
+                }
+            }
+            let now = self.when_conditions(t, values);
             for (index, clause) in self.when_clauses.iter().enumerate() {
                 // `elsewhen` is a priority list: the first branch that
                 // just became true is the one that fires.

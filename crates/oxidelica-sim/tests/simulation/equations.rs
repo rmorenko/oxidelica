@@ -892,6 +892,62 @@ fn one_phase_of_a_port_stands_where_its_port_stands() {
 }
 
 #[test]
+fn an_ideal_diode_defines_its_switch_outside_any_when() {
+    // `off = s < 0` is how the standard library writes an ideal
+    // semiconductor: a Boolean, defined by a relation, outside any
+    // `when`. Read as one more continuous unknown it joins the loop
+    // that solves for `s`, where the residual of a relation is a step
+    // and its finite difference is zero either side of the knee - the
+    // Jacobian says nothing, and the model is refused for a matrix
+    // that is mute rather than for anything being wrong. The pair
+    // belongs to the event layer: the switch is asked once a round of
+    // the event iteration, and between events it stands still while
+    // the indicator watches for the crossing.
+    let result = run("connector Pin Real v; flow Real i; end Pin; \
+         model Diode Pin p; Pin n; Real v; Real i; Real s(start = 0); \
+         Boolean off(start = true); parameter Real Ron = 1e-5; \
+         parameter Real Goff = 1e-5; \
+         equation v = p.v - n.v; i = p.i; p.i + n.i = 0; off = s < 0; \
+         v = s * (if off then 1 else Ron); \
+         i = s * (if off then Goff else 1); end Diode; \
+         model Src Pin p; Pin n; \
+         equation p.v - n.v = sin(time * 314); p.i + n.i = 0; end Src; \
+         model Res Pin p; Pin n; parameter Real R = 1; \
+         equation p.v - n.v = R * p.i; p.i + n.i = 0; end Res; \
+         model M Diode dp1; Diode dp2; Diode dn1; Diode dn2; \
+         Src src; Res load(R = 1); Pin g; \
+         equation connect(src.p, dp1.p); connect(dp1.n, load.p); \
+         connect(src.n, dp2.p); connect(dp2.n, load.p); \
+         connect(load.n, dn1.p); connect(dn1.n, src.p); \
+         connect(load.n, dn2.p); connect(dn2.n, src.n); \
+         connect(load.n, g); g.v = 0; \
+         annotation(experiment(StopTime = 0.04, Interval = 0.0002)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let (off, current) = (index("dp1.off"), index("dp1.i"));
+    // Half-wave rectification: current one way only, and none at all
+    // while the diode blocks. Two periods of a 50 Hz source, so the
+    // switch has to have flipped.
+    let mut flips = 0;
+    for (before, row) in result.rows.iter().zip(result.rows.iter().skip(1)) {
+        if (before[off] > 0.5) != (row[off] > 0.5) {
+            flips += 1;
+        }
+        // A blocking ideal diode still leaks `Goff` times the voltage
+        // across it - a hundredth of a milliamp here - so the bound is
+        // the leak rather than zero.
+        assert!(
+            row[current] > -2e-5,
+            "current ran backwards: {}",
+            row[current]
+        );
+        if row[off] > 0.5 {
+            assert!(row[current].abs() < 2e-5, "blocking, yet {}", row[current]);
+        }
+    }
+    assert!(flips >= 2, "the switch never moved: {flips} flips");
+}
+
+#[test]
 fn a_bound_over_a_whole_array_is_not_an_assertion_per_element() {
     // `Ron[m](final min = zeros(m))` bounds the array as a whole. The
     // flattener leaves such a bound standing rather than refusing it,

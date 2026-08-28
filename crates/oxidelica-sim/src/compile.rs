@@ -1206,7 +1206,7 @@ fn values_at_this_point(
 /// order, which is what keeps the result columns steady.
 /// The discrete layer: the variables, where each one starts, and
 /// which initial equations were spent saying so.
-type DiscreteLayer = (Vec<String>, Vec<f64>, Vec<usize>);
+type DiscreteLayer = (Vec<String>, Vec<f64>, Vec<usize>, Vec<usize>);
 
 fn discrete_layer(
     model: &Model,
@@ -1217,6 +1217,82 @@ fn discrete_layer(
     // when a `when` clause assigns it: either way it keeps its value
     // between events, so the continuous part treats it as known.
     let mut discrete_names: Vec<String> = Vec::new();
+    // A Boolean or an Integer is discrete-valued by its type, whatever
+    // assigns it, and an equation whose one side is such a name is
+    // that name's definition: `off = s < 0` says what the switch is,
+    // and the relation inside it is a generator of events rather than
+    // something a continuous solver may walk through. The pair moves
+    // together - the name to the discrete layer, its equation to the
+    // rounds of the event iteration - so the count either side of the
+    // move is what it was.
+    let discrete_valued: Vec<&str> = model
+        .components
+        .iter()
+        .filter(|c| {
+            (c.type_name == "Boolean" || c.type_name == "Integer")
+                // A parameter or a constant of that type is settled
+                // before the run and is nobody's unknown; what moves
+                // here is a variable the model solves for.
+                && c.variability == Variability::Continuous
+        })
+        .map(|c| c.name.as_str())
+        .collect();
+    // A name that decides which branch of an `if` equation is in
+    // force is settled before the model is built, and the mode is
+    // compiled with the equations actually in force: that is exact
+    // where a solver would only be close, and moving such a name into
+    // the event iteration would take the exactness away. Only the
+    // ones nothing branches on move.
+    let branched_on: Vec<&str> = model
+        .conditional
+        .iter()
+        .flat_map(|conditional| {
+            let mut refs = Vec::new();
+            for condition in &conditional.conditions {
+                condition.collect_refs(&mut refs);
+            }
+            refs
+        })
+        .filter_map(|name| {
+            discrete_valued
+                .iter()
+                .find(|known| ***known == *name)
+                .copied()
+        })
+        .collect();
+    let mut defined_here: Vec<usize> = Vec::new();
+    for (at, equation) in model.equations.iter().enumerate() {
+        // The pair moves only when the other side is a relation - the
+        // knee of a switch, `s < 0` - which is what makes this an
+        // event definition rather than an ordinary equation. A
+        // Boolean equated to another Boolean is a connection, and it
+        // belongs where the rest of the connection equations are: it
+        // has no crossing of its own, and moving it would take an
+        // equation from a set that still needs one.
+        let decides = |other: &Expr| {
+            let mut relations = Vec::new();
+            collect_relations(other, &mut relations);
+            !relations.is_empty()
+        };
+        let named = |side: &Expr, other: &Expr| match side {
+            Expr::Ref(name) if decides(other) => discrete_valued
+                .contains(&name.as_str())
+                .then(|| name.clone()),
+            _ => None,
+        };
+        let Some(name) =
+            named(&equation.lhs, &equation.rhs).or_else(|| named(&equation.rhs, &equation.lhs))
+        else {
+            continue;
+        };
+        if branched_on.contains(&name.as_str()) {
+            continue;
+        }
+        defined_here.push(at);
+        if !discrete_names.contains(&name) {
+            discrete_names.push(name);
+        }
+    }
     for clause in &model.when_clauses {
         for branch in &clause.branches {
             for action in &branch.actions {
@@ -1330,7 +1406,7 @@ fn discrete_layer(
                 .unwrap_or(0.0)
         })
         .collect();
-    Ok((discretes, discrete_start, spent))
+    Ok((discretes, discrete_start, spent, defined_here))
 }
 
 /// Work out the value of every parameter and constant.
@@ -1679,7 +1755,8 @@ pub(crate) fn compile_at(
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
-    let (discretes, discrete_start, started_discretes) = discrete_layer(model, &params, &resume)?;
+    let (discretes, discrete_start, started_discretes, discrete_equations) =
+        discrete_layer(model, &params, &resume)?;
 
     // Where everything stands at the point being compiled for: the
     // pivot that chooses which states to demote reads it, and so does
@@ -1720,9 +1797,30 @@ pub(crate) fn compile_at(
     // compilation when one of them flips.
     let mode_time = resume.as_ref().map_or(0.0, |point| point.time);
     let modes = settle_modes(model, &start_env, mode_time, resume.is_some())?;
+    // The equations that define a discrete-valued name have gone to
+    // the event iteration, and go with their variable rather than
+    // standing among the continuous ones: one unknown and one
+    // equation leave together, so the balance is what it was.
+    // The definitions themselves, rewritten the same way as the rest:
+    // they are what the event iteration asks each round, and what the
+    // run watches for crossings.
+    let discrete_defs: Vec<EquationItem> = discrete_equations
+        .iter()
+        .map(|at| {
+            let equation = &model.equations[*at];
+            Ok(EquationItem {
+                lhs: rewrite.expr(&equation.lhs)?,
+                rhs: rewrite.expr(&equation.rhs)?,
+                origin: equation.origin.clone(),
+            })
+        })
+        .collect::<Result<Vec<_>, SimError>>()?;
     let equations: Vec<EquationItem> = model
         .equations
         .iter()
+        .enumerate()
+        .filter(|(at, _)| !discrete_equations.contains(at))
+        .map(|(_, equation)| equation)
         .chain(
             model
                 .conditional
@@ -1926,8 +2024,13 @@ pub(crate) fn compile_at(
 
     // What the run has to watch: one indicator per relation anywhere
     // in the model.
-    let indicators =
-        what_the_run_watches(&algebraic_eqs, &state_rhs, &when_clauses, &mode_conditions);
+    let indicators = what_the_run_watches(
+        &algebraic_eqs,
+        &discrete_defs,
+        &state_rhs,
+        &when_clauses,
+        &mode_conditions,
+    );
     let fixed_starts: Vec<(String, usize, f64)> = ordered_algs
         .iter()
         .enumerate()
@@ -1975,6 +2078,27 @@ pub(crate) fn compile_at(
     let state_slots: Vec<Slot> = states.iter().map(|name| table.slot(name)).collect();
     let algebraic_slots: Vec<Slot> = ordered_algs.iter().map(|name| table.slot(name)).collect();
     let discrete_slots: Vec<Slot> = discretes.iter().map(|name| table.slot(name)).collect();
+    // What each definition of a discrete-valued name computes, and
+    // where it writes: `off = s < 0` compiles to the relation and the
+    // slot `off` is read from. The side that names the variable is the
+    // one being written; the other side is what it is worth.
+    let discrete_definitions: Vec<(Slot, Code)> = discrete_defs
+        .iter()
+        .map(|equation| {
+            let named = |side: &Expr| match side {
+                Expr::Ref(name) => discretes.contains(name).then(|| name.clone()),
+                _ => None,
+            };
+            let (name, value) = match named(&equation.lhs) {
+                Some(name) => (name, &equation.rhs),
+                None => (
+                    named(&equation.rhs).expect("a definition names its variable"),
+                    &equation.lhs,
+                ),
+            };
+            Ok((table.slot(&name), table.compile(value)?))
+        })
+        .collect::<Result<Vec<_>, SimError>>()?;
     // Every variable `pre` was asked about needs the slot it is read
     // from beside the one holding what it was when the event began:
     // the `when` targets, and whatever else was asked for by type.
@@ -2142,6 +2266,7 @@ pub(crate) fn compile_at(
         state_slots,
         algebraic_slots,
         discrete_slots,
+        discrete_definitions,
         pre_slots,
         initial_slot,
         terminal_slot,
@@ -2273,6 +2398,7 @@ pub(crate) fn compile_at(
 /// Moved out of `compile_at` unchanged.
 fn what_the_run_watches(
     algebraic_eqs: &[(Expr, Expr)],
+    discrete_eqs: &[EquationItem],
     state_rhs: &HashMap<String, Expr>,
     when_clauses: &[WhenClause],
     mode_conditions: &[Vec<Expr>],
@@ -2282,6 +2408,16 @@ fn what_the_run_watches(
     for (lhs, rhs) in algebraic_eqs {
         collect(lhs);
         collect(rhs);
+    }
+    // The equations that define the discrete-valued names left the
+    // algebraic set, and the relations inside them left with it. They
+    // are exactly the crossings the run must step onto - `s < 0` of
+    // every ideal switch - and without them here the model would
+    // build, walk straight through the knee and give a smooth
+    // untruth.
+    for equation in discrete_eqs {
+        collect(&equation.lhs);
+        collect(&equation.rhs);
     }
     for expr in state_rhs.values() {
         collect(expr);
