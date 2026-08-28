@@ -1377,6 +1377,15 @@ fn with_transport_equations(model: &Model) -> Model {
     out
 }
 
+/// Whether a bound is written over a whole array rather than over the
+/// one value it is attached to.
+fn names_an_array_maker(expr: &Expr) -> bool {
+    match expr {
+        Expr::Call(name, _) => matches!(name.as_str(), "zeros" | "ones" | "fill"),
+        _ => false,
+    }
+}
+
 /// The `min` and `max` attributes, as the assertions Modelica says they
 /// are. A bound that is settled before the run is already refused by the
 /// checker; these are for the values that only a run produces - a level
@@ -1389,6 +1398,17 @@ fn bound_asserts(model: &Model) -> Vec<(Expr, String)> {
             (&component.max, RelOp::Le, "above its max of"),
         ] {
             let Some(limit) = bound else { continue };
+            // A bound written over a whole array - `Ron[m](min =
+            // zeros(m))` - is one the flattener leaves standing,
+            // since it does not come to a single value. Each element
+            // of the array is its own component here, and comparing
+            // one of them against the whole array is neither the
+            // assertion Modelica means nor something the run can
+            // evaluate: the call would reach the code generator as a
+            // function nothing knows.
+            if names_an_array_maker(limit) {
+                continue;
+            }
             out.push((
                 Expr::Rel(
                     op,

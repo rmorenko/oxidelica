@@ -892,6 +892,25 @@ fn one_phase_of_a_port_stands_where_its_port_stands() {
 }
 
 #[test]
+fn a_bound_over_a_whole_array_is_not_an_assertion_per_element() {
+    // `Ron[m](final min = zeros(m))` bounds the array as a whole. The
+    // flattener leaves such a bound standing rather than refusing it,
+    // since it does not come to one value, and each element of the
+    // array is its own component by the time the run is built. Turned
+    // into an assertion per element it would compare one number
+    // against a call to `zeros`, which the code generator knows
+    // nothing about, and the model would be refused for a function
+    // the language supplies.
+    let result = run("model D parameter Integer m = 3; \
+         parameter Real Ron[m](final min = zeros(m)) = fill(1e-5, m); \
+         Real y[m]; equation for k in 1:m loop y[k] = Ron[k]; end for; end D; \
+         model M D d(m = 3); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let index = result.columns.iter().position(|c| c == "d.y[1]").unwrap();
+    assert!((result.rows.last().unwrap()[index] - 1e-5).abs() < 1e-12);
+}
+
+#[test]
 fn a_port_joined_only_from_inside_carries_nothing() {
     // A machine's internal thermal port is joined by the windings
     // inside it, and the model above it is free to leave it alone -
