@@ -671,10 +671,28 @@ fn library_check(args: &[String]) -> Result<(), String> {
     // says whether the check grew because more of it passes or because
     // the same work grew slower.
     let mut flattening = std::time::Duration::ZERO;
+    let (mut built_time, mut refused_time) = (0.0_f64, 0.0_f64);
+    let (mut built_count, mut refused_count) = (0_usize, 0_usize);
     let mut running = std::time::Duration::ZERO;
     let mut ran_count = 0usize;
-    for (_, (_, spent)) in &answers {
+    for (_, (answer, spent)) in &answers {
         flattening += spent.flattening;
+        // The two halves of that total, kept apart. A model refused
+        // early costs almost nothing and a model that goes all the
+        // way is dear, so a total divided by every model says the
+        // same thing as the total: nothing about which of the two
+        // moved. Counted apart, the pair answers on its own whether
+        // more models are passing or the same work got slower.
+        match answer {
+            Answer::Refused(_) => {
+                refused_time += spent.flattening.as_secs_f64();
+                refused_count += 1;
+            }
+            _ => {
+                built_time += spent.flattening.as_secs_f64();
+                built_count += 1;
+            }
+        }
         if !spent.running.is_zero() {
             ran_count += 1;
         }
@@ -737,6 +755,18 @@ fn library_check(args: &[String]) -> Result<(), String> {
         running.as_secs_f64(),
         ran_count,
         per(running, ran_count)
+    );
+    // What the two halves cost, and how many reached each: the pair
+    // that says whether coverage grew or the same work slowed.
+    let each = |seconds: f64, count: usize| match count {
+        0 => 0.0,
+        count => seconds * 1000.0 / count as f64,
+    };
+    println!(
+        "        of which built {built_time:.0}s over {built_count} ({:.0}ms each); \
+         refused {refused_time:.0}s over {refused_count} ({:.0}ms each)",
+        each(built_time, built_count),
+        each(refused_time, refused_count)
     );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();

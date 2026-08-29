@@ -840,8 +840,9 @@ fn a_shared_instance_settles_before_those_who_read_it() {
     ))
     .unwrap();
     // What the declaration wrote, not what the class defaults to:
-    // FixedInitial is 2, DynamicFreeInitial would be 1, and taking the
-    // wrong one would pick the wrong initial equation without a word.
+    // FixedInitial is 2, DynamicFreeInitial would be 1, and taking
+    // the wrong one would pick the wrong initial equation without a
+    // word.
     // The branch the reader chose says which value arrived: with
     // FixedInitial the initial equation is `x = 1`, and with the
     // class default it would be neither branch at all.
