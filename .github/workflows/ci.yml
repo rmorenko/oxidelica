@@ -68,6 +68,13 @@ jobs:
   library:
     name: the standard library still reads
     runs-on: ubuntu-latest
+    # A ceiling of our own. Without one the job runs under GitHub's
+    # six hours, which is not a limit anybody chose: a model that
+    # takes for ever would hold a runner most of a working day before
+    # anyone heard about it. Ninety minutes is above what this job
+    # takes today - around half an hour, most of it one model - and
+    # low enough that going wrong is news the same morning.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 

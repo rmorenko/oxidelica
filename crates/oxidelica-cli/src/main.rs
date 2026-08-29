@@ -698,6 +698,21 @@ fn library_check(args: &[String]) -> Result<(), String> {
         }
         running += spent.running;
     }
+    // The dearest models by name. A total says how much was spent and
+    // the two halves say on which kind, but neither says whether the
+    // cost is spread over hundreds or sits in five - and those want
+    // different answers: a queue instead of stripes for the first, a
+    // look at the five for the second.
+    if std::env::var("OXIDELICA_DEAREST").is_ok() {
+        let mut by_cost: Vec<(&String, f64)> = answers
+            .iter()
+            .map(|(at, (_, spent))| (&models[*at], spent.flattening.as_secs_f64()))
+            .collect();
+        by_cost.sort_by(|a, b| b.1.total_cmp(&a.1));
+        for (name, seconds) in by_cost.iter().take(12) {
+            println!("  dearest {seconds:8.1}s  {name}");
+        }
+    }
     let answers: Vec<(usize, Answer)> = answers
         .into_iter()
         .map(|(at, (answer, _))| (at, answer))
