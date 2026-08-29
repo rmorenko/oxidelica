@@ -807,3 +807,47 @@ fn a_name_may_reach_an_outer_declared_by_a_component_it_holds() {
         .collect();
     assert_eq!(about, vec!["stateGraphRoot.a".to_string()]);
 }
+
+#[test]
+fn a_shared_instance_settles_before_those_who_read_it() {
+    // A model reads `system.energyDynamics` through an `outer` and
+    // decides a branch by it. The value used to arrive only when the
+    // loop over components reached the `inner` declaration - and the
+    // library writes that last, since the editor puts the block in
+    // the corner of the diagram at the end of the list. Read before,
+    // the name was live and looked dead: the same model with the two
+    // declarations swapped worked, which is no way for a compiler to
+    // behave.
+    const PARTS: &str = "package P \
+         type Dynamics = enumeration(DynamicFreeInitial, FixedInitial, \
+         SteadyStateInitial, SteadyState); \
+         model System parameter Dynamics energyDynamics = \
+         Dynamics.DynamicFreeInitial; end System; \
+         partial model Volume import P.Dynamics; outer P.System system; \
+         parameter Dynamics energyDynamics = system.energyDynamics; Real x; \
+         equation der(x) = -x; \
+         initial equation \
+         if energyDynamics == Dynamics.FixedInitial then x = 1; \
+         elseif energyDynamics == Dynamics.SteadyStateInitial then der(x) = 0; \
+         end if; end Volume; \
+         model Tank extends Volume; end Tank; ";
+    // The shared instance last, which is how the library writes it.
+    let late = parse_model(&format!(
+        "{PARTS} model Late Tank tank; \
+         inner System system(energyDynamics = P.Dynamics.FixedInitial); \
+         end Late; end P; model M extends P.Late; Real seen; \
+         equation seen = tank.energyDynamics; end M;"
+    ))
+    .unwrap();
+    // What the declaration wrote, not what the class defaults to:
+    // FixedInitial is 2, DynamicFreeInitial would be 1, and taking the
+    // wrong one would pick the wrong initial equation without a word.
+    // The branch the reader chose says which value arrived: with
+    // FixedInitial the initial equation is `x = 1`, and with the
+    // class default it would be neither branch at all.
+    let initial = format!("{:?}", late.initial_equations);
+    assert!(
+        initial.contains("tank.x") && initial.contains("1.0"),
+        "the modifier written on the shared instance did not reach the reader: {initial}"
+    );
+}

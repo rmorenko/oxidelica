@@ -60,6 +60,10 @@ pub(super) fn instantiate(
         local_texts,
     } = settle_naming(registry, class, prefix, env, acc, &outers)?;
 
+    if class.components.iter().any(|c| c.scope == Scope::Inner) {
+        settle_the_inner_instances(registry, &inners, acc, &imports, &shadow);
+    }
+
     settle_parameters_early(
         registry, class, prefix, env, acc, &imports, &shadow, &outers,
     );
@@ -417,6 +421,46 @@ fn settle_naming<'a>(
         shadow,
         local_texts,
     })
+}
+
+fn settle_the_inner_instances(
+    registry: &HashMap<&str, &ClassDef>,
+    inners: &HashMap<String, InnerInstance>,
+    acc: &mut Flat,
+    imports: &[(String, String)],
+    shadow: &[&str],
+) {
+    let mut named: Vec<(&String, &InnerInstance)> = inners.iter().collect();
+    named.sort_by(|a, b| a.1.path.cmp(&b.1.path));
+    for (_, instance) in named {
+        let Some(shared) = registry.get(instance.class.as_str()) else {
+            continue;
+        };
+        for component in &shared.components {
+            if !matches!(
+                component.variability,
+                Variability::Parameter | Variability::Constant
+            ) || !component.dimensions.is_empty()
+            {
+                continue;
+            }
+            let written = instance
+                .modifiers
+                .iter()
+                .find(|(name, _)| name == &component.name)
+                .map(|(_, value)| value.clone())
+                .or_else(|| component.binding.clone())
+                .or_else(|| component.start.clone());
+            let Some(written) = written else { continue };
+            let written =
+                substitute_class_constants(&written, registry, &shared.name, imports, shadow);
+            let Some(value) = const_eval(&written, &acc.const_values) else {
+                continue;
+            };
+            acc.const_values
+                .insert(format!("{}.{}", instance.path, component.name), value);
+        }
+    }
 }
 
 /// What this class's own parameters are worth before its bases are

@@ -129,6 +129,7 @@ pub(super) fn collect_inners(
             InnerInstance {
                 path: format!("{prefix}{}", component.name),
                 class: named,
+                modifiers: component.modifiers.clone(),
             },
         );
     }

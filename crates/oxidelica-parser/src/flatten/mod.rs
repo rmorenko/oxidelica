@@ -1508,6 +1508,8 @@ struct InnerInstance {
     path: String,
     /// Qualified name of its class.
     class: String,
+    /// What the declaration wrote on it.
+    modifiers: Vec<(String, Expr)>,
 }
 
 /// What an instantiation inherits from the level above it.
