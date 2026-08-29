@@ -633,6 +633,81 @@ pub(super) fn substitute_texts(expr: &Expr, texts: &HashMap<String, String>) -> 
     expr.map_children(&mut |child| substitute_texts(child, texts))
 }
 
+/// Settle the fields of a parameter record, by name.
+///
+/// `parameter SmpmData smpmData` holds `useDamperCage`, and a machine
+/// beside it is written `smpm(useDamperCage = smpmData.useDamperCage)`,
+/// one of a dozen fields an example hands over that way. Reached in
+/// declaration order the record may come after what reads it, and
+/// then the name is live but looks dead: the condition it decides has
+/// nothing to decide by, and the same model with the two declarations
+/// swapped works. So the fields are settled in the parameter round,
+/// which turns until nothing moves.
+///
+/// What the model wrote on the declaration beats what the record
+/// declares, the way a modifier always does. Arrays of records are
+/// left alone - each element would need its own name - and a field
+/// that is itself a record is settled the same way, one level at a
+/// time as the rounds come.
+#[allow(clippy::too_many_arguments)]
+fn fields_of_a_record(
+    component: &Component,
+    from_extends: Option<&Expr>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    prefix: &str,
+    outers: &HashMap<String, String>,
+    env: &mut HashMap<String, f64>,
+    local_consts: &mut HashMap<String, f64>,
+    acc: &mut Flat,
+) -> bool {
+    if !component.dimensions.is_empty() || from_extends.is_some() {
+        return false;
+    }
+    let Some(record) = lookup(registry, &component.type_name, scope, imports) else {
+        return false;
+    };
+    if record.kind != ClassKind::Record {
+        return false;
+    }
+    let mut moved = false;
+    for field in &record.components {
+        if !matches!(
+            field.variability,
+            Variability::Parameter | Variability::Constant
+        ) {
+            continue;
+        }
+        let named = format!("{}.{}", component.name, field.name);
+        if local_consts.contains_key(&named) {
+            continue;
+        }
+        // What the model wrote on the declaration, else what the
+        // record says of itself.
+        let written = component
+            .modifiers
+            .iter()
+            .find(|(name, _)| name == &field.name)
+            .map(|(_, value)| value.clone())
+            .or_else(|| field.binding.clone())
+            .or_else(|| field.start.clone());
+        let Some(written) = written else { continue };
+        let written = substitute_class_constants(&written, registry, scope, imports, &[]);
+        let written = prefix_expr(&written, prefix, outers);
+        let Some(value) = const_eval(&written, env) else {
+            continue;
+        };
+        local_consts.insert(named.clone(), value);
+        env.insert(named.clone(), value);
+        let flat = format!("{prefix}{named}");
+        env.insert(flat.clone(), value);
+        acc.const_values.insert(flat, value);
+        moved = true;
+    }
+    moved
+}
+
 #[allow(clippy::too_many_arguments)]
 fn settle_parameters(
     registry: &HashMap<&str, &ClassDef>,
@@ -702,8 +777,33 @@ fn settle_parameters(
             if !matches!(
                 component.variability,
                 Variability::Parameter | Variability::Constant
-            ) || local_consts.contains_key(&component.name)
-            {
+            ) {
+                continue;
+            }
+            // A parameter record hands its fields out by name:
+            // `smpmData.useDamperCage` is what an example writes on
+            // the machine, and the machine passes it down to the
+            // condition of a heat port. The fields have to be settled
+            // in this round rather than when the record is reached in
+            // declaration order, or a record declared after what uses
+            // it leaves a live name looking dead - and the same model
+            // written the other way round works, which is no way for
+            // a compiler to behave.
+            if fields_of_a_record(
+                component,
+                from_extends,
+                registry,
+                scope,
+                imports,
+                prefix,
+                outers,
+                &mut env,
+                &mut local_consts,
+                acc,
+            ) {
+                progress = true;
+            }
+            if local_consts.contains_key(&component.name) {
                 continue;
             }
             let binding = env_overrides

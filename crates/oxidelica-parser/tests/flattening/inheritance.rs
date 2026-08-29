@@ -1261,3 +1261,39 @@ fn a_record_that_adds_to_another_is_a_place_kept_for_another() {
         );
     }
 }
+
+#[test]
+fn a_record_settles_its_fields_whatever_order_it_is_declared_in() {
+    // Every example of the machine library hands a dozen parameters
+    // over as fields of a data record - `smpm(useDamperCage =
+    // smpmData.useDamperCage)` - and declares the record wherever it
+    // reads best. Settled in declaration order the record may come
+    // after what reads it, and then a live name looks dead: the
+    // condition it decides has nothing to decide by. The same model
+    // with the two declarations swapped worked, which is no way for a
+    // compiler to behave.
+    let both_ways = |source: &str| {
+        let m = parse_model(source).unwrap();
+        // The optional port is there, since the record says the cage
+        // is fitted.
+        assert!(
+            m.components.iter().any(|c| c.name == "a.tp.p"),
+            "the port decided by the record's field went missing"
+        );
+    };
+    const PARTS: &str = "connector TP parameter Boolean useCage(start = true); \
+         Real p if useCage; Real q; end TP; \
+         partial model Base replaceable TP tp; Real x; \
+         equation x = time; tp.q = x; end Base; \
+         model Amb parameter Boolean useCage(start = true); \
+         extends Base(tp(final useCage = useCage)); end Amb; \
+         record D parameter Boolean useCage = true; end D; ";
+    both_ways(&format!(
+        "{PARTS} model M Amb a(useCage = d.useCage); parameter D d; \
+         Real y; equation y = a.x; end M;"
+    ));
+    both_ways(&format!(
+        "{PARTS} model M parameter D d; Amb a(useCage = d.useCage); \
+         Real y; equation y = a.x; end M;"
+    ));
+}
