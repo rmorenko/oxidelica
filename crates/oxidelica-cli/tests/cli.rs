@@ -645,6 +645,24 @@ fn checking_with_no_directory_reads_what_is_in_view() {
     let text = stdout(&out);
     assert!(text.contains("2, of which 1 flatten"), "{text}");
     assert!(text.contains("unknown type `Missing`"), "{text}");
+
+    // What the report says about time. The two halves are counted
+    // apart because a model refused early costs almost nothing and one
+    // that goes all the way is dear, so a total divided by every model
+    // says nothing about which of the two moved. The dearest models
+    // are named on request, since a total also cannot say whether the
+    // cost is spread over hundreds or sits in five.
+    let out = bin()
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .env("OXIDELICA_DEAREST", "1")
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("of which built"), "{text}");
+    assert!(text.contains("refused"), "{text}");
+    assert!(text.contains("dearest"), "{text}");
+    assert!(text.contains("Lib.Examples."), "{text}");
 }
 
 #[test]

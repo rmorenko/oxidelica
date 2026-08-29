@@ -656,9 +656,24 @@ pub(super) fn resolve(
         | Expr::Or(..) => expr.try_map_children(&mut |child| recur(child))?,
         Expr::If(c, a, b) => {
             let condition = recur(c)?;
-            let mut env = consts.clone();
-            env.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
-            let settled = const_eval(&condition, &env);
+            // The same guard the subscripts above are read under, and
+            // for the same reason: where there are no loop variables
+            // the parameters are read as they stand. Copied on every
+            // `if` node instead, the cost of one walk grows with the
+            // model - a six-cylinder engine carries a table six times
+            // longer past the same expression - and six walks at six
+            // times the price is what turns a linear model into a
+            // quadratic one.
+            let with_loop_vars = match loop_vars.is_empty() {
+                true => None,
+                false => {
+                    let mut env = consts.clone();
+                    env.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    Some(env)
+                }
+            };
+            let env = with_loop_vars.as_ref().unwrap_or(consts);
+            let settled = const_eval(&condition, env);
             let (first, second) = match settled {
                 Some(0.0) => (b, a),
                 _ => (a, b),
