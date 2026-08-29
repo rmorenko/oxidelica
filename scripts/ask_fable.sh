@@ -15,7 +15,7 @@ test -f QUESTION_FOR_FABLE.md || {
     exit 1
 }
 
-exec claude --model claude-opus-5 \
+exec claude --model claude-fable-5 \
     --permission-mode acceptEdits \
     -p "Read QUESTION_FOR_FABLE.md in this repository. The last section \
 is a question that has no answer section after it yet. Before \
