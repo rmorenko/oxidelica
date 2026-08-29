@@ -617,6 +617,39 @@ pub(super) fn expand_call(
         ("size", 2) => {
             let shape = recur(&args[0])?.shape();
             let dimension = constant(&args[1])?;
+            // A table block declares `table` empty and fills it from a
+            // file: asked how wide it is before the run, the shape of
+            // the declaration says nothing, and the file says
+            // everything. The same reading the sizes were measured by.
+            // The declaration of a table on a file is `fill(0.0, 0,
+            // 2)`: it has both dimensions, and the first of them is a
+            // zero that says nothing about the numbers waiting in the
+            // file. So the file answers wherever it can, not only
+            // where the declaration is short of a dimension.
+            let empty_here = shape
+                .get((dimension - 1).max(0) as usize)
+                .is_none_or(|length| *length == 0);
+            if empty_here {
+                let in_view = super::statements::texts_in_view();
+                let text_of = |wanted: &str| in_view.get(wanted).cloned();
+                let truth_of = |wanted: &str| shapes.consts.get(wanted).map(|value| *value != 0.0);
+                let asks_a_table = matches!(&args[0], Expr::Ref(name)
+                    if name == "table" || name.ends_with(".table"));
+                if asks_a_table && truth_of("tableOnFile") == Some(true) {
+                    if let (Some(file), Some(named)) = (text_of("fileName"), text_of("tableName")) {
+                        if let Ok(rows) = super::table_files::table_in_file(&file, &named) {
+                            let length = match dimension {
+                                1 => Some(rows.len()),
+                                2 => rows.first().map(|row| row.len()),
+                                _ => None,
+                            };
+                            if let Some(length) = length {
+                                return Ok(Value::Scalar(Expr::Number(length as f64)));
+                            }
+                        }
+                    }
+                }
+            }
             let length = shape.get((dimension - 1).max(0) as usize).ok_or_else(|| {
                 if std::env::var("OXSZ").is_ok() {
                     let mut named: Vec<&String> = shapes.sizes.keys().collect();
@@ -2142,6 +2175,30 @@ fn collect_shapes_under(
                             .map(|(_, given)| given)
                             .or(component.binding.as_ref());
                         value.and_then(|binding| {
+                            // A table told where to find its numbers
+                            // knows how wide it is only once the file
+                            // is read, and the file is named among
+                            // the same values that were handed down.
+                            let handed_text = |wanted: &str| {
+                                handed.iter().find_map(|(name, given)| match given {
+                                    Expr::Str(text) if name == wanted => Some(text.clone()),
+                                    _ => None,
+                                })
+                            };
+                            let handed_truth = |wanted: &str| {
+                                handed.iter().find_map(|(name, given)| match given {
+                                    Expr::Bool(yes) if name == wanted => Some(*yes),
+                                    _ => None,
+                                })
+                            };
+                            if let Some(length) = super::extents::size_of_a_table_in_a_file(
+                                binding,
+                                axis,
+                                handed_text,
+                                handed_truth,
+                            ) {
+                                return Some(length);
+                            }
                             // A value written out says its length outright.
                             if let Some(length) =
                                 flexible_size(binding, axis, registry, scope, &class.imports)

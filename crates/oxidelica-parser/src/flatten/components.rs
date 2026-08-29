@@ -542,6 +542,20 @@ fn measure_dimensions(
                 // its axis labels - has to be worked out before it
                 // can be measured.
                 let measured = |(binding, prefixed): &(Expr, bool)| -> Option<i64> {
+                    // The same reading as the early roads take: a
+                    // table on a file says how wide it is only once
+                    // the file is read, and both roads have to answer
+                    // alike or the shape settled early and the shape
+                    // measured here part company without a word.
+                    let in_view = statements::texts_in_view();
+                    let text_of = |wanted: &str| in_view.get(wanted).cloned();
+                    let truth_of =
+                        |wanted: &str| local_consts.get(wanted).map(|value| *value != 0.0);
+                    if let Some(length) =
+                        extents::size_of_a_table_in_a_file(binding, axis, text_of, truth_of)
+                    {
+                        return Some(length);
+                    }
                     if let Some(length) = flexible_size(binding, axis, registry, scope, imports) {
                         return Some(length);
                     }

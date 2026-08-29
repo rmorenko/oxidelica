@@ -620,3 +620,53 @@ pub(super) fn numbers_of_one(
     }
     Some(all)
 }
+
+/// How wide a table in a file is, where a range is measured against
+/// it.
+///
+/// A table block declares `table` empty and `columns[:] = 2:size(
+/// table, 2)` beside it: what says how many columns there are is the
+/// file named among the same parameters, and until it is read the
+/// range measures by the empty declaration. Read only when the block
+/// says its table is on a file, since every one of these blocks
+/// carries the same default range and would otherwise take a file
+/// meant for another.
+///
+/// A file that cannot be read leaves the measurement where it was: a
+/// name with no shape is asked again, and `resolve_tables` says later
+/// why the file would not read, naming it.
+pub(super) fn size_of_a_table_in_a_file(
+    binding: &Expr,
+    axis: usize,
+    text_of: impl Fn(&str) -> Option<String>,
+    truth_of: impl Fn(&str) -> Option<bool>,
+) -> Option<i64> {
+    if axis != 0 {
+        return None;
+    }
+    let Expr::Range(from, None, end) = binding else {
+        return None;
+    };
+    let Expr::Call(name, args) = end.as_ref() else {
+        return None;
+    };
+    if name != "size" || args.len() != 2 {
+        return None;
+    }
+    let (Expr::Number(first), Expr::Number(which)) = (from.as_ref(), &args[1]) else {
+        return None;
+    };
+    if truth_of("tableOnFile") != Some(true) {
+        return None;
+    }
+    let file = text_of("fileName")?;
+    let named = text_of("tableName")?;
+    let rows = super::table_files::table_in_file(&file, &named).ok()?;
+    let shape = match *which as usize {
+        1 => rows.len(),
+        2 => rows.first()?.len(),
+        _ => return None,
+    };
+    // `first:last` holds as many as the difference plus one.
+    Some(shape as i64 - *first as i64 + 1)
+}

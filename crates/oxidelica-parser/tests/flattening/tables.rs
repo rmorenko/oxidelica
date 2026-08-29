@@ -1584,3 +1584,93 @@ fn a_matlab_table_may_be_written_shorter() {
     let path = written("second.mat", &bytes);
     assert_eq!(read_table_file(&path, "t").unwrap(), vec![vec![3.5]]);
 }
+
+#[test]
+fn a_table_on_a_file_says_how_wide_it_is() {
+    // A table block declares `table` empty and writes `columns[:] =
+    // 2:size(table, 2)` beside it: what says how many columns there
+    // are is the file named among the same parameters. Measured by
+    // the empty declaration the range has no length at all, and
+    // twenty-five models stood there.
+    let file = std::env::temp_dir().join("oxidelica_table_width.txt");
+    std::fs::write(&file, "#1\ndouble tabA(3,3)\n0 1 2\n1 3 4\n2 5 6\n").unwrap();
+    let source = format!(
+        "block Table parameter Boolean tableOnFile = false; \
+         parameter String fileName = \"NoName\"; \
+         parameter String tableName = \"NoName\"; \
+         parameter Real table[:, :] = fill(0.0, 0, 2); \
+         parameter Integer columns[:] = 2:size(table, 2); \
+         output Real y; equation y = size(columns, 1); end Table; \
+         model M Table t(tableOnFile = true, tableName = \"tabA\", \
+         fileName = \"{}\"); Real z; equation z = t.y; end M;",
+        file.display()
+    );
+    let flat = parse_model(&source).unwrap();
+    // Three columns in the file, counted from the second: two.
+    let written = format!("{:?}", flat.equations);
+    assert!(written.contains("2.0"), "{written}");
+    std::fs::remove_file(&file).ok();
+}
+
+#[test]
+fn a_table_block_that_is_not_on_a_file_keeps_its_declared_width() {
+    // Every one of these blocks carries the same `columns[:] =
+    // 2:size(table, 2)`, so reading a file for a block that says its
+    // table is written out would take numbers meant for another.
+    let flat = parse_model(
+        "block Table parameter Boolean tableOnFile = false; \
+         parameter String fileName = \"NoName\"; \
+         parameter String tableName = \"NoName\"; \
+         parameter Real table[:, :] = [0, 1, 2; 1, 3, 4]; \
+         parameter Integer columns[:] = 2:size(table, 2); \
+         output Real y; equation y = size(columns, 1); end Table; \
+         model M Table t; Real z; equation z = t.y; end M;",
+    )
+    .unwrap();
+    // Three columns written out, counted from the second: two.
+    assert!(format!("{:?}", flat.equations).contains("2.0"));
+}
+
+#[test]
+fn a_table_file_that_will_not_read_leaves_the_measurement_alone() {
+    // A name with no shape is asked again; a wrong shape is settled
+    // for good. What could not be read is left to the table machinery
+    // to complain about later, by the name of the file.
+    let missing = std::env::temp_dir().join("oxidelica_no_such_table.txt");
+    std::fs::remove_file(&missing).ok();
+    let source = format!(
+        "block Table parameter Boolean tableOnFile = false; \
+         parameter String fileName = \"NoName\"; \
+         parameter String tableName = \"NoName\"; \
+         parameter Real table[:, :] = fill(0.0, 0, 2); \
+         parameter Integer columns[:] = 2:size(table, 2); \
+         output Real y; equation y = size(columns, 1); end Table; \
+         model M Table t(tableOnFile = true, tableName = \"tabA\", \
+         fileName = \"{}\"); Real z; equation z = t.y; end M;",
+        missing.display()
+    );
+    let why = parse_model(&source).unwrap_err().to_string();
+    assert!(why.contains("flexible size"), "{why}");
+}
+
+#[test]
+fn a_table_on_a_file_says_how_many_rows_it_has() {
+    // The first dimension is read the same way as the second.
+    let file = std::env::temp_dir().join("oxidelica_table_rows.txt");
+    std::fs::write(&file, "#1\ndouble tabA(3,3)\n0 1 2\n1 3 4\n2 5 6\n").unwrap();
+    let source = format!(
+        "block Table parameter Boolean tableOnFile = false; \
+         parameter String fileName = \"NoName\"; \
+         parameter String tableName = \"NoName\"; \
+         parameter Real table[:, :] = fill(0.0, 0, 2); \
+         parameter Integer rows[:] = 1:size(table, 1); \
+         output Real y; equation y = size(rows, 1); end Table; \
+         model M Table t(tableOnFile = true, tableName = \"tabA\", \
+         fileName = \"{}\"); Real z; equation z = t.y; end M;",
+        file.display()
+    );
+    let flat = parse_model(&source).unwrap();
+    // Three rows, counted from the first: three.
+    assert!(format!("{:?}", flat.equations).contains("3.0"));
+    std::fs::remove_file(&file).ok();
+}
