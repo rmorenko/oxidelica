@@ -10,6 +10,14 @@
 # A floor rather than an exact number: going up is the point, and
 # should not need the threshold edited in the same commit.
 #
+# A full measurement is dear - it reads every model of the library -
+# so a run of small fixes may be measured once at the end rather than
+# after each. What the run may not do is end without measuring: the
+# commit that raises the floors names the commits it covers, and the
+# numbers it writes are numbers this script printed, not numbers
+# anybody expected. A floor raised on an expectation is the same trust
+# this script was written to replace.
+#
 # The time is reported but not held to anything. The whole check grows
 # longer as more models pass - a model refused early used to cost
 # nothing, and the ones that newly pass are the dear ones, which is
