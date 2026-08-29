@@ -810,7 +810,12 @@ fn a_name_may_reach_an_outer_declared_by_a_component_it_holds() {
 
 #[test]
 fn a_shared_instance_settles_before_those_who_read_it() {
-    // A model reads `system.energyDynamics` through an `outer` and
+    // A model reads a parameter of the shared instance through an
+    // `outer` and decides a branch by it - and the one it reads is
+    // itself written in terms of a neighbour: `massDynamics =
+    // energyDynamics` is how the fluid library says one follows the
+    // other. Settling the leaves alone left the chain to arrive when
+    // the loop over components reached the declaration, which the
     // decides a branch by it. The value used to arrive only when the
     // loop over components reached the `inner` declaration - and the
     // library writes that last, since the editor puts the block in
@@ -822,13 +827,14 @@ fn a_shared_instance_settles_before_those_who_read_it() {
          type Dynamics = enumeration(DynamicFreeInitial, FixedInitial, \
          SteadyStateInitial, SteadyState); \
          model System parameter Dynamics energyDynamics = \
-         Dynamics.DynamicFreeInitial; end System; \
+         Dynamics.DynamicFreeInitial; \
+         parameter Dynamics massDynamics = energyDynamics; end System; \
          partial model Volume import P.Dynamics; outer P.System system; \
-         parameter Dynamics energyDynamics = system.energyDynamics; Real x; \
+         parameter Dynamics massDynamics = system.massDynamics; Real x; \
          equation der(x) = -x; \
          initial equation \
-         if energyDynamics == Dynamics.FixedInitial then x = 1; \
-         elseif energyDynamics == Dynamics.SteadyStateInitial then der(x) = 0; \
+         if massDynamics == Dynamics.FixedInitial then x = 1; \
+         elseif massDynamics == Dynamics.SteadyStateInitial then der(x) = 0; \
          end if; end Volume; \
          model Tank extends Volume; end Tank; ";
     // The shared instance last, which is how the library writes it.
@@ -836,7 +842,7 @@ fn a_shared_instance_settles_before_those_who_read_it() {
         "{PARTS} model Late Tank tank; \
          inner System system(energyDynamics = P.Dynamics.FixedInitial); \
          end Late; end P; model M extends P.Late; Real seen; \
-         equation seen = tank.energyDynamics; end M;"
+         equation seen = tank.massDynamics; end M;"
     ))
     .unwrap();
     // What the declaration wrote, not what the class defaults to:

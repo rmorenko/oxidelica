@@ -433,6 +433,14 @@ fn settle_the_inner_instances(
     let mut named: Vec<(&String, &InnerInstance)> = inners.iter().collect();
     named.sort_by(|a, b| a.1.path.cmp(&b.1.path));
     for (_, instance) in named {
+        // What this pass has settled here, under the short names the
+        // class writes. A shared instance says `massDynamics =
+        // energyDynamics` about itself, one parameter reading its
+        // neighbour, and the neighbour's value goes into the model's
+        // table under a path - never under the bare name the binding
+        // asks for. Kept beside, the chain settles in the order it is
+        // written, and nothing is copied to hold it.
+        let mut settled_here: HashMap<String, f64> = HashMap::new();
         let Some(shared) = registry.get(instance.class.as_str()) else {
             continue;
         };
@@ -454,9 +462,12 @@ fn settle_the_inner_instances(
             let Some(written) = written else { continue };
             let written =
                 substitute_class_constants(&written, registry, &shared.name, imports, shadow);
-            let Some(value) = const_eval(&written, &acc.const_values) else {
+            let Some(value) = const_eval(&written, &acc.const_values)
+                .or_else(|| const_eval(&written, &settled_here))
+            else {
                 continue;
             };
+            settled_here.insert(component.name.clone(), value);
             acc.const_values
                 .insert(format!("{}.{}", instance.path, component.name), value);
         }
