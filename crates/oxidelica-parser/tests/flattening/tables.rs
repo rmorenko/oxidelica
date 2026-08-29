@@ -1603,7 +1603,7 @@ fn a_table_on_a_file_says_how_wide_it_is() {
          output Real y; equation y = size(columns, 1); end Table; \
          model M Table t(tableOnFile = true, tableName = \"tabA\", \
          fileName = \"{}\"); Real z; equation z = t.y; end M;",
-        file.display()
+        as_modelica_path(&file)
     );
     let flat = parse_model(&source).unwrap();
     // Three columns in the file, counted from the second: two.
@@ -1647,7 +1647,7 @@ fn a_table_file_that_will_not_read_leaves_the_measurement_alone() {
          output Real y; equation y = size(columns, 1); end Table; \
          model M Table t(tableOnFile = true, tableName = \"tabA\", \
          fileName = \"{}\"); Real z; equation z = t.y; end M;",
-        missing.display()
+        as_modelica_path(&missing)
     );
     let why = parse_model(&source).unwrap_err().to_string();
     assert!(why.contains("flexible size"), "{why}");
@@ -1667,10 +1667,20 @@ fn a_table_on_a_file_says_how_many_rows_it_has() {
          output Real y; equation y = size(rows, 1); end Table; \
          model M Table t(tableOnFile = true, tableName = \"tabA\", \
          fileName = \"{}\"); Real z; equation z = t.y; end M;",
-        file.display()
+        as_modelica_path(&file)
     );
     let flat = parse_model(&source).unwrap();
     // Three rows, counted from the first: three.
     assert!(format!("{:?}", flat.equations).contains("3.0"));
     std::fs::remove_file(&file).ok();
+}
+
+/// A path as a Modelica string literal.
+///
+/// Windows writes `C:\\Users\\...`, and a Modelica string reads a
+/// backslash as the start of an escape - `\\U` is not one the
+/// language has. Forward slashes name the same file on every system
+/// these tests run on.
+fn as_modelica_path(path: &std::path::Path) -> String {
+    path.display().to_string().replace('\\', "/")
 }
