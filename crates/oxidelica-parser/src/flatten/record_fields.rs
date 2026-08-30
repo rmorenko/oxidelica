@@ -310,25 +310,3 @@ fn started_by(
     // started the asking has never heard of either.
     started_by(&base, registry, class, depth + 1)
 }
-
-/// Whether a name is a working variable the body declared for itself.
-///
-/// Not an input, not an output, not something a caller ever sees: a
-/// `hlp` that holds one field while two are swapped. Such a name may
-/// be left in the branch that wrote it, since nothing outside can ask
-/// what it holds.
-pub(super) fn is_a_protected_local(
-    name: &str,
-    registry: &HashMap<&str, &ClassDef>,
-    scope: &str,
-) -> bool {
-    let Some(class) = registry.get(scope) else {
-        return false;
-    };
-    if class.kind != ClassKind::Function {
-        return false;
-    }
-    class.components.iter().any(|component| {
-        component.name == name && component.protected && component.causality == Causality::None
-    })
-}

@@ -249,7 +249,6 @@ pub(super) fn execute(
                 assigned.retain(|name| name != variable);
             }
             Statement::While(condition, body) => {
-                let _round = InALoop::round();
                 let mut rounds = 0;
                 loop {
                     let now = substitute_refs(condition, bindings);
@@ -695,12 +694,6 @@ thread_local! {
     /// conversion is after the outer one - so the outer `if` leaves
     /// its own rest here for the inner ones to look at.
     static AFTERWARDS: RefCell<Vec<Vec<Statement>>> = const { RefCell::new(Vec::new()) };
-    /// How many loops are being unrolled around what is being worked
-    /// out. A loop reads its own condition before every round after
-    /// the first, which is reading that happens after an `if` in its
-    /// body - and not reading that looking at the statements which
-    /// follow can see.
-    static IN_A_LOOP: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// Let what follows an `if` be seen while its branches are worked
@@ -724,27 +717,6 @@ impl Drop for Afterwards {
 
 /// Whether a name is read after the statements given, counting what
 /// runs after every `if` these sit inside.
-/// Whether a loop is being unrolled around what is being worked out.
-fn in_a_loop() -> bool {
-    IN_A_LOOP.with(|deep| deep.get() > 0)
-}
-
-/// Count a loop while its body is worked out, and stop counting after.
-struct InALoop;
-
-impl InALoop {
-    fn round() -> InALoop {
-        IN_A_LOOP.with(|deep| deep.set(deep.get() + 1));
-        InALoop
-    }
-}
-
-impl Drop for InALoop {
-    fn drop(&mut self) {
-        IN_A_LOOP.with(|deep| deep.set(deep.get() - 1));
-    }
-}
-
 fn read_after(rest: &[Statement], name: &str) -> bool {
     if read_later(rest, name, 0) {
         return true;
@@ -916,22 +888,7 @@ fn one_if_statement(
         // subscripts come off before asking.
         let whole = name.split('[').next().unwrap_or(&name);
         let an_array = sizes.contains_key(whole);
-        // A scalar of the body's own that no statement after the `if`
-        // reads is the same case: the Spice3 transistors swap two
-        // fields of a record through a `hlp` that lives and dies
-        // inside one branch, and asking what it holds where the other
-        // branch never set it has no answer and no question. The
-        // output is another matter - it is read by whoever called
-        // rather than by any statement here - so what is left behind
-        // is only what the body declared for itself.
-
-        // Not inside a loop, though: a `while` reads its own
-        // condition before every round after the first, so what a
-        // branch leaves behind there is read again in a way looking
-        // at the following statements cannot see. Left in its branch,
-        // a counter would never come out.
-        let a_local = !in_a_loop() && record_fields::is_a_protected_local(whole, registry, scope);
-        if (an_array || a_local) && !read_after(rest, &name) && !read_after(rest, whole) {
+        if an_array && !read_after(rest, &name) && !read_after(rest, whole) {
             continue;
         }
         // A variable of a function body that no branch
@@ -960,9 +917,19 @@ fn one_if_statement(
         // library needs this rule for is bodies that
         // decide a scalar or a record field one way or
         // another, and those cost nothing.
-        let writes_arrays = outcomes
-            .iter()
-            .any(|(_, local)| local.keys().any(|written| sizes.contains_key(written)));
+        // What a branch wrote, not what the frame holds. A branch is
+        // worked out on a copy of everything standing before the
+        // `if`, so its bindings name the whole body - arguments and
+        // all - and asking that copy whether an array is in it
+        // answers about the signature rather than about the branch. A
+        // Spice3 transistor takes a vector of four voltages as its
+        // eighth argument and writes no array anywhere; read the old
+        // way, every `if` in it counted as one that writes arrays.
+        let writes_arrays = outcomes.iter().any(|(_, local)| {
+            local.iter().any(|(written, value)| {
+                sizes.contains_key(written) && before.get(written) != Some(value)
+            })
+        });
         let fallback = before.get(&name).cloned().or_else(|| {
             let start = record_fields::starts_at(&name, registry, scope)?;
             // A flag costs nothing to give a start to: it
