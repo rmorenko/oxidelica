@@ -3109,3 +3109,40 @@ fn a_body_folds_a_string_the_class_settled() {
     let k = m.components.iter().find(|c| c.name == "k").unwrap();
     assert_eq!(format!("{:?}", k.binding), "Some(Number(3.0))");
 }
+
+#[test]
+fn a_working_scalar_may_stay_in_the_branch_that_wrote_it() {
+    // The Spice3 transistors swap two fields of a record through a
+    // `hlp` that lives and dies inside one branch of an `if`, and
+    // twenty-nine models stood at the refusal. The rule that leaves
+    // such a name in the branch that wrote it was written for arrays;
+    // a scalar the body declared for itself is the same case.
+    //
+    // The array in the signature is what makes this refuse rather
+    // than quietly merge: a protected scalar is otherwise given the
+    // zero its type starts at, and the guard that withholds that zero
+    // asks whether the frame holds an array at all - not whether the
+    // branches write one. So the eighth argument of the Spice3
+    // function, a vector of four voltages, decides the fate of a
+    // scalar that has nothing to do with it.
+    let flat = parse_model(
+        "record QM Real a; Real b; end QM; \
+         function maker input Real x; output QM q; \
+         algorithm q.a := x; q.b := 2 * x; end maker; \
+         function swapper input Real x; input Real mode; \
+         input Real[4] volts; output Real y; \
+         protected QM qm; Real hlp; \
+         algorithm \
+         if mode > 0 then qm := maker(x + volts[1]); \
+         else qm := maker(2 * x); hlp := qm.a; qm.a := qm.b; qm.b := hlp; \
+         end if; \
+         y := qm.a * 10 + qm.b; end swapper; \
+         model M Real y; Real u; equation u = time + 1; \
+         y = swapper(u, u - 0.5, {1.0, 2.0, 3.0, 4.0}); end M;",
+    )
+    .unwrap();
+    assert!(flat
+        .equations
+        .iter()
+        .any(|e| format!("{:?}", e.lhs).contains('y')));
+}
