@@ -185,10 +185,12 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
     if (!time_table && !plain && !grid) || args.len() < wanted {
         return None;
     }
-    // A table told where to find its numbers is read from there: the
-    // file first, then the name of the table inside it, which is the
-    // order every one of these constructors takes them in.
-    let (Expr::Str(file), Expr::Str(named)) = (&args[0], &args[1]) else {
+    // A table told where to find its numbers is read from there, and
+    // it is handed its own name first and the file second - the order
+    // every one of these constructors takes them in. A table carried
+    // in the model is named `"NoName"`, which reads the same either
+    // way round and so said nothing about which seat is which.
+    let (Expr::Str(named), Expr::Str(file)) = (&args[0], &args[1]) else {
         return None;
     };
     // One row is a table too: the standard library's clutches give a

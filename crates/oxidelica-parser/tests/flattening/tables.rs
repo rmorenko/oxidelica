@@ -1684,3 +1684,43 @@ fn a_table_on_a_file_says_how_many_rows_it_has() {
 fn as_modelica_path(path: &std::path::Path) -> String {
     path.display().to_string().replace('\\', "/")
 }
+
+/// A table read from a file is handed its own name first and the file
+/// second, and it is read from the seat it was written into.
+#[test]
+fn a_table_reads_the_file_from_the_seat_it_was_written_into() {
+    // A table carried in the model is named `"NoName"` in both of the
+    // first two seats, so it reads the same whichever way round they
+    // are taken, and said nothing about which seat is which. A file
+    // says it plainly: the name of the table inside it stands first.
+    let dir = std::env::temp_dir().join("oxidelica_seat_order_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("rows.txt");
+    std::fs::write(&file, "#1\ndouble tab1(3,2)\n0 0\n1 2\n2 4\n").unwrap();
+    let m = parse_model(&format!(
+        "{TIME_TABLE_BLOCK} model M \
+         Times.Handle h = Times.Handle(\"tab1\", \"{}\", fill(0.0, 0, 2), \
+           0, {{2}}, 1, 2, 0); \
+         Real y; \
+         equation y = Times.getValue(h, 1, time, 0, 0); end M;",
+        file.display()
+    ))
+    .unwrap();
+    let said = m
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(lhs) if lhs == "y"))
+        .map(|e| format!("{:?}", e.rhs))
+        .unwrap_or_default();
+    // Read from the file, the rows interpolate; read from the wrong
+    // seat, the file is looked for under the name `tab1` and the call
+    // stands where a table should be.
+    assert!(
+        !said.contains("getValue"),
+        "the table was not read from its file: {said}"
+    );
+    assert!(
+        said.contains("Number(2.0)") && said.contains("Time"),
+        "the rows did not reach the equation: {said}"
+    );
+}

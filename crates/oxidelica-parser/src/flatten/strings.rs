@@ -162,6 +162,35 @@ pub(super) fn resolve_strings(model: &mut Model) -> Result<Settled, String> {
     model
         .components
         .retain(|component| component.type_name != "String");
+    // The strings just told several bindings what they are: a name
+    // built on `Strings.length` of a file name is a number now, where
+    // a round ago it was a standing call. The numbers were sown before
+    // the strings had spoken, so they are sown again over what the
+    // strings settled - a table's `if isCsvExt then ...` is judged
+    // against this map, and a name missing from it leaves the `if`
+    // whole and the table unread.
+    loop {
+        let mut moved = false;
+        for component in &model.components {
+            if numbers.contains_key(&component.name) {
+                continue;
+            }
+            let Some(value) = component.binding.as_ref().or(component.start.as_ref()) else {
+                continue;
+            };
+            let taken = branch_taken(value, &values, &numbers);
+            let Ok(said) = fold(&taken, &values, &numbers) else {
+                continue;
+            };
+            if let Some(number) = const_eval(&said, &numbers) {
+                numbers.insert(component.name.clone(), number);
+                moved = true;
+            }
+        }
+        if !moved {
+            break;
+        }
+    }
     Ok(Settled {
         texts: values,
         numbers,
