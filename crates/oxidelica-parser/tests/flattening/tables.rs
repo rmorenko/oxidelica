@@ -1703,7 +1703,10 @@ fn a_table_reads_the_file_from_the_seat_it_was_written_into() {
            0, {{2}}, 1, 2, 0); \
          Real y; \
          equation y = Times.getValue(h, 1, time, 0, 0); end M;",
-        file.display()
+        // A Modelica string takes its path with forward slashes: a
+        // Windows path written as it comes would carry `\U` into the
+        // source, which is not an escape this language has.
+        file.display().to_string().replace('\\', "/")
     ))
     .unwrap();
     let said = m

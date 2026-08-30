@@ -353,3 +353,68 @@ on an architecture that can carry them.
    later conversation.
 5. **ModelicaTest is not the target.** Modelica first; the test suite is
    a bonus.
+
+## The register, taken again at 639 flatten and 323 run
+
+Measured by `scripts/refusals.sh <library> both` on the tree that reads
+a table from the seat it was written into. 1043 example models: 639
+flatten, of which 323 run. The runnable subset (912 with an
+`experiment` annotation or an `Example` icon) stands at 549 and 320,
+and it moved by exactly what the whole library moved - the seat fix
+freed no model that was outside it.
+
+### What stops flattening, the top of it
+
+| Count | What it is                                                                         |
+| ----: | ---------------------------------------------------------------------------------- |
+|    25 | a dimension is not a compile-time constant                                         |
+|    24 | `Range(0, None, size(...) - 1)` where a scalar is wanted                           |
+|    24 | an Integer stands where a Boolean is needed                                        |
+|    22 | a function is missing an argument                                                  |
+|    20 | `Range(N, None, N)` where a scalar is wanted                                       |
+|    18 | a function handed as an argument with some of its inputs filled in (`f_nonlinear`) |
+|    16 | a flexible size with nowhere to read its length from                               |
+|    16 | the condition of a component is not a compile-time constant                        |
+|    14 | an external C function this compiler does not answer for                           |
+|    11 | a table this compiler answers for, whose data it still cannot see                  |
+
+The two kinds that were a heap a few commits ago are gone from this
+list entirely: `if` with no `else` and `for` in a branch nobody can
+settle, both 0. The three flexible-size and range kinds above are one
+family read three ways by the message, not three problems.
+
+### The external world, by name
+
+Seventeen models stop at a function written outside Modelica, and they
+are not one wish but two. What a compiler could answer for itself:
+
+| Times | Name                                                          |
+| ----: | ------------------------------------------------------------- |
+|     4 | `ModelicaInternal_stat` - does a path exist, and is it a file |
+|     2 | `ModelicaInternal_readLine`                                   |
+|     1 | `ModelicaInternal_readFile`                                   |
+|     1 | `ModelicaInternal_getcwd`                                     |
+|     1 | `ModelicaStrings_scanInteger`                                 |
+|     1 | `ModelicaIO_readMatrixSizes`                                  |
+|     1 | `ModelicaIO_writeRealMatrix`                                  |
+
+Nine models, all of them file system and string work this compiler
+already does elsewhere in Rust: the answer is to write them here, not
+to link anything. What needs a real library, or a model that hands a
+compiled function over:
+
+| Times | Name                                                              |
+| ----: | ----------------------------------------------------------------- |
+|     3 | `dgesvd`, `dgelsy`, `dgees` - LAPACK, in FORTRAN                  |
+|     3 | `mydummyfunc` - a table the test suite supplies from C of its own |
+
+Six models, and three of those are ModelicaTest handing itself a table
+through a C pointer, which is not a target. So the road to running
+without any C at all is nine models wide, and the LAPACK three are the
+only ones that would need a numerical library rather than a morning.
+
+### The eleven tables that still refuse
+
+All of them two-dimensional (`CombiTable2Ds`, `CombiTable2Dv`) or a
+battery cell whose data is a `CombiTable1D` written into the model.
+The file seat is now read correctly; what stops these is further in.
