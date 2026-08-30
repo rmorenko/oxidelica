@@ -1727,3 +1727,19 @@ fn a_table_reads_the_file_from_the_seat_it_was_written_into() {
         "the rows did not reach the equation: {said}"
     );
 }
+
+/// A text table written by an editor that marks its UTF-8 is read
+/// past the mark.
+#[test]
+fn a_byte_order_mark_is_not_part_of_the_table() {
+    let dir = std::env::temp_dir().join("oxidelica_bom_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("marked.txt");
+    // The mark, then the `#1` every text table begins with.
+    let mut bytes = vec![0xEF, 0xBB, 0xBF];
+    bytes.extend_from_slice(b"#1\ndouble tab1(3,2)\n0 0\n1 2\n2 4\n");
+    std::fs::write(&file, &bytes).unwrap();
+    let rows = read_table_file(&file.display().to_string(), "tab1")
+        .expect("a marked file is still a text table");
+    assert_eq!(rows, vec![vec![0.0, 0.0], vec![1.0, 2.0], vec![2.0, 4.0]]);
+}

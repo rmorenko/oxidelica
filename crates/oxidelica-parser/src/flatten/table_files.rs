@@ -15,6 +15,13 @@
 /// else is refused by name rather than guessed at.
 pub fn table_in_file(path: &str, wanted: &str) -> Result<Vec<Vec<f64>>, String> {
     let bytes = std::fs::read(path).map_err(|why| format!("`{path}` cannot be read: {why}"))?;
+    // An editor that writes UTF-8 may put a mark for it in front of
+    // everything else. It says nothing about the table and is not
+    // part of the `#1` the format begins with, so it comes off here.
+    let bytes = match bytes.strip_prefix(&[0xEF, 0xBB, 0xBF][..]) {
+        Some(rest) => rest.to_vec(),
+        None => bytes,
+    };
     if bytes.starts_with(b"#1") {
         return in_text(&bytes, wanted, path);
     }
