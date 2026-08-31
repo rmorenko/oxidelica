@@ -912,3 +912,26 @@ Modelica.Media.Interfaces.PartialLinearFluid.reference_h
 So the ninth link is: a name written inside a medium's own interface
 keeps that interface as its scope when the medium is redeclared, and
 the redeclaration never reaches it.
+
+Tried, and worth writing down before it is tried again. The mark that
+holds the name a body was reached by - the one that lets a function
+of a redeclared medium be found - **is standing** at that moment and
+points at the right package:
+
+```text
+head = Modelica.Media.Interfaces.PartialLinearFluid
+holds = false
+asked = Modelica.Media.CompressibleLiquids.LinearWater_pT_Ambient
+```
+
+So the walk outwards was taught to ask that package where the
+interface says nothing, and the answer cache was given the asked-for
+name as part of its key, since the same constant in the same
+interface is nothing under one medium and 104929 under another.
+
+The number still does not move. Whatever consumes `reference_h` on
+the way to `h_start` is not this walk, or not only this walk - the
+model asks the same question through three different bodies
+(`BaseProperties`, `setState_phX`, `specificEnthalpy`), and one of
+them gets its answer somewhere else. That is the next thing to
+measure, and it is where the tenth link is.
