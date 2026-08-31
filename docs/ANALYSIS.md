@@ -818,3 +818,32 @@ Walked further with the probe, the chain past those three reads:
 So the chain is seven links deep and five are in. The two that are
 not are one change, not two, and the test that caught them is the
 next thing to read.
+
+### The machine cluster, first trace
+
+Some forty-five models refuse as unbalanced around the induction and
+DC machines. Traced on one - `IMC_DOL`, 523 equations for 502
+unknowns, 21 too many - the surplus reads:
+
+```text
+aimc.is[2] = aimc.plug_sp.pin[3].i
+aimc.is[3] = aimc.plug_sp.pin[2].i
+```
+
+Two elements of one array assignment, `output SI.Current is[m] =
+plug_sp.pin.i`, with their subscripts crossed: the second element of
+the left takes the third of the right and the third takes the
+second. So the equations are not surplus at all - each pair says the
+same thing twice under different names, and the matching has nothing
+left for them.
+
+A model of that shape written by hand - a plug of pins, an array
+output assigned from `plug.pin.i`, a loop over the pins - flattens
+correctly, elements in order. So the crossing comes from something
+further in, and the next probe belongs where a member is read off a
+run of connectors rather than where the equations are counted.
+
+The message is worth a line of its own: it named these as
+`is[2] = its limit`, because the describer prints a bound rather
+than an expression for anything that is not a number or a name.
+Reading the pair took a probe; it should not have.
