@@ -893,3 +893,21 @@ redeclaring the package and reading the constant in a parameter -
 settles correctly, number and all. So again the shape is not it, and
 the next probe belongs where a redeclared package's constants are
 gathered rather than where they are read.
+
+That probe is in, and it names the ninth link precisely. The
+constant is asked for as
+
+```text
+Modelica.Media.Interfaces.PartialLinearFluid.reference_h
+  from scope Modelica.Media.Interfaces.PartialLinearFluid
+```
+
+- of the interface, where it is declared without a value, rather
+  than of `CompressibleLiquids.LinearWater_pT_Ambient`, which is what
+  the model redeclared into that place and which gives it 104929. The
+  gathering side already knows how to read a value out of an
+  `extends` modifier; it is being asked about the wrong package.
+
+So the ninth link is: a name written inside a medium's own interface
+keeps that interface as its scope when the medium is redeclared, and
+the redeclaration never reaches it.
