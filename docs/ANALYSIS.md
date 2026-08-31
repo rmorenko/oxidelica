@@ -740,3 +740,18 @@ zero and was reverted.
 
 A model of this shape freed by hand is one screen long: a record
 extending another, a field modified from outside, a condition on it.
+
+The fourth link is taken (a modifier at the site now outranks one an
+`extends` handed down, with a test on its own number). The chain did
+not open, and the probe says where it stands now: `smpmData.
+useDamperCage` never reaches the settling round at all - not
+"settles to nothing", but is never offered. Every other field of that
+record is; this one is declared two levels up, in
+`SM_ReluctanceRotorData`, which `SM_PermanentMagnetData` extends
+through `InductionMachineData`.
+
+Three synthetic models of that shape - one level of inheritance, two,
+three, with the field modified from the site - all settle correctly.
+So the shape alone is not it, and the next probe belongs where a
+record's fields are turned into components rather than where they are
+read.
