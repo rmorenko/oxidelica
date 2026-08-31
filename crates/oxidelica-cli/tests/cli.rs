@@ -841,3 +841,43 @@ fn a_library_check_says_what_the_work_cost() {
     assert!(text.contains("running"), "{text}");
     assert!(text.contains("ms each"), "{text}");
 }
+
+/// A model that falls over is one line of the register, not the death
+/// of the measurement.
+#[test]
+fn a_model_that_panics_is_a_line_of_the_register() {
+    let root = std::env::temp_dir().join(format!("oxidelica-panic-net-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(
+        root.join("Lib.mo"),
+        "package Lib package Examples \
+         model First Real x(start = 1); equation der(x) = -x; end First; \
+         model Second Real y(start = 2); equation der(y) = -y; end Second; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check"])
+        .arg(&root)
+        .arg("--refused")
+        .env("OXIDELICA_LIB", &root)
+        .env("OXIDELICA_QUIET", "1")
+        // Fall over on the first of the two.
+        .env("OXIDELICA_PANIC_ON", "Lib.Examples.First")
+        .output()
+        .expect("the check runs");
+    let said = stdout(&out) + &stderr(&out);
+    let _ = std::fs::remove_dir_all(&root);
+    // The one that panicked is named, with what it said...
+    assert!(
+        said.contains("panicked: asked to fall over on `Lib.Examples.First`"),
+        "the panic is not in the register: {said}"
+    );
+    // ...and the other one was still measured, which is the whole
+    // point: one bad model used to cost every answer beside it.
+    assert!(
+        said.contains("of which 1 flatten"),
+        "the rest of the library was lost with it: {said}"
+    );
+}

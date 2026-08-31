@@ -613,6 +613,15 @@ fn library_check(args: &[String]) -> Result<(), String> {
     //
     // `OXIDELICA_QUIET` says nothing at all, for a caller that wants
     // the report and no company.
+    // A model that falls over is caught below and written into the
+    // register. The default hook would print its own page about it
+    // first, which says the same thing in the middle of the count and
+    // once per model - so the check keeps quiet and lets the register
+    // speak. Anything wanting the backtrace asks for it by name with
+    // `why`.
+    if std::env::var("OXIDELICA_PANIC_LOUD").is_err() {
+        std::panic::set_hook(Box::new(|_| {}));
+    }
     let done = std::sync::atomic::AtomicUsize::new(0);
     let told = std::sync::atomic::AtomicUsize::new(0);
     let started = std::time::Instant::now();
@@ -636,7 +645,42 @@ fn library_check(args: &[String]) -> Result<(), String> {
                             if std::env::var("OXIDELICA_TRACE").is_ok() {
                                 eprintln!("{name}");
                             }
-                            mine.push((at, how_far(classes, name)));
+                            // A model that panics is one line of the
+                            // register, not the death of a forty
+                            // minute measurement. The check exists to
+                            // say how far this compiler gets on a
+                            // library, and a compiler that falls over
+                            // on one model has said something about
+                            // that model - losing the other thousand
+                            // answers to hear it is a bad trade.
+                            let outcome =
+                                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                                    // A panic to prove the net holds:
+                                    // the check must come out with a
+                                    // register, not a corpse.
+                                    if std::env::var("OXIDELICA_PANIC_ON")
+                                        .is_ok_and(|wanted| *name == wanted)
+                                    {
+                                        panic!("asked to fall over on `{name}`");
+                                    }
+                                    how_far(classes, name)
+                                }));
+                            mine.push((
+                                at,
+                                outcome.unwrap_or_else(|panic| {
+                                    let said = panic
+                                        .downcast_ref::<String>()
+                                        .cloned()
+                                        .or_else(|| {
+                                            panic.downcast_ref::<&str>().map(|s| (*s).to_string())
+                                        })
+                                        .unwrap_or_else(|| "no message".to_string());
+                                    (
+                                        Answer::Refused(format!("panicked: {said}")),
+                                        Spent::default(),
+                                    )
+                                }),
+                            ));
                             let now = done.fetch_add(1, Ordering::Relaxed) + 1;
                             if quiet {
                                 continue;
