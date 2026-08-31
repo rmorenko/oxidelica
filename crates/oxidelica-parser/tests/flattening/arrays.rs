@@ -2000,3 +2000,35 @@ fn a_length_may_be_a_size_with_something_done_to_it() {
         .count();
     assert_eq!(held, 2, "the run came out {held} long");
 }
+
+/// A named argument holding an array is spread like any other.
+#[test]
+fn a_named_argument_is_expanded_before_it_is_named() {
+    // `homotopy(actual = f(xs, ...), simplified = ...)` is how the
+    // library writes a pressure loss, and `f` takes one number where
+    // `xs` is a run of them: the language applies such a function
+    // element by element. A named argument had no arm of its own,
+    // fell through to the scalar path, and took the call inside it
+    // along - where a function is inlined whole and an array is bound
+    // to an input that takes one number. The body then met the first
+    // seat that wants a scalar and the model was refused for it.
+    let m = parse_model(
+        "package P \
+           function loss input Real d; input Real k; output Real y; \
+             algorithm y := if d > 0 then k/d else 0; end loss; \
+           model E \
+             parameter Real ds[2] = {2, 4}; \
+             Real y; \
+           equation \
+             y = sum(homotopy(actual = loss(ds, 1.0), simplified = ds)); \
+           end E; \
+         end P;",
+    )
+    .expect("a named argument over a run");
+    // Two calls, one per element, each with a scalar `d`: 1/2 + 1/4.
+    let said = format!("{:?}", m.equations);
+    assert!(
+        said.contains("ds[1]") && said.contains("ds[2]"),
+        "the named argument was not spread: {said}"
+    );
+}

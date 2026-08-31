@@ -377,6 +377,18 @@ pub(super) fn expand(
             }),
             _ => scalar(expr)?,
         },
+        // A named argument is its value under a name, and the value
+        // may be an array: `actual = f(dps_fg, ...)` is how the
+        // library writes a homotopy, and the whole thing used to fall
+        // through to the scalar path - taking the call inside it
+        // along, where a function is inlined whole and an array is
+        // bound to an input that takes one number. Expanded here, the
+        // call inside reaches the hand-out that applies a scalar
+        // function element by element, which is what the language
+        // says it means.
+        Expr::NamedArg(name, value) => map_value(&recur(value)?, &|element| {
+            Expr::NamedArg(name.clone(), Box::new(element.clone()))
+        }),
         other => scalar(other)?,
     })
 }
