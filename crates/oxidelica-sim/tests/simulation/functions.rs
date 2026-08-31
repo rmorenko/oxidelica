@@ -492,3 +492,46 @@ fn a_function_may_leave_a_value_unset_in_one_branch() {
         "the unset field should count as its own start of zero: {warm}"
     );
 }
+
+/// A carried body may shout, and may read a package constant.
+#[test]
+fn a_walked_body_may_shout_and_read_a_constant() {
+    // Two things the standard library's own numerical bodies do, and
+    // both used to kill the model rather than the body. A body with a
+    // `while` on simulated values is carried to the run rather than
+    // inlined, and then: a call to something that takes a String and
+    // answers nothing was carried too, where it failed the walk for
+    // both reasons at once - and a local declared from
+    // `Modelica.Constants.eps` was a name the frame had never heard.
+    let result = run(
+        "package Modelica package Constants constant Real eps = 1e-15; end Constants; end Modelica; \
+         package Top \
+           function shout input String s; \
+             external \"C\" ModelicaStreams_print(s); end shout; \
+           function halve input Real u; output Real y; \
+           protected \
+             Real step; \
+             constant Real eps = Modelica.Constants.eps; \
+           algorithm \
+             y := u; \
+             step := 1.0; \
+             while abs(step) > 100*eps loop \
+               step := step/2; \
+               y := y + step; \
+               if y < 0 then shout(\"negative\"); end if; \
+             end while; \
+           end halve; \
+           model M \
+             Real y = halve(time); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end Top;",
+    );
+    let last = result.rows.last().expect("a final row");
+    // The steps halve from one and sum to one: 0.1 + 1 at the end.
+    assert!(
+        (last[1] - 1.1).abs() < 1e-6,
+        "the body did not run to its end: {}",
+        last[1]
+    );
+}

@@ -172,6 +172,17 @@ pub(super) fn programs_used(
         // A body names what it calls the way it was written there; the
         // walk looks names up in one table, so they are made to agree.
         let mut carried = (*class).clone();
+        // A local declared `constant Real eps = Modelica.Constants.eps`
+        // is a name the walk's frame has never heard: it works out a
+        // local's binding against its own frame, and a constant of
+        // another package is nobody there. The lengths already get
+        // this treatment; the bindings need it too.
+        for held in &mut carried.components {
+            for written in [&mut held.binding, &mut held.start].into_iter().flatten() {
+                *written =
+                    substitute_class_constants(written, registry, &class.name, &class.imports, &[]);
+            }
+        }
         let renamed = records_as_arrays(&mut carried, registry);
         carried.algorithm = qualified_calls(
             &class.algorithm,
@@ -411,7 +422,23 @@ pub(super) fn gather_calls_in_statements(
             }
             Statement::Call(name, args) => {
                 if let Some(class) = lookup(registry, name, scope, imports) {
-                    out.push(class.name.clone());
+                    // A body with no outputs answers nothing, so a
+                    // walk has nothing to do with it: the standard
+                    // library shouts through `Streams.error` and
+                    // `print`, and those take a String and give back
+                    // nothing at all. Carried along, they fail the
+                    // walkability check and take the whole model with
+                    // them - for a branch that may never be taken.
+                    // Inlining already treats such a body as nothing
+                    // (see `an external body with no outputs`); this
+                    // is the same rule where bodies are carried.
+                    let answers = class
+                        .components
+                        .iter()
+                        .any(|held| held.causality == Causality::Output);
+                    if answers {
+                        out.push(class.name.clone());
+                    }
                 }
                 args.iter()
                     .for_each(|arg| gather_calls(arg, registry, scope, imports, out));
