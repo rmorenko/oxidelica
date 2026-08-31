@@ -709,3 +709,34 @@ and this is where the water is: no single dam, but two of these are
 of a kind - the eighteen unknown variables and the nine unevaluated
 parameters both say a name reached the run that the run has no slot
 for. The rest is numerics, which is a different trade.
+
+### The `useDamperCage` chain, walked to its end
+
+Sixteen models stop at "the condition of a component is not a
+compile-time constant". Walked with the probe rather than fixed one
+link at a time, the chain has four links and a floor:
+
+1. **The condition of a component in a connector.** `parameter
+Boolean useDamperCage(start = true)` and a `HeatPort ... if
+useDamperCage` beside it. A `start` is where a parameter stands
+   when nobody says otherwise, and a condition has to be settled
+   before anything can be handed down to it.
+2. **An `if` equation with no `else`,** on `not useDamperCage`, in
+   the machine itself. Same name, different seat: this one refuses
+   because the two branches would give different numbers of
+   equations.
+3. **The machine's own parameter,** `useDamperCage(start = true)`,
+   declared forty lines below the `extends` that already uses it.
+4. **The floor: a field of an inherited record.** The model writes
+   `smpmData(useDamperCage = false)`, and `SM_PermanentMagnetData`
+   does not declare that field - it extends `SM_ReluctanceRotorData`,
+   which does. The modifier lands on a field the record only has
+   through its base, and never settles at all.
+
+So the sixteen do not want four fixes: they want the fourth, and the
+first three fall out of it. That is the shape the chain rule was
+written for - and the reason the first link, taken alone, measured
+zero and was reverted.
+
+A model of this shape freed by hand is one screen long: a record
+extending another, a field modified from outside, a condition on it.
