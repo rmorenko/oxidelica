@@ -1760,3 +1760,56 @@ fn a_resource_that_was_not_found_says_where_it_looked() {
         "a refusal that does not say where it looked: {why}"
     );
 }
+
+/// A table in a level 5 MATLAB file is read from it.
+#[test]
+fn a_level_five_matlab_file_is_read() {
+    // Level 5 is what MATLAB has written by default for twenty years,
+    // so it is what the standard library's own data is in - and this
+    // compiler read only the older level 4, which is why a dozen
+    // table tests stopped at a flexible size with nowhere to read a
+    // length from: `columns[:] = 2:size(table, 2)` on a table that
+    // could not be opened.
+    let dir = std::env::temp_dir().join("oxidelica_mat5_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("rows.mat");
+    // Written here rather than fetched: a 128-byte header, then one
+    // matrix element holding flags, dimensions, a name and the
+    // numbers, each tag padded to eight bytes. Two rows, two columns,
+    // column-major: 1 3 / 2 4 on the file is 1 2 / 3 4 in the table.
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"MATLAB 5.0 MAT-file, written by a test");
+    bytes.resize(124, b' ');
+    bytes.extend_from_slice(&[0x00, 0x01]);
+    bytes.extend_from_slice(b"IM");
+    let mut body = Vec::new();
+    // Array flags: class 6, a double array.
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&0u32.to_le_bytes());
+    // Dimensions: two by two.
+    body.extend_from_slice(&5u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    // The name, padded to eight.
+    body.extend_from_slice(&1u32.to_le_bytes());
+    body.extend_from_slice(&4u32.to_le_bytes());
+    body.extend_from_slice(b"tab1");
+    body.extend_from_slice(&[0; 4]);
+    // The numbers, column by column.
+    body.extend_from_slice(&9u32.to_le_bytes());
+    body.extend_from_slice(&32u32.to_le_bytes());
+    for number in [1.0f64, 3.0, 2.0, 4.0] {
+        body.extend_from_slice(&number.to_le_bytes());
+    }
+    bytes.extend_from_slice(&14u32.to_le_bytes());
+    bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&body);
+    std::fs::write(&file, &bytes).unwrap();
+    let rows = read_table_file(&file.display().to_string(), "tab1")
+        .expect("a level 5 file is a MATLAB file");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+}

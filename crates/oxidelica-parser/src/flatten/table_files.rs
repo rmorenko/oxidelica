@@ -33,6 +33,13 @@ pub fn table_in_file(path: &str, wanted: &str) -> Result<Vec<Vec<f64>>, String> 
     if bytes.starts_with(b"#1") {
         return in_text(&bytes, wanted, path);
     }
+    // Level 5 says so in words, in the first line of a 128-byte
+    // header: `MATLAB 5.0 MAT-file`. It is what MATLAB has written by
+    // default for twenty years, so it is what the library's own data
+    // is in, and level 4 is the older thing this compiler read first.
+    if bytes.starts_with(b"MATLAB 5.0 MAT-file") {
+        return in_matlab5(&bytes, wanted, path);
+    }
     if looks_like_matlab(&bytes) {
         return in_matlab(&bytes, wanted, path);
     }
@@ -243,4 +250,123 @@ fn in_matlab(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, St
         at = ends;
     }
     Err(format!("`{path}` holds no table called `{wanted}`"))
+}
+
+/// A matrix out of a level 5 MATLAB file.
+///
+/// The shape of the format: a 128-byte header, then elements, each a
+/// type and a length followed by that many bytes padded to eight. A
+/// matrix is type 14 and holds four of those in turn - its flags and
+/// class, its dimensions, its name, and its numbers - and the numbers
+/// are column-major, which is the one thing worth saying twice.
+///
+/// Only what a table needs is read: a two-dimensional array of real
+/// numbers, no complex part, no compression, little-endian. Anything
+/// else is refused by name rather than guessed at.
+fn in_matlab5(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, String> {
+    // `IM` in the two bytes after the version says the writer put the
+    // low byte first, which is the only order read here.
+    if bytes.len() < 132 || &bytes[126..128] != b"IM" {
+        return Err(format!(
+            "`{path}` is a MATLAB level 5 file this compiler cannot read - it is not \
+             little-endian, and nothing here swaps the bytes back"
+        ));
+    }
+    let word = |at: usize| -> Option<u32> {
+        let held = bytes.get(at..at + 4)?;
+        Some(u32::from_le_bytes([held[0], held[1], held[2], held[3]]))
+    };
+    // A tag is eight bytes, unless its top half is a length - the
+    // format's own shorthand for something that fits in four.
+    let tag = |at: usize| -> Option<(u32, usize, usize)> {
+        let first = word(at)?;
+        match first >> 16 {
+            0 => Some((first & 0xffff, word(at + 4)? as usize, at + 8)),
+            short => Some((first & 0xffff, short as usize, at + 4)),
+        }
+    };
+    // What follows a tag, rounded up to the eight bytes the format
+    // pads every element to.
+    let past = |from: usize, length: usize, short: bool| match short {
+        true => from + 4,
+        false => from + length.div_ceil(8) * 8,
+    };
+    let mut at = 128;
+    while let Some((kind, length, body)) = tag(at) {
+        let element_past = past(body, length, body == at + 4);
+        // 14 is a matrix; anything else at the top level is not one.
+        if kind != 14 {
+            at = element_past;
+            continue;
+        }
+        let read = |mut at: usize| -> Option<(Vec<usize>, String, usize, usize, u32)> {
+            // Array flags: the class is the low byte of the first of
+            // the two words that follow.
+            let (_, flags_length, flags) = tag(at)?;
+            let class = word(flags)? & 0xff;
+            at = past(flags, flags_length, false);
+            // The dimensions, one 32-bit number each.
+            let (_, dimensions_length, dimensions) = tag(at)?;
+            let shape: Vec<usize> = (0..dimensions_length / 4)
+                .filter_map(|which| word(dimensions + which * 4).map(|n| n as usize))
+                .collect();
+            at = past(dimensions, dimensions_length, dimensions == at + 4);
+            // The name, as bytes.
+            let (_, name_length, name_at) = tag(at)?;
+            let name =
+                String::from_utf8_lossy(bytes.get(name_at..name_at + name_length)?).into_owned();
+            at = past(name_at, name_length, name_at == at + 4);
+            // And the numbers.
+            let (numbers_kind, numbers_length, numbers) = tag(at)?;
+            Some((
+                shape,
+                name,
+                numbers,
+                numbers_length,
+                numbers_kind | (class << 16),
+            ))
+        };
+        if let Some((shape, name, numbers, numbers_length, marks)) = read(body) {
+            if name == wanted {
+                let (class, numbers_kind) = (marks >> 16, marks & 0xffff);
+                // Class 6 is a double array, and 9 is the type of the
+                // numbers in it. A table of anything else - a string,
+                // a struct, a single - is not a table of numbers.
+                if class != 6 || numbers_kind != 9 {
+                    return Err(format!(
+                        "`{wanted}` in `{path}` is not an array of double precision numbers"
+                    ));
+                }
+                let (rows, columns) = match shape.as_slice() {
+                    [rows, columns] => (*rows, *columns),
+                    _ => {
+                        return Err(format!(
+                            "`{wanted}` in `{path}` has {} dimension(s), and a table has two",
+                            shape.len()
+                        ))
+                    }
+                };
+                if numbers_length < rows * columns * 8 {
+                    return Err(format!(
+                        "`{wanted}` in `{path}` says it is {rows} by {columns} and does not \
+                         carry that many numbers"
+                    ));
+                }
+                // Column-major on the file, row by row here.
+                let held = |row: usize, column: usize| -> f64 {
+                    let at = numbers + (column * rows + row) * 8;
+                    let mut eight = [0u8; 8];
+                    eight.copy_from_slice(&bytes[at..at + 8]);
+                    f64::from_le_bytes(eight)
+                };
+                return Ok((0..rows)
+                    .map(|row| (0..columns).map(|column| held(row, column)).collect())
+                    .collect());
+            }
+        }
+        at = element_past;
+    }
+    Err(format!(
+        "`{path}` is a MATLAB level 5 file with no table called `{wanted}` in it"
+    ))
 }
