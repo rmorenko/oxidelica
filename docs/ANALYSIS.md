@@ -668,3 +668,44 @@ which is not the pumps' problem and not the same fix.
 Four are back under `SolveOneNonlinearEquation`, each stopped on
 something else entirely - a `size` of a name with no shape, a unit
 on a logarithm - and the rest have gone on into the running half.
+
+## The register after the named arguments
+
+Taken at 717 flatten and 333 run.
+
+### What stops flattening
+
+| Count | What it is                                                  |
+| ----: | ----------------------------------------------------------- |
+|    16 | the condition of a component is not a compile-time constant |
+|    15 | an argument that must be dimensionless carries a unit       |
+|    13 | an equation between shapes, `pipe.statesFM[n].phase = ()`   |
+|    12 | a loop whose trip count is not settled                      |
+|    12 | `previous` with no clock across a redeclare boundary        |
+|    12 | a name with no declaration above it                         |
+|    11 | a subscript outside its array                               |
+|    11 | a `connect` between different numbers of connectors         |
+
+The slice family is gone from this list entirely - it was 25 and 10
+in two readings a few commits ago, and the named-argument arm took
+both. What is left of that neighbourhood is the thirteen at the
+third row, which is the same pipes one step further along: a state
+record whose `phase` field has nothing on the right of it.
+
+### What stops running
+
+| Count | What it is                                                 |
+| ----: | ---------------------------------------------------------- |
+|    18 | an unknown variable                                        |
+|    11 | a singular Jacobian in an algebraic loop                   |
+|     9 | an unknown function                                        |
+|     9 | an unbalanced model                                        |
+|     9 | initialization that is not square                          |
+|     9 | `cannot evaluate parameters [... = Medium.X_default, ...]` |
+|     8 | an algebraic loop that diverged                            |
+
+Run has stood at 333 for four series while flatten went up by 51,
+and this is where the water is: no single dam, but two of these are
+of a kind - the eighteen unknown variables and the nine unevaluated
+parameters both say a name reached the run that the run has no slot
+for. The rest is numerics, which is a different trade.
