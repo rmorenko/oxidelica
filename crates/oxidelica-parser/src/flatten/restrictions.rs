@@ -295,7 +295,12 @@ fn with_bases(
         return;
     }
     for extend in &class.extends {
-        if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+        let base = match extend.from_base {
+            true => super::inheritance::inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        }
+        .filter(|found| found.name != class.name);
+        if let Some(base) = base {
             with_bases(registry, base, depth + 1, visit);
         }
     }

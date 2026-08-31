@@ -72,7 +72,16 @@ pub(super) fn inherited_parameters(
         return out;
     }
     for extend in &class.extends {
-        let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) else {
+        // A `redeclare function extends f` names its base by the name
+        // it has itself, and that base belongs to the enclosing class:
+        // looked for from inside, the search finds this very class and
+        // walks in a circle. Where that happens there is no base.
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        }
+        .filter(|found| found.name != class.name);
+        let Some(base) = base else {
             continue;
         };
         for component in &base.components {
