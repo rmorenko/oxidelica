@@ -232,3 +232,46 @@ array of their members at the boundary, so the walk need not know what
 a record is - and answers with as many numbers as it declares. That is
 what a body has to be able to do before walking one can ever stand in
 for writing it out. It is done and in the tree.
+
+## A function handed as an argument: defunctionalization
+
+Eighteen models of the register stop at one language feature:
+
+```modelica
+x_zero = Modelica.Math.Nonlinear.solveOneNonlinearEquation(
+           function f_nonlinear(A=A, w=w, s=-y_zero), x_min, x_max);
+```
+
+The parser already reads this - `Expr::Call(PARTIAL_CALL, [Ref(name),
+NamedArg..])`, `ast.rs` - and `arrays.rs` refuses it for want of
+anywhere to put a function. What is missing is not a kind of value.
+
+A function value has exactly one sink in this language: an argument of
+a function. So every pair of "who was handed over" and "to whom" is
+visible where the call is written, and the receiving function can be
+specialized instead: a copy of it with the function input gone and
+ordinary numeric inputs in its place, and every call to that input
+rewritten into a direct call of the target. Nothing new survives past
+that boundary, and neither the walk nor the code needs to hear of it.
+
+The receiving function of these eighteen never inlines - its body is
+Brent's method, a `while` on simulated values - so it stands as a call
+and is walked at run time. That is the shape the walk was built for,
+and it takes numbers only, which is the reason a `Value::Function`
+would have to be erased at the same boundary anyway.
+
+Two potholes lie on the way, both wider than these eighteen models:
+
+- A body that shouts through `Streams.error` is gathered as something
+  to carry, and the gatherer refuses it for taking a String and
+  returning nothing - which kills the flatten rather than the branch.
+  An external body with no outputs is already nothing when inlining;
+  the same rule belongs where bodies are carried.
+- A local declared `constant Real eps = Modelica.Constants.eps` is a
+  name the walk's frame has never heard. Class constants want
+  substituting into a carried body's bindings, the way lengths already
+  are.
+
+And one honest ceiling: a standing call is opaque to differentiation,
+so a model wanting the answer under `der()` stays out. The models here
+ask for it algebraically.
