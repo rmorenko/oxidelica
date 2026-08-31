@@ -33,6 +33,8 @@ pub(super) fn answered_here(called: &str) -> bool {
             | "ModelicaStrings_compare"
             | "ModelicaStrings_skipWhiteSpace"
             | "ModelicaInternal_fullPathName"
+            | "ModelicaInternal_stat"
+            | "ModelicaStrings_scanInteger"
             | "ModelicaStandardTables_CombiTable1D_minimumAbscissa"
             | "ModelicaStandardTables_CombiTable1D_maximumAbscissa"
             | "ModelicaStandardTables_CombiTable1D_getValue"
@@ -165,6 +167,41 @@ pub(super) fn number_of(
             Some(compare(&text(0)?, &text(1)?, case_matters))
         }
         ("ModelicaStrings_hashString", 1) => Some(hash_string(&text(0)?)),
+        // What kind of thing a path names, as the standard library's
+        // `Types.FileType` counts them: no file, a regular file, a
+        // directory, anything else. An enumeration is its position,
+        // counted from one, which is how every other enumeration
+        // reaches this compiler.
+        ("ModelicaInternal_stat", 1) => {
+            let path = text(0)?;
+            Some(match std::fs::metadata(&path) {
+                Err(_) => 1.0,
+                Ok(held) if held.is_file() => 2.0,
+                Ok(held) if held.is_dir() => 3.0,
+                Ok(_) => 4.0,
+            })
+        }
+        // A whole number read off the front of a string, and where it
+        // ended. Two outputs in C, and what a caller wants of it here
+        // is the number; the standard library's `scanInteger` asks
+        // for both and this answers the first, which is what a
+        // parameter built on it is built on.
+        ("ModelicaStrings_scanInteger", 2 | 3) => {
+            let text = text(0)?;
+            let from = const_eval(args.get(1)?, numbers)?.max(1.0) as usize;
+            let rest: String = text.chars().skip(from - 1).collect();
+            let rest = rest.trim_start();
+            let mut digits = String::new();
+            for (at, letter) in rest.chars().enumerate() {
+                let sign = at == 0 && (letter == '-' || letter == '+');
+                if letter.is_ascii_digit() || sign {
+                    digits.push(letter);
+                    continue;
+                }
+                break;
+            }
+            digits.parse::<f64>().ok()
+        }
         _ => None,
     }
 }

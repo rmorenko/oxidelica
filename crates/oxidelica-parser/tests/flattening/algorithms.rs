@@ -3142,3 +3142,61 @@ fn an_array_in_the_frame_is_not_an_array_written_by_a_branch() {
         .iter()
         .any(|e| format!("{:?}", e.lhs).contains('y')));
 }
+
+/// What a path names, answered here rather than by the C the library
+/// ships.
+///
+/// `ModelicaInternal_stat` is a POSIX call the standard library wraps
+/// to ask whether a file exists and what kind it is, and four models
+/// of the library stop at it. The answer is `Types.FileType`, an
+/// enumeration counted from one - no file, a regular file, a
+/// directory, anything else - and this compiler can say all four
+/// without linking anything.
+#[test]
+fn what_a_path_names_is_answered_here() {
+    let dir = std::env::temp_dir().join("oxidelica_stat_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("here.txt");
+    std::fs::write(&file, "something").unwrap();
+    let path = |p: &std::path::Path| p.display().to_string().replace('\\', "/");
+    let m = parse_model(&format!(
+        "model M function stat input String n; output Integer t; \
+         external \"C\" t = ModelicaInternal_stat(n); end stat; \
+         Real a, b, c; equation a = stat(\"{}\"); b = stat(\"{}\"); \
+         c = stat(\"{}/nothing-is-here\"); end M;",
+        path(&file),
+        path(&dir),
+        path(&dir),
+    ))
+    .expect("a path this compiler can look at");
+    let value = |at: usize| match m.equations.get(at).map(|e| &e.rhs) {
+        Some(Expr::Number(number)) => *number,
+        other => panic!("expected a number, got {other:?}"),
+    };
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(value(0), 2.0, "a regular file");
+    assert_eq!(value(1), 3.0, "a directory");
+    assert_eq!(value(2), 1.0, "nothing at all");
+}
+
+/// A whole number read off the front of a string, answered here.
+#[test]
+fn a_number_at_the_front_of_a_string_is_read_here() {
+    // `ModelicaStrings_scanInteger` is how the standard library reads
+    // a number out of a line it was given. Written in C there, and
+    // this compiler does the same reading in Rust elsewhere.
+    let m = parse_model(
+        "model M function scan input String s; input Integer at; output Integer n; \
+         external \"C\" n = ModelicaStrings_scanInteger(s, at); end scan; \
+         Real a, b, c; equation a = scan(\"42 rest\", 1); \
+         b = scan(\"  -17\", 1); c = scan(\"x 5\", 3); end M;",
+    )
+    .expect("numbers this compiler can read");
+    let value = |at: usize| match m.equations.get(at).map(|e| &e.rhs) {
+        Some(Expr::Number(number)) => *number,
+        other => panic!("expected a number, got {other:?}"),
+    };
+    assert_eq!(value(0), 42.0);
+    assert_eq!(value(1), -17.0, "leading space and a sign");
+    assert_eq!(value(2), 5.0, "started from the third letter");
+}
