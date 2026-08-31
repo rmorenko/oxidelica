@@ -867,3 +867,29 @@ the same `h_start` of the same water, seven links deep with five of
 them taken. So this is not a separate family after all. It is a
 fifth tributary into the same river, and when that chain is finished
 these come with it.
+
+### The parameter chain, eighth link: a constant of a redeclared medium
+
+The thirteen `statesFM` models now stop at `heater.h_start asks to be
+evaluated before the run`, and the probe reads that in three steps:
+
+- The binding is already inlined - `if use_T_start then reference_h +
+(T_start - 298.15)*cp ...` - so the body did its work.
+- Of the three names in it, two are settled: `use_T_start` is 1 and
+  `T_start` is 353.15.
+- The third, `reference_h`, is settled under no path at all: the
+  constants table holds nothing whose name contains it.
+
+`reference_h` is declared without a value in
+`Interfaces.PartialLinearFluid` and given one - 104929 - by the
+`extends` of `CompressibleLiquids.LinearWater_pT_Ambient`, the medium
+this model redeclares into place. So the value exists, in the
+library, one `extends` modifier away from the declaration; what has
+not happened is its arrival under the instance that asks for it.
+
+A model of that shape by hand - a partial package with a valueless
+constant, a package extending it with the value, a component
+redeclaring the package and reading the constant in a parameter -
+settles correctly, number and all. So again the shape is not it, and
+the next probe belongs where a redeclared package's constants are
+gathered rather than where they are read.
