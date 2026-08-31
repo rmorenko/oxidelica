@@ -148,6 +148,14 @@ A zero on a link of a mapped chain is not grounds for reverting the
 link. What is grounds for reverting is a chain that was not walked to
 its end - because then nobody knows whether it has one.
 
+A chain deeper than five links takes its map to a second reader. Not
+because the walk is beyond one pair of hands: because ten links held
+in one head are ten chances at the same blind spot, and by the fifth
+the map is already written - which is the expensive half of asking.
+The map goes as it is: every link numbered, what was taken and on
+what number, what was parked and why, and the last measurement made
+rather than the last guess.
+
 ## Tests
 
 A bug fix comes with a test that fails without it. Check that it does:
