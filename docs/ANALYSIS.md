@@ -441,3 +441,42 @@ A slice by a settled range can be resolved on the scalar path as well
 as the array path, and that was tried: it moves the barrier one step
 along in those 24 models and frees none of them, so it is not in the
 tree. What frees them is whatever stands behind it.
+
+### The wall behind the settled slice, traced through
+
+Resolving a settled slice on the scalar path frees no models, and now
+it is known why. Traced through - the change applied locally, one
+model run to its next death - the barrier one step along is:
+
+```text
+an array of shape [1] is used where a scalar is expected, beginning
+Bin(Div, Bin(Div, Bin(Add, roughnesses[1], roughnesses[2]), 2.0),
+         Ref("pipe.flowModel.diameters"))
+```
+
+That expression is not in the model. It is the body of
+`Detailed.pressureLoss_m_flow`, `Fluid/Pipes.mo:2530`:
+
+```modelica
+Real Delta(min=0) = roughness/diameter "Relative roughness";
+```
+
+with `roughness` bound to `(roughnesses[1:n-1] + roughnesses[2:n])/2`
+and `diameter` to `diameters`, both whole. So the two walls are one
+place: the slice resolves, the local `Delta` divides an array of one
+by a name, and `Delta` is declared `Real`.
+
+Two things are known about that point, both measured rather than
+supposed. The shapes are there - `pipe.flowModel.roughnesses` is
+`[2]` and `.diameters` is `[1]` in the table at the moment of the
+refusal - and `n` is settled under both spellings. So this is not a
+model whose forms were never measured. What happens instead is that
+the whole argument expression goes down the scalar path, where a
+range is refused for being an array; resolving it there produces an
+`Array[1]` that then meets a scalar in the same division.
+
+The way through is to make `diameters` an array of one at the same
+moment, so the division is array-to-array and `Delta` is the array of
+one it should be - which is vectorization of a scalar function over
+several arguments at once, inside an inlined body. That is a bigger
+change than a slice, and it is the change these 25 models want.
