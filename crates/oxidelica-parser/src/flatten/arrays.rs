@@ -825,6 +825,31 @@ pub(super) fn expand_call(
                     return record_written_out(class, args, registry, &recur);
                 }
             }
+            // A function handed over as an argument, with some of its
+            // inputs already filled in. There is nowhere to put a
+            // function value and nowhere it would survive to - the
+            // walk takes numbers - so the receiving function is
+            // specialized instead: a copy of it with the function
+            // input replaced by ordinary numeric ones, and every call
+            // to that input rewritten into a direct call of the
+            // target. The language allows a function value in exactly
+            // one place, an argument, so every giver and taker is
+            // visible right here.
+            if args
+                .iter()
+                .any(|arg| matches!(arg, Expr::Call(head, _) if head == PARTIAL_CALL))
+            {
+                if let Some(class) = lookup(registry, name, scope, imports) {
+                    if class.kind == ClassKind::Function {
+                        let (copy, rest) = specialized(class, args, registry, scope, imports)?;
+                        let copy_name = copy.name.clone();
+                        super::statements::remember_specialization(copy);
+                        return expand_call(
+                            &copy_name, &rest, shapes, registry, scope, imports, depth,
+                        );
+                    }
+                }
+            }
             // A user function that takes or returns an array is inlined
             // with the arrays intact - vectorizing it element by element
             // would compute something else entirely.
@@ -2466,4 +2491,183 @@ fn empty_range_subscript(subscripts: &[Expr], shapes: &Shapes) -> bool {
         };
         to < from
     })
+}
+
+/// A copy of a function that was handed another function, with the
+/// function input gone.
+///
+/// The copy takes ordinary numbers where the target's filled-in
+/// inputs were, and every call to the vanished input is rewritten
+/// into a direct call of the target: the free arguments where the
+/// body wrote them, the filled ones from the new inputs. What comes
+/// back is the copy and the arguments the outer call should now be
+/// made with - the partial argument dropped, the filled-in
+/// expressions appended in the order the copy declares them.
+///
+/// The new inputs are named after the input they replace - `f.A` for
+/// what `f`'s target called `A` - because a body of any size has
+/// locals of its own, and Brent's method has an `s` exactly where a
+/// caller writes `s=-y_zero`. A frame is a map of strings, so a dot
+/// in the name is nothing to it and everything to the collision.
+fn specialized(
+    class: &ClassDef,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Result<(ClassDef, Vec<Expr>), String> {
+    // Which argument is the function, and which input it lands on.
+    let at = args
+        .iter()
+        .position(|arg| matches!(arg, Expr::Call(head, _) if head == PARTIAL_CALL))
+        .ok_or("no function was handed over")?;
+    let Expr::Call(_, partial) = &args[at] else {
+        return Err("no function was handed over".to_string());
+    };
+    let (target, filled) = partial
+        .split_first()
+        .ok_or("a handed-over function with no name")?;
+    let Expr::Ref(target) = target else {
+        return Err(format!(
+            "a handed-over function has to be named, found {target:?}"
+        ));
+    };
+    // The target is resolved where the call was written: the model
+    // wrote that name in its own scope, and the receiving function
+    // never heard of it.
+    let target = lookup(registry, target, scope, imports)
+        .ok_or_else(|| format!("`{target}` is handed over and is not a function here"))?;
+    let inputs: Vec<&Component> = class
+        .components
+        .iter()
+        .filter(|held| held.causality == Causality::Input)
+        .collect();
+    let replaced = inputs
+        .get(at)
+        .ok_or_else(|| format!("`{}` takes no argument in that place", class.name))?
+        .name
+        .clone();
+    // What the target takes, and which of those the call filled in.
+    let said = |wanted: &str| -> Option<Expr> {
+        filled.iter().find_map(|arg| match arg {
+            Expr::NamedArg(name, value) if name == wanted => Some((**value).clone()),
+            _ => None,
+        })
+    };
+    // The target's own inputs, in order. The first is the free one -
+    // what the receiver calls the function with - and the rest are
+    // either filled in at the call or left at their defaults.
+    // The target's inputs, its bases included: the standard library
+    // writes `extends partialScalarFunction` and inherits the very
+    // input the receiver will call it with.
+    let target_held = super::inlining::with_inherited_components(target, registry);
+    let target_inputs: Vec<&Component> = target_held
+        .iter()
+        .filter(|held| held.causality == Causality::Input)
+        .collect();
+    let (free, bound) = target_inputs
+        .split_first()
+        .ok_or_else(|| format!("`{}` takes nothing to be solved for", target.name))?;
+    let mut copy = class.clone();
+    let mut extra: Vec<Component> = Vec::new();
+    let mut appended: Vec<Expr> = Vec::new();
+    for held in bound {
+        let Some(value) = said(&held.name) else {
+            continue;
+        };
+        let mut carried = (*held).clone();
+        carried.name = format!("{replaced}.{}", held.name);
+        carried.binding = None;
+        extra.push(carried);
+        appended.push(value);
+    }
+    // The call the body writes as `f(x)` becomes the target called
+    // with everything, positionally, in the order it declares them.
+    let rewritten = |written: &[Expr]| -> Expr {
+        let mut all: Vec<Expr> = written.to_vec();
+        all.truncate(1);
+        if all.is_empty() {
+            all.push(Expr::Ref(free.name.clone()));
+        }
+        for held in bound {
+            all.push(match said(&held.name) {
+                Some(_) => Expr::Ref(format!("{replaced}.{}", held.name)),
+                None => held
+                    .binding
+                    .clone()
+                    .or_else(|| held.start.clone())
+                    .unwrap_or(Expr::Number(0.0)),
+            });
+        }
+        Expr::Call(target.name.clone(), all)
+    };
+    copy.components.retain(|held| held.name != replaced);
+    copy.components.extend(extra);
+    copy.algorithm = calls_rewritten(&class.algorithm, &replaced, &rewritten);
+    // A name of its own, worked out from what went into it, so the
+    // same pair is specialized once however many models ask for it.
+    copy.name = format!("{}${}", class.name, target.name.replace('.', "_"));
+    let rest: Vec<Expr> = args
+        .iter()
+        .enumerate()
+        .filter(|(which, _)| *which != at)
+        .map(|(_, arg)| arg.clone())
+        .chain(appended)
+        .collect();
+    Ok((copy, rest))
+}
+
+/// Every call of one name in a body, rewritten.
+fn calls_rewritten(
+    body: &[Statement],
+    named: &str,
+    into: &impl Fn(&[Expr]) -> Expr,
+) -> Vec<Statement> {
+    let expr = |e: &Expr| call_rewritten(e, named, into);
+    let inner = |body: &[Statement]| calls_rewritten(body, named, into);
+    let rebranch = |branches: &[StatementBranch]| -> Vec<StatementBranch> {
+        branches
+            .iter()
+            .map(|branch| StatementBranch {
+                condition: branch.condition.as_ref().map(&expr),
+                body: inner(&branch.body),
+            })
+            .collect()
+    };
+    body.iter()
+        .map(|statement| match statement {
+            Statement::Assign(name, subscripts, value) => Statement::Assign(
+                name.clone(),
+                subscripts.iter().map(&expr).collect(),
+                expr(value),
+            ),
+            Statement::TupleAssign(targets, value) => {
+                Statement::TupleAssign(targets.clone(), expr(value))
+            }
+            Statement::Assert(condition, message) => {
+                Statement::Assert(expr(condition), message.clone())
+            }
+            Statement::Call(name, args) => {
+                Statement::Call(name.clone(), args.iter().map(&expr).collect())
+            }
+            Statement::If(branches) => Statement::If(rebranch(branches)),
+            Statement::When(branches) => Statement::When(rebranch(branches)),
+            Statement::For(variable, range, body) => {
+                Statement::For(variable.clone(), range.as_ref().map(&expr), inner(body))
+            }
+            Statement::While(condition, body) => Statement::While(expr(condition), inner(body)),
+            Statement::Break => Statement::Break,
+            Statement::Return => Statement::Return,
+        })
+        .collect()
+}
+
+/// The same rewrite inside one expression.
+fn call_rewritten(expr: &Expr, named: &str, into: &impl Fn(&[Expr]) -> Expr) -> Expr {
+    if let Expr::Call(head, args) = expr {
+        if head == named {
+            return into(args);
+        }
+    }
+    expr.map_children(&mut |held| call_rewritten(held, named, into))
 }

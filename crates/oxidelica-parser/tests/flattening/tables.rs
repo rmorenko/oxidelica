@@ -1857,3 +1857,81 @@ fn a_matlab_array_written_narrow_is_still_doubles() {
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
 }
+
+/// What the MATLAB reader refuses, and by what name.
+#[test]
+fn a_matlab_file_says_what_it_cannot_give() {
+    let dir = std::env::temp_dir().join("oxidelica_mat5_refusals");
+    std::fs::create_dir_all(&dir).unwrap();
+    let header = |kind: u32, dims: &[u32], name: &str, numbers_kind: u32, held: &[u8]| {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(b"MATLAB 5.0 MAT-file, written by a test");
+        bytes.resize(124, b' ');
+        bytes.extend_from_slice(&[0x00, 0x01]);
+        bytes.extend_from_slice(b"IM");
+        let mut body = Vec::new();
+        body.extend_from_slice(&6u32.to_le_bytes());
+        body.extend_from_slice(&8u32.to_le_bytes());
+        body.extend_from_slice(&kind.to_le_bytes());
+        body.extend_from_slice(&0u32.to_le_bytes());
+        body.extend_from_slice(&5u32.to_le_bytes());
+        body.extend_from_slice(&((dims.len() * 4) as u32).to_le_bytes());
+        for held in dims {
+            body.extend_from_slice(&held.to_le_bytes());
+        }
+        if dims.len() % 2 == 1 {
+            body.extend_from_slice(&[0; 4]);
+        }
+        body.extend_from_slice(&1u32.to_le_bytes());
+        body.extend_from_slice(&(name.len() as u32).to_le_bytes());
+        body.extend_from_slice(name.as_bytes());
+        body.resize(body.len() + (8 - name.len() % 8) % 8, 0);
+        body.extend_from_slice(&numbers_kind.to_le_bytes());
+        body.extend_from_slice(&(held.len() as u32).to_le_bytes());
+        body.extend_from_slice(held);
+        bytes.extend_from_slice(&14u32.to_le_bytes());
+        bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&body);
+        bytes
+    };
+    let refusal = |name: &str, bytes: Vec<u8>, wanted: &str| -> String {
+        let file = dir.join(name);
+        std::fs::write(&file, &bytes).unwrap();
+        read_table_file(&file.display().to_string(), wanted).expect_err("this one cannot be read")
+    };
+    // A name that is not in the file.
+    let why = refusal(
+        "absent.mat",
+        header(6, &[2, 2], "tab1", 9, &[0u8; 32]),
+        "elsewhere",
+    );
+    assert!(why.contains("no table called `elsewhere`"), "{why}");
+    // A cell array rather than an array of numbers.
+    let why = refusal(
+        "cells.mat",
+        header(1, &[2, 2], "tab1", 9, &[0u8; 32]),
+        "tab1",
+    );
+    assert!(why.contains("not an array of double"), "{why}");
+    // Three dimensions, which is not a table.
+    let why = refusal(
+        "cube.mat",
+        header(6, &[2, 2, 2], "tab1", 9, &[0u8; 64]),
+        "tab1",
+    );
+    assert!(why.contains("dimension(s), and a table has two"), "{why}");
+    // Fewer numbers than the shape it claims.
+    let why = refusal(
+        "short.mat",
+        header(6, &[9, 9], "tab1", 9, &[0u8; 8]),
+        "tab1",
+    );
+    assert!(why.contains("does not carry that many"), "{why}");
+    // And the other byte order, which nothing here swaps back.
+    let mut swapped = header(6, &[2, 2], "tab1", 9, &[0u8; 32]);
+    swapped[126] = b'M';
+    swapped[127] = b'I';
+    let why = refusal("swapped.mat", swapped, "tab1");
+    assert!(why.contains("not little-endian"), "{why}");
+    let _ = std::fs::remove_dir_all(&dir);
+}

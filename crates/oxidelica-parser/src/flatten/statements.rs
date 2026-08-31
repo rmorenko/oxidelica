@@ -985,3 +985,27 @@ fn one_if_statement(
     }
     Ok(None)
 }
+
+thread_local! {
+    /// The specialized copies of functions that were handed another
+    /// function as an argument.
+    ///
+    /// A function value has one sink in this language - an argument -
+    /// so a receiver handed one can be copied with that input
+    /// replaced by ordinary numeric ones. The copies belong to the
+    /// model being flattened rather than to any library, and the road
+    /// from where they are made to where the model collects its
+    /// functions runs through signatures that have no business
+    /// carrying a second registry.
+    static SPECIALIZED: RefCell<HashMap<String, ClassDef>> = RefCell::new(HashMap::new());
+}
+
+/// Keep a specialized copy where the rest of the pass can find it.
+pub(super) fn remember_specialization(copy: ClassDef) {
+    SPECIALIZED.with(|held| held.borrow_mut().insert(copy.name.clone(), copy));
+}
+
+/// A specialized copy by name, if one was made.
+pub(super) fn specialization(name: &str) -> Option<ClassDef> {
+    SPECIALIZED.with(|held| held.borrow().get(name).cloned())
+}

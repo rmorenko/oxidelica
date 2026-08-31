@@ -1962,17 +1962,24 @@ fn the_forms_the_media_library_is_written_in() {
     .expect("a member written in a base of the package");
     assert!(format!("{:?}", m.equations).contains("medium.h"));
 
-    // A function handed as an argument is read, and refused where it
-    // is used: there is nothing here to pass a function around in.
-    let error = parse_model(
-        "model M function f input Real u; input Real a; output Real y; \
+    // A function handed as an argument is read and specialized: the
+    // receiver is copied with its function input replaced by ordinary
+    // numeric ones, so `solve(function f(a = 2))` becomes a call of
+    // that copy. Here the copy inlines to what `f` says, which is
+    // `2 * u` with `u` at its default of zero - and `solve` answers
+    // with whatever it was given, so nothing is left of either call.
+    let m = parse_model(
+        "model M function f input Real u = 3; input Real a; output Real y; \
          algorithm y := a * u; end f; \
          function solve input Real g; output Real x; algorithm x := g; end solve; \
          Real y; equation y = solve(function f(a = 2)); end M;",
     )
-    .expect_err("a function passed around")
-    .message;
-    assert!(error.contains("pass a function around"), "{error}");
+    .expect("a function handed over is specialized");
+    let said = format!("{:?}", m.equations);
+    assert!(
+        !said.contains("function"),
+        "the handed-over function survived: {said}"
+    );
 }
 
 /// A body written outside Modelica says what it is: the name called,

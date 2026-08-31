@@ -167,11 +167,29 @@ pub(super) fn programs_used(
         if out.iter().any(|already| already.name == name) {
             continue;
         }
-        let class = registry[name.as_str()];
+        // A specialized copy is not in the registry: it was made for
+        // this model out of a function that was handed another
+        // function, and it lives where such copies are kept.
+        let made;
+        let class = match registry.get(name.as_str()) {
+            Some(held) => *held,
+            None => match super::statements::specialization(&name) {
+                Some(copy) => {
+                    made = copy;
+                    &made
+                }
+                None => continue,
+            },
+        };
         walkable(class, registry)?;
         // A body names what it calls the way it was written there; the
         // walk looks names up in one table, so they are made to agree.
         let mut carried = (*class).clone();
+        // And what it inherits travels with it: the walk reads a
+        // frame of names, and an input declared in a base is a name
+        // like any other. A body written `extends partialScalarFunction`
+        // reads `u` and writes `y`, and neither is declared here.
+        carried.components = with_inherited_components(class, registry);
         // A local declared `constant Real eps = Modelica.Constants.eps`
         // is a name the walk's frame has never heard: it works out a
         // local's binding against its own frame, and a constant of
@@ -366,6 +384,11 @@ pub(super) fn gather_calls(
             if class.kind == ClassKind::Function {
                 out.push(class.name.clone());
             }
+        // A specialized copy is named after what went into it and is
+        // not in the registry: it was made for this model out of a
+        // function handed another function.
+        } else if super::statements::specialization(name).is_some() {
+            out.push(name.clone());
         }
     }
     match expr {
@@ -520,8 +543,13 @@ fn walkable(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> Result<(),
     // the numbers of the answer are laid out one after another, and
     // an array among them would need a length at every call site to
     // say where the next one starts.
-    let outputs: Vec<&Component> = class
-        .components
+    // What a function declares, its bases included: the standard
+    // library writes `extends partialScalarFunction` and gets its `u`
+    // and its `y` from there, declaring only the extra inputs it
+    // wants. Looking at the class's own components alone, such a
+    // function answers with nothing and is refused for it.
+    let held = with_inherited_components(class, registry);
+    let outputs: Vec<&Component> = held
         .iter()
         .filter(|c| c.causality == Causality::Output)
         .collect();
@@ -2027,4 +2055,39 @@ fn spread_out(name: &str, shape: &[i64], so_far: &mut Vec<i64>) -> Expr {
         so_far.pop();
     }
     Expr::Array(items)
+}
+
+/// A function's components together with the ones it inherits.
+///
+/// `extends partialScalarFunction` is how the standard library says
+/// "this takes a `u` and answers with a `y`", and a function written
+/// that way declares only what it adds. The bases come first, in the
+/// order they are extended, which is the order the language gives
+/// their arguments.
+pub(super) fn with_inherited_components(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Vec<Component> {
+    fn gather(
+        class: &ClassDef,
+        registry: &HashMap<&str, &ClassDef>,
+        depth: usize,
+        out: &mut Vec<Component>,
+    ) {
+        if depth > MAX_DEPTH {
+            return;
+        }
+        for extend in &class.extends {
+            if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+                gather(base, registry, depth + 1, out);
+            }
+        }
+        for held in &class.components {
+            out.retain(|already| already.name != held.name);
+            out.push(held.clone());
+        }
+    }
+    let mut out = Vec::new();
+    gather(class, registry, 0, &mut out);
+    out
 }

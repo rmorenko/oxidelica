@@ -535,3 +535,74 @@ fn a_walked_body_may_shout_and_read_a_constant() {
         last[1]
     );
 }
+
+/// A function handed to another function, with some inputs filled in.
+#[test]
+fn a_function_may_be_handed_over_with_its_inputs_filled_in() {
+    // `solveOneNonlinearEquation(function f(a = 2, b = -1), 0, 1)` is
+    // how the standard library asks for a root. There is nowhere to
+    // put a function value and nowhere it would survive to - the walk
+    // takes numbers - so the receiver is specialized instead: a copy
+    // with the function input replaced by ordinary numeric ones, and
+    // every call to it rewritten into a direct call of the target.
+    //
+    // The receiver here bisects, as Brent's method does, so it never
+    // inlines and is walked at run time. The root of `2u - 1` is a
+    // half, and that is the number this asks for.
+    let result = run("package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-9 loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           model M \
+             function line extends Scalar; input Real a = 1; input Real b = 0; \
+               algorithm y := a*u + b; end line; \
+             Real root; \
+           equation \
+             root = solve(function line(a = 2, b = -1), 0, 1); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 0.5).abs() < 1e-6,
+        "the root of 2u - 1 is a half, and this said {}",
+        last[1]
+    );
+}
+
+/// What a handed-over function is refused for.
+#[test]
+fn a_handed_over_function_says_what_it_cannot_be() {
+    // A name that is not a function here.
+    let why = parse_model(
+        "model M function solve input Real g; output Real x; \
+           algorithm x := g; end solve; \
+         Real y; equation y = solve(function nowhere(a = 2)); end M;",
+    )
+    .expect_err("no such function")
+    .message;
+    assert!(
+        why.contains("is handed over and is not a function"),
+        "{why}"
+    );
+    // A function with nothing to be solved for.
+    let why = parse_model(
+        "model M function flat output Real y; algorithm y := 1; end flat; \
+         function solve input Real g; output Real x; algorithm x := g; end solve; \
+         Real y; equation y = solve(function flat()); end M;",
+    )
+    .expect_err("nothing to solve for")
+    .message;
+    assert!(why.contains("takes nothing to be solved for"), "{why}");
+}
