@@ -3200,3 +3200,39 @@ fn a_number_at_the_front_of_a_string_is_read_here() {
     assert_eq!(value(1), -17.0, "leading space and a sign");
     assert_eq!(value(2), 5.0, "started from the third letter");
 }
+
+/// A line of a file, answered here rather than by the library's C.
+#[test]
+fn a_line_of_a_file_is_read_here() {
+    // `readLine` is written in C in the standard library, and this
+    // compiler reads files in Rust wherever else it needs one.
+    // The strings leave the flat model, so what the line was is asked
+    // by its length: "two" is three letters, and past the end of the
+    // file is the empty string.
+    let dir = std::env::temp_dir().join("oxidelica_readline_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("lines.txt");
+    std::fs::write(&file, "one\ntwo\nthree\n").unwrap();
+    let path = file.display().to_string().replace('\\', "/");
+    let m = parse_model(&format!(
+        "model M \
+         function readLine input String f; input Integer n; output String line; \
+           external \"C\" line = ModelicaInternal_readLine(f, n); end readLine; \
+         function len input String s; output Integer n; \
+           external \"C\" n = ModelicaStrings_length(s); end len; \
+         parameter Integer second = len(readLine(\"{path}\", 2)); \
+         parameter Integer past = len(readLine(\"{path}\", 9)); \
+         Real y; equation y = time; end M;"
+    ))
+    .expect("a file this compiler can read");
+    let settled = |wanted: &str| {
+        m.components
+            .iter()
+            .find(|c| c.name == wanted)
+            .map(|c| format!("{:?}", c.binding))
+            .unwrap_or_default()
+    };
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(settled("second").contains('3'), "{}", settled("second"));
+    assert!(settled("past").contains('0'), "{}", settled("past"));
+}

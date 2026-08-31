@@ -287,6 +287,27 @@ pub(super) fn text_of(
                 const_eval(&args[2], numbers)?,
             ))
         }
+        // A line of a file, counted from one, and the working
+        // directory: both written in C in the standard library, and
+        // both things this compiler does in Rust wherever else it
+        // reads a file. `readLine` says the empty string past the end,
+        // which is what its `endOfFile` output is for - a caller that
+        // wants the flag asks for it separately.
+        Expr::Call(name, args)
+            if name == "ModelicaInternal_readLine" && (args.len() == 2 || args.len() == 3) =>
+        {
+            let path = text_of(&args[0], values, numbers)?;
+            let wanted = const_eval(&args[1], numbers)?.max(1.0) as usize;
+            let held = std::fs::read_to_string(&path).ok()?;
+            Some(held.lines().nth(wanted - 1).unwrap_or("").to_string())
+        }
+        Expr::Call(name, args) if name == "ModelicaInternal_readFile" && !args.is_empty() => {
+            let path = text_of(&args[0], values, numbers)?;
+            std::fs::read_to_string(&path).ok()
+        }
+        Expr::Call(name, args) if name == "ModelicaInternal_getcwd" && args.len() <= 1 => {
+            Some(std::env::current_dir().ok()?.to_string_lossy().into_owned())
+        }
         // `loadResource` turns a `modelica://Library/path` URI into
         // the file it names. A resource is next to the library it
         // belongs to, so the library directories in view are where it
