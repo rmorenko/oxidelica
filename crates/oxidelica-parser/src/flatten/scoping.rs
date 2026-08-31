@@ -95,6 +95,19 @@ pub(super) fn effective_imports(
                 ));
             }
         }
+        // What a redeclaration wrote on its target is remembered
+        // against the name it gave: `redeclare function
+        // flowCharacteristic = quadraticFlow(V_flow_nominal = ...)`
+        // fills in some of that function's inputs, and the call the
+        // model writes gives only the rest. The alias itself is a
+        // pair of names and has nowhere to carry them.
+        let filled = replacement
+            .map(|held| held.modifiers.clone())
+            .filter(|held| !held.is_empty())
+            .or_else(|| Some(alias.modifiers.clone()).filter(|held| !held.is_empty()));
+        if let Some(filled) = filled {
+            super::statements::remember_filled_inputs(&target, filled);
+        }
         imports.push((alias.name.clone(), target));
     }
     Ok(imports)

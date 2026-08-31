@@ -76,6 +76,13 @@ pub struct ClassAlias {
     pub redeclaration: bool,
     /// The interface a replacement must extend, when given.
     pub constrained_by: Option<String>,
+    /// Modifiers written on the target of the alias.
+    ///
+    /// `redeclare function f = g(a = 1)` is how the standard library
+    /// fills in some of a function's inputs and hands the rest over -
+    /// the same partial application as `function g(a = 1)`, written
+    /// where a declaration goes.
+    pub modifiers: Vec<(String, Expr)>,
     /// Whether the short definition said `connector`: `connector
     /// ComplexOutput = output Complex` gives a record a name that a
     /// `connect` may join, and the record itself says nothing of that.

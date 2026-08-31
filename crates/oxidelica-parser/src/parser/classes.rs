@@ -151,10 +151,15 @@ impl Parser {
                     ..ClassDef::empty()
                 })));
             }
+            // Modifiers on the target are kept: `redeclare function f
+            // = g(a = 1)` fills in some of a function's inputs and
+            // hands the rest over, which is the same partial
+            // application as `function g(a = 1)` written where a
+            // declaration goes. The pumps of the standard library ask
+            // for their characteristics this way.
+            let mut modifiers = Vec::new();
             if self.peek() == &Token::LParen {
-                // Modifiers on the target are parsed and set aside: the
-                // alias itself carries no component to modify.
-                self.modifier_list()?;
+                modifiers = self.modifier_list()?.0;
             }
             let mut constrained_by = None;
             if self.peek() == &Token::ConstrainedBy {
@@ -175,6 +180,7 @@ impl Parser {
                 replaceable,
                 redeclaration,
                 constrained_by,
+                modifiers,
                 connector: kind == ClassKind::Connector,
                 causality: alias_causality,
             }));

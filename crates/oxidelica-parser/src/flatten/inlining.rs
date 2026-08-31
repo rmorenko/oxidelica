@@ -1439,6 +1439,20 @@ fn worked_body(
         let bound = bindings.contains_key(&input.name)
             || bindings.keys().any(|name| name.starts_with(&field_prefix));
         if !bound {
+            // A redeclaration may have filled this one in:
+            // `redeclare function f = g(a = 1)` is partial
+            // application written where a declaration goes, and the
+            // pumps of the standard library ask for their
+            // characteristics that way.
+            let filled = super::statements::filled_inputs(&class.name).and_then(|held| {
+                held.iter()
+                    .find(|(name, _)| name == &input.name)
+                    .map(|(_, value)| value.clone())
+            });
+            if let Some(value) = filled {
+                bindings.insert(input.name.clone(), value);
+                continue;
+            }
             let Some(default) = &input.binding else {
                 return Err(format!(
                     "function `{}` is missing its argument `{}`",

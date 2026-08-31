@@ -1009,3 +1009,26 @@ pub(super) fn remember_specialization(copy: ClassDef) {
 pub(super) fn specialization(name: &str) -> Option<ClassDef> {
     SPECIALIZED.with(|held| held.borrow().get(name).cloned())
 }
+
+thread_local! {
+    /// Inputs a redeclaration filled in on the function it named.
+    ///
+    /// `redeclare function f = g(a = 1)` is partial application
+    /// written where a declaration goes: `g` is called with one
+    /// argument and takes two. The alias is a pair of names with
+    /// nowhere to carry the rest, and the road from where it is
+    /// resolved to where a call is inlined runs through signatures
+    /// that have no business carrying modifiers.
+    static FILLED_INPUTS: RefCell<HashMap<String, Vec<(String, Expr)>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Remember what a redeclaration filled in on a function.
+pub(super) fn remember_filled_inputs(named: &str, filled: Vec<(String, Expr)>) {
+    FILLED_INPUTS.with(|held| held.borrow_mut().insert(named.to_string(), filled));
+}
+
+/// What a redeclaration filled in on this function, if anything.
+pub(super) fn filled_inputs(named: &str) -> Option<Vec<(String, Expr)>> {
+    FILLED_INPUTS.with(|held| held.borrow().get(named).cloned())
+}

@@ -606,3 +606,37 @@ fn a_handed_over_function_says_what_it_cannot_be() {
     .message;
     assert!(why.contains("takes nothing to be solved for"), "{why}");
 }
+
+/// A redeclaration may fill in some of a function's inputs.
+#[test]
+fn a_redeclared_function_keeps_what_was_written_on_it() {
+    // `redeclare function flowCharacteristic = quadraticFlow(
+    // V_flow_nominal = {0, 0.25, 0.5}, head_nominal = {100, 60, 0})`
+    // is how every pump of the standard library asks for its curve:
+    // partial application written where a declaration goes. The
+    // modifiers were parsed and thrown away - "set aside", said the
+    // comment - so the function was called with one argument and
+    // refused for missing the other.
+    let result = run("package P \
+           partial function Base input Real u; output Real y; end Base; \
+           function quad extends Base; input Real a[2]; \
+             algorithm y := a[1]*u + a[2]; end quad; \
+           model Pump \
+             replaceable function characteristic = Base; \
+             Real y; \
+           equation \
+             y = characteristic(time); \
+           end Pump; \
+           model M \
+             Pump p(redeclare function characteristic = quad(a = {2, 1})); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    // 2*0.1 + 1, with both coefficients coming from the redeclaration.
+    assert!(
+        (last[1] - 1.2).abs() < 1e-9,
+        "the filled-in inputs did not arrive: {}",
+        last[1]
+    );
+}

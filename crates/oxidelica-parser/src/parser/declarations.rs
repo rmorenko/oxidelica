@@ -356,8 +356,15 @@ impl Parser {
             let name = self.ident("redeclared class name")?;
             self.expect(&Token::Assign, "`=` in a class redeclaration")?;
             let target = self.dotted_name("replacement class")?;
+            // What the redeclaration writes on its target is kept:
+            // `redeclare function f = g(a = 1)` fills in some of that
+            // function's inputs and leaves the rest to the call,
+            // which is partial application written where a
+            // declaration goes. The pumps of the standard library ask
+            // for their characteristics this way.
+            let mut modifiers = Vec::new();
             if self.peek() == &Token::LParen {
-                self.modifier_list()?;
+                modifiers = self.modifier_list()?.0;
             }
             if self.peek() == &Token::ConstrainedBy {
                 self.bump();
@@ -370,7 +377,7 @@ impl Parser {
             return Ok(Redeclare {
                 name,
                 type_name: target,
-                modifiers: Vec::new(),
+                modifiers,
                 class_level: true,
             });
         }

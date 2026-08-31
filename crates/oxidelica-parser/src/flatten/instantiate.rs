@@ -356,7 +356,10 @@ fn settle_naming<'a>(
         redeclares.push(Redeclare {
             name: alias.name.clone(),
             type_name: target,
-            modifiers: Vec::new(),
+            // What the redeclaration wrote on its target travels with
+            // it: `redeclare function f = g(a = 1)` fills in one of
+            // `g`'s inputs and leaves the rest to the call.
+            modifiers: alias.modifiers.clone(),
             class_level: true,
         });
     }
