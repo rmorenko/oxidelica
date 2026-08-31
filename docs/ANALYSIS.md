@@ -557,3 +557,31 @@ drain. What is left is what the earlier excavation already said: an
 input declared as one number, bound to an array, inside a body that
 was inlined whole. The lie is born at the binding, and the shape
 table it would have to be caught by does not exist where it dies.
+
+### The scalar-input guard, measured
+
+Written a second time, asking the type rather than the declaration -
+a record input has a shape made of its fields, an input whose type is
+an array type is declared bare and takes several - and both of those
+are answered correctly. On the failing pipe model it says exactly
+what a week of digging said:
+
+```text
+input `dp` of `WallFriction.Detailed.massFlowRate_dp_staticHead`
+takes one number, and it was handed an array
+```
+
+And then the library check: **633 flatten, down from 666**. Thirty
+three models refused for something they had been doing all along.
+The guard is right about the pipes and wrong about thirty three
+other things, and no synthetic model reproduces any of them - the
+vectorizing hand-out catches every shape a test can write, which is
+why the guard looked safe on a dozen tries.
+
+So it is not in the tree either. What it did earn is the diagnosis
+it printed on its way out, which is written above rather than in the
+code: the wall is `dp`, an input declared as one number, bound to a
+whole array by a caller. Anyone taking this up again should start by
+finding which thirty three models the guard is wrong about, since
+that is the same question as what the vectorizing hand-out means by
+an array in a scalar seat.
