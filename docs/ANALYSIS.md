@@ -796,7 +796,25 @@ So this chain has a fifth link, one storey below anything the answer
 described, and it is about how `inner`/`outer` parameters reach the
 settling round rather than about bodies at all.
 
-The three forms stay in the tree. They are what makes the fifth link
-findable: without them the model dies at the first, and each of the
-ten places that used to decide on its own that a call it cannot
+The three forms stay in the tree. They are what makes the rest of the
+chain findable: without them the model dies at the first, and each of
+the ten places that used to decide on its own that a call it cannot
 answer is a call nobody can would have to be found again.
+
+Walked further with the probe, the chain past those three reads:
+
+5. A `NamedArg` reaching the evaluator - the library calls its
+   property function with `phase = 0`. Taken: a named argument is its
+   value by the time a parameter is settled.
+6. `region_pT(p, T)` against a body whose third input defaults to
+   zero: the walk counts arguments against inputs and refuses. Tried
+   - only the inputs with nothing to fall back on are required - and
+     it needs its seventh link with it, since the frame then lacks the
+     input that was left out.
+7. Laying an omitted input out like a local. Tried together with the
+   sixth and one test of the suite went red, so both are out for now:
+   they need a look at which case that test is defending.
+
+So the chain is seven links deep and five are in. The two that are
+not are one change, not two, and the test that caught them is the
+next thing to read.
