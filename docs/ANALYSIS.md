@@ -528,3 +528,32 @@ a shape made of its fields, and an input whose type is an array type
   nine numbers. Both are legitimate, both trip the guard, and both are
   in the test suite, which is the good outcome. A real guard has to ask
   the type what it is rather than reading the declaration.
+
+### The declaration-order theory, tried by experiment
+
+The account of the slice wall that fitted everything else said this:
+the shapes are drained in declaration order, so a binding written on
+a name declared below it sees that name without a shape and takes it
+for a scalar. It named a prediction to be caught by, and the
+prediction is cheap: move the declaration and the models free
+themselves with the compiler untouched.
+
+Tried, on a copy of the library, three placements of the same
+declaration:
+
+| Where `diameters` stands                    | What the model says             |
+| ------------------------------------------- | ------------------------------- |
+| As shipped, above the binding that uses it  | the slice refusal               |
+| Moved below `dp_fric_nominal`               | the same refusal, word for word |
+| Moved to the top of the `protected` section | the same again                  |
+
+And the shape table at the moment of death holds **zero** keys, not
+"some but not this one": the death is inside a function body, and a
+function has no shapes of its own by construction. Both halves of
+the theory are answered by measurement rather than by argument.
+
+So declaration order is not the mechanism, and neither is a late
+drain. What is left is what the earlier excavation already said: an
+input declared as one number, bound to an array, inside a body that
+was inlined whole. The lie is born at the binding, and the shape
+table it would have to be caught by does not exist where it dies.
