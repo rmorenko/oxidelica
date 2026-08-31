@@ -921,3 +921,31 @@ fn a_record_assigned_whole_in_a_body_is_taken_apart() {
          Bin(Mul, Number(10.0), Bin(Mul, Number(2.0), Number(2.0))))"
     );
 }
+
+/// A modifier at the site beats one an `extends` handed down.
+#[test]
+fn a_site_modifier_outranks_an_inherited_one() {
+    // `smpmData(useDamperCage = false)` on a record whose base already
+    // says `useDamperCage = true` means false: the site is nearer than
+    // the base. Both values reach the same list and the reader takes
+    // the first of the two, so the order of that list is the whole of
+    // the rule. The machines of the library are parameterized this
+    // way, and sixteen models stand behind it.
+    let m = parse_model(
+        "package P \
+           record BaseData parameter Real v = 1; end BaseData; \
+           record MagnetData extends BaseData(v = 2); parameter Real r = 3; end MagnetData; \
+           model Machine parameter MagnetData data; Real y; \
+             equation y = time + data.v; end Machine; \
+           model E Machine m(data(v = 5)); end E; \
+         end P;",
+    )
+    .expect("a modifier on an inherited field");
+    let held = m
+        .components
+        .iter()
+        .find(|c| c.name == "m.data.v")
+        .map(|c| format!("{:?}", c.binding))
+        .unwrap_or_default();
+    assert!(held.contains("5"), "the base won over the site: {held}");
+}

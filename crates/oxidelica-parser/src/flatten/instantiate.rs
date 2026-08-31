@@ -642,15 +642,20 @@ fn instantiate_bases(
         // `columns`, so the question is answered here, where the
         // shapes were just measured - which is where the language says
         // a modifier is worked out anyway.
-        let mods: Vec<(String, Expr)> = extend
-            .modifiers
+        // What the site wrote outranks what this class's own `extends`
+        // says: a record declared `smpmData(useDamperCage = false)`
+        // means false, whatever the base it extends says about that
+        // field. Both end up in this list and the reader takes the
+        // first of the two, so the site's go first.
+        let mods: Vec<(String, Expr)> = env
+            .overrides
             .iter()
-            .map(|(n, e)| {
+            .cloned()
+            .chain(extend.modifiers.iter().map(|(n, e)| {
                 let e = substitute_class_constants(e, registry, scope, imports, shadow);
                 let e = prefix_expr(&e, prefix, outers);
                 (n.clone(), measured_sizes(&e, &handed_shapes, &here))
-            })
-            .chain(env.overrides.iter().cloned())
+            }))
             .collect();
         let base_env = Env {
             overrides: &mods,

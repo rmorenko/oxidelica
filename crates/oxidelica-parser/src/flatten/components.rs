@@ -197,6 +197,22 @@ pub(super) fn instantiate_components(
                     let folded = strings::fold(&named, local_texts, &env).ok()?;
                     const_eval(&folded, &env)
                 })
+                // A parameter nobody gave a value stands at its start.
+                // The machines of the library write `parameter Boolean
+                // useDamperCage(start = true)` in a connector and mean
+                // it: a condition has to be settled before anything
+                // can be handed down to the component it guards.
+                .or_else(|| {
+                    let Expr::Ref(wanted) = &named else {
+                        return None;
+                    };
+                    let held = class
+                        .components
+                        .iter()
+                        .chain(inherited.iter().map(|(component, _)| component))
+                        .find(|c| &c.name == wanted)?;
+                    const_eval(held.start.as_ref()?, &env)
+                })
                 .or_else(|| {
                     let Expr::Ref(wanted) = &named else {
                         return None;
