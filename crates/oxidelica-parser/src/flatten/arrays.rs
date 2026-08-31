@@ -356,6 +356,14 @@ pub(super) fn expand(
                     ),
                     false => why,
                 })?,
+                // A name subscripted by a range is a slice of it, and
+                // an empty range slices nothing: `X_default[1:nXi]`
+                // with no trace substances is the empty array, not a
+                // scalar. The name's own shape is not needed to say
+                // so - the range says it - and without this the whole
+                // `Index` went off to be resolved as a scalar, where
+                // a range is refused for being an array.
+                _ if empty_range_subscript(subscripts, shapes) => Value::Array(Vec::new()),
                 _ => scalar(expr)?,
             }
         }
@@ -2392,4 +2400,28 @@ pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result
 pub(super) fn no_records() -> &'static HashMap<String, String> {
     static EMPTY: std::sync::OnceLock<HashMap<String, String>> = std::sync::OnceLock::new();
     EMPTY.get_or_init(HashMap::new)
+}
+
+/// Whether a subscript list holds a range that picks nothing.
+///
+/// `1:0` is how the standard library writes "none of them" when a
+/// count is zero, and a slice by it is the empty array whatever the
+/// name it is written on holds.
+fn empty_range_subscript(subscripts: &[Expr], shapes: &Shapes) -> bool {
+    subscripts.iter().any(|subscript| {
+        let Expr::Range(from, step, to) = subscript else {
+            return false;
+        };
+        // A stepped range is left alone: the count is the same
+        // arithmetic, but nothing in the library writes an empty one
+        // with a step, and guessing wrong here would swallow a slice
+        // that means something.
+        if step.is_some() {
+            return false;
+        }
+        let (Some(from), Some(to)) = (settled_by(from, shapes), settled_by(to, shapes)) else {
+            return false;
+        };
+        to < from
+    })
 }

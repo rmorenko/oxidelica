@@ -1924,3 +1924,48 @@ fn a_range_read_for_a_flexible_size_counts_its_places() {
     // A range that runs backwards holds nothing.
     assert!(n("5:2").unwrap().contains("0.0"), "{:?}", n("5:2"));
 }
+
+/// A name sliced by an empty range is the empty array, not a scalar.
+#[test]
+fn a_slice_by_an_empty_range_holds_nothing() {
+    // `X_default[1:nXi]` with one substance and none of it independent
+    // is how the standard media write "no trace substances here". The
+    // range says the slice is empty; the name it is written on need
+    // not be looked at to know that. Read as a scalar instead, the
+    // range was refused for being an array, and every fluid sensor in
+    // the library stopped at it.
+    let m = parse_model(
+        "package M \
+           partial package Base \
+             constant Integer nS = 1; \
+             constant Boolean reducedX = true; \
+             constant Integer nXi = if reducedX then nS - 1 else nS; \
+             constant Real reference_X[nS] = fill(1/nS, nS); \
+             constant Real X_default[nS] = reference_X; \
+           end Base; \
+           package Water extends Base(nS = 1); end Water; \
+           model Sensor \
+             replaceable package Medium = Base; \
+             Real Xi_outflow[Medium.nXi]; \
+             Real y; \
+           equation \
+             Xi_outflow = Medium.X_default[1:Medium.nXi]; \
+             y = time; \
+           end Sensor; \
+           model E Sensor s(redeclare package Medium = Water); end E; \
+         end M;",
+    )
+    .expect("an empty slice is an empty array");
+    // Nothing is left of the slice: no equation for it, and the one
+    // equation the sensor has is the one that says what y is.
+    assert!(
+        m.components.iter().all(|c| c.name != "s.Xi_outflow[1]"),
+        "an empty slice made an element"
+    );
+    assert!(
+        m.equations
+            .iter()
+            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "s.y")),
+        "the model lost the equation that follows the slice"
+    );
+}
