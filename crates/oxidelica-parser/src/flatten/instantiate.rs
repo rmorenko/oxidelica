@@ -734,8 +734,15 @@ fn fields_of_a_record(
     if record.kind != ClassKind::Record {
         return false;
     }
+    // And the fields it inherits: the machine records of the library
+    // are three deep - `SM_PermanentMagnetData` extends
+    // `SM_ReluctanceRotorData` extends `InductionMachineData` - and
+    // `useDamperCage` is declared at the middle one. Read from the
+    // record's own components alone, such a field is never offered
+    // here at all, and everything written on it waits for ever.
+    let held = super::inlining::with_inherited_components(record, registry);
     let mut moved = false;
-    for field in &record.components {
+    for field in &held {
         if !matches!(
             field.variability,
             Variability::Parameter | Variability::Constant
