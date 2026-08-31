@@ -518,3 +518,13 @@ the name of the input and the function - `input 'diameter' of
 - rather than an anonymous shape four layers down. It frees nothing
   by itself, and it would have made this whole excavation one run
   long.
+
+That guard was written, run and taken out again, which is worth
+knowing before it is written a second time: "declared with no
+dimensions" is not the same as "takes one number". A record input has
+a shape made of its fields, and an input whose type is an array type
+
+- `Real3 a` where `type Real3 = Real[3]` - is declared bare and takes
+  nine numbers. Both are legitimate, both trip the guard, and both are
+  in the test suite, which is the good outcome. A real guard has to ask
+  the type what it is rather than reading the declaration.
