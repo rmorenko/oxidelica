@@ -1508,8 +1508,14 @@ fn describe(expr: &Expr) -> String {
     }
 }
 
-fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize>), SimError> {
+fn evaluate_parameters(
+    model: &Model,
+    programs: &HashMap<String, ClassDef>,
+) -> Result<(HashMap<String, f64>, Vec<usize>), SimError> {
     let mut params: HashMap<String, f64> = HashMap::new();
+    // What the first round could not settle, kept until the rounds
+    // that might settle it have run.
+    let mut stuck_on: Option<String> = None;
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
     // The parameters the initialisation settles rather than the
     // declaration, and the initial equations claimed for them.
@@ -1547,7 +1553,7 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
                 &EvalCtx {
                     vars: &params,
                     time: 0.0,
-                    programs: None,
+                    programs: Some(programs),
                     depth: 0,
                 },
             ) {
@@ -1620,10 +1626,18 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
                 ),
                 (true, true) => "they wait on each other".to_string(),
             };
-            return err(format!(
+            // The two queues below - what the initialisation claims,
+            // and what keeps its start - may be exactly what these are
+            // waiting on: a parameter written on `p_ambient` waits for
+            // a name the initialisation settles, and refusing here
+            // kills the model before the round that would answer it
+            // has begun. So the refusal is remembered and asked again
+            // at the end, when there is nothing left to try.
+            stuck_on = Some(format!(
                 "cannot evaluate parameters [{}]: {because}",
                 names.join(", ")
             ));
+            break;
         }
     }
 
@@ -1653,7 +1667,7 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
                     let context = EvalCtx {
                         vars: &params,
                         time: 0.0,
-                        programs: None,
+                        programs: Some(programs),
                         depth: 0,
                     };
                     eval(value, &context).ok().map(|number| (at, number))
@@ -1680,7 +1694,7 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
                 let context = EvalCtx {
                     vars: &params,
                     time: 0.0,
-                    programs: None,
+                    programs: Some(programs),
                     depth: 0,
                 };
                 match eval(start, &context) {
@@ -1691,6 +1705,41 @@ fn evaluate_parameters(model: &Model) -> Result<(HashMap<String, f64>, Vec<usize
                 }
             }
             None => return err(format!("parameter {} has no value", c.name)),
+        }
+    }
+    // Asked again, now that the initialisation has claimed what it
+    // can and the starts have stood in for the rest: a parameter that
+    // still has no value is one nothing in the model could give.
+    // And one more round over what was left: the queues above may
+    // have settled the very names it was waiting on.
+    if stuck_on.is_some() {
+        loop {
+            let before = pending.len();
+            pending.retain(|(name, expr)| {
+                match eval(
+                    expr,
+                    &EvalCtx {
+                        vars: &params,
+                        time: 0.0,
+                        programs: Some(programs),
+                        depth: 0,
+                    },
+                ) {
+                    Ok(value) => {
+                        params.insert((*name).to_string(), value);
+                        false
+                    }
+                    Err(_) => true,
+                }
+            });
+            if pending.is_empty() || pending.len() == before {
+                break;
+            }
+        }
+    }
+    if let Some(why) = stuck_on {
+        if !pending.is_empty() {
+            return err(why);
         }
     }
     Ok((params, claimed))
@@ -1751,7 +1800,18 @@ pub(crate) fn compile_at(
 
     // 1. Parameters and constants, in whatever order they depend on
     // each other.
-    let (params, settled_parameters) = evaluate_parameters(model)?;
+    // The bodies nothing could inline travel with the model, and the
+    // work before the run begins meets them as often as the run does:
+    // a parameter written as a call to one, a start value, a branch of
+    // an `if` nobody could decide. They are put in view once here and
+    // handed on, rather than each of those places deciding on its own
+    // that a call it cannot answer is a call nobody can.
+    let programs: HashMap<String, ClassDef> = model
+        .functions
+        .iter()
+        .map(|class| (class.name.clone(), class.clone()))
+        .collect();
+    let (params, settled_parameters) = evaluate_parameters(model, &programs)?;
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
@@ -1977,7 +2037,7 @@ pub(crate) fn compile_at(
     let ctx0 = EvalCtx {
         vars: &params,
         time: 0.0,
-        programs: None,
+        programs: Some(&programs),
         depth: 0,
     };
     let mut initial = Vec::new();

@@ -777,3 +777,26 @@ at whatever decides not to measure a component that may not exist.
 Three synthetic models of that shape - a conditional component with
 an array output, connected to an array - flatten correctly, so what
 the library does differently is again not yet reduced to a screen.
+
+### The parameter-settling chain, three links in
+
+The advice was three forms, and all three are in: the bodies the run
+carries are in view of everything that happens before the run begins
+(one map, made once, handed on); the interpreting side of `eval` has
+the door for `f(...)[k]` the compiling side already had; and the hard
+refusal of the settling round waits until the two queues below it -
+what the initialisation claims, what keeps its start - have run, with
+one more round over what was left.
+
+The number does not move, and the probe says why: the model waits on
+`p_ambient`, which is in none of the three queues. It is a parameter
+of an `inner` object - `system.p_ambient = 101325` is right there in
+the flat model - and what waits on it is a chain three names long.
+So this chain has a fifth link, one storey below anything the answer
+described, and it is about how `inner`/`outer` parameters reach the
+settling round rather than about bodies at all.
+
+The three forms stay in the tree. They are what makes the fifth link
+findable: without them the model dies at the first, and each of the
+ten places that used to decide on its own that a call it cannot
+answer is a call nobody can would have to be found again.

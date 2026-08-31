@@ -191,6 +191,57 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     });
                 }
             }
+            // And a body the run carries may answer with a record,
+            // whose fields are read the same way: the water of the
+            // library starts a tank at `waterBaseProp_pT(p, T, 0)[5]`,
+            // the fifth field of the properties it answers with. The
+            // compiled side of the run has this door already; this is
+            // the same door on the side that evaluates.
+            if let (Expr::Call(called, args), [which]) = (base.as_ref(), subscripts.as_slice()) {
+                if let Some(programs) = ctx.programs {
+                    if programs.contains_key(called.as_str()) {
+                        // A walk counts its arguments by the lengths
+                        // it was handed - one entry per argument, zero
+                        // for a scalar - rather than by how many
+                        // numbers arrived.
+                        let (mut given, mut lengths) = (Vec::new(), Vec::new());
+                        for arg in args {
+                            match arg {
+                                Expr::Array(items) => {
+                                    for item in items {
+                                        given.push(eval(item, ctx)?);
+                                    }
+                                    lengths.push(items.len());
+                                }
+                                one => {
+                                    given.push(eval(one, ctx)?);
+                                    lengths.push(0);
+                                }
+                            }
+                        }
+                        let place = eval(which, ctx)? as usize;
+                        let answer = crate::walk::walk(
+                            programs,
+                            called,
+                            &given,
+                            &lengths,
+                            ctx.time,
+                            ctx.depth + 1,
+                        )?;
+                        return place
+                            .checked_sub(1)
+                            .and_then(|at| answer.get(at))
+                            .copied()
+                            .ok_or_else(|| {
+                                SimError(format!(
+                                    "`{called}` answered with {} number(s) and place \
+                                     {place} was asked for",
+                                    answer.len()
+                                ))
+                            });
+                    }
+                }
+            }
             return err(format!(
                 "unresolved array subscript on {base:?}: flattening should have expanded it"
             ));
