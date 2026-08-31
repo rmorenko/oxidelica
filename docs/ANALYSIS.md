@@ -626,3 +626,45 @@ Of the eighteen models the specialization freed, four are back under
 `SolveOneNonlinearEquation`, each on a different further thing: a
 `size` of a name with no shape, a unit on a logarithm. They are not
 one family any more.
+
+## What the forty models met next
+
+Forty models freed at once moved the flatten count by forty and the
+run count by nothing, which asks a question of its own: did they all
+stop at the same next thing, or scatter?
+
+Scatter, mostly - but with one new family at the top of the running
+half of the register:
+
+| Count | What it is                                                                            |
+| ----: | ------------------------------------------------------------------------------------- |
+|    18 | an unknown variable                                                                   |
+|    13 | `cannot evaluate parameters [... = Medium.X_default, ... = waterBaseProp_pT(...)[5]]` |
+|    11 | a singular Jacobian in an algebraic loop                                              |
+|     9 | an unknown function                                                                   |
+|     9 | an unbalanced model                                                                   |
+|     9 | initialization that is not square                                                     |
+
+The thirteen are new and they are one thing: a parameter whose value
+is a field of a record a medium function answers with -
+`waterBaseProp_pT(p, T, 0)[5]` is the fifth field of an
+`IF97BaseTwoPhase`. The bodies are carried to the run now, which is
+the win; the parameters are wanted before the run starts, which is
+the next barrier. That is a real family and a plausible next take.
+
+The rest is a long tail of numerics - singular Jacobians, unbalanced
+models, loops that do not converge - which is what a compiler that
+flattens two thirds of a library and runs a third of it looks like
+from inside.
+
+### The tails
+
+**A function missing an argument: 6 left**, from 22. Four are
+`PartialMedium.dynamicViscosity` and two its table-based cousin: a
+medium function called where the medium never filled its inputs in,
+which is not the pumps' problem and not the same fix.
+
+**The eighteen the specialization freed** are no longer a family.
+Four are back under `SolveOneNonlinearEquation`, each stopped on
+something else entirely - a `size` of a name with no shape, a unit
+on a logarithm - and the rest have gone on into the running half.
