@@ -69,7 +69,7 @@ make windows-check
 
 ## Quality
 
-The project threshold is **95% line coverage** for the core (parser, sim, cli; the GUI crate is excluded — the Bevy event loop is not unit-testable). The full pipeline lives in the Makefile:
+The floor is **92% line coverage** for the core (parser, sim, cli; the GUI crate is excluded — the Bevy event loop is not unit-testable). The full pipeline lives in the Makefile:
 
 ```bash
 make help
