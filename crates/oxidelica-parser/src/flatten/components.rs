@@ -213,17 +213,6 @@ pub(super) fn instantiate_components(
                         .find(|c| &c.name == wanted)?;
                     const_eval(held.start.as_ref()?, &env)
                 })
-                .or_else(|| {
-                    let Expr::Ref(wanted) = &named else {
-                        return None;
-                    };
-                    let held = class
-                        .components
-                        .iter()
-                        .chain(inherited.iter().map(|(component, _)| component))
-                        .find(|c| &c.name == wanted)?;
-                    const_eval(held.start.as_ref()?, &env)
-                })
                 .ok_or_else(|| {
                     format!("condition of component `{flat_name}` is not a compile-time constant")
                 })?;

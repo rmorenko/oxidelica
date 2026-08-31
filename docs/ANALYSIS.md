@@ -755,3 +755,25 @@ three, with the field modified from the site - all settle correctly.
 So the shape alone is not it, and the next probe belongs where a
 record's fields are turned into components rather than where they are
 read.
+
+## The connect wall the machine chain opened onto
+
+The `useDamperCage` chain freed its models into a new top of the
+flattening register: `connect between 2 and 1 connector(s)`, 21
+models, up from 11 before the chain.
+
+The probe reads it in one line. `connect(ir, damperCage.i)` joins two
+arrays of two, and the shape table holds `motor.smpm.ir` and nothing
+for `damperCage.i`: the damper cage is a conditional component - `if
+useDamperCage` - and a conditional component's shapes are not
+measured. The left side knows it is two; the right side, being one
+bare name of unknown shape, counts as one.
+
+So this is the same family one storey up: a conditional whose
+condition now settles, whose contents are still not measured. Where
+the last chain ended in a record's inherited fields, this one starts
+at whatever decides not to measure a component that may not exist.
+
+Three synthetic models of that shape - a conditional component with
+an array output, connected to an array - flatten correctly, so what
+the library does differently is again not yet reduced to a screen.
