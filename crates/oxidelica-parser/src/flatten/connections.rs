@@ -43,6 +43,16 @@ pub(super) fn push_connects(
             .collect()
     };
     let (left, right) = (side(a)?, side(b)?);
+    // A `connect` to a component that was switched off is nothing at
+    // all: the machines of the library write `connect(ir,
+    // damperCage.i)` beside a `damperCage ... if useDamperCage`, and
+    // with the cage off the right side is one bare name of no shape
+    // while the left is a run of two. Counted against each other,
+    // that is a refusal about a connection nobody asked for.
+    let gone = |held: &[String]| held.iter().any(|name| acc.is_disabled(name));
+    if gone(&left) || gone(&right) {
+        return Ok(());
+    }
     if left.len() != right.len() {
         return Err(format!(
             "connect between {} and {} connector(s)",

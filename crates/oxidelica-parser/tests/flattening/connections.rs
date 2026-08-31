@@ -1549,3 +1549,39 @@ fn a_chain_of_members_and_subscripts_goes_as_deep_as_it_is_written() {
     .to_string();
     assert!(err.contains("subscript"), "{err}");
 }
+
+/// A connect to a component that was switched off is nothing.
+#[test]
+fn a_connect_to_a_disabled_component_is_no_connection() {
+    // The machines of the library write `connect(ir, damperCage.i)`
+    // beside a `damperCage ... if useDamperCage`, and with the cage
+    // switched off the right side is one bare name of no shape while
+    // the left is a run of two. The two were counted against each
+    // other and the model refused - for a connection nobody asked
+    // for, since one end of it does not exist.
+    let m = parse_model(
+        "package P \
+           connector Out = output Real; \
+           model Cage Out i[2] = {1.0, 2.0}; end Cage; \
+           model Machine \
+             parameter Boolean useCage = false; \
+             Out ir[2]; \
+             Cage damperCage if useCage; \
+             Real y; \
+           equation \
+             connect(ir, damperCage.i); \
+             ir = {time, 2*time}; \
+             y = ir[1]; \
+           end Machine; \
+           model E Machine m; end E; \
+         end P;",
+    )
+    .expect("a connect to a component that is not there");
+    // The model keeps the equations it does have.
+    assert!(
+        m.equations
+            .iter()
+            .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "m.y")),
+        "the model lost what it was left with"
+    );
+}
