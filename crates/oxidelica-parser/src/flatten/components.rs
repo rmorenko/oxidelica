@@ -627,6 +627,16 @@ fn measure_dimensions(
                 // environment holds.
                 let named = substitute_class_constants(dimension, registry, scope, imports, shadow);
                 let value = const_eval(&named, local_consts)
+                    // A length written on a name of this class -
+                    // `size(a, 1) - 1` for a transfer function's
+                    // states - reads a shape that was written down
+                    // under the instance path, so it is asked for
+                    // under that name too.
+                    .or_else(|| {
+                        let named = prefix_expr(&named, prefix, outers);
+                        dimension_value(&named, local_consts, sizes_here)
+                            .map(|length| length as f64)
+                    })
                     .or_else(|| off_a_length().map(|length| length as f64))
                     .ok_or_else(|| {
                         format!("dimension of `{flat_name}` is not a compile-time constant")

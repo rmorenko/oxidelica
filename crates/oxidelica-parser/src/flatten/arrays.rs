@@ -2379,8 +2379,42 @@ pub(super) fn dimension_value(
             }
         }
     }
-    let value = const_eval(expr, consts)?;
+    // And `size(a, 1) - 1` is a length too: a transfer function is
+    // one state shorter than its denominator has coefficients, and
+    // the library writes exactly that. The measured sizes are not in
+    // the constants, so a `size` standing anywhere inside an
+    // expression is answered first and the arithmetic done after.
+    let answered = measured_sizes(expr, consts, sizes);
+    let value = const_eval(&answered, consts)?;
     (value.fract() == 0.0 && value >= 0.0).then_some(value as i64)
+}
+
+/// Every `size(...)` of an already measured name, replaced by what it
+/// measures.
+fn measured_sizes(
+    expr: &Expr,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Expr {
+    if let Expr::Call(name, args) = expr {
+        if name == "size" && !args.is_empty() {
+            if let Expr::Ref(of) = &args[0] {
+                let held = sizes.get(of).and_then(|shape| {
+                    let index = match args.get(1) {
+                        None => Some(0),
+                        Some(dimension) => {
+                            const_eval(dimension, consts).map(|held| held as usize - 1)
+                        }
+                    }?;
+                    shape.get(index).copied()
+                });
+                if let Some(length) = held {
+                    return Expr::Number(length as f64);
+                }
+            }
+        }
+    }
+    expr.map_children(&mut |held| measured_sizes(held, consts, sizes))
 }
 
 /// The same shapes under the instance path, since equations are

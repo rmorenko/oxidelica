@@ -1969,3 +1969,34 @@ fn a_slice_by_an_empty_range_holds_nothing() {
         "the model lost the equation that follows the slice"
     );
 }
+
+/// A length written as arithmetic on a `size` is a length.
+#[test]
+fn a_length_may_be_a_size_with_something_done_to_it() {
+    // A transfer function has one state fewer than its denominator
+    // has coefficients, and the standard library writes exactly that:
+    // `x_start[size(a, 1) - 1]`. The shapes are measured and written
+    // down under the instance path, and `size` was answered only
+    // where it stood alone as the whole dimension - not where it sat
+    // inside arithmetic, which is where the library puts it.
+    let m = parse_model(
+        "package P \
+           block TF \
+             parameter Real a[:] = {1, 1}; \
+             parameter Real x_start[size(a, 1) - 1] = zeros(size(a, 1) - 1); \
+             Real y; \
+           equation \
+             y = time + x_start[1]; \
+           end TF; \
+           model E TF f(a = {1, 2, 1}); end E; \
+         end P;",
+    )
+    .expect("a length worked out of a size");
+    // Three coefficients, so two states.
+    let held = m
+        .components
+        .iter()
+        .filter(|c| c.name.starts_with("f.x_start["))
+        .count();
+    assert_eq!(held, 2, "the run came out {held} long");
+}
