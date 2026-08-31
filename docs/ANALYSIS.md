@@ -585,3 +585,44 @@ whole array by a caller. Anyone taking this up again should start by
 finding which thirty three models the guard is wrong about, since
 that is the same question as what the vectorizing hand-out means by
 an array in a scalar seat.
+
+## The register after the redeclared functions
+
+Taken by `library check --refused` on the tree at 666 flatten and
+333 run. The shape of the list has changed twice over since the last
+one.
+
+| Count | What it is                                                                 |
+| ----: | -------------------------------------------------------------------------- |
+|    40 | a body nothing could inline, walked at run time, that the walk cannot take |
+|    25 | `Range(1, None, n - 1)` where a scalar is wanted - the slice wall          |
+|    16 | the condition of a component is not a compile-time constant                |
+|    13 | an argument that must be dimensionless carries a unit                      |
+|    12 | `previous` with no clock across a redeclare boundary                       |
+|    12 | a name with no declaration above it                                        |
+|    11 | a subscript outside its array                                              |
+|    11 | a `connect` between different numbers of connectors                        |
+
+Two kinds that stood near the top are gone or nearly so.
+
+**A function missing an argument: 22 to 6.** Every pump in the
+library asks for its curve as `redeclare function flowCharacteristic
+= quadraticFlow(V_flow_nominal = ..., head_nominal = ...)`, and the
+modifiers were being read and dropped. Of the six that remain, four
+are `PartialMedium.dynamicViscosity` and two its table-based
+cousin - a different question, a medium function called where the
+medium never filled its inputs in.
+
+**A dimension that is not a compile-time constant: 25 to 0.**
+Nothing was aimed at it; it fell to `size(a, 1) - 1` being read as a
+length, which was aimed at thirteen models of a different kind.
+
+The new top is the runtime wall, 40 and rising - which is what
+happens when models that used to stop at flattening now get far
+enough to be walked. The slice wall at 25 is unchanged and now
+carries a written diagnosis rather than a guess.
+
+Of the eighteen models the specialization freed, four are back under
+`SolveOneNonlinearEquation`, each on a different further thing: a
+`size` of a name with no shape, a unit on a logarithm. They are not
+one family any more.
