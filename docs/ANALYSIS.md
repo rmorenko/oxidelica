@@ -847,3 +847,23 @@ The message is worth a line of its own: it named these as
 `is[2] = its limit`, because the describer prints a bound rather
 than an expression for anything that is not a number or a name.
 Reading the pair took a probe; it should not have.
+
+### The `statesFM` shapes, and where those thirteen went
+
+Thirteen models refused with `an equation between shapes [1, 2] and
+[1, 0]`. The library writes `statesFM = fill(Medium.setState_phX(
+...), 0)` where the medium has no trace substances: a run of two
+states, each carrying nothing.
+
+The rule that forgives an empty side was comparing every pair of
+dimensions, including the last - which asks two to equal nothing.
+What has to agree is the dimensions before the empty one: the outer
+run is real, the inner is the nothing both sides agree on. Fixed.
+
+The count does not move, and this time the reason is worth reading:
+all thirteen walk straight into `heater.h_start asks to be evaluated
+before the run`, which is the parameter chain of the section above -
+the same `h_start` of the same water, seven links deep with five of
+them taken. So this is not a separate family after all. It is a
+fifth tributary into the same river, and when that chain is finished
+these come with it.

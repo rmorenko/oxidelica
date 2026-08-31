@@ -2473,10 +2473,23 @@ pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result
         // nothing, four against three is a model saying two different
         // things.
         let empty_shape = |shape: &[usize]| shape.contains(&0);
-        let same_outer = left_shape
-            .iter()
-            .zip(&right_shape)
-            .all(|(here, there)| here == there);
+        // The dimensions before the empty one are what has to agree:
+        // a run of two states each carrying nothing is `[1, 2]`
+        // against `[1, 0]`, and comparing the last pair asks two to
+        // equal nothing. What the library writes is `statesFM =
+        // fill(Medium.setState_phX(...), 0)` where the medium has no
+        // trace substances - the outer run is real, the inner is the
+        // nothing both sides agree on.
+        let outer_of = |shape: &[usize]| -> Vec<usize> {
+            shape
+                .iter()
+                .take_while(|length| **length != 0)
+                .copied()
+                .collect()
+        };
+        let (left_outer, right_outer) = (outer_of(&left_shape), outer_of(&right_shape));
+        let shared = left_outer.len().min(right_outer.len());
+        let same_outer = left_outer[..shared] == right_outer[..shared];
         if (empty_shape(&left_shape) || empty_shape(&right_shape)) && same_outer {
             return Ok(());
         }
