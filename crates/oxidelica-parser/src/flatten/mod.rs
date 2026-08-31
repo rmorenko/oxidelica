@@ -30,6 +30,14 @@ mod constants;
 mod equations;
 mod extents;
 mod external;
+
+/// The file a `modelica://` URI names, for the library tests: they ask
+/// whether a resource is read from the library that was named, and
+/// that question is answered here rather than where they live.
+#[cfg(test)]
+pub(crate) fn resource_for_test(uri: &str) -> Option<String> {
+    external::resource_named(uri)
+}
 mod grids;
 mod inheritance;
 mod inlining;

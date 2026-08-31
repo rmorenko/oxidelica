@@ -14,6 +14,14 @@
 /// nearly always zero, and a text file starts with `#1`. Anything
 /// else is refused by name rather than guessed at.
 pub fn table_in_file(path: &str, wanted: &str) -> Result<Vec<Vec<f64>>, String> {
+    // A URI that reached this far was never turned into a file: the
+    // library it names is not one this compiler reads from. Saying so
+    // by the places that were tried tells a missing file from a
+    // library read from one place and its data looked for in another,
+    // which are the same silence and not the same mistake.
+    if path.starts_with("modelica://") {
+        return Err(super::external::resource_at(path).unwrap_err());
+    }
     let bytes = std::fs::read(path).map_err(|why| format!("`{path}` cannot be read: {why}"))?;
     // An editor that writes UTF-8 may put a mark for it in front of
     // everything else. It says nothing about the table and is not

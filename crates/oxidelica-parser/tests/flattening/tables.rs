@@ -1743,3 +1743,20 @@ fn a_byte_order_mark_is_not_part_of_the_table() {
         .expect("a marked file is still a text table");
     assert_eq!(rows, vec![vec![0.0, 0.0], vec![1.0, 2.0], vec![2.0, 4.0]]);
 }
+
+/// A resource URI that named no library says where it looked.
+#[test]
+fn a_resource_that_was_not_found_says_where_it_looked() {
+    // `modelica://Library/path` reaching the table reader at all means
+    // it was never turned into a file. "Cannot be read" would be true
+    // of a missing file too, and these are not the same mistake: one
+    // is data nobody wrote, the other data written under a library
+    // this compiler is reading from somewhere else. The paths tried
+    // tell them apart, and without them the difference cost an hour.
+    let why = read_table_file("modelica://NoSuchLibrary/Data/rows.txt", "tab1")
+        .expect_err("no such library, so no such resource");
+    assert!(
+        why.contains("modelica://NoSuchLibrary/Data/rows.txt") && why.contains("Tried:"),
+        "a refusal that does not say where it looked: {why}"
+    );
+}

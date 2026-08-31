@@ -203,18 +203,46 @@ fn hash_string(text: &str) -> f64 {
 /// cannot be settled already means: the model says what it wanted and
 /// nothing pretends to have read it.
 pub(super) fn resource_named(uri: &str) -> Option<String> {
-    let rest = uri.strip_prefix("modelica://")?;
-    let (named, path) = rest.split_once('/')?;
-    let library = named.split('.').next()?;
+    resource_at(uri).ok()
+}
+
+/// The same search, saying where it looked when it found nothing.
+///
+/// A resource that is not where this compiler reads libraries from is
+/// the same silence as a resource that does not exist, and the two are
+/// not the same mistake: one is a missing file, the other a library
+/// read from one place and its data looked for in another. The paths
+/// tried tell them apart at a glance.
+pub(super) fn resource_at(uri: &str) -> Result<String, String> {
+    let complaint = |tried: &[String]| {
+        format!(
+            "`{uri}` names no file this compiler can see. Tried: {}",
+            match tried.is_empty() {
+                true => "nowhere - no library directory is in view".to_string(),
+                false => tried.join(", "),
+            }
+        )
+    };
+    let mut tried: Vec<String> = Vec::new();
+    let Some(rest) = uri.strip_prefix("modelica://") else {
+        return Err(complaint(&tried));
+    };
+    let Some((named, path)) = rest.split_once('/') else {
+        return Err(complaint(&tried));
+    };
+    let Some(library) = named.split('.').next() else {
+        return Err(complaint(&tried));
+    };
     for directory in crate::library::library_directories(None) {
         // A library is a directory of its own name, or a file beside
         // one - the resources are under the directory either way.
         for root in [directory.join(library), directory.clone()] {
             let candidate = root.join(path);
             if candidate.is_file() {
-                return Some(candidate.to_string_lossy().into_owned());
+                return Ok(candidate.to_string_lossy().into_owned());
             }
+            tried.push(format!("`{}`", candidate.display()));
         }
     }
-    None
+    Err(complaint(&tried))
 }
