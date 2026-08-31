@@ -2092,7 +2092,16 @@ pub(super) fn with_inherited_components(
             return;
         }
         for extend in &class.extends {
-            if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+            // A `redeclare function extends dewDensity` names its base
+            // by the same name it has itself, and the base is a
+            // neighbour of the package rather than of the function:
+            // asked from inside, the search finds this very function
+            // and gathers nothing. So the enclosing class answers
+            // first, and only then the function's own scope.
+            let base = super::inheritance::inherited_class(registry, class, &extend.base, 0)
+                .or_else(|| lookup(registry, &extend.base, &class.name, &class.imports))
+                .filter(|found| found.name != class.name);
+            if let Some(base) = base {
                 gather(base, registry, depth + 1, out);
             }
         }

@@ -1297,3 +1297,56 @@ fn a_record_settles_its_fields_whatever_order_it_is_declared_in() {
          Real y; equation y = a.x; end M;"
     ));
 }
+
+/// A `redeclare function extends f` finds the `f` it extends.
+#[test]
+fn a_redeclared_function_extends_the_one_it_replaces() {
+    // The media of the standard library are written this way: a
+    // package declares `replaceable partial function dewDensity` with
+    // its input and output, and the water under it writes `redeclare
+    // function extends dewDensity` with a body and nothing else.
+    //
+    // The base is named by the same name the function has itself, and
+    // it belongs to the package rather than to the function. Looked
+    // for from inside the function, the search found that function -
+    // which extends nothing, declares nothing, and so answers with
+    // nothing at all. Forty models of the register stopped there.
+    let m = parse_model(
+        "package P \
+           partial package Base \
+             record Sat Real psat; end Sat; \
+             replaceable partial function dew input Sat sat; output Real dv; end dew; \
+           end Base; \
+           package Water \
+             extends Base; \
+             redeclare function extends dew \
+             protected \
+               Real step; \
+             algorithm \
+               dv := sat.psat; \
+               step := 1.0; \
+               while abs(step) > sat.psat loop step := step/2; dv := dv + step; end while; \
+             end dew; \
+           end Water; \
+           model E \
+             package M = Water; \
+             Real y; \
+           equation \
+             y = M.dew(M.Sat(time)); \
+           end E; \
+         end P;",
+    )
+    .expect("a function that inherits what it answers with");
+    // It is carried to the run, and it carries the `dv` it inherited.
+    let carried = m.functions.iter().find(|f| f.name.ends_with(".dew"));
+    let carried = carried.expect("the body travels with the model");
+    assert!(
+        carried.components.iter().any(|held| held.name == "dv"),
+        "the inherited output did not travel: {:?}",
+        carried
+            .components
+            .iter()
+            .map(|c| &c.name)
+            .collect::<Vec<_>>()
+    );
+}
