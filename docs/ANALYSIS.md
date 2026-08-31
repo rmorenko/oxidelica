@@ -418,3 +418,26 @@ only ones that would need a numerical library rather than a morning.
 All of them two-dimensional (`CombiTable2Ds`, `CombiTable2Dv`) or a
 battery cell whose data is a `CombiTable1D` written into the model.
 The file seat is now read correctly; what stops these is further in.
+
+### The three flexible-size readings are three roots, not one
+
+The register groups them by how the message reads, and the last one
+claimed they were one family read three ways. Traced, one model to a
+reading, they are not:
+
+| Reading                                              | Model traced                       | What is actually underneath                                                                                                                                   |
+| ---------------------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Range(1, None, n - 1)` where a scalar is wanted, 24 | `AST_BatchPlant.Test.OneTank`      | `Wb_flows[1:n-1]` with `n` known and settled - the slice resolves, and what stops the model is the next thing along, an array of one where a scalar is wanted |
+| flexible size with nowhere to read a length, 13      | `Tables.CombiTable1Ds.Test20`      | `columns[:] = 2:size(table, 2)` on a table read from a **MAT v5** file; the reader here knows level 4 and text, and v5 begins `MATLAB 5.0 MAT-f`              |
+| dimension is not a compile-time constant, 25         | `Noise.DrydenContinuousTurbulence` | `Hw.x_start`, a state vector sized by a filter order worked out elsewhere                                                                                     |
+
+Three barriers, three places. The middle one is the cheapest and the
+most self-contained: a MAT v5 reader would answer the whole
+`CombiTable*.Test2x` family, which is where the flexible-size count
+comes from. The first is not really a flexible-size problem at all -
+the slice settles, and the message names the wrong thing.
+
+A slice by a settled range can be resolved on the scalar path as well
+as the array path, and that was tried: it moves the barrier one step
+along in those 24 models and frees none of them, so it is not in the
+tree. What frees them is whatever stands behind it.
