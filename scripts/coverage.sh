@@ -32,4 +32,4 @@ trap 'rm -rf "$nowhere"' EXIT
 export XDG_DATA_HOME="$nowhere"
 unset OXIDELICA_LIB MODELICAPATH
 cargo llvm-cov -p oxidelica-parser -p oxidelica-sim -p oxidelica-cli \
-  --fail-under-lines 92 "$@"
+  --fail-under-lines 92.5 "$@"

@@ -68,7 +68,7 @@ make windows-check
 
 ## Качество
 
-Нижняя черта — **92% строк** покрытия по ядру (parser, sim, cli; GUI-крейт исключён — event loop Bevy юнит-тестами не покрывается). Весь конвейер — в Makefile:
+Нижняя черта — **92,5% строк** покрытия по ядру (parser, sim, cli; GUI-крейт исключён — event loop Bevy юнит-тестами не покрывается). Весь конвейер — в Makefile:
 
 ```bash
 make help

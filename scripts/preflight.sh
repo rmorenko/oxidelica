@@ -108,7 +108,7 @@ else
 fi
 
 if [ "$quick" -eq 0 ]; then
-  optional_step "Coverage, the floor is 92% of lines" cargo-llvm-cov \
+  optional_step "Coverage, the floor is 92.5% of lines" cargo-llvm-cov \
     ./scripts/coverage.sh --summary-only
   optional_step "TOML" taplo taplo fmt --check --diff
   optional_step "Spelling" typos typos
