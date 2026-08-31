@@ -1813,3 +1813,47 @@ fn a_level_five_matlab_file_is_read() {
     let _ = std::fs::remove_dir_all(&dir);
     assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
 }
+
+/// Whole numbers in a MATLAB file are stored narrow, and read wide.
+#[test]
+fn a_matlab_array_written_narrow_is_still_doubles() {
+    // A matrix of doubles whose values all happen to be small whole
+    // numbers is written one byte each: the format saving space, not
+    // saying the numbers are not real. Read as eight bytes apiece, a
+    // six-value matrix has nothing to read at all.
+    let dir = std::env::temp_dir().join("oxidelica_mat5_narrow");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("narrow.mat");
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"MATLAB 5.0 MAT-file, written by a test");
+    bytes.resize(124, b' ');
+    bytes.extend_from_slice(&[0x00, 0x01]);
+    bytes.extend_from_slice(b"IM");
+    let mut body = Vec::new();
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&0u32.to_le_bytes());
+    body.extend_from_slice(&5u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(&1u32.to_le_bytes());
+    body.extend_from_slice(&4u32.to_le_bytes());
+    body.extend_from_slice(b"tab1");
+    body.extend_from_slice(&[0; 4]);
+    // Type 2 is one unsigned byte apiece, and these are 1 3 / 2 4
+    // column-major.
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(&4u32.to_le_bytes());
+    body.extend_from_slice(&[1, 3, 2, 4]);
+    body.extend_from_slice(&[0; 4]);
+    bytes.extend_from_slice(&14u32.to_le_bytes());
+    bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&body);
+    std::fs::write(&file, &bytes).unwrap();
+    let rows =
+        read_table_file(&file.display().to_string(), "tab1").expect("narrow numbers are numbers");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+}

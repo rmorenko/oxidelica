@@ -329,14 +329,26 @@ fn in_matlab5(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, S
         if let Some((shape, name, numbers, numbers_length, marks)) = read(body) {
             if name == wanted {
                 let (class, numbers_kind) = (marks >> 16, marks & 0xffff);
-                // Class 6 is a double array, and 9 is the type of the
-                // numbers in it. A table of anything else - a string,
-                // a struct, a single - is not a table of numbers.
-                if class != 6 || numbers_kind != 9 {
+                // Class 6 is an array of doubles. What it is written
+                // with is another matter: a matrix of whole numbers
+                // small enough to fit is stored in the narrowest type
+                // that holds them, which is the format saving space
+                // rather than saying the numbers are not real. The
+                // widths, by the format's own numbering.
+                let width = match numbers_kind {
+                    1 | 2 => Some(1),
+                    3 | 4 => Some(2),
+                    5 | 6 => Some(4),
+                    7 => Some(4),
+                    9 => Some(8),
+                    12 | 13 => Some(8),
+                    _ => None,
+                };
+                let (Some(width), 6) = (width, class) else {
                     return Err(format!(
                         "`{wanted}` in `{path}` is not an array of double precision numbers"
                     ));
-                }
+                };
                 let (rows, columns) = match shape.as_slice() {
                     [rows, columns] => (*rows, *columns),
                     _ => {
@@ -346,18 +358,44 @@ fn in_matlab5(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, S
                         ))
                     }
                 };
-                if numbers_length < rows * columns * 8 {
+                if numbers_length < rows * columns * width {
                     return Err(format!(
                         "`{wanted}` in `{path}` says it is {rows} by {columns} and does not \
                          carry that many numbers"
                     ));
                 }
-                // Column-major on the file, row by row here.
+                // Column-major on the file, row by row here, and
+                // read by the width the numbers were written at.
                 let held = |row: usize, column: usize| -> f64 {
-                    let at = numbers + (column * rows + row) * 8;
-                    let mut eight = [0u8; 8];
-                    eight.copy_from_slice(&bytes[at..at + 8]);
-                    f64::from_le_bytes(eight)
+                    let at = numbers + (column * rows + row) * width;
+                    let of = |n: usize| bytes[at..at + n].to_vec();
+                    match (numbers_kind, width) {
+                        (1, _) => bytes[at] as i8 as f64,
+                        (2, _) => bytes[at] as f64,
+                        (3, _) => i16::from_le_bytes([of(2)[0], of(2)[1]]) as f64,
+                        (4, _) => u16::from_le_bytes([of(2)[0], of(2)[1]]) as f64,
+                        (5..=7, 4) => {
+                            let held = of(4);
+                            let four = [held[0], held[1], held[2], held[3]];
+                            match numbers_kind {
+                                5 => i32::from_le_bytes(four) as f64,
+                                6 => u32::from_le_bytes(four) as f64,
+                                _ => f32::from_le_bytes(four) as f64,
+                            }
+                        }
+                        _ => {
+                            let held = of(8);
+                            let eight = [
+                                held[0], held[1], held[2], held[3], held[4], held[5], held[6],
+                                held[7],
+                            ];
+                            match numbers_kind {
+                                12 => i64::from_le_bytes(eight) as f64,
+                                13 => u64::from_le_bytes(eight) as f64,
+                                _ => f64::from_le_bytes(eight),
+                            }
+                        }
+                    }
                 };
                 return Ok((0..rows)
                     .map(|row| (0..columns).map(|column| held(row, column)).collect())

@@ -708,6 +708,48 @@ pub(super) fn expand_call(
             let length = constant(&args[1])?;
             Ok(nested_value(&[length], &filler))
         }
+        // How many rows and columns a matrix on a file has, and the
+        // matrix itself. Written in C in the standard library, and
+        // this compiler opens those files already - it is what every
+        // table block reads its numbers from.
+        (
+            "ModelicaIO_readMatrixSizes"
+            | "ModelicaIO_readRealMatrix"
+            | "Modelica.Utilities.Streams.readMatrixSize"
+            | "Modelica.Utilities.Streams.readRealMatrix",
+            _,
+        ) => {
+            let in_view = super::statements::texts_in_view();
+            let text_of = |at: usize| match args.get(at) {
+                Some(Expr::Str(held)) => Some(held.clone()),
+                Some(Expr::Ref(name)) => in_view.get(name).cloned(),
+                _ => None,
+            };
+            let (Some(file), Some(named)) = (text_of(0), text_of(1)) else {
+                return Err(format!(
+                    "`{name}` needs to know the file and the matrix by name before the run"
+                ));
+            };
+            let rows = super::table_files::table_in_file(&file, &named)?;
+            let width = rows.first().map_or(0, |row| row.len());
+            match name.ends_with("Sizes") || name.ends_with("readMatrixSize") {
+                true => Ok(Value::Array(vec![
+                    Value::Scalar(Expr::Number(rows.len() as f64)),
+                    Value::Scalar(Expr::Number(width as f64)),
+                ])),
+                false => Ok(Value::Array(
+                    rows.iter()
+                        .map(|row| {
+                            Value::Array(
+                                row.iter()
+                                    .map(|held| Value::Scalar(Expr::Number(*held)))
+                                    .collect(),
+                            )
+                        })
+                        .collect(),
+                )),
+            }
+        }
         // The array constructors and rearrangers: a shape built or a
         // shape turned about.
         (
