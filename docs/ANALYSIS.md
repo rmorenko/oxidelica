@@ -803,17 +803,18 @@ answer is a call nobody can would have to be found again.
 
 Walked further with the probe, the chain past those three reads:
 
-5. A `NamedArg` reaching the evaluator - the library calls its
-   property function with `phase = 0`. Taken: a named argument is its
-   value by the time a parameter is settled.
-6. `region_pT(p, T)` against a body whose third input defaults to
-   zero: the walk counts arguments against inputs and refuses. Tried
-   - only the inputs with nothing to fall back on are required - and
-     it needs its seventh link with it, since the frame then lacks the
-     input that was left out.
-7. Laying an omitted input out like a local. Tried together with the
-   sixth and one test of the suite went red, so both are out for now:
-   they need a look at which case that test is defending.
+- **Fifth.** A `NamedArg` reaching the evaluator - the library calls
+  its property function with `phase = 0`. Taken: a named argument is
+  its value by the time a parameter is settled.
+- **Sixth.** `region_pT(p, T)` against a body whose third input
+  defaults to zero: the walk counts arguments against inputs and
+  refuses. Tried - only the inputs with nothing to fall back on are
+  required - and it needs the seventh with it, since the frame then
+  lacks the input that was left out.
+- **Seventh.** Laying an omitted input out like a local. Tried
+  together with the sixth and one test of the suite went red, so both
+  are out for now: they need a look at which case that test is
+  defending.
 
 So the chain is seven links deep and five are in. The two that are
 not are one change, not two, and the test that caught them is the
