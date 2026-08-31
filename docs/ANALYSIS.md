@@ -480,3 +480,41 @@ moment, so the division is array-to-array and `Delta` is the array of
 one it should be - which is vectorization of a scalar function over
 several arguments at once, inside an inlined body. That is a bigger
 change than a slice, and it is the change these 25 models want.
+
+### The slice wall, measured to the fifth layer
+
+The advice was to deliver the shapes and change nothing about how a
+range is handled. Measured, that is not where it stands either.
+
+Three things were established, each by a probe on the failing model
+rather than by reading:
+
+- At the point of death the shape table is **empty** - zero keys -
+  because the death happens inside a function body, where a function
+  has no shapes of its own. Not "the drain had not reached
+  `diameters`": there is no table to reach.
+- The scope is `WallFriction.Detailed.massFlowRate_dp_staticHead`,
+  not the `pressureLoss_m_flow` the trace suggested. Both hold the
+  same line, `Delta = roughness/diameter`.
+- The call that does go through `expand_call` -
+  `pressureLoss_m_flow` - arrives with its arguments already
+  `Array[1]` where they should be, so the vectorizing hand-out is
+  reached and works. The one that dies never comes past that gate at
+  all.
+
+So the shape delivery was tried too: offering every parameter of a
+class to the drain rather than only its constants, so a binding
+written on a name declared below it can see it. The numbers do not
+move. What dies is a body already inlined, in a scope that has no
+shape table by construction, and the array in it was built by honest
+hands out of one settled slice and one bare name.
+
+Five layers in, the count is still 665 and 333. The thing worth
+fixing first is not any of the walls but the birth of the lie: an
+input declared scalar bound to an array. That refusal should carry
+the name of the input and the function - `input 'diameter' of
+'massFlowRate_dp_staticHead' is scalar and was handed an array of 1`
+
+- rather than an anonymous shape four layers down. It frees nothing
+  by itself, and it would have made this whole excavation one run
+  long.
