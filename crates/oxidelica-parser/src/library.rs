@@ -45,6 +45,8 @@ pub fn library_directories(near: Option<&Path>) -> Vec<PathBuf> {
         }
     }
     let mut found: Vec<PathBuf> = Vec::new();
+    let asked =
+        std::env::var_os(LIBRARY_VARIABLE).is_some() || std::env::var_os(MODELICA_PATH).is_some();
     if let Some(directory) = std::env::var_os(LIBRARY_VARIABLE) {
         remember(&mut found, PathBuf::from(directory));
     }
@@ -55,8 +57,14 @@ pub fn library_directories(near: Option<&Path>) -> Vec<PathBuf> {
     }
     // A variable that named somewhere settles the matter: mixing what
     // was asked for with what happens to lie around would make a model
-    // depend on where it was opened from.
-    if found.is_empty() {
+    // depend on where it was opened from. It settles it even when what
+    // it named holds nothing - that is an empty library, and the
+    // answer to it is "nothing", not a search that walks off to
+    // whatever is installed. The test was `found.is_empty()`, so a
+    // variable naming an empty directory was the same as no variable
+    // at all, and a sandbox with nothing in it read the real standard
+    // library out of the user's home.
+    if !asked {
         if let Some(one) = climbed_library(near) {
             remember(&mut found, one);
         }
@@ -233,6 +241,71 @@ mod tests {
         }
     }
 
+    /// A library read from a directory nobody installed keeps its own
+    /// resources.
+    ///
+    /// `modelica://Modelica/Resources/x.txt` means a file of the
+    /// library the model belongs to. Looked for under the installed
+    /// copy instead, it is found on a machine that has one and missing
+    /// on a machine that does not - which is the difference between a
+    /// desk and a build machine, and the reason the library check
+    /// counted twenty-one fewer models there than here.
+    #[test]
+    fn a_resource_is_read_from_the_library_that_was_named() {
+        let _guard = ENVIRONMENT
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let sandbox = Sandbox::new("resource");
+        without_fetched_libraries(&sandbox.0);
+        // A library called Modelica, in a directory called something
+        // else, with a file of its own beside it.
+        let held = sandbox.0.join("checkout");
+        std::fs::create_dir_all(held.join("Modelica/Resources/Data")).unwrap();
+        std::fs::write(
+            held.join("Modelica/package.mo"),
+            "package Modelica end Modelica;",
+        )
+        .unwrap();
+        std::fs::write(held.join("Modelica/Resources/Data/rows.txt"), "#1\n").unwrap();
+        std::env::set_var(LIBRARY_VARIABLE, &held);
+        let found = library_directories(None);
+        assert_eq!(
+            found,
+            vec![held.clone()],
+            "the directory that was named is where a library is read from"
+        );
+        // An installed library of the same name, holding no resources:
+        // this is the machine the check has to survive. With the
+        // installed copy answering first, the resource of the library
+        // actually being read is invisible - which is what made the
+        // same tree measure twenty-one models apart on a build machine
+        // and on a desk.
+        let installed = sandbox.0.join("installed");
+        std::fs::create_dir_all(installed.join("Modelica")).unwrap();
+        std::fs::write(
+            installed.join("Modelica/package.mo"),
+            "package Modelica end Modelica;",
+        )
+        .unwrap();
+        // MODELICAPATH names the installed copy first, the way a
+        // machine with a library installed has it. The check sets
+        // OXIDELICA_LIB to the directory it was pointed at, and that
+        // is the more deliberate of the two: what was asked for wins
+        // over what happens to lie around.
+        std::env::set_var("MODELICAPATH", &installed);
+        // And the URI reaches the file under the library that was
+        // named, not under the installed one.
+        let found =
+            crate::flatten::resource_for_test("modelica://Modelica/Resources/Data/rows.txt");
+        std::env::remove_var(LIBRARY_VARIABLE);
+        std::env::remove_var("MODELICAPATH");
+        let found = found.expect("the resource belongs to the library that was named");
+        assert!(
+            found.starts_with(&held.to_string_lossy().into_owned()),
+            "read from somewhere else entirely: {found}"
+        );
+    }
+
     #[test]
     fn with_no_home_there_is_nowhere_to_keep_a_library() {
         let _guard = ENVIRONMENT
@@ -346,14 +419,18 @@ mod tests {
         );
         assert_eq!(sources.len(), 1);
 
-        // A variable naming somewhere with no models in it is no help,
-        // so the search goes on looking.
+        // A variable naming somewhere with no models in it names an
+        // empty library, and the answer to that is nothing. It used to
+        // be no help - the search went on to whatever was installed -
+        // and that is how a sandbox with nothing in it came to read
+        // the real standard library out of the user's home, four
+        // thousand models deep, in a test that meant to read none.
         std::env::set_var(LIBRARY_VARIABLE, sandbox.0.join("deep"));
         let found = library_directories(Some(&sandbox.0.join("deep/nested/model.mo")));
         std::env::remove_var(LIBRARY_VARIABLE);
-        assert_eq!(
-            found[0].canonicalize().unwrap(),
-            sandbox.0.join("lib").canonicalize().unwrap()
+        assert!(
+            found.is_empty(),
+            "a variable naming an empty directory settles the matter: {found:?}"
         );
     }
 

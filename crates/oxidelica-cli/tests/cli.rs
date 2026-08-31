@@ -621,10 +621,44 @@ fn checking_a_library_ranks_what_it_could_not_read() {
 
 #[test]
 fn checking_with_no_directory_reads_what_is_in_view() {
-    // No directory named: the library the search already finds.
-    let out = bin().args(["library", "check"]).output().unwrap();
+    // No directory named: the library the search already finds. What
+    // is in view is whatever the environment says, so the test says
+    // it - a tiny library of its own. Left to find the real standard
+    // library, this read four thousand models in a debug build and
+    // took longer than everything else in the suite together, which
+    // is a measurement of the machine rather than of the search.
+    let in_view = TempDir::new("in-view");
+    std::fs::write(
+        in_view.0.join("Tiny.mo"),
+        "package Tiny package Examples \
+         model One Real x(start = 1); equation der(x) = -x; end One; \
+         end Examples; end Tiny;",
+    )
+    .unwrap();
+    let out = bin()
+        .args(["library", "check"])
+        .env("OXIDELICA_LIB", in_view.0.to_str().unwrap())
+        .output()
+        .unwrap();
     assert!(out.status.success(), "{}", stderr(&out));
     assert!(stdout(&out).contains("files:"), "{}", stdout(&out));
+    // And a library with nothing in view is a refusal in a moment,
+    // not a search that wanders off into whatever is installed.
+    let empty = TempDir::new("nothing-in-view");
+    let out = bin()
+        .args(["library", "check"])
+        .env("OXIDELICA_LIB", empty.0.to_str().unwrap())
+        .env("MODELICAPATH", empty.0.to_str().unwrap())
+        .env("XDG_DATA_HOME", empty.0.join("no-libraries"))
+        .env("HOME", empty.0.join("no-home"))
+        .output()
+        .unwrap();
+    assert!(
+        !out.status.success() && stderr(&out).contains("no Modelica files"),
+        "an empty view reads nothing: {} {}",
+        stdout(&out),
+        stderr(&out)
+    );
 
     // An example that will not flatten is counted and its reason
     // ranked alongside the rest.

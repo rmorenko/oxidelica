@@ -506,7 +506,22 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let refused_each = args.iter().any(|arg| arg == "--refused");
     let directory = args.iter().find(|arg| !arg.starts_with("--"));
     let files = match directory {
-        Some(path) => oxidelica_parser::library_files_in(std::path::Path::new(path)),
+        Some(path) => {
+            // A library is checked where it was named, and its
+            // resources belong to it: a `modelica://Modelica/...`
+            // URI in a model of this directory means a file under
+            // this directory, not one under whatever copy happens to
+            // be installed. Where the two differ - a checkout on a
+            // build machine, an installed library on a desk - the
+            // installed copy answered for a library nobody asked
+            // about, and every model reading a data file was refused
+            // for a file that was there all along.
+            let root = std::path::Path::new(path);
+            if std::env::var_os(oxidelica_parser::LIBRARY_VARIABLE).is_none() {
+                std::env::set_var(oxidelica_parser::LIBRARY_VARIABLE, root);
+            }
+            oxidelica_parser::library_files_in(root)
+        }
         None => oxidelica_parser::library_files(None),
     };
     if files.is_empty() {
