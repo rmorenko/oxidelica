@@ -858,3 +858,47 @@ fn a_shared_instance_settles_before_those_who_read_it() {
         "the modifier written on the shared instance did not reach the reader: {initial}"
     );
 }
+
+/// A Boolean constant of a package arrives as a Boolean.
+#[test]
+fn a_boolean_constant_keeps_its_kind() {
+    // Constants travel as numbers - one and zero - which is what
+    // arithmetic wants and what a condition cannot use. A medium's
+    // `final ph_explicit = true` reached every `if` that asks it as
+    // `Number(1.0)`, and the type layer refused the model for an
+    // Integer standing where a Boolean is needed. Thirty-three models
+    // of Fluid and Media stopped there, all of them on a medium
+    // saying which variables it is explicit in.
+    let m = parse_model(
+        "package P \
+           partial package Base \
+             constant Boolean ph_explicit; \
+             constant Boolean dT_explicit; \
+           end Base; \
+           package Water \
+             extends Base(final ph_explicit = true, final dT_explicit = false); \
+           end Water; \
+           model Vessel \
+             replaceable package Medium = Base; \
+             Real y; \
+           equation \
+             y = if Medium.dT_explicit and Medium.ph_explicit then 1 else 2; \
+           end Vessel; \
+           model E Vessel v(redeclare package Medium = Water); end E; \
+         end P;",
+    )
+    .expect("a Boolean constant is a Boolean");
+    let y = m
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(name) if name == "v.y"))
+        .expect("the model keeps its one equation");
+    // The condition is Booleans and not numbers: `Bool(false) and
+    // Bool(true)`, which the type layer accepts and an Integer in
+    // either seat would not.
+    let said = format!("{:?}", y.rhs);
+    assert!(
+        said.contains("Bool(false)") && said.contains("Bool(true)"),
+        "a Boolean constant came through as a number: {said}"
+    );
+}

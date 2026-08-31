@@ -240,6 +240,103 @@ fn gather_package_constants<'a>(
     }
 }
 
+/// A constant's value in the shape its declaration gave it.
+///
+/// Values travel as numbers; a Boolean written back as `Number(0.0)`
+/// is an Integer where a Boolean is needed.
+fn as_declared(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+    value: f64,
+) -> Expr {
+    match class_constant_is_boolean(registry, name, scope, imports, depth) {
+        true => Expr::Bool(value != 0.0),
+        false => Expr::Number(value),
+    }
+}
+
+/// The same, for a constant found by walking out of the classes this
+/// one is written inside: the name is bare, so the walk that found it
+/// is the walk that says what it was declared as.
+fn enclosing_as_declared(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+    value: f64,
+) -> Expr {
+    let mut at = scope;
+    while let Some((outer, _)) = at.rsplit_once('.') {
+        if class_constant_is_boolean(registry, &format!("{outer}.{name}"), outer, &[], depth) {
+            return Expr::Bool(value != 0.0);
+        }
+        at = outer;
+    }
+    Expr::Number(value)
+}
+
+/// Whether a class constant was declared Boolean.
+///
+/// The value of a constant travels as a number - one and zero - which
+/// is what arithmetic wants and what a condition cannot use: `false`
+/// arriving as `Number(0.0)` is an Integer where a Boolean is needed,
+/// and a medium's `final ph_explicit = true` reached every `if` that
+/// asks it as a number. The declaration still says which it was, so
+/// the substitution asks before it writes the value down.
+pub(super) fn class_constant_is_boolean(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> bool {
+    if depth > MAX_CONSTANT_DEPTH {
+        return false;
+    }
+    let Some((class_path, member)) = name.rsplit_once('.') else {
+        return false;
+    };
+    let Some(class) = lookup(registry, class_path, scope, imports) else {
+        return false;
+    };
+    let mut kinds: Vec<(String, String)> = Vec::new();
+    gather_package_constant_types(registry, class, 0, &mut kinds);
+    kinds
+        .iter()
+        .any(|(held, kind)| held == member && kind == "Boolean")
+}
+
+/// The declared type of every constant a package holds, its bases
+/// included, in the same order [`gather_package_constants`] gathers
+/// their values.
+fn gather_package_constant_types(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    depth: usize,
+    out: &mut Vec<(String, String)>,
+) {
+    if depth > MAX_DEPTH {
+        return;
+    }
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+            gather_package_constant_types(registry, base, depth + 1, out);
+        }
+    }
+    for component in &class.components {
+        if matches!(
+            component.variability,
+            Variability::Constant | Variability::Parameter
+        ) {
+            out.retain(|(existing, _)| existing != &component.name);
+            out.push((component.name.clone(), component.type_name.clone()));
+        }
+    }
+}
+
 /// Replace every reference to a class constant with its value.
 pub(super) fn substitute_class_constants(
     expr: &Expr,
@@ -284,6 +381,9 @@ fn substitute_at(
     match expr {
         Expr::Ref(name) if name.contains('.') => {
             match class_constant_at(registry, name, scope, imports, depth) {
+                Some(value) if class_constant_is_boolean(registry, name, scope, imports, depth) => {
+                    Expr::Bool(value != 0.0)
+                }
                 Some(value) => Expr::Number(value),
                 None => class_constant_array_at(registry, name, scope, imports, depth)
                     .unwrap_or_else(|| expr.clone()),
@@ -298,7 +398,7 @@ fn substitute_at(
                 .map(|(_, target)| target)
             {
                 if let Some(value) = class_constant_at(registry, target, scope, imports, depth) {
-                    return Expr::Number(value);
+                    return as_declared(registry, target, scope, imports, depth, value);
                 }
                 if let Some(value) =
                     class_constant_array_at(registry, target, scope, imports, depth)
@@ -319,7 +419,14 @@ fn substitute_at(
                         imports,
                         depth,
                     ) {
-                        return Expr::Number(value);
+                        return as_declared(
+                            registry,
+                            &format!("{target}.{name}"),
+                            scope,
+                            imports,
+                            depth,
+                            value,
+                        );
                     }
                 }
             }
@@ -329,7 +436,7 @@ fn substitute_at(
             // not in view of what is written inside another class of it.
             if !shadow.contains(&name.as_str()) {
                 if let Some(value) = enclosing_constant(registry, name, scope, depth) {
-                    return Expr::Number(value);
+                    return enclosing_as_declared(registry, name, scope, depth, value);
                 }
                 // What a package this class is written inside brought
                 // in by name is in view here too: the flux tubes say

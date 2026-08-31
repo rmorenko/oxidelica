@@ -219,7 +219,16 @@ pub(super) fn instantiate_components(
 
         let mut component = component.clone();
         if let Some(value) = settled.get(&component.name) {
-            component.binding = Some(Expr::Number(*value));
+            // A settled value travels as a number, which is what
+            // arithmetic wants and what a condition cannot use: a
+            // Boolean written back as `Number(0.0)` is an Integer
+            // where a Boolean is needed, and a medium's
+            // `ph_explicit = false` reached every `if` that asks it
+            // in that shape. The declaration says which it is.
+            component.binding = Some(match component.type_name == "Boolean" {
+                true => Expr::Bool(*value != 0.0),
+                false => Expr::Number(*value),
+            });
         }
 
         // A redeclaration from above replaces the type; its modifiers
