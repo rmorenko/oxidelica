@@ -124,6 +124,30 @@ failure and not a zero. And before a number is believed to have fallen
 to nothing, the same command is run on unchanged code to see it print
 the number it is supposed to have removed.
 
+### A chain is taken whole or not at all
+
+A probe sometimes shows that one barrier stands on another, and that
+one on a third: remove the first and the model dies one step later,
+in the same family, for the same underlying reason. Four such links
+were found in an afternoon on a single parameter of a water tank.
+
+Do not take such a chain apart a link at a time, measuring after each
+and reverting what measures zero. A link removed from the middle of a
+chain moves no number by construction - the model still dies, one
+step further along - and reverting it throws away the only work that
+was actually done.
+
+Instead: walk the chain to its end with the probe first, keeping each
+removal local and unrecorded, until the model either runs or reaches
+something that is not the same family. Write the list of links down.
+Then take the chain as one series, with the thresholds moved once at
+its end, and the numbers in the message the numbers of the whole
+chain.
+
+A zero on a link of a mapped chain is not grounds for reverting the
+link. What is grounds for reverting is a chain that was not walked to
+its end - because then nobody knows whether it has one.
+
 ## Tests
 
 A bug fix comes with a test that fails without it. Check that it does:
