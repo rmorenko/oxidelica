@@ -704,6 +704,38 @@ pub(super) fn inline_function_outputs(
     if outputs.is_empty() {
         return Err(format!("function `{}` declares no output", class.name));
     }
+    // What the body answers with is written in the terms of the
+    // package it was written in: `reference_h + (T - reference_T)*
+    // cp_const` names constants of the medium, and inside the medium a
+    // bare name is the right way to say it. Inlined into the model
+    // nothing encloses them any more and the walk outwards has no
+    // medium to walk to - so they travel with the body, substituted
+    // here, where the package is still known.
+    //
+    // Only while a parameter is being settled, and only where a name
+    // is left standing at all. A constant carries a unit and the
+    // number replacing it does not, so folding one into an equation
+    // reads kelvin against joules per kilogram and refuses a sound
+    // model; a parameter wants the digit and has no such reader.
+    let outputs = match constants::SETTLING_PARAMETER.with(|on| on.get()) {
+        false => outputs,
+        true => outputs
+            .into_iter()
+            .map(|(name, value)| {
+                let value = match holds_a_name(&value) {
+                    false => value,
+                    true => constants::substitute_class_constants(
+                        &value,
+                        registry,
+                        &class.name,
+                        &class.imports,
+                        &[],
+                    ),
+                };
+                (name, value)
+            })
+            .collect(),
+    };
     // An `assert` in a function body cannot travel out through the
     // expression the call becomes, so it is set aside for the model
     // being built to take up.
@@ -711,6 +743,18 @@ pub(super) fn inline_function_outputs(
         algorithms::SET_ASIDE.with(|aside| aside.borrow_mut().extend(checks));
     }
     Ok(outputs)
+}
+
+/// Whether an expression still names anything, rather than being
+/// arithmetic over numbers alone.
+fn holds_a_name(expr: &Expr) -> bool {
+    let mut found = false;
+    expr.for_each(&mut |inner| {
+        if matches!(inner, Expr::Ref(_)) {
+            found = true;
+        }
+    });
+    found
 }
 
 /// The checks a call makes, for a call that stands on its own as a
@@ -1334,6 +1378,31 @@ pub(super) fn asked_under(class: &ClassDef) -> String {
             .cloned()
             .unwrap_or_else(|| class.name.clone())
     })
+}
+
+/// The name a body is being worked out under, or nothing where none
+/// was pushed. What a cache of answers has to hold in its key: the
+/// same class asked under two media answers two things.
+pub(super) fn asked_as_mark() -> String {
+    ASKED_AS.with(|held| held.borrow().last().cloned().unwrap_or_default())
+}
+
+/// The package on the mark, where it descends from the one that
+/// declared what is being asked.
+///
+/// The guard is the same `descends_from` every other reader of the
+/// mark uses: a mark left standing by an unrelated caller says nothing
+/// about a name of this package, and answering from it would be a
+/// guess dressed as an answer.
+pub(super) fn asked_as_package(registry: &HashMap<&str, &ClassDef>, owner: &str) -> Option<String> {
+    let under = ASKED_AS.with(|held| held.borrow().last().cloned())?;
+    if under == owner || !descends_from(registry, &under, owner) {
+        return None;
+    }
+    registry
+        .get(under.as_str())
+        .filter(|found| found.kind == ClassKind::Package)?;
+    Some(under)
 }
 
 /// Run a function body and give back what each output came to, with

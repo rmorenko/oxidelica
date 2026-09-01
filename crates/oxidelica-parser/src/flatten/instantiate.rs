@@ -911,6 +911,11 @@ fn settle_parameters(
             // worth is known here, so it is put in before the call is
             // inlined.
             let expr = substitute_texts(&expr, local_texts);
+            // A parameter wants a digit and nothing else, which is
+            // what lets an interface constant be answered from the
+            // medium the body was reached by: the number it settles to
+            // is read by the run, not by the dimensional layer.
+            let _settling = constants::SettlingParameter::now();
             let settled = const_eval(&expr, &env).or_else(|| {
                 let inlined = resolve(
                     &expr,

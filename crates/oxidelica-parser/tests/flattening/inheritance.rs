@@ -1350,3 +1350,50 @@ fn a_redeclared_function_extends_the_one_it_replaces() {
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn a_parameter_reads_an_interface_constant_from_the_medium_it_was_reached_by() {
+    // The interface declares the constant and says nothing about it:
+    // whoever extends it is meant to. A function written in the
+    // interface reads the bare name, and inlined for a parameter of a
+    // model there is no interface above it any more - only the name
+    // the call was written under, which is the medium the model chose.
+    let media = "package Media \
+         partial package PartialMedium \
+           constant Real reference_h; \
+           function h_of input Real t; output Real y; algorithm y := reference_h + t; end h_of; \
+         end PartialMedium; \
+         package Cold extends PartialMedium(reference_h = 104929); end Cold; \
+         package Warm extends PartialMedium(reference_h = 200000); end Warm; \
+       end Media; \
+       model Tank \
+         replaceable package Medium = Media.Cold constrainedby Media.PartialMedium; \
+         parameter Real h_start = Medium.h_of(1); \
+         Real x; equation x = h_start; end Tank; ";
+
+    let cold = parse_model(&format!("{media} model M Tank tank; end M;")).unwrap();
+    let held = cold
+        .components
+        .iter()
+        .find(|c| c.name == "tank.h_start")
+        .unwrap();
+    // Folding the sum is the simulator's business; what matters here
+    // is that the medium's number arrived at all.
+    let text = format!("{:?}", held.binding);
+    assert!(text.contains("104929.0"), "{text}");
+
+    // The same class under another medium answers another number: the
+    // medium travels with the call, and what one asking settled is not
+    // put away for the next.
+    let warm = parse_model(&format!(
+        "{media} model M Tank tank(redeclare package Medium = Media.Warm); end M;"
+    ))
+    .unwrap();
+    let held = warm
+        .components
+        .iter()
+        .find(|c| c.name == "tank.h_start")
+        .unwrap();
+    let text = format!("{:?}", held.binding);
+    assert!(text.contains("200000.0"), "{text}");
+}

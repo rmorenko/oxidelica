@@ -628,7 +628,23 @@ fn enclosing_constant(
     if !super::lookup::REGISTRY_STANDS.with(|stands| stands.get()) {
         return enclosing_constant_at(registry, name, scope, depth);
     }
-    let key = (name.to_string(), scope.to_string());
+    // The medium a body was reached by belongs to the question: one
+    // interface constant under two media is two numbers, and a first
+    // asking made without a mark - the way a body is carried out to
+    // the walk - would otherwise answer every later one.
+    // Which road the asking came down belongs to the question as much
+    // as the mark does: a parameter being settled may be answered from
+    // the medium a body was reached by, and no other reader may have
+    // that answer. Held in the key rather than by passing the cache
+    // by, which cost the library an hour of walks it had already made.
+    let key = (
+        name.to_string(),
+        scope.to_string(),
+        match SETTLING_PARAMETER.with(|on| on.get()) {
+            false => super::inlining::asked_as_mark(),
+            true => format!("parameter|{}", super::inlining::asked_as_mark()),
+        },
+    );
     if let Some(remembered) = NAMED.with(|named| named.borrow().get(&key).copied()) {
         return remembered;
     }
@@ -638,9 +654,33 @@ fn enclosing_constant(
 }
 
 thread_local! {
+    /// Whether what is being settled is a parameter's value, where a
+    /// number is the whole of what is wanted.
+    pub(super) static SETTLING_PARAMETER: std::cell::Cell<bool> =
+        const { std::cell::Cell::new(false) };
+}
+
+/// Hold [`SETTLING_PARAMETER`] for as long as a parameter is being
+/// settled, and put it back after - including where the settling left
+/// by an error.
+pub(super) struct SettlingParameter(bool);
+
+impl SettlingParameter {
+    pub(super) fn now() -> SettlingParameter {
+        SettlingParameter(SETTLING_PARAMETER.with(|on| on.replace(true)))
+    }
+}
+
+impl Drop for SettlingParameter {
+    fn drop(&mut self) {
+        SETTLING_PARAMETER.with(|on| on.set(self.0));
+    }
+}
+
+thread_local! {
     /// What a name written inside a package came to, by name and by
-    /// where it was written.
-    pub(super) static NAMED: RefCell<HashMap<(String, String), Option<f64>>> =
+    /// where it was written, under the name the body was asked as.
+    pub(super) static NAMED: RefCell<HashMap<(String, String, String), Option<f64>>> =
         RefCell::new(HashMap::new());
 }
 
@@ -666,7 +706,13 @@ fn enclosing_constant_at(
             // which for a medium's `reference_h` says nothing at all.
             if let Some((_, held)) = constants.iter().find(|(known, _)| known == name) {
                 let Some(held) = held else {
-                    return None;
+                    // An interface declares the name and says nothing
+                    // about it - `constant SpecificEnthalpy
+                    // reference_h` of `PartialLinearFluid` - because
+                    // whoever extends it is meant to. The medium the
+                    // model wrote is on the asked-as mark, and its own
+                    // gathering holds the value the `extends` gave.
+                    return asked_as_constant(registry, name, &owner.name, depth);
                 };
                 // A value written on this package's other constants -
                 // `nXi = if reducedX then nS - 1 else nS` - is worked
@@ -700,7 +746,7 @@ fn enclosing_constant_at(
                         break;
                     }
                 }
-                return const_eval(held, &known).or_else(|| {
+                let settled = const_eval(held, &known).or_else(|| {
                     let settled = substitute_at(
                         held,
                         registry,
@@ -712,9 +758,44 @@ fn enclosing_constant_at(
                     );
                     const_eval(&settled, &known)
                 });
+                return settled;
             }
         }
         prefix = head;
     }
     None
+}
+
+/// The same name asked of the package a body was reached by.
+///
+/// A medium's function is written in the interface, and a constant it
+/// reads is declared there without a value: the value stands in the
+/// `extends` of whichever medium the model chose. Only that call chain
+/// knows the choice, and it carries it on the asked-as mark; the
+/// registry cannot be asked which subclass a model wrote.
+///
+/// Guarded the way every other reader of the mark is guarded: the mark
+/// must descend from the package that declared the name, or it says
+/// nothing about it.
+fn asked_as_constant(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    owner: &str,
+    depth: usize,
+) -> Option<f64> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    // Only where a number is what is wanted. A constant of a medium
+    // carries a unit, and the number that replaces it does not: fold
+    // `cp_const` into `h = cp_const*T` and the dimensional layer reads
+    // kelvin against joules per kilogram and refuses a sound model.
+    // A parameter asking to be evaluated before the run has no such
+    // reader - it wants the digit or nothing - so that is the one
+    // road this answers on.
+    if !SETTLING_PARAMETER.with(|on| on.get()) {
+        return None;
+    }
+    let under = super::inlining::asked_as_package(registry, owner)?;
+    class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
 }

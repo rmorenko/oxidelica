@@ -995,7 +995,21 @@ pub(super) fn instantiate_one(
             flat.binding = match site.binding {
                 // Already expanded from the array the declaration bound.
                 Some(expr) => Some(expr.clone()),
-                None => flat.binding.as_ref().map(&resolve_value).transpose()?,
+                None => {
+                    // A parameter's own value is settled for a number
+                    // and read by nothing else, so a constant its body
+                    // reads may be answered from the medium the call
+                    // was written under. On a variable the same
+                    // expression is read by the dimensional layer,
+                    // which wants the name and its unit rather than a
+                    // digit.
+                    let _settling = matches!(
+                        flat.variability,
+                        Variability::Parameter | Variability::Constant
+                    )
+                    .then(constants::SettlingParameter::now);
+                    flat.binding.as_ref().map(&resolve_value).transpose()?
+                }
             };
             // A bound is read the same way: `timeScale(min = Modelica
             // .Constants.eps)` names a constant of a package, and
