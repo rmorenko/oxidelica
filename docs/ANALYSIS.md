@@ -1056,3 +1056,34 @@ refusal, where before it stopped. The ambient medium's own
 `reference_h` is `StandardWater.specificEnthalpy(state)` over a
 record constant, which no fixpoint of f64 can hold - that is the
 next link, and it is the ladder the last answer named, not this one.
+
+## The register after the loop's road opened
+
+Taken at 740 flatten and 334 run, floors moved with them.
+
+### What stops flattening at 740
+
+| Count | What it is                                              |
+| ----: | ------------------------------------------------------- |
+|    26 | a parameter asking to be evaluated before the run       |
+|    16 | an argument that must be dimensionless carries kelvin   |
+|    13 | a name with no declaration above it                     |
+|    12 | `previous` with no clock across a redeclare boundary    |
+|    11 | a subscript outside its array                           |
+|    10 | a flexible size with nowhere to read a length from      |
+|    10 | a run of elements against a different count of values   |
+
+The loops - 27 models, the top of the last register - are gone. What
+took their place at the top is the parameter family, and it is the
+same chain read from the other end: 26 of them are `X_start[1] =
+Medium.X_default` and `h_start = waterBaseProp_pT(...)[1]`, media
+constants and standing calls that settle for nobody. The thirteenth
+link named in the last letter - a constant array written `fill(e, n)`
+that no fixpoint of f64 can build - is what most of them stand on.
+
+### What stops running at 334
+
+Nothing counts above one: the run half has no family left, only
+singles. `cannot evaluate parameters` is every second line of it,
+which says the same thing the flatten half says - the wall is
+constants that will not fold, not machinery that will not run.
