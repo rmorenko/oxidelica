@@ -492,7 +492,10 @@ pub(super) fn gather_calls_in_statements(
 /// What a body the run walks may be made of. The run carries numbers,
 /// so anything shaped otherwise is refused here rather than left to
 /// fail at the first step.
-pub(super) fn walkable(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> Result<(), String> {
+pub(super) fn walkable(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Result<(), String> {
     for component in &class.components {
         // An array goes in, is held while the walk runs, and may come
         // back: a body answering with several numbers is asked once for
@@ -2160,7 +2163,6 @@ fn spread_out(name: &str, shape: &[i64], so_far: &mut Vec<i64>) -> Expr {
 /// that way declares only what it adds. The bases come first, in the
 /// order they are extended, which is the order the language gives
 /// their arguments.
-
 /// Whether a call left standing is one the run can actually make.
 ///
 /// The walk is handed a flat run of numbers and one length per

@@ -830,7 +830,7 @@ fn flatten_when_clauses(
                                     && inlining::carried_by_the_run(&arguments) =>
                             {
                                 super::names::stands_for_the_run(name, scope);
-                        super::names::stands_for_the_run(&function.name, scope);
+                                super::names::stands_for_the_run(&function.name, scope);
                                 // By the name the registry knows it: the run looks a
                                 // body up by its full path, and what was written here
                                 // is whatever the call site spelled.

@@ -415,9 +415,6 @@ pub(super) fn index_tuples(dimensions: &[i64]) -> Vec<Vec<i64>> {
     out
 }
 
-/// Resolve subscripts and inline function calls, turning `T[i+1]` into
-/// the scalar reference `T[3]`.
-#[allow(clippy::too_many_arguments)]
 thread_local! {
     /// The bodies a tuple left standing for the run to walk, by the
     /// name they were written under and the scope they were written
@@ -436,16 +433,17 @@ pub(super) fn stands_for_the_run(name: &str, scope: &str) {
     });
 }
 
-/// Whether a call was left standing for the run, asked from the layer
-/// that expands arrays.
+/// Whether a call was left standing for the run to walk.
 pub(super) fn stands_for_the_run_here(name: &str, scope: &str) -> bool {
-    standing_for_the_run(name, scope)
+    STANDING.with(|held| {
+        held.borrow()
+            .contains(&(name.to_string(), scope.to_string()))
+    })
 }
 
-fn standing_for_the_run(name: &str, scope: &str) -> bool {
-    STANDING.with(|held| held.borrow().contains(&(name.to_string(), scope.to_string())))
-}
-
+/// Resolve subscripts and inline function calls, turning `T[i+1]` into
+/// the scalar reference `T[3]`.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn resolve(
     expr: &Expr,
     loop_vars: &HashMap<String, f64>,
@@ -504,7 +502,7 @@ pub(super) fn resolve(
                 || (args.iter().any(|arg| matches!(arg, Expr::Array(_)))
                     && lookup(registry, name, scope, imports)
                         .is_some_and(|class| class.kind == ClassKind::Function)
-                    && standing_for_the_run(name, scope)) =>
+                    && stands_for_the_run_here(name, scope)) =>
         {
             fn whole(
                 expr: &Expr,

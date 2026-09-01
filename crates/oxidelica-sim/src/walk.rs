@@ -276,10 +276,14 @@ fn to_scalar(
             let axis = number_of(&args[1], frame, programs, time, depth)? as usize;
             let length = match frame.shapes.get(of) {
                 Some(dimensions) => dimensions.get(axis.saturating_sub(1)).copied(),
-                None => (axis == 1).then(|| frame.lengths.get(of).copied()).flatten(),
+                None => (axis == 1)
+                    .then(|| frame.lengths.get(of).copied())
+                    .flatten(),
             }
             .ok_or_else(|| {
-                SimError(format!("`{of}` has no dimension {axis} this walk was given"))
+                SimError(format!(
+                    "`{of}` has no dimension {axis} this walk was given"
+                ))
             })?;
             Expr::Number(length as f64)
         }

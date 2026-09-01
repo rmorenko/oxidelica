@@ -751,8 +751,9 @@ impl SlotTable {
                             })
                             .collect();
                         match rows.filter(|rows| {
-                            rows.first()
-                                .is_some_and(|first| rows.iter().all(|row| row.len() == first.len()))
+                            rows.first().is_some_and(|first| {
+                                rows.iter().all(|row| row.len() == first.len())
+                            })
                         }) {
                             Some(rows) => {
                                 let width = rows[0].len();
