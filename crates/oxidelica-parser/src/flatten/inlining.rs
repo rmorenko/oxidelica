@@ -1177,10 +1177,23 @@ impl AskedAs {
         imports: &[(String, String)],
     ) -> Option<AskedAs> {
         let (head, _) = written.rsplit_once('.')?;
-        if found.name.starts_with(head) {
+        let named = super::lookup::lookup(registry, head, scope, imports)?;
+        // Tested against the *resolved* head, not the written one. A
+        // component written `Machines.ControlledPump pump` has a head
+        // that the found class's full name never starts with, so a
+        // test on the written head never fires and the component's own
+        // package is pushed - standing over the whole instantiation
+        // where a medium is expected. Resolution that stayed inside
+        // what the head named dropped nothing, so there is nothing to
+        // remember.
+        if found.name == named.name
+            || found
+                .name
+                .strip_prefix(named.name.as_str())
+                .is_some_and(|rest| rest.starts_with('.'))
+        {
             return None;
         }
-        let named = super::lookup::lookup(registry, head, scope, imports)?;
         (named.name != found.name).then(|| AskedAs::under(&named.name))?
     }
 }

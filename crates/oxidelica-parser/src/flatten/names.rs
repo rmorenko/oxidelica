@@ -608,6 +608,20 @@ pub(super) fn resolve(
                     // the calls, so a name at the bottom of a property
                     // of a property of a state was refused for being
                     // deep when what was deep was the road to it.
+                    // The name the call wrote, held across the body.
+                    // Equations take a road that pushes it
+                    // (`expand_call`); a parameter binding is settled
+                    // down this one, which pushed nothing - so a body
+                    // of a medium asked for by a parameter answered
+                    // with its base's empty record instead of the
+                    // medium's own. The road a call takes must not
+                    // decide which class its names land in.
+                    let _asked = name.rsplit_once('.').and_then(|(head, _)| {
+                        (!class.name.starts_with(head)).then(|| {
+                            let package = lookup(registry, head, scope, imports)?;
+                            inlining::AskedAs::under(&package.name)
+                        })?
+                    });
                     let class = inlining::function_asked_under(class, registry);
                     inlining::inline_function(class, &args, &shapes, consts, registry, depth)?
                 }
