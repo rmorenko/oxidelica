@@ -148,6 +148,18 @@ A zero on a link of a mapped chain is not grounds for reverting the
 link. What is grounds for reverting is a chain that was not walked to
 its end - because then nobody knows whether it has one.
 
+### A list of work is finished, not sampled
+
+Where the work arrives as a numbered list, every number is answered
+before the shift is reported: taken with its number, or measured and
+written down with what it cost, or named as parked with the reason.
+A pause in the middle to report progress is not the end of the list -
+the next thing after reporting is the next number.
+
+What is never done is picking the interesting ones. The dull number
+is where the surprise usually is, and a list half-done is a list
+whose remainder nobody can plan against.
+
 A chain deeper than five links takes its map to a second reader. Not
 because the walk is beyond one pair of hands: because ten links held
 in one head are ten chances at the same blind spot, and by the fifth
