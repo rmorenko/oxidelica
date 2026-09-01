@@ -101,6 +101,29 @@ Guessing is worse than refusing. A value quietly defaulted to zero is
 a wrong answer presented as a right one, and every one of those found
 so far had been silently wrong for a long time.
 
+## A census entry is not a family
+
+The run half's census is read by counting kinds, and a kind that
+counts high is not therefore one cause. Measured on the library at
+733 flatten / 334 run: 71 models refused as unbalanced, of which the
+machine-shaped ones - `airGap`, `pin_ap`, `fire_n` - are 13. The
+machine chain and the census's top entry are not the same family, and
+work aimed at the top of the list would not have reached the machines.
+
+The reverse also happens: a whole entry can be emptied without a model
+moving. The nine `$initial` refusals were one cause, one line, and the
+entry is now absent from the census - and the nine models still do not
+run, because behind the refusal that named the compiler's own name
+stood an algebraic loop that diverges. A kind removed is worth
+recording as a kind removed, and the run count is a separate claim
+that needs its own number.
+
+The general shape: the census counts refusals, and one model has one
+refusal at a time - the first one it meets. Emptying an entry uncovers
+whatever stood behind it, which may be a wall of its own. Expect the
+first number to move only when the last wall in a model's way falls,
+and say which of the two a change was.
+
 ## Measuring a barrier
 
 A barrier is a pair of numbers from one pipe: how many models stood at
