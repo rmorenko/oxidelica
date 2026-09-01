@@ -977,7 +977,7 @@ where the eleventh link is.
 Taken at 733 flatten and 334 run - the run count having moved for the
 first time in nine series.
 
-### What stops flattening
+### What stops flattening at 733
 
 | Count | What it is                                            |
 | ----: | ----------------------------------------------------- |
@@ -993,7 +993,7 @@ The `connect between 2 and 1` family - 21 models, the top of the
 last register - is gone entirely. The loops at the top are what the
 machines walk into next.
 
-### What stops running
+### What stops running at 334
 
 | Count | What it is                               |
 | ----: | ---------------------------------------- |

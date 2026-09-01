@@ -168,9 +168,21 @@ fn class_constant_array_at(
     let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
     gather_package_constants(registry, class, 0, &mut constants);
     let binding = constants
-        .into_iter()
+        .iter()
         .find(|(n, _)| n == member)
-        .and_then(|(_, binding)| binding)?;
+        .and_then(|(_, binding)| binding.clone())?;
+    // A constant written on another of the same package - `X_default
+    // = reference_X` - is that other one, and the gathering knows
+    // what each of them came to here. Substituting by scope alone
+    // would ask the interface, where the name has no value.
+    let binding = match &binding {
+        Expr::Ref(other) => constants
+            .iter()
+            .find(|(n, _)| n == other)
+            .and_then(|(_, held)| held.clone())
+            .unwrap_or(binding),
+        _ => binding,
+    };
     let binding = substitute_at(
         &binding,
         registry,
