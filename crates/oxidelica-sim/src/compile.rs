@@ -2153,6 +2153,13 @@ pub(crate) fn compile_at(
     // thyristor holds itself on - and the slot that holds what it was
     // has to be in the table before the expression naming it is
     // turned into code.
+    //
+    // The slots the event machinery supplies are made first: a
+    // discrete variable may be defined in terms of `initial()`, and
+    // compiling that definition reads `$initial` before the line
+    // below would have made it. Made here, the read finds it.
+    let initial_slot = table.slot("$initial");
+    let terminal_slot = table.slot("$terminal");
     let discrete_definitions: Vec<(Slot, Code)> = discrete_defs
         .iter()
         .map(|equation| {
@@ -2173,8 +2180,6 @@ pub(crate) fn compile_at(
     // Every variable `pre` was asked about needs the slot it is read
     // from beside the one holding what it was when the event began:
     // the `when` targets, and whatever else was asked for by type.
-    let initial_slot = table.slot("$initial");
-    let terminal_slot = table.slot("$terminal");
     let sample_slots: Vec<Slot> = (0..samples.len())
         .map(|index| table.slot(&format!("$sample{index}")))
         .collect();

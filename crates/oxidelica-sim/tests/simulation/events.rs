@@ -78,6 +78,28 @@ fn when_clauses_fire_on_the_rising_edge_only() {
     assert!((last_t - 0.25).abs() < 1e-6, "stopped at {last_t}");
 }
 
+/// A discrete variable defined in terms of `initial()`.
+///
+/// The slots the event machinery supplies were made after the
+/// discrete definitions were turned into code, so a definition that
+/// reads `initial()` was compiled while `$initial` had no slot and
+/// the whole model was refused for an unknown variable that is the
+/// compiler's own. Nine models of the library were refused for it.
+#[test]
+fn a_discrete_defined_by_initial_finds_the_slot_the_events_supply() {
+    let result = run("model M Real x(start = 0, fixed = true); \
+         Boolean atStart; \
+         equation der(x) = 1; \
+         atStart = pre(atStart) and x > 5 or initial() and x >= 0; \
+         annotation(experiment(StopTime = 0.2, Interval = 0.1)); end M;");
+    // Whatever `initial()` is worth once the run has started, the
+    // model is a model: it was refused outright before, for a name
+    // no model wrote.
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!((result.rows.last().unwrap()[index("x")] - 0.2).abs() < 1e-9);
+    assert_eq!(result.rows.last().unwrap()[index("atStart")], 0.0);
+}
+
 #[test]
 fn event_iteration_chains_the_clauses_of_one_event() {
     // `initial()` fires before the first output point; the edge of a
