@@ -640,3 +640,48 @@ fn a_redeclared_function_keeps_what_was_written_on_it() {
         last[1]
     );
 }
+
+/// A walked body takes what the caller left out from its own
+/// declaration, and says which input it cannot do without.
+#[test]
+fn a_walked_body_fills_in_what_the_caller_left_out() {
+    // The water of the library asks `region_pT(p, T)` of a body whose
+    // third input is a region it defaults to zero. The walk counted
+    // arguments against inputs and refused - the arity of the call
+    // and the shape of the frame are two different accounts, and they
+    // had been kept as one.
+    let result = run("package P \
+           function pick input Real u; input Real gain = 3; input Real bias = 0; \
+             output Real y; \
+           protected \
+             Real step; \
+           algorithm \
+             y := 0; \
+             step := 1; \
+             while step > u loop y := y + gain + bias; step := step/2; end while; \
+           end pick; \
+           model M \
+             Real y = pick(0.4); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    // Two rounds of the loop at a gain of three: the default arrived.
+    assert!(
+        (last[1] - 6.0).abs() < 1e-9,
+        "the left-out input did not take its own value: {}",
+        last[1]
+    );
+    // And one with nothing to fall back on is refused by name.
+    let why = parse_model(
+        "model M function needs input Real a; input Real b; output Real y; \
+           algorithm y := a + b; end needs; \
+         Real y; equation y = needs(1); end M;",
+    )
+    .expect_err("an input nobody gave and nobody defaulted");
+    assert!(
+        why.message.contains("missing its argument `b`"),
+        "the refusal does not name the input: {}",
+        why.message
+    );
+}

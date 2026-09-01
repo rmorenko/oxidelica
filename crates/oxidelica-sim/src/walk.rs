@@ -55,7 +55,15 @@ pub(crate) fn walk(
         .iter()
         .filter(|component| component.causality == Causality::Input)
         .collect();
-    if inputs.len() != lengths.len() {
+    // An input the caller left out stands at its own declared value:
+    // the water of the library asks `region_pT(p, T)` of a body whose
+    // third input is a region it defaults to zero. Only the inputs
+    // with nothing to fall back on are required.
+    let wanted = inputs
+        .iter()
+        .filter(|held| held.binding.is_none() && held.start.is_none())
+        .count();
+    if lengths.len() < wanted || lengths.len() > inputs.len() {
         return err(format!(
             "`{name}` takes {} argument(s), given {}",
             inputs.len(),
@@ -87,7 +95,16 @@ pub(crate) fn walk(
         }
     }
     for component in &class.components {
-        if component.causality == Causality::Input {
+        // An input the caller filled in is already in the frame; one
+        // it left out is laid out here like a local, which is where
+        // its own declared value comes from. Only a scalar input:
+        // an array one is laid out by the loop above, and a name in
+        // `numbers` is how that loop says so.
+        if component.causality == Causality::Input
+            && (frame.numbers.contains_key(&component.name)
+                || frame.lengths.contains_key(&component.name)
+                || !component.dimensions.is_empty())
+        {
             continue;
         }
         // A declaration of its own length is one the body may read
