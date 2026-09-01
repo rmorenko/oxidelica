@@ -685,3 +685,48 @@ fn a_walked_body_fills_in_what_the_caller_left_out() {
         why.message
     );
 }
+
+#[test]
+fn a_table_travels_whole_into_a_body_the_run_walks() {
+    // The `while` hunting the next row of a table cannot be unrolled -
+    // which row is next is what the run decides - so the call stands
+    // and the walk answers it. The table has to arrive as a table:
+    // both dimensions, every element under the two subscripts the body
+    // writes.
+    let model = "\
+        function pick \
+          input Real t[:, :]; \
+          input Real now; \
+          output Real y; \
+          output Integer rows; \
+          protected Integer at; \
+        algorithm \
+          at := 1; \
+          while at < size(t, 1) and now >= t[at, 1] loop \
+            at := at + 1; \
+          end while; \
+          y := t[at, 2]; \
+          rows := size(t, 1); \
+        end pick; \
+        model M \
+          parameter Real table[3, 2] = [0, 10; 1, 20; 2, 30]; \
+          Real y; \
+          discrete Real held; \
+          discrete Real rows; \
+        equation \
+          when {initial(), time > 0.5} then \
+            (held,rows) = pick(table, time); \
+          end when; \
+          y = held + rows; \
+          annotation(experiment(StopTime = 1, Interval = 0.5)); \
+        end M;";
+    let result = run(model);
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| last[result.columns.iter().position(|c| c == name).unwrap()];
+    // At the start the hunt stops at the second row, whose value is
+    // 20; the table has three rows either way.
+    let held = at("held");
+    let rows = at("rows");
+    assert!(rows == 3.0, "rows = {rows}");
+    assert!(held == 20.0 || held == 30.0, "held = {held}");
+}
