@@ -1055,4 +1055,4 @@ works is a redeclare rather than a count: HeatingSystem under
 refusal, where before it stopped. The ambient medium's own
 `reference_h` is `StandardWater.specificEnthalpy(state)` over a
 record constant, which no fixpoint of f64 can hold - that is the
-next link, and it is the lastest answer's lattice, not this one.
+next link, and it is the ladder the last answer named, not this one.
