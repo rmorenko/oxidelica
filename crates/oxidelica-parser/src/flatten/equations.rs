@@ -804,14 +804,48 @@ fn flatten_when_clauses(
                         let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                         let arguments: Vec<Expr> =
                             values.into_iter().map(|value| value.into_expr()).collect();
-                        let outputs = inlining::inline_function_outputs(
+                        let attempt = inlining::inline_function_outputs(
                             function,
                             &arguments,
                             &argument_shapes,
                             local_consts,
                             registry,
                             0,
-                        )?;
+                        );
+                        // A body nothing could write out is walked by
+                        // the run instead, and a tuple takes what it
+                        // answers with the way an expression does:
+                        // `f(...)[k]` for the k-th output. The table
+                        // sources of the library are here - a `while`
+                        // hunting the next row of a table cannot be
+                        // unrolled, because which row is next is what
+                        // the run decides.
+                        let outputs = match attempt {
+                            Ok(outputs) => outputs,
+                            Err(why)
+                                if (why.starts_with(algorithms::UNDECIDABLE_LOOP)
+                                    || why.contains(algorithms::NO_BOTTOM)
+                                    || why.contains(algorithms::UNDECIDABLE_LEAVING))
+                                    && inlining::walkable(function, registry).is_ok()
+                                    && inlining::carried_by_the_run(&arguments) =>
+                            {
+                                let standing = Expr::Call(name.clone(), arguments.clone());
+                                inlining::declared_outputs(function, registry)
+                                    .into_iter()
+                                    .enumerate()
+                                    .map(|(at, named)| {
+                                        (
+                                            named,
+                                            Expr::Index(
+                                                Box::new(standing.clone()),
+                                                vec![Expr::Number(at as f64 + 1.0)],
+                                            ),
+                                        )
+                                    })
+                                    .collect()
+                            }
+                            Err(why) => return Err(why),
+                        };
                         if outputs.len() < targets.len() {
                             return Err(format!(
                                 "`{name}` has {} output(s) and the tuple asks for {}",
