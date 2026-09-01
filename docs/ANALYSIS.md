@@ -1031,3 +1031,28 @@ is inlined, in the terms of the package it was taken from, rather
 than left as names for a later reader who has lost the package. That
 is one storey below everything the chain has taken so far, and it is
 where the run count's eleven are waiting.
+
+### The ninth and eleventh links, taken on one road
+
+Both are in, and both only where a parameter's value is being
+settled. The walk out through the enclosing packages now asks the
+basket of the medium a body was reached by - the `ASKED_AS` mark -
+where the package that declared the name answers nothing, which is
+what an interface constant like `reference_h` does by design. And
+what a body answers with travels with its own package's constants
+substituted in, so a bare `cp_const` no longer leaves the medium
+behind.
+
+Answering everywhere was measured first and costs twelve models. A
+constant carries a unit and the number replacing it does not, so
+`h = cp_const*T` reaches the dimensional layer as kelvin against
+joules per kilogram and a sound model is refused. A parameter wants
+the digit and has no such reader; that is the whole of the gate.
+
+The corpus stands at 733 and 334, unmoved. The proof the branch
+works is a redeclare rather than a count: HeatingSystem under
+`LinearColdWater` settles `h_start` and walks on to its next
+refusal, where before it stopped. The ambient medium's own
+`reference_h` is `StandardWater.specificEnthalpy(state)` over a
+record constant, which no fixpoint of f64 can hold - that is the
+next link, and it is the lastest answer's lattice, not this one.
