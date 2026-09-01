@@ -239,8 +239,20 @@ fn gather_package_constants<'a>(
                 .binding
                 .clone()
                 .or_else(|| component.start.clone());
-            out.retain(|(existing, _)| existing != &component.name);
-            out.push((component.name.clone(), binding));
+            // A declaration of this level outranks what this level's
+            // own `extends` said - but only where it says something.
+            // `constant SpecificEnthalpy reference_h` in a medium's
+            // interface is a declaration with nothing behind it, and
+            // overwriting with nothing loses the 104929 the medium
+            // gave it through the very `extends` above.
+            let held = out
+                .iter_mut()
+                .find(|(existing, _)| existing == &component.name);
+            match (held, binding) {
+                (Some(held), Some(value)) => held.1 = Some(value),
+                (Some(_), None) => {}
+                (None, binding) => out.push((component.name.clone(), binding)),
+            }
         }
     }
 }
@@ -635,14 +647,59 @@ fn enclosing_constant_at(
         {
             let mut constants = Vec::new();
             gather_package_constants(registry, owner, 0, &mut constants);
-            if constants.iter().any(|(known, _)| known == name) {
-                return class_constant_at(
-                    registry,
-                    &format!("{head}.{name}"),
-                    head,
-                    &owner.imports,
-                    depth,
-                );
+            // What the gathering found is the answer: it walked the
+            // bases in order of nearness and took what each level's
+            // `extends` said about the level below. Asking the path
+            // again would land on the declaration in the interface,
+            // which for a medium's `reference_h` says nothing at all.
+            if let Some((_, held)) = constants.iter().find(|(known, _)| known == name) {
+                let Some(held) = held else {
+                    return None;
+                };
+                // A value written on this package's other constants -
+                // `nXi = if reducedX then nS - 1 else nS` - is worked
+                // out against the gathering itself, which knows what
+                // each of them came to for this package. Reading them
+                // by path would ask the interface again.
+                // One built on another settles a round later, so the
+                // rounds run until nothing new comes of them.
+                let mut known: HashMap<String, f64> = HashMap::new();
+                loop {
+                    let before = known.len();
+                    for (other, value) in &constants {
+                        if known.contains_key(other) {
+                            continue;
+                        }
+                        let Some(value) = value else { continue };
+                        let settled = substitute_at(
+                            value,
+                            registry,
+                            &owner.name,
+                            &owner.imports,
+                            &[],
+                            depth + 1,
+                            true,
+                        );
+                        if let Some(number) = const_eval(&settled, &known) {
+                            known.insert(other.clone(), number);
+                        }
+                    }
+                    if known.len() == before {
+                        break;
+                    }
+                }
+                return const_eval(held, &known).or_else(|| {
+                    let settled = substitute_at(
+                        held,
+                        registry,
+                        &owner.name,
+                        &owner.imports,
+                        &[],
+                        depth + 1,
+                        true,
+                    );
+                    const_eval(&settled, &known)
+                });
             }
         }
         prefix = head;

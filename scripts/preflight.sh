@@ -124,7 +124,8 @@ if [ "$quick" -eq 0 ]; then
   # so linting it here made the preflight red for something CI never
   # sees, and a check that is always red is a check nobody runs.
   optional_step "Markdown style" npx \
-    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target" "!QUESTION_FOR_FABLE.md"
+    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target" "!QUESTION_FOR_FABLE.md" \
+    "!QUESTION_FOR_FABLE_ARCHIVE.md"
   step "No Cyrillic outside the files that may hold it" python3 scripts/check_cyrillic.py
   optional_step "Unused dependencies" cargo-machete cargo machete
   step "Documentation builds, and every public item has some" \
