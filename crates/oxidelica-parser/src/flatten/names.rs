@@ -2,6 +2,8 @@
 //! prefixes, constants, substitutions and lookups.
 
 use super::*;
+use std::cell::RefCell;
+use std::collections::HashSet;
 
 /// What the specification calls the arguments of the operators that
 /// take named ones, in the order they are declared.
@@ -416,6 +418,34 @@ pub(super) fn index_tuples(dimensions: &[i64]) -> Vec<Vec<i64>> {
 /// Resolve subscripts and inline function calls, turning `T[i+1]` into
 /// the scalar reference `T[3]`.
 #[allow(clippy::too_many_arguments)]
+thread_local! {
+    /// The bodies a tuple left standing for the run to walk, by the
+    /// name they were written under and the scope they were written
+    /// in. What such a call was handed has to reach the run whole -
+    /// including a table, which nothing else here carries.
+    pub(super) static STANDING: RefCell<HashSet<(String, String)>> =
+        RefCell::new(HashSet::new());
+}
+
+/// Say that a call is one the run will walk, so that what it was
+/// handed travels whole.
+pub(super) fn stands_for_the_run(name: &str, scope: &str) {
+    STANDING.with(|held| {
+        held.borrow_mut()
+            .insert((name.to_string(), scope.to_string()))
+    });
+}
+
+/// Whether a call was left standing for the run, asked from the layer
+/// that expands arrays.
+pub(super) fn stands_for_the_run_here(name: &str, scope: &str) -> bool {
+    standing_for_the_run(name, scope)
+}
+
+fn standing_for_the_run(name: &str, scope: &str) -> bool {
+    STANDING.with(|held| held.borrow().contains(&(name.to_string(), scope.to_string())))
+}
+
 pub(super) fn resolve(
     expr: &Expr,
     loop_vars: &HashMap<String, f64>,
@@ -464,7 +494,18 @@ pub(super) fn resolve(
         // was handed it: an array argument stays whole however deep it
         // goes, since a matrix is an array of its rows and the body
         // takes the numbers in the order they were written.
-        Expr::Call(name, args) if crate::outside::written_here(name) => {
+        // A call the run walks takes what it was handed the same way:
+        // a table travels as its rows, and the walk lays them out
+        // under the two subscripts the body writes. Which call that is
+        // was settled where it was left standing; here it is known by
+        // the shape of what it was given.
+        Expr::Call(name, args)
+            if crate::outside::written_here(name)
+                || (args.iter().any(|arg| matches!(arg, Expr::Array(_)))
+                    && lookup(registry, name, scope, imports)
+                        .is_some_and(|class| class.kind == ClassKind::Function)
+                    && standing_for_the_run(name, scope)) =>
+        {
             fn whole(
                 expr: &Expr,
                 one: &impl Fn(&Expr) -> Result<Expr, String>,

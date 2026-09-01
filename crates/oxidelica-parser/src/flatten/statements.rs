@@ -91,14 +91,62 @@ pub(super) fn execute(
                     .into_iter()
                     .map(|value| substitute_refs(&value.into_expr(), bindings))
                     .collect();
-                let outputs = inlining::inline_function_outputs(
+                let attempt = inlining::inline_function_outputs(
                     function,
                     &arguments,
                     &argument_shapes,
                     consts,
                     registry,
                     depth + 1,
-                )?;
+                );
+                // A tuple whose body holds a loop the compiler cannot
+                // unroll takes what the walk answers with instead:
+                // `f(...)[k]` for the k-th output. Only that refusal,
+                // and only where the run can carry the arguments -
+                // measured the wide way first, and letting a body that
+                // merely nests deeply go to the walk cost forty-seven
+                // models that inline perfectly well.
+                let outputs = match attempt {
+                    Ok(outputs) => outputs,
+                    Err(why)
+                        if why.starts_with(algorithms::UNDECIDABLE_LOOP)
+                            && inlining::walkable(function, registry).is_ok()
+                            && inlining::carried_by_the_run(&arguments)
+                            // A body reading a table is the case this
+                            // door was opened for, and a table is what
+                            // no inlining could have folded anyway.
+                            // Without that much, a body that merely
+                            // nests deeply goes to the walk and the
+                            // corpus pays for it.
+                            && arguments
+                                .iter()
+                                .any(|argument| matches!(argument, Expr::Array(_))) =>
+                    {
+                        // What such a call was handed has to reach the
+                        // run whole: a table is rows, and nothing else
+                        // in the name layer carries one.
+                        super::names::stands_for_the_run(name, scope);
+                        super::names::stands_for_the_run(&function.name, scope);
+                        // By the name the registry knows it: the run looks a
+                        // body up by its full path, and what was written here
+                        // is whatever the call site spelled.
+                        let standing = Expr::Call(function.name.clone(), arguments.clone());
+                        inlining::declared_outputs(function, registry)
+                            .into_iter()
+                            .enumerate()
+                            .map(|(at, named)| {
+                                (
+                                    named,
+                                    Expr::Index(
+                                        Box::new(standing.clone()),
+                                        vec![Expr::Number(at as f64 + 1.0)],
+                                    ),
+                                )
+                            })
+                            .collect()
+                    }
+                    Err(why) => return Err(why),
+                };
                 if targets.len() > outputs.len() {
                     return Err(format!(
                         "`{name}` has {} output(s) for {} target(s)",

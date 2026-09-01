@@ -208,14 +208,42 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                         for arg in args {
                             match arg {
                                 Expr::Array(items) => {
-                                    for item in items {
-                                        given.push(eval(item, ctx)?);
+                                    // A table is rows of numbers: every
+                                    // element goes over in order and
+                                    // both dimensions are said, so the
+                                    // body can put it back together.
+                                    let rows: Option<Vec<&Vec<Expr>>> = items
+                                        .iter()
+                                        .map(|item| match item {
+                                            Expr::Array(row) => Some(row),
+                                            _ => None,
+                                        })
+                                        .collect();
+                                    match rows.filter(|rows| {
+                                        rows.first().is_some_and(|first| {
+                                            rows.iter().all(|row| row.len() == first.len())
+                                        })
+                                    }) {
+                                        Some(rows) => {
+                                            let width = rows[0].len();
+                                            for row in &rows {
+                                                for item in row.iter() {
+                                                    given.push(eval(item, ctx)?);
+                                                }
+                                            }
+                                            lengths.push(vec![rows.len(), width]);
+                                        }
+                                        None => {
+                                            for item in items {
+                                                given.push(eval(item, ctx)?);
+                                            }
+                                            lengths.push(vec![items.len()]);
+                                        }
                                     }
-                                    lengths.push(items.len());
                                 }
                                 one => {
                                     given.push(eval(one, ctx)?);
-                                    lengths.push(0);
+                                    lengths.push(Vec::new());
                                 }
                             }
                         }
@@ -273,7 +301,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     // numbers it has already worked out, and a name
                     // that stands for several is written out as an
                     // array before it gets here.
-                    let lengths = vec![0; vals.len()];
+                    let lengths = vec![Vec::new(); vals.len()];
                     // A call inside a walked body asks for the one
                     // number a body written that way answers with.
                     return crate::walk::walk(
@@ -641,7 +669,7 @@ impl SlotTable {
                     return err(format!(
                         "subscripts and arrays survive flattening only as scalars: {}",
                         shape_of(expr)
-                    ))
+                    ));
                 }
             },
             Expr::Member(_, _)
@@ -712,14 +740,40 @@ impl SlotTable {
             for arg in args {
                 match arg {
                     Expr::Array(items) => {
-                        for item in items {
-                            given.push(self.compile(item)?);
+                        // Rows of equal length are a table and go over
+                        // as one, both dimensions said; anything else
+                        // is a plain list.
+                        let rows: Option<Vec<&Vec<Expr>>> = items
+                            .iter()
+                            .map(|item| match item {
+                                Expr::Array(row) => Some(row),
+                                _ => None,
+                            })
+                            .collect();
+                        match rows.filter(|rows| {
+                            rows.first()
+                                .is_some_and(|first| rows.iter().all(|row| row.len() == first.len()))
+                        }) {
+                            Some(rows) => {
+                                let width = rows[0].len();
+                                for row in &rows {
+                                    for item in row.iter() {
+                                        given.push(self.compile(item)?);
+                                    }
+                                }
+                                lengths.push(vec![rows.len(), width]);
+                            }
+                            None => {
+                                for item in items {
+                                    given.push(self.compile(item)?);
+                                }
+                                lengths.push(vec![items.len()]);
+                            }
                         }
-                        lengths.push(items.len());
                     }
                     one => {
                         given.push(self.compile(one)?);
-                        lengths.push(0);
+                        lengths.push(Vec::new());
                     }
                 }
             }

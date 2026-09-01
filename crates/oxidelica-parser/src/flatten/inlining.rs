@@ -2170,7 +2170,18 @@ fn spread_out(name: &str, shape: &[i64], so_far: &mut Vec<i64>) -> Expr {
 /// which is worse than the refusal it replaced.
 pub(super) fn carried_by_the_run(arguments: &[Expr]) -> bool {
     arguments.iter().all(|argument| match argument {
-        Expr::Array(items) => items.iter().all(|item| !matches!(item, Expr::Array(_))),
+        // A list of numbers, or rows of equal length: both are laid
+        // out one element after another and both dimensions travel
+        // with them.
+        Expr::Array(items) => items.iter().all(|item| match item {
+            Expr::Array(row) => match items.first() {
+                Some(Expr::Array(first)) => {
+                    row.len() == first.len() && row.iter().all(|one| !matches!(one, Expr::Array(_)))
+                }
+                _ => false,
+            },
+            _ => true,
+        }),
         Expr::MatrixRows(_) | Expr::Range(..) | Expr::Comprehension(..) => false,
         _ => true,
     })

@@ -550,7 +550,7 @@ enum Code {
     /// the array it was written out as.
     /// The last field is which number of the answer this stands for:
     /// a body answering with an array is asked once for each.
-    Program(std::sync::Arc<Walked>, String, Vec<Code>, Vec<usize>, usize),
+    Program(std::sync::Arc<Walked>, String, Vec<Code>, Vec<Vec<usize>>, usize),
     /// A call to a body written outside Modelica and answered here in
     /// Rust: the name it is called by outside, the arguments to work
     /// out first, and which number of the answer this stands for.

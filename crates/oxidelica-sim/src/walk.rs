@@ -38,7 +38,7 @@ pub(crate) fn walk(
     programs: &HashMap<String, ClassDef>,
     name: &str,
     args: &[f64],
-    lengths: &[usize],
+    shapes: &[Vec<usize>],
     time: f64,
     depth: usize,
 ) -> Result<Vec<f64>, SimError> {
@@ -63,11 +63,11 @@ pub(crate) fn walk(
         .iter()
         .filter(|held| held.binding.is_none() && held.start.is_none())
         .count();
-    if lengths.len() < wanted || lengths.len() > inputs.len() {
+    if shapes.len() < wanted || shapes.len() > inputs.len() {
         return err(format!(
             "`{name}` takes {} argument(s), given {}",
             inputs.len(),
-            lengths.len()
+            shapes.len()
         ));
     }
     // The frame: the arguments under the names the body knows them by,
@@ -77,13 +77,13 @@ pub(crate) fn walk(
     // beside it, since that is what `size` and a loop over it ask for.
     let mut frame = Frame::default();
     let mut taken = 0;
-    for (input, count) in inputs.iter().zip(lengths) {
-        match count {
-            0 => {
+    for (input, shape) in inputs.iter().zip(shapes) {
+        match shape.as_slice() {
+            [] => {
                 frame.numbers.insert(input.name.clone(), args[taken]);
                 taken += 1;
             }
-            length => {
+            [length] => {
                 for index in 1..=*length {
                     frame
                         .numbers
@@ -91,6 +91,32 @@ pub(crate) fn walk(
                     taken += 1;
                 }
                 frame.lengths.insert(input.name.clone(), *length);
+            }
+            // A table goes in as a table: the rows one after another,
+            // each element under the two subscripts the body writes -
+            // `table[2, 1]` - which is how the flat model spells one
+            // too. `size(table, 1)` reads the first of the two.
+            dimensions => {
+                let mut at = vec![1usize; dimensions.len()];
+                let total: usize = dimensions.iter().product();
+                for _ in 0..total {
+                    let subscripts: Vec<String> =
+                        at.iter().map(|index| index.to_string()).collect();
+                    frame.numbers.insert(
+                        format!("{}[{}]", input.name, subscripts.join(",")),
+                        args[taken],
+                    );
+                    taken += 1;
+                    for axis in (0..dimensions.len()).rev() {
+                        at[axis] += 1;
+                        if at[axis] <= dimensions[axis] {
+                            break;
+                        }
+                        at[axis] = 1;
+                    }
+                }
+                frame.shapes.insert(input.name.clone(), dimensions.to_vec());
+                frame.lengths.insert(input.name.clone(), dimensions[0]);
             }
         }
     }
@@ -163,8 +189,13 @@ struct Frame {
     /// Every number the body holds, an array's elements under their
     /// own names.
     numbers: HashMap<String, f64>,
-    /// How long each array is, by the name the body knows it by.
+    /// How long each array is, by the name the body knows it by. For
+    /// one of more than one dimension this is the first of them, which
+    /// is what a body counting rows asks for.
     lengths: HashMap<String, usize>,
+    /// Every dimension of an array of more than one, kept beside the
+    /// first: `size(table, 2)` reads the second here.
+    shapes: HashMap<String, Vec<usize>>,
 }
 
 /// How long a declaration is, where it says so in numbers the body
@@ -239,11 +270,18 @@ fn to_scalar(
             let Expr::Ref(of) = &args[0] else {
                 return err("`size` in a walked body asks about a name".to_string());
             };
-            let length = frame
-                .lengths
-                .get(of)
-                .ok_or_else(|| SimError(format!("`{of}` is not an array this walk was given")))?;
-            Expr::Number(*length as f64)
+            // Which axis was asked about: a table is asked for its
+            // rows and for its columns, and only the first is what a
+            // single length says.
+            let axis = number_of(&args[1], frame, programs, time, depth)? as usize;
+            let length = match frame.shapes.get(of) {
+                Some(dimensions) => dimensions.get(axis.saturating_sub(1)).copied(),
+                None => (axis == 1).then(|| frame.lengths.get(of).copied()).flatten(),
+            }
+            .ok_or_else(|| {
+                SimError(format!("`{of}` has no dimension {axis} this walk was given"))
+            })?;
+            Expr::Number(length as f64)
         }
         // A fold over an array is the fold over its elements.
         Expr::Call(name, args)
@@ -540,8 +578,8 @@ fn run(
                 }
                 // One number per argument: what stands here is a
                 // scalar, and an array argument would say how many.
-                let lengths: Vec<usize> = vec![0; given.len()];
-                let answer = walk(programs, name, &given, &lengths, time, depth + 1)?;
+                let shapes: Vec<Vec<usize>> = vec![Vec::new(); given.len()];
+                let answer = walk(programs, name, &given, &shapes, time, depth + 1)?;
                 if answer.len() < targets.len() {
                     return err(format!(
                         "`{name}` answers with {} thing(s), and {} were asked for",

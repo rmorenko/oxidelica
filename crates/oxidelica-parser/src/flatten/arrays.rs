@@ -600,7 +600,13 @@ pub(super) fn expand_call(
         // one flat list, which a subscript takes a place of. Nothing
         // spreads over the elements: the body was written for the
         // whole.
-        (_, _) if crate::outside::written_here(name) => {
+        // A call the run walks is the same case: what it was handed
+        // travels whole, and the answer is one flat list a subscript
+        // takes a place of.
+        (_, _)
+            if crate::outside::written_here(name)
+                || super::names::stands_for_the_run_here(name, scope) =>
+        {
             let handed = args
                 .iter()
                 .map(|arg| Ok(recur(arg)?.into_expr()))

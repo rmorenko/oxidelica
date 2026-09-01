@@ -829,7 +829,12 @@ fn flatten_when_clauses(
                                     && inlining::walkable(function, registry).is_ok()
                                     && inlining::carried_by_the_run(&arguments) =>
                             {
-                                let standing = Expr::Call(name.clone(), arguments.clone());
+                                super::names::stands_for_the_run(name, scope);
+                        super::names::stands_for_the_run(&function.name, scope);
+                                // By the name the registry knows it: the run looks a
+                                // body up by its full path, and what was written here
+                                // is whatever the call site spelled.
+                                let standing = Expr::Call(function.name.clone(), arguments.clone());
                                 inlining::declared_outputs(function, registry)
                                     .into_iter()
                                     .enumerate()
