@@ -1008,3 +1008,26 @@ The eleven parameters still asking to be evaluated are the same chain
 one storey further along: the constant now settles, and what is built
 on it does not yet. Which is the honest state of a ten-link chain
 with eight links in.
+
+### The eleventh link: a body's constants arrive without their package
+
+Eleven models still stop at `h_start asks to be evaluated`. The
+binding is inlined and reads, in full:
+
+```text
+if use_T_start then reference_h + (T_start - 298.15)*cp_const + ...
+```
+
+`reference_h` and `cp_const` are bare names. They were written inside
+the medium's own function, where the medium is the enclosing package
+and a bare name is the right way to say it - but the body has been
+inlined into the model, where nothing encloses them. The walk
+outwards now answers such a name correctly when it is asked from a
+scope inside the medium; here it is asked from the model, and there
+is no medium above it any more.
+
+So the constants need to travel with the body: substituted where it
+is inlined, in the terms of the package it was taken from, rather
+than left as names for a later reader who has lost the package. That
+is one storey below everything the chain has taken so far, and it is
+where the run count's eleven are waiting.
