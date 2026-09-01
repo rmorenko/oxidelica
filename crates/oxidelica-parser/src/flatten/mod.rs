@@ -276,10 +276,17 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 if name == "Evaluate" && matches!(value.as_ref(), Expr::Bool(true)))
         });
         if asked && !acc.const_values.contains_key(&component.name) {
+            // Which expression stopped it is the whole question a
+            // person asks next, and looking it up by hand means
+            // finding the declaration in a library of thousands.
             return Err(format!(
                 "`{}` asks to be evaluated before the run, and its value is not one the \
-                 compiler can work out",
-                component.name
+                 compiler can work out: {}",
+                component.name,
+                match &component.binding {
+                    Some(binding) => format!("it is bound to `{binding:?}`"),
+                    None => "it is bound to nothing".to_string(),
+                }
             ));
         }
     }

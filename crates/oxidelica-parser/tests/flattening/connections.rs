@@ -380,6 +380,13 @@ fn an_annotation_that_the_chapter_calls_an_error_is_one() {
          parameter Real p = q annotation(Evaluate = true); Real y; \
          equation y = p; end M;")
     .contains("asks to be evaluated before the run"));
+    // And it says what the value it could not settle was made of:
+    // which expression stopped it is the question asked next, and
+    // finding the declaration by hand means searching a library.
+    assert!(err("model M parameter Real q; \
+         parameter Real p = q annotation(Evaluate = true); Real y; \
+         equation y = p; end M;")
+    .contains("bound to"));
 }
 
 #[test]
