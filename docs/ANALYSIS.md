@@ -935,3 +935,39 @@ model asks the same question through three different bodies
 (`BaseProperties`, `setState_phX`, `specificEnthalpy`), and one of
 them gets its answer somewhere else. That is the next thing to
 measure, and it is where the tenth link is.
+
+### The tenth link, and the two ways it was tried
+
+The advice was exact about the hole: `gather_package_constants`
+already takes what an `extends` modifier says about a base's
+constant, and the walk outwards then threw that away and asked the
+path again, which leads to the bare declaration in the interface. So:
+`find` instead of `any`, and work out what was found.
+
+Done, and the model passes it - `h_start` settles, the model walks on
+to `tank.medium.Xi`, three storeys further than it has ever reached.
+The falsifying probe passes too: two media of one interface, each
+giving the same constant a different value through its own `extends`,
+settle to 104929 and 209858.
+
+And the library count falls from 733 to 670. Sixty-three models lose
+something they had: a value taken from an `extends` modifier now
+outranks a nearer declaration that has one of its own.
+
+Narrowed three ways, none of them right yet:
+
+- Ask the path first and use the gathered value only where the path
+  says nothing: back to 733, and `h_start` unsettled - the path
+  answers, wrongly, rather than saying nothing.
+- Use the gathered value only where this package declares the
+  constant bare: the probe says `declares = false, gathered = false`
+  for `PartialLinearFluid.reference_h`, so neither test fires.
+- Ask the medium the body was reached by, where the interface's own
+  gathering came back empty: `h_start` settles and the count is 673.
+
+The third is the closest and still costs sixty models. What it means
+is that `asked_under` points at the medium in far more places than
+this one, and in most of them the interface's answer was the right
+one. The distinction that is missing is not "which package" but
+"which of the two answers is nearer to the asking" - and that is
+where the eleventh link is.
