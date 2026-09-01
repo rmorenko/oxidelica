@@ -971,3 +971,40 @@ this one, and in most of them the interface's answer was the right
 one. The distinction that is missing is not "which package" but
 "which of the two answers is nearer to the asking" - and that is
 where the eleventh link is.
+
+## The register after the constants chain
+
+Taken at 733 flatten and 334 run - the run count having moved for the
+first time in nine series.
+
+### What stops flattening
+
+| Count | What it is                                            |
+| ----: | ----------------------------------------------------- |
+|    27 | a loop whose trip count is not settled                |
+|    15 | an argument that must be dimensionless carries a unit |
+|    13 | a name with no declaration above it                   |
+|    12 | `previous` with no clock across a redeclare boundary  |
+|    11 | a subscript outside its array                         |
+|    11 | a parameter asking to be evaluated before the run     |
+|    10 | a flexible size with nowhere to read a length from    |
+
+The `connect between 2 and 1` family - 21 models, the top of the
+last register - is gone entirely. The loops at the top are what the
+machines walk into next.
+
+### What stops running
+
+| Count | What it is                               |
+| ----: | ---------------------------------------- |
+|    18 | an unknown variable                      |
+|    11 | a singular Jacobian in an algebraic loop |
+|     9 | an unknown function                      |
+|     9 | an unbalanced model                      |
+|     9 | initialization that is not square        |
+|     8 | an algebraic loop that diverged          |
+
+The eleven parameters still asking to be evaluated are the same chain
+one storey further along: the constant now settles, and what is built
+on it does not yet. Which is the honest state of a ten-link chain
+with eight links in.
