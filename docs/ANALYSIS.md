@@ -1504,7 +1504,71 @@ names two rates.
 
 The last one probed rather than guessed: a counter on `inline_function`
 fires **once** over the whole model. Whatever those forty-four seconds
-are, they are not bodies being written out - which rules out the layer
-that produced every other giant this project has met. The next probe
-goes to the array layer, where a multibody model does most of its
-work.
+are, they are not bodies being written out.
+
+### `DoublePendulum`: the array layer, measured
+
+A counter on `expand` says it plainly: **forty million expansions**,
+and over the first four million there are **2470 distinct questions**.
+One name - `boxBody1.r[1]` - is expanded 126 774 times. It is the
+archive's own pattern, a third time: the same value recomputed per
+element, here because an orientation built by `from_nxy(r,
+widthDirection)` appears in every equation of the body and is walked
+whole on each.
+
+A table of what an expression came to takes the model from **44
+seconds to 3.1** - fourteenfold, and the largest single win this
+project has measured. It is not committed, because the key is not yet
+right, and the tests said so rather than the clock:
+
+- keyed on scope and expression alone: two tests red. The mark
+  belongs in it - one expression under two media is two answers.
+- with the mark, and forgetting on the same beat as a body's answer:
+  still two red, and the win falls to 25 s. The shapes in view
+  matter too: `sub.suspend[1].reset` against `[2]` is the same
+  written expression and a different answer.
+- with the shapes of the names the expression itself writes: still
+  red at 28 s. So an expansion reads shapes of names it does not
+  write - through a record's fields, or a member walked off an
+  array - and a key built from the expression alone cannot see them.
+
+That is the finding: the answer depends on more of the environment
+than the expression names, and until what that "more" is has been
+written down exactly, the table is a way of being fast and wrong.
+The next probe is not on the clock but on the dependency - which
+parts of `Shapes` an expansion actually reads, measured rather than
+assumed.
+
+Reverted whole. The forty-four seconds stand, and now they have a
+number and a cause beside them.
+
+### What the three giants had in common
+
+Three giants, three layers, one pattern - and it is worth naming
+because it will turn up a fourth time.
+
+| Giant               | Layer             | The repeated work                                                |
+| ------------------- | ----------------- | ---------------------------------------------------------------- |
+| the constants chain | constants         | a package's whole basket gathered per asking, to answer one name |
+| `DoublePendulum`    | arrays            | one expression expanded 126 774 times                            |
+| `Dimmer_RL`         | the step function | two steps in 76 seconds, each rebuilding what the last one knew  |
+
+None of them is doing something expensive. Each is doing something
+cheap, repeatedly, over a value that did not change between askings -
+and each was invisible to every count the project keeps, because a
+count of models says nothing about what one model does inside.
+
+The rule that follows, and it is not the same as "cache it": before
+reaching for a table, ask what makes two askings _different_. In the
+constants layer the answer was the mark and the road, and the table
+worked. In the array layer that question is still open, which is
+exactly why the fourteenfold win is not in the tree.
+
+### The pass got cheaper per model, not just no dearer
+
+Worth a line of its own, since the ledger only ever tracked the
+total: the library pass is eleven minutes now, and it was eleven
+minutes when 640 models flattened. It now flattens **773**. Twenty
+per cent more work in the same wall time - the performance debt was
+not merely paid off, it went into credit, and the three orderings of
+judgment in the constants layer are where the credit came from.
