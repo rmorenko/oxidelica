@@ -1287,3 +1287,49 @@ means the singles of this half were never singles - they were the
 constants chain seen from the run side, under ten different names
 because the message quotes whichever parameter happened to be first.
 The old method applies: this is a family, and it is taken as one.
+
+## Batch two, and the flatten tails: the rule holds from both sides
+
+The first batch put ten models in one layer and said the count of
+kinds undercounts families. This one was chosen to test the other
+half of that: ten models of the run half whose refusals name
+different layers, and four kinds from the flatten half, probed before
+any work was chosen.
+
+### The flatten tails, one probe each
+
+| Kind                                    | Count | Where the probe stopped                                                      |
+| --------------------------------------- | ----: | ---------------------------------------------------------------------------- |
+| a name with no declaration above it     |    13 | `outer GlobalSeed` unresolved in `PartialNoise` - the inner/outer layer      |
+| a subscript outside its array           |    11 | `boundary1.medium.Xi[1]` where `nXi` is 0 - the constants layer              |
+| a flexible size                         |    10 | `t_new.columns` sized `2:size(table, 2)` - the table layer                   |
+| a run of elements against another count |    10 | `state` of a random generator, `nState` against one value - the arrays layer |
+
+Four kinds, four layers, and one of them - the subscript - is the
+constants chain again under a fourth name. So the counter is wrong in
+both directions at once: it splits one family into four kinds, and it
+also puts four genuinely different layers in four adjacent rows where
+nothing says they are unrelated.
+
+### The run half, ten probes
+
+`seedOut[1]` unknown; an algebraic loop diverging on a heating
+diode; a singular Jacobian across two MOS heat ports; `previous`
+reaching the run as an unknown function; an unbalanced controller
+missing two equations; an initialization that is not square; a
+Bessel filter's `cr[1]` unvalued; a structurally singular
+`kinematicPTP`; a discrete never assigned by any `when`; and one that
+compiles and then exceeds the solver's budget.
+
+Ten models, nine layers - the event machinery, the solver, the
+matcher, the initializer, the clock layer, the parameter road. These
+are singles in earnest, and the form written for them applies here
+rather than in the first batch.
+
+### What the two batches settle
+
+The rule stands with evidence on both sides: probing found one family
+where the counter showed ten kinds, and nine layers where the counter
+showed ten kinds of a different sort. The counter cannot tell those
+two situations apart, and nothing in its output ever will - which is
+why the probe now comes before the work is chosen rather than after.
