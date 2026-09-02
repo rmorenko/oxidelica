@@ -1481,3 +1481,41 @@ fn a_medium_constant_an_equation_reads_keeps_its_unit() {
     assert!(text.contains("P.Child.k"), "{text}");
     assert!(!text.contains("4184.0"), "{text}");
 }
+
+#[test]
+fn a_minted_constant_keeps_its_whole_name_and_finds_its_unit_through_aliases() {
+    // Two faults the first mint had, both about a name that is
+    // already whole. The unit is reached through a chain of aliases -
+    // the media library writes `SpecificHeatCapacity =
+    // SI.SpecificHeatCapacity`, and only the last says a unit - and
+    // the minted name must not take the instance path of whoever
+    // reads it.
+    let source = "package SI type Heat = Real(unit = \"J/(kg.K)\"); end SI; \
+       package P \
+         type Heat = SI.Heat; \
+         partial package Base \
+           constant Heat k; \
+           function f input Real u; output Real y; algorithm y := k*u; end f; \
+         end Base; \
+         package Child extends Base(k = 4184); end Child; \
+       end P; \
+       model Inner \
+         replaceable package Medium = P.Child constrainedby P.Base; \
+         Real y; equation y = Medium.f(2); end Inner; \
+       model M Inner v; end M;";
+    let model = parse_model(source).unwrap();
+
+    // The unit came from two aliases away.
+    let minted = model
+        .components
+        .iter()
+        .find(|c| c.name == "P.Child.k")
+        .expect("minted under the medium's own name");
+    assert_eq!(minted.unit.as_deref(), Some("J/(kg.K)"));
+
+    // And the equation names it whole: no `v.` on the front, which
+    // would name something nothing declares.
+    let text = format!("{:?}", model.equations);
+    assert!(text.contains("P.Child.k"), "{text}");
+    assert!(!text.contains("v.P.Child.k"), "{text}");
+}

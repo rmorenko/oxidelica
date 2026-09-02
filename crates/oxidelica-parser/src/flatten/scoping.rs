@@ -234,6 +234,19 @@ fn bind_outers_at(
 /// declaration points at the enclosing `inner` instance, everything else
 /// gets the instance prefix.
 pub(super) fn flat_name(name: &str, prefix: &str, outers: &HashMap<String, String>) -> String {
+    // A constant minted as a name of the flat model is a whole name
+    // already - `Modelica.Media...cp_const`, one per medium rather
+    // than one per instance - so an instance path on the front of it
+    // would name something nothing declares.
+    //
+    // Judged here, at the top, rather than where a name with no dot
+    // in it is prefixed: a minted name is all dots, so the walk down
+    // the leads never reaches that arm. And judged cheaply - nothing
+    // minted at all, or no dot in the name - because this is asked of
+    // every name the flattener writes.
+    if super::constants::is_minted(name) {
+        return name.to_string();
+    }
     // The longest lead of the name that was bound, so that a member of
     // an `outer` a component holds - `innerState.stateGraphRoot` - is
     // answered by the whole of it rather than by its first word.

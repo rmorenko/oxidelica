@@ -407,6 +407,8 @@ impl StandingNames {
         KINDRED.with(|kindred| kindred.borrow_mut().clear());
         super::constants::NAMED.with(|named| named.borrow_mut().clear());
         super::constants::MINTED.with(|minted| minted.borrow_mut().clear());
+        super::constants::ANY_MINTED.with(|any| any.set(false));
+        super::constants::REFUSED_MINT.with(|held| held.borrow_mut().clear());
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames
     }

@@ -52,6 +52,37 @@ pub(super) fn class_constant_at(
     // has given a place in its tree. Both are settled in the binding
     // before it is asked for a number, and the depth counter is what
     // stops two packages naming each other from going round for ever.
+    // The fixpoint first, over the bindings as they were written.
+    // Nearly every constant of a package is arithmetic over its
+    // siblings and settles without any substitution at all - and
+    // substituting walks a binding whole and writes out every call in
+    // it, which over a medium's basket is an IF97 chain per asking.
+    // So the dear step is taken only for the names the cheap round
+    // left unsettled, and only when the one asked for is among them.
+    let settle = |constants: &[(String, Option<Expr>)]| -> HashMap<String, f64> {
+        let mut values: HashMap<String, f64> = HashMap::new();
+        loop {
+            let mut progress = false;
+            for (name, binding) in constants {
+                if values.contains_key(name) {
+                    continue;
+                }
+                if let Some(value) = binding.as_ref().and_then(|expr| {
+                    const_eval(expr, &values)
+                        .or_else(|| measured_constant(expr, constants, &values))
+                }) {
+                    values.insert(name.clone(), value);
+                    progress = true;
+                }
+            }
+            if !progress {
+                return values;
+            }
+        }
+    };
+    if let Some(answer) = settle(&constants).get(member).copied() {
+        return Some(answer);
+    }
     let constants: Vec<(String, Option<Expr>)> = constants
         .into_iter()
         .map(|(name, binding)| {
@@ -78,25 +109,7 @@ pub(super) fn class_constant_at(
     // declaration anywhere near what it sizes.
     // Constants of one package may build on each other, so resolve the
     // whole set to a fixpoint before reading the one asked for.
-    let mut values: HashMap<String, f64> = HashMap::new();
-    loop {
-        let mut progress = false;
-        for (name, binding) in &constants {
-            if values.contains_key(name) {
-                continue;
-            }
-            if let Some(value) = binding.as_ref().and_then(|expr| {
-                const_eval(expr, &values).or_else(|| measured_constant(expr, &constants, &values))
-            }) {
-                values.insert(name.clone(), value);
-                progress = true;
-            }
-        }
-        if !progress {
-            break;
-        }
-    }
-    values.get(member).copied()
+    settle(&constants).get(member).copied()
 }
 
 /// A constant written as the length of another constant of the same
@@ -611,6 +624,16 @@ fn enclosing_constant_array(
             gather_package_constants(registry, owner, 0, &mut constants);
             if let Some((_, binding)) = constants.iter().find(|(known, _)| known == name) {
                 let binding = binding.clone()?;
+                // The cheap judgment first. Substituting a binding
+                // walks it whole and inlines every call in it, and
+                // this is asked of every name written anywhere: a
+                // binding that is neither a list nor a way of
+                // building one can answer nothing here, and asking
+                // it costs a body written out per asking. That order
+                // was four hundred thousand inlinings over one model.
+                if !matches!(binding, Expr::Array(_)) && !builds_an_array(&binding) {
+                    return None;
+                }
                 let binding = substitute_at(
                     &binding,
                     registry,
@@ -910,6 +933,27 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 
+/// Whether a name is one this pass minted.
+pub(super) fn is_minted(name: &str) -> bool {
+    // The cheap judgments first: this is asked of every name the
+    // flattener writes. Nothing minted at all is true of every model
+    // with no medium in it, and a minted name is a whole path, so one
+    // with no dot cannot be one.
+    if !ANY_MINTED.with(|any| any.get()) || !name.contains('.') {
+        return false;
+    }
+    MINTED.with(|held| held.borrow().contains_key(name))
+}
+
+thread_local! {
+    /// The askings that came to nothing, by the name they would have
+    /// been minted under.
+    pub(super) static REFUSED_MINT: RefCell<std::collections::HashSet<String>> =
+        RefCell::new(std::collections::HashSet::new());
+    /// Whether anything has been minted since the registry stood.
+    pub(super) static ANY_MINTED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// What has been minted so far, for the flat model to take up.
 pub(super) fn minted_constants() -> Vec<(String, f64, Option<String>)> {
     MINTED.with(|held| {
@@ -943,10 +987,28 @@ fn declared_unit(
         // A type alias carries it: `type SpecificHeatCapacity =
         // Real(unit = "J/(kg.K)")` is how the library says what a
         // quantity is, and the declaration names only the alias.
-        if let Some(found) = lookup(registry, &held.type_name, package, &class.imports) {
+        // A type alias carries the unit, and an alias may name
+        // another: `SpecificHeatCapacity = SI.SpecificHeatCapacity`
+        // of the media library says nothing itself and everything one
+        // step along. The walk follows until an alias says a unit or
+        // names nothing further.
+        let mut named = held.type_name.clone();
+        let mut scope = package.to_string();
+        for _ in 0..MAX_DEPTH {
+            let Some(found) = lookup(registry, &named, &scope, &class.imports) else {
+                break;
+            };
             if let Some(unit) = &found.alias_unit {
                 return Some(unit.clone());
             }
+            let Some((next, _)) = &found.alias_of else {
+                break;
+            };
+            if next == &named {
+                break;
+            }
+            named = next.clone();
+            scope = found.name.clone();
         }
     }
     for extend in &class.extends {
@@ -1007,6 +1069,16 @@ fn mint_asked_as_constant(
     if let Some(held) = MINTED.with(|held| held.borrow().get(&minted).cloned()) {
         return held.1.is_some().then_some(Expr::Ref(minted));
     }
+    // And the refusals, remembered under the same key. Most names
+    // asked here are not candidates - no unit, or no value under this
+    // medium - and each such asking gathers the medium's whole basket
+    // to say so. The key is bounded the same way the ledger is: a
+    // name of one medium's basket, not a name of everything a library
+    // writes, which is what made a cache the wrong cure the first
+    // time it was reached for.
+    if REFUSED_MINT.with(|held| held.borrow().contains(&minted)) {
+        return None;
+    }
     // The unit first, and the value after. Without a unit there is
     // nothing a name buys over a digit, so such a name is not a
     // candidate at all - and asking the declaration is a walk over
@@ -1014,12 +1086,23 @@ fn mint_asked_as_constant(
     // `T_default` is the name that made this the order: unitless,
     // asked forty thousand times over one model, and each asking
     // built the medium's basket to answer nothing.
-    let unit = declared_unit(registry, &under, name, 0)?;
-    let value = class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)?;
+    let refuse = |minted: &str| {
+        REFUSED_MINT.with(|held| held.borrow_mut().insert(minted.to_string()));
+        None::<Expr>
+    };
+    let Some(unit) = declared_unit(registry, &under, name, 0) else {
+        return refuse(&minted);
+    };
+    let Some(value) =
+        class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
+    else {
+        return refuse(&minted);
+    };
     MINTED.with(|held| {
         held.borrow_mut()
             .insert(minted.clone(), (value, Some(unit)))
     });
+    ANY_MINTED.with(|any| any.set(true));
     Some(Expr::Ref(minted))
 }
 
