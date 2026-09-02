@@ -1703,3 +1703,46 @@ That is the next shift's work, and it is a rewrite of what a clock is
 rather than a patch - `ClockSpec`, `same`, `intern`, `canonical`, and
 five tests that must change wording to keep guarding what they were
 written for.
+
+## The clock rebuilt, and what the `if` still cannot decide
+
+`ClockSpec` now holds a base identity beside its exact fraction, and
+`same` compares identity, rate and shift rather than multiplying the
+fraction into seconds and bit-comparing. Three laws came out of one
+test exactly as the panel set them out, and the corpus did not move:
+773 and 336 through a rewrite of what a clock is.
+
+What the rebuild bought is a straight answer where there was a
+coincidence. `UpSample` refuses now for a reason that is true - one
+base, two fractions, 1/1 against 1/3 - rather than because two
+periods failed a bit-comparison.
+
+### Why the `if`-on-a-length still cannot come with it
+
+Taken again on top of the rebuild, and it still costs `UpSample`.
+The probe says why, and it is not the clock layer at all:
+
+```modelica
+if inferFactor then u_super = superSample(u);
+else u_super = superSample(u, factor); end if;
+```
+
+`inferFactor` is a parameter, `factor` is a parameter, and the branch
+must be chosen by what the _instance_ said - `upSample1` leaves the
+factor to be inferred, `upSample2` sets it to three. Settling this
+`if` early picks the `else` for both, so `upSample1` super-samples by
+its default 1 instead of getting the waiting clock the inference
+would have solved.
+
+Narrowing the repair to conditions that actually name `size` does not
+help, which is the finding: the branch is still chosen somewhere
+earlier than the reading being repaired, so `upSample1.factor` is
+read before the instance settles it. The next probe goes there - to
+whichever pass decides a parameter-conditioned `if` - and not back to
+the clocks.
+
+So the clocked family stands at: identity rebuilt and committed, the
+`if`-on-a-length written and measured twice, both times costing the
+model that the rebuild was supposed to free. Two independent reasons
+have now been ruled out by measurement; the third is a parameter read
+too early.
