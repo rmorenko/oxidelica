@@ -239,6 +239,26 @@ from the chain plus a handful of controls, timed one by one - and
 spend the full pass once, at the close. Ten forty-minute passes are a
 shift.
 
+**Before reaching for a table, ask what makes two askings
+different - and then what holds it still.** This is the general form
+of the other two, and it was earned three separate times. The wrong
+first question is "how do I remember this"; the right one is "which
+parts of the world does this answer depend on", and after that "over
+what stretch of the run are those parts guaranteed not to move".
+This compiler already had three answers to the second question -
+`Inlined::open` over one class's instantiation, `StandingNames` over
+the life of a registry, `WALKED` cleared with it - and the array
+layer's table became simple only once it was given the first of them
+as a bracket. A key built without a bracket must name the whole
+world; a key inside one names what the bracket does not hold still,
+which is usually two things and not twenty.
+
+And the tests are the judge of it, not the clock. A key that was
+wrong three times running was called wrong by three different tests,
+each naming a dependency the key had missed - the medium on the
+mark, the shapes handed in from a class above. A red test on a
+performance change is the cheapest possible news.
+
 The same order was got wrong three more times in one shift, all in
 the constants layer, and each cost the whole pass: a binding
 substituted whole before asking whether it could answer at all; a

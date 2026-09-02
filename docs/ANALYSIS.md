@@ -1612,3 +1612,42 @@ the panel, which is where questions of mechanism go.
 Measured for the record: the first link alone gives 772 flatten and
 337 run - the same minus-one-plus-one as last shift, confirming that
 neither half of the pair is worth taking without the third.
+
+## The register at 773 and 336, taken after the array table
+
+The pass is 5.5 minutes now, so this is cheap to take and will be
+taken oftener.
+
+### What stops flattening, after the array table
+
+| Count | What it is                                             |
+| ----: | ------------------------------------------------------ |
+|    26 | a parameter asking to be evaluated before the run      |
+|    13 | a name with no declaration above it                    |
+|    10 | a flexible size with nowhere to read a length from     |
+|    10 | a run of elements against a different count of values  |
+|     9 | **a derivative that takes the wrong number of inputs** |
+|     8 | a record given the wrong number of fields              |
+|     8 | arrays of two lengths that do not fit together         |
+
+The nine in bold are new to this table, and they are the eleven `nXi`
+models arrived at their third storey: `saturationPressure_der` is the
+derivative of a medium's own function, and the count of its inputs is
+read where the medium is not in view. Same chain, same shape, one
+floor up - which answers the question of whether there was a third
+storey behind `nXi`. There was, and this is it.
+
+### What stops running, after the array table
+
+| Count | What it is                                |
+| ----: | ----------------------------------------- |
+|    23 | an unknown variable                       |
+|    21 | an unknown variable in an equation        |
+|    14 | an algebraic loop that diverged           |
+|    11 | a singular Jacobian in an algebraic loop  |
+|    11 | `shortPipe.flowModel.dp_nominal` unvalued |
+|     9 | an unknown function                       |
+|     9 | an unbalanced model                       |
+
+Unmoved but for one: the run half is where the singles live and
+nothing was worked there this shift.
