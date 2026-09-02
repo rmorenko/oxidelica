@@ -6,6 +6,13 @@ use super::*;
 /// Expand an expression into scalars, keeping the array structure while
 /// it is needed and dropping to the scalar path for everything else.
 #[allow(clippy::too_many_arguments)]
+thread_local! {
+    /// What an expression came to while one class is being
+    /// instantiated. Held for exactly that long: see `expand`.
+    pub(super) static EXPANDED: std::cell::RefCell<HashMap<String, Result<Value, String>>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
 pub(super) fn expand(
     expr: &Expr,
     shapes: &Shapes,
@@ -19,6 +26,80 @@ pub(super) fn expand(
             "an expression {NO_BOTTOM}, nested deeper than the compiler follows: {}",
             sketch(expr)
         ));
+    }
+    // What an expression comes to is asked over and over: a multibody
+    // model builds an orientation from the same handful of names in
+    // every equation of a body, and walks it whole each time.
+    // Measured on `DoublePendulum`: forty million expansions, and
+    // within one class's instantiation only 641 distinct questions -
+    // the other thirty-five million are the same question again.
+    //
+    // The bracket is what makes the key simple. While one class is
+    // being instantiated its parameters do not move, which is the
+    // same invariant `Inlined::open` was written for, so the table
+    // lives exactly that long and is cleared on the same beat. Inside
+    // it an expression and a scope are the whole of the question -
+    // the shapes and numbers in view belong to the class being built,
+    // and the class being built is what the bracket holds still.
+    //
+    // Not at the top: a caller may hand different shapes in per call
+    // (`loop_vars` above all), and those callers are the ones asking
+    // at depth nothing.
+    // The mark belongs to the key beside the scope: one expression
+    // asked under two media is two answers, and the mark is what
+    // tells them apart everywhere else in this flattener.
+    // Only for an expression worth remembering. A name, a number or
+    // a subscript is answered in a few instructions, and building a
+    // key for one costs more than the answer - it is the built-up
+    // arithmetic of an orientation that is asked a hundred thousand
+    // times and walked whole each time.
+    let worth_it = matches!(
+        expr,
+        Expr::Bin(..) | Expr::Call(..) | Expr::If(..) | Expr::Array(_) | Expr::Elementwise(..)
+    );
+    let remembering = depth > 0 && worth_it && shapes.loop_vars.is_empty();
+    let key = match remembering {
+        false => None,
+        true => {
+            // And the shapes of the names this expression writes: a
+            // value worked out inside another class - `Root r(s =
+            // anyT(suspend.reset))` - reads a run of ports the class
+            // above knows about and this one does not, so the same
+            // written expression under two tables is two answers.
+            // Only the names in hand, never the table itself: hashing
+            // thousands of entries per asking is the cost this is
+            // meant to remove.
+            let mut key = format!("{scope}|{}|{expr:?}", super::inlining::asked_as_mark());
+            let mut named: Vec<&str> = Vec::new();
+            expr.for_each(&mut |inner| {
+                if let Expr::Ref(name) = inner {
+                    named.push(name.as_str());
+                }
+            });
+            named.sort_unstable();
+            named.dedup();
+            for name in named {
+                if let Some(shape) = shapes.sizes.get(name) {
+                    key.push_str(&format!("|{name}{shape:?}"));
+                }
+                // A member walked off an array - `suspend.reset`
+                // where `suspend` is the run - is not in the table
+                // under the name written, so the array it belongs to
+                // is asked for as well.
+                else if let Some((array, _)) = member_of_array(name, shapes.sizes) {
+                    key.push_str(&format!("|{name}@{:?}", shapes.sizes[array]));
+                }
+                if let Some(record) = shapes.records.get(name) {
+                    key.push_str(&format!("|{name}:{record}"));
+                }
+            }
+            Some(key)
+        }
+    };
+    if let Some(key) = &key {
+        if let Some(held) = EXPANDED.with(|held| held.borrow().get(key).cloned()) {
+            return held;
+        }
     }
     let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
     let scalar = |e: &Expr| -> Result<Value, String> {
@@ -35,362 +116,372 @@ pub(super) fn expand(
     };
 
     let constant_here = |e: &Expr| -> Option<f64> { settled_by(e, shapes) };
-    Ok(match expr {
-        Expr::Array(items) => Value::Array(
-            items
-                .iter()
-                .map(&recur)
-                .collect::<Result<Vec<_>, String>>()?,
-        ),
-        // A range is a vector whose bounds the compiler can see.
-        Expr::Range(a, step, b) => {
-            let scalar_of = |e: &Expr| -> Result<f64, String> {
-                let resolved = recur(e)?.scalar()?;
-                constant_here(&resolved).ok_or_else(|| {
-                    format!(
-                        "{UNDECIDABLE_LOOP}: a range needs bounds the compiler can see, \
-                         and {} is not one",
-                        crate::flatten::names::sketch(&resolved)
-                    )
-                })
-            };
-            let (from, to) = (scalar_of(a)?, scalar_of(b)?);
-            let step = match step {
-                Some(step) => scalar_of(step)?,
-                None => 1.0,
-            };
-            if step == 0.0 {
-                return Err("a range cannot step by zero".to_string());
-            }
-            let count = ((to - from) / step + 1e-9).floor() as i64 + 1;
-            Value::Array(
-                (0..count.max(0))
-                    .map(|i| Value::Scalar(Expr::Number(from + i as f64 * step)))
-                    .collect(),
-            )
-        }
-        // `{expr for i in range}` unrolls with the iterator bound.
-        Expr::Comprehension(body, variable, range) => {
-            let Value::Array(items) = recur(range)? else {
-                return Err(format!("`{variable}` needs an array to iterate over"));
-            };
-            let mut out = Vec::with_capacity(items.len());
-            for item in items {
-                let value = constant_here(&item.scalar()?).ok_or_else(|| {
-                    format!("the range of `{variable}` must be constant at compile time")
-                })?;
-                let mut loop_vars = shapes.loop_vars.clone();
-                loop_vars.insert(variable.clone(), value);
-                let inner = Shapes {
-                    sizes: shapes.sizes,
-                    loop_vars: &loop_vars,
-                    consts: shapes.consts,
-                    records: no_records(),
-                };
-                out.push(expand(body, &inner, registry, scope, imports, depth + 1)?);
-            }
-            Value::Array(out)
-        }
-        // `[a, b; c, d]`: every part is a matrix, and they are joined
-        // side by side within a row and one row under another. A
-        // scalar is one by one; a vector of n is n rows of one - a
-        // column, which is what makes `[v; 0]` a vector one longer
-        // rather than two rows of different widths.
-        Expr::MatrixRows(rows) => {
-            let mut out_rows: Vec<Vec<Expr>> = Vec::new();
-            for row in rows {
-                let mut blocks: Vec<Vec<Vec<Expr>>> = Vec::new();
-                for item in row {
-                    blocks.push(as_block(recur(item)?)?);
-                }
-                let height = blocks.first().map_or(0, |block| block.len());
-                if blocks.iter().any(|block| block.len() != height) {
-                    return Err("the parts of one row of a matrix must be equally tall".to_string());
-                }
-                for line in 0..height {
-                    let mut cells = Vec::new();
-                    for block in &blocks {
-                        cells.extend(block[line].iter().cloned());
-                    }
-                    out_rows.push(cells);
-                }
-            }
-            let width = out_rows.first().map_or(0, |row| row.len());
-            if out_rows.iter().any(|row| row.len() != width) {
-                return Err("the rows of a matrix must be equally wide".to_string());
-            }
-            Value::Array(
-                out_rows
-                    .into_iter()
-                    .map(|row| Value::Array(row.into_iter().map(Value::Scalar).collect()))
-                    .collect(),
-            )
-        }
-        Expr::ColonSubscript | Expr::EndSubscript => {
-            return Err("`:` and `end` make sense only inside a subscript".to_string())
-        }
-        // A name that was declared with dimensions stands for all of its
-        // elements at once.
-        Expr::Ref(name) if shapes.sizes.contains_key(name) => {
-            elements_of(name, &shapes.sizes[name])
-        }
-        // `plug.pin.v` where `pin` is an array of connectors is the
-        // array of their `v`. The name of the array is a prefix of the
-        // name written, so the prefixes are tried longest first: with
-        // arrays inside arrays, the innermost one is the one whose
-        // subscript goes nearest the member.
-        Expr::Ref(name) if member_of_array(name, shapes.sizes).is_some() => {
-            let (array, member) = member_of_array(name, shapes.sizes).expect("just matched");
-            let elements = elements_of(array, &shapes.sizes[array]);
-            map_value(&elements, &|element| match element {
-                Expr::Ref(each) => Expr::Ref(format!("{each}.{member}")),
-                other => other,
-            })
-        }
-        // A record instance stands for its fields, in the order they
-        // were declared: that is what an operator works on.
-        Expr::Ref(name) if shapes.records.contains_key(name) => {
-            let of = registry
-                .get(shapes.records[name].as_str())
-                .ok_or_else(|| format!("`{name}` is a record of a class that is not here"))?;
-            // A field may be an array of its own - a rotation is a
-            // three by three and a rate of three - so each is worked
-            // out rather than named.
-            Value::Array(
-                record_fields_of(registry, of, 0)
-                    .into_iter()
-                    .map(|field| recur(&Expr::Ref(format!("{name}.{field}"))))
+    let answer = (|| -> Result<Value, String> {
+        Ok(match expr {
+            Expr::Array(items) => Value::Array(
+                items
+                    .iter()
+                    .map(&recur)
                     .collect::<Result<Vec<_>, String>>()?,
-            )
-        }
-        Expr::Neg(inner) => {
-            if let Some(record) = record_class_of(inner, shapes, registry, scope, imports) {
-                return apply_operator(
-                    &record,
-                    "-",
-                    std::slice::from_ref(inner.as_ref()),
-                    shapes,
-                    registry,
-                    scope,
-                    imports,
-                    depth,
-                );
+            ),
+            // A range is a vector whose bounds the compiler can see.
+            Expr::Range(a, step, b) => {
+                let scalar_of = |e: &Expr| -> Result<f64, String> {
+                    let resolved = recur(e)?.scalar()?;
+                    constant_here(&resolved).ok_or_else(|| {
+                        format!(
+                            "{UNDECIDABLE_LOOP}: a range needs bounds the compiler can see, \
+                         and {} is not one",
+                            crate::flatten::names::sketch(&resolved)
+                        )
+                    })
+                };
+                let (from, to) = (scalar_of(a)?, scalar_of(b)?);
+                let step = match step {
+                    Some(step) => scalar_of(step)?,
+                    None => 1.0,
+                };
+                if step == 0.0 {
+                    return Err("a range cannot step by zero".to_string());
+                }
+                let count = ((to - from) / step + 1e-9).floor() as i64 + 1;
+                Value::Array(
+                    (0..count.max(0))
+                        .map(|i| Value::Scalar(Expr::Number(from + i as f64 * step)))
+                        .collect(),
+                )
             }
-            map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e)))
-        }
-        // A logical operator is worked out here rather than left for
-        // the scalar path, because its sides may still be things only
-        // this pass can settle: `size(b, 1) > 0 and max(b)` asks the
-        // length and the largest of a vector, and both answers are
-        // scalars once they have been looked at with the shapes to
-        // hand. Left to the scalar path the vector arrives whole and
-        // is refused for being an array.
-        Expr::Not(inner) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
-        Expr::And(l, r) => Value::Scalar(Expr::And(
-            Box::new(recur(l)?.scalar()?),
-            Box::new(recur(r)?.scalar()?),
-        )),
-        Expr::Or(l, r) => Value::Scalar(Expr::Or(
-            Box::new(recur(l)?.scalar()?),
-            Box::new(recur(r)?.scalar()?),
-        )),
-        Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
-            // An operator on records is whatever the record says it
-            // is; anything else combines element by element.
-            if let Some(record) = record_class_of(expr, shapes, registry, scope, imports) {
-                return apply_operator(
-                    &record,
-                    operator_symbol(*op),
-                    &[l.as_ref().clone(), r.as_ref().clone()],
-                    shapes,
-                    registry,
-                    scope,
-                    imports,
-                    depth,
-                );
+            // `{expr for i in range}` unrolls with the iterator bound.
+            Expr::Comprehension(body, variable, range) => {
+                let Value::Array(items) = recur(range)? else {
+                    return Err(format!("`{variable}` needs an array to iterate over"));
+                };
+                let mut out = Vec::with_capacity(items.len());
+                for item in items {
+                    let value = constant_here(&item.scalar()?).ok_or_else(|| {
+                        format!("the range of `{variable}` must be constant at compile time")
+                    })?;
+                    let mut loop_vars = shapes.loop_vars.clone();
+                    loop_vars.insert(variable.clone(), value);
+                    let inner = Shapes {
+                        sizes: shapes.sizes,
+                        loop_vars: &loop_vars,
+                        consts: shapes.consts,
+                        records: no_records(),
+                    };
+                    out.push(expand(body, &inner, registry, scope, imports, depth + 1)?);
+                }
+                Value::Array(out)
             }
-            let elementwise = matches!(expr, Expr::Elementwise(_, _, _));
-            combine(*op, &recur(l)?, &recur(r)?, elementwise)?
-        }
-        // A comparison of records is whatever the record's relational
-        // operator says; a comparison of numbers is left for the run.
-        Expr::Rel(op, l, r) => {
-            if let Some(record) = record_class_of(l, shapes, registry, scope, imports)
-                .or_else(|| record_class_of(r, shapes, registry, scope, imports))
-            {
-                return apply_operator(
-                    &record,
-                    relation_symbol(*op),
-                    &[l.as_ref().clone(), r.as_ref().clone()],
-                    shapes,
-                    registry,
-                    scope,
-                    imports,
-                    depth,
-                );
+            // `[a, b; c, d]`: every part is a matrix, and they are joined
+            // side by side within a row and one row under another. A
+            // scalar is one by one; a vector of n is n rows of one - a
+            // column, which is what makes `[v; 0]` a vector one longer
+            // rather than two rows of different widths.
+            Expr::MatrixRows(rows) => {
+                let mut out_rows: Vec<Vec<Expr>> = Vec::new();
+                for row in rows {
+                    let mut blocks: Vec<Vec<Vec<Expr>>> = Vec::new();
+                    for item in row {
+                        blocks.push(as_block(recur(item)?)?);
+                    }
+                    let height = blocks.first().map_or(0, |block| block.len());
+                    if blocks.iter().any(|block| block.len() != height) {
+                        return Err(
+                            "the parts of one row of a matrix must be equally tall".to_string()
+                        );
+                    }
+                    for line in 0..height {
+                        let mut cells = Vec::new();
+                        for block in &blocks {
+                            cells.extend(block[line].iter().cloned());
+                        }
+                        out_rows.push(cells);
+                    }
+                }
+                let width = out_rows.first().map_or(0, |row| row.len());
+                if out_rows.iter().any(|row| row.len() != width) {
+                    return Err("the rows of a matrix must be equally wide".to_string());
+                }
+                Value::Array(
+                    out_rows
+                        .into_iter()
+                        .map(|row| Value::Array(row.into_iter().map(Value::Scalar).collect()))
+                        .collect(),
+                )
             }
-            Value::Scalar(Expr::Rel(
-                *op,
+            Expr::ColonSubscript | Expr::EndSubscript => {
+                return Err("`:` and `end` make sense only inside a subscript".to_string())
+            }
+            // A name that was declared with dimensions stands for all of its
+            // elements at once.
+            Expr::Ref(name) if shapes.sizes.contains_key(name) => {
+                elements_of(name, &shapes.sizes[name])
+            }
+            // `plug.pin.v` where `pin` is an array of connectors is the
+            // array of their `v`. The name of the array is a prefix of the
+            // name written, so the prefixes are tried longest first: with
+            // arrays inside arrays, the innermost one is the one whose
+            // subscript goes nearest the member.
+            Expr::Ref(name) if member_of_array(name, shapes.sizes).is_some() => {
+                let (array, member) = member_of_array(name, shapes.sizes).expect("just matched");
+                let elements = elements_of(array, &shapes.sizes[array]);
+                map_value(&elements, &|element| match element {
+                    Expr::Ref(each) => Expr::Ref(format!("{each}.{member}")),
+                    other => other,
+                })
+            }
+            // A record instance stands for its fields, in the order they
+            // were declared: that is what an operator works on.
+            Expr::Ref(name) if shapes.records.contains_key(name) => {
+                let of = registry
+                    .get(shapes.records[name].as_str())
+                    .ok_or_else(|| format!("`{name}` is a record of a class that is not here"))?;
+                // A field may be an array of its own - a rotation is a
+                // three by three and a rate of three - so each is worked
+                // out rather than named.
+                Value::Array(
+                    record_fields_of(registry, of, 0)
+                        .into_iter()
+                        .map(|field| recur(&Expr::Ref(format!("{name}.{field}"))))
+                        .collect::<Result<Vec<_>, String>>()?,
+                )
+            }
+            Expr::Neg(inner) => {
+                if let Some(record) = record_class_of(inner, shapes, registry, scope, imports) {
+                    return apply_operator(
+                        &record,
+                        "-",
+                        std::slice::from_ref(inner.as_ref()),
+                        shapes,
+                        registry,
+                        scope,
+                        imports,
+                        depth,
+                    );
+                }
+                map_value(&recur(inner)?, &|e| Expr::Neg(Box::new(e)))
+            }
+            // A logical operator is worked out here rather than left for
+            // the scalar path, because its sides may still be things only
+            // this pass can settle: `size(b, 1) > 0 and max(b)` asks the
+            // length and the largest of a vector, and both answers are
+            // scalars once they have been looked at with the shapes to
+            // hand. Left to the scalar path the vector arrives whole and
+            // is refused for being an array.
+            Expr::Not(inner) => Value::Scalar(Expr::Not(Box::new(recur(inner)?.scalar()?))),
+            Expr::And(l, r) => Value::Scalar(Expr::And(
                 Box::new(recur(l)?.scalar()?),
                 Box::new(recur(r)?.scalar()?),
-            ))
-        }
-        Expr::If(condition, then, otherwise) => {
-            let condition = recur(condition)?.scalar()?;
-            // A guard on the loop variable takes its branch and
-            // leaves the other alone: at the first element of a loop
-            // over neighbours, `if i > 1 then x[i - 1] else 0` must
-            // not go looking for `x[0]`. A condition that does not
-            // mention the loop stays as it was written, parameters
-            // included - folding those would nail down a value the
-            // model is meant to be re-run with.
-            // Inside a loop being unrolled, everything the compiler
-            // can decide is part of the structure being built; outside
-            // one it is a value the model may be re-run with.
-            if shapes.loop_vars.is_empty() {
-                let settled = constant_here(&condition);
-                // The branch that stands is expanded first, so that
-                // its own trouble is what gets said rather than the
-                // other's.
-                let stands = settled.map(|truth| truth != 0.0);
-                let (first, second) = match stands {
-                    Some(false) => (otherwise, then),
-                    _ => (then, otherwise),
-                };
-                // A check a branch makes holds only when that branch
-                // is the one taken.
-                let before_first = checks_mark();
-                let first = recur(first)?;
-                checks_guarded(before_first, &condition, stands != Some(false));
-                // A branch that comes to nothing leaves no checks
-                // behind either.
-                let mark = checks_mark();
-                let second = match (recur(second), settled) {
-                    (Ok(value), _) => value,
-                    // Where the compiler settles the condition, the
-                    // branch it does not take need not be buildable at
-                    // all: the standard library asks the length of a
-                    // file name only `if tableOnFile`, and that length
-                    // has a body written in C. Nothing is lost - the
-                    // branch is not part of this model - though a
-                    // mistake in it will go unmentioned until a run
-                    // that takes it.
-                    (Err(_), Some(_)) => {
-                        checks_rewind(mark);
-                        return Ok(first);
-                    }
-                    (Err(trouble), None) => {
-                        checks_rewind(mark);
-                        return Err(trouble);
-                    }
-                };
-                checks_guarded(mark, &condition, stands == Some(false));
-                let (taken, left) = match stands {
-                    Some(false) => (second, first),
-                    _ => (first, second),
-                };
-                // Two branches of the same shape are one value chosen
-                // as the run goes. Two of different shapes are not a
-                // value at all but a structure - the standard library
-                // builds a table one way or another way depending on
-                // whether there is anything in it - and a structure
-                // has to be settled here.
-                if taken.shape() == left.shape() {
-                    return zip_values(&taken, &left, &|a, b| {
-                        Expr::If(
-                            Box::new(condition.clone()),
-                            Box::new(a.clone()),
-                            Box::new(b.clone()),
-                        )
-                    });
+            )),
+            Expr::Or(l, r) => Value::Scalar(Expr::Or(
+                Box::new(recur(l)?.scalar()?),
+                Box::new(recur(r)?.scalar()?),
+            )),
+            Expr::Bin(op, l, r) | Expr::Elementwise(op, l, r) => {
+                // An operator on records is whatever the record says it
+                // is; anything else combines element by element.
+                if let Some(record) = record_class_of(expr, shapes, registry, scope, imports) {
+                    return apply_operator(
+                        &record,
+                        operator_symbol(*op),
+                        &[l.as_ref().clone(), r.as_ref().clone()],
+                        shapes,
+                        registry,
+                        scope,
+                        imports,
+                        depth,
+                    );
                 }
-                let Some(truth) = settled else {
-                    return Err(format!(
-                        "an `if` whose branches are of shapes {:?} and {:?} decides the \
+                let elementwise = matches!(expr, Expr::Elementwise(_, _, _));
+                combine(*op, &recur(l)?, &recur(r)?, elementwise)?
+            }
+            // A comparison of records is whatever the record's relational
+            // operator says; a comparison of numbers is left for the run.
+            Expr::Rel(op, l, r) => {
+                if let Some(record) = record_class_of(l, shapes, registry, scope, imports)
+                    .or_else(|| record_class_of(r, shapes, registry, scope, imports))
+                {
+                    return apply_operator(
+                        &record,
+                        relation_symbol(*op),
+                        &[l.as_ref().clone(), r.as_ref().clone()],
+                        shapes,
+                        registry,
+                        scope,
+                        imports,
+                        depth,
+                    );
+                }
+                Value::Scalar(Expr::Rel(
+                    *op,
+                    Box::new(recur(l)?.scalar()?),
+                    Box::new(recur(r)?.scalar()?),
+                ))
+            }
+            Expr::If(condition, then, otherwise) => {
+                let condition = recur(condition)?.scalar()?;
+                // A guard on the loop variable takes its branch and
+                // leaves the other alone: at the first element of a loop
+                // over neighbours, `if i > 1 then x[i - 1] else 0` must
+                // not go looking for `x[0]`. A condition that does not
+                // mention the loop stays as it was written, parameters
+                // included - folding those would nail down a value the
+                // model is meant to be re-run with.
+                // Inside a loop being unrolled, everything the compiler
+                // can decide is part of the structure being built; outside
+                // one it is a value the model may be re-run with.
+                if shapes.loop_vars.is_empty() {
+                    let settled = constant_here(&condition);
+                    // The branch that stands is expanded first, so that
+                    // its own trouble is what gets said rather than the
+                    // other's.
+                    let stands = settled.map(|truth| truth != 0.0);
+                    let (first, second) = match stands {
+                        Some(false) => (otherwise, then),
+                        _ => (then, otherwise),
+                    };
+                    // A check a branch makes holds only when that branch
+                    // is the one taken.
+                    let before_first = checks_mark();
+                    let first = recur(first)?;
+                    checks_guarded(before_first, &condition, stands != Some(false));
+                    // A branch that comes to nothing leaves no checks
+                    // behind either.
+                    let mark = checks_mark();
+                    let second = match (recur(second), settled) {
+                        (Ok(value), _) => value,
+                        // Where the compiler settles the condition, the
+                        // branch it does not take need not be buildable at
+                        // all: the standard library asks the length of a
+                        // file name only `if tableOnFile`, and that length
+                        // has a body written in C. Nothing is lost - the
+                        // branch is not part of this model - though a
+                        // mistake in it will go unmentioned until a run
+                        // that takes it.
+                        (Err(_), Some(_)) => {
+                            checks_rewind(mark);
+                            return Ok(first);
+                        }
+                        (Err(trouble), None) => {
+                            checks_rewind(mark);
+                            return Err(trouble);
+                        }
+                    };
+                    checks_guarded(mark, &condition, stands == Some(false));
+                    let (taken, left) = match stands {
+                        Some(false) => (second, first),
+                        _ => (first, second),
+                    };
+                    // Two branches of the same shape are one value chosen
+                    // as the run goes. Two of different shapes are not a
+                    // value at all but a structure - the standard library
+                    // builds a table one way or another way depending on
+                    // whether there is anything in it - and a structure
+                    // has to be settled here.
+                    if taken.shape() == left.shape() {
+                        return zip_values(&taken, &left, &|a, b| {
+                            Expr::If(
+                                Box::new(condition.clone()),
+                                Box::new(a.clone()),
+                                Box::new(b.clone()),
+                            )
+                        });
+                    }
+                    let Some(truth) = settled else {
+                        return Err(format!(
+                            "an `if` whose branches are of shapes {:?} and {:?} decides the \
                          shape of what it stands for, so its condition has to be one the \
                          compiler can settle: {}",
-                        taken.shape(),
-                        left.shape(),
-                        crate::flatten::names::sketch(&condition)
-                    ));
-                };
-                // One branch stands and the other is dropped, so the
-                // checks it made go with it.
-                checks_rewind(mark);
-                return Ok(if truth != 0.0 { taken } else { left });
+                            taken.shape(),
+                            left.shape(),
+                            crate::flatten::names::sketch(&condition)
+                        ));
+                    };
+                    // One branch stands and the other is dropped, so the
+                    // checks it made go with it.
+                    checks_rewind(mark);
+                    return Ok(if truth != 0.0 { taken } else { left });
+                }
+                if let Some(truth) = constant_here(&condition) {
+                    return if truth != 0.0 {
+                        recur(then)
+                    } else {
+                        recur(otherwise)
+                    };
+                }
+                let (then, otherwise) = (recur(then)?, recur(otherwise)?);
+                zip_values(&then, &otherwise, &|a, b| {
+                    Expr::If(
+                        Box::new(condition.clone()),
+                        Box::new(a.clone()),
+                        Box::new(b.clone()),
+                    )
+                })?
             }
-            if let Some(truth) = constant_here(&condition) {
-                return if truth != 0.0 {
-                    recur(then)
-                } else {
-                    recur(otherwise)
-                };
+            Expr::Call(name, args) => {
+                expand_call(name, args, shapes, registry, scope, imports, depth)?
             }
-            let (then, otherwise) = (recur(then)?, recur(otherwise)?);
-            zip_values(&then, &otherwise, &|a, b| {
-                Expr::If(
-                    Box::new(condition.clone()),
-                    Box::new(a.clone()),
-                    Box::new(b.clone()),
-                )
-            })?
-        }
-        Expr::Call(name, args) => expand_call(name, args, shapes, registry, scope, imports, depth)?,
-        // Indexing something that expands to an array picks the element:
-        // this is how `a[i]` works inside a function whose `a` was bound
-        // to an array literal.
-        Expr::Index(base, subscripts) => {
-            let base_value = recur(base)?;
-            match base_value {
-                Value::Array(_) => index_into(
-                    base_value, subscripts, shapes, registry, scope, imports, depth,
-                )
-                .map_err(|why| match why.starts_with("subscript ") {
-                    // A refusal about a subscript is worth little
-                    // without the name it was written on: `subscript 1
-                    // is outside an array of 0` said which model was
-                    // refused and nothing about where to look in it.
-                    true => format!(
-                        "{why}, reading `{}`",
-                        names::sketch(&Expr::Index(base.clone(), subscripts.clone()))
-                    ),
-                    false => why,
-                })?,
-                // A name subscripted by a range is a slice of it, and
-                // an empty range slices nothing: `X_default[1:nXi]`
-                // with no trace substances is the empty array, not a
-                // scalar. The name's own shape is not needed to say
-                // so - the range says it - and without this the whole
-                // `Index` went off to be resolved as a scalar, where
-                // a range is refused for being an array.
-                _ if empty_range_subscript(subscripts, shapes) => Value::Array(Vec::new()),
+            // Indexing something that expands to an array picks the element:
+            // this is how `a[i]` works inside a function whose `a` was bound
+            // to an array literal.
+            Expr::Index(base, subscripts) => {
+                let base_value = recur(base)?;
+                match base_value {
+                    Value::Array(_) => index_into(
+                        base_value, subscripts, shapes, registry, scope, imports, depth,
+                    )
+                    .map_err(|why| match why.starts_with("subscript ") {
+                        // A refusal about a subscript is worth little
+                        // without the name it was written on: `subscript 1
+                        // is outside an array of 0` said which model was
+                        // refused and nothing about where to look in it.
+                        true => format!(
+                            "{why}, reading `{}`",
+                            names::sketch(&Expr::Index(base.clone(), subscripts.clone()))
+                        ),
+                        false => why,
+                    })?,
+                    // A name subscripted by a range is a slice of it, and
+                    // an empty range slices nothing: `X_default[1:nXi]`
+                    // with no trace substances is the empty array, not a
+                    // scalar. The name's own shape is not needed to say
+                    // so - the range says it - and without this the whole
+                    // `Index` went off to be resolved as a scalar, where
+                    // a range is refused for being an array.
+                    _ if empty_range_subscript(subscripts, shapes) => Value::Array(Vec::new()),
+                    _ => scalar(expr)?,
+                }
+            }
+            // `ac.pin[:].v` - a member read off each of the connectors a
+            // slice kept. The slice is an array of names, and the member
+            // goes on every one of them.
+            Expr::Member(base, path) => match recur(base)? {
+                array @ Value::Array(_) => map_value(&array, &|element| match element {
+                    Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
+                    other => Expr::Member(Box::new(other), path.clone()),
+                }),
                 _ => scalar(expr)?,
-            }
-        }
-        // `ac.pin[:].v` - a member read off each of the connectors a
-        // slice kept. The slice is an array of names, and the member
-        // goes on every one of them.
-        Expr::Member(base, path) => match recur(base)? {
-            array @ Value::Array(_) => map_value(&array, &|element| match element {
-                Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
-                other => Expr::Member(Box::new(other), path.clone()),
+            },
+            // A named argument is its value under a name, and the value
+            // may be an array: `actual = f(dps_fg, ...)` is how the
+            // library writes a homotopy, and the whole thing used to fall
+            // through to the scalar path - taking the call inside it
+            // along, where a function is inlined whole and an array is
+            // bound to an input that takes one number. Expanded here, the
+            // call inside reaches the hand-out that applies a scalar
+            // function element by element, which is what the language
+            // says it means.
+            Expr::NamedArg(name, value) => map_value(&recur(value)?, &|element| {
+                Expr::NamedArg(name.clone(), Box::new(element.clone()))
             }),
-            _ => scalar(expr)?,
-        },
-        // A named argument is its value under a name, and the value
-        // may be an array: `actual = f(dps_fg, ...)` is how the
-        // library writes a homotopy, and the whole thing used to fall
-        // through to the scalar path - taking the call inside it
-        // along, where a function is inlined whole and an array is
-        // bound to an input that takes one number. Expanded here, the
-        // call inside reaches the hand-out that applies a scalar
-        // function element by element, which is what the language
-        // says it means.
-        Expr::NamedArg(name, value) => map_value(&recur(value)?, &|element| {
-            Expr::NamedArg(name.clone(), Box::new(element.clone()))
-        }),
-        other => scalar(other)?,
-    })
+            other => scalar(other)?,
+        })
+    })();
+    if let Some(key) = key {
+        EXPANDED.with(|held| held.borrow_mut().insert(key, answer.clone()));
+    }
+    answer
 }
 
 /// One part of a `[ ]` as the matrix it stands for: a scalar is one by

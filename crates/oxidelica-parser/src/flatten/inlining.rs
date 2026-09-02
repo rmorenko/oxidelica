@@ -1068,6 +1068,9 @@ pub(super) struct Inlined(HashMap<String, Remembered>, bool);
 
 impl Inlined {
     pub(super) fn open() -> Self {
+        // The expansions of the class above are answers to questions
+        // asked under its numbers, not this one's.
+        super::arrays::EXPANDED.with(|held| held.borrow_mut().clear());
         let held = INLINED.with(|held| std::mem::take(&mut *held.borrow_mut()));
         let before = REMEMBERING.with(|on| on.replace(true));
         Inlined(held, before)
@@ -1081,6 +1084,7 @@ impl Inlined {
     /// now.
     pub(super) fn forget() {
         INLINED.with(|held| held.borrow_mut().clear());
+        super::arrays::EXPANDED.with(|held| held.borrow_mut().clear());
     }
 }
 
