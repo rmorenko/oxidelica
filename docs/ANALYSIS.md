@@ -1440,8 +1440,38 @@ joins the partition, so the clocked variable arrives at the run with
 nothing assigning it. The refusal is honest and names a symptom two
 steps from its cause.
 
-So the link is: an `if` equation settled at flatten time keeps its
-surviving branch, but that branch is not offered to the clock
-partition afterwards. Named, not taken - the shift is spent, and the
-same rule applies as to `nXi`: a link half-taken is worse than one
-written down.
+So the link is: an `if` equation whose condition asks a _length_ -
+`if size(u, 1) > 0 then y = k*u; else y = 0` - is not settled at all,
+because the settling reads constants and the shapes are held
+elsewhere. Undecided, it leaves one equation per position choosing
+its residual, and the clocked `y` arrives at the run with nothing
+assigning it.
+
+### Taken, measured, and put back
+
+The repair is four lines: ask the shapes as well as the constants,
+under the instance path, since the condition says `u` and the table
+holds `sum.u`. Two of the five models compile with it -
+`AssignClock` and `AssignClockVectorized` - and the corpus says 772
+flatten and 337 run: **plus one on the run half and minus one on the
+flatten half**, which is why it went back.
+
+The minus is honest and the models behind it are the next two links,
+both a storey deeper than this one:
+
+- `UpSample` sums two up-samplers of different factors, which is
+  legal Modelica and which this compiler refuses as `sum.y is written
+on two clocks at once`. It refuses it only now, because before the
+  repair the equation never reached the clock inference at all. Two
+  clocks of the same family at different rates need the slower to
+  enter the faster through the sub-sampling the language already
+  spells out.
+- `TickBasedSine` refuses as `a continuous equation may only read a
+clocked variable through hold` - the same shape of fault at the
+  partition boundary.
+
+So the family is one link wide and three deep, and taking the first
+without the other two costs a model to win a model. Written down at
+the point where the next probe starts: not `measure_dimensions` and
+not the `if`, but what the clock inference does with an equation that
+names two rates.
