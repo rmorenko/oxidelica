@@ -1217,3 +1217,60 @@ found only singles here. Twenty models past the flattener means
 twenty models arriving at the run half together, and the two unknown
 variable lines - 45 between them - are the top of the next queue. The
 form written above for working singles is not needed yet.
+
+## Batch one of the singles: `cannot evaluate parameters`
+
+Ten models probed before any repair, chosen the way the form says -
+by the layer their refusal names rather than by how the message
+reads. The note is written whether or not anything moved, and this
+time nothing did.
+
+### Where each probe stopped
+
+| Model                              | What nothing gives a value to               |
+| ---------------------------------- | ------------------------------------------- |
+| `ReferenceAir.DryAir1`             | `Medium.h_default`                          |
+| `DrumBoiler`                       | `sink.Medium.h_default`                     |
+| `PumpingSystem`                    | `source.Medium.h_default`, and an IF97 call |
+| `TestJunctionIdeal`                | `data.R_s`                                  |
+| `PressureLoss.Bend`, `.Orifice`    | `data.R_s`, `Medium.h_default`              |
+| `TestVolume`, `TestTemperature1/2` | `waterBaseProp_ph(...)[4]`                  |
+| `TestSweptVolume`, `Inverse_sh_T`  | a NASA polynomial over `data.alow[...]`     |
+| `TestSharpEdgedOrifice`            | `dp_nominal`, arithmetic over `data.zeta1`  |
+
+Ten probes, one layer, three kinds within it - and every one of them
+a constant of a medium or of a data record that the flattener reaches
+but cannot fold. This is not ten singles. It is one family with ten
+spellings, which is exactly what the form was written to find: three
+notes naming one layer are a family, and here there are ten.
+
+### What was tried, and why it was put back
+
+The mint of link fifteen already answers this shape, so the question
+was why it does not fire here. Two faults found, both real:
+
+- The unit is reached through a chain of aliases -
+  `SpecificHeatCapacity = SI.SpecificHeatCapacity`, where only the
+  last says a unit - and the walk stopped at the first. Following the
+  chain finds `J/(kg.K)` and the mint fires.
+- A minted name is born before the prefix pass, so `flat_name` puts
+  an instance path on the front of it: `v.medium.Modelica.Media...
+cv_const`, a name nothing declares. The panel predicted this
+  exactly; the guard it named did not hold, and the reason is not yet
+  understood - a second road reaches the name.
+
+With both in, `ThreeTanks` stops refusing and starts compiling - and
+takes five minutes instead of four seconds, because the work it now
+reaches is work it never did before. That is not a regression to
+bisect but a wall moved, and the honest reading is that the batch
+needs a shift of its own rather than the tail of this one. Reverted
+whole; the tree stands where the register describes it.
+
+### What this says about the form
+
+The form asked to be told when a batch finds one layer three times
+over. It found one layer ten times over, on the first batch, which
+means the singles of this half were never singles - they were the
+constants chain seen from the run side, under ten different names
+because the message quotes whichever parameter happened to be first.
+The old method applies: this is a family, and it is taken as one.
