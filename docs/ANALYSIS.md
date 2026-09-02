@@ -1572,3 +1572,43 @@ minutes when 640 models flattened. It now flattens **773**. Twenty
 per cent more work in the same wall time - the performance debt was
 not merely paid off, it went into credit, and the three orderings of
 judgment in the constants layer are where the credit came from.
+
+## The clocked pair, taken together and measured
+
+The instruction was to take the `if`-on-a-length together with
+`UpSample` rather than reverting the first. Both were written, both
+work on their own models, and the pair still costs a model - so it is
+written down rather than committed, with the exact line it fails on.
+
+### The second link, as far as it goes
+
+`sum.y` fed by an up-sampler by two and one by three is legal
+Modelica: the sum lives on the faster clock, every tick of the slower
+being one of the faster's. Written as: among the settled clocks of an
+equation, take the fastest, and where every other is a whole multiple
+of it starting at the same instant, that is the answer. `UpSample`
+and `AssignClock` both compile with it.
+
+What it breaks is a test this project wrote deliberately
+(clocks.rs:563): `Clock(1, 10)` beside `Clock(1, 5)` in one equation
+must refuse, and 0.2 _is_ a whole multiple of 0.1. Two clocks a model
+declared separately are two clocks however their rates compare -
+"the slower's ticks are among the faster's" is true of the numbers
+and false of the meaning.
+
+Tightened to "and sub-sampling the faster by that factor gives this
+one back", using the machinery `same` already has, the test stays red
+all the same: the derived clock of an up-sampler and the declared
+clock of the same period are equal under `same`, so the test's own
+pair passes the tighter gate too.
+
+So the missing distinction is not arithmetic between two clocks but
+_where each came from_ - derived by an operator in this equation
+against declared elsewhere in the model - and nothing in `ClockSpec`
+records it today. That is the third link, and it is a question about
+what a clock is rather than about how two are compared. It goes to
+the panel, which is where questions of mechanism go.
+
+Measured for the record: the first link alone gives 772 flatten and
+337 run - the same minus-one-plus-one as last shift, confirming that
+neither half of the pair is worth taking without the third.
