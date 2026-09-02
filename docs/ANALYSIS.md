@@ -1417,6 +1417,23 @@ a Jacobian is singular either because the model says so or because
 the point it was taken at is unlucky. Thirty models, give or take,
 whose repair is arithmetic rather than semantics.
 
+### And one probe when each is filed, because some are ours
+
+A budget exceeded may mean the system is stiff, or it may mean this
+compiler is doing work it need not do - a structural fault wearing a
+numerical coat. The two are told apart by asking how much wall time
+one step costs, not how many steps were taken.
+
+`Dimmer_RL` probed that way: **two steps in 76 seconds**, against a
+budget of twenty million evaluations it never came near. Nothing
+about that is stiffness. Two steps that cost thirty-eight seconds
+apiece are a step function this compiler built badly, and the model
+belongs in the structural queue after all - filed under the same
+heading as the giants of the performance ledger.
+
+So: when a numerical refusal is filed, probe it once. Steps that are
+many and cheap are arithmetic; steps that are few and dear are ours.
+
 ## Batch three: the clock layer, five models, one place
 
 Chosen by layer rather than by text, as the form now says. Five
