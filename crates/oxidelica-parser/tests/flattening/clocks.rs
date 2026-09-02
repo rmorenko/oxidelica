@@ -995,3 +995,40 @@ fn an_undecided_if_beside_a_clock_keeps_the_rest_of_the_model() {
     assert_eq!(m.conditional.len(), 1);
     assert_eq!(m.conditional[0].branches.len(), 2);
 }
+
+#[test]
+fn a_clock_reaches_a_local_that_cannot_stand_off_one() {
+    // A tick-based source counts its own ticks - `counter =
+    // previous(counter) + 1` - and says nothing about which clock it
+    // is on. The clock stands two equations away, on the block the
+    // model wired it to, and it has to cross both: `previous` cannot
+    // stand off a clock at all, so joining the one the model assigned
+    // is the only reading of it.
+    let m = parse_model(
+        "block Step Integer counter(start = 0); Boolean y; \
+           equation counter = previous(counter) + 1; y = counter >= 3; end Step; \
+         block Assign Clock clock; Boolean u; Boolean y; \
+           equation when clock then y = u; end when; end Assign; \
+         model M Clock c = Clock(0.1); Step step; Assign a; Boolean out; \
+         equation a.clock = c; a.u = step.y; out = hold(a.y); end M;",
+    )
+    .unwrap();
+    // The counter joined the clock, so its equations were lifted into
+    // the partition rather than left standing as continuous ones.
+    let text = format!("{:?}", m.when_clauses);
+    assert!(text.contains("step.counter"), "{text}");
+
+    // And the boundary still holds: what a `sample` reads stays
+    // continuous, whatever the clock on the other side of it.
+    let sampled = parse_model(
+        "block Sampler Real u; Real y; equation y = sample(u); end Sampler; \
+         block Assign Clock clock; Real u; Real y; \
+           equation when clock then y = u; end when; end Assign; \
+         model M Clock c = Clock(0.1); Sampler s; Assign a; Real src; Real out; \
+         equation src = time; s.u = src; a.clock = c; a.u = s.y; \
+         out = hold(a.y); end M;",
+    )
+    .unwrap();
+    let text = format!("{:?}", sampled.when_clauses);
+    assert!(!text.contains("Ref(\"src\")"), "{text}");
+}

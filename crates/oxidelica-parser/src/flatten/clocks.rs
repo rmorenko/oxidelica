@@ -553,6 +553,78 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         }
     }
 
+    // A name a clocked equation reads is on that clock too, where its
+    // own equation cannot stand off one. `counter = if
+    // previous(counter) < startTick then ...` says nothing on its own
+    // - `previous` asks for a clock rather than giving one - and the
+    // clock stands one equation away, on the `y` the block was
+    // written to answer with, or across the `connect` that gave the
+    // block its clock in the first place.
+    //
+    // Only to a name whose own equation writes `previous` or its kin:
+    // those cannot stand off a clock at all, so joining one is the
+    // only reading. A name that asks for none - what a `sample` reads
+    // - is continuous on purpose, and pulling it in would lift
+    // equations that were meant to stay.
+    for _ in 0..MAX_DEPTH {
+        let asks_for_a_clock = |name: &str| {
+            model.equations.iter().any(|other| {
+                matches!(&other.lhs, Expr::Ref(target) if target == name)
+                    && ["previous", "firstTick", "subSample", "superSample"]
+                        .iter()
+                        .any(|asked| mentions_call(&other.rhs, asked))
+            })
+        };
+        let mut joined = Vec::new();
+        for equation in &model.equations {
+            let Expr::Ref(target) = &equation.lhs else {
+                continue;
+            };
+            let Some(clock) = clock_of.get(target).copied() else {
+                continue;
+            };
+            let mut named = Vec::new();
+            named_within_the_partition(&equation.rhs, &mut named);
+            for name in named {
+                if clock_of.contains_key(&name)
+                    || !model.components.iter().any(|held| held.name == name)
+                {
+                    continue;
+                }
+                // Either the name cannot stand off a clock itself, or
+                // it is one end of a plain equality with something
+                // that cannot: `assignClock1.y = assignClock1.u` and
+                // `assignClock1.u = step.y` are how a `connect`
+                // arrives, and the clock a model assigns has to cross
+                // them to reach the block that wrote nothing about
+                // one. An equality is the whole equation and holds no
+                // boundary, so nothing continuous rides over.
+                // A plain equality carries the clock only where the
+                // name it reaches does not stand on a boundary of its
+                // own. `s.y = sample(s.u)` is a sampler: `s.y` is on
+                // the clock and `s.u` is the continuous signal it
+                // reads, so the equality between them is exactly
+                // where a clock must stop.
+                let crosses = model.equations.iter().any(|other| {
+                    matches!(&other.lhs, Expr::Ref(target) if target == &name)
+                        && ["sample", "hold", "noClock"]
+                            .iter()
+                            .any(|edge| mentions_call(&other.rhs, edge))
+                });
+                let plain = matches!(&equation.rhs, Expr::Ref(_)) && !crosses;
+                if asks_for_a_clock(&name) || plain {
+                    joined.push((name, clock));
+                }
+            }
+        }
+        if joined.is_empty() {
+            break;
+        }
+        for (name, clock) in joined {
+            clock_of.insert(name, clock);
+        }
+    }
+
     // An operator that only makes sense on a clock has to be on one.
     for equation in &model.equations {
         if let Expr::Ref(target) = &equation.lhs {
@@ -1727,6 +1799,26 @@ pub(super) fn mentions_call(expr: &Expr, wanted: &str) -> bool {
         }
     });
     found
+}
+
+/// The names an expression reads on this side of a clock boundary.
+///
+/// `sample`, `hold` and `noClock` are where one partition meets
+/// another: what is under them belongs to the other side and says
+/// nothing about this one. Everything else is read through.
+fn named_within_the_partition(expr: &Expr, out: &mut Vec<String>) {
+    match expr {
+        Expr::Call(name, _) if matches!(name.as_str(), "sample" | "hold" | "noClock") => {}
+        Expr::Ref(name) => out.push(name.clone()),
+        other => {
+            // One level down, then the same rule again: the boundary
+            // has to be seen at the node that holds it.
+            other.map_children(&mut |child| {
+                named_within_the_partition(child, out);
+                child.clone()
+            });
+        }
+    }
 }
 
 /// Visit the name of every call in an expression.
