@@ -406,6 +406,7 @@ impl StandingNames {
         WALKED.with(|walked| walked.borrow_mut().clear());
         KINDRED.with(|kindred| kindred.borrow_mut().clear());
         super::constants::NAMED.with(|named| named.borrow_mut().clear());
+        super::constants::MINTED.with(|minted| minted.borrow_mut().clear());
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames
     }

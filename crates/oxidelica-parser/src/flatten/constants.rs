@@ -495,6 +495,14 @@ fn substitute_at(
                 if let Some(value) = enclosing_constant_array(registry, name, scope, depth) {
                     return value;
                 }
+                // Nothing above answered, and this road does not fold
+                // - so a medium's constant becomes a name of the flat
+                // model rather than the digit a parameter's road would
+                // take. The name keeps the unit the declaration gave
+                // it, which is the whole reason not to fold.
+                if let Some(minted) = mint_asked_as_constant(registry, name, scope, depth) {
+                    return minted;
+                }
             }
             expr.clone()
         }
@@ -885,6 +893,134 @@ fn enclosing_constant_at(
     // altogether. The medium the call was written under is the one
     // place it stands, and the mark is holding that name.
     asked_as_constant(registry, name, scope, depth)
+}
+
+thread_local! {
+    /// The constants minted as parameters of the flat model, by the
+    /// name they were given, with the value and the unit they were
+    /// declared with.
+    ///
+    /// A medium's `cp_const` cannot be folded into an equation - the
+    /// number loses the unit, and the dimensional layer then reads
+    /// joules per kilogram against kelvin - so on the road where
+    /// nothing folds it becomes a name instead: one parameter per
+    /// medium, since two components redeclaring one medium mean one
+    /// number.
+    pub(super) static MINTED: RefCell<HashMap<String, (f64, Option<String>)>> =
+        RefCell::new(HashMap::new());
+}
+
+/// What has been minted so far, for the flat model to take up.
+pub(super) fn minted_constants() -> Vec<(String, f64, Option<String>)> {
+    MINTED.with(|held| {
+        let mut out: Vec<(String, f64, Option<String>)> = held
+            .borrow()
+            .iter()
+            .map(|(name, (value, unit))| (name.clone(), *value, unit.clone()))
+            .collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
+    })
+}
+
+/// The unit a package's constant was declared with, its bases
+/// included: the reason for minting at all, so it is read from the
+/// declaration rather than guessed from the name.
+fn declared_unit(
+    registry: &HashMap<&str, &ClassDef>,
+    package: &str,
+    name: &str,
+    depth: usize,
+) -> Option<String> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    let class = registry.get(package)?;
+    if let Some(held) = class.components.iter().find(|held| &held.name == name) {
+        if let Some(unit) = &held.unit {
+            return Some(unit.clone());
+        }
+        // A type alias carries it: `type SpecificHeatCapacity =
+        // Real(unit = "J/(kg.K)")` is how the library says what a
+        // quantity is, and the declaration names only the alias.
+        if let Some(found) = lookup(registry, &held.type_name, package, &class.imports) {
+            if let Some(unit) = &found.alias_unit {
+                return Some(unit.clone());
+            }
+        }
+    }
+    for extend in &class.extends {
+        let base = lookup(registry, &extend.base, package, &class.imports)?;
+        if let Some(unit) = declared_unit(registry, &base.name, name, depth + 1) {
+            return Some(unit);
+        }
+    }
+    None
+}
+
+/// A medium's constant as a name of the flat model rather than a
+/// number, where the road it is on cannot carry a number.
+///
+/// The name is `{medium}.{constant}`: one per medium, because two
+/// components redeclaring the same medium mean the same number, and
+/// the mark is what the flattener already carries to tell two media
+/// apart.
+fn mint_asked_as_constant(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    owner: &str,
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    // The gate, before anything is looked up. Every bare name the
+    // substitution could not answer arrives here - locals, variables,
+    // the whole flat vocabulary of a library - and only a constant of
+    // the medium on the mark can ever be minted. No mark, no
+    // candidate: that read excludes every model with no medium in it,
+    // which is most of them, for the price of a thread-local peek.
+    //
+    // A cache was tried first and was the wrong cure: it remembers a
+    // miss for every name a library ever writes, which is unbounded,
+    // and pays a hash on each one anyway.
+    if super::inlining::asked_as_mark().is_empty() {
+        return None;
+    }
+
+    let owner = match registry
+        .get(owner)
+        .is_some_and(|held| held.kind == ClassKind::Package)
+    {
+        true => owner,
+        false => owner.rsplit_once('.').map(|(head, _)| head)?,
+    };
+    let under = super::inlining::asked_as_package(registry, owner)?;
+    // The second gate, and the one that matters: a name already minted
+    // under this medium is answered from the ledger. `T_default` of a
+    // water medium was asked sixty thousand times over one model, and
+    // each asking gathered the medium's whole basket to say the same
+    // thing. The ledger is bounded by what it holds - one entry per
+    // constant per medium - unlike a table of everything that is not
+    // one.
+    let minted = format!("{under}.{name}");
+    if let Some(held) = MINTED.with(|held| held.borrow().get(&minted).cloned()) {
+        return held.1.is_some().then(|| Expr::Ref(minted));
+    }
+    // The unit first, and the value after. Without a unit there is
+    // nothing a name buys over a digit, so such a name is not a
+    // candidate at all - and asking the declaration is a walk over
+    // one class where asking the value gathers a whole package.
+    // `T_default` is the name that made this the order: unitless,
+    // asked forty thousand times over one model, and each asking
+    // built the medium's basket to answer nothing.
+    let unit = declared_unit(registry, &under, name, 0)?;
+    let value = class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)?;
+    MINTED.with(|held| {
+        held.borrow_mut()
+            .insert(minted.clone(), (value, Some(unit)))
+    });
+    Some(Expr::Ref(minted))
 }
 
 /// The same name asked of the package a body was reached by.

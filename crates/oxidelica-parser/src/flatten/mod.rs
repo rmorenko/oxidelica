@@ -229,6 +229,24 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // equations those sets stand for.
     join_the_connections(&registry, &mut acc)?;
 
+    // A medium's constant that could not be folded into an equation
+    // became a name instead; the flat model has to declare it, or the
+    // equations stand on something nothing says a word about. One per
+    // medium: two components redeclaring the same medium mean the same
+    // number, which is what makes the name a name rather than a copy.
+    for (name, value, unit) in constants::minted_constants() {
+        if acc.components.iter().any(|held| held.name == name) {
+            continue;
+        }
+        acc.components.push(Component {
+            name,
+            variability: Variability::Parameter,
+            binding: Some(Expr::Number(value)),
+            unit,
+            ..clocks::blank_component()
+        });
+    }
+
     let mut model = Model {
         transports: acc.transports.clone(),
         name: top_class.name.clone(),

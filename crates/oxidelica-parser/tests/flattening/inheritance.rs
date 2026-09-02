@@ -1440,3 +1440,44 @@ fn a_medium_builds_its_constant_array_and_owns_what_it_declares_below() {
     let weighed = held("tank.weighed");
     assert!(weighed.contains("995.6"), "{weighed}");
 }
+
+#[test]
+fn a_medium_constant_an_equation_reads_keeps_its_unit() {
+    // A parameter's road folds such a constant to a digit, and must:
+    // it wants the number or nothing. An equation's road cannot -
+    // `4184` is dimensionless, and the check would read joules per
+    // kilogram against kelvin - so there the constant becomes a name
+    // of the flat model instead, declared with the unit it was
+    // declared with.
+    let source = "package P \
+         partial package Base \
+           constant Real k(unit = \"J/(kg.K)\"); \
+           function f input Real u; output Real y; algorithm y := k*(u - 298.15); end f; \
+         end Base; \
+         package Child extends Base(k = 4184); end Child; \
+       end P; \
+       model M \
+         replaceable package Medium = P.Child constrainedby P.Base; \
+         Real T(unit = \"K\") = 300; \
+         Real h(unit = \"J/kg\"); \
+       equation \
+         h = Medium.f(T); \
+       end M;";
+    let model = parse_model(source).unwrap();
+
+    // One parameter per medium, named for the medium rather than for
+    // the component: two components of one medium mean one number.
+    let minted = model
+        .components
+        .iter()
+        .find(|c| c.name == "P.Child.k")
+        .expect("the constant became a name of the flat model");
+    assert_eq!(minted.binding, Some(oxidelica_parser::Expr::Number(4184.0)));
+    assert_eq!(minted.unit.as_deref(), Some("J/(kg.K)"));
+
+    // And the equation reads it by that name rather than by a digit,
+    // which is what lets the dimensional layer agree.
+    let text = format!("{:?}", model.equations);
+    assert!(text.contains("P.Child.k"), "{text}");
+    assert!(!text.contains("4184.0"), "{text}");
+}
