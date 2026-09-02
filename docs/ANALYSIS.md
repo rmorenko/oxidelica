@@ -1144,3 +1144,76 @@ to stop working them and say so in the register. If a batch's repairs
 are each five lines of special case, the same. The form earns its
 place by finding shared layers; a form that finds none is a way of
 looking busy.
+
+## The constants chain, end to end
+
+Fifteen links, taken over four shifts. Each line is what was wrong
+and what it cost or bought; the counts are from `library_floor.sh`
+before and after, never from expectation.
+
+| Link | What stood in the way                                                        | State                              |
+| ---: | ---------------------------------------------------------------------------- | ---------------------------------- |
+|    1 | `programs: None` at the parameter evaluator and nine other places            | taken (0cbbe68)                    |
+|    2 | no door for `f(...)[k]` where `f` answers with a record                      | taken                              |
+|    3 | a hard refusal of a cycle standing before the claim queues                   | taken                              |
+|    4 | `NamedArg` reaching the evaluator                                            | taken (934a28c)                    |
+|  5-6 | an input the caller left out, and the arity that must still refuse an excess | taken                              |
+|    7 | the shape of an empty dimension, `[1,2]` against `[1,0]`                     | taken (ea6e503), 13 models         |
+|    8 | `h_start` waiting on `reference_h`                                           | measured, superseded by 9          |
+|    9 | an interface constant answered from the medium on the mark                   | taken, gated to the parameter road |
+|   10 | tried three ways and measured; the ladder named instead                      | superseded                         |
+|   11 | a body's constants arriving without their package                            | taken, same gate                   |
+|   12 | a constant array named whole by a settled branch                             | diagnosed by the panel             |
+|   13 | `fill(1/nX, nX)` measured but never built                                    | taken, both constant roads         |
+|   14 | a name declared below the interface the body is written in                   | taken                              |
+|   15 | a constant an equation reads, which must keep its unit                       | taken, minted as a parameter       |
+
+What the chain bought, in the two numbers the project measures:
+flatten went 733 -> 773 and run 334 -> 336 over the same span, but
+only three of those steps moved a count. Nine through fifteen moved
+none at all: they opened the road that the last of them, the mint,
+now walks. The twenty that came at the end came from a leading dot in
+an operator's name, not from the chain - which is the honest way to
+report it.
+
+The gate is the chain's own rule, and it was measured twice in both
+directions: a parameter's road folds a constant to a digit because it
+wants the number or nothing; an equation's road takes the name with
+its unit, because the digit is dimensionless and the check would
+refuse a sound model. Twelve models say so each way.
+
+## The register at 773 and 336
+
+### What stops flattening at 773
+
+| Count | What it is                                            |
+| ----: | ----------------------------------------------------- |
+|    26 | a parameter asking to be evaluated before the run     |
+|    13 | a name with no declaration above it                   |
+|    11 | a subscript outside its array                         |
+|    10 | a flexible size with nowhere to read a length from    |
+|    10 | a run of elements against a different count of values |
+|     8 | a record given the wrong number of fields             |
+|     8 | a body written in C with no answer here               |
+
+Two families are gone from this half entirely: the dimensionless
+argument (16, and the 5 of Spice3 with it) and `previous` with no
+clock across a redeclare boundary (12).
+
+### What stops running at 336
+
+| Count | What it is                                |
+| ----: | ----------------------------------------- |
+|    23 | an unknown variable                       |
+|    22 | an unknown variable in an equation        |
+|    14 | an algebraic loop that diverged           |
+|    11 | a singular Jacobian in an algebraic loop  |
+|    11 | `shortPipe.flowModel.dp_nominal` unvalued |
+|     9 | an unknown function                       |
+|     9 | an unbalanced model                       |
+
+This half has families again, and that is new: the last register
+found only singles here. Twenty models past the flattener means
+twenty models arriving at the run half together, and the two unknown
+variable lines - 45 between them - are the top of the next queue. The
+form written above for working singles is not needed yet.
