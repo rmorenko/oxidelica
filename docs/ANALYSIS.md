@@ -1658,3 +1658,48 @@ storey behind `nXi`. There was, and this is it.
 
 Unmoved but for one: the run half is where the singles live and
 nothing was worked there this shift.
+
+## What a clock is, answered
+
+The panel confirmed the hypothesis and corrected its letter, which is
+worth writing down before any of it is built.
+
+**Identity is structural.** A clock is the constructor that minted it
+plus an exact fraction. `subSample(fast, 2)` and a separately
+declared `Clock(1, 5)` tick together and are _two clocks_ - the first
+is `{Every(0.1), rate 2}` and the second `{Every(0.2), rate 1}`, and
+today `same` multiplies the fraction into seconds and bit-compares,
+so the trace that is half-present is erased at every gate.
+
+**What is missing is a name, not a chain.** `Root::Every` should hold
+a base identifier minted per constructor occurrence, so that two
+`Clock(1, 10)` declarations are two clocks. Derivation clones the
+root untouched, so the id rides for free. Then `same` compares id,
+rate, shift and solver - all exact - and floats leave identity
+entirely, keeping the one job they are right for: the `sample(first,
+interval)` condition a partition is emitted with. Not the chain:
+`subSample(superSample(c, 2), 2)` must equal `c`, which the fraction
+already gives and a chain would not.
+
+**Our deliberate test guards the right law on the wrong evidence.**
+It refuses a pair whose rates divide, and passes its twin, because
+the arithmetic happens to disagree - under structural identity it
+would print "one ticking every 0.2 and one ticking every 0.2", which
+is absurd. The three laws under it want separating: cross-family
+refuses at _every_ factor with a message about being declared apart;
+same-family-different-fraction refuses with the crossing advice it
+already has; one-clock-two-spellings passes, with `slow` written as
+`subSample(fast, 2)` rather than declared.
+
+**And `UpSample` never wanted divisibility.** The rule link two
+proposed - fastest wins where the others divide - contradicts a
+doctrine this compiler already holds: `work_out` refuses a factor
+that merely rounds whole and demands the round trip land home. The
+lawful repair is to give the `inferFactor` road a _waiting_ clock and
+let the existing inference solve it to equality through the sum. No
+new rule at all, and link one's minus-one goes away without link two.
+
+That is the next shift's work, and it is a rewrite of what a clock is
+rather than a patch - `ClockSpec`, `same`, `intern`, `canonical`, and
+five tests that must change wording to keep guarding what they were
+written for.
