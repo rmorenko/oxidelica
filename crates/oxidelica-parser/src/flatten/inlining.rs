@@ -640,9 +640,13 @@ fn derivative_rule(
             class.name
         )
     })?;
+    // What a function takes may be written in a base of it:
+    // `redeclare function extends saturationPressure` says only what
+    // the body is, and the base says what goes in. Counting a class's
+    // own declarations alone makes such a function take nothing, and
+    // its derivative is then refused for taking too much.
     let inputs = |class: &ClassDef| {
-        class
-            .components
+        function_components(registry, class, 0)
             .iter()
             .filter(|component| component.causality == Causality::Input)
             .count()
@@ -651,8 +655,7 @@ fn derivative_rule(
     // A table is asked for a value by `(tableID, column, u)`, and
     // neither the table nor the column has a rate of change: the
     // derivative function takes the three and then `der_u` alone.
-    let differentiable: Vec<bool> = class
-        .components
+    let differentiable: Vec<bool> = function_components(registry, class, 0)
         .iter()
         .filter(|component| component.causality == Causality::Input)
         .map(|component| is_real(registry, component, &class.name, &class.imports))

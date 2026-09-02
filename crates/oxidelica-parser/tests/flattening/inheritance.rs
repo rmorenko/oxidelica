@@ -1549,3 +1549,31 @@ fn a_declared_dimension_is_measured_under_the_medium_the_model_chose() {
         model.components.iter().map(|c| &c.name).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn a_derivative_counts_the_inputs_its_base_declared() {
+    // `redeclare function extends f` says only what the body is, and
+    // the base says what goes in. Counted from the class's own
+    // declarations such a function takes nothing, and the derivative
+    // it names is then refused for taking too many.
+    let source = "package P \
+         partial package Base \
+           replaceable function f input Real u; output Real y; \
+             algorithm y := u; annotation(derivative = f_der); end f; \
+           function f_der input Real u; input Real du; output Real dy; \
+             algorithm dy := du; end f_der; \
+         end Base; \
+         package Child extends Base; \
+           redeclare function extends f algorithm y := 2*u; end f; \
+         end Child; \
+       end P; \
+       model M \
+         replaceable package Medium = P.Child constrainedby P.Base; \
+         Real x(start = 1, fixed = true); \
+       equation \
+         der(x) = Medium.f(x); \
+       end M;";
+    // Refused before the fix with `takes 2 inputs ... but it takes 2`
+    // read off an empty count; it flattens now.
+    parse_model(source).expect("the derivative counts the base's inputs");
+}
