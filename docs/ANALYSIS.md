@@ -1333,3 +1333,30 @@ where the counter showed ten kinds, and nine layers where the counter
 showed ten kinds of a different sort. The counter cannot tell those
 two situations apart, and nothing in its output ever will - which is
 why the probe now comes before the work is chosen rather than after.
+
+### Where the `nXi` family stands, for whoever takes it next
+
+Eleven models say `subscript 1 is outside an array of 0`, and the
+probe puts them in the constants layer under a fourth name. Narrowed
+to six lines:
+
+```modelica
+model NXI2
+  package Medium = Modelica.Media.Air.MoistAir(extraPropertiesNames={"CO2"});
+  Modelica.Fluid.Sources.FixedBoundary b(nPorts=0, redeclare package Medium = Medium);
+  inner Modelica.Fluid.System system;
+end NXI2;
+```
+
+What is known, all measured on this tree rather than reasoned: the
+medium's own constants are right - asked of `MoistAir` under that
+modifier, `nXi` is 1, `nS` is 2, `fixedX` is false. Asked from inside
+`MoistAir.BaseProperties`, where the refusal happens, they are right
+too. And the array `Xi` is nevertheless zero long at that point, so
+its length was settled somewhere earlier than the substitution that
+gets these numbers - the declaration is `MassFraction Xi[nXi]` in the
+interface, and the redeclaring model does not restate it.
+
+So the next link is not the constants road at all but wherever a
+declared dimension is measured for a model that a medium redeclares.
+That is where the next probe goes.
