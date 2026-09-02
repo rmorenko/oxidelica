@@ -714,6 +714,13 @@ fn spread_over_elements(
     let expr = if prefixed {
         expr.clone()
     } else {
+        // Under the medium the model chose, where one is on the mark:
+        // `Xi(start = reference_X[1:nXi])` is a slice whose end is a
+        // constant of the medium, and read under the interface it is
+        // a slice of nothing. The same road the dimension takes, and
+        // for the same reason - a start of an array is measured, not
+        // read by any unit layer.
+        let _settling = constants::SettlingParameter::now();
         let expr = substitute_class_constants(expr, registry, scope, imports, shadow);
         prefix_expr(&expr, prefix, outers)
     };
