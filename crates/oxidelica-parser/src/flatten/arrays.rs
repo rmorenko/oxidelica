@@ -2231,6 +2231,7 @@ fn collect_shapes_under(
                 // table of constants knows it by its full name, so the
                 // declaration is read the way its writer meant it
                 // before it is measured.
+                let _settling = super::constants::SettlingParameter::now();
                 let named = super::constants::substitute_class_constants(
                     dimension,
                     registry,

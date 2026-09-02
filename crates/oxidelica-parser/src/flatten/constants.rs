@@ -875,6 +875,19 @@ fn enclosing_constant_at(
             // again would land on the declaration in the interface,
             // which for a medium's `reference_h` says nothing at all.
             if let Some((_, held)) = constants.iter().find(|(known, _)| known == name) {
+                // The mark first, where one stands and descends from
+                // this package. One text, two gatherings: `nXi = if
+                // fixedX then 0 else if reducedX or nS == 1 then nS-1
+                // else nS` is the same line under the interface and
+                // under a medium, and it settles against different
+                // siblings - `nS` is 1 at the interface and 2 under
+                // MoistAir. Gating on the binding being *absent*
+                // answers the interface's default for every medium
+                // whose own numbers differ, which is silent and wrong
+                // rather than loud and wrong.
+                if let Some(answer) = asked_as_constant(registry, name, &owner.name, depth) {
+                    return Some(answer);
+                }
                 let Some(held) = held else {
                     // An interface declares the name and says nothing
                     // about it - `constant SpecificEnthalpy

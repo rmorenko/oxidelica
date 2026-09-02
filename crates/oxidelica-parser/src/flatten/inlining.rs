@@ -1230,18 +1230,19 @@ impl AskedAs {
         // that the found class's full name never starts with, so a
         // test on the written head never fires and the component's own
         // package is pushed - standing over the whole instantiation
-        // where a medium is expected. Resolution that stayed inside
-        // what the head named dropped nothing, so there is nothing to
-        // remember.
-        if found.name == named.name
-            || found
-                .name
-                .strip_prefix(named.name.as_str())
-                .is_some_and(|rest| rest.starts_with('.'))
-        {
+        // where a medium is expected.
+        if found.name == named.name {
             return None;
         }
-        (named.name != found.name).then(|| AskedAs::under(&named.name))?
+        // A class found *inside* the head is not a reason to forget
+        // the head. Resolution dropped nothing, true - but what comes
+        // one step later does: `MoistAir.BaseProperties` extends the
+        // interface's, and walking that `extends` re-enters
+        // `PartialMedium.BaseProperties` as a class in its own right,
+        // where the medium is gone and every constant answers the
+        // interface's default. The head is the package those bases
+        // are about to climb out of, so it is remembered here.
+        AskedAs::under(&named.name)
     }
 }
 

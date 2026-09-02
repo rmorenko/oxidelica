@@ -1519,3 +1519,33 @@ fn a_minted_constant_keeps_its_whole_name_and_finds_its_unit_through_aliases() {
     assert!(text.contains("P.Child.k"), "{text}");
     assert!(!text.contains("v.P.Child.k"), "{text}");
 }
+
+#[test]
+fn a_declared_dimension_is_measured_under_the_medium_the_model_chose() {
+    // One text, two gatherings. `m = n - 1` says one thing under the
+    // package that wrote it and another under a package that extends
+    // it with `n = 2`, and a dimension written on `m` must take the
+    // second - the model named that medium, and the class holding the
+    // declaration is only where the words happen to be written.
+    let source = "package P \
+         constant Integer n = 1; \
+         constant Integer m = n - 1; \
+         partial model B Real x[m]; Real y; end B; \
+       end P; \
+       package Q \
+         extends P(n = 2); \
+         redeclare model extends B Real z; equation z = x[1]; y = z; end B; \
+       end Q; \
+       model M \
+         replaceable package Medium = Q constrainedby P; \
+         Medium.B b; \
+       end M;";
+    let model = parse_model(source).unwrap();
+    // Measured under the interface `x` would be nothing long and the
+    // equation would read past its end; measured under Q it is one.
+    assert!(
+        model.components.iter().any(|c| c.name == "b.x[1]"),
+        "{:?}",
+        model.components.iter().map(|c| &c.name).collect::<Vec<_>>()
+    );
+}

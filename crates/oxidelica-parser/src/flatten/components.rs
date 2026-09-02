@@ -641,6 +641,11 @@ fn measure_dimensions(
                 // is written inside - `Xi[nXi]` of a medium counts
                 // its substances - and that is a name no
                 // environment holds.
+                // A dimension wants the digit or nothing - no unit
+                // layer ever reads a length - which is the same
+                // argument that admitted a parameter's road to the
+                // mark, arriving here from the shape side.
+                let _settling = constants::SettlingParameter::now();
                 let named = substitute_class_constants(dimension, registry, scope, imports, shadow);
                 let value = const_eval(&named, local_consts)
                     // A length written on a name of this class -
