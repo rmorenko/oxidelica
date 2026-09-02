@@ -8,3 +8,7 @@ Darcula = "Darcula"
 # `nin` is what the standard library calls the number of inputs of a
 # block, as `nout` is the number of outputs.
 nin = "nin"
+# `alow` is what the NASA polynomials of the media library call the
+# coefficients below their temperature limit, as `ahigh` is the ones
+# above it.
+alow = "alow"
