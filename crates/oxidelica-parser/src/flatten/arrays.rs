@@ -3,9 +3,6 @@
 
 use super::*;
 
-/// Expand an expression into scalars, keeping the array structure while
-/// it is needed and dropping to the scalar path for everything else.
-#[allow(clippy::too_many_arguments)]
 thread_local! {
     /// What an expression came to while one class is being
     /// instantiated. Held for exactly that long: see `expand`.
@@ -13,6 +10,9 @@ thread_local! {
         std::cell::RefCell::new(HashMap::new());
 }
 
+/// Expand an expression into scalars, keeping the array structure while
+/// it is needed and dropping to the scalar path for everything else.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn expand(
     expr: &Expr,
     shapes: &Shapes,
