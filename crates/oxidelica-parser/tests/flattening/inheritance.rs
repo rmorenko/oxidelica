@@ -1397,3 +1397,46 @@ fn a_parameter_reads_an_interface_constant_from_the_medium_it_was_reached_by() {
     let text = format!("{:?}", held.binding);
     assert!(text.contains("200000.0"), "{text}");
 }
+
+#[test]
+fn a_medium_builds_its_constant_array_and_owns_what_it_declares_below() {
+    // Two links of the constants chain, both about a name whose value
+    // stands somewhere the walk outwards never passes.
+    let media = "package Media \
+         partial package PartialMedium \
+           constant Integer nX = 1; \
+           constant Real reference_X[nX] = fill(1/nX, nX); \
+           constant Real X_default[nX] = reference_X; \
+           function share input Real x; output Real y; algorithm y := d_const*x; end share; \
+         end PartialMedium; \
+         partial package PartialSimple extends PartialMedium; constant Real d_const; end PartialSimple; \
+         package Water extends PartialSimple(nX = 2, d_const = 995.6); end Water; \
+       end Media; \
+       model Tank \
+         replaceable package Medium = Media.Water constrainedby Media.PartialMedium; \
+         parameter Real x_start = Medium.X_default[1]; \
+         parameter Real weighed = Medium.share(2); \
+         Real x; equation x = x_start + weighed; end Tank; ";
+
+    let model = parse_model(&format!("{media} model M Tank tank; end M;")).unwrap();
+    let held = |name: &str| {
+        format!(
+            "{:?}",
+            model
+                .components
+                .iter()
+                .find(|c| c.name == name)
+                .unwrap()
+                .binding
+        )
+    };
+    // `fill(1/nX, nX)` is built rather than merely measured, and the
+    // length is the medium's own two rather than the interface's one.
+    let started = held("tank.x_start");
+    assert!(started.contains("0.5"), "{started}");
+    // `d_const` is declared below the interface the body is written
+    // in, so the walk outwards passes it by; the medium the call was
+    // written under is the one place it stands.
+    let weighed = held("tank.weighed");
+    assert!(weighed.contains("995.6"), "{weighed}");
+}

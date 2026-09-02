@@ -202,7 +202,19 @@ fn class_constant_array_at(
     let a_record = matches!(&binding, Expr::Call(built, _)
         if lookup(registry, built, &class.name, &class.imports)
             .is_some_and(|of| of.kind == ClassKind::Record));
-    (matches!(binding, Expr::Array(_)) || a_record).then_some(binding)
+    if matches!(binding, Expr::Array(_)) || a_record {
+        return Some(binding);
+    }
+    // A binding that says how to build the array rather than writing
+    // it out - `reference_X[nX] = fill(1/nX, nX)` of a medium - is
+    // built here. Asked by path the length says nothing: `nX` is
+    // declared in the interface and given its value by whoever
+    // extends it, which is what the gathering above already knows.
+    if !builds_an_array(&binding) {
+        return None;
+    }
+    let known = gathering_settled(registry, class, &constants, depth);
+    built_from_the_gathering(&binding, &|named: &str| known.get(named).copied())
 }
 
 /// The constants and parameters a package holds, its own and those it
@@ -600,12 +612,139 @@ fn enclosing_constant_array(
                     depth + 1,
                     true,
                 );
-                return matches!(binding, Expr::Array(_)).then_some(binding);
+                if let Expr::Array(_) = binding {
+                    return Some(binding);
+                }
+                // A binding that says how to build the array rather
+                // than writing it out - `fill(1/nX, nX)` - is built
+                // here, against what the owner's own gathering settled.
+                // The substitution above cannot reach that: it asks by
+                // scope, and by scope the interface says nothing.
+                //
+                // The gathering is worked out only for such a binding.
+                // Asked of every name that is not an array - which is
+                // nearly every name - it is a fixpoint over a whole
+                // package per asking, and the library felt it at once.
+                if !builds_an_array(&binding) {
+                    return None;
+                }
+                return built_from_the_gathering(&binding, &|named: &str| {
+                    enclosing_constant(registry, named, &owner.name, depth + 1)
+                });
             }
         }
         let (head, _) = prefix.rsplit_once('.')?;
         prefix = head;
     }
+}
+
+/// What a package's constants come to, worked out against each other.
+///
+/// One may be written on another - `nXi = if reducedX then nS - 1 else
+/// nS` - and reading them by path would ask the interface, which for a
+/// medium's own numbers says nothing. Each round settles what it can;
+/// one built on another settles a round later, so the rounds run until
+/// nothing new comes of them.
+fn gathering_settled(
+    registry: &HashMap<&str, &ClassDef>,
+    owner: &ClassDef,
+    constants: &[(String, Option<Expr>)],
+    depth: usize,
+) -> HashMap<String, f64> {
+    let mut known: HashMap<String, f64> = HashMap::new();
+    loop {
+        let before = known.len();
+        for (other, value) in constants {
+            if known.contains_key(other) {
+                continue;
+            }
+            let Some(value) = value else { continue };
+            let settled = substitute_at(
+                value,
+                registry,
+                &owner.name,
+                &owner.imports,
+                &[],
+                depth + 1,
+                true,
+            );
+            if let Some(number) = const_eval(&settled, &known) {
+                known.insert(other.clone(), number);
+            }
+        }
+        if known.len() == before {
+            break;
+        }
+    }
+    known
+}
+
+/// An array a constant is written as rather than written out.
+///
+/// `constant MassFraction reference_X[nX] = fill(1/nX, nX)` is how a
+/// medium says every substance has an equal share, and the length is
+/// another constant of the same package. Measured, such a binding has
+/// always answered; built, never - so a model equating against it
+/// stood on a name nothing declares.
+///
+/// Only the three the language builds outright, and only where the
+/// gathering settles their arguments. A widening: what answered before
+/// answers the same, and what answered nothing may now answer an
+/// array.
+/// Whether a binding says how to build an array rather than what is
+/// in one. Asked before the owner's gathering is worked out, which is
+/// dear.
+fn builds_an_array(binding: &Expr) -> bool {
+    matches!(binding, Expr::Call(name, args)
+        if matches!(name.as_str(), "fill" | "zeros" | "ones") && !args.is_empty())
+}
+
+fn built_from_the_gathering(binding: &Expr, settled: &dyn Fn(&str) -> Option<f64>) -> Option<Expr> {
+    let Expr::Call(name, args) = binding else {
+        return None;
+    };
+    // Every name in the shape asked of the walk that already answers
+    // numbers - and answers them from a remembered table. Working out
+    // the owner's whole gathering here instead would inline an IF97
+    // chain for every `fill` in the library, which the clock showed
+    // at once.
+    let number = |expr: &Expr| -> Option<f64> {
+        let mut named: HashMap<String, f64> = HashMap::new();
+        let mut names = Vec::new();
+        expr.for_each(&mut |inner| {
+            if let Expr::Ref(name) = inner {
+                names.push(name.clone());
+            }
+        });
+        for name in names {
+            let value = settled(&name)?;
+            named.insert(name, value);
+        }
+        const_eval(expr, &named)
+    };
+    let (filler, lengths) = match name.as_str() {
+        "fill" => (number(args.first()?)?, args.get(1..)?),
+        "zeros" => (0.0, args.get(..)?),
+        "ones" => (1.0, args.get(..)?),
+        _ => return None,
+    };
+    if lengths.is_empty() {
+        return None;
+    }
+    let lengths: Option<Vec<i64>> = lengths
+        .iter()
+        .map(|length| {
+            let measured = number(length)?;
+            (measured.fract() == 0.0 && measured >= 0.0).then_some(measured as i64)
+        })
+        .collect();
+    // Innermost dimension first, so `fill(v, 2, 3)` comes out two rows
+    // of three the way the array layer writes one.
+    let mut built = Expr::Number(filler);
+    for length in lengths?.into_iter().rev() {
+        built = Expr::Array(vec![built; length as usize]);
+    }
+    Some(built)
 }
 
 /// A constant of a package the given scope is written inside.
@@ -721,31 +860,7 @@ fn enclosing_constant_at(
                 // by path would ask the interface again.
                 // One built on another settles a round later, so the
                 // rounds run until nothing new comes of them.
-                let mut known: HashMap<String, f64> = HashMap::new();
-                loop {
-                    let before = known.len();
-                    for (other, value) in &constants {
-                        if known.contains_key(other) {
-                            continue;
-                        }
-                        let Some(value) = value else { continue };
-                        let settled = substitute_at(
-                            value,
-                            registry,
-                            &owner.name,
-                            &owner.imports,
-                            &[],
-                            depth + 1,
-                            true,
-                        );
-                        if let Some(number) = const_eval(&settled, &known) {
-                            known.insert(other.clone(), number);
-                        }
-                    }
-                    if known.len() == before {
-                        break;
-                    }
-                }
+                let known = gathering_settled(registry, owner, &constants, depth);
                 let settled = const_eval(held, &known).or_else(|| {
                     let settled = substitute_at(
                         held,
@@ -763,7 +878,13 @@ fn enclosing_constant_at(
         }
         prefix = head;
     }
-    None
+    // Nowhere above the body declares it. A medium's own constant may
+    // be declared below the interface the body is written in -
+    // `d_const` belongs to `PartialSimpleMedium`, and a body of
+    // `PartialMedium` reads it - so the walk outwards passes it by
+    // altogether. The medium the call was written under is the one
+    // place it stands, and the mark is holding that name.
+    asked_as_constant(registry, name, scope, depth)
 }
 
 /// The same name asked of the package a body was reached by.
@@ -796,6 +917,16 @@ fn asked_as_constant(
     if !SETTLING_PARAMETER.with(|on| on.get()) {
         return None;
     }
+    // The package the asking was made from: a body's scope is the
+    // function, and what the mark has to descend from is the package
+    // that holds it.
+    let owner = match registry
+        .get(owner)
+        .is_some_and(|held| held.kind == ClassKind::Package)
+    {
+        true => owner,
+        false => owner.rsplit_once('.').map(|(head, _)| head)?,
+    };
     let under = super::inlining::asked_as_package(registry, owner)?;
     class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
 }
