@@ -75,15 +75,6 @@ impl Ratio {
     }
 }
 
-/// Whether two instants are the same instant, to the last bit. Both
-/// come from the same arithmetic on the same fractions, so agreement
-/// here is exact agreement and not a tolerance.
-fn same_number(mine: Option<f64>, theirs: Option<f64>) -> bool {
-    match (mine, theirs) {
-        (Some(mine), Some(theirs)) => mine.to_bits() == theirs.to_bits(),
-        _ => false,
-    }
-}
 
 /// Greatest common divisor, for keeping a fraction in lowest terms.
 fn gcd(a: i128, b: i128) -> i128 {
@@ -138,14 +129,27 @@ const SOLVERS: [Solver; 3] = [
 const IMPLICIT: [&str; 2] = ["ImplicitEuler", "ImplicitTrapezoid"];
 
 /// What a clock's ticks are counted from.
+/// Which constructor minted a root clock. Two roots of one model are
+/// the same clock only where this agrees; the period says how fast
+/// they tick, and ticking alike is not being alike.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct BaseId(usize);
+
 #[derive(Clone, Debug)]
 pub(super) enum Root {
     /// A fixed interval in seconds: `Clock(0.1)` or `Clock(1, 10)`.
-    Every(f64),
+    ///
+    /// The number beside the period is which constructor minted this
+    /// root. Identity in Modelica is structural: two clocks are one
+    /// clock when they are one base sampled the same way, not when
+    /// their periods happen to agree, so `Clock(1, 10)` written twice
+    /// is two clocks that tick together - and `subSample(fast, 2)`
+    /// beside a declared `Clock(1, 5)` likewise.
+    Every(f64, BaseId),
     /// The rising edge of a condition: `Clock(b, startInterval)`. The
     /// number is what `interval` answers at the first tick, there being
     /// no earlier tick to measure back to.
-    When(Expr, f64),
+    When(Expr, f64, BaseId),
     /// A clock the model has left for the compiler to work out:
     /// `Clock()`, or a `subSample` with no factor. It is not a clock
     /// yet - it is a place where one has to turn up.
@@ -184,9 +188,9 @@ pub(super) struct ClockSpec {
 
 impl ClockSpec {
     /// A root clock of its own, ticking every `period` seconds.
-    fn every(period: f64) -> ClockSpec {
+    fn every(period: f64, base: BaseId) -> ClockSpec {
         ClockSpec {
-            root: Root::Every(period),
+            root: Root::Every(period, base),
             rate: Ratio::ONE,
             shift: Ratio::ZERO,
             solver: None,
@@ -194,9 +198,9 @@ impl ClockSpec {
     }
 
     /// A clock ticking whenever a condition rises.
-    fn when(condition: Expr, start_interval: f64) -> ClockSpec {
+    fn when(condition: Expr, start_interval: f64, base: BaseId) -> ClockSpec {
         ClockSpec {
-            root: Root::When(condition, start_interval),
+            root: Root::When(condition, start_interval, base),
             rate: Ratio::ONE,
             shift: Ratio::ZERO,
             solver: None,
@@ -208,7 +212,7 @@ impl ClockSpec {
     /// the run takes to raise the condition again.
     fn interval(&self) -> Option<f64> {
         match &self.root {
-            Root::Every(period) => Some(period * self.rate.value()),
+            Root::Every(period, _) => Some(period * self.rate.value()),
             Root::When(..) | Root::Waiting { .. } => None,
         }
     }
@@ -216,7 +220,7 @@ impl ClockSpec {
     /// When the first tick falls, in seconds past the start.
     fn first(&self) -> Option<f64> {
         match &self.root {
-            Root::Every(period) => Some(period * self.shift.value()),
+            Root::Every(period, _) => Some(period * self.shift.value()),
             Root::When(..) | Root::Waiting { .. } => None,
         }
     }
@@ -261,14 +265,18 @@ impl ClockSpec {
     /// away from it.
     fn same(&self, other: &ClockSpec) -> bool {
         let roots = match (&self.root, &other.root) {
-            (Root::Every(_), Root::Every(_)) => {
-                same_number(self.interval(), other.interval())
-                    && same_number(self.first(), other.first())
+            // One base sampled one way. The fraction is exact and the
+            // id is a number, so identity leaves the floats entirely -
+            // they keep the one job they are right for, which is the
+            // `sample(first, interval)` a partition is emitted with.
+            (Root::Every(_, mine), Root::Every(_, theirs)) => {
+                mine == theirs && self.rate == other.rate && self.shift == other.shift
             }
             // No two conditions can be told to rise together except by
             // being the same condition, counted the same way.
-            (Root::When(mine, start), Root::When(theirs, other_start)) => {
-                mine == theirs
+            (Root::When(mine, start, base), Root::When(theirs, other_start, other_base)) => {
+                base == other_base
+                    && mine == theirs
                     && start.to_bits() == other_start.to_bits()
                     && self.rate == other.rate
                     && self.shift == other.shift
@@ -332,7 +340,7 @@ impl ClockSpec {
     /// ticks are known in advance.
     fn periodic_only(&self, operator: &str) -> Result<(), String> {
         match self.root {
-            Root::Every(_) => Ok(()),
+            Root::Every(..) => Ok(()),
             Root::When(..) => Err(format!(
                 "`{operator}` asks where a tick falls between two others, and an event \
                  clock has no answer - only `subSample`, which counts them, applies to one"
@@ -354,6 +362,18 @@ impl ClockSpec {
 pub(super) struct Clocks {
     specs: Vec<ClockSpec>,
     named: HashMap<String, usize>,
+    /// How many root clocks have been minted. Every constructor gets
+    /// its own; derivation clones the root and rides the id for free.
+    bases: usize,
+}
+
+impl Clocks {
+    /// The next base identity, for a constructor that is minting a
+    /// root rather than deriving from one.
+    fn mint(&mut self) -> BaseId {
+        self.bases += 1;
+        BaseId(self.bases)
+    }
 }
 
 impl Clocks {
@@ -741,14 +761,14 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         // through them. A periodic clock needs none of this: its rate
         // is already in the interval it ticks on.
         let condition = match &spec.root {
-            Root::Every(_) => Expr::Call(
+            Root::Every(..) => Expr::Call(
                 "sample".to_string(),
                 vec![
                     Expr::Number(spec.first().expect("a periodic clock has a first tick")),
                     Expr::Number(spec.interval().expect("and an interval")),
                 ],
             ),
-            Root::When(condition, _) => condition.clone(),
+            Root::When(condition, ..) => condition.clone(),
             Root::Waiting { .. } => {
                 return Err(format!(
                     "nothing in this model says how often `{}` ticks - a clock left for the \
@@ -1059,8 +1079,14 @@ pub(super) fn clock_expr(
             // A nought here is the fraction form with the denominator
             // left out, which is one - not an interval of no time.
             Some(0.0) => clocks.waiting(None, false, 1),
-            Some(interval) => clocks.intern(ClockSpec::every(interval)),
-            None => clocks.intern(ClockSpec::when(args[0].clone(), 0.0)),
+            Some(interval) => {
+                let base = clocks.mint();
+                clocks.intern(ClockSpec::every(interval, base))
+            }
+            None => {
+                let base = clocks.mint();
+                clocks.intern(ClockSpec::when(args[0].clone(), 0.0, base))
+            }
         })),
         // `Clock(c, "ExplicitEuler")` is the clock `c` again, with a way
         // of stepping a differential equation across its ticks.
@@ -1112,7 +1138,10 @@ pub(super) fn clock_expr(
                 let resolution = whole_argument(&args[1], parameters, "resolution", 1)?;
                 match counter {
                     0 => clocks.waiting(None, false, resolution),
-                    _ => clocks.intern(ClockSpec::every(counter as f64 / resolution as f64)),
+                    _ => {
+                        let base = clocks.mint();
+                        clocks.intern(ClockSpec::every(counter as f64 / resolution as f64, base))
+                    }
                 }
             }
             None => {
@@ -1121,7 +1150,8 @@ pub(super) fn clock_expr(
                                 the compiler can work out"
                         .to_string());
                 };
-                clocks.intern(ClockSpec::when(args[0].clone(), start))
+                let base = clocks.mint();
+                clocks.intern(ClockSpec::when(args[0].clone(), start, base))
             }
         })),
         _ => {
@@ -1603,7 +1633,7 @@ fn after(name: &str, step: Expr) -> Expr {
 /// time of the tick before. There is no tick before the first, which
 /// is what the start interval of the constructor answers for.
 fn elapsed_since_last_tick(spec: &ClockSpec, clock: usize) -> Expr {
-    let Root::When(_, start_interval) = &spec.root else {
+    let Root::When(_, start_interval, _) = &spec.root else {
         unreachable!("a periodic clock answers with the interval it was declared with")
     };
     Expr::If(

@@ -263,11 +263,14 @@ fn a_clock_left_unsaid_runs_like_the_one_written_out() {
     };
     // The fast clock ticks seven times by 0.6 and the slow one four, so
     // `a` reads 0.7 and `b` is that plus one of the slow clock's 0.2s.
-    let written_out = reached("Clock(1, 5)", "subSample(a, 2)");
+    // Written as the derivation it is: a clock declared apart is a
+    // clock of its own however its rate compares, so the four spellings
+    // being compared are four spellings within one family.
+    let written_out = reached("subSample(fast, 2)", "subSample(a, 2)");
     assert!((written_out - 0.9).abs() < 1e-12, "{written_out}");
     for (slow, sampled) in [
         ("Clock()", "subSample(a, 2)"),
-        ("Clock(1, 5)", "subSample(a)"),
+        ("subSample(fast, 2)", "subSample(a)"),
         ("Clock()", "subSample(a, 2)"),
     ] {
         assert_eq!(

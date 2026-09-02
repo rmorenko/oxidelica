@@ -336,12 +336,12 @@ fn one_clock_is_derived_from_another_by_exact_fractions() {
         .expect("the base clock is one of them");
     assert_eq!(together.branches[0].actions.len(), 3);
 
-    // Two roads to the same instants arrive at the same clock. Ticking
-    // every 0.2 from the start is one clock however it was written, so
-    // an equation may hold a clock reached by sub-sampling beside the
-    // clock declared outright, and both land in one `when`.
+    // Two spellings of one clock arrive at one clock - and one clock
+    // means one base sampled the same way, not two clocks whose ticks
+    // happen to fall together. So `slow` is written as the derivation
+    // it is, and the pair lands in one `when`.
     let m = parse_model(
-        "model M Clock fast = Clock(1, 10); Clock slow = Clock(1, 5); \
+        "model M Clock fast = Clock(1, 10); Clock slow = subSample(fast, 2); \
          Real a; Real b; Real out; \
          equation a = previous(a) + interval(fast); \
          b = subSample(a, 2) + interval(slow); out = hold(b); end M;",
@@ -350,13 +350,28 @@ fn one_clock_is_derived_from_another_by_exact_fractions() {
     let mut ticks = ticks_of(&m);
     ticks.sort_by(|a, b| a.partial_cmp(b).expect("no clock ticks on a NaN"));
     assert_eq!(ticks, vec![(0.0, 0.1), (0.0, 0.2)]);
-    // Sub-sampled by three it is a different clock, and saying so is
-    // the point of the check rather than an accident of it.
+    // Sub-sampled by a different factor it is a different clock of the
+    // same family, and saying so is the point of the check rather than
+    // an accident of it.
+    assert!(parse_model(
+        "model M Clock fast = Clock(1, 10); Clock slow = subSample(fast, 2); \
+         Real a; Real b; Real out; \
+         equation a = previous(a) + interval(fast); \
+         b = subSample(a, 3) + interval(slow); out = hold(b); end M;"
+    )
+    .unwrap_err()
+    .to_string()
+    .contains("two clocks at once"));
+    // And two clocks a model declared apart are two clocks however
+    // their rates compare: ticking together is not being one clock.
+    // This is the law the old wording could not state - under
+    // structural identity it would have printed "one ticking every 0.2
+    // and one ticking every 0.2".
     assert!(parse_model(
         "model M Clock fast = Clock(1, 10); Clock slow = Clock(1, 5); \
          Real a; Real b; Real out; \
          equation a = previous(a) + interval(fast); \
-         b = subSample(a, 3) + interval(slow); out = hold(b); end M;"
+         b = subSample(a, 2) + interval(slow); out = hold(b); end M;"
     )
     .unwrap_err()
     .to_string()
@@ -664,12 +679,16 @@ fn a_clock_or_a_factor_left_unsaid_is_worked_out_from_the_equation() {
              b = {sampled} + interval(slow); out = hold(b); end M;"
         )
     };
+    // The slow clock is written as the derivation it is: a clock
+    // declared apart is a clock of its own however its rate compares,
+    // so what these rows measure - a factor or a rate left for the
+    // compiler to work out - is measured within one family.
     for (slow, sampled) in [
-        ("Clock(1, 5)", "subSample(a, 2)"),
+        ("subSample(fast, 2)", "subSample(a, 2)"),
         ("Clock()", "subSample(a, 2)"),
         ("Clock(0, 5)", "subSample(a, 2)"),
-        ("Clock(1, 5)", "subSample(a)"),
-        ("Clock(1, 5)", "subSample(a, 0)"),
+        ("subSample(fast, 2)", "subSample(a)"),
+        ("subSample(fast, 2)", "subSample(a, 0)"),
     ] {
         let m = parse_model(&inferred(slow, sampled)).unwrap();
         let mut ticks = ticks_of(&m);
@@ -679,7 +698,7 @@ fn a_clock_or_a_factor_left_unsaid_is_worked_out_from_the_equation() {
     // The same the other way about: a `superSample` with no factor
     // takes it from the faster clock the equation also names.
     let m = parse_model(
-        "model M Clock slow = Clock(1, 5); Clock fast = Clock(1, 10); \
+        "model M Clock slow = Clock(1, 5); Clock fast = superSample(slow, 2); \
          Real a; Real b; Real out; \
          equation a = previous(a) + interval(slow); \
          b = superSample(a) + interval(fast); out = hold(b); end M;",
