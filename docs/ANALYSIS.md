@@ -1266,6 +1266,19 @@ bisect but a wall moved, and the honest reading is that the batch
 needs a shift of its own rather than the tail of this one. Reverted
 whole; the tree stands where the register describes it.
 
+### The metric, and what it is worth
+
+`refusals.sh` counts kinds; a probe finds layers. The first batch of
+singles put ten models in ten kinds and one layer, so the count of
+kinds is a lower bound on the number of families and probing is the
+upper one - the gap between them is the work left.
+
+The endgame number, then, is read with that in mind: 247 kinds over
+437 models in the run half, 0.57 kinds per model, against 235 over
+384 - 0.61 - at the last reading. It fell, and the batch says why
+without waiting for it to move: the kinds were never as many as they
+counted.
+
 ### What this says about the form
 
 The form asked to be told when a batch finds one layer three times

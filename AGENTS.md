@@ -191,6 +191,25 @@ The map goes as it is: every link numbered, what was taken and on
 what number, what was parked and why, and the last measurement made
 rather than the last guess.
 
+## Counting kinds, and what the count cannot see
+
+`refusals.sh` counts kinds of refusal, and the ranking it prints is
+the work queue. It has a blind spot worth stating outright: it reads
+the _text_ of a refusal, and a probe reads the _layer_ the refusal
+comes from. One family whose message quotes whichever parameter came
+first is ten kinds to the counter and one layer to the probe.
+
+So: the count of kinds is a lower bound on the number of families,
+and probing is the upper one. The gap between them is the work. A
+half of the register that looks like nothing but singles may be one
+family that has not been probed yet - which is exactly what the first
+batch of singles found, ten notes on one layer.
+
+Which leaves the method for singles standing but narrowed: it is for
+where probing has actually put models in different layers, not for
+wherever the counter shows a column of ones. Probe first, then
+decide which method the batch wants.
+
 ## When a change makes the compiler slow
 
 Two scars, both paid for in whole shifts.
@@ -220,10 +239,22 @@ from the chain plus a handful of controls, timed one by one - and
 spend the full pass once, at the close. Ten forty-minute passes are a
 shift.
 
+The same order was got wrong three more times in one shift, all in
+the constants layer, and each cost the whole pass: a binding
+substituted whole before asking whether it could answer at all; a
+package's entire basket substituted before the fixpoint that settles
+nearly every constant without substitution; a ledger that remembered
+its successes and not its refusals, so every name that was not a
+candidate did the dear work again to say so. Eleven minutes to fifty,
+three times, one cause.
+
 There is a known one waiting: `DoublePendulum` takes forty-five
 seconds on its own, and has for as long as anyone has measured. When
 the pass time next presses the ceiling, that is where to start - one
-model eating more than most families.
+model eating more than most families. The reference numbers for that
+judgment: the whole corpus is eleven minutes over 1043 models, and
+CI's library job runs in forty-six against a ninety-minute ceiling.
+One model taking minutes is a giant, not work that was bought.
 
 ## Tests
 
