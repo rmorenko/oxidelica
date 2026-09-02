@@ -936,7 +936,7 @@ fn declared_unit(
         return None;
     }
     let class = registry.get(package)?;
-    if let Some(held) = class.components.iter().find(|held| &held.name == name) {
+    if let Some(held) = class.components.iter().find(|held| held.name == name) {
         if let Some(unit) = &held.unit {
             return Some(unit.clone());
         }
@@ -1005,7 +1005,7 @@ fn mint_asked_as_constant(
     // one.
     let minted = format!("{under}.{name}");
     if let Some(held) = MINTED.with(|held| held.borrow().get(&minted).cloned()) {
-        return held.1.is_some().then(|| Expr::Ref(minted));
+        return held.1.is_some().then_some(Expr::Ref(minted));
     }
     // The unit first, and the value after. Without a unit there is
     // nothing a name buys over a digit, so such a name is not a
