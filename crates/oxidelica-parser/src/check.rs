@@ -677,11 +677,22 @@ impl UnitLayer {
                 }
                 _ => Units::Any,
             }),
+            // A logarithm of a bare quantity is how the standard
+            // library writes the difference of two: `s/cp_const +
+            // log(reference_T)` is `log(T/reference_T)` with the sum
+            // pulled apart, and `log(T) = log(refState.T) + ...` says
+            // the same thing on both sides of an equation. Both are
+            // sound - what the dimension of one term cannot say, the
+            // sum of them can - and refusing them refuses the media
+            // library's own entropies.
+            //
+            // The other functions keep the check: `sin` of a length is
+            // a mistake in any spelling, and no library writes one.
             "sin" | "cos" | "tan" | "asin" | "acos" | "atan" | "sinh" | "cosh" | "tanh" | "exp"
             | "log" | "log10" => {
                 if let Some(arg) = args.first() {
                     if let Units::Of(dim) = self.infer(arg)? {
-                        if dim != Dim::ONE {
+                        if dim != Dim::ONE && !matches!(name, "log" | "log10" | "exp") {
                             return Err(format!(
                                 "the argument of `{name}` must be dimensionless, \
                                  but `{}` has unit {}",
@@ -969,6 +980,22 @@ mod tests {
         parse_model(
             "model M Real phi(unit = \"rad\") = 1; Real y; \
              equation y = sin(phi); end M;",
+        )
+        .unwrap();
+
+        // A logarithm of a bare quantity is how a library writes the
+        // difference of two: `cp*log(T) - cp*log(T0)` is `cp*log(T/T0)`
+        // with the sum pulled apart, and the media library writes its
+        // entropies that way. Sound, so it passes; `exp` likewise,
+        // since it is the same identity read backwards.
+        parse_model(
+            "model M Real T(unit = \"K\") = 300; Real y; \
+             equation y = log(T) - log(298.15); end M;",
+        )
+        .unwrap();
+        parse_model(
+            "model M Real T(unit = \"K\") = 300; Real y; \
+             equation y = exp(T); end M;",
         )
         .unwrap();
 
