@@ -1416,3 +1416,32 @@ singular Jacobians (11) - the last of which straddles the line, since
 a Jacobian is singular either because the model says so or because
 the point it was taken at is unlucky. Thirty models, give or take,
 whose repair is arithmetic rather than semantics.
+
+## Batch three: the clock layer, five models, one place
+
+Chosen by layer rather than by text, as the form now says. Five
+models of the run half whose refusals name the event machinery -
+three wordings between them: `previous` reaching the run as an
+unknown function, a discrete never assigned by any `when`, and an
+unknown `state64[1]`.
+
+The probe put all five in one place, and it is not where the wording
+points. In `AssignClock`, `sum.y` _is_ on the clock - the inference
+takes it there through the `connect` chain, and the probe prints it
+among the clocked names. What is missing is its equation: the
+`MathInteger.Sum` block writes
+
+```modelica
+if size(u, 1) > 0 then y = k*u; else y = 0; end if;
+```
+
+and an equation inside an `if` whose branch is chosen by a size never
+joins the partition, so the clocked variable arrives at the run with
+nothing assigning it. The refusal is honest and names a symptom two
+steps from its cause.
+
+So the link is: an `if` equation settled at flatten time keeps its
+surviving branch, but that branch is not offered to the clock
+partition afterwards. Named, not taken - the shift is spent, and the
+same rule applies as to `nXi`: a link half-taken is worse than one
+written down.
