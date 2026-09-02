@@ -1087,3 +1087,60 @@ Nothing counts above one: the run half has no family left, only
 singles. `cannot evaluate parameters` is every second line of it,
 which says the same thing the flatten half says - the wall is
 constants that will not fold, not machinery that will not run.
+
+## Working the singles, when the families are gone
+
+The register says the run half has no family left: every barrier
+counts one, and `cannot evaluate parameters` is every second line of
+it under a different name each time. A method built for families -
+take the top of the ranking, fix the kind, count the models - has
+nothing left to take the top of. What follows is the form proposed
+for the next stage, written down before it is used so that it can be
+argued with rather than discovered afterwards.
+
+### Why the old method stops working here
+
+A family is a barrier many models share, so one repair is paid for
+once and measured over the whole corpus, and the ranking says which
+to take. A single is a barrier one model has. Ranking says nothing;
+the corpus cannot measure one repair against the noise of an
+eleven-minute run; and the temptation is to take whichever refusal
+looks easiest to read, which is how a compiler acquires a hundred
+special cases.
+
+### The form: a batch of singles, one chain each, one measurement
+
+- **Five to ten models a shift, chosen by nearness rather than by
+  ease.** Nearness means the refusals name the same layer - the
+  constants road, the array road, the event machinery - even where
+  the wording differs. A batch that shares a layer shares its
+  repairs; a batch chosen by how readable the message is shares
+  nothing.
+- **A probe per model before any repair, and the answer written in
+  the batch's note.** What the model asks for, where the asking
+  stops, and which layer owns that place. Ten probes cost a minute
+  each; ten repairs guessed at cost the rest of the shift.
+- **The chain is per model, and it is short by construction.** A
+  single is one model's road: two or three links, not thirteen. When
+  a link turns out to be shared - two probes stopping in the same
+  function - the two models merge into one chain and the batch is
+  smaller by one.
+- **One corpus measurement for the batch, not one per repair.** The
+  library check is eleven minutes; ten of them is a shift. Repairs
+  are made against their probes, and the corpus says at the end
+  whether anything else moved. A batch that costs models is taken
+  apart by re-running the probes, not by bisecting the corpus.
+- **A batch that ends with no model moved is still a batch.** Its
+  note says which layer each probe stopped in, and three such notes
+  naming one layer are a family after all - found by probing rather
+  than by counting, which is the only way a family with one member
+  per wording can be seen.
+
+### What would say this form is wrong
+
+If two batches in a row end with every probe stopping in a different
+layer, the singles are not a stage but a tail, and the honest move is
+to stop working them and say so in the register. If a batch's repairs
+are each five lines of special case, the same. The form earns its
+place by finding shared layers; a form that finds none is a way of
+looking busy.
