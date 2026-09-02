@@ -191,6 +191,40 @@ The map goes as it is: every link numbered, what was taken and on
 what number, what was parked and why, and the last measurement made
 rather than the last guess.
 
+## When a change makes the compiler slow
+
+Two scars, both paid for in whole shifts.
+
+**A cache trims repeats, not a giant.** The first reach for a slow
+path is a table of answers, and it is usually the wrong one. A cache
+of _misses_ is worse than useless: it remembers an entry for every
+name a library ever writes, which is unbounded, and still pays a hash
+on each. Cache hits over a bounded key, or do not cache.
+
+**Sort the tests by price, and judge cheaply first.** The giant that
+cost a shift was neither a missing gate nor a missing cache: it was
+the order of the tests. Minting a medium's constant asked for the
+value - which gathers a whole package - before asking whether the
+declaration had a unit at all, which is one comparison over one
+class. `T_default` has no unit, was asked forty thousand times over
+one model, and paid the full price each time to hear a cheap "no".
+The same rule as the refusal that costs nothing: a test that can say
+no for free says it first.
+
+And the stopping rule for either: the library check returns to its
+usual eleven minutes, and the counts outside the layer that changed
+are identical to the digit. A change that slows models with nothing
+to do with it changed the hot path for everybody, whatever it was
+meant to touch. Narrow the pipe while hunting - a handful of models
+from the chain plus a handful of controls, timed one by one - and
+spend the full pass once, at the close. Ten forty-minute passes are a
+shift.
+
+There is a known one waiting: `DoublePendulum` takes forty-five
+seconds on its own, and has for as long as anyone has measured. When
+the pass time next presses the ceiling, that is where to start - one
+model eating more than most families.
+
 ## Tests
 
 A bug fix comes with a test that fails without it. Check that it does:
