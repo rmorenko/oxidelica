@@ -1500,7 +1500,7 @@ names two rates.
 | `ThreeTanks`     | 5 min during the mint, 3.1 s before it | **2.1 s**  | closed - faster than before the chain began |
 | `HeatingSystem`  | over 60 s, before any of this work     | **23 s**   | closed by the same three orderings          |
 | the library pass | 11 min, 50 min mid-chain               | **11 min** | closed                                      |
-| `DoublePendulum` | 45 s                                   | **44.3 s** | open, and not the inliner                   |
+| `DoublePendulum` | 45 s                                   | **27 s**   | closed by the array table                   |
 
 The last one probed rather than guessed: a counter on `inline_function`
 fires **once** over the whole model. Whatever those forty-four seconds
@@ -1564,14 +1564,21 @@ constants layer the answer was the mark and the road, and the table
 worked. In the array layer that question is still open, which is
 exactly why the fourteenfold win is not in the tree.
 
-### The pass got cheaper per model, not just no dearer
+### The credit, which is the only number that grows while the rest stand
 
-Worth a line of its own, since the ledger only ever tracked the
-total: the library pass is eleven minutes now, and it was eleven
-minutes when 640 models flattened. It now flattens **773**. Twenty
-per cent more work in the same wall time - the performance debt was
-not merely paid off, it went into credit, and the three orderings of
-judgment in the constants layer are where the credit came from.
+Worth its own line, since the ledger only ever tracked the total.
+
+| When                        | Models flattened | Pass        | Per model |
+| --------------------------- | ---------------: | ----------- | --------- |
+| start of the constants saga |              640 | 11 min      | ~1.7 s    |
+| after the three orderings   |              773 | 11 min      | 1.9 s     |
+| after the array table       |              773 | **5.5 min** | **1.0 s** |
+
+Twenty per cent more work in the same wall time was the first
+instalment; halving the flattening half is the second. The debt was
+not merely paid off - the compiler now does more work per model in
+less time than when it did less, and every part of that came from
+removing repeats rather than from doing anything cleverer.
 
 ## The clocked pair, taken together and measured
 
