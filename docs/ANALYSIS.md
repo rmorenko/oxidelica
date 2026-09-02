@@ -1359,4 +1359,60 @@ interface, and the redeclaring model does not restate it.
 
 So the next link is not the constants road at all but wherever a
 declared dimension is measured for a model that a medium redeclares.
-That is where the next probe goes.
+
+### The measurement found, and why it was not taken
+
+The probe went there and named the place exactly:
+`measure_dimensions` in `components.rs`, which for `Xi[nXi]` asks
+`substitute_class_constants(dimension, ..., scope, ...)` with `scope`
+the class that _declares_ the dimension - `PartialMedium.
+BaseProperties` - where `nXi` is 0. Every other way of asking gives
+1: the medium under its modifier, the medium from inside the
+refusing class, `lookup("Medium", ...)` at the site, which resolves
+to `MoistAir` correctly.
+
+Three ways of carrying the medium to that measurement were tried and
+all three came back None at the point that matters:
+
+- the child's own `effective_imports`, built from `child_redeclares`
+  - the imports hold no `Medium` at that depth;
+- the package a dotted type name led through, `Medium.BaseProperties`
+  - right for the component itself, absent one level down where `Xi`
+    is actually measured;
+- the `ASKED_AS` mark, held from the component to the end of its
+  instantiation - empty at the measurement, so the measurement
+  happens on a road that does not pass through it.
+
+That last is the finding worth keeping: the shapes of a redeclared
+class are settled somewhere the mark does not reach, which is a
+different road from the one every constants link so far has walked.
+Reverted whole rather than left half-built. The next probe goes not
+to `measure_dimensions` but one level up: which caller settles the
+shapes of a component's own components, and what it knows about the
+medium when it does.
+
+## Numerical refusals are a queue of their own
+
+`Dimmer_RL` compiles, runs, and stops with `solver exceeded the
+evaluation budget at t = 0.000894`. Nothing about it is structural:
+the model is whole, the equations match their unknowns, the
+initialization is square. What failed is arithmetic - a step the
+solver could not take small enough to satisfy its own error test.
+
+Such a refusal does not belong in the same queue as the structural
+ones, and putting it there is the same mistake as counting kinds and
+calling them families. A structural barrier is repaired by teaching
+the compiler something; a numerical one by a solver's tolerance, a
+step controller, an event that was missed, or a model that is
+genuinely stiff and wants a different method. The evidence that tells
+one from the other is different too: a structural refusal is proved
+gone when the model compiles, a numerical one only when the run
+reaches its stop time with a curve someone has looked at.
+
+The register should therefore carry them apart. Named in the run half
+so far: the evaluation budget (1), algebraic loops that diverged (14),
+loops that did not converge in fifty Newton iterations (4), and
+singular Jacobians (11) - the last of which straddles the line, since
+a Jacobian is singular either because the model says so or because
+the point it was taken at is unlucky. Thirty models, give or take,
+whose repair is arithmetic rather than semantics.
