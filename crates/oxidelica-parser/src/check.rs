@@ -692,7 +692,14 @@ impl UnitLayer {
             | "log" | "log10" => {
                 if let Some(arg) = args.first() {
                     if let Units::Of(dim) = self.infer(arg)? {
-                        if dim != Dim::ONE && !matches!(name, "log" | "log10" | "exp") {
+                        // By the operator's own name: a call written
+                        // `.log` is the same operator with the
+                        // library's leading dot on it, and comparing
+                        // the raw name let every one of those through
+                        // the gate this line is.
+                        if dim != Dim::ONE
+                            && !matches!(operator_name(name), "log" | "log10" | "exp")
+                        {
                             return Err(format!(
                                 "the argument of `{name}` must be dimensionless, \
                                  but `{}` has unit {}",
@@ -998,6 +1005,17 @@ mod tests {
              equation y = exp(T); end M;",
         )
         .unwrap();
+        // And by the operator's own name: the library writes the same
+        // call with a leading dot - `.log` - and comparing the raw
+        // name let twenty models through a gate meant to hold.
+        parse_model(
+            "model M Real T(unit = \"K\") = 300; Real y; \
+             equation y = .log(T); end M;",
+        )
+        .unwrap();
+        let text =
+            error_of("model M Real v(unit = \"V\") = 1; Real y; equation y = .sin(v); end M;");
+        assert!(text.contains("dimensionless"), "{text}");
 
         // A square root halves even dimensions.
         parse_model(
