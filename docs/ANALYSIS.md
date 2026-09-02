@@ -1492,3 +1492,19 @@ without the other two costs a model to win a model. Written down at
 the point where the next probe starts: not `measure_dimensions` and
 not the `if`, but what the clock inference does with an equation that
 names two rates.
+
+### The performance ledger, measured this shift
+
+| Model            | Then                                   | Now        | Where it goes                               |
+| ---------------- | -------------------------------------- | ---------- | ------------------------------------------- |
+| `ThreeTanks`     | 5 min during the mint, 3.1 s before it | **2.1 s**  | closed - faster than before the chain began |
+| `HeatingSystem`  | over 60 s, before any of this work     | **23 s**   | closed by the same three orderings          |
+| the library pass | 11 min, 50 min mid-chain               | **11 min** | closed                                      |
+| `DoublePendulum` | 45 s                                   | **44.3 s** | open, and not the inliner                   |
+
+The last one probed rather than guessed: a counter on `inline_function`
+fires **once** over the whole model. Whatever those forty-four seconds
+are, they are not bodies being written out - which rules out the layer
+that produced every other giant this project has met. The next probe
+goes to the array layer, where a multibody model does most of its
+work.
