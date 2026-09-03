@@ -2330,3 +2330,85 @@ record-zero test, so it was reverted; the family wants a careful
 reading of where an array-of-records element is and is not a record,
 not a one-line widening. Recorded as a family with named sub-kinds for
 the next shift, which should take the layer, not a symptom.
+
+## The four barriers, worked: three repairs and a family still standing
+
+The panel ruled the forty-first shift's architecture question: no
+general re-measure pass, because by the time a chain could settle the
+things written against it are already built, and retracting them is
+machinery that does not exist. Three separate works, three prices -
+and the ruling overturned this register's own addendum, with four
+witnesses. Nothing is declared short; `nX` is 2 for `MoistAir` under
+`extraPropertiesNames`, `extraPropertiesNames` counts `nC` beside `X`
+and never inside it, and the twin had returned the right length all
+along.
+
+### The second storey, taken first: a package alias hands a constant
+
+`package Medium = MoistAir(extraPropertiesNames = {"CO2"})` names a
+medium and gives one of its constants a value in the same breath. The
+alias had nowhere to hold the modifier, so it was set aside under the
+resolved name - the store a redeclaration uses for a function's filled
+inputs - and never read where the package's own constants are
+gathered. `nC = size(extraPropertiesNames, 1)` counted the interface's
+empty default: nought, however many were written.
+
+The two statements are now kept apart rather than sharing one store,
+because they are not the same statement. Mixing them had made
+`redeclare package Medium = Oil(rho = 3)` overrule the `rho` Oil
+declares for itself. Measured: `nC` is 1 for one extra property and 2
+for two, and the four numbers a medium is asked for read 2, 2, 1, 1 -
+exactly what the panel predicted.
+
+### The first storey: a medium's count reaches a body
+
+The twin reinstated whole, with the complement the ruling named. The
+scope walk's body is lifted into `constant_array_of_package` so it can
+be asked of a package that is not on the walk;
+`asked_as_constant_array` asks it of the medium the mark names. And
+the numeric road's gate is asked of the declaration rather than the
+road: it answered only while a parameter was being settled, because
+the reason to hold a medium's constant back is the unit it carries,
+and a count has no unit and no dimensional reader.
+
+Measured on the minimal case: a medium with `nX = 2` whose body picks
+`if size(x, 1) == nX` answered 0 before - the else branch, the count
+read at the interface as one - and answers 0.5 now. Inside `MoistAir`
+the condition reads `1 == 2` and `2 == 2` where it read
+`size(X, 1) == nX` unresolved. The seventeen do not move: a residual
+zip still pairs two lengths one storey past the condition.
+
+### Barrier B, counted first and then taken
+
+Counted with the instrument before building, as the shift was told:
+two models, both `IMC_withLosses` - the Electrical and the Magnetic -
+on one name. Under a dozen, so a pointed repair rather than a pass.
+
+Two things were missing at one place, `instantiate_bases`. The lengths
+of the extending class did not travel with a modifier handed to a
+base, so `table = {{Ptable[j], ...} for j in 1:size(Ptable, 1)}` could
+not be built - `Ptable` is the model's parameter and the base has
+never heard the name. And the reading that builds a value to find out
+how long it is did not exist, so a handed value that is neither
+written out nor a range said nothing. With both, `table` measures
+`[14, 5]`, `columns` counts four, `nout` is four, and `y[4]` is the
+last output rather than outside the array.
+
+Both models of the family moved, from `unknown variable
+combiTable1Ds.y[2]` to an unbalanced count: the barrier gone, a deeper
+wall behind it. Flattening 1014ms a model against 995 before, inside
+the noise - the build is asked last, after every cheaper reading has
+failed.
+
+### The record-state sub-family, probed and left standing
+
+`BalancingStar` and its nine neighbours refuse `an equation between
+shapes [2] and [3, 2]`. The source is `y = k*uInternal` in
+`ComplexBlocks.ComplexMath.Sum` - the scalar product of two complex
+vectors, which our compiler spreads element by element into a
+three-by-two instead of summing to one complex. The probe narrowed it
+that far and no further: the multiplication never reaches `combine`,
+so something above it claims the expression first, and the shape
+`[3, 2]` - three records of two fields - is not the `(1, 1)` the
+scalar-product arm asks for. Left standing rather than half-fixed;
+the next shift takes it with that much already known.
