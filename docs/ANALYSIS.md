@@ -1746,3 +1746,37 @@ So the clocked family stands at: identity rebuilt and committed, the
 model that the rebuild was supposed to free. Two independent reasons
 have now been ruled out by measurement; the third is a parameter read
 too early.
+
+## Every reader of a function's inputs, walked
+
+The derivative's input count was one of nineteen places that filter
+`Causality::Input`. The rest were walked rather than waited for, and
+the list is here so a twentieth reader can see which shelf it belongs
+on.
+
+| Where              | Reads                | Why                                                                                                              |
+| ------------------ | -------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `inlining.rs` x4   | the gatherer         | binding a call, seeding a derivative, counting a derivative's inputs, handing shapes over                        |
+| `arrays.rs` x4     | the gatherer         | spreading a scalar function over an array, arity of a handed-over function, the replaced input                   |
+| `operators.rs` x2  | the gatherer         | which operator function of a record takes this many                                                              |
+| `parser/*.rs` x2   | the token            | reading the word `input` off the source, which is where causality comes from                                     |
+| `walk.rs` x2       | the class as carried | bodies are carried out with their bases already folded in (`programs_used`), so the run reads what it was handed |
+| `components.rs`    | the flat component   | an `input` of a _model_, settled from outside - not a function at all                                            |
+| `record_fields.rs` | the declaration      | whether a name a body writes is a field it may reach through, which its own declaration answers                  |
+
+Two of the nineteen were reading a class's own declarations where a
+`redeclare function extends` could put them in a base - the arity of
+a handed-over function, and which operator function of a record takes
+a given number of arguments. Both go through the gatherer now. Nothing
+in the corpus moved, and nothing was expected to: like the derivative
+before the probe found it, these are wrong only for a medium that
+redeclares, and the corpus has few enough of those to hide it.
+
+### And one gatherer, not two
+
+`with_inherited_components` and `function_components` did the same
+walk with the same override rule, differing only in how each looked a
+base up. The first is now the second under another name, kept for the
+readers that mean "a function with whatever it inherits" rather than
+"the declaration this call was bound against". Two gatherers is how a
+sixteenth reader comes to choose the wrong one.

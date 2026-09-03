@@ -2212,39 +2212,17 @@ pub(super) fn declared_outputs(
         .collect()
 }
 
+/// Every component a function has, its bases' included.
+///
+/// The same gathering as [`function_components`] and kept as a name
+/// of its own for the readers that mean "a function, whatever it
+/// inherits" rather than "the declaration this call was bound
+/// against" - the walk carrying bodies out to the run, and the
+/// hand-over of a function as an argument. One gatherer either way:
+/// two of them was how the sixteenth reader came to choose wrongly.
 pub(super) fn with_inherited_components(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,
 ) -> Vec<Component> {
-    fn gather(
-        class: &ClassDef,
-        registry: &HashMap<&str, &ClassDef>,
-        depth: usize,
-        out: &mut Vec<Component>,
-    ) {
-        if depth > MAX_DEPTH {
-            return;
-        }
-        for extend in &class.extends {
-            // A `redeclare function extends dewDensity` names its base
-            // by the same name it has itself, and the base is a
-            // neighbour of the package rather than of the function:
-            // asked from inside, the search finds this very function
-            // and gathers nothing. So the enclosing class answers
-            // first, and only then the function's own scope.
-            let base = super::inheritance::inherited_class(registry, class, &extend.base, 0)
-                .or_else(|| lookup(registry, &extend.base, &class.name, &class.imports))
-                .filter(|found| found.name != class.name);
-            if let Some(base) = base {
-                gather(base, registry, depth + 1, out);
-            }
-        }
-        for held in &class.components {
-            out.retain(|already| already.name != held.name);
-            out.push(held.clone());
-        }
-    }
-    let mut out = Vec::new();
-    gather(class, registry, 0, &mut out);
-    out
+    function_components(registry, class, 0)
 }

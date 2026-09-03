@@ -2694,8 +2694,11 @@ fn specialized(
     // never heard of it.
     let target = lookup(registry, target, scope, imports)
         .ok_or_else(|| format!("`{target}` is handed over and is not a function here"))?;
-    let inputs: Vec<&Component> = class
-        .components
+    // Through the gatherer: a receiving function may be written
+    // `redeclare function extends` and take its inputs from a base,
+    // and the one being replaced is found by position among them.
+    let held = super::inlining::function_components(registry, class, 0);
+    let inputs: Vec<&Component> = held
         .iter()
         .filter(|held| held.causality == Causality::Input)
         .collect();

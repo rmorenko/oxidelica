@@ -218,8 +218,11 @@ pub(super) fn operator_function<'a>(
     // calls a constructor that takes a real part and an imaginary one
     // that stands at zero unless it is given.
     let takes = |class: &ClassDef| {
-        let inputs: Vec<&Component> = class
-            .components
+        // Through the gatherer: an operator function of a record may
+        // extend one written elsewhere, and then takes what that base
+        // declared rather than nothing.
+        let held = inlining::function_components(registry, class, 0);
+        let inputs: Vec<&Component> = held
             .iter()
             .filter(|c| c.causality == Causality::Input)
             .collect();
