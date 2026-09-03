@@ -705,37 +705,44 @@ fn flatten_when_clauses(
                             let named = prefix_expr(&named, prefix, outers);
                             const_eval(&named, local_consts).map(|value| value != 0.0)
                         };
-                        let decided = chosen.branches.iter().all(|branch| {
-                            branch
-                                .condition
-                                .as_ref()
-                                .is_none_or(|c| settled(c).is_some())
-                        });
-                        if decided {
-                            let taken = chosen.branches.iter().find(|branch| {
-                                branch
-                                    .condition
-                                    .as_ref()
-                                    .is_none_or(|c| settled(c) == Some(true))
-                            });
-                            if let Some(branch) = taken {
-                                for equation in &branch.equations {
-                                    let Expr::Ref(target) = &equation.lhs else {
-                                        return Err(
-                                            "an `if` inside `when` gives values to variables"
-                                                .to_string(),
-                                        );
-                                    };
-                                    actions.push(WhenAction::Assign(
-                                        flat_name(target, prefix, outers),
-                                        resolve_here(&equation.rhs)?,
-                                    ));
+                        // What is settled is struck out rather than
+                        // answered apart: a branch whose condition is
+                        // false cannot be taken, and once a condition
+                        // is true nothing written after it can be, so
+                        // the first such branch becomes the plain
+                        // `else` and the rest fall away.
+                        //
+                        // Written as a thinning of the list, so that
+                        // everything below - the refusal of what an
+                        // event cannot hold, and the `pre(target)` a
+                        // variable keeps when no branch speaks for it
+                        // - applies to a settled `if` exactly as it
+                        // applies to one the run decides.
+                        let mut live: Vec<(Option<&Expr>, &Vec<EquationItem>)> = Vec::new();
+                        for branch in &chosen.branches {
+                            match branch.condition.as_ref() {
+                                None => {
+                                    live.push((None, &branch.equations));
+                                    break;
                                 }
+                                Some(condition) => match settled(condition) {
+                                    Some(false) => continue,
+                                    Some(true) => {
+                                        live.push((None, &branch.equations));
+                                        break;
+                                    }
+                                    None => live.push((Some(condition), &branch.equations)),
+                                },
                             }
-                            continue;
                         }
+
                         let mut targets: Vec<String> = Vec::new();
                         let mut branches: Vec<GivenBranch> = Vec::new();
+                        // Every branch is asked what it holds, struck
+                        // out or not: an `if` at an event gives values,
+                        // and a branch that draws a connection or makes
+                        // a check is refused whether or not the
+                        // compiler could see it was never taken.
                         for branch in &chosen.branches {
                             // A connection is drawn once and for all,
                             // and a check has nowhere to go from here;
@@ -751,7 +758,11 @@ fn flatten_when_clauses(
                                     "an `if` inside `when` gives values to variables".to_string()
                                 );
                             }
-                            let mut given = Vec::new();
+                            // A variable named by any branch is one
+                            // this `if` speaks about, struck out or
+                            // not: at a tick where nothing is taken it
+                            // keeps the value it had, and that is an
+                            // assignment the model still needs.
                             for equation in &branch.equations {
                                 let Expr::Ref(target) = &equation.lhs else {
                                     return Err("an `if` inside `when` gives values to variables"
@@ -759,12 +770,25 @@ fn flatten_when_clauses(
                                 };
                                 let target = flat_name(target, prefix, outers);
                                 if !targets.contains(&target) {
-                                    targets.push(target.clone());
+                                    targets.push(target);
                                 }
-                                given.push((target, resolve_here(&equation.rhs)?));
                             }
-                            let condition =
-                                branch.condition.as_ref().map(&resolve_here).transpose()?;
+                        }
+                        // What is built is built from the branches that
+                        // are still standing, with their conditions as
+                        // the compiler settled them.
+                        for (condition, equations) in live {
+                            let mut given = Vec::new();
+                            for equation in equations {
+                                let Expr::Ref(target) = &equation.lhs else {
+                                    unreachable!("every branch was checked above");
+                                };
+                                given.push((
+                                    flat_name(target, prefix, outers),
+                                    resolve_here(&equation.rhs)?,
+                                ));
+                            }
+                            let condition = condition.map(&resolve_here).transpose()?;
                             branches.push((condition, given));
                         }
                         for target in targets {

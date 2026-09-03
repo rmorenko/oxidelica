@@ -1053,3 +1053,63 @@ fn a_clock_reaches_a_local_that_cannot_stand_off_one() {
     let text = format!("{:?}", sampled.when_clauses);
     assert!(!text.contains("Ref(\"src\")"), "{text}");
 }
+
+/// A settled `if` inside `when` where nothing is taken keeps the old
+/// value.
+///
+/// `if false then y = 1; end if;` inside a `when` says what to do at
+/// a tick where the condition does not hold: nothing, and a discrete
+/// variable that is assigned nothing keeps what it had. Emitting no
+/// action at all instead loses that - the variable would be left with
+/// no assignment anywhere, and refused as never given a value.
+#[test]
+fn a_settled_if_in_a_when_that_takes_no_branch_keeps_the_previous_value() {
+    let m = parse_model(
+        "model M constant Boolean use_it = false; Real y; Real u; \
+         equation u = time; \
+         when sample(0, 0.1) then if use_it then y = u; end if; end when; end M;",
+    )
+    .unwrap();
+
+    let assigns: Vec<String> = m
+        .when_clauses
+        .iter()
+        .flat_map(|clause| &clause.branches)
+        .flat_map(|branch| &branch.actions)
+        .filter_map(|action| match action {
+            oxidelica_parser::WhenAction::Assign(target, value) => {
+                Some(format!("{target} = {value:?}"))
+            }
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        assigns,
+        vec!["y = Call(\"pre\", [Ref(\"y\")])".to_string()],
+        "{assigns:?}"
+    );
+}
+
+/// A branch an `if` inside `when` never takes is still refused what an
+/// event cannot hold.
+///
+/// `if false then connect(a, b); end if;` is not made acceptable by
+/// the condition being false: a connection is drawn once and for all,
+/// and the compiler having worked out that the branch is dead is no
+/// reason to stop looking at what is written in it. Whether a model
+/// is accepted must not depend on how much the compiler could settle.
+#[test]
+fn a_dead_branch_of_an_if_in_a_when_is_still_checked() {
+    let refusal = parse_model(
+        "model M constant Boolean never = false; Real y; \
+         equation when sample(0, 0.1) then \
+           if never then assert(y > 0, \"no\"); else y = 1; end if; \
+         end when; end M;",
+    )
+    .unwrap_err();
+
+    assert!(
+        refusal.message.contains("gives values to variables"),
+        "{refusal}"
+    );
+}
