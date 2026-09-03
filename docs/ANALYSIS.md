@@ -2588,3 +2588,45 @@ once from the constants road, once from the array road - and both
 times the storey behind it was the same body. It is a body-level
 question, and the next attempt should start inside `setState_pTX`
 rather than at either road that leads to it.
+
+## Complex read as a scalar, probed to the line - and why the narrow fix is not narrow
+
+Ten QuasiStatic models stand on `unknown variable v[1]`. The
+quasi-static library takes a power with
+`P[m] = {ComplexMath.real(v[k]*conj(i[k])) for k in 1:m}`, and the
+compiler makes `P[1] = v[1] * i[1].re` of it - a complex times a
+field, with `real` and `conj` both gone astray.
+
+The probe named the line. At the inlining of `real`, the argument
+arrives already wrong: `conj(i[1])` is handed its record correctly,
+but the multiplication `v[1] * conj(i[1])` has by then collapsed into
+arithmetic on names. A probe on the operator dispatch says why in one
+word: `record_class_of(v[1] * conj(i[1]))` answers `None`. The tables
+key an array of records by its bare name, `v`, so the element `v[1]`
+
+- the name flattening itself writes - is not known to be a record,
+  the operator written on `Complex` never applies, and `*` falls
+  through to arithmetic between two names that each stand for two
+  fields.
+
+### Two attempts, both measured and both reverted
+
+**Widening `record_class_of`** to read `v[1]` as the record `v` holds.
+It answers the operator question, and it breaks
+`a_record_may_say_what_its_zero_is`: `sum(arr)` over an array of
+records begins to build its zero from the wrong parts, because that
+function answers every question about records and not only the
+operator's.
+
+**A separate `operand_record_of`**, asked only at the operator
+dispatch, strictly - the base must be both an array of known shape
+and a record of known class. The same test still fails, which says
+what the first attempt did not: `sum` reaches the operator dispatch
+too. The narrow fix is not narrow because the door is shared.
+
+So the layer is named exactly - an element of an array of records is
+not seen as a record where an operator is chosen - and the repair
+needs the one thing neither attempt had: a way to tell an operator
+asking about its operand from a builtin asking about its argument.
+Both attempts reverted whole; the corpus is untouched and the trail
+is written down for whoever holds it next.
