@@ -210,6 +210,28 @@ where probing has actually put models in different layers, not for
 wherever the counter shows a column of ones. Probe first, then
 decide which method the batch wants.
 
+## The register is an instrument, not a report
+
+`refusals.sh` costs five and a half minutes now, which changes what it
+is for. It used to be a thing done once a stage, to decide what to work
+on next. It is cheap enough to be a measurement.
+
+Two uses follow, and both were learned by doing them:
+
+**Before and after a series, to see a family move.** Two adjacent
+censuses say what one cannot: taking the derivative's input count made
+the `derivative takes N inputs` row (9) vanish and the `arrays of N and
+M do not fit` row go from 8 to 17. The same nine models, one floor up.
+No count of models could have shown that, and neither could reading the
+diff.
+
+**Before and after a pure move, to prove it was one.** A refactor that
+moves code and changes nothing must leave the register identical line
+for line. If a row moves, the move was not pure - something was
+improved or broken on the way, and the difference is the finding. This
+is a stronger check than the tests, which only know what someone
+thought to ask about; the register asks the whole library at once.
+
 ## A cancelled run is not a passed run
 
 CI's verdict is read from a run that finished, not from the absence of
