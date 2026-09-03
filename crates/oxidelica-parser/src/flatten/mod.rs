@@ -46,6 +46,7 @@ mod lookup;
 mod machines;
 mod names;
 mod operators;
+mod partitions;
 mod record_fields;
 mod restrictions;
 mod scoping;
@@ -329,7 +330,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 .truncate(model.equations.len() - branch.len());
         }
     }
-    partition_clocks(&mut model)?;
+    partitions::partition_clocks(&mut model)?;
     crate::check::verify(&model)?;
     // Each branch is still checked as it was written, against the
     // model it belongs to: a mistake inside a branch the run may take
