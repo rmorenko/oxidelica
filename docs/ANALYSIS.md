@@ -2767,3 +2767,25 @@ is the third attempt's finding rather than its failure.
 
 Reverted whole, corpus untouched, and the next attempt starts one
 question further along than this one did.
+
+## Inline and smoothOrder: measured, and there is nothing there
+
+The `Evaluate` ruling suggested a cheap repeat: the same chapter
+holds `Inline` and `smoothOrder`, which also only propose, so if the
+compiler treated either as a demand the same trade would be there
+twice.
+
+Measured rather than assumed, and the answer is a clean nothing. The
+compiler reads exactly three annotations - `mustBeConnected`,
+`mayOnlyConnectOnce` and `Evaluate` - and no other annotation reaches
+a refusal anywhere in either crate. `Inline` and `smoothOrder` are
+parsed and ignored, which is the right treatment of a proposal about
+code generation.
+
+Of the three it does read, two are the ones MLS 18.8 calls errors in
+as many words, and the third is the one just corrected. So the
+annotation road is now clear: nothing left that refuses a model for a
+proposal the language never made.
+
+A zero written down is worth the run that found it. Without this the
+next shift would have spent the same hour on the same idea.
