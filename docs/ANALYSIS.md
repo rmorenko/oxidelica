@@ -1780,3 +1780,20 @@ base up. The first is now the second under another name, kept for the
 readers that mean "a function with whatever it inherits" rather than
 "the declaration this call was bound against". Two gatherers is how a
 sixteenth reader comes to choose the wrong one.
+
+### One idea kept out of a month-old stash, before dropping it
+
+A branch had sat stashed since the constants saga: _a record-valued
+declaration taken apart into one modifier per field_. `Medium()` is a
+medium of its defaults; a record given to a whole array spreads over
+every element; a field the record declares `final` is not one a value
+may hand down. It measured 335 of 734 with five MultiBody models lost
+and a test red, and was never finished.
+
+The tree it was written against is a month and forty models old, so
+the diff is dead and it is dropped rather than rebased. The idea is
+not dead: a record handed to a declaration is still taken as a whole
+today, and the register's `function X wants N field(s) for X, got N`
+row - eight models - is probably it, seen from the other side. That
+row is where to start if it is ever wanted again, and the shape above
+is what was already learned about it.

@@ -210,6 +210,18 @@ where probing has actually put models in different layers, not for
 wherever the counter shows a column of ones. Probe first, then
 decide which method the batch wants.
 
+## A cancelled run is not a passed run
+
+CI's verdict is read from a run that finished, not from the absence of
+a red mark. A cancelled or superseded run leaves the same blank space
+on the page as a green one, and a commit pushed on that reading has
+been checked by nobody.
+
+`scripts/preflight.sh` before pushing is what makes this cheap to
+live with: the local answer is known before the remote one is asked
+for, so a cancelled run means the next push covers it rather than
+meaning something has to be reconstructed.
+
 ## When a change makes the compiler slow
 
 Two scars, both paid for in whole shifts.
