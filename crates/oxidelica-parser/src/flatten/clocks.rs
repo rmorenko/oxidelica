@@ -75,7 +75,6 @@ impl Ratio {
     }
 }
 
-
 /// Greatest common divisor, for keeping a fraction in lowest terms.
 fn gcd(a: i128, b: i128) -> i128 {
     let (mut a, mut b) = (a.abs(), b.abs());
