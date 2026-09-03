@@ -275,7 +275,6 @@ pub(super) fn reads_name(expr: &Expr, wanted: &str) -> bool {
     found
 }
 
-/// Every node of an expression, handed to the given eye.
 /// Like `walk_expr`, but a subtree the caller calls a boundary is not
 /// entered: the node itself is seen, and nothing below it is. Clock
 /// partitioning needs this - what sits under `superSample` belongs to
@@ -293,6 +292,7 @@ pub(super) fn walk_pruned(
     children_of(expr, &mut on);
 }
 
+/// Every node of an expression, handed to the given eye.
 pub(super) fn walk_expr(expr: &Expr, eye: &mut impl FnMut(&Expr)) {
     eye(expr);
     let mut on = |child: &Expr| walk_expr(child, eye);

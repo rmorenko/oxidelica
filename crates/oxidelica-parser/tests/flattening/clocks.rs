@@ -986,10 +986,32 @@ fn a_sample_may_leave_its_clock_to_inference() {
     // And it is read on the clock the assignment downstream is on:
     // `a.u = s.y` holds both on one clock, so the sampler's equation
     // is lifted into that `when` rather than left running freely.
-    let inside = format!("{:?}", m.when_clauses);
+    // Named as an assignment rather than searched for as text: what is
+    // asked is that the partition assigns `s.y` the value of `s.u`.
+    let assigned: Vec<(&str, String)> = m
+        .when_clauses
+        .iter()
+        .flat_map(|clause| &clause.branches)
+        .flat_map(|branch| &branch.actions)
+        .filter_map(|action| match action {
+            oxidelica_parser::WhenAction::Assign(target, value) => {
+                Some((target.as_str(), format!("{value:?}")))
+            }
+            _ => None,
+        })
+        .collect();
     assert!(
-        inside.contains("Ref(\"s.y\")") && inside.contains("Ref(\"s.u\")"),
-        "{inside}"
+        assigned.contains(&("s.y", "Ref(\"s.u\")".to_string())),
+        "{assigned:?}"
+    );
+    // What the sampler read is continuous still: `s.u` is the far side
+    // of the boundary and is given its value outside any clock.
+    assert!(
+        m.equations
+            .iter()
+            .any(|e| format!("{:?}", e.lhs) == "Ref(\"s.u\")"),
+        "{:?}",
+        m.equations
     );
 }
 
@@ -1184,4 +1206,115 @@ fn a_clock_does_not_travel_back_through_hold() {
     // into the clock's `when`.
     let inside = format!("{:?}", m.when_clauses);
     assert!(!inside.contains("Ref(\"u\")"), "{inside}");
+}
+
+/// An `if` whose condition asks a length is settled before the run.
+///
+/// `if size(u, 1) > 0 then ... else y = 0` is how the standard library
+/// writes a block that also works over nothing. The shapes are settled
+/// by the time equations are read, so the branch is picked here rather
+/// than left as a choice - left undecided it gives one equation per
+/// position, each choosing its own residual, and a `y` with nothing
+/// assigning it.
+#[test]
+fn an_if_asking_how_long_something_is_settles_before_the_run() {
+    let m = parse_model(
+        "block Sum parameter Integer nu = 0; Real u[nu]; Real y; \
+         equation if size(u, 1) > 0 then y = sum(u); else y = 0; end if; end Sum; \
+         model M Sum s(nu = 2); equation s.u[1] = time; s.u[2] = 2 * time; end M;",
+    )
+    .unwrap();
+
+    // Settled, so nothing is left conditional and `y` has one equation.
+    assert!(m.conditional.is_empty(), "{:?}", m.conditional);
+    let given: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| format!("{:?}", e.lhs) == "Ref(\"s.y\")")
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(given.len(), 1, "{given:?}");
+    assert!(given[0].contains("s.u"), "{given:?}");
+
+    // And the other way round: a block given nothing takes the branch
+    // that works over nothing.
+    let empty = parse_model(
+        "block Sum parameter Integer nu = 0; Real u[nu]; Real y; \
+         equation if size(u, 1) > 0 then y = sum(u); else y = 0; end if; end Sum; \
+         model M Sum s; end M;",
+    )
+    .unwrap();
+    let given: Vec<String> = empty
+        .equations
+        .iter()
+        .filter(|e| format!("{:?}", e.lhs) == "Ref(\"s.y\")")
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(given, vec!["Number(0.0)".to_string()]);
+}
+
+/// A bare `superSample` learns its factor from the clock downstream.
+///
+/// `y = superSample(u)` with no factor written is a rate the model did
+/// not say: what settles it is the clock the result was given, which
+/// arrives from the equations below rather than from anything inside
+/// the block. The factor is worked out and then proved by deriving the
+/// goal back from it, so nothing is guessed.
+#[test]
+fn a_bare_super_sample_takes_its_factor_from_the_clock_it_feeds() {
+    // The two clocks share a base, which is what makes the factor a
+    // whole number rather than a ratio of two floats that happens to
+    // land near one: `0.3 / 0.1` is 2.9999999999999996, and a factor
+    // is refused unless working it back out gives this clock exactly.
+    let m = parse_model(
+        "model M Clock slow = Clock(0.3); Clock fast = superSample(slow, 3); \
+         Real src; Real u; Real y; Real out; \
+         equation src = time; u = sample(src, slow); \
+         y = superSample(u); \
+         when fast then out = y + 0; end when; end M;",
+    )
+    .unwrap();
+
+    // `y` ticks with the fast clock, so the equation that makes it was
+    // lifted into that partition: the factor of three was worked out.
+    let fast = m
+        .when_clauses
+        .iter()
+        .flat_map(|clause| &clause.branches)
+        .find(|branch| {
+            let ticks = format!("{:?}", branch.condition);
+            ticks.contains("0.09999999999999999") || ticks.contains("0.1")
+        })
+        .expect("the fast clock has a clause");
+    let targets: Vec<&str> = fast
+        .actions
+        .iter()
+        .filter_map(|action| match action {
+            oxidelica_parser::WhenAction::Assign(target, _) => Some(target.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert!(targets.contains(&"y"), "{targets:?}");
+}
+
+/// A clock travelling back along an equation passes over its
+/// parameters.
+///
+/// `y = k * u` puts `y` and `u` on one clock; `k` holds its value
+/// across every tick and is on none. Handing it one would make a
+/// parameter into a discrete variable, which is then refused for never
+/// being assigned at an event.
+#[test]
+fn a_clock_travelling_back_leaves_parameters_alone() {
+    let m = parse_model(
+        "model M Clock c = Clock(0.1); parameter Real k = 2; \
+         Real u; Real y; Real out; \
+         equation u = sample(time, c); \
+         when c then y = k * u; end when; \
+         out = hold(y); end M;",
+    )
+    .unwrap();
+
+    let k = m.components.iter().find(|c| c.name == "k").unwrap();
+    assert_eq!(k.variability, oxidelica_parser::Variability::Parameter);
 }

@@ -10,6 +10,14 @@
 # A floor rather than an exact number: going up is the point, and
 # should not need the threshold edited in the same commit.
 #
+# The run halves differ by a model between the build machine and a
+# desk - 342 there against 341 here at the time of writing - so the
+# floors are set from the LOWER of the two. Set from the higher, the
+# build machine would stay green while every desk went red, which is
+# the worst way round for a check nobody can reproduce. The names are
+# printed above for exactly this: the difference is one model, and
+# subtracting the two lists is how it gets found.
+#
 # A full measurement is dear - it reads every model of the library -
 # so a run of small fixes may be measured once at the end rather than
 # after each. What the run may not do is end without measuring: the
@@ -30,10 +38,10 @@
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=773
-RUN_FLOOR=336
-RUNNABLE_FLATTEN_FLOOR=675
-RUNNABLE_RUN_FLOOR=333
+FLATTEN_FLOOR=782
+RUN_FLOOR=341
+RUNNABLE_FLATTEN_FLOOR=684
+RUNNABLE_RUN_FLOOR=338
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -43,7 +51,16 @@ UNREAD_CEILING=0
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
 
-report="$(./target/release/oxidelica library check "$directory")"
+# The names as well as the counts: the run half differs between one
+# machine and another, and a difference nobody can name is a
+# difference nobody can fix. The list goes to a file rather than the
+# log, and the log gets the run half of it, which is where the
+# machines disagree.
+report="$(./target/release/oxidelica library check --list "$directory")"
+echo "$report" | grep '^  ran   ' | sed 's/^  ran   //' | sort > /tmp/oxidelica_ran.txt
+echo "models that ran: $(wc -l < /tmp/oxidelica_ran.txt)"
+sed -n '1,$p' /tmp/oxidelica_ran.txt | sed 's/^/  ran   /'
+report="$(echo "$report" | grep -v '^  \(flat\|ran\)  ')"
 echo "$report" | head -1
 echo "$report" | grep -E '^(classes:|runnable examples|time:)'
 

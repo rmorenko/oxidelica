@@ -848,6 +848,15 @@ fn library_check(args: &[String]) -> Result<(), String> {
         for name in named {
             println!("  flat  {name}");
         }
+        // Which models ran, and not only how many. The counts differ
+        // between one machine and another - a model that runs on the
+        // build machine and not on a desk is a real difference, and
+        // without the names there is nothing to subtract to find it.
+        let mut ran_named: Vec<&&String> = ran.iter().collect();
+        ran_named.sort();
+        for name in ran_named {
+            println!("  ran   {name}");
+        }
     }
     // What a model was refused for, model by model rather than gathered
     // into kinds. A count of a kind is the number of models standing at

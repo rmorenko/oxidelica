@@ -464,6 +464,8 @@ fn flatten_if_equations<'a>(
             // `u` and the table holds `sum.u`. Left undecided, such an
             // `if` leaves one equation per position choosing its
             // residual, and a clocked `y` with nothing assigning it.
+            // Under the instance path from here on: the tables of
+            // shapes and of graph answers are both kept that way.
             let asked = prefix_expr(&named, prefix, outers);
             if let Some(value) = settled_by_shape(&asked, local_consts, sizes_here) {
                 return Some(value);
@@ -471,7 +473,6 @@ fn flatten_if_equations<'a>(
             if !answered {
                 return None;
             }
-            let asked = prefix_expr(&named, prefix, outers);
             let told = answer_graph_queries(&asked, known_roots, known_counts);
             const_eval(&told, &env)
         };

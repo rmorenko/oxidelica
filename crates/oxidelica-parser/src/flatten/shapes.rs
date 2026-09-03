@@ -253,9 +253,6 @@ pub(super) fn shape_i64(value: &Value) -> Vec<i64> {
         .collect()
 }
 
-/// One array dimension as a number, or `None` when it cannot be told
-/// here - a colon waiting for a call site, or a length that depends on
-/// something not yet known.
 /// What an expression comes to where the lengths of things are part
 /// of the answer: `size(u, 1) > 0` is a condition an `if` equation
 /// may be written on, and by the time equations are read the shapes
@@ -302,10 +299,42 @@ pub(super) fn settled_by_shape(
         Expr::And(a, b) => Some(((recur(a)? != 0.0) && (recur(b)? != 0.0)) as i64 as f64),
         Expr::Or(a, b) => Some(((recur(a)? != 0.0) || (recur(b)? != 0.0)) as i64 as f64),
         Expr::Not(inner) => Some((recur(inner)? == 0.0) as i64 as f64),
-        _ => None,
+        // An `if` inside a condition: settled where all three parts
+        // are, which the exhaustiveness check is what found - it was
+        // being dropped silently before.
+        Expr::If(condition, then, otherwise) => {
+            if recur(condition)? != 0.0 {
+                recur(then)
+            } else {
+                recur(otherwise)
+            }
+        }
+        // A name is a value the run carries, not a length: whatever
+        // `dimension_value` could tell about one it has told already.
+        Expr::Ref(_) | Expr::Member(..) | Expr::Index(..) => None,
+        // A call that is not a question about shape is a question for
+        // the run - `size` and `ndims` were answered above.
+        Expr::Call(..) => None,
+        // Arrays, ranges and the rest are not numbers, and a condition
+        // an `if` equation stands on has to come to one.
+        Expr::Array(_)
+        | Expr::MatrixRows(_)
+        | Expr::Range(..)
+        | Expr::Comprehension(..)
+        | Expr::Tuple(_)
+        | Expr::NamedArg(..)
+        | Expr::Str(_)
+        | Expr::Elementwise(..)
+        | Expr::WithDerivative(..) => None,
+        // Time moves, and a subscript standing alone is part of an
+        // index rather than a value.
+        Expr::Time | Expr::ColonSubscript | Expr::EndSubscript => None,
     }
 }
 
+/// One array dimension as a number, or `None` when it cannot be told
+/// here - a colon waiting for a call site, or a length that depends on
+/// something not yet known.
 pub(super) fn dimension_value(
     expr: &Expr,
     consts: &HashMap<String, f64>,

@@ -9,17 +9,6 @@ use super::clocks::*;
 use super::machines::{blank_component, build_state_machines};
 use super::*;
 
-/// Split a model into its clocked partitions.
-///
-/// A clock is not a value the run carries: `Clock c = Clock(0.1)` says
-/// when things happen, and the equations that happen then are lifted
-/// into a `when` clause firing on that period. Inside one, the clock
-/// conversions say what they always meant - `sample(u, c)` is reading
-/// `u` at the tick, `previous(x)` is the value from the tick before,
-/// `interval(c)` is the period - and the variables they define hold
-/// their values in between, which is what `hold` asks for.
-///
-/// A model with no clocks in it passes through untouched.
 /// Whether the equation that gives a name its value leaves the
 /// clocked world.
 ///
@@ -64,6 +53,17 @@ fn on_the_same_clock(expr: &Expr, into: &mut Vec<String>) {
     });
 }
 
+/// Split a model into its clocked partitions.
+///
+/// A clock is not a value the run carries: `Clock c = Clock(0.1)` says
+/// when things happen, and the equations that happen then are lifted
+/// into a `when` clause firing on that period. Inside one, the clock
+/// conversions say what they always meant - `sample(u, c)` is reading
+/// `u` at the tick, `previous(x)` is the value from the tick before,
+/// `interval(c)` is the period - and the variables they define hold
+/// their values in between, which is what `hold` asks for.
+///
+/// A model with no clocks in it passes through untouched.
 pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
     // What every clock of the model ticks at, read off the
     // declarations and the equations that name them. `None` where the
@@ -135,6 +135,10 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 c.variability,
                 Variability::Parameter | Variability::Constant
             )
+            // A clock is not a variable at all: it says when things
+            // happen and carries no value, so it sits on no partition
+            // and takes no clock from an equation that names it.
+            && c.type_name != "Clock"
         })
         .map(|c| c.name.clone())
         .collect();
