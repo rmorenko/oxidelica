@@ -1866,3 +1866,34 @@ rest. Two findings kept:
 
 Three attempts, three different reasons, all measured. The family is
 one link wide and four deep, and this is the fourth.
+
+## Batch four: nine probes, and a family under `unknown variable`
+
+The run half's top row - `unknown variable X`, 23 models - probed
+before choosing work, as the form now requires.
+
+| Model                                                        | What is unknown                                  |
+| ------------------------------------------------------------ | ------------------------------------------------ |
+| `OneTank`, `TwoTanks`, `TankWithEmptyingPipe1`, `EmptyTanks` | `tank.medium.state.T`                            |
+| `TanksWithOverflow`                                          | `upperTank.medium.state.p`                       |
+| `ShowTransferFunction`                                       | `j` - the imaginary unit, a constant of a record |
+| `UnsymmetricalLoad`                                          | `voltageSource1.v[1]`                            |
+| `IMC_withLosses`                                             | `combiTable1Ds.y[2]`                             |
+| `UniformNoise`                                               | `seedOut[1]`                                     |
+
+Six of nine in one layer, and it is the constants chain again from a
+new side: `Medium.ThermodynamicState state` is a record the medium
+redeclares - `PartialMedium` keeps it empty and every medium fills it
+with `p` and `T` - and the flat model holds the equation
+`v.medium.state.T = v.medium.T` with nothing declaring the left side.
+The record was expanded under the interface, where it has no fields.
+
+Narrowed to six lines already (`/tmp/hd.mo` in the shift's notes: a
+`ClosedVolume` with `ConstantPropertyLiquidWater`), and it is the
+sixth face of asked-under - `record_asked_under` exists and is called
+from the array layer, but the component pass that turns a record
+declaration into its fields does not ask it.
+
+That is the next link, and it is a family of at least six by this
+probe alone. The other three are genuinely separate: a record's own
+constant, a connector's array element, a table's second column.
