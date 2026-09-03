@@ -2412,3 +2412,66 @@ so something above it claims the expression first, and the shape
 `[3, 2]` - three records of two fields - is not the `(1, 1)` the
 scalar-product arm asks for. Left standing rather than half-fixed;
 the next shift takes it with that much already known.
+
+## The register at 793 and 341, after the value fixpoint and the scalar product
+
+Two works, both of the kinds the panel separated out, and the first
+numbers to move in four shifts.
+
+### The MultiBody value fixpoint
+
+A parameter is settled while its own class is instantiated, against
+the values known by then, and a binding may name a parameter of a
+component built afterwards: `FixedTranslation r = {0, -1.6,
+wheel.rTire}` is written above the wheel it reads. The probe found
+`wheel.rTire` worth 0.25 in the table all along - the neighbour had
+settled in its turn, and nothing went back to ask again, so `r[3]`
+stayed unknown and the direction taken off it, with `Evaluate = true`
+on it, was refused.
+
+One more round now runs over the model's parameters once every
+component is built, until nothing new comes of it. Only bindings, only
+where the name is still without a value. `Surfaces` moves off it;
+`PlanarLoops_analytic` stays and rightly - its `n_b` is `fixed =
+false` with an equation behind it, which the initialisation solves
+rather than the compiler. That is the two the panel counted: one was
+ours, one was never ours.
+
+783 flatten from 782.
+
+### The complex scalar product
+
+`y = k*u` of two `Complex[3]` is one complex number, the way
+`Real[3]` times `Real[3]` is one real. An operator written for one
+record and handed arrays of them was vectorized - one multiplication
+per element, right for `+` and `-` and wrong for `*` - so the complex
+`Sum` block answered with three values where it means one, and the
+equation between one record and three was refused as a shape
+mismatch. The pairs are multiplied with the record's own `*` and
+summed with its own `+`.
+
+793 flatten from 783: ten models at once, the largest single move in
+many shifts.
+
+### What the instrument caught, taken after the series
+
+`refusals.sh both`, and two families have left the head of the list.
+
+| Kind                                      | Before | Now |
+| ----------------------------------------- | -----: | --: |
+| arrays of two lengths that do not fit     |     17 |   3 |
+| an equation between shapes [2] and [3, 2] |     10 |   1 |
+| a parameter asked before the run          |     27 |  25 |
+
+The array kind fell from seventeen to three, which is the twin and the
+medium's own count working through the media models. The complex
+shape kind fell from ten to one. The before-run kind lost the two
+MultiBody entries and kept its twenty-five fluid ones, which are the
+`reference_h` road and not this shift's work.
+
+The run half moved the other way, and honestly: `unknown variable in
+equation` went 21 to 41, because ten QuasiStatic models that used to
+stop at flattening now get past it and stop at the next wall - the
+neighbouring sub-family, a complex read as a scalar. A barrier
+removed upstream shows as a barrier grown downstream, and the totals
+say which of the two happened: 793 flatten against 783.
