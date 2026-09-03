@@ -2127,3 +2127,58 @@ nothing. The rule grows a clause: a measuring pipe does not swallow
 stderr, does not answer nothing where nothing ran, and does not cut
 its own output short. Where one line is wanted, take it without a
 pipe - `printf '%s\n' "${report%%$'\n'*}"`.
+
+## The `dp_nominal` family: a barrier that fell without the models moving
+
+Eleven models were refused `parameter <pipe>.flowModel.dp_nominal has
+no value`, one name across the whole list, which the instrument flags
+as a family rather than eleven singles. The probe bore that out.
+
+`dp_nominal` is a parameter of a pipe's flow model, and a pipe sets it
+by a class-level redeclaration:
+`redeclare model FlowModel = NominalTurbulentPipeFlow(dp_nominal =
+1e5)`. That modifier both replaces the replaceable model and gives one
+of the replacement's parameters a value. The alias `FlowModel` is a
+pair of names with nowhere to hold the modifier, so it was set aside
+by the resolved type's name - through `remember_filled_inputs`, the
+same store a function's partial application uses - and then read only
+where a function body is worked out. A component typed by the alias is
+a model, not a function, so its parameter never saw the value.
+
+The repair reads what a class-level redeclaration set aside for a
+component's resolved type and folds it in as a modifier, at the lowest
+precedence, and only for a non-function type. The kind went from 11 to
+0, measured with `refusals.sh`.
+
+But the eleven did not cross to running. `InverseParameterization`,
+freed of `dp_nominal`, now stops on the IF97 water functions
+(`waterBaseProp_pT`, `visc_dTp`, `dgesv`) that the parameter
+initialisation cannot evaluate. This is a barrier falling without the
+models moving: the family is gone from its column, the flatten count
+is unchanged, and both are true at once. The honest reading is that
+the `dp_nominal` wall stood in front of a deeper one, and only the
+census - not the totals - shows the first fell.
+
+## The numerical queue, kept apart from the structural one
+
+The run half carries two kinds of refusal that must not be counted
+together, because their repair and their proof are different.
+
+A **structural** refusal is repaired by teaching the compiler
+something, and proved gone when the model compiles or runs: an unknown
+variable, an unbalanced model, a singular structure.
+
+A **numerical** refusal is repaired by a solver's tolerance, a step
+controller, a missed event or a stiffer method, and proved gone only
+when the run reaches its stop time with a curve someone has looked at.
+`Dimmer_RL` is the type: it compiles, runs, and stops at the
+evaluation budget, and nothing about it is structural.
+
+Named in the run half so far, numerical: the evaluation budget (1),
+algebraic loops that diverged (14), loops that did not converge in
+fifty Newton iterations (4), and singular Jacobians (11, straddling
+the line - a Jacobian is singular either because the model says so or
+because the point it was taken at is unlucky). Thirty-odd models whose
+repair is arithmetic, not semantics. They are not worked in the same
+pass as the structural queue and should not be read in the same
+column.
