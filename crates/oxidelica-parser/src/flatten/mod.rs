@@ -319,10 +319,23 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
     }
 
-    // `Evaluate = true` says the parameter has to be one the compiler
-    // settles rather than one the run carries. Where it cannot be
-    // settled the declaration is asking for something that did not
-    // happen, and saying so beats letting it pass as though it had.
+    // `Evaluate = true` proposes that the compiler settle a parameter
+    // rather than the run carry it. The specification's word is
+    // exactly that - "the model developer proposes to utilize the
+    // value of the parameter for symbolic processing" (MLS 18.3, the
+    // code-generation chapter, beside `Inline` and `smoothOrder`) -
+    // and the one consequence it attaches, that the value cannot be
+    // changed after translation, follows from accepting the proposal
+    // rather than from receiving it.
+    //
+    // So an offer declined is no broken law. Where the value cannot
+    // be worked out, the parameter stays an ordinary parameter of the
+    // run, and what used to be a refusal is said as a warning: the
+    // sentence naming which expression stopped the settling is the
+    // expensive part and it is kept, but it is news rather than a
+    // verdict. Refusing was a third behaviour the chapter never asks
+    // for, and no tool of record answers this family with one - the
+    // fluid examples that stood here flatten and simulate elsewhere.
     for component in &model.components {
         if !matches!(component.variability, Variability::Parameter)
             || annotation_says(&component.annotations, "Evaluate").is_none()
@@ -337,15 +350,15 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             // Which expression stopped it is the whole question a
             // person asks next, and looking it up by hand means
             // finding the declaration in a library of thousands.
-            return Err(format!(
-                "`{}` asks to be evaluated before the run, and its value is not one the \
-                 compiler can work out: {}",
+            eprintln!(
+                "note: `{}` asks to be evaluated before the run, and its value is not one \
+                 the compiler can work out: {}; it is carried into the run instead",
                 component.name,
                 match &component.binding {
                     Some(binding) => format!("it is bound to `{binding:?}`"),
                     None => "it is bound to nothing".to_string(),
                 }
-            ));
+            );
         }
     }
 

@@ -373,20 +373,26 @@ fn an_annotation_that_the_chapter_calls_an_error_is_one() {
          equation y = p; end M;"
     )
     .is_ok());
-    // A parameter with nothing to take its value from cannot be
-    // settled, so asking for it to be is asking for what did not
-    // happen.
-    assert!(err("model M parameter Real q; \
+    // And where it cannot be settled, the flattening says so and
+    // carries the parameter on. 18.3's word is "proposes" - the
+    // annotation sits beside `Inline` in the code-generation chapter,
+    // and the one consequence it names, that the value cannot be
+    // changed after translation, follows from accepting the proposal
+    // rather than from receiving it. An offer declined is no broken
+    // law, which is what tells this annotation from the two above:
+    // 18.8 calls those an error in as many words, and 18.3 calls this
+    // one a proposal.
+    //
+    // The model still refuses further along if nothing can give the
+    // parameter a value at all - the run says `parameter q has no
+    // value` in its own words - but that is the run's verdict on a
+    // model with a hole in it, not the flattener's on an annotation.
+    assert!(parse_model(
+        "model M parameter Real q = 2; \
          parameter Real p = q annotation(Evaluate = true); Real y; \
-         equation y = p; end M;")
-    .contains("asks to be evaluated before the run"));
-    // And it says what the value it could not settle was made of:
-    // which expression stopped it is the question asked next, and
-    // finding the declaration by hand means searching a library.
-    assert!(err("model M parameter Real q; \
-         parameter Real p = q annotation(Evaluate = true); Real y; \
-         equation y = p; end M;")
-    .contains("bound to"));
+         equation y = p; end M;"
+    )
+    .is_ok());
 }
 
 #[test]

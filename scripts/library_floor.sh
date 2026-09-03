@@ -38,9 +38,9 @@
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=793
+FLATTEN_FLOOR=817
 RUN_FLOOR=341
-RUNNABLE_FLATTEN_FLOOR=695
+RUNNABLE_FLATTEN_FLOOR=719
 RUNNABLE_RUN_FLOOR=338
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
