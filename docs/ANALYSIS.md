@@ -2182,3 +2182,70 @@ because the point it was taken at is unlucky). Thirty-odd models whose
 repair is arithmetic, not semantics. They are not worked in the same
 pass as the structural queue and should not be read in the same
 column.
+
+## The three run-half singletons, probed
+
+The method's form for a single: probe the layer before choosing the
+work. All three were probed; none is the clean two-or-three-link
+single the register hoped for, and the probes say why.
+
+### `IMC_withLosses` - the table's second column, a four-link ordering chain
+
+`combiTable1Ds.y[2]` is refused `unknown variable`. The probe followed
+it to the root, narrowed to five lines:
+
+```modelica
+partial block SIMO parameter Integer nout = 1; RealOutput y[nout]; end SIMO;
+block CombiTable1Ds
+  extends SIMO(final nout = size(columns, 1));
+  parameter Real table[:, :];
+  parameter Integer columns[:] = 2:size(table, 2);
+end CombiTable1Ds;
+```
+
+The chain is `y[nout] <- nout = size(columns, 1) <- columns =
+2:size(table, 2) <- table`, four links. The probe on `measure_dimensions`
+caught the exact failure: when the inherited `y[nout]` is measured,
+`local_consts["nout"]` is absent, `columns` is absent, and `table`'s
+shape is absent - none of the chain has settled - so `off_a_length`
+falls back to the base default `nout = 1`. `y` is fixed at length one,
+and `y[2]` is outside it. The parameter `nout` does settle to 4 later,
+but `y` is measured once and never re-measured.
+
+This is a **time** barrier, not a place one: the length is knowable
+and is measured too early. The register's older note about `nout` was
+right that it settles to 4; what it missed is that `y` was sized before
+it did. The repair is fixpoint-ordering - defer measuring an inherited
+array whose dimension parameter an `extends` overrides until that
+parameter's own chain settles - which is a pass-order change, not a
+line. A precedence tweak in the settling loop was tried and measured
+inert: the simple constant override (`extends SIMO(final nout = 3)`)
+already works, and the size-dependent chain needs the re-measure, not
+a better binding. Reverted rather than committed, since a change that
+moves nothing is not a change.
+
+### `UnsymmetricalLoad` - a complex read as a scalar, the record-state layer
+
+`voltageSource1.v[1]` is refused `unknown variable`. `v` is a
+`ComplexVoltage[m]` and the apparent-power equation reads
+`S[m] = {ComplexMath.abs(v[k]*conj(i[k])) for k in 1:m}`. The probe
+showed `S[1]` expanded to `sqrt((v[1]*i[1].re)^2 + ...)` with `v[1]`
+left bare - the `ComplexMath.abs` of a complex product was inlined but
+its record argument `v[1]` was never broken into `.re`/`.im`. This is
+the record-state wall - a record that never became fields - one house
+in from the imaginary-unit `j`, and the same layer, not a single of
+its own.
+
+### `ShowTransferFunction` - the imaginary unit, unchanged
+
+`j`, imported as `Modelica.ComplexMath.j` and written into an equation
+whole. Named in the earlier register entry and unmoved: the constants
+layer folds a record constant by its constructor where the name
+resolves, and an imported name resolves elsewhere. Same record-state
+layer as `UnsymmetricalLoad`, reached by an import rather than a
+connector read.
+
+Two of the three are the record-state layer, one is fixpoint-ordering.
+None is the isolated single the run half was hoped to be offering; the
+run half's walls are families the flattener's families stand in front
+of, one storey down.
