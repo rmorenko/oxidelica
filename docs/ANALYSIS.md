@@ -1928,10 +1928,31 @@ interface and finds the empty one. Three of four callers are right and
 the fourth is the wall - which is a narrower target than "somewhere in
 the flattener", and it is where the next probe goes.
 
-The declaration itself is registered as a record path in
-`instantiate.rs` (`acc.records.extend`), where every class adds what
-it knows; whether that path carries the medium is the question the
-fourth caller's failure asks.
+### Two repairs tried at the fourth caller, both measured
+
+The array layer's expansion of a record-named `Ref` was the wall, and
+asking `record_asked_under` there changes nothing: a print says the
+table already holds `PartialMedium.ThermodynamicState`, so the wrong
+record was written down before the expansion ever read it.
+
+Following that back, the table is filled by `collect_records`
+(scoping.rs), which resolves each declaration's type in the scope of
+the class that wrote it - the interface - and stores what it finds.
+Asking the mark _there_ changes nothing either: `collect_records` runs
+before instantiation, and the mark is pushed by instantiation.
+
+So the wall is neither the reader nor the writer of that table but its
+timing: the record paths of a class are gathered once, in the terms of
+the class that declared them, and a redeclaration that arrives later
+cannot reach them. That is a different shape of fault from every other
+face of asked-under so far - those were all a name asked in the wrong
+scope, and this is a name asked at the wrong time.
+
+Which is the finding, and it is worth more than the two failed
+repairs: the fix is either to gather the paths later, once the
+medium is known, or to re-ask them at expansion time from the type
+name rather than trusting the table. Both are a shift's work and
+neither should be started at the end of one.
 
 That is the next link, and it is a family of at least six by this
 probe alone. The other three are genuinely separate: a record's own
