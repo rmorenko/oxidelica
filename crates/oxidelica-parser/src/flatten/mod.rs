@@ -43,6 +43,7 @@ mod inheritance;
 mod inlining;
 mod instantiate;
 mod lookup;
+mod machines;
 mod names;
 mod operators;
 mod record_fields;
@@ -243,7 +244,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
             variability: Variability::Parameter,
             binding: Some(Expr::Number(value)),
             unit,
-            ..clocks::blank_component()
+            ..machines::blank_component()
         });
     }
 
