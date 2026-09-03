@@ -1837,6 +1837,18 @@ pub(super) fn prefix_subscript(value: &Value, name: &str, index: i64) -> Value {
 pub(super) fn push_equations(lhs: &Value, rhs: &Value, acc: &mut Flat) -> Result<(), String> {
     let (left_shape, right_shape) = (lhs.shape(), rhs.shape());
     if left_shape != right_shape {
+        if std::env::var("OXI_PROBE").is_ok() {
+            let mut l = Vec::new();
+            let mut r = Vec::new();
+            lhs.flatten_into(&mut l);
+            rhs.flatten_into(&mut r);
+            eprintln!(
+                "probe pusheq {left_shape:?} = {right_shape:?} lhs0={:?} rhs_n={}",
+                l.first()
+                    .map(|e| format!("{e:?}").chars().take(45).collect::<String>()),
+                r.len()
+            );
+        }
         let (mut left, mut right) = (Vec::new(), Vec::new());
         lhs.flatten_into(&mut left);
         rhs.flatten_into(&mut right);

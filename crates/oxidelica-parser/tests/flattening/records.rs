@@ -949,3 +949,58 @@ fn a_site_modifier_outranks_an_inherited_one() {
         .unwrap_or_default();
     assert!(held.contains("5"), "the base won over the site: {held}");
 }
+
+/// Two vectors of records multiplied are their scalar product.
+///
+/// `y = k*u` of two `Complex[3]` is one complex number, the way
+/// `Real[3]` times `Real[3]` is one real. It is how the complex
+/// blocks write a sum: the gains are multiplied by the inputs and the
+/// block answers with a single value. Vectorized instead - one
+/// multiplication per element, which is right for `+` and `-` - it
+/// answered with three, and the equation between one record and three
+/// was refused.
+#[test]
+fn two_vectors_of_records_multiply_to_a_scalar_product() {
+    let m = parse_model(
+        "package P \
+           operator record C Real re; Real im; \
+             encapsulated operator '+' \
+               function add import P.C; input C a; input C b; output C c; \
+                 algorithm c.re := a.re + b.re; c.im := a.im + b.im; end add; end '+'; \
+             encapsulated operator '*' \
+               function mul import P.C; input C a; input C b; output C c; \
+                 algorithm c.re := a.re*b.re - a.im*b.im; \
+                 c.im := a.re*b.im + a.im*b.re; end mul; end '*'; \
+           end C; \
+           model M parameter Integer n = 3; \
+             parameter C k[n](each re = 1, each im = 0); \
+             C u[n]; C y; Real out; \
+             equation \
+               for i in 1:n loop u[i].re = i; u[i].im = 0; end for; \
+               y = k * u; \
+               out = y.re * time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("the scalar product of two record vectors");
+    // One record out, not three: `y.re` and `y.im` are the whole of
+    // it, and `y[1].re` is not a name of this model.
+    assert!(
+        m.components.iter().any(|c| c.name == "y.re"),
+        "{:?}",
+        m.components
+            .iter()
+            .map(|c| &c.name)
+            .filter(|n| n.starts_with("y"))
+            .collect::<Vec<_>>()
+    );
+    assert!(
+        !m.components.iter().any(|c| c.name.starts_with("y[")),
+        "{:?}",
+        m.components
+            .iter()
+            .map(|c| &c.name)
+            .filter(|n| n.starts_with("y"))
+            .collect::<Vec<_>>()
+    );
+}

@@ -75,6 +75,72 @@ pub(super) fn apply_operator(
             )?;
         }
     }
+    // Two vectors multiplied are their scalar product, not a
+    // multiplication apiece. `y = k*u` of two `Complex[3]` is one
+    // complex number - the way `Real[3]` times `Real[3]` is one real -
+    // and it is how the complex blocks write a sum: `Sum` of the
+    // complex library multiplies its gains by its inputs and answers
+    // with a single value. Vectorized instead it answered with three,
+    // and an equation between one record and three was refused.
+    //
+    // Only for `*`, only where both sides are arrays of the record,
+    // and only where the record can add: the product of the pairs is
+    // summed with the record's own `+`, which is what the language
+    // means by a scalar product over anything but numbers.
+    if symbol == "*" && values.len() == 2 {
+        let lengths: Vec<Option<usize>> = values
+            .iter()
+            .map(|value| match value {
+                Value::Array(items) => Some(items.len()),
+                Value::Scalar(_) => None,
+            })
+            .collect();
+        if let (Some(left), Some(right)) = (lengths[0], lengths[1]) {
+            // A vector of records, not a record of fields: the fields
+            // of one are what the operator's own body reads, and it
+            // is the elements that pair off here.
+            let of_records = values.iter().all(|value| {
+                spread_of_records(function, registry, shapes, std::slice::from_ref(value)).is_some()
+            });
+            if of_records && operator_function(registry, record, "+", 2).is_some() {
+                if left != right {
+                    return Err(format!(
+                        "a scalar product of `{record}` needs equal lengths, got {left} and {right}"
+                    ));
+                }
+                let mut total: Option<Value> = None;
+                for index in 0..left {
+                    let each = one_of_each(&values, left, index, shapes, registry, &recur)?;
+                    let product = apply_operator(
+                        record,
+                        symbol,
+                        &each,
+                        shapes,
+                        registry,
+                        scope,
+                        imports,
+                        depth + 1,
+                    )?;
+                    total = Some(match total {
+                        None => product,
+                        Some(so_far) => apply_operator(
+                            record,
+                            "+",
+                            &[so_far.into_expr(), product.into_expr()],
+                            shapes,
+                            registry,
+                            scope,
+                            imports,
+                            depth + 1,
+                        )?,
+                    });
+                }
+                if let Some(total) = total {
+                    return Ok(total);
+                }
+            }
+        }
+    }
     // An operator written for one record and handed a whole array of
     // them works on each in turn: `v1 - v2` of two `Complex[3]` is
     // three subtractions. The language vectorizes a function this way
