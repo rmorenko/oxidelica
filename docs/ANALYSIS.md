@@ -1908,12 +1908,30 @@ has no fields at all; the equations come from the medium, where it has
 two. Nothing refuses - the equations are written and the fields never
 declared, so the run meets `v.medium.state.T` with no such variable.
 
-Two probes made and both negative, which narrows it further: the
-component pass never sees this declaration with that type name -
-neither `component.name == "state"` nor a type mentioning
-`ThermodynamicState` fires there. So the record is expanded somewhere
-else again, and finding that somewhere is the first move of the next
-shift rather than the last of this one.
+Three probes now, and the negative ones did the narrowing.
+
+The component pass never sees this declaration: neither
+`component.name == "state"` nor a type naming `ThermodynamicState`
+fires there. A print inside `record_fields_of` - the one function all
+nine callers use - names who _does_ ask about that record, and the
+answer is instructive:
+
+| Asked by                                     | Found                                              |
+| -------------------------------------------- | -------------------------------------------------- |
+| `record_fields::record_input_fields`         | `PartialSimpleMedium.ThermodynamicState`           |
+| `arrays::written_out`, `records_written_out` | the same                                           |
+| `arrays::expand`                             | `PartialMedium.ThermodynamicState` - the empty one |
+
+So the machinery that asks under the medium works and finds the
+record with two fields; the array layer's own expansion asks under the
+interface and finds the empty one. Three of four callers are right and
+the fourth is the wall - which is a narrower target than "somewhere in
+the flattener", and it is where the next probe goes.
+
+The declaration itself is registered as a record path in
+`instantiate.rs` (`acc.records.extend`), where every class adds what
+it knows; whether that path carries the medium is the question the
+fourth caller's failure asks.
 
 That is the next link, and it is a family of at least six by this
 probe alone. The other three are genuinely separate: a record's own
