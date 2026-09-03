@@ -4,6 +4,7 @@
 //!
 //! Carved out of `instantiate` unchanged.
 
+use super::shapes::*;
 use super::*;
 
 /// Answer every `size(v, k)` an expression asks about an array whose

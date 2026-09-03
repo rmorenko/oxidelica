@@ -4,6 +4,7 @@
 //!
 //! Carved out of `instantiate` unchanged.
 
+use super::shapes::*;
 use super::*;
 
 /// Every component this class declares, turned into the variables,

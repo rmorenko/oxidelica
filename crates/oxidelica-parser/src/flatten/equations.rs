@@ -4,6 +4,7 @@
 //!
 //! Carved out of `instantiate` unchanged.
 
+use super::shapes::*;
 use super::*;
 
 /// One branch of an `if` at an event: its condition, where it has one,

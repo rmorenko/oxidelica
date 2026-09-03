@@ -4,6 +4,7 @@
 //!
 //! Carved out of `algorithms` unchanged.
 
+use super::shapes::*;
 use super::*;
 use std::cell::RefCell;
 

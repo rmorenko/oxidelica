@@ -23,6 +23,7 @@ use std::collections::{HashMap, HashSet};
 /// Maximum instantiation depth (guards against recursive classes).
 mod algorithms;
 mod arrays;
+mod builtins;
 mod clocks;
 mod components;
 mod connections;
@@ -50,6 +51,7 @@ mod partitions;
 mod record_fields;
 mod restrictions;
 mod scoping;
+mod shapes;
 mod statements;
 mod strings;
 mod table_files;

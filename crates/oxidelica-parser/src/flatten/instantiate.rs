@@ -1,6 +1,7 @@
 //! Walking the class tree: every component becomes variables,
 //! equations and connections under its instance path.
 
+use super::shapes::*;
 use super::*;
 
 /// Instantiate `class` under `prefix` with everything `env` carries.

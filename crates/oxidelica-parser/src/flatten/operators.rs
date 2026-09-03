@@ -1,5 +1,6 @@
 //! Operators a record declares for itself.
 
+use super::shapes::*;
 use super::*;
 
 /// How an operator is spelled where a record declares it.
