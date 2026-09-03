@@ -1817,3 +1817,44 @@ fn a_value_handed_to_a_base_carries_the_lengths_it_names() {
             .collect::<Vec<_>>()
     );
 }
+
+/// A parameter bound to a neighbour built after it is settled all the
+/// same.
+///
+/// A parameter is worked out while its own class is instantiated,
+/// against the values known by then, and a binding may name a
+/// parameter of a component that comes later: the multi-body library
+/// writes `FixedTranslation r = {0, -1.6, wheel.rTire}` above the
+/// wheel it reads, and takes a direction off `r` with `Evaluate =
+/// true` on it. The neighbour settles in its turn, and without a
+/// round afterwards nothing goes back to ask again - so a value that
+/// was knowable all along stays unknown and the model is refused.
+#[test]
+fn a_parameter_bound_to_a_later_neighbour_is_settled() {
+    let m = parse_model(
+        "package P \
+           model Part parameter Real r[3] = {0, 0, 0}; \
+             parameter Real dir[3] = r annotation(Evaluate = true); \
+             Real y; equation y = dir[3] * time; end Part; \
+           model Wheel parameter Real radius = 0.25; end Wheel; \
+           model M Part part(r = {0, -1.6, wheel.radius}); Wheel wheel; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("the direction reads a neighbour declared after it");
+    // Refused outright before the late round: `part.r[3]` names
+    // `wheel.radius`, the wheel is built after the part, and
+    // `Evaluate = true` on the direction demands a number nobody went
+    // back to work out.
+    let dir = m
+        .components
+        .iter()
+        .find(|c| c.name == "part.dir[3]")
+        .expect("the direction is instantiated");
+    assert!(
+        matches!(dir.binding, Some(Expr::Number(n)) if (n - 0.25).abs() < 1e-9)
+            || matches!(&dir.binding, Some(Expr::Ref(named)) if named == "part.r[3]"),
+        "{:?}",
+        dir.binding
+    );
+}

@@ -284,6 +284,41 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         &model,
     )?;
 
+    // One more round over the parameters, now that every component of
+    // the model has been built. A parameter is settled while its own
+    // class is instantiated, against the values known by then - and a
+    // binding may name a parameter of a component built afterwards:
+    // `FixedTranslation r = {0, -1.6, wheel.rTire}` is written before
+    // the wheel it reads. The neighbour settles in its turn, and
+    // nothing went back to ask again, so a value that was knowable all
+    // along stayed unknown.
+    //
+    // The rounds run until nothing new comes of them, which is the
+    // same shape the parameter settling inside a class already has.
+    // Only bindings are read, and only where the name is still
+    // without a value, so a settled number is never overwritten and a
+    // parameter the run is meant to carry is not folded here.
+    for _ in 0..MAX_DEPTH {
+        let mut settled_any = false;
+        for component in &model.components {
+            if !matches!(component.variability, Variability::Parameter)
+                || acc.const_values.contains_key(&component.name)
+            {
+                continue;
+            }
+            let Some(binding) = component.binding.as_ref() else {
+                continue;
+            };
+            if let Some(value) = const_eval(binding, &acc.const_values) {
+                acc.const_values.insert(component.name.clone(), value);
+                settled_any = true;
+            }
+        }
+        if !settled_any {
+            break;
+        }
+    }
+
     // `Evaluate = true` says the parameter has to be one the compiler
     // settles rather than one the run carries. Where it cannot be
     // settled the declaration is asking for something that did not
