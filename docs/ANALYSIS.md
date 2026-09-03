@@ -2727,3 +2727,43 @@ refusal. Its own name is the argument for changing it: 18.8 calls
 a proposal. The two `mustBeConnected` cases in that test stand
 untouched; only the `Evaluate` third was moved, because by the test's
 own criterion it never belonged there.
+
+## The third attempt at complex-as-a-scalar, and the link it named
+
+The register's instruction was to fix the key rather than the reader:
+an element of an array of records should be known as a record where
+flattening writes its name, not guessed at by whoever asks later. That
+is the right shape, and the attempt got further than the two before
+it.
+
+Two lines were added. `components.rs` writes each element into
+`acc.records` at the place `element_names` is built - the one loop
+that invents `v[1]` - so the element is a record by construction.
+`instantiate.rs` takes those names back up into the class's own
+`records_here` before its equations are read, since that table was
+gathered before any component existed.
+
+It works, and it does not break the record's zero: the minimal case
+moves from `unknown variable v[1]` to a later wall, and the whole
+suite stays green - which is what tells this attempt from the two
+that widened `record_class_of` and fell over `sum(arr)`.
+
+### Why it was still reverted
+
+The corpus does not move: 817 and 341, unchanged. The probe says why
+in one line. For `BalancingStar` the elements are written correctly -
+`voltageSource.v[1]` is in `acc.records` - but the equation that reads
+them is not in that model. It is in `Interfaces.TwoPlug`, the base
+class the source declares `P[m] = {real(v[k]*conj(i[k])) ...}` in, and
+that class gathers a `records_here` of its own before its own
+components are built. The take-up fills the table of the class being
+instantiated; the equation is read in a table one class up the
+`extends` chain.
+
+So the missing link is named: the elements have to reach the table the
+**declaring** class reads, not only the instantiating one. That is a
+question about how `records_here` travels along an `extends`, and it
+is the third attempt's finding rather than its failure.
+
+Reverted whole, corpus untouched, and the next attempt starts one
+question further along than this one did.
