@@ -1957,3 +1957,25 @@ neither should be started at the end of one.
 That is the next link, and it is a family of at least six by this
 probe alone. The other three are genuinely separate: a record's own
 constant, a connector's array element, a table's second column.
+
+### The three that went their own way
+
+The batch's other three probes, each in its own layer, which is what
+the form was written to find:
+
+- **`ShowTransferFunction`**: `j`, the imaginary unit -
+  `final constant Complex j = Complex(0, 1)` in `ComplexMath`, reached
+  by `import Modelica.ComplexMath.j` and written into an equation
+  whole. The constants layer folds a record constant by its own
+  constructor where the name resolves, and an _imported_ name resolves
+  elsewhere; the flat model keeps `... * j` with `j` undeclared. Near
+  the record-state wall in kind - a record that never became fields -
+  and reached by an import rather than a redeclaration.
+- **`UnsymmetricalLoad`**: `voltageSource1.v[1]`, an element of a
+  connector array.
+- **`IMC_withLosses`**: `combiTable1Ds.y[2]`, the second column of a
+  table.
+
+Three layers, three walls, and no reason yet to think any two are the
+same. These are the singles the method was built for, and they are
+the first genuine ones the run half has offered.
