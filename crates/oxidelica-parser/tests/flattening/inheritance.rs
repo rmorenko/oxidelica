@@ -1577,3 +1577,64 @@ fn a_derivative_counts_the_inputs_its_base_declared() {
     // read off an empty count; it flattens now.
     parse_model(source).expect("the derivative counts the base's inputs");
 }
+
+/// A class-level redeclaration carries a modifier onto the parameter
+/// of the model it names.
+///
+/// `redeclare model FlowModel = Detailed(dp_nominal = 1e5)` both
+/// replaces the type and gives one of the replacement's parameters a
+/// value. The alias is a pair of names with nowhere to hold the
+/// modifier, so it is set aside and applied where a component is typed
+/// by the alias - `dp_nominal` is the component's parameter, and the
+/// value belongs on it the way any modifier does. This is how a pipe
+/// of the fluid library gives its flow model a nominal pressure loss.
+#[test]
+fn a_redeclared_model_carries_its_modifier_to_the_component() {
+    let m = parse_model(
+        "package P \
+           partial model Base parameter Real dp_nominal; Real y; \
+             equation y = dp_nominal * time; end Base; \
+           model Detailed extends Base; end Detailed; \
+           model Holder replaceable model FlowModel = Base; \
+             FlowModel flowModel; end Holder; \
+           model Top extends Holder(redeclare model FlowModel = Detailed(dp_nominal = 1e5)); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end Top; \
+         end P;",
+    )
+    .expect("the redeclared model's modifier reaches its parameter");
+    let dp = m
+        .components
+        .iter()
+        .find(|c| c.name == "flowModel.dp_nominal")
+        .expect("the flow model's parameter is instantiated");
+    assert!(
+        matches!(dp.binding, Some(Expr::Number(n)) if n == 1e5),
+        "{:?}",
+        dp.binding
+    );
+
+    // A modifier written on the component itself is more local and
+    // wins over the one the redeclaration carried.
+    let m = parse_model(
+        "package P \
+           partial model Base parameter Real dp_nominal; Real y; \
+             equation y = dp_nominal * time; end Base; \
+           model Detailed extends Base; end Detailed; \
+           model Holder replaceable model FlowModel = Base; \
+             FlowModel flowModel(dp_nominal = 7); end Holder; \
+           model Top extends Holder(redeclare model FlowModel = Detailed(dp_nominal = 1e5)); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end Top; \
+         end P;",
+    )
+    .expect("the local modifier wins");
+    let dp = m
+        .components
+        .iter()
+        .find(|c| c.name == "flowModel.dp_nominal")
+        .unwrap();
+    assert!(
+        matches!(dp.binding, Some(Expr::Number(n)) if n == 7.0),
+        "{:?}",
+        dp.binding
+    );
+}

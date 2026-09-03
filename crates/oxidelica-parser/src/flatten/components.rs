@@ -297,6 +297,36 @@ pub(super) fn instantiate_components(
         // replaced the type with one of a different shape.
         resolve_type(registry, &mut component, scope, imports);
 
+        // A class-level redeclaration carries modifiers of its own:
+        // `redeclare model FlowModel = Detailed(dp_nominal = 1e5)`
+        // both replaces the type and gives one of the replacement's
+        // parameters a value. The alias itself is a pair of names and
+        // has nowhere to hold them, so they were set aside by the
+        // resolved type's name when the aliases were gathered. A
+        // component typed by that alias is where they land - the
+        // parameter is the component's, not a function input, so the
+        // value belongs on the declaration the way any modifier does.
+        //
+        // Lowest precedence: a modifier written on the component
+        // itself, or a component-level redeclaration, says the same
+        // thing more locally and wins. Only a class-level redeclare
+        // of a model is asked - a function's filled inputs are read
+        // where its body is worked out, and a component is never a
+        // function.
+        if let Some(resolved) = lookup(registry, &component.type_name, scope, imports) {
+            if resolved.kind != ClassKind::Function {
+                if let Some(filled) = super::statements::filled_inputs(&resolved.name) {
+                    for (name, value) in filled {
+                        let already = extra_modifiers.iter().any(|(known, _)| known == &name)
+                            || component.modifiers.iter().any(|(known, _)| known == &name);
+                        if !already {
+                            extra_modifiers.push((name, value));
+                        }
+                    }
+                }
+            }
+        }
+
         // How long the declaration is along each axis.
         let sizes = measure_dimensions(
             class,
