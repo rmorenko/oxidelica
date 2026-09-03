@@ -292,6 +292,31 @@ fn gather_package_constants<'a>(
             }
         }
     }
+    // What a package alias wrote on this package, last of all, because
+    // it is the outermost thing said about it: `package Medium =
+    // MoistAir(extraPropertiesNames = {"CO2"})` names the medium and
+    // gives one of its constants a value in the same breath. The alias
+    // is a pair of names with nowhere to hold the modifier, so it was
+    // set aside under the resolved name when the aliases were
+    // gathered - the same store a component-level redeclaration reads.
+    // Left unread here, `nC = size(extraPropertiesNames, 1)` counted
+    // the interface's empty default and every trace substance vanished.
+    //
+    // Only at the top of the walk: a base's constants are gathered
+    // under the base's own name, and what the alias said belongs to
+    // the package the model actually named.
+    if depth == 0 {
+        if let Some(written) = super::statements::alias_modifiers(&class.name) {
+            for (name, value) in written {
+                if name.contains('.') {
+                    continue;
+                }
+                if let Some(held) = out.iter_mut().find(|(existing, _)| existing == &name) {
+                    held.1 = Some(value);
+                }
+            }
+        }
+    }
 }
 
 /// A constant's value in the shape its declaration gave it.

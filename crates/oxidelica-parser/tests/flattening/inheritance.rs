@@ -1675,3 +1675,54 @@ fn a_redeclared_model_carries_its_modifier_to_the_component() {
         dp.binding
     );
 }
+
+/// A package alias gives the package it names a value for one of its
+/// constants.
+///
+/// `package Medium = MoistAir(extraPropertiesNames = {"CO2"})` is how
+/// a fluid model asks for a medium with a trace substance in it, and
+/// `nC = size(extraPropertiesNames, 1)` is what counts them. The alias
+/// is a pair of names with nowhere to hold the modifier, so it is set
+/// aside under the package it named and read where that package's own
+/// constants are gathered. Left unread, every trace substance vanished
+/// and `nC` counted the interface's empty default.
+#[test]
+fn a_package_alias_gives_the_package_it_names_a_constant() {
+    let m = parse_model(
+        "package P \
+           partial package Base \
+             constant String names[:] = fill(\"\", 0); \
+             final constant Integer n = size(names, 1); \
+           end Base; \
+           package Concrete extends Base; end Concrete; \
+           model M package Med = Concrete(names = {\"CO2\", \"NOx\"}); \
+             parameter Integer got = Med.n; Real y; equation y = got * time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("the alias hands its package a constant");
+    let got = m.components.iter().find(|c| c.name == "got").unwrap();
+    assert!(
+        matches!(got.binding, Some(Expr::Number(n)) if n == 2.0),
+        "{:?}",
+        got.binding
+    );
+
+    // And a redeclaration is a different statement: it replaces the
+    // alias whole, so what the replaced alias wrote is not said about
+    // the class that took its place.
+    let m = parse_model(
+        "package Media partial package Base constant Real rho = 0; end Base; \
+           package Water extends Base; constant Real rho = 1000; end Water; \
+           package Oil extends Base; constant Real rho = 900; end Oil; end Media; \
+         model Tank replaceable package Medium = Media.Water(rho = 1) \
+           constrainedby Media.Base(rho = 2); \
+           Real a; equation a = Medium.rho; end Tank; \
+         model M extends Tank(redeclare package Medium = Media.Oil \
+           constrainedby Media.Base); \
+           annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a redeclared alias takes the new package's own constant");
+    let text = format!("{:?}", m.equations);
+    assert!(text.contains("Number(900.0)"), "{text}");
+}

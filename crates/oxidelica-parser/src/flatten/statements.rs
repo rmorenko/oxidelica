@@ -1070,6 +1070,30 @@ thread_local! {
     /// that have no business carrying modifiers.
     static FILLED_INPUTS: RefCell<HashMap<String, Vec<(String, Expr)>>> =
         RefCell::new(HashMap::new());
+
+    /// What a package alias wrote on the package it names.
+    ///
+    /// `package Medium = MoistAir(extraPropertiesNames = {"CO2"})`
+    /// names a package and gives one of its constants a value in the
+    /// same breath. Kept apart from the redeclaration store above
+    /// because the two are not the same statement: a redeclaration
+    /// replaces a class that a base declared, and what it writes is
+    /// read where a call is inlined; an alias names a class for this
+    /// model, and what it writes belongs to that package's own
+    /// constants. Mixing them made a `redeclare package Medium =
+    /// Oil(rho = 3)` overrule the `rho` Oil declares for itself.
+    static ALIAS_MODIFIERS: RefCell<HashMap<String, Vec<(String, Expr)>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Remember what a package alias wrote on the package it names.
+pub(super) fn remember_alias_modifiers(named: &str, written: Vec<(String, Expr)>) {
+    ALIAS_MODIFIERS.with(|held| held.borrow_mut().insert(named.to_string(), written));
+}
+
+/// What a package alias wrote on this package, if anything.
+pub(super) fn alias_modifiers(named: &str) -> Option<Vec<(String, Expr)>> {
+    ALIAS_MODIFIERS.with(|held| held.borrow().get(named).cloned())
 }
 
 /// Remember what a redeclaration filled in on a function.

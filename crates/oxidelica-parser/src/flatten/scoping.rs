@@ -108,6 +108,22 @@ pub(super) fn effective_imports(
         if let Some(filled) = filled {
             super::statements::remember_filled_inputs(&target, filled);
         }
+        // What the alias itself wrote, kept apart from what a
+        // redeclaration wrote: `package Medium = MoistAir(
+        // extraPropertiesNames = {"CO2"})` gives a constant of that
+        // package a value, and the package's own gathering is where
+        // that belongs. A redeclaration is a different statement -
+        // it replaces a class a base declared - and its modifiers
+        // stay on the road above, which is where a call reads them.
+        // Only where the alias still stands as it was written. A
+        // redeclaration replaces the whole alias - target and
+        // modifiers together - so what the replaced alias wrote is
+        // not said about the class that took its place: `Medium =
+        // Water(rho = 1)` redeclared to `Oil` leaves `Oil` with the
+        // `rho` it declares for itself.
+        if replacement.is_none() && !alias.modifiers.is_empty() {
+            super::statements::remember_alias_modifiers(&target, alias.modifiers.clone());
+        }
         imports.push((alias.name.clone(), target));
     }
     Ok(imports)
