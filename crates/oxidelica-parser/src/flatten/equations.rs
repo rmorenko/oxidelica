@@ -456,6 +456,18 @@ fn flatten_if_equations<'a>(
             if let Some(value) = const_eval(&named, &env) {
                 return Some(value);
             }
+            // A condition may ask how long something is rather than
+            // what it is worth: `if size(u, 1) > 0 then y = k*u; else
+            // y = 0` is how the standard library writes a block that
+            // also works over nothing. The shapes are settled by now,
+            // and read under the instance path - the condition says
+            // `u` and the table holds `sum.u`. Left undecided, such an
+            // `if` leaves one equation per position choosing its
+            // residual, and a clocked `y` with nothing assigning it.
+            let asked = prefix_expr(&named, prefix, outers);
+            if let Some(value) = settled_by_shape(&asked, local_consts, sizes_here) {
+                return Some(value);
+            }
             if !answered {
                 return None;
             }
@@ -676,6 +688,52 @@ fn flatten_when_clauses(
                     // a variable leaves it what it had, which is what
                     // `pre` of it is.
                     WhenAction::Choice(chosen) => {
+                        // A condition the compiler can settle picks its
+                        // branch here rather than becoming a choice the
+                        // run makes. `if inferFactor then superSample(u)
+                        // else superSample(u, factor)` is how the
+                        // clocked library writes a block that either
+                        // takes its factor or works it out, and folding
+                        // both branches into one value works out a
+                        // `superSample` by a factor the model said to
+                        // ignore - a guess, and the clock inference
+                        // then has a constraint nobody wrote.
+                        let settled = |condition: &Expr| -> Option<bool> {
+                            let named = substitute_class_constants(
+                                condition, registry, scope, imports, shadow,
+                            );
+                            let named = prefix_expr(&named, prefix, outers);
+                            const_eval(&named, local_consts).map(|value| value != 0.0)
+                        };
+                        let decided = chosen.branches.iter().all(|branch| {
+                            branch
+                                .condition
+                                .as_ref()
+                                .is_none_or(|c| settled(c).is_some())
+                        });
+                        if decided {
+                            let taken = chosen.branches.iter().find(|branch| {
+                                branch
+                                    .condition
+                                    .as_ref()
+                                    .is_none_or(|c| settled(c) == Some(true))
+                            });
+                            if let Some(branch) = taken {
+                                for equation in &branch.equations {
+                                    let Expr::Ref(target) = &equation.lhs else {
+                                        return Err(
+                                            "an `if` inside `when` gives values to variables"
+                                                .to_string(),
+                                        );
+                                    };
+                                    actions.push(WhenAction::Assign(
+                                        flat_name(target, prefix, outers),
+                                        resolve_here(&equation.rhs)?,
+                                    ));
+                                }
+                            }
+                            continue;
+                        }
                         let mut targets: Vec<String> = Vec::new();
                         let mut branches: Vec<GivenBranch> = Vec::new();
                         for branch in &chosen.branches {

@@ -256,6 +256,56 @@ pub(super) fn shape_i64(value: &Value) -> Vec<i64> {
 /// One array dimension as a number, or `None` when it cannot be told
 /// here - a colon waiting for a call site, or a length that depends on
 /// something not yet known.
+/// What an expression comes to where the lengths of things are part
+/// of the answer: `size(u, 1) > 0` is a condition an `if` equation
+/// may be written on, and by the time equations are read the shapes
+/// are settled.
+///
+/// Arithmetic and comparison over lengths and numbers, and nothing
+/// else - a condition that reads a variable is one the run decides,
+/// and this must not pretend otherwise.
+pub(super) fn settled_by_shape(
+    expr: &Expr,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+) -> Option<f64> {
+    if let Some(length) = dimension_value(expr, consts, sizes) {
+        return Some(length as f64);
+    }
+    let recur = |inner: &Expr| settled_by_shape(inner, consts, sizes);
+    match expr {
+        Expr::Number(value) => Some(*value),
+        Expr::Bool(value) => Some(*value as i64 as f64),
+        Expr::Neg(inner) => recur(inner).map(|value| -value),
+        Expr::Bin(op, a, b) => {
+            let (a, b) = (recur(a)?, recur(b)?);
+            Some(match op {
+                BinOp::Add => a + b,
+                BinOp::Sub => a - b,
+                BinOp::Mul => a * b,
+                BinOp::Div => a / b,
+                BinOp::Pow => a.powf(b),
+            })
+        }
+        Expr::Rel(op, a, b) => {
+            let (a, b) = (recur(a)?, recur(b)?);
+            let held = match op {
+                RelOp::Lt => a < b,
+                RelOp::Le => a <= b,
+                RelOp::Gt => a > b,
+                RelOp::Ge => a >= b,
+                RelOp::Eq => a == b,
+                RelOp::Ne => a != b,
+            };
+            Some(held as i64 as f64)
+        }
+        Expr::And(a, b) => Some(((recur(a)? != 0.0) && (recur(b)? != 0.0)) as i64 as f64),
+        Expr::Or(a, b) => Some(((recur(a)? != 0.0) || (recur(b)? != 0.0)) as i64 as f64),
+        Expr::Not(inner) => Some((recur(inner)? == 0.0) as i64 as f64),
+        _ => None,
+    }
+}
+
 pub(super) fn dimension_value(
     expr: &Expr,
     consts: &HashMap<String, f64>,

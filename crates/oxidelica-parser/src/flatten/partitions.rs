@@ -20,6 +20,29 @@ use super::*;
 /// their values in between, which is what `hold` asks for.
 ///
 /// A model with no clocks in it passes through untouched.
+/// The variables an equation puts on its own clock: everything it
+/// reads, save what sits under an operator that changes the rate or
+/// leaves the clocked world. `y = k[1]*u[1] + k[2]*u[2]` says all of
+/// them tick together, and that is how a clock settled downstream
+/// reaches back to what feeds it.
+///
+/// `hold`, `noClock` and `sample` are the ways out of a clock, and
+/// the sub-clock conversions are the ways across to another one; the
+/// boundary node is seen but not entered, so `superSample(u)` on the
+/// right of a clocked equation says nothing about `u`.
+fn on_the_same_clock(expr: &Expr, into: &mut Vec<String>) {
+    let boundary = |node: &Expr| {
+        matches!(node, Expr::Call(name, _)
+            if matches!(name.as_str(), "hold" | "noClock" | "sample"
+                | "subSample" | "superSample" | "shiftSample" | "backSample"))
+    };
+    super::algorithms::walk_pruned(expr, &boundary, &mut |node| {
+        if let Expr::Ref(name) = node {
+            into.push(name.clone());
+        }
+    });
+}
+
 pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
     // What every clock of the model ticks at, read off the
     // declarations and the equations that name them. `None` where the
@@ -80,6 +103,20 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
     // each tick, and the equations of its states run only while their
     // state is the one it is in.
     build_state_machines(model, &clocks, &mut clock_of)?;
+    // Only what varies with time can be on a clock: a parameter or a
+    // constant holds its value across every tick and belongs to no
+    // partition, so `y = k[1]*u[1]` hands its clock to `u[1]` alone.
+    let known_variables: std::collections::HashSet<String> = model
+        .components
+        .iter()
+        .filter(|c| {
+            !matches!(
+                c.variability,
+                Variability::Parameter | Variability::Constant
+            )
+        })
+        .map(|c| c.name.clone())
+        .collect();
     for _ in 0..MAX_DEPTH {
         let mut settled = true;
         let mut found = Vec::new();
@@ -87,7 +124,49 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
             let Some((target, is_rate)) = assigned_by(equation) else {
                 continue;
             };
+            // The reverse feed: an equation whose target already has a
+            // clock is not finished with - it may hold a conversion
+            // whose factor was left out, and this equation is the only
+            // constraint on it. `y = if b_super <> previous(b_super)
+            // then u_super else 0` is where an up-sampler's bare
+            // `superSample` learns its rate, from the clock the sum
+            // downstream gave `y`.
+            //
+            // Only forced steps: the target's clock goes into the same
+            // list the right side's clocks go into, and `one_clock`
+            // hands whatever is waiting to `work_out`, which solves a
+            // factor and then proves it by deriving the goal back. A
+            // factor that does not come back exactly is refused, so
+            // nothing here can settle what the constraints leave free.
             if clock_of.contains_key(&target) {
+                let known = clock_of[&target];
+                found.clear();
+                found.push(known);
+                clocks_touched(
+                    &equation.rhs,
+                    &mut clocks,
+                    &clock_of,
+                    &parameters,
+                    &mut found,
+                )?;
+                let waiting = found
+                    .iter()
+                    .any(|clock| clocks.spec(*clock).waiting().is_some());
+                if waiting && one_clock(&found, &mut clocks, &target)?.is_some() {
+                    settled = false;
+                }
+                // The same clock also travels the plain way: an
+                // equation with no rate change on it holds all its
+                // variables on one clock, so a target that has one
+                // hands it to whatever it reads that has none.
+                let mut reads = Vec::new();
+                on_the_same_clock(&equation.rhs, &mut reads);
+                for name in reads {
+                    if !clock_of.contains_key(&name) && known_variables.contains(&name) {
+                        clock_of.insert(name, known);
+                        settled = false;
+                    }
+                }
                 continue;
             }
             found.clear();
@@ -192,7 +271,7 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                             .any(|edge| mentions_call(&other.rhs, edge))
                 });
                 let plain = matches!(&equation.rhs, Expr::Ref(_)) && !crosses;
-                if asks_for_a_clock(&name) || plain {
+                if (asks_for_a_clock(&name) || plain) && known_variables.contains(&name) {
                     joined.push((name, clock));
                 }
             }

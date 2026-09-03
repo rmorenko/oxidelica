@@ -276,46 +276,69 @@ pub(super) fn reads_name(expr: &Expr, wanted: &str) -> bool {
 }
 
 /// Every node of an expression, handed to the given eye.
+/// Like `walk_expr`, but a subtree the caller calls a boundary is not
+/// entered: the node itself is seen, and nothing below it is. Clock
+/// partitioning needs this - what sits under `superSample` belongs to
+/// another clock, so it must not be read as part of this equation.
+pub(super) fn walk_pruned(
+    expr: &Expr,
+    boundary: &impl Fn(&Expr) -> bool,
+    eye: &mut impl FnMut(&Expr),
+) {
+    eye(expr);
+    if boundary(expr) {
+        return;
+    }
+    let mut on = |child: &Expr| walk_pruned(child, boundary, eye);
+    children_of(expr, &mut on);
+}
+
 pub(super) fn walk_expr(expr: &Expr, eye: &mut impl FnMut(&Expr)) {
     eye(expr);
+    let mut on = |child: &Expr| walk_expr(child, eye);
+    children_of(expr, &mut on);
+}
+
+/// The expressions directly inside this one.
+fn children_of(expr: &Expr, mut eye: &mut impl FnMut(&Expr)) {
     match expr {
-        Expr::Neg(inner) | Expr::Not(inner) | Expr::Member(inner, _) => walk_expr(inner, eye),
+        Expr::Neg(inner) | Expr::Not(inner) | Expr::Member(inner, _) => eye(inner),
         Expr::Bin(_, l, r)
         | Expr::Rel(_, l, r)
         | Expr::And(l, r)
         | Expr::Or(l, r)
         | Expr::Elementwise(_, l, r) => {
-            walk_expr(l, eye);
-            walk_expr(r, eye);
+            eye(l);
+            eye(r);
         }
         Expr::If(c, a, b) => {
-            walk_expr(c, eye);
-            walk_expr(a, eye);
-            walk_expr(b, eye);
+            eye(c);
+            eye(a);
+            eye(b);
         }
-        Expr::Call(_, args) | Expr::Array(args) => args.iter().for_each(|a| walk_expr(a, eye)),
+        Expr::Call(_, args) | Expr::Array(args) => args.iter().for_each(&mut eye),
         Expr::Index(base, subscripts) => {
-            walk_expr(base, eye);
-            subscripts.iter().for_each(|s| walk_expr(s, eye));
+            eye(base);
+            subscripts.iter().for_each(&mut eye);
         }
         Expr::Range(a, step, b) => {
-            walk_expr(a, eye);
+            eye(a);
             if let Some(step) = step {
-                walk_expr(step, eye);
+                eye(step);
             }
-            walk_expr(b, eye);
+            eye(b);
         }
         Expr::Comprehension(body, _, range) => {
-            walk_expr(body, eye);
-            walk_expr(range, eye);
+            eye(body);
+            eye(range);
         }
-        Expr::MatrixRows(rows) => rows.iter().flatten().for_each(|c| walk_expr(c, eye)),
-        Expr::NamedArg(_, value) => walk_expr(value, eye),
-        Expr::Tuple(slots) => slots.iter().flatten().for_each(|s| walk_expr(s, eye)),
+        Expr::MatrixRows(rows) => rows.iter().flatten().for_each(&mut eye),
+        Expr::NamedArg(_, value) => eye(value),
+        Expr::Tuple(slots) => slots.iter().flatten().for_each(&mut eye),
         Expr::WithDerivative(value, rule, seeds) => {
-            walk_expr(value, eye);
-            walk_expr(rule, eye);
-            seeds.iter().for_each(|(_, arg)| walk_expr(arg, eye));
+            eye(value);
+            eye(rule);
+            seeds.iter().for_each(|(_, arg)| eye(arg));
         }
         Expr::Ref(_)
         | Expr::Number(_)

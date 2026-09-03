@@ -983,12 +983,14 @@ fn a_sample_may_leave_its_clock_to_inference() {
     // type layer would have refused a Boolean against `s.y`.
     let y = m.components.iter().find(|c| c.name == "s.y").unwrap();
     assert_eq!(y.type_name, "Real");
-    let read = m
-        .equations
-        .iter()
-        .find(|e| format!("{:?}", e.lhs) == "Ref(\"s.y\")")
-        .unwrap();
-    assert_eq!(format!("{:?}", read.rhs), "Ref(\"s.u\")");
+    // And it is read on the clock the assignment downstream is on:
+    // `a.u = s.y` holds both on one clock, so the sampler's equation
+    // is lifted into that `when` rather than left running freely.
+    let inside = format!("{:?}", m.when_clauses);
+    assert!(
+        inside.contains("Ref(\"s.y\")") && inside.contains("Ref(\"s.u\")"),
+        "{inside}"
+    );
 }
 
 /// An undecided `if` next to a clock keeps every equation.
