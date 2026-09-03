@@ -2031,3 +2031,99 @@ makes compile.
 The four lines that settle a `when`'s `if` are confirmed right and go
 in with this, not before it: alone they let the default factor be
 guessed, which is the phantom behind the whole family.
+
+## The register at 782 and 341, taken after the clock series
+
+Taken with `refusals.sh both`, and the third use of the instrument
+paid off at once: it caught a family moving rather than a barrier
+falling.
+
+### What stops flattening, after the clock series
+
+| Count | What it is                                            |
+| ----: | ----------------------------------------------------- |
+|    26 | a parameter asking to be evaluated before the run     |
+|    17 | **arrays of two lengths that do not fit together**    |
+|    13 | a name with no declaration above it                   |
+|    10 | a flexible size with nowhere to read a length from    |
+|    10 | a run of elements against a different count of values |
+|     8 | a record given the wrong number of fields             |
+|     8 | a function written in C                               |
+
+The nine derivatives that took the wrong number of inputs are
+**gone**, the whole kind reporting zero. They did not disperse: the
+array kind
+went 8 -> 17, and the nine new ones are the `nXi` models by name
+(`Media.Examples.MoistAir`, `Fluid.Examples.BranchingDynamicPipes`,
+`TraceSubstances.RoomCO2`, and so on). Same family, one floor up
+again, and this is the register earning its keep: a count alone would
+have read as nine fixed and nine broken.
+
+### The fourth storey of `nXi`, probed
+
+The diagnosis written at the third storey does **not** reproduce. The
+`ASKED_AS` mark is present at the measurement and holds
+`Modelica.Media.Air.MoistAir`; `nXi` under the declaring class comes
+to 1, correctly; and both arrays measure right - `medium.Xi` is `[1]`
+and `medium.X` is `[2]`. Nothing is wrong with the shapes.
+
+Where it actually stops is inside a function body. `MoistAir`
+redeclares
+
+```modelica
+state := if size(X, 1) == nX then ThermodynamicState(p, T, X)
+         else ThermodynamicState(p, T, cat(1, X, {1 - sum(X)}));
+```
+
+The branches are of different lengths, so the condition has to be
+settled while the body is worked out. At that point the body's tables
+hold neither: `sizes["X"]` is absent and `consts["nX"]` is absent. The
+argument is the package constant `X_default[nX]`, whose shape never
+reaches the shape table because it is a constant rather than a
+component of the model.
+
+So the barrier is of the **time** kind, not the place kind: the length
+is known, and is not known _there_. The next probe goes to what a
+function body is handed, not to what a medium resolves to.
+
+### What stops running, after the clock series
+
+Unmoved: unknown variables (24 and 21), algebraic loops that diverged
+(14), singular Jacobians (11), `shortPipe.flowModel.dp_nominal` (11).
+Nothing was worked in the run half this series.
+
+## The one model the machines disagree on, named
+
+The build machine runs 342 and this desk runs 341. The difference is
+one model, and it is
+`Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL`.
+
+It is the model already filed under the evaluation budget: two steps
+in seventy-six seconds, against a budget of twenty million
+evaluations it never approaches. Nothing about it is stiff. Whether
+it finishes therefore depends on how fast the machine is against the
+wall clock the budget is measured beside - which is exactly why the
+floors are set from the lower of the two counts.
+
+The hypothesis is the solver budget, not floating-point order and not
+thread count: the same model is the only entry under that heading,
+and the two counts differ by exactly it.
+
+## A measuring pipe must not cut its own output short
+
+The floor script measured 782 and 341, printed them, and exited 1.
+Nothing was wrong with the numbers or the compiler.
+
+`echo "$report" | head -1` is the whole of it. `head` closes the pipe
+once it has its line, `echo` is killed by SIGPIPE for writing into a
+closed one, and `pipefail` reports the pipeline as failed. On a desk
+the report fits the pipe buffer and `echo` is finished before `head`
+leaves, so it never fires; on the build machine the list of models
+that ran does not fit, so it fires every time.
+
+This is the third way a measuring pipe has lied about its result,
+after the script that did not exist and the zero that came from
+nothing. The rule grows a clause: a measuring pipe does not swallow
+stderr, does not answer nothing where nothing ran, and does not cut
+its own output short. Where one line is wanted, take it without a
+pipe - `printf '%s\n' "${report%%$'\n'*}"`.

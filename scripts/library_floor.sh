@@ -57,11 +57,24 @@ cd "$(dirname "$0")/.."
 # log, and the log gets the run half of it, which is where the
 # machines disagree.
 report="$(./target/release/oxidelica library check --list "$directory")"
-echo "$report" | grep '^  ran   ' | sed 's/^  ran   //' | sort > /tmp/oxidelica_ran.txt
+ran_list="$(echo "$report" | grep '^  ran   ' | sed 's/^  ran   //' | sort)"
+printf '%s\n' "$ran_list" > /tmp/oxidelica_ran.txt
 echo "models that ran: $(wc -l < /tmp/oxidelica_ran.txt)"
-sed -n '1,$p' /tmp/oxidelica_ran.txt | sed 's/^/  ran   /'
+sed 's/^/  ran   /' /tmp/oxidelica_ran.txt
 report="$(echo "$report" | grep -v '^  \(flat\|ran\)  ')"
-echo "$report" | head -1
+# A measuring pipe does not cut its own output short. `... | head -1`
+# has `head` close the pipe on the line it wanted, `echo` takes a
+# SIGPIPE for writing into a closed one, and `pipefail` turns that
+# into the whole script failing - a green measurement reported as a
+# red job. It hid on a desk, where the report fits a pipe buffer and
+# `echo` finishes before `head` leaves, and fired every time on the
+# build machine, where the list of models that ran does not fit.
+#
+# The rule this is the third instance of: a measuring pipe must not
+# lie about its result. It does not swallow stderr, it does not
+# answer nothing where nothing ran, and it does not cut its own
+# output short. Where one line is wanted, take it without a pipe.
+printf '%s\n' "${report%%$'\n'*}"
 echo "$report" | grep -E '^(classes:|runnable examples|time:)'
 
 read_now="$(echo "$report" | sed -n 's/^files: \([0-9]*\) read.*/\1/p')"
