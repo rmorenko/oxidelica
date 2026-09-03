@@ -2249,3 +2249,84 @@ Two of the three are the record-state layer, one is fixpoint-ordering.
 None is the isolated single the run half was hoped to be offering; the
 run half's walls are families the flattener's families stand in front
 of, one storey down.
+
+## Four barriers of time, gathered - and what building the twin found
+
+The register carried four refusals under one wording, "length known,
+measured too early": the fourth storey of nXi (17), the table's second
+column (`IMC_withLosses`), the 26-now-27 parameters asked before the
+run, and the constant chain behind `434eb3c`. Each shift had patched
+one, measured it inert or half, reverted. This shift gathered all four
+into one question for the panel, with the pipeline map, rather than
+patch a fifth.
+
+### The pipeline, as it measures length
+
+For one class, `instantiate` runs: `measure_shapes` (into
+`collect_shapes_given`, handed the overrides) before any component is
+built, then `collect_records`, then `instantiate_components` - a
+per-component loop with a small parameter fixpoint at its head that
+also calls `measure_dimensions` per component. Two length-measurers,
+the fixpoint between them.
+
+### What the four turned out to be, probed
+
+- **A (nXi, 17) and C-fluid (25 of 27)** are one thing on two roads: a
+  package constant that does not reach a body worked under the
+  interface's scope, as a length in A (`X_default` for `size(X, 1) ==
+nX`) and as a value in C-fluid (`reference_h`, `cp_const` in an
+  `h_start` binding). The 434eb3c hop settled the isolated case; the
+  scope is the storey behind it.
+- **B (the table)** is genuinely pipeline-order: `y[nout]` is measured
+  while `nout = size(columns, 1) <- columns = 2:size(table, 2)` is
+  unsettled, falls to the base default `nout = 1`, and `y` is never
+  re-measured. A four-link chain, its own fixpoint-input fault.
+- **The 2 MultiBody of C** (`lengthDirection[3] = r[3] - r_shape[3]`
+  under `normalize`) are a value fixpoint, a third kind.
+
+So the "measured too early" wording fused three causes: a missing road
+(A + C-fluid), a pipeline order (B), and a value fixpoint (2). The map
+went to the panel with that reading offered for correction.
+
+### The array twin, built and measured against a third storey
+
+While the answer cooked I built the array twin the fortieth shift
+named - `asked_as_constant_array`, the mirror of the scalar
+`asked_as_constant` - so a constant array asked from inside the
+interface is asked again of the medium the mark names. It fires and
+reaches the medium: `X_default` under `MoistAir` now resolves to
+`{0.01, 0.99}` at the call site, shape `[2]`, where before it was a
+bare `Ref` shape `[]`. The road is right.
+
+But the model failed worse, `lens 2 3` where it read `1 2`, and the
+cause is a storey below the twin. `MoistAir(extraPropertiesNames =
+{"CO2"})` has `nX = 3`, but its `reference_X` is declared `{0.01,
+0.99}` - length 2 - and our compiler does not lengthen it by the extra
+property. The twin faithfully returns the declared constant, now the
+_wrong length_ for this medium. So the twin does not merely fail to
+help - it produces a value of the wrong length, and it was reverted
+whole rather than shipped.
+
+The finding sharpens A: it is not one storey (scope) but two. The
+scope twin reaches the medium; a second thing must lengthen a medium's
+own `reference_X`/`X_default` by its `extraPropertiesNames`, upstream
+of every reader. If the medium's constants are the wrong length at the
+source, neither the scope twin nor a reader-side re-measure helps. The
+architecture question went to the panel with this storey on the table.
+
+### The record-state family is wider than three, and mixed
+
+Probed as a family. The census caught about seventeen models, but of
+several sub-kinds: ten-plus QuasiStatic models refused `an equation
+between shapes [2] and [3, 2]` (a complex vector against a matrix),
+`ShowTransferFunction` on the imaginary unit `j`, two `ComplexMath`
+tests on `an array cannot be a divisor` (complex `./`). The bare-scalar
+case (`voltageSource1.v[1] * conj(i[1])` read as scalar) probed to a
+precise mechanism: `record_class_of` does not see an element of an
+array of records - `v[1]` of `C v[m]` - as a record operand, so the
+overloaded `*` is not applied and `re_of(...)` is dropped. A narrow
+fix that resolved the array-element case over-triggered and broke a
+record-zero test, so it was reverted; the family wants a careful
+reading of where an array-of-records element is and is not a record,
+not a one-line widening. Recorded as a family with named sub-kinds for
+the next shift, which should take the layer, not a symptom.
