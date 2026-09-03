@@ -1979,3 +1979,55 @@ the form was written to find:
 Three layers, three walls, and no reason yet to think any two are the
 same. These are the singles the method was built for, and they are
 the first genuine ones the run half has offered.
+
+## What the specification says about inferring a factor
+
+The panel read chapter 16 and the answer changes the shape of the
+work. Written down before any of it is built.
+
+**There is no prescribed order and no fixpoint in the letter.** 16.7.2
+gives base-clock partitioning as literal steps, and they exist to make
+_the partitions_ well-defined rather than to sequence a compiler.
+16.5 says of an absent factor only that it is inferred. 16.7.5 states
+a demand on the _result_: within a base-clock partition every
+sub-partition's factor and shift must be determined and consistent, or
+the model is erroneous.
+
+Which answers the fear inside the question. A fixpoint of **forced**
+steps - each drawing only what the constraints compel, which is what
+`work_out` already does with its solve-then-prove-by-re-derivation
+law - computes exactly the determined set and nothing more. It cannot
+settle what the language leaves undefined, because that would take a
+guess. And this tree has already made that guess once: the unpicked
+`else` branch's default factor is where an inferring up-sampler gets a
+clock it never asked for.
+
+**The unit is the base-clock partition**, not the equation and not the
+model: `sample` and `hold` are boundaries the inference must not
+cross, and our own test that a value read only through `hold` stays
+free is the proof.
+
+**But the connected component need not be built.** Iterating over
+equations as undirected constraints closes over it already. Three
+smaller things are missing instead:
+
+1. The reverse feed: an equation whose target is clocked should push
+   that clock into the constraint set and let `work_out` settle the
+   waiting rows against it - the one-step machinery already exists.
+2. Representability, which comes for free once the joiner runs
+   interleaved with the forward loop, since waiting rows re-mint each
+   pass.
+3. The joiner as it stands is a joiner and not an inferrer: it copies
+   a row index and never calls `work_out`, so a conversion's target
+   can land on a reader's clock with the whole-number law skipped.
+
+**And a bare factor can be genuinely free.** Refusal stays, but only
+for two of three cases: free (read only through `hold` - the words
+should say so) and constrained-but-unsatisfiable (the existing
+messages, all correct). The third - constrained through a reader - is
+where today's message is simply false, and it is the one the fixpoint
+makes compile.
+
+The four lines that settle a `when`'s `if` are confirmed right and go
+in with this, not before it: alone they let the default factor be
+guessed, which is the phantom behind the whole family.
