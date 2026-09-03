@@ -2558,3 +2558,33 @@ pipe does not swallow stderr, does not answer nothing where nothing
 ran, does not cut its own output short - and text carrying names is
 quoted at the boundary it crosses. `<<'EOF'` rather than `<<EOF`,
 every time a name with backquotes in it goes into a message.
+
+## The array kind's remnant, probed: not what the count suggested
+
+Three models keep the array kind alive, and the fourth item of the
+shift was to finish them off - a kind emptied to nought is cleaner
+than a kind halved. The probe says they are not the cheap remainder
+they looked like.
+
+The pair that fails is the fingerprint of the two branches again:
+`{0.01, 0.99}` of length two against `{0.01, 0.99, 1 - sum(...)}` of
+length three, the `then` and the `cat` of `setState_pTX`. But the
+condition is settled - a probe at the assignment shows it reading
+`size({0.01, 0.99}, 1) == 2` with both sides plain numbers - and no
+`Expr::If` in the array layer ever sees it: neither the branch-picking
+path nor the in-a-loop path fires for this pair. The zip is reached
+from `one_assignment` through `expand`, so the two lengths are being
+paired by an assignment inside the body rather than by the `if` that
+was supposed to choose between them.
+
+Which means the branch is chosen correctly and something downstream
+still holds both answers. Probed that far, reverted whole, and left
+for the next shift with the trail written down: the fault is one
+expression past the condition, in what the body does with the state
+it just built, not in the condition or the constants that feed it.
+
+Two shifts have now ended at this same door from different sides -
+once from the constants road, once from the array road - and both
+times the storey behind it was the same body. It is a body-level
+question, and the next attempt should start inside `setState_pTX`
+rather than at either road that leads to it.
