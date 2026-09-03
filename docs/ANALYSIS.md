@@ -1797,3 +1797,31 @@ today, and the register's `function X wants N field(s) for X, got N`
 row - eight models - is probably it, seen from the other side. That
 row is where to start if it is ever wanted again, and the shape above
 is what was already learned about it.
+
+## The flatten layer, cut along its seams
+
+Five pure moves, each its own commit, each measured. Nothing was
+improved on the way, which is the whole discipline of it - a move
+that also fixes something cannot be read as a move.
+
+| From          | To              | Lines | What went                                                   |
+| ------------- | --------------- | ----: | ----------------------------------------------------------- |
+| `clocks.rs`   | `machines.rs`   |   741 | state machines, their arrows, what their states say         |
+| `clocks.rs`   | `partitions.rs` |   586 | splitting a model into partitions, the counters and markers |
+| `arrays.rs`   | `builtins.rs`   |   414 | `transpose`, `cat`, `identity`, the folds over an array     |
+| `arrays.rs`   | `shapes.rs`     |   325 | how long each array is, gathered before anything expands    |
+| `inlining.rs` | `carried.rs`    |   479 | the bodies a flat model hands to the run to walk            |
+
+`clocks.rs` 2690 to 1387, `arrays.rs` 2833 to 2113, `inlining.rs` 2229
+to 1761. The counts did not move once, the register after the sweep is
+identical to the one before it line for line, and the pass came out a
+second per model faster than it went in - which is measurement noise
+rather than a claim.
+
+What each file is for, now that the answer fits in a sentence:
+`clocks.rs` is what a clock _is_, `partitions.rs` is what a model made
+of them becomes, `machines.rs` is the state machines that ride on
+them; `arrays.rs` expands an expression, `shapes.rs` says how long
+things are, `builtins.rs` answers the built-ins that build a shape;
+`inlining.rs` writes a body out where it is called, `carried.rs`
+carries the ones that cannot be.
