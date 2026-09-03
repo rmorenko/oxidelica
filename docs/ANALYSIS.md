@@ -2475,3 +2475,64 @@ stop at flattening now get past it and stop at the next wall - the
 neighbouring sub-family, a complex read as a scalar. A barrier
 removed upstream shows as a barrier grown downstream, and the totals
 say which of the two happened: 793 flatten against 783.
+
+## Who the second ten were: nobody new
+
+The register asked a fair question of the instrument rather than of
+memory: `unknown variable in equation` went 21 to 41, twenty models,
+and only ten QuasiStatic had been pushed past flattening. Who were
+the other ten?
+
+First, the arithmetic was wrong, and the instrument said so. There
+are two kinds with that wording, not one. Before: 24 plain plus 21 in
+equation, forty-five in all. After: 7 plain plus 41 in equation,
+forty-eight. The growth is three, not twenty - the rest is one kind
+draining into the other as models travel. A count read off one line
+of the census would have sent a whole shift chasing seventeen models
+that never existed.
+
+### What the forty-one actually are, by name
+
+| Count | Name                               |
+| ----: | ---------------------------------- |
+|    14 | `medium.state.T`                   |
+|    12 | `fluidConstants[N].molarMass`      |
+|     5 | `v[N]` (the complex-as-a-scalar)   |
+|     3 | `Air_Utilities.Basic.Constants.MM` |
+
+The two largest are one road, which the probe settled by following
+both to the same wall: `SimpleLiquidWater` stops at `medium.state.T`,
+and `MediaTestModels.Air.SimpleAir` stops at
+`volume.medium.state.T`. Same name, same layer.
+
+### The road, probed to its root
+
+`PartialMedium.ThermodynamicState` is declared **with no fields at
+all**, and the library's own comment beside it says why: "in the base
+class since the ThermodynamicState record is still empty". Every
+medium redeclares it with the pressure and temperature its state
+really is - `PartialSimpleMedium.ThermodynamicState` holds `p` and
+`T`.
+
+`BaseProperties` declares `ThermodynamicState state` by the plain
+name. `collect_records` resolves that name where the declaration was
+written, so it finds the empty base: the probe shows `medium.state`
+resolving to `PartialMedium.ThermodynamicState` (fields: none) while
+the model's own `state` resolves to
+`PartialSimpleMedium.ThermodynamicState` (fields: `p`, `T`). With no
+fields there is nothing to expand, so `medium.state.T` is a name of
+nothing while an equation still writes it.
+
+This is the sixth face of asked-under, on the records road: the name
+is right, the scope is wrong, and the medium that would answer is not
+in view because `collect_records` runs before instantiation and walks
+into `BaseProperties` from the declaring class rather than from the
+site. A first attempt to resolve the name again under the site's own
+imports was measured inert - inside `BaseProperties` there is no
+`Medium` alias any more, the walk having already descended - and
+reverted. The medium has to be carried in, not looked up again, which
+is the same shape the `asked_as` mark solved for constants and
+functions.
+
+Twenty-six models stand on it, and they are the largest single family
+left in either half.
