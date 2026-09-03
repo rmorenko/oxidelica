@@ -1770,3 +1770,50 @@ fn a_body_branching_on_a_length_reads_the_medium_it_was_called_under() {
         h.binding
     );
 }
+
+/// A value handed to a base carries the lengths it was written
+/// against.
+///
+/// A table block is given `table = {{a[j], b[j]} for j in 1:size(a,
+/// 1)}` and declares `columns[:] = 2:size(table, 2)` with
+/// `extends SIMO(final nout = size(columns, 1))` above it. The
+/// modifier is written where the model stands, so the names in it -
+/// `a`, `b` - are the model's, and the base has never heard them. Left
+/// without their lengths the value cannot be built, `columns` cannot
+/// be counted, `nout` falls to the base's default of one, and every
+/// output past the first is outside the array.
+///
+/// The lengths travel with the modifier, and a value that is neither
+/// written out nor a range is built to find out how long it is - the
+/// dearest reading, asked last, and writing nothing where it fails.
+#[test]
+fn a_value_handed_to_a_base_carries_the_lengths_it_names() {
+    let m = parse_model(
+        "package P \
+           connector RealOutput = output Real; \
+           partial block SIMO parameter Integer nout = 1; \
+             RealOutput y[nout]; end SIMO; \
+           block Tab extends SIMO(final nout = size(columns, 1)); \
+             parameter Real table[:, :]; \
+             parameter Integer columns[:] = 2:size(table, 2); \
+             Real u = time; \
+             equation for i in 1:nout loop y[i] = i * u; end for; end Tab; \
+           model M parameter Real a[3] = {1, 2, 3}; \
+             Tab t(table = {{a[j], a[j], a[j], a[j], a[j]} for j in 1:size(a, 1)}); \
+             Real w; equation w = t.y[4]; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("the handed value's lengths reach the base");
+    // Five columns, `columns = 2:5` is four of them, so `y` is four
+    // long and `y[4]` is the last of them rather than outside.
+    assert!(
+        m.components.iter().any(|c| c.name == "t.y[4]"),
+        "{:?}",
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("t.y"))
+            .map(|c| &c.name)
+            .collect::<Vec<_>>()
+    );
+}

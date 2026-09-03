@@ -626,6 +626,28 @@ fn instantiate_bases(
                 }
             })
             .collect();
+        // The arrays of the class doing the extending, under the short
+        // names its own declarations use. A modifier handed to a base
+        // is written where this class stands - a table block is given
+        // `table = {{Ptable[j], ...} for j in 1:size(Ptable, 1)}`, and
+        // `Ptable` is a parameter of the model, not of the base. The
+        // base has never heard the name, so the length has to travel
+        // with the modifier or the value cannot be built at all.
+        for (named, shape) in &acc.sizes {
+            // Under the short name the modifier writes. A value handed
+            // to a base is written where the extending class stands,
+            // so what it names are that class's own declarations: at
+            // the top of a model those carry no prefix at all, and one
+            // instance down they carry the instance's. Either way it
+            // is the last piece that the modifier says.
+            let short = named.strip_prefix(prefix).unwrap_or(named);
+            if short.contains('.') {
+                continue;
+            }
+            handed_shapes
+                .entry(short.to_string())
+                .or_insert_with(|| shape.clone());
+        }
         collect_shapes_given(
             registry,
             class,

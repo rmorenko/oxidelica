@@ -181,7 +181,44 @@ fn collect_shapes_under(
                             // table. The bounds are read against the
                             // numbers in view and the arrays measured so
                             // far, both of which are here.
-                            range_length(binding, axis, consts, out)
+                            if let Some(length) = range_length(binding, axis, consts, out) {
+                                return Some(length);
+                            }
+                            // A value that is neither written out nor a
+                            // range still has a length once it is built:
+                            // a table block is handed `table = {{...}
+                            // for j in 1:size(Ptable, 1)}`, a
+                            // comprehension whose count nothing here
+                            // reads outright. Building it says how long
+                            // it is, and the length is what the
+                            // declarations after it are written against
+                            // - `columns[:] = 2:size(table, 2)`, and
+                            // `nout = size(columns, 1)` behind that.
+                            //
+                            // Asked last, after every cheaper reading
+                            // has failed, because building a value is
+                            // dearer than measuring one. On failure
+                            // nothing is written: a wrong number here is
+                            // settled for good, where a missing one is
+                            // asked again later.
+                            let no_loop_vars = HashMap::new();
+                            let shapes = Shapes {
+                                sizes: out,
+                                loop_vars: &no_loop_vars,
+                                consts,
+                                records: super::arrays::no_records(),
+                            };
+                            let mark = super::algorithms::checks_mark();
+                            let built = super::arrays::expand(
+                                binding,
+                                &shapes,
+                                registry,
+                                scope,
+                                &class.imports,
+                                0,
+                            );
+                            super::algorithms::checks_rewind(mark);
+                            built.ok()?.shape().get(axis).map(|length| *length as i64)
                         })
                     }
                     _ => dimension_value(dimension, consts, out),
