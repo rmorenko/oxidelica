@@ -1113,3 +1113,75 @@ fn a_dead_branch_of_an_if_in_a_when_is_still_checked() {
         "{refusal}"
     );
 }
+
+/// Two clocks reaching one variable are refused, whichever order the
+/// equations were written in.
+///
+/// `a = b` and `p = b` where `a` and `p` tick differently put `b` on
+/// two clocks. A value belongs to one, so this is a refusal - and it
+/// has to be the same refusal either way round, or the meaning of a
+/// model would depend on the order its equations happen to appear in.
+#[test]
+fn a_variable_two_clocks_reach_is_refused_whatever_the_order() {
+    let one_way = "model M Clock c1 = Clock(0.1); Clock c2 = Clock(0.2); \
+         Real a; Real b; Real p; \
+         equation when c1 then a = 1; end when; when c2 then p = 2; end when; \
+         a = b; p = b; end M;";
+    let other_way = "model M Clock c1 = Clock(0.1); Clock c2 = Clock(0.2); \
+         Real a; Real b; Real p; \
+         equation when c1 then a = 1; end when; when c2 then p = 2; end when; \
+         p = b; a = b; end M;";
+
+    let first = parse_model(one_way).unwrap_err().message;
+    let second = parse_model(other_way).unwrap_err().message;
+    assert!(
+        first.contains("`b` is written on two clocks at once"),
+        "{first}"
+    );
+    assert_eq!(first, second);
+}
+
+/// A clocked state on a clock that cannot step it is refused, not a
+/// panic.
+///
+/// `Clock(0.1)` says when to tick and nothing about integrating, so a
+/// `der` that lands on it by the clock travelling along the equations
+/// that feed it has no method to step with. That is a model the
+/// compiler cannot run, and the refusal has to name the variable and
+/// the clock rather than stopping the program.
+#[test]
+fn a_clocked_state_without_a_solver_method_is_refused() {
+    let refusal = parse_model(
+        "model M Clock c = Clock(0.1); Real x; Real u; Real y; \
+         equation u = sample(time, c); when c then y = x; end when; \
+         der(x) = u; end M;",
+    )
+    .unwrap_err()
+    .message;
+
+    assert!(refusal.contains("`x`"), "{refusal}");
+    assert!(refusal.contains("every 0.1"), "{refusal}");
+    assert!(refusal.contains("solver method"), "{refusal}");
+}
+
+/// A clock does not travel back through what leaves it.
+///
+/// `y = u` puts both on one clock, but `u = hold(z)` says `u` is the
+/// continuous side of a boundary. Where a name comes from decides
+/// this, not where it stands: the equality on its face says nothing.
+#[test]
+fn a_clock_does_not_travel_back_through_hold() {
+    let m = parse_model(
+        "model M Clock c = Clock(0.1); Real z; Real u; Real y; Real w; \
+         equation z = time; w = sample(z, c); \
+         when c then y = w + 0; end when; \
+         u = hold(w); end M;",
+    )
+    .unwrap();
+
+    // `u` reads a clocked value through `hold`, which is what makes it
+    // continuous: it keeps its own equation rather than being lifted
+    // into the clock's `when`.
+    let inside = format!("{:?}", m.when_clauses);
+    assert!(!inside.contains("Ref(\"u\")"), "{inside}");
+}

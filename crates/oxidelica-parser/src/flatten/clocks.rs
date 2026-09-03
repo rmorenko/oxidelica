@@ -262,7 +262,7 @@ impl ClockSpec {
     /// last bit is what ticking together means, and the fractions are
     /// what puts the numbers where they belong rather than a rounding
     /// away from it.
-    fn same(&self, other: &ClockSpec) -> bool {
+    pub(super) fn same(&self, other: &ClockSpec) -> bool {
         let roots = match (&self.root, &other.root) {
             // One base sampled one way. The fraction is exact and the
             // id is a number, so identity leaves the floats entirely -
@@ -740,6 +740,27 @@ pub(super) fn clocks_touched(
 /// A variable belongs to exactly one clock, so an equation naming two
 /// without a conversion between them is not an equation this language
 /// has a meaning for.
+/// How a variable pulled between two clocks is refused.
+///
+/// The two are named in a settled order rather than the order they
+/// were come across in: the same model has to draw the same refusal
+/// whichever way round its equations were written.
+pub(super) fn two_clocks_at_once(name: &str, one: &ClockSpec, other: &ClockSpec) -> String {
+    let (first, second) = {
+        let (a, b) = (one.describe(), other.describe());
+        if a <= b {
+            (a, b)
+        } else {
+            (b, a)
+        }
+    };
+    format!(
+        "`{name}` is written on two clocks at once, one ticking {first} and one ticking \
+         {second} - a value belongs to one clock, and crossing between them asks for \
+         `subSample`, `superSample` or `hold`"
+    )
+}
+
 pub(super) fn one_clock(
     found: &[usize],
     clocks: &mut Clocks,
@@ -766,12 +787,10 @@ pub(super) fn one_clock(
         .copied()
         .find(|clock| !clocks.spec(*clock).same(clocks.spec(first)))
     {
-        return Err(format!(
-            "`{target}` is written on two clocks at once, one ticking {} and one ticking \
-             {} - a value belongs to one clock, and crossing between them asks for \
-             `subSample`, `superSample` or `hold`",
-            clocks.spec(first).describe(),
-            clocks.spec(other).describe()
+        return Err(two_clocks_at_once(
+            target,
+            clocks.spec(first),
+            clocks.spec(other),
         ));
     }
     let pending: Vec<usize> = found

@@ -20,6 +20,27 @@ use super::*;
 /// their values in between, which is what `hold` asks for.
 ///
 /// A model with no clocks in it passes through untouched.
+/// Whether the equation that gives a name its value leaves the
+/// clocked world.
+///
+/// A name is asked about by where it comes from, not only by where it
+/// stands: `y = u` says nothing about `u` on its face, and `u = hold(z)`
+/// a line below says `u` is continuous - so a clock reaching `y` must
+/// stop rather than travel on.
+///
+/// Which side of the boundary the name lands on is the whole of it.
+/// `hold` and `noClock` leave a clock, so what they give is
+/// continuous and takes no clock from elsewhere. `sample` enters one,
+/// so what it gives is clocked and a clock reaching it is right.
+fn left_the_clocked_world(name: &str, model: &Model) -> bool {
+    model.equations.iter().any(|other| {
+        matches!(&other.lhs, Expr::Ref(target) if target == name)
+            && ["hold", "noClock"]
+                .iter()
+                .any(|edge| mentions_call(&other.rhs, edge))
+    })
+}
+
 /// The variables an equation puts on its own clock: everything it
 /// reads, save what sits under an operator that changes the rate or
 /// leaves the clocked world. `y = k[1]*u[1] + k[2]*u[2]` says all of
@@ -162,9 +183,30 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
                 let mut reads = Vec::new();
                 on_the_same_clock(&equation.rhs, &mut reads);
                 for name in reads {
-                    if !clock_of.contains_key(&name) && known_variables.contains(&name) {
-                        clock_of.insert(name, known);
-                        settled = false;
+                    // The boundary a name stands on counts here as
+                    // it does below: a clock that reaches `s.y` has
+                    // nothing to say about the `s.u` a `sample` reads.
+                    if !known_variables.contains(&name) || left_the_clocked_world(&name, model) {
+                        continue;
+                    }
+                    match clock_of.get(&name) {
+                        None => {
+                            clock_of.insert(name, known);
+                            settled = false;
+                        }
+                        // A variable two equations put on two clocks
+                        // is refused, not decided: taking whichever
+                        // was read first would make the meaning of a
+                        // model depend on the order its equations
+                        // happen to be written in.
+                        Some(already) if !clocks.spec(*already).same(clocks.spec(known)) => {
+                            return Err(super::clocks::two_clocks_at_once(
+                                &name,
+                                clocks.spec(*already),
+                                clocks.spec(known),
+                            ));
+                        }
+                        Some(_) => {}
                     }
                 }
                 continue;
@@ -335,9 +377,24 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         let mut states = rates.remove(&clock).expect("just listed");
         states.sort_by(|left, right| left.0.cmp(&right.0));
         let spec = clocks.spec(clock).clone();
-        let solver = spec
-            .solver
-            .expect("a derivative only joins a clock that steps it");
+        // A clock reached by a `der` without being told how to step
+        // is a model the compiler cannot run, not a mistake in the
+        // compiler: `Clock(0.1)` says when to tick and says nothing
+        // about integrating, and a state can land on one by the clock
+        // travelling along the equations that feed it.
+        let Some(solver) = spec.solver else {
+            let named = states
+                .iter()
+                .map(|(target, _)| format!("`{target}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            return Err(format!(
+                "{named} changes by a derivative on a clock ticking {}, which was not \
+                 given a way to step it - a clocked state asks for a solver method, as in \
+                 `Clock(0.1, solverMethod = \"ExplicitEuler\")`",
+                spec.describe()
+            ));
+        };
         // The step just taken is one the run can measure. The step
         // about to be taken is not, on an event clock, and a method
         // with more than one stage has to guess where the state will be
