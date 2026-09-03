@@ -533,6 +533,17 @@ fn substitute_at(
                 if let Some(value) = enclosing_constant_array(registry, name, scope, depth) {
                     return value;
                 }
+                // The same array, asked of the medium the body was
+                // called under rather than the interface it is written
+                // in. By scope, `X_default` inside `PartialMedium` is
+                // `fill(1/nX, nX)` with no `nX` behind it; the medium
+                // the model named holds both the `nX` and the
+                // `reference_X` that give it a length. The array twin
+                // of `mint_asked_as_constant` below, which does the
+                // same for a scalar.
+                if let Some(value) = asked_as_constant_array(registry, name, scope, depth) {
+                    return value;
+                }
                 // Nothing above answered, and this road does not fold
                 // - so a medium's constant becomes a name of the flat
                 // model rather than the digit a parameter's road would
@@ -645,70 +656,87 @@ fn enclosing_constant_array(
             .get(prefix)
             .filter(|owner| owner.kind == ClassKind::Package)
         {
-            let mut constants = Vec::new();
-            gather_package_constants(registry, owner, 0, &mut constants);
-            if let Some((_, binding)) = constants.iter().find(|(known, _)| known == name) {
-                let binding = binding.clone()?;
-                // A constant written on another of the same package -
-                // `X_default = reference_X` - is that other one, the
-                // way the dotted road already reads it
-                // (`class_constant_array_at`, one hop within the
-                // gathered basket). The basket is in hand from the
-                // gather just above, so the hop is a read, not a walk,
-                // and the gate below judges whatever it finds. One hop,
-                // not a loop: the corpus writes exactly one, and a
-                // chain of two stays refused until a model shows one.
-                let binding = match &binding {
-                    Expr::Ref(other) => constants
-                        .iter()
-                        .find(|(known, _)| known == other)
-                        .and_then(|(_, held)| held.clone())
-                        .unwrap_or(binding),
-                    _ => binding,
-                };
-                // The cheap judgment first. Substituting a binding
-                // walks it whole and inlines every call in it, and
-                // this is asked of every name written anywhere: a
-                // binding that is neither a list nor a way of
-                // building one can answer nothing here, and asking
-                // it costs a body written out per asking. That order
-                // was four hundred thousand inlinings over one model.
-                if !matches!(binding, Expr::Array(_)) && !builds_an_array(&binding) {
-                    return None;
-                }
-                let binding = substitute_at(
-                    &binding,
-                    registry,
-                    &owner.name,
-                    &owner.imports,
-                    &[],
-                    depth + 1,
-                    true,
-                );
-                if let Expr::Array(_) = binding {
-                    return Some(binding);
-                }
-                // A binding that says how to build the array rather
-                // than writing it out - `fill(1/nX, nX)` - is built
-                // here, against what the owner's own gathering settled.
-                // The substitution above cannot reach that: it asks by
-                // scope, and by scope the interface says nothing.
-                //
-                // The gathering is worked out only for such a binding.
-                // Asked of every name that is not an array - which is
-                // nearly every name - it is a fixpoint over a whole
-                // package per asking, and the library felt it at once.
-                if !builds_an_array(&binding) {
-                    return None;
-                }
-                return built_from_the_gathering(&binding, &|named: &str| {
-                    enclosing_constant(registry, named, &owner.name, depth + 1)
-                });
+            if let Some(answer) = constant_array_of_package(registry, owner, name, depth) {
+                return Some(answer);
             }
         }
         let (head, _) = prefix.rsplit_once('.')?;
         prefix = head;
     }
+}
+
+/// What one package makes of a constant array named plainly in it.
+///
+/// The body of the scope walk above, lifted so the asked-as road can
+/// ask the same of the medium a body was called under: by scope the
+/// interface a media function is written in says `reference_X =
+/// fill(1/nX, nX)` with no `nX` behind it, and the medium the model
+/// named is the one place the number stands.
+fn constant_array_of_package(
+    registry: &HashMap<&str, &ClassDef>,
+    owner: &ClassDef,
+    name: &str,
+    depth: usize,
+) -> Option<Expr> {
+    let mut constants = Vec::new();
+    gather_package_constants(registry, owner, 0, &mut constants);
+    let (_, binding) = constants.iter().find(|(known, _)| known == name)?;
+    let binding = binding.clone()?;
+    // A constant written on another of the same package -
+    // `X_default = reference_X` - is that other one, the
+    // way the dotted road already reads it
+    // (`class_constant_array_at`, one hop within the
+    // gathered basket). The basket is in hand from the
+    // gather just above, so the hop is a read, not a walk,
+    // and the gate below judges whatever it finds. One hop,
+    // not a loop: the corpus writes exactly one, and a
+    // chain of two stays refused until a model shows one.
+    let binding = match &binding {
+        Expr::Ref(other) => constants
+            .iter()
+            .find(|(known, _)| known == other)
+            .and_then(|(_, held)| held.clone())
+            .unwrap_or(binding),
+        _ => binding,
+    };
+    // The cheap judgment first. Substituting a binding
+    // walks it whole and inlines every call in it, and
+    // this is asked of every name written anywhere: a
+    // binding that is neither a list nor a way of
+    // building one can answer nothing here, and asking
+    // it costs a body written out per asking. That order
+    // was four hundred thousand inlinings over one model.
+    if !matches!(binding, Expr::Array(_)) && !builds_an_array(&binding) {
+        return None;
+    }
+    let binding = substitute_at(
+        &binding,
+        registry,
+        &owner.name,
+        &owner.imports,
+        &[],
+        depth + 1,
+        true,
+    );
+    if let Expr::Array(_) = binding {
+        return Some(binding);
+    }
+    // A binding that says how to build the array rather
+    // than writing it out - `fill(1/nX, nX)` - is built
+    // here, against what the owner's own gathering settled.
+    // The substitution above cannot reach that: it asks by
+    // scope, and by scope the interface says nothing.
+    //
+    // The gathering is worked out only for such a binding.
+    // Asked of every name that is not an array - which is
+    // nearly every name - it is a fixpoint over a whole
+    // package per asking, and the library felt it at once.
+    if !builds_an_array(&binding) {
+        return None;
+    }
+    built_from_the_gathering(&binding, &|named: &str| {
+        enclosing_constant(registry, named, &owner.name, depth + 1)
+    })
 }
 
 /// What a package's constants come to, worked out against each other.
@@ -1075,6 +1103,47 @@ fn declared_unit(
     None
 }
 
+/// A constant array asked of the medium a body was called under.
+///
+/// The array twin of [`mint_asked_as_constant`]. A media function is
+/// written in `PartialMedium` and called as `Medium.setState_pTX`, and
+/// its body reads `X_default`. By scope that name is the interface's
+/// `fill(1/nX, nX)` with no `nX` behind it; the medium the model named
+/// is the one place `nX` and `reference_X` stand. So where the scope
+/// walk found nothing, the medium on the mark is asked the same
+/// question - `constant_array_of_package` - and answers it with the
+/// length the interface could not give.
+///
+/// Unlike the scalar twin this mints no name: an array folds to its
+/// elements and carries no unit a later layer must keep, so what it
+/// finds is the value itself.
+fn asked_as_constant_array(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    owner: &str,
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    // The same first gate the scalar twin uses: no mark, no medium to
+    // ask, and that read excludes every model with no medium in it -
+    // most of them - for the price of a thread-local peek.
+    if super::inlining::asked_as_mark().is_empty() {
+        return None;
+    }
+    let owner = match registry
+        .get(owner)
+        .is_some_and(|held| held.kind == ClassKind::Package)
+    {
+        true => owner,
+        false => owner.rsplit_once('.').map(|(head, _)| head)?,
+    };
+    let under = super::inlining::asked_as_package(registry, owner)?;
+    let medium = registry.get(under.as_str())?;
+    constant_array_of_package(registry, medium, name, depth + 1)
+}
+
 /// A medium's constant as a name of the flat model rather than a
 /// number, where the road it is on cannot carry a number.
 ///
@@ -1188,9 +1257,7 @@ fn asked_as_constant(
     // A parameter asking to be evaluated before the run has no such
     // reader - it wants the digit or nothing - so that is the one
     // road this answers on.
-    if !SETTLING_PARAMETER.with(|on| on.get()) {
-        return None;
-    }
+    let settling = SETTLING_PARAMETER.with(|on| on.get());
     // The package the asking was made from: a body's scope is the
     // function, and what the mark has to descend from is the package
     // that holds it.
@@ -1202,5 +1269,18 @@ fn asked_as_constant(
         false => owner.rsplit_once('.').map(|(head, _)| head)?,
     };
     let under = super::inlining::asked_as_package(registry, owner)?;
+    // Off the settling road, only a constant with no unit may fold.
+    // The whole reason to hold a medium's constant back is the unit
+    // it carries: fold `cp_const` into `h = cp_const*T` and the
+    // dimensional layer reads kelvin against joules per kilogram and
+    // refuses a sound model. A count has no unit and no such reader -
+    // `nX` is how many substances there are - and a body branching on
+    // `size(X, 1) == nX` needs the number where it stands, which is
+    // the medium on the mark rather than the interface it is written
+    // in. So the gate asks the declaration rather than the road: with
+    // a unit, the settling road only; without one, wherever asked.
+    if !settling && declared_unit(registry, &under, name, 0).is_some() {
+        return None;
+    }
     class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
 }

@@ -1726,3 +1726,47 @@ fn a_package_alias_gives_the_package_it_names_a_constant() {
     let text = format!("{:?}", m.equations);
     assert!(text.contains("Number(900.0)"), "{text}");
 }
+
+/// A medium's own count reaches a body branching on a length.
+///
+/// `setState_pTX` of a medium picks between branches of two lengths
+/// with `if size(X, 1) == nX`, and both the array it reads and the
+/// count it compares against stand in the medium the call was made
+/// under - not in the interface the body is written in, where
+/// `reference_X` is `fill(1/nX, nX)` with the interface's own `nX`
+/// behind it. Both must arrive off the mark, or the condition is
+/// undecided and both branches are built, one of them a length longer.
+///
+/// A count carries no unit, which is what admits it: the reason to
+/// hold a medium's constant back is the unit it carries, and a number
+/// of substances has none.
+#[test]
+fn a_body_branching_on_a_length_reads_the_medium_it_was_called_under() {
+    let m = parse_model(
+        "package P \
+           partial package Base \
+             constant Integer nX = 1; \
+             constant Real reference_X[nX] = fill(1/nX, nX); \
+             constant Real X_default[nX] = reference_X; \
+             function pick input Real x[:]; output Real y; \
+               algorithm y := if size(x, 1) == nX then x[1] else 0; end pick; \
+           end Base; \
+           package Water extends Base(nX = 2); end Water; \
+           model M package Med = Water; \
+             parameter Real h = Med.pick(Med.X_default); Real v; \
+             equation v = h * time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("the medium's own count and array reach the body");
+    let h = m.components.iter().find(|c| c.name == "h").unwrap();
+    // `X_default` is the medium's `fill(1/2, 2)` and `nX` is its 2, so
+    // the condition holds and the first element is taken. Read at the
+    // interface both are one, the condition fails, and the else branch
+    // gives nought - which is what this answered before.
+    assert!(
+        matches!(h.binding, Some(Expr::Number(n)) if (n - 0.5).abs() < 1e-9),
+        "{:?}",
+        h.binding
+    );
+}
