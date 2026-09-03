@@ -335,6 +335,7 @@ pub(super) fn expand(
                 // one it is a value the model may be re-run with.
                 if shapes.loop_vars.is_empty() {
                     let settled = constant_here(&condition);
+
                     // The branch that stands is expanded first, so that
                     // its own trouble is what gets said rather than the
                     // other's.
@@ -1742,10 +1743,23 @@ pub(super) fn zip_values(
         ),
         (Value::Array(a), Value::Array(b)) => {
             if a.len() != b.len() {
+                // What the two sides are, not only how long they are:
+                // a length against a length names no variable and no
+                // model, and this refusal is reached from a dozen
+                // places. The first element of each is enough to say
+                // which arrays these were.
+
+                let side = |items: &[Value]| match items.first() {
+                    Some(Value::Scalar(first)) => format!("{first:?}"),
+                    Some(nested) => format!("{nested:?}"),
+                    None => "an empty array".to_string(),
+                };
                 return Err(format!(
-                    "arrays of {} and {} elements do not fit together",
+                    "arrays of {} and {} elements do not fit together: {} against {}",
                     a.len(),
-                    b.len()
+                    b.len(),
+                    side(a),
+                    side(b)
                 ));
             }
             Value::Array(
