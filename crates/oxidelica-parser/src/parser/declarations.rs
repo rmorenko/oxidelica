@@ -81,15 +81,40 @@ impl Parser {
                             "min" => min = Some(self.expr()?),
                             "max" => max = Some(self.expr()?),
                             "fixed" => {
-                                fixed = Some(match self.bump() {
-                                    Token::True => true,
-                                    Token::False => false,
-                                    other => {
-                                        return Err(self.err(format!(
-                                            "fixed expects true/false, found `{other}`"
-                                        )))
+                                // `fixed` is a Boolean attribute, and
+                                // the language lets an attribute be
+                                // given any expression of its type:
+                                // the fluid valves write
+                                // `Av(fixed = CvData == CvTypes.Av)`,
+                                // which says the coefficient is given
+                                // where the model chose to give it and
+                                // solved for where it did not.
+                                //
+                                // Only a literal settles the flag
+                                // here, where nothing is known yet.
+                                // Anything else is read and left
+                                // unsettled rather than refused: a
+                                // declaration the language allows is
+                                // not a mistake, and treating an
+                                // expression as `false` - which the
+                                // attribute road below did - says the
+                                // initialisation must solve for a
+                                // parameter the model may well have
+                                // given a value.
+                                let expr = self.expr()?;
+                                fixed = match expr {
+                                    Expr::Bool(yes) => Some(yes),
+                                    // A number is not a truth, and the
+                                    // language does not convert one to
+                                    // the other: `fixed = 1` is a type
+                                    // error whichever way it is read.
+                                    Expr::Number(_) | Expr::Str(_) => {
+                                        return Err(self.err(
+                                            "fixed expects true/false, found a number".to_string(),
+                                        ))
                                     }
-                                });
+                                    _ => None,
+                                };
                             }
                             "unit" => match self.bump() {
                                 Token::Str(text) => unit = Some(text),

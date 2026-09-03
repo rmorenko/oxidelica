@@ -1858,3 +1858,42 @@ fn a_parameter_bound_to_a_later_neighbour_is_settled() {
         dir.binding
     );
 }
+
+/// `fixed` takes an expression, and one it cannot settle leaves the
+/// flag open rather than false.
+///
+/// The fluid valves write `Av(fixed = CvData == CvTypes.Av)`: the
+/// coefficient is given where the model chose to give it and solved
+/// for where it did not. Refusing the declaration outright turned a
+/// legal attribute into a parse error, and reading the expression as
+/// `false` was worse - it told the initialisation to solve for a
+/// parameter that has a value, which then read as having none.
+#[test]
+fn a_fixed_attribute_may_be_an_expression() {
+    let m = parse_model(
+        "package P type CvTypes = enumeration(Av, Kv); \
+           model Valve parameter CvTypes CvData = CvTypes.Av; \
+             parameter Real Av(fixed = CvData == CvTypes.Av, start = 1); \
+             Real y; equation y = Av * time; end Valve; \
+           model M Valve v(CvData = CvTypes.Av, Av = 2); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("an expression is a legal value for a Boolean attribute");
+    let av = m.components.iter().find(|c| c.name == "v.Av").unwrap();
+    // The modifier gave it a value, and the unsettled flag did not
+    // take that away.
+    assert!(
+        matches!(av.binding, Some(Expr::Number(n)) if n == 2.0),
+        "{:?}",
+        av.binding
+    );
+    assert_eq!(av.fixed, None, "an unsettled expression leaves it open");
+
+    // A number is still refused: `fixed` is a Boolean, and the
+    // language converts nothing.
+    assert!(parse_model("model M Real x(fixed = 1); end M;")
+        .unwrap_err()
+        .message
+        .contains("true/false"));
+}

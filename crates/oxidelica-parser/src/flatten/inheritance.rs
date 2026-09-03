@@ -234,8 +234,18 @@ pub(super) fn resolve_type(
                     false
                 }
                 "fixed" => {
+                    // A literal settles the flag; an expression is
+                    // left unsettled rather than read as `false`.
+                    // `Av(fixed = CvData == CvTypes.Av)` says the
+                    // coefficient is given where the model chose to
+                    // give it, and calling that `false` told the
+                    // initialisation to solve for a parameter that
+                    // may well have a value - which then read as
+                    // having none at all.
                     if component.fixed.is_none() {
-                        component.fixed = Some(matches!(value, Expr::Bool(true)));
+                        if let Expr::Bool(yes) = value {
+                            component.fixed = Some(*yes);
+                        }
                     }
                     false
                 }
