@@ -1894,6 +1894,27 @@ sixth face of asked-under - `record_asked_under` exists and is called
 from the array layer, but the component pass that turns a record
 declaration into its fields does not ask it.
 
+### The address, for the next shift
+
+`PartialMedium.BaseProperties` declares
+
+```modelica
+ThermodynamicState state "Thermodynamic state record for optional functions";
+```
+
+and the medium's own `BaseProperties` writes `state.T = T; state.p =
+p`. The declaration is in the interface, where `ThermodynamicState`
+has no fields at all; the equations come from the medium, where it has
+two. Nothing refuses - the equations are written and the fields never
+declared, so the run meets `v.medium.state.T` with no such variable.
+
+Two probes made and both negative, which narrows it further: the
+component pass never sees this declaration with that type name -
+neither `component.name == "state"` nor a type mentioning
+`ThermodynamicState` fires there. So the record is expanded somewhere
+else again, and finding that somewhere is the first move of the next
+shift rather than the last of this one.
+
 That is the next link, and it is a family of at least six by this
 probe alone. The other three are genuinely separate: a record's own
 constant, a connector's array element, a table's second column.
