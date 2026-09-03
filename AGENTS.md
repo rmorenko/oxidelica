@@ -240,6 +240,21 @@ improved or broken on the way, and the difference is the finding. This
 is a stronger check than the tests, which only know what someone
 thought to ask about; the register asks the whole library at once.
 
+**Against a reading of itself, because a kind is a row and not a
+family.** Two rows may carry the same words: the register holds both
+`unknown variable X` and `unknown variable X in equation`. Read as one
+row, the count went 21 to 41 and twenty models looked new. Added
+together, the two went 45 to 48 - a growth of three, the rest being
+one row draining into the other as models travel past a wall. A shift
+that had read the single row would have gone looking for seventeen
+models that never existed.
+
+So the rule before choosing work from the register: add the rows that
+mean the same thing, and only then read the number. The counter splits
+a family by its wording, and the wording is not the family - which is
+the same blind spot named above, seen now from the other side. It is
+worth stating twice because the first statement did not stop it.
+
 ## A cancelled run is not a passed run
 
 CI's verdict is read from a run that finished, not from the absence of
