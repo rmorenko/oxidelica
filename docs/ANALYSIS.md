@@ -2630,3 +2630,51 @@ needs the one thing neither attempt had: a way to tell an operator
 asking about its operand from a builtin asking about its argument.
 Both attempts reverted whole; the corpus is untouched and the trail
 is written down for whoever holds it next.
+
+## The map of C-fluid: not a road at all, but a function nobody runs
+
+Twenty-five models, the largest family in the flatten half, and the
+one the register kept calling "a different road". The map, probed end
+to end, says it is not a road in the sense the other three were.
+
+`heater.h_start` is bound to an expression naming `reference_h` and
+`cp_const`, medium constants of `PartialLinearFluid` declared with no
+value - the medium supplies them. So far this is the nXi shape, and
+the probe checked that first: **the mark is present and correct**. It
+holds `CompressibleLiquids.LinearWater_pT_Ambient`, the medium the
+model named, on all ninety-four askings.
+
+Where it parts company is one line further. Asked of that medium, the
+constant is `None` - because the medium does not hold it either. It
+extends `Common.LinearWater_pT`, which extends `PartialLinearFluid`
+with
+
+```modelica
+reference_h = Modelica.Media.Water.StandardWater.specificEnthalpy(state),
+cp_const = Modelica.Media.Water.StandardWater.specificHeatCapacityCp(state),
+```
+
+The constant is not a number written anywhere. It is **a call into
+the IF97 steam tables**, and the refusal of a second model says so in
+plain words: `pipe1.h_start` is bound to
+`Index(Call("Modelica.Media.Water.IF97_Utilities...`.
+
+### Why this is a different kind of work
+
+The three causes the panel separated were about a value or a length
+not reaching a place. Here the value reaches nothing because it does
+not exist yet: it is the result of running a large numerical function
+before the simulation starts, and that function is the IF97
+formulation - a chain of correlations over regions of the
+pressure-temperature plane.
+
+So C-fluid is not a scope question, not an order question and not a
+fixpoint question. It is the question of whether this compiler
+evaluates the standard water tables at compile time. That is a
+different sort of decision - about how much of a numerical library
+belongs inside a flattener - and it is the one to put to the panel,
+with this map, rather than to answer by writing code.
+
+The chain is four links, past the three the rules allow before asking:
+`h_start` <- `reference_h` <- the medium's `extends` <- a call to
+`StandardWater.specificEnthalpy` <- IF97 itself.
