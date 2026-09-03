@@ -118,7 +118,7 @@ pub(super) fn holds_unbounded_call(expr: &Expr, registry: &HashMap<&str, &ClassD
     // The names an unrolling leaves behind are already qualified, so
     // the registry answers to them directly.
     let mut called = Vec::new();
-    inlining::gather_calls(expr, registry, "", &[], &mut called);
+    carried::gather_calls(expr, registry, "", &[], &mut called);
     called.iter().any(|name| {
         registry
             .get(name.as_str())
@@ -131,7 +131,7 @@ pub(super) fn holds_unbounded_call(expr: &Expr, registry: &HashMap<&str, &ClassD
 pub(super) fn recursive(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> bool {
     let mut seen: Vec<String> = Vec::new();
     let mut wanted: Vec<String> = Vec::new();
-    inlining::gather_calls_in_statements(
+    carried::gather_calls_in_statements(
         &class.algorithm,
         registry,
         &class.name,
@@ -147,7 +147,7 @@ pub(super) fn recursive(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -
         }
         seen.push(name.clone());
         let called = registry[name.as_str()];
-        inlining::gather_calls_in_statements(
+        carried::gather_calls_in_statements(
             &called.algorithm,
             registry,
             &called.name,

@@ -573,32 +573,32 @@ fn a_range_is_measured_only_along_its_one_axis() {
     let range = |from, step: Option<f64>, to| Expr::Range(n(from), step.map(n), n(to));
     // Two to five is four places, and a step of two makes it two.
     assert_eq!(
-        super::arrays::range_length(&range(2.0, None, 5.0), 0, &consts, &sizes),
+        super::shapes::range_length(&range(2.0, None, 5.0), 0, &consts, &sizes),
         Some(4)
     );
     assert_eq!(
-        super::arrays::range_length(&range(2.0, Some(2.0), 5.0), 0, &consts, &sizes),
+        super::shapes::range_length(&range(2.0, Some(2.0), 5.0), 0, &consts, &sizes),
         Some(2)
     );
     // A range has one axis; there is no second to ask about.
     assert_eq!(
-        super::arrays::range_length(&range(2.0, None, 5.0), 1, &consts, &sizes),
+        super::shapes::range_length(&range(2.0, None, 5.0), 1, &consts, &sizes),
         None
     );
     // A step of nothing would never arrive, and a value that is not a
     // range is not one to measure.
     assert_eq!(
-        super::arrays::range_length(&range(2.0, Some(0.0), 5.0), 0, &consts, &sizes),
+        super::shapes::range_length(&range(2.0, Some(0.0), 5.0), 0, &consts, &sizes),
         None
     );
     assert_eq!(
-        super::arrays::range_length(&Expr::Number(1.0), 0, &consts, &sizes),
+        super::shapes::range_length(&Expr::Number(1.0), 0, &consts, &sizes),
         None
     );
     // A bound the environment cannot settle leaves it unmeasured.
     let named = Expr::Range(n(1.0), None, Box::new(Expr::Ref("unknown".into())));
     assert_eq!(
-        super::arrays::range_length(&named, 0, &consts, &sizes),
+        super::shapes::range_length(&named, 0, &consts, &sizes),
         None
     );
 }

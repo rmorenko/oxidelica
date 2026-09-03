@@ -24,6 +24,7 @@ use std::collections::{HashMap, HashSet};
 mod algorithms;
 mod arrays;
 mod builtins;
+mod carried;
 mod clocks;
 mod components;
 mod connections;
@@ -369,7 +370,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // Whatever calls are still standing in the flat model are calls
     // nothing could inline. The bodies behind them travel with the
     // model, so the run can walk them for itself.
-    model.functions = inlining::programs_used(&model, &registry)?;
+    model.functions = carried::programs_used(&model, &registry)?;
     Ok(model)
 }
 

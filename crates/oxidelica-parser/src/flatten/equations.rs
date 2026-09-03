@@ -827,7 +827,7 @@ fn flatten_when_clauses(
                                 if (why.starts_with(algorithms::UNDECIDABLE_LOOP)
                                     || why.contains(algorithms::NO_BOTTOM)
                                     || why.contains(algorithms::UNDECIDABLE_LEAVING))
-                                    && inlining::walkable(function, registry).is_ok()
+                                    && carried::walkable(function, registry).is_ok()
                                     && inlining::carried_by_the_run(&arguments) =>
                             {
                                 super::names::stands_for_the_run(name, scope);

@@ -111,7 +111,7 @@ pub(super) fn execute(
                     Ok(outputs) => outputs,
                     Err(why)
                         if why.starts_with(algorithms::UNDECIDABLE_LOOP)
-                            && inlining::walkable(function, registry).is_ok()
+                            && carried::walkable(function, registry).is_ok()
                             && inlining::carried_by_the_run(&arguments)
                             // A body reading a table is the case this
                             // door was opened for, and a table is what
