@@ -1441,6 +1441,43 @@ fn a_medium_builds_its_constant_array_and_owns_what_it_declares_below() {
     assert!(weighed.contains("995.6"), "{weighed}");
 }
 
+/// A package constant that is a bare name for another array constant
+/// is that other one, reached by name from inside the package as well
+/// as by the dotted path from outside.
+///
+/// `constant X_default[nX] = reference_X` inside a medium: a body of
+/// the medium that reads `X_default` gets the array `reference_X`
+/// holds, not the bare name. The dotted road (`Medium.X_default`)
+/// already follows this hop; the bare-name road, reached when the body
+/// is worked out under the package, is its mirror. Without it a
+/// function branching on `size(X_default, 1)` cannot settle, and a
+/// parameter that reads it is refused as having no value.
+#[test]
+fn a_bare_package_constant_naming_another_array_follows_the_hop() {
+    let m = parse_model(
+        "package P \
+           constant Integer nX = 2; \
+           constant Real reference_X[nX] = {0.01, 0.99}; \
+           constant Real X_default[nX] = reference_X; \
+           function pick input Real[:] x; output Real y; \
+             algorithm y := if size(x, 1) == nX then x[1] else 0; end pick; \
+           model M parameter Real h = pick(X_default); Real v; \
+             equation v = h * time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("the bare constant follows its one hop to the array");
+    let h = m.components.iter().find(|c| c.name == "h").unwrap();
+    // `size(X_default, 1)` is 2, so the branch is taken and `h` is the
+    // first element - which is only knowable once the bare name is
+    // followed to `{0.01, 0.99}`.
+    assert!(
+        matches!(h.binding, Some(Expr::Number(n)) if (n - 0.01).abs() < 1e-9),
+        "{:?}",
+        h.binding
+    );
+}
+
 #[test]
 fn a_medium_constant_an_equation_reads_keeps_its_unit() {
     // A parameter's road folds such a constant to a digit, and must:

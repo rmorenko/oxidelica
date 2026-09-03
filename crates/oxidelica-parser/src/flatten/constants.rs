@@ -624,6 +624,23 @@ fn enclosing_constant_array(
             gather_package_constants(registry, owner, 0, &mut constants);
             if let Some((_, binding)) = constants.iter().find(|(known, _)| known == name) {
                 let binding = binding.clone()?;
+                // A constant written on another of the same package -
+                // `X_default = reference_X` - is that other one, the
+                // way the dotted road already reads it
+                // (`class_constant_array_at`, one hop within the
+                // gathered basket). The basket is in hand from the
+                // gather just above, so the hop is a read, not a walk,
+                // and the gate below judges whatever it finds. One hop,
+                // not a loop: the corpus writes exactly one, and a
+                // chain of two stays refused until a model shows one.
+                let binding = match &binding {
+                    Expr::Ref(other) => constants
+                        .iter()
+                        .find(|(known, _)| known == other)
+                        .and_then(|(_, held)| held.clone())
+                        .unwrap_or(binding),
+                    _ => binding,
+                };
                 // The cheap judgment first. Substituting a binding
                 // walks it whole and inlines every call in it, and
                 // this is asked of every name written anywhere: a
