@@ -2678,3 +2678,52 @@ with this map, rather than to answer by writing code.
 The chain is four links, past the three the rules allow before asking:
 `h_start` <- `reference_h` <- the medium's `extends` <- a call to
 `StandardWater.specificEnthalpy` <- IF97 itself.
+
+## The Evaluate refusal was a third behaviour nobody asked for
+
+The panel read MLS 18.3 and the answer moved twenty-four models
+without a line of evaluation.
+
+`Evaluate = true` sits in the code-generation chapter beside `Inline`
+and `smoothOrder`, and its sentence is: "the model developer
+**proposes** to utilize the value of the parameter for symbolic
+processing. In that case, it is not possible to change the parameter
+value after translation." Two things decide it. The verb is
+_proposes_ - an offer from the author to the tool - and the one
+consequence attached follows from _accepting_ the offer, not from
+receiving it.
+
+So there are three behaviours and the chapter names two: evaluating
+takes the proposal, carrying the parameter into the run declines it,
+and refusing the model is neither. The compiler was doing the third.
+No tool of record answers this family with a refusal - the fluid
+examples that stood here flatten and simulate elsewhere.
+
+The measurement came before the ruling and agreed with it: a probe
+that skipped the gate moved the flatten count from 793 to 817 in one
+run.
+
+### What the twenty-four did not do
+
+Run stayed at 341. The panel predicted this precisely: under
+deferral alone the family moves from "would not flatten" to
+"flattened, would not run", stopping at initialisation because the
+bodies behind a deferred call are not carried with the model and a
+minted constant carries only a number, never an expression.
+
+So the family is one cause wearing two carriage-shapes. The
+direct-call shape (`pipe1.h_start` bound to an IF97 call) needs the
+bodies walked; the named-constant shape (`heater.h_start` naming
+`reference_h`) needs the mint widened to carry a binding. Both are
+carrying-work of the kind the last three shifts did - not evaluation.
+This compiler does not evaluate the steam tables, and the panel's
+reading of where mature flatteners draw that line agrees.
+
+### The test that had to be rewritten, and why it is not vandalism
+
+`an_annotation_that_the_chapter_calls_an_error_is_one` held the old
+refusal. Its own name is the argument for changing it: 18.8 calls
+`mustBeConnected` an error in as many words, and 18.3 calls `Evaluate`
+a proposal. The two `mustBeConnected` cases in that test stand
+untouched; only the `Evaluate` third was moved, because by the test's
+own criterion it never belonged there.
