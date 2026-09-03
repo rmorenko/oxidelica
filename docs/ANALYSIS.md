@@ -2536,3 +2536,25 @@ functions.
 
 Twenty-six models stand on it, and they are the largest single family
 left in either half.
+
+### A note on the commit before this one
+
+Its message reads with holes in it - `medium.state.T`,
+`fluidConstants[N].molarMass`, `PartialMedium.ThermodynamicState`,
+`BaseProperties` and `collect_records` are missing from the prose.
+The heredoc that carried the message was unquoted, so the shell ran
+every backquoted name as a command and put its empty output in place
+of the name. The register above holds the same account with the names
+intact, which is why the loss is a blemish rather than a gap.
+
+Not amended: the commit was already pushed, and the branch refuses a
+force - correctly. A history that can be rewritten is a history
+nobody can trust, and a message with holes is a smaller price than
+that.
+
+The rule the performance ledger already carries about pipes grows a
+fourth clause, since this is the same family of fault: a measuring
+pipe does not swallow stderr, does not answer nothing where nothing
+ran, does not cut its own output short - and text carrying names is
+quoted at the boundary it crosses. `<<'EOF'` rather than `<<EOF`,
+every time a name with backquotes in it goes into a message.
