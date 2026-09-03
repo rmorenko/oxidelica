@@ -225,6 +225,14 @@ M do not fit` row go from 8 to 17. The same nine models, one floor up.
 No count of models could have shown that, and neither could reading the
 diff.
 
+**After a fix, to see where a family went.** A repair that takes a
+family one storey up moves no count at all - the models still refuse,
+at the next wall. The register is the only instrument that shows it:
+the row that named the old wall empties, and another fills by the same
+number. That is how nine `nXi` models were followed from a derivative's
+input count to `arrays of N and M do not fit`. Without it, a shift's
+work on a chain looks like a shift with nothing to show.
+
 **Before and after a pure move, to prove it was one.** A refactor that
 moves code and changes nothing must leave the register identical line
 for line. If a row moves, the move was not pure - something was
