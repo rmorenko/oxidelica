@@ -1825,3 +1825,44 @@ them; `arrays.rs` expands an expression, `shapes.rs` says how long
 things are, `builtins.rs` answers the built-ins that build a shape;
 `inlining.rs` writes a body out where it is called, `carried.rs`
 carries the ones that cannot be.
+
+## The fourth law, found where it lives
+
+The `if`-on-a-length has been measured three times now and each
+attempt cost `UpSample`. This shift found where the branch is really
+chosen, which is the answer to "earlier than the reading being
+repaired": **not in the `if` equation road at all**.
+
+`if inferFactor then u_super = superSample(u); else u_super =
+superSample(u, factor); end if` sits inside a `when`, and a `when`'s
+`if` is not settled by anyone. `WhenAction::Choice` turns both
+branches into a single assignment whose value is `if condition then a
+else b` - so `superSample(u, factor)` is worked out even when the
+model said to infer the factor, and the block lands on a clock it
+never asked for.
+
+Settling that choice where the condition is a compile-time constant
+is four lines, and it works: the branch is picked correctly and
+`UpSample` walks past it. The wall then moves to `b_super =
+superSample(b)`, which is a `superSample` with no factor - a waiting
+clock that learns its rate from the equation `y = if b_super <>
+previous(b_super) then u_super else 0`, one storey down the chain.
+
+The corpus says 772 and 335 for that alone, so it went back with the
+rest. Two findings kept:
+
+- **A `when`'s `if` is never settled.** Every other `if` in the
+  language is; this one is not, and no comment says why. It may be
+  deliberate - an event's condition may be about the run - but a
+  condition made of parameters is not, and the clocked library writes
+  several.
+- **The inference runs forwards only.** A name whose clock is still
+  waiting learns nothing from an equation that reads it; only from one
+  that assigns it. `b_super` is assigned by a `superSample` with no
+  factor and read by the equation that would settle it, so the two
+  never meet. Tried backwards in the same shift and it did not fire,
+  because such a name is not in the clock table at all yet - which is
+  a third thing to know about it.
+
+Three attempts, three different reasons, all measured. The family is
+one link wide and four deep, and this is the fourth.
