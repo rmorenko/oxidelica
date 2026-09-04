@@ -3633,3 +3633,43 @@ why the new selection is better, not merely different.
 
 This explains all three reverts after the fact and should prevent the
 fourth.
+
+### Where `noDerivative` actually stops, probed rather than guessed
+
+Behind a switch, the refusal names its own place:
+
+```text
+an array value cannot be used where a scalar is expected:
+  Array([Bin(Add, ..., Bin(Mul, Ref("R.T[1,1]"), Ref("$seed1[1]")), ...
+```
+
+and the probe on what is handed to the rule says the rest:
+
+```text
+handed = ["Ref(\"R\")", "Array([Ref(\"$seed1[1]\")...])", "Ref(\"$seed1\")"]
+shapes = [[], [3], [3]]
+```
+
+The seed is declared with the shape `[3]` and handed over as the
+single name `$seed1`. The rule's body reads `v2_der[1]`, which is not
+something one name can be read off - so the fault is not the record
+argument at all, as it looked from the corpus number. It is the
+_seed_ for an array argument.
+
+Handing an array of element names instead was built and does not
+finish the job: the same refusal comes back one layer in, now on the
+orientation itself. Both parts are needed - a seed that is an array,
+and a record travelling into the rule whole - and the second is the
+larger one.
+
+`InlineAfterIndexReduction = true` sits on the same annotation and is
+the hint worth following first. It says: keep this function opaque
+until reduction is done, use the rule for the derivative, expand the
+body afterwards. If the order is what matters, then a record has to
+travel only into the rule, not through the whole inliner - which is
+the smaller of the two jobs and the one to try next.
+
+Reverted, and the two measurements from before still stand: 819 to 717
+in the round, nine models in the run half for the narrowing. What is
+new is that neither number is the obstacle any more, because the
+obstacle now has an address.
