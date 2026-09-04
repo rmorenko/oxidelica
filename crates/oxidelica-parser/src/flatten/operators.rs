@@ -70,8 +70,7 @@ pub(super) fn apply_operator(
         // of pairs where one pair was meant. What tells them apart is
         // not the shape but the expression: what is already a record
         // of this class needs no constructor.
-        let already_a_record =
-            record_class_of(written, shapes, registry, scope, imports).is_some();
+        let already_a_record = record_class_of(written, shapes, registry, scope, imports).is_some();
         if wants_record && !already_a_record && matches!(value, Value::Scalar(_)) {
             let number = value.clone().into_expr();
             *value = expand(
