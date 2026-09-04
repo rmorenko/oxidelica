@@ -613,21 +613,28 @@ fn reduce_index(
             Box::new(rhs.clone()),
         );
         let derivative = match differentiate(
-        &residual,
-        &DiffTarget::Time {
-            state_rhs: &*state_rhs,
-            params,
-            dummies: &dummies,
-            alg_defs: &alg_defs,
-        },
-    ) {
-        Ok(d) => simplify(&d),
-        Err(reason) => {
-            return err(format!(
-                "structurally singular model: equation {lhs:?} = {rhs:?} cannot be matched to an unknown ({reason})"
-            ))
-        }
-    };
+            &residual,
+            &DiffTarget::Time {
+                state_rhs: &*state_rhs,
+                params,
+                dummies: &dummies,
+                alg_defs: &alg_defs,
+            },
+        ) {
+            Ok(d) => simplify(&d),
+            Err(reason) => {
+                // The reason first, the equation after it. Written the
+                // other way the equation is a tree printed in full - some
+                // of them run for lines - and the reason, which is the
+                // only part that says what to do, fell off the end of
+                // every list and every terminal. A dozen models looked
+                // like a kind with no cause given.
+                return err(format!(
+                    "structurally singular model: {reason}, differentiating the equation \
+                 {lhs:?} = {rhs:?}"
+                ));
+            }
+        };
 
         // Demote a state the constraint actually constrains, choosing
         // the one it determines most strongly.
