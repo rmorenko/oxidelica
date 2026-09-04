@@ -3710,3 +3710,47 @@ costs nothing and the fifteen multibody models get their rule instead
 of a matrix to differentiate. Measured against the law: the victim
 lists have to be diffed before this ships, because a call that stays
 whole is a definition that reduction can no longer see through.
+
+### The aggregate-as-scalar fault, third time, and a walk of the rest
+
+A name stands for an aggregate and the reader counts it a scalar. That
+is now three, in three different places: `v[1]` of a `Complex[3]` at an
+operator, an array of record constants read by element, and an
+orientation handed to a call that stays whole. Each time the fix was
+to tell the reader what the shape is, never to rebuild anything.
+
+The third is narrowed by declaration rather than by loosening the
+check: the input the argument stands for says whether an aggregate was
+asked for. A record or a dimension allows one; a scalar there refuses
+exactly as before.
+
+Its worth is only visible with `InlineAfterIndexReduction` honoured,
+which is what makes calls stand. Behind the switch, together: **781
+back to 819**, the whole wall gone, and by the law's own instrument -
+the diff of which models run - the cost is **one model, named**:
+`Rotational.Examples.GenerationOfFMUs`, whose adaptor carries
+`derivative(noDerivative = q_qd)`, a rule this compiler still reads
+past. So the call stands with no rule to differentiate through, which
+is exactly the gap `noDerivative` fills. Not shipped together for that
+reason.
+
+The preventive walk, since the fault has come three times. Every place
+that demands a scalar, and whether the demand is honest:
+
+- **arrays.rs, 14** - loop bounds, subscripts, conditions, elements of
+  a comprehension. All honest: each is a place the language itself
+  says is a scalar.
+- **builtins.rs, 6** - arguments of `sin`, `div`, interpolation
+  points. Honest: these are declared scalar by the specification.
+- **equations.rs, 3** - `when` conditions, `if` conditions, the value
+  of an assignment inside a clause. Honest.
+- **extents.rs, 2** - an assertion's condition and a range item.
+  Honest.
+- **names.rs, 1** - the call argument. This was the dishonest one, and
+  it is now narrowed by declaration.
+
+So the walk finds no fourth waiting, which is worth as much as a fix:
+the remaining demands are the language's own, not a blind reader. What
+would bring a fourth is a new road that carries records somewhere they
+have not been - and the guard against that is this list rather than
+another discovery.
