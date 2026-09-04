@@ -1004,3 +1004,40 @@ fn two_vectors_of_records_multiply_to_a_scalar_product() {
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn one_of_a_vector_of_records_multiplies_as_a_record() {
+    let m = parse_model(
+        "package P \
+           operator record C Real re; Real im; \
+             encapsulated operator '*' \
+               function mul import P.C; input C a; input C b; output C c; \
+                 algorithm c.re := a.re*b.re - a.im*b.im; \
+                 c.im := a.re*b.im + a.im*b.re; end mul; end '*'; \
+           end C; \
+           model M parameter Integer n = 3; \
+             C v[n]; C nn; C y; Real out; \
+             equation \
+               for i in 1:n loop v[i].re = i; v[i].im = 0; end for; \
+               nn.re = 2; nn.im = 0; \
+               y = nn * v[2]; \
+               out = y.re * time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("an element of a vector of records under the record's own operator");
+    // `v[2]` is one `C`, so the operator the record declares is what
+    // multiplies it - and its two fields are what the body reads.
+    let equations = format!("{:?}", m.equations);
+    assert!(
+        equations.contains("v[2].re") && equations.contains("v[2].im"),
+        "{equations}"
+    );
+    // Not a record built out of a record: `Complex(v[2])` made a pair
+    // of pairs, and the equation came out between one number and two.
+    assert!(
+        m.components.iter().any(|c| c.name == "y.re"),
+        "{:?}",
+        m.components.iter().map(|c| &c.name).collect::<Vec<_>>()
+    );
+}

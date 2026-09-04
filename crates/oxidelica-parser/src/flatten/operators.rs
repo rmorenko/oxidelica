@@ -59,11 +59,20 @@ pub(super) fn apply_operator(
         .into_iter()
         .filter(|c| c.causality == Causality::Input)
         .collect();
-    for (input, value) in inputs.iter().zip(&mut values) {
+    for ((input, value), written) in inputs.iter().zip(&mut values).zip(args) {
         let wants_record = input.dimensions.is_empty()
             && record_fields::record_input_fields(registry, function, input)
                 .is_some_and(|f| f.len() > 1);
-        if wants_record && matches!(value, Value::Scalar(_)) {
+        // One of an array of records is a single name - `v[2]` - and a
+        // single name looks exactly like a number here. Converted as
+        // if it were one, `Complex(v[2])` built a record whose real
+        // part is a whole record, and the operator was handed a pair
+        // of pairs where one pair was meant. What tells them apart is
+        // not the shape but the expression: what is already a record
+        // of this class needs no constructor.
+        let already_a_record =
+            record_class_of(written, shapes, registry, scope, imports).is_some();
+        if wants_record && !already_a_record && matches!(value, Value::Scalar(_)) {
             let number = value.clone().into_expr();
             *value = expand(
                 &Expr::Call(input.type_name.clone(), vec![number]),
@@ -193,6 +202,13 @@ pub(super) fn record_class_of(
     let recur = |e: &Expr| record_class_of(e, shapes, registry, scope, imports);
     match expr {
         Expr::Ref(name) => shapes.records.get(name).cloned(),
+        // One of an array of records is a record: `v[2]` of a
+        // `Complex[3]` is a `Complex`, and it arrives here as a
+        // subscript on the array whose type the table does hold.
+        // Unread, the operator the record declares was never reached
+        // and the multiplication of two phasors fell back on
+        // arithmetic.
+        Expr::Index(base, _) => recur(base),
         // An operator returns the record it was found on; the operands
         // of a mixed expression need only one of them to say which.
         Expr::Bin(_, l, r) | Expr::Elementwise(_, l, r) => recur(l).or_else(|| recur(r)),
