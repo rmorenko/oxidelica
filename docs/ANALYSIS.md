@@ -3754,3 +3754,46 @@ the remaining demands are the language's own, not a blind reader. What
 would bring a fourth is a new road that carries records somewhere they
 have not been - and the guard against that is this list rather than
 another discovery.
+
+### The one victim, judged rather than counted
+
+The law asked for a reason, not a score, and the reason turns out to
+be ours. `Rotational.Examples.GenerationOfFMUs` is the single model
+lost when `InlineAfterIndexReduction` is honoured, and the victim
+probe says what happens to it:
+
+```text
+off: 5 states demoted    on: 2, then it stops
+     directInertia.inertia.phi
+     springDamper.springDamper.phi_rel   <- no longer demoted
+```
+
+The first suspicion was the adaptor's own
+`derivative(noDerivative = q_qd)`, which this compiler reads past.
+Reading it was built and measured, and it does not save the model -
+worth knowing on its own, and worth knowing that reading it _alone_
+costs 819 to 779, while with late inlining it is 819 again. The two
+are a pair: a rule that is only reachable once the call stays whole,
+and a call that only stands where its rule can be read.
+
+What actually stops the reduction is plainer, and it is not a
+legitimate opacity at all:
+
+```text
+cannot differentiate through `torqueToAngle2b.w_internal`,
+  differentiating (w_internal - inertia2b.w) = 0
+```
+
+and `w_internal` is defined by an ordinary equation of the adaptor -
+`w_internal = der(phi)` - with no annotation anywhere near it. So
+reduction _could_ reach through: `phi` is a state, its derivative is
+named, and demoting `phi` is exactly what the off case does. It stops
+because the definition-gathering does not look through a `der(...)`
+on the right-hand side to find the state under it.
+
+By the maintainer's own test that makes this **work, not a price**.
+Nothing ships that drops the run floor: the narrowed scalar check is
+in, on its own and inert, and both halves of the annotation work stay
+behind the switch until the reduction can follow `w_internal = der(phi)`
+to `phi`. That is one named gap rather than a judgement call, and it
+is where the next shift starts.
