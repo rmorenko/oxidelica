@@ -2927,3 +2927,43 @@ Reverted whole. The mechanism is proven correct and harmless - suite
 green, corpus unmoved, no test bent - and the next attempt starts at a
 question none of the four shifts had reached: what a function body is
 allowed to know about records.
+
+## The fifth floor, named: the two tables are keyed in different forms
+
+The fourth attempt ended on "why is a body's expansion handed an empty
+record table". Probing that question further turned it into a
+different and sharper one, and this is the finding of the shift.
+
+The chain, each link measured:
+
+1. `P[m] = {ComplexMath.real(v[k]*conj(i[k])) for k in 1:m}` is a
+   **declaration's binding**, not an equation. It is spread over the
+   elements by `spread_over_elements` (`components.rs:719`).
+2. That function does build a proper `Shapes` with `records_here` in
+   it - thirty-nine entries at the point that matters, not the empty
+   table the previous probe found one layer in.
+3. `collect_records` does find `v`: the probe prints
+   `voltageSource.v type=SI.ComplexVoltage kind=Record`, forty-four
+   times over that model, and the table holds `voltageSource.v`,
+   `voltageSource.plug_p.pin.v` and the rest.
+4. And the lookup still fails, because the expression being spread
+   says `v`, not `voltageSource.v`. The table is keyed by **instance
+   path**; the expression inside the class that declares it is written
+   in **short names**. The two never meet, and no widening of the
+   reader can make them.
+
+So the empty table of the fourth attempt was a red herring one layer
+too deep - the real table is full, and full of the right thing, under
+the wrong spelling for the question being asked.
+
+That also explains why the panel's mechanism was correct and inert:
+the stripped ask (`v[1]` to `v`) is exactly right, and it asks a table
+whose keys all carry the instance prefix. Two repairs suggest
+themselves - prefix the name before asking, or key the table both ways
+
+- and which is right depends on what else reads that table under which
+  spelling. That is the next shift's first question, and it is a
+  concrete one for the first time in five attempts.
+
+Nothing shipped this shift on this family: five probes, four reverts,
+one floor named. The corpus stands at 817 and 341.
