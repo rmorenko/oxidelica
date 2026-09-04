@@ -3367,3 +3367,53 @@ The second is the one this compiler's habits point at: it refuses
 rather than guesses, and it answers what it can actually work out.
 But it is a choice about what the tool promises, not a repair, and it
 is left here for Roman rather than made in a shift.
+
+### Two limits that guarded against nothing, and one rule that is true everywhere
+
+The `abs` fork was decided the second way: nothing about `abs`, but
+_whatever does not move has a derivative of zero_. It is the same
+move as `Evaluate` and `fixed` before it - not a mechanism added, but
+a requirement dropped. `KinematicPTP` writes `1/max(abs(aux1))` where
+`aux1` is a quotient of two parameters; differentiation was asking
+structurally and never noticing that the answer is zero whichever
+function stands around it.
+
+The strictness is where the work is. "Does not move" means every leaf
+is a literal, a parameter, or an algebraic name whose own definition
+does not move - followed one step at a time and never through itself,
+so a definition mentioning its own name cannot be read as constant.
+Not `time`, not a state, not a dummy derivative. `abs` of a state is
+still refused, and a test says so, because that is where the
+discontinuity is real and an answer would be a guess. **Running 358 to 363.**
+
+Then the reduction limit, and it is the third time this month the same
+shape has turned up: a limit written to guard against a loop, guarding
+instead against depth that is perfectly legitimate. The instrument
+settles it in one run - count what the matching covers at each step:
+
+```text
+R step=0  matched=173/248
+R step=8  matched=233/258
+R step=15 matched=252/266
+```
+
+Gaining ground every time. A system making progress is not in a loop,
+and a model of genuinely high index needs as many reductions as it has
+index. Raised from sixteen to two hundred and fifty-six, the kind
+`still cannot be matched` goes to **zero** and those six reach what is
+actually wrong with them - one of them a diverging algebraic loop.
+Totals hold, because reaching a later wall is not running.
+
+What the singular kind is now, **39** from 69 at the start of the
+week: **20** cannot differentiate through an algebraic variable, **7**
+`abs` of something that genuinely moves, **12** others.
+
+The connected-current case is not taken. The shape is understood -
+`r.p.i` is pinned only by connection equations that mention each
+other, and `p.i` is already in the table one equality away - but
+grounding a plain name-to-name equality early was built, measured
+against the small model, and does not move it: solved out of a
+connection equation, `-p.i + r.p.i = 0` arrives as `-(-r.n.i)/-1`, and
+reading through the wrappers still leaves the chain unclosed. Reverted
+rather than shipped. The small model stays red, which is the honest
+place to leave it.

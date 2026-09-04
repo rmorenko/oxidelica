@@ -356,9 +356,9 @@ pub(crate) fn differentiate_at(
 /// not a call whose arguments move - a call on things that do not move
 /// does not move either, whatever the function does inside.
 ///
-/// The strictness is the point. A looser reading - "probably constant"
-/// - would be a guess, and a guess in differentiation is a wrong
-/// number rather than a refusal.
+/// The strictness is the point: a looser reading, anything along the
+/// lines of "probably constant", would be a guess, and a guess in
+/// differentiation is a wrong number rather than a refusal.
 fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
     let DiffTarget::Time {
         state_rhs,
