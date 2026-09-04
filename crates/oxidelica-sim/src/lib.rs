@@ -451,8 +451,16 @@ enum DiffTarget<'a> {
     Variable(&'a str),
 }
 
-/// Guards against cyclic algebraic definitions while differentiating.
-const MAX_DIFF_DEPTH: usize = 32;
+/// How deep an expression may be while differentiating: a guard on
+/// the stack, not on cycles - a cyclic definition is caught by the
+/// dependency graph, and nothing here follows a name to its equation.
+///
+/// A table read from a file is one `if` per interval, nested: a
+/// hundred rows of measurements is a hundred deep, and thirty-two
+/// turned every derivative of one into a refusal that blamed a cycle
+/// that was not there. What the number really has to survive is an
+/// expression as deep as the data is long.
+const MAX_DIFF_DEPTH: usize = 4096;
 
 /// How many times to follow plain `name = expr` definitions while
 /// working out which branch of a run-time `if` equation holds at the

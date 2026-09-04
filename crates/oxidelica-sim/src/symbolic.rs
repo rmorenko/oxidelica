@@ -150,7 +150,7 @@ pub(crate) fn differentiate_at(
     depth: usize,
 ) -> Result<Expr, String> {
     if depth > MAX_DIFF_DEPTH {
-        return Err("differentiation recursed through a cyclic definition".to_string());
+        return Err("an expression too deep to differentiate".to_string());
     }
     use oxidelica_parser::BinOp::*;
     fn bin(op: oxidelica_parser::BinOp, a: Expr, b: Expr) -> Expr {
