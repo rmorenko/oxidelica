@@ -3283,3 +3283,47 @@ output flattens, two chained flatten, a stepwise `if` flattens - so
 what makes the real one recurse is not yet in hand. The next shift
 starts there, with the probe already pointed at `differentiate_at` and
 its depth limit.
+
+### The largest kind, halved: it was differentiation, not matching
+
+Two rules, two probes, and _structurally singular_ falls **69 to 46**.
+Neither fault was in matching or in index reduction, where the kind's
+name points. Both were in differentiation, and both were found by
+squeezing a failing model rather than by writing one.
+
+That method is the finding worth keeping. Three invented models -
+a `Der` on a table output, two chained, a stepwise `if` - all
+flattened, because the cause was in none of them. Squeezing
+`CombiTimeTable.Test55` by dropping components while the refusal
+survived reached eleven lines, then nine, and the difference was
+visible at once: a table _written out_ in the model is short, and one
+_read from a file_ is a hundred rows deep. The refusal even said so,
+if read closely enough - it blamed a cyclic definition, and nothing in
+differentiation follows a name to its equation, so no cycle can arise
+there. The limit of thirty-two was guarding the stack under a
+cycle-shaped message. Raised to four thousand, the message corrected,
+five table models run.
+
+The second was plainer once the first was out of the way. The library
+writes `Modelica.Math.sin`; what reaches differentiation is `.sin`,
+the function's own name with its package path resolved to nothing in
+front of it. Rules were matched against the whole string, so a rule
+this compiler has had all along was not found, and every model holding
+a sine source came out structurally singular. Squeezed to nine lines -
+a sine current, an inductor, a ground.
+
+**Running 341 to 358, runnable 338 to 355**, floors moved with each
+commit. Flattening 1005 then 1015ms per model against 1021 - unchanged,
+because neither fix touches the flattening half at all.
+
+What is left of the kind, counted rather than guessed:
+
+- **22** cannot differentiate _through an algebraic variable_ - the
+  multibody group, a different mechanism.
+- **12** other, no reason given in the message.
+- **11** `abs`, which is genuinely not differentiable at zero, and the
+  question is whether these models want `sign(x)*der(x)` or whether
+  the refusal is right.
+
+The next shift starts at the twenty-two, and the first step is to
+squeeze one of them.
