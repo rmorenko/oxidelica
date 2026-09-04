@@ -3003,3 +3003,43 @@ Six probes, five reverts, corpus at 817 and 341 throughout. Every
 mechanism the panel described is in place and provably harmless; what
 remains is a plumbing question about function bodies that no attempt
 has yet touched.
+
+### And the floor under that: the multiplication is already flat when the call is made
+
+The plumbing question was answered by building it. A record table was
+threaded through `execute`, `one_if_statement` and
+`run_algorithm_sections`, and `worked_body` given a real table built
+from the function's own declarations - every input, output and local
+whose type is a record. It compiles, the suite stays green, and it is
+the right thing on its own terms: `ComplexMath.abs` now sees its input
+`c` as a `Complex`, and the probe shows `c.re` and `c.im` bound to
+`voltageSource.v[1].re` and `.im` exactly as they should be.
+
+The ten still refuse, and the last probe says why in one line. At the
+call to `ComplexMath.real` the argument has already arrived as
+
+```text
+Array([Bin(Mul, Ref("voltageSource.v[1]"), Ref("voltageSource.i[1].re"))])
+```
+
+The multiplication was folded before the call was made, by the
+caller, where `v[1]` is a flat name and `record_class_of` answered
+`None`. Everything inside the body is downstream of a decision taken
+outside it: no table given to a body can undo an operator that has
+already collapsed.
+
+So the fault is not the body's table, nor the spread's, nor either
+reader in isolation - it is that `v[1]` as a **flat name** is not
+known to be a record at the one moment the operator is chosen, and
+the tables that hold `voltageSource.v` are keyed by the array while
+the expression at that moment holds the element. The panel's stripped
+lookup is the answer to exactly this, and it was measured firing
+nowhere, which is the piece that still does not add up.
+
+Seven probes, six reverts, corpus unmoved at 817 and 341 throughout,
+every attempt provably harmless and none of them shipped. What the
+next shift needs is not another repair but one measurement: with the
+stripped lookup in place, print the operand and the table at the
+moment `record_class_of` answers `None` for a name the tables should
+know. The mechanism is understood from both ends; only that one
+contradiction is left.
