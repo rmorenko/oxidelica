@@ -3233,3 +3233,53 @@ work is in `substitute_class_constants`, where an array of records
 must be substituted as an array of records rather than flattened into
 the fields of the first. Named, reproducible in a second, and left for
 the next shift with its price in hand rather than as a question.
+
+### Two walls down, and the first look at the largest kind
+
+The comprehension was the wall the quasi-static families stood at, and
+it took one line. Each turn of `{real(v[k]*conj(i[k])) for k in 1:m}`
+builds its own view of the names in scope, because the loop variable
+now has a value - and that view was built with an empty record table.
+So the product of two phasors was arithmetic on two names, `real` was
+handed something that is not a record, its input had nothing to bind
+to, and the body's own `c.re` escaped into the flat model. The kind
+falls **5 to 1**, and the five that move are the ones this started
+from three shifts ago: they now flatten their power equations and
+stop at _unbalanced model_, a later and different fault.
+
+Totals hold at 817 and 341, which is the lesson to keep next to the
+number: moving a model from one refusal to a later one does not
+flatten it. Only the census shows that work happened. Flattening cost
+1008ms then 1021ms per model against 986ms before the shift - inside
+the run-to-run spread, watched because it was asked for, and not a
+price worth naming.
+
+The constant-array fix is the same ambiguity one layer in: a record is
+its fields, an array is its elements, and once worked out they are the
+same kind of value. Written out and subscripted, `[1]` took the first
+_field_. Three arms fix it, each using the written form to tell the
+two apart, and the small model answers 0.018 for one field and 647.1
+for the other - by name, not by luck. The corpus does not move,
+because the library reaches those constants by _name_, and that path
+asks a table that is empty at the moment of asking. Same shape of
+fault as the comprehension, different site, still open.
+
+**Structurally singular, 69** - the largest kind, never touched. Three
+probes say it is not one family. It splits by what cannot be matched,
+the biggest group being five table models, and the refusal names its
+own cause outright:
+
+```text
+equation Ref("d_t_new.u") = Ref("t_new.y[1]") cannot be matched
+  (differentiation recursed through a cyclic definition)
+```
+
+That is `Modelica.Blocks.Continuous.Der` differentiating a table's
+output, and the tests chain two of them. So the kind is at least three
+things: differentiation that runs away, multibody models where a
+rotation cannot be matched, and kinematics. Three attempts to
+reproduce the first in a small model all flatten - a `Der` on a table
+output flattens, two chained flatten, a stepwise `if` flattens - so
+what makes the real one recurse is not yet in hand. The next shift
+starts there, with the probe already pointed at `differentiate_at` and
+its depth limit.
