@@ -24,6 +24,15 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+A rule that is true locally is not safe for a pass that outlives the
+locality. What a `when` assigns holds between events, so its
+derivative there is zero - true, and useless: index reduction demotes
+a state on the strength of that zero and has built something that
+stops being true the moment the clause fires. Measured, it cost two
+models while the totals did not move. The same shape as `sign(x)` for
+`der(abs(x))`, which is right except at the one point the models care
+about. Before using a rule, ask what outlives it.
+
 A rule that is right everywhere beats one that is right almost
 everywhere, even where the second is what other tools do. `abs` under
 a derivative could have taken `sign(x)*der(x)`, which is wrong at

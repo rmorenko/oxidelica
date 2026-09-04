@@ -3496,3 +3496,35 @@ state on the strength of a zero derivative has built something that
 stops being true the moment the `when` fires. So this is not a fix to
 tighten but an idea to be careful with - and the census caught it,
 which is the argument for reading the census and not only the totals.
+
+### The seven `abs`, counted properly, and where the multibody prize is
+
+The suspicion about `zeroDerivative` was right about the mechanism and
+wrong about these seven. Reading the option is worth **two models**
+and is shipped; but `regRoot2` and its neighbours carry
+`annotation(smoothOrder = 2)`, not a derivative rule, so there is
+nothing to use and the body has to be differentiated after all. The
+`abs` in it is real, its argument crosses zero on purpose, and the
+refusal stands - which is what the two measurements last shift already
+said.
+
+Expanding `abs` and `sign` is written off here so nobody returns to
+it. The specification expands them **under `noEvent`**, so the
+expansion generates no crossing, and differentiating the expanded form
+branch by branch gives back exactly `sign(x)*der(x)` - the same wrong
+answer at zero, reached the long way round. There is no win in that
+direction. What these models want is an event at the crossing, which
+`noEvent` explicitly forbids: they want the library's own derivative,
+and the library gave one only for `regRoot`, not for `regRoot2`.
+
+The connected current was counted before building, and the count says
+don't. Three models sit behind it - `pmActuator.r.p.i`,
+`actuator.r.p.i`, `saturatingInductor.p.i` - against work that means
+reading a connection set as one system rather than as definitions.
+
+The count also found where the prize actually is. Of the twenty
+`cannot differentiate through an algebraic variable`, the orientation
+of a multibody frame accounts for **twelve**: six on `R.T` and six on
+`R.w`, with three more on `r_0` and one on `delta_0`. That is one
+family four times the size of the connection-set one, and it is where
+the next shift should squeeze.
