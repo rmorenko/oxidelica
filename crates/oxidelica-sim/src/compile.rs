@@ -345,7 +345,16 @@ fn build_plan(
 
 /// How many times a constraint may be differentiated before the model
 /// is called singular rather than merely of high index.
-const MAX_INDEX_REDUCTIONS: usize = 16;
+///
+/// A guard against a reduction that gets nowhere, not against a deep
+/// one: every accepted step adds an equation and matches more of
+/// them, so a system that is making progress is not in a loop. The
+/// resonance circuits go from 173 matched to 252 over sixteen steps,
+/// gaining ground each time, and were called singular for running out
+/// of turns rather than for standing still. A model of genuinely high
+/// index needs as many reductions as it has index, and nothing says
+/// that is a small number.
+const MAX_INDEX_REDUCTIONS: usize = 256;
 
 /// What index reduction leaves behind: the system as it stands, and
 /// the matching that covers it.
