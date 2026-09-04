@@ -3187,3 +3187,49 @@ has no value 64, structurally singular 69, unknown variable 52, two
 equations for der 17, unknown function 10**. The three families closed
 this week have left the top; what stands there now is parameters that
 want a value the compiler will not compute.
+
+### The fluid twenty-five: a constant array of records, read by element
+
+The C-fluid family answered to the small-model rule at once, and not
+the way three shifts of guessing expected. A constant whose value is a
+call flattens. Through a replaceable package it flattens. Through a
+chain of extending packages it flattens. All three are in
+`tests/small`, all three green, and each was a candidate the corpus
+would have taken five minutes to rule out.
+
+What actually refuses is `ModelicaTest.Fluid`'s
+
+```text
+unknown variable `SourceP1.medium.fluidConstants[1].molarMass`
+```
+
+and in twenty-six lines it is this: a medium declares
+
+```modelica
+constant FluidConstants fluidConstants[nS] = {FluidConstants(
+  molarMass = 0.018, criticalTemperature = 647.1)};
+```
+
+and a model reads one field of one element. The refusal that comes
+back names the fault outright:
+
+```text
+an equation between shapes [] and [2]:
+  Ref("medium.MM") = Member(Number(0.018), "molarMass")
+```
+
+`Member` of a _number_. The array of one record was substituted as its
+first field, so `[1]` picked `molarMass`'s value and `.molarMass` was
+then read off that. A record is its fields and an array is its
+elements, and by the time the subscript is read both are the same kind
+of value - the same ambiguity as the QuasiStatic family, one layer
+further in, and this time in constant substitution rather than in the
+operator layer.
+
+Two fixes at the subscript were built and measured against the small
+model: neither moves it, because the collapse happens before either
+runs - the constant arrives already folded to `Number(0.018)`. So the
+work is in `substitute_class_constants`, where an array of records
+must be substituted as an array of records rather than flattened into
+the fields of the first. Named, reproducible in a second, and left for
+the next shift with its price in hand rather than as a question.
