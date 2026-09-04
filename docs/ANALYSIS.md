@@ -3561,3 +3561,33 @@ harmful to what the reduction then does with it. Somewhere a step is
 relying on that name having no definition, and finding which one is
 the next move rather than another attempt at the gathering. The small
 model is kept red and says so.
+
+### `noDerivative` is exactly the right idea and does not fit yet
+
+The theory was right about the library. `Frames.resolve1` carries
+
+```modelica
+annotation(derivative(noDerivative = R) = Internal.resolve1_der,
+           InlineAfterIndexReduction = true);
+```
+
+and its rule takes `(R, v2, v2_der)` - an orientation handed over whole
+with no rate of its own. That is precisely how the multibody library
+avoids ever forming `der(T)`: the rule is written for whatever `R` is,
+so nothing has to differentiate a rotation matrix.
+
+`noDerivative` and `zeroDerivative` say the same thing about the
+_shape_ of the rule - the named input gets no derivative beside it -
+so reading it is the same two lines. Measured: **flatten 819 to 717**.
+The rules are found and applied, and then the values do not fit: an
+orientation is a record of a three-by-three and a three, the rule is
+called with it whole, and what comes back is refused for being an
+array where a scalar was wanted. So the annotation is not the missing
+piece by itself; the record-valued argument has to travel into the
+rule the way the record's own operators now travel, which is the work
+`InlineAfterIndexReduction` is hinting at on the same annotation.
+
+Reverted, measured, written down. Two shifts running, the mechanism
+named by the maintainer was real and the fix was one layer further in
+than it looked - which is the argument for squeezing first and
+theorising second, and for measuring before shipping either.
