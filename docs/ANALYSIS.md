@@ -2967,3 +2967,39 @@ themselves - prefix the name before asking, or key the table both ways
 
 Nothing shipped this shift on this family: five probes, four reverts,
 one floor named. The corpus stands at 817 and 341.
+
+### The fifth floor, corrected: the table is right and the reader never sees it
+
+The previous entry said the two tables are keyed in different forms.
+Probed one step further, that is wrong and the truth is narrower.
+
+`spread_over_elements` holds `records_here` with eight entries, and
+`voltageSource.v` is the first of them. The expression is prefixed
+before expansion, so `v[k]` inside the comprehension is
+`Index(Ref("voltageSource.v"), [k])` - the spelling the table uses.
+Table and name agree.
+
+Two readings were added and measured against that. `record_class_of`
+given an `Index` arm answers from the base, and
+`record_of_a_subscripted_path` answers a written-out `v[1]` by
+shortening. Both are correct, both keep the suite green, and neither
+fires: the `Index` arm answers **nothing at all** over the whole
+model, and where a probe did catch a subscript the table it was
+holding had `n=0`.
+
+So the asking that fails is not the one at the spread. It is one
+inside a body, where `Shapes` carries `no_records()` by construction,
+and the value arriving there is already the flat name `v[1]` with no
+table behind it. The spread's own asking, with the right table and
+the right spelling, is never the one that decides.
+
+Which means the repair is not in either reader. It is in what a
+function body is handed - the fourth attempt's question, arrived at
+again from the opposite direction and now with the alternatives
+eliminated: the table at the spread is right, the readers are right,
+and the body is where the record-ness is lost.
+
+Six probes, five reverts, corpus at 817 and 341 throughout. Every
+mechanism the panel described is in place and provably harmless; what
+remains is a plumbing question about function bodies that no attempt
+has yet touched.
