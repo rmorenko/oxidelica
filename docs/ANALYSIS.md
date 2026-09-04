@@ -2831,3 +2831,47 @@ measurement says this one already follows it thirty-eight statements
 before running out. Whether the remaining layers are worth carrying
 is a cost question, not a correctness one, and the register keeps it
 apart from the walls that were simply wrong.
+
+## Stricter than the language: a genre, and a sweep for more of it
+
+Three times in a week a family fell not to a repair but to a reading
+of the specification. The pattern is worth a heading of its own,
+because it is the cheapest work this project has found and it is
+invisible to every other instrument.
+
+| What was demanded             | What the language says                  | Moved              |
+| ----------------------------- | --------------------------------------- | ------------------ |
+| `Evaluate = true` must settle | 18.3: the developer _proposes_          | +24                |
+| `fixed` must be a literal     | a Boolean attribute takes an expression | 15 to 0            |
+| clock identity by arithmetic  | 16: identity is structural              | the clocked series |
+
+The shape is always the same: the compiler treats a permission as an
+obligation, and refuses a model the language allows. It is not a bug
+in the ordinary sense - every one of these passed its own tests, and
+each had a comment above it explaining why the strictness was
+prudent. What none of them had was the sentence from the chapter.
+
+### The sweep, and its result
+
+The instrument was turned on the refusal texts themselves: every
+`return Err` in the flattening layers, read for the ones that
+_demand_ where the specification _permits_. About sixty distinct
+wordings, gathered by shape.
+
+What came back is that the remaining ones are sound. The demands for
+compile-time constants - array dimensions, slicing subscripts, the
+condition of a structural `if`, a clock's interval - are demands the
+language makes too, in those exact places. The demands about form -
+a matrix row being an array, a tuple standing only on the left of an
+assignment, `cat` needing equal row counts - are grammar. The
+positive-interval demand on clocks is chapter 16's own.
+
+So the sweep found no fourth trade, and that is the finding: the
+genre is real but it is not endless. Three were there, three were
+taken, and the wordings that remain are the compiler agreeing with
+the language rather than outrunning it.
+
+The heading stays in the register for the next reader, with the
+method attached: when a family refuses on a rule, find the sentence
+in the specification before writing the repair. Twice in three tries
+the sentence was the repair.
