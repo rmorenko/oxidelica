@@ -513,6 +513,7 @@ impl Parser {
             when_clauses,
             experiment: annotated.experiment,
             derivative: annotated.derivative,
+            derivative_needs_still: annotated.derivative_needs_still,
             inverse: annotated.inverse,
             annotations: annotated.kept,
             class_aliases,
@@ -775,6 +776,21 @@ impl Parser {
                 Token::Ident(name) if depth == 1 && name == "derivative" => {
                     self.bump();
                     if self.peek() == &Token::LParen {
+                        // `derivative(zeroDerivative = delta) = f_der`
+                        // says the rule holds wherever `delta` does not
+                        // change with time. That is how the fluid
+                        // library writes its smoothing functions: the
+                        // regularisation width is a parameter, so the
+                        // rule applies and the body - which has an
+                        // `abs` in it - never has to be differentiated.
+                        //
+                        // Anything else allowed here changes what the
+                        // named function takes or answers, and reading
+                        // that wrong is a wrong derivative nothing
+                        // downstream could catch. An order or a
+                        // `noDerivative` is still read past.
+                        let mut needs_still = Vec::new();
+                        let mut only_zero_derivatives = true;
                         let mut inner = 0usize;
                         loop {
                             match self.bump() {
@@ -785,6 +801,16 @@ impl Parser {
                                         break;
                                     }
                                 }
+                                Token::Ident(option) if inner == 1 => {
+                                    if option == "zeroDerivative" {
+                                        if self.peek() == &Token::Assign {
+                                            self.bump();
+                                            needs_still.push(self.ident("the input held still")?);
+                                        }
+                                    } else {
+                                        only_zero_derivatives = false;
+                                    }
+                                }
                                 Token::Eof => {
                                     return Err(self.err("unterminated derivative options".into()))
                                 }
@@ -792,7 +818,11 @@ impl Parser {
                             }
                         }
                         self.expect(&Token::Assign, "`=` after derivative")?;
-                        self.dotted_name("the derivative function")?;
+                        let named = self.dotted_name("the derivative function")?;
+                        if only_zero_derivatives && !needs_still.is_empty() {
+                            into.derivative = Some(named);
+                            into.derivative_needs_still = needs_still;
+                        }
                         continue;
                     }
                     self.expect(&Token::Assign, "`=` after derivative")?;

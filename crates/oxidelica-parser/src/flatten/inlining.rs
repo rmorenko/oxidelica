@@ -188,10 +188,17 @@ fn derivative_rule(
     // A table is asked for a value by `(tableID, column, u)`, and
     // neither the table nor the column has a rate of change: the
     // derivative function takes the three and then `der_u` alone.
+    // An input the annotation holds still gets no derivative handed to
+    // it either: `derivative(zeroDerivative = delta) = regRoot_der`
+    // says the rule is the one for a `delta` that does not change, so
+    // the rule function takes `(x, delta, der_x)` and not `der_delta`.
     let differentiable: Vec<bool> = function_components(registry, class, 0)
         .iter()
         .filter(|component| component.causality == Causality::Input)
-        .map(|component| is_real(registry, component, &class.name, &class.imports))
+        .map(|component| {
+            is_real(registry, component, &class.name, &class.imports)
+                && !class.derivative_needs_still.contains(&component.name)
+        })
         .collect();
     let seeded = differentiable.iter().filter(|real| **real).count();
     let (given, wanted) = (inputs(of), args.len() + seeded);

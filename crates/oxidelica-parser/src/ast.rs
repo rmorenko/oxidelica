@@ -438,6 +438,13 @@ pub struct ClassDef {
     /// `annotation(derivative = f_der)`: the function that gives this
     /// one's derivative, so a tool need not work it out from the body.
     pub derivative: Option<String>,
+    /// The inputs a `derivative(zeroDerivative = x)` names. The rule
+    /// holds only where each of those does not change with time, which
+    /// is how the fluid library writes a smoothing function: the
+    /// regularisation width is a parameter, so the rule applies and the
+    /// body - which has an `abs` in it - never has to be
+    /// differentiated at all.
+    pub derivative_needs_still: Vec<String>,
     /// `annotation(inverse(x = f_inv(y, z)))`: which input this class
     /// can be solved for, by which function, given which arguments.
     pub inverse: Vec<(String, String, Vec<String>)>,
@@ -490,6 +497,7 @@ impl ClassDef {
             when_clauses: Vec::new(),
             experiment: Experiment::default(),
             derivative: None,
+            derivative_needs_still: Vec::new(),
             inverse: Vec::new(),
             annotations: Vec::new(),
         }
