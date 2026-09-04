@@ -617,7 +617,42 @@ pub(super) fn resolve(
             None => expr.clone(),
         },
         Expr::Call(name, args) => {
-            let args: Result<Vec<Expr>, String> = args.iter().map(&recur).collect();
+            // An argument may legitimately be an aggregate: a frame
+            // transform takes an `Orientation`, which is a record of a
+            // three-by-three and a three, and its call is kept whole
+            // until index reduction has run. What says whether that is
+            // allowed is the declaration of the input it stands for -
+            // a record or an array there means an aggregate is what
+            // was asked for, and a scalar there still refuses, so the
+            // check is narrowed rather than dropped.
+            let aggregates_allowed = lookup(registry, name, scope, imports)
+                .filter(|class| class.kind == ClassKind::Function)
+                .map(|class| {
+                    class
+                        .components
+                        .iter()
+                        .filter(|component| component.causality == Causality::Input)
+                        .map(|component| {
+                            !component.dimensions.is_empty()
+                                || lookup(
+                                    registry,
+                                    &component.type_name,
+                                    &class.name,
+                                    &class.imports,
+                                )
+                                .is_some_and(|of| of.kind == ClassKind::Record)
+                        })
+                        .collect::<Vec<bool>>()
+                })
+                .unwrap_or_default();
+            let args: Result<Vec<Expr>, String> = args
+                .iter()
+                .enumerate()
+                .map(|(place, arg)| match aggregates_allowed.get(place) {
+                    Some(true) => Ok(arg.clone()),
+                    _ => recur(arg),
+                })
+                .collect();
             let args = order_builtin_arguments(name, args?)?;
             // A body written in a base may call what only a class
             // extending it declares. Asked where it was written there
