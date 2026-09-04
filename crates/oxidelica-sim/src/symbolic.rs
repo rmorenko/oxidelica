@@ -232,13 +232,21 @@ pub(crate) fn differentiate_at(
             )
         }
         Expr::Call(name, args) if args.len() == 1 => {
+            // The library writes `Modelica.Math.sin`, and what arrives
+            // here is what the name resolved to - which for a function
+            // the compiler answers itself is the last part of it, with
+            // whatever package path it was written under left in
+            // front. Matched whole, `.sin` was a function with no
+            // derivative rule, and every model with a sine source was
+            // refused as structurally singular.
+            let name = name.rsplit('.').next().unwrap_or(name);
             // The staircase functions are flat almost everywhere.
-            if matches!(name.as_str(), "ceil" | "floor" | "integer" | "sign") {
+            if matches!(name, "ceil" | "floor" | "integer" | "sign") {
                 return Ok(Expr::Number(0.0));
             }
             let u = &args[0];
             let du = d(u)?;
-            let outer = match name.as_str() {
+            let outer = match name {
                 "sin" => call("cos", u.clone()),
                 "cos" => Expr::Neg(Box::new(call("sin", u.clone()))),
                 "tan" => bin(
