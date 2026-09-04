@@ -3133,3 +3133,57 @@ constructor bug all along. But harmless is all it is: 817 with it and
 The method is the lasting part. Three shifts were spent measuring the
 corpus at five minutes a turn and reasoning about shapes; the fault
 fell out of a twelve-line model in one. Reproduce small, then measure.
+
+### Where the ten stand, and what they are really waiting for
+
+The instrument first, since the last shift shipped a fix without
+saying what it moved. Two censuses from one binary, the arm in and
+out: **not one model changed its refusal**. The arm fires once on the
+small model and never on the corpus. The library writes
+`{real(v[k]*conj(i[k])) for k in 1:m}`, the loop variable is settled
+before the operator is chosen, and what arrives is a flat name. So the
+fix is right and tested and corpus-inert, which is worth saying
+plainly rather than leaving to be assumed.
+
+The ten stand where they stood: `unknown variable
+`voltageSource.v[1]``. But the wall behind it is now named, and named
+from a forty-line model rather than from a family of machines. Bound
+into `real`, the argument is
+
+```text
+handed = ["c = Bin(Mul, Ref(\"v[1]\"), Ref(\"i[1]\"))"]
+```
+
+The product was never folded into a record, so there is nothing to
+bind `c.re` to, and the body's own name escapes into the flat model -
+which is the `unknown variable` the corpus reports, one remove from
+where it went wrong. Teaching the lookup the flat form does not help:
+measured on one binary, 817 either way. The tables the operator layer
+consults do hold `v`, and `record_class_of` does answer `Complex` for
+`v[1]` once taught - but by then `apply_operator` has already been
+entered from a shape where the nested `v[k]*i[k]` is read against an
+empty table. Four candidate sites were ruled out by probe rather than
+by reading: none of the four `no_records()` in `components.rs`, not
+`acc.records` being extended too late, not the body table in
+`worked_body`, which is genuinely correct and genuinely populated -
+`recs={"c": "P.C"}` - and still leaves `c` bound to an unfolded
+product.
+
+Binding fields through the expression instead - a field of a sum is
+the sum of the fields - handles `+` and `-` and not `*`, which is
+exactly the case in hand: the real part of a product is not the
+product of the real parts. So the fold has to happen in the operator
+layer, before the call, and the remaining question is which caller
+reads the multiplication against a table that does not hold `v`.
+
+Three of the C-fluid guesses died the same cheap way. A constant whose
+value is a call flattens; through a replaceable package it flattens;
+through a chain of extending packages it flattens. Whatever the
+twenty-five die of, it is none of those, and an hour of corpus runs
+was saved by four minutes of small models.
+
+The queue, kinds folded together: **cannot evaluate parameters 64,
+has no value 64, structurally singular 69, unknown variable 52, two
+equations for der 17, unknown function 10**. The three families closed
+this week have left the top; what stands there now is parameters that
+want a value the compiler will not compute.
