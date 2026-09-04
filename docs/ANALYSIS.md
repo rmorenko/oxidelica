@@ -3528,3 +3528,36 @@ of a multibody frame accounts for **twelve**: six on `R.T` and six on
 `R.w`, with three more on `r_0` and one on `delta_0`. That is one
 family four times the size of the connection-set one, and it is where
 the next shift should squeeze.
+
+### The multibody fifteen: the definition is thrown away by the skip
+
+Squeezed from `Pendulum` to nine lines - a world, a revolute joint, a
+body - and the refusal survives, naming `rev.frame_a.R.w[3]`. The
+probe then says the whole of it in two lines:
+
+```text
+M3 rev.frame_a.R.w[3]    def=None
+M3 world.frame_b.R.w[3]  def=Some("Number(0.0)")
+```
+
+The world's own angular velocity is zero and known. The connection
+puts `world.frame_b.R.w[3] = rev.frame_a.R.w[3]` in the system, which
+would carry that zero across. But definitions are gathered while
+skipping the equation under reduction, and at that step the equation
+under reduction _is_ the connection - so the joint's side is left with
+nothing, and a frame that never turns is called something nothing can
+differentiate. Fifteen models die of it.
+
+The skip is right in general: an equation cannot define its own way
+out, or `u = 3` would be read instead of `u = 2*x`. Narrowing it to
+the one name being reduced for, so the connection still says what it
+says about the _other_ side, was built and measured: it takes the
+small model and the corpus goes **363 to 351**, with two tests
+failing. Reverted.
+
+So the definition is correct and the trouble is downstream of having
+it - the same shape as the `when` rule last shift: true in itself,
+harmful to what the reduction then does with it. Somewhere a step is
+relying on that name having no definition, and finding which one is
+the next move rather than another attempt at the gathering. The small
+model is kept red and says so.

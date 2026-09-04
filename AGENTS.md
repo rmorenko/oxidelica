@@ -24,6 +24,15 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+The small suite has a blind spot, and it is worth naming rather than
+discovering twice. A change on a path that only switches on at
+complexity cannot be guarded by a small model: reading
+`derivative(zeroDerivative = ...)` matters only when the body is too
+hard to differentiate, and a body simple enough to write in a test is
+simple enough that the rule is never reached. For those changes the
+only witness is the corpus census, and the commit should say so
+outright instead of implying a test exists.
+
 A rule that is true locally is not safe for a pass that outlives the
 locality. What a `when` assigns holds between events, so its
 derivative there is zero - true, and useless: index reduction demotes
