@@ -2875,3 +2875,55 @@ The heading stays in the register for the next reader, with the
 method attached: when a family refuses on a rule, find the sentence
 in the specification before writing the repair. Twice in three tries
 the sentence was the repair.
+
+## The fourth attempt: the panel's mechanism, built whole, and the floor under it
+
+The panel ruled that nothing needs transporting. An element's
+recordness is already stored compositionally - `records["…v"]` says
+what the elements are of, `sizes["…v"]` says there are elements - and
+`whole_record` has been reading that pair correctly for as long as
+equations between record arrays have worked. The repair was to teach
+two readers to ask the same way.
+
+Built exactly as ordered, in the four steps given:
+
+1. `whole_record`'s stripping walk lifted into
+   `record_of_a_subscripted_path`, reachable from the operator layer.
+2. `record_class_of`'s `Ref` arm given the stripped second ask.
+3. `apply_operator`'s operands passed through `records_written_out`
+   before the promotion, so `v[1]` arrives as its fields instead of
+   being wrapped in `Complex(v[1], 0)`.
+4. The zero test, the suite, the reproduction, the corpus.
+
+Every prediction the panel made about the intermediate states came
+true. Step 2 alone turned the loud refusal into the quiet constructor,
+exactly as foretold. The zero test stayed green throughout, because
+`arr[1].x` shortens to `arr.x` and no table holds it - the stripping
+form is safe where the base-name form was not, which is why attempts
+1 and 2 failed and this one did not.
+
+One correction was needed on the way: written out unconditionally, the
+fields broke the scalar product built two shifts ago - the operator
+was handed three values where its body wanted two. Narrowing the
+writing-out to an operand that is _both_ wanted as one record and
+known to be an element fixed it, and the suite went green.
+
+### And the corpus still does not move
+
+817 and 341, unchanged. The probe says why, and it is a floor below
+everything the panel and I were looking at: at the moment
+`v[k]*conj(i[k])` is expanded, the shape tables carry **no records at
+all** - `tbl=0`. The asking happens inside a function body, from
+`statements::one_assignment`, and every `Shapes` built there passes
+`no_records()` by construction.
+
+So the stripped ask is right and answers nothing, because the table it
+asks is empty by design at that point. The question is no longer how
+an element is keyed but why a body's expansion is given an empty
+record table - which is a fifth thing, below the four the panel
+separated.
+
+Reverted whole. The mechanism is proven correct and harmless - suite
+green, corpus unmoved, no test bent - and the next attempt starts at a
+question none of the four shifts had reached: what a function body is
+allowed to know about records.
