@@ -3797,3 +3797,38 @@ in, on its own and inert, and both halves of the annotation work stay
 behind the switch until the reduction can follow `w_internal = der(phi)`
 to `phi`. That is one named gap rather than a judgement call, and it
 is where the next shift starts.
+
+### The series, measured whole, and the one gap that still holds it
+
+All four parts together - reading `noDerivative`, honouring
+`InlineAfterIndexReduction`, allowing an aggregate where the input was
+declared one, and gathering a definition through `der(...)` - come to
+**819 flatten and 362 run**. The flattening wall is gone entirely: the
+38 that the standing calls cost are back, and nothing else moves. The
+run list, which is the instrument the law asks for, loses exactly one
+model and gains none.
+
+It is the same one as before, and the last part was aimed at it. The
+aim was right and the shot missed by a layer. `w_internal = der(phi)`
+does reach the gathering, but not in that form: by then the model
+reads
+
+```text
+torqueToAngle2b.w_internal = torqueToAngle2b.w
+```
+
+because `der(phi)` was already given a name of its own upstream, and
+`w` is that name once more removed. So `as_der_of` finds nothing to
+look through - the derivative is not written as a derivative any more,
+it is an ordinary unknown three equalities away from the state. The
+gathering would have to follow that chain rather than one step.
+
+So the series stays out of the tree, and the floors stay where they
+are. What it is worth is now exact rather than estimated: **the whole
+multibody family's wall for one model**, and that one model is a chain
+of aliases away from working too. That is a good trade to make once
+the chain is followed, and a bad one to make on a promise.
+
+The instrument built this shift is what made the difference: every
+question above was answered by `library check --only <Class>` in under
+a second, where the same questions cost four corpus runs yesterday.
