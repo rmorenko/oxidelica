@@ -49,6 +49,18 @@ pub(super) fn inline_function(
     // carry, a recursion with no bottom - means the call stands and
     // the run walks it. For a body that does not lead back to itself
     // there is nothing behind, and a refusal is a refusal.
+    // `annotation(InlineAfterIndexReduction = true)` says to keep the
+    // call whole while index reduction runs and to expand the body
+    // afterwards. The multibody library puts it on the frame
+    // transforms, beside the `derivative(noDerivative = R)` that gives
+    // their rule: reduction is meant to differentiate through the rule
+    // and never to see the rotation matrix at all. Inlined early, what
+    // reduction sees instead is a body of matrix entries, and the
+    // orientation of every frame becomes something it has to
+    // differentiate.
+    if inline_after_index_reduction(class) {
+        return Ok(Expr::Call(class.name.clone(), args.to_vec()));
+    }
     let speculative = recursive(class, registry);
     // A call that ends up standing was not inlined, so whatever checks
     // the attempt set aside are checks of a body nobody ran.
@@ -1765,4 +1777,24 @@ pub(super) fn with_inherited_components(
     registry: &HashMap<&str, &ClassDef>,
 ) -> Vec<Component> {
     function_components(registry, class, 0)
+}
+
+/// Whether a function says to keep its call whole until index
+/// reduction has run.
+///
+/// Read from what the annotation said as written: the annotation
+/// layer keeps the tree, so this is a question about that tree rather
+/// than a new thing to parse.
+fn inline_after_index_reduction(class: &ClassDef) -> bool {
+    fn says(expr: &Expr) -> bool {
+        match expr {
+            Expr::NamedArg(name, value) => {
+                (name == "InlineAfterIndexReduction" && matches!(value.as_ref(), Expr::Bool(true)))
+                    || says(value)
+            }
+            Expr::Call(_, args) | Expr::Array(args) => args.iter().any(says),
+            _ => false,
+        }
+    }
+    class.annotations.iter().any(says)
 }

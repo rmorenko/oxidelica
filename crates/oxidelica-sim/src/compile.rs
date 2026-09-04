@@ -574,7 +574,21 @@ fn reduce_index(
                 }
                 if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
                     if unknowns.contains(name) {
-                        candidates.push((name.clone(), simplify(other)));
+                        // `w_internal = der(phi)` names a state's own
+                        // derivative, and the unknown on the other side
+                        // is that derivative under another name. The
+                        // angle adaptor writes exactly this, with no
+                        // annotation anywhere near it, and read as an
+                        // opaque `der(...)` it left the unknown with no
+                        // definition - so a reduction that could have
+                        // demoted `phi` stopped instead.
+                        let value = match other.as_der_of() {
+                            Some(state) if state_rhs.contains_key(state) => {
+                                Expr::Ref(derivative_name(state))
+                            }
+                            _ => simplify(other),
+                        };
+                        candidates.push((name.clone(), value));
                     }
                 }
                 let mut named = Vec::new();

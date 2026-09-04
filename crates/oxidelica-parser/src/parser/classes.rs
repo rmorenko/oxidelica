@@ -802,10 +802,25 @@ impl Parser {
                                     }
                                 }
                                 Token::Ident(option) if inner == 1 => {
-                                    if option == "zeroDerivative" {
+                                    // Both say the same about the
+                                    // rule's shape: the named input is
+                                    // handed over as it is and gets no
+                                    // derivative beside it.
+                                    // `zeroDerivative` adds that the
+                                    // rule holds only where that input
+                                    // does not change; `noDerivative`
+                                    // says the rule was written for
+                                    // whatever it is. `position` of
+                                    // the angle adaptor is
+                                    // `derivative(noDerivative = q_qd)`
+                                    // and its rule takes `(q_qd, dummy,
+                                    // dummy_der)` - the pair handed
+                                    // over whole, its own rate never
+                                    // asked for.
+                                    if option == "zeroDerivative" || option == "noDerivative" {
                                         if self.peek() == &Token::Assign {
                                             self.bump();
-                                            needs_still.push(self.ident("the input held still")?);
+                                            needs_still.push(self.ident("the input handed over")?);
                                         }
                                     } else {
                                         only_zero_derivatives = false;
