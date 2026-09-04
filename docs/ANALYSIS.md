@@ -3417,3 +3417,37 @@ connection equation, `-p.i + r.p.i = 0` arrives as `-(-r.n.i)/-1`, and
 reading through the wrappers still leaves the chain unclosed. Reverted
 rather than shipped. The small model stays red, which is the honest
 place to leave it.
+
+### The seven remaining `abs`: both measurements say the refusal is right
+
+Two facts were asked for before reopening the fork, and both came back
+against the `sign` rule.
+
+**Does the argument cross zero?** In these seven, yes, and on purpose.
+They are `ModelicaTest.Fluid.TestUtilities.TestRegRoot2Derivatives`
+and its neighbours - models written to test what happens _at_ zero -
+and the driving equation is
+
+```modelica
+x = time - 1;
+```
+
+a ramp through zero at the middle of the run. The names say it too:
+`TestRegRoot2ZeroDerivative`, `TestPressureLossDerivatives`. Zero is
+not a corner these models avoid, it is the thing they are about.
+
+**Is `abs` expanded through `noEvent`?** No. It is computed directly -
+`"abs" => Some(Unary::Abs)` in the code generator, `x.abs()` at the
+run - so no zero crossing is generated and the solver steps straight
+through the discontinuity. Which means a `sign(x)*der(x)` rule would
+be wrong exactly where these models look, on a step the solver takes
+without stopping, and nothing would say so.
+
+So the fork closes the other way from where it looked. For the eleven
+it was never about `abs` at all, and the general rule took them. For
+these seven the refusal is correct and the honest answer is that
+differentiating `abs` across zero needs the event that the language
+asks for and this compiler does not yet make. That is a real piece of
+work - expand `abs`, `sign`, `max`, `min` into their conditional forms
+so the solver stops at the crossing - and it is worth doing for the
+run half generally, not as a way to take seven models.
