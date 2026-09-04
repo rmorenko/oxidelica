@@ -3451,3 +3451,48 @@ asks for and this compiler does not yet make. That is a real piece of
 work - expand `abs`, `sign`, `max`, `min` into their conditional forms
 so the solver stops at the crossing - and it is worth doing for the
 run half generally, not as a way to take seven models.
+
+### What is left of the singular kind, and a warning about `when`
+
+The wrapper folding took the kind from 39 to 37 and moved three models
+on. The remainder splits into two shapes, and the first is now clear.
+
+The connected-current case is a **cycle, not an ordering**. With the
+wrappers folded the candidates read plainly, and what they say is
+
+```text
+pmActuator.r.p.i := pmActuator.r.i
+pmActuator.r.i   := pmActuator.r.p.i
+```
+
+each waiting for the other, with `r.n.i` doing the same in the other
+direction. No amount of folding or reordering closes that: what pins
+these currents is the connection set as a whole, one equation short of
+determining any of them individually. Reading it needs the set, not
+the definitions - which is a different piece of work from anything
+tried so far, and the small model stays red pointing at it.
+
+The second shape looked like the `abs` rule again and is not.
+`Trapezoid` writes
+
+```modelica
+when time >= (pre(count) + 1)*period + startTime then
+  count = pre(count) + 1;
+  T_start = time;
+end when;
+```
+
+and reads `T_start` in its output equation. Between events `T_start`
+holds, so its derivative there is zero - the same reasoning that took
+the eleven. Built that way, threading what `when` clauses assign into
+differentiation as definitions worth zero, the small case does pass:
+the refusal moves past `T_start` to the next thing.
+
+**But the corpus goes 37 to 39 and the sub-kind 20 to 24.** Measured,
+reverted, not shipped. The rule is true between events and the trouble
+is what it does at them: a variable that jumps is not one whose
+derivative is zero everywhere, and index reduction that has demoted a
+state on the strength of a zero derivative has built something that
+stops being true the moment the `when` fires. So this is not a fix to
+tighten but an idea to be careful with - and the census caught it,
+which is the argument for reading the census and not only the totals.
