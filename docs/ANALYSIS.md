@@ -3327,3 +3327,43 @@ What is left of the kind, counted rather than guessed:
 
 The next shift starts at the twenty-two, and the first step is to
 squeeze one of them.
+
+### `abs` under a derivative: what is actually being decided
+
+Eleven models are refused for `cannot differentiate function abs`,
+and the shape of the question is not what the name suggests.
+
+Where it comes from, in every one of them, is
+`Modelica.Blocks.Sources.KinematicPTP`:
+
+```modelica
+aux1[i] = p_deltaq[i]/p_qd_max[i];
+sd_max = 1/max(abs(aux1));
+```
+
+`aux1` is a quotient of two parameters. Its derivative with respect to
+time is zero, and so is `abs(aux1)`'s, discontinuity or not - the
+argument never moves. The refusal is not protecting anyone here; it
+fires because differentiation asks the question structurally, without
+noticing that the answer is zero either way.
+
+So the fork is:
+
+1. **A rule for `abs`**: `der(abs(x)) = sign(x)*der(x)`. What every
+   other tool does, and what the language means. It is wrong only at
+   exactly zero, where `sign` is zero and the true derivative does not
+   exist - a measure-zero disagreement that no solver visits by
+   chance. Cheapest, and takes eleven models.
+2. **Zero where the argument is constant**: notice that `der(u)` is
+   zero and answer zero without needing a rule for the outer function
+   at all. Narrower, correct everywhere, and it generalises to every
+   function of parameters rather than to `abs` alone. Slightly more
+   work, and it would not help a model that genuinely differentiates
+   `abs` of a moving variable.
+3. **Leave it**: the refusal is honest about a function that is not
+   differentiable, and eleven models wait for a decision.
+
+The second is the one this compiler's habits point at: it refuses
+rather than guesses, and it answers what it can actually work out.
+But it is a choice about what the tool promises, not a repair, and it
+is left here for Roman rather than made in a shift.
