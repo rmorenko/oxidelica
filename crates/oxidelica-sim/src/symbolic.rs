@@ -233,13 +233,23 @@ pub(crate) fn differentiate_at(
         }
         Expr::Call(name, args) if args.len() == 1 => {
             // The library writes `Modelica.Math.sin`, and what arrives
-            // here is what the name resolved to - which for a function
-            // the compiler answers itself is the last part of it, with
-            // whatever package path it was written under left in
-            // front. Matched whole, `.sin` was a function with no
-            // derivative rule, and every model with a sine source was
-            // refused as structurally singular.
-            let name = name.rsplit('.').next().unwrap_or(name);
+            // here is what the name resolved to: a function the
+            // compiler answers itself keeps its own name with the
+            // package path resolved away to *nothing* in front of it -
+            // `.sin`, an empty head and a bare dot. Matched whole,
+            // that was a function with no derivative rule, and every
+            // model with a sine source was refused as structurally
+            // singular.
+            //
+            // Only that shape. A name with a path still on it is
+            // somebody's own function - a package may write its own
+            // `sin`, and giving it the built-in's derivative would be
+            // a wrong number rather than a refusal. Shortening a name
+            // to its tail is a guess; an empty head is a resolution.
+            let name = match name.strip_prefix('.') {
+                Some(bare) if !bare.contains('.') => bare,
+                _ => name.as_str(),
+            };
             // The staircase functions are flat almost everywhere.
             if matches!(name, "ceil" | "floor" | "integer" | "sign") {
                 return Ok(Expr::Number(0.0));

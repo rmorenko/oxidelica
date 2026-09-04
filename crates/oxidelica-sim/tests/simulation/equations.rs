@@ -1884,3 +1884,33 @@ fn a_run_of_elements_takes_the_places_after_the_first() {
         );
     }
 }
+
+/// A derivative rule belongs to the function the compiler answers
+/// itself, and those arrive with their package path resolved away to
+/// nothing - `.sin`, an empty head and a bare dot. A name with a path
+/// still on it is somebody's own function: the multibody library asks
+/// `world.gravityAcceleration` nearly seven thousand times in one
+/// corpus run, and a component may just as well hold an `exp` of its
+/// own. Shortening any dotted name to its tail would hand those the
+/// built-in's derivative - a wrong number rather than a refusal, the
+/// same fault as a namesake of `fill` taking the built-in's shape.
+#[test]
+fn a_namesake_of_a_built_in_does_not_take_its_derivative() {
+    let refusal = refused(
+        "model M \
+           model W function exp input Real u; output Real y; \
+             algorithm y := 7*u; end exp; end W; \
+           W world; Real u; Real y; \
+           equation \
+             u = world.exp(time); \
+             y = der(u); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    // Refused for having no rule for `world.exp`, which is honest.
+    // Through the built-in's rule it would have been differentiated as
+    // `exp(time)` and simulated a number nobody wrote.
+    assert!(
+        refusal.contains("world.exp") && refusal.contains("differentiate"),
+        "{refusal}"
+    );
+}

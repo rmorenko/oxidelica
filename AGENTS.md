@@ -24,6 +24,17 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+A name shortened to its tail is a guess, not a resolution. Twice now
+the same fault: a namesake of `fill` took the built-in's shape, and a
+derivative rule was matched by the last part of a dotted name, which
+would have given anybody's own `sin` the built-in's derivative. Both
+give a wrong number where a refusal was owed, and a wrong number is
+the worst thing this compiler can do. What resolution looks like here
+is an empty head - `.sin`, the compiler's own function with its path
+resolved away - and anything with a path still on it belongs to
+whoever wrote it. If a name has to be shortened to be recognised, the
+lookup is in the wrong place.
+
 Two numbers are comparable only if the same binary produced them. A
 lookup was recorded as firing nowhere, then as costing thirteen
 models: the difference was two builds mistaken for one. Put the change
