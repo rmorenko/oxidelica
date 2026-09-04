@@ -3087,3 +3087,49 @@ not: the plumbing is genuinely inert (817 with it, 817 without), the
 stripped lookup is _harmful alone_ (-13, one family, unbounded
 recursion), the recursion has a two-line cure, and behind that cure
 stands a corpus-wide layout question worth 84 models.
+
+### The eighty-four do not have to be paid: there was no layout fault
+
+The order to answer first - _must_ the layout change? - turned out to
+be the whole of it. It must not. The claim that an array of records is
+written fields outward was mine, from reading a shape rather than a
+name, and it is wrong. Asked directly, the base of the subscript
+answers
+
+```text
+W idx v rec=Some("Complex") size=Some([3]) baseshape=Some([3])
+W idx flat=["Ref(\"v[1]\")", "Ref(\"v[2]\")", "Ref(\"v[3]\")"]
+```
+
+Three elements, outward, exactly as wanted, and `index_into` hands
+back `v[2]` with an empty shape. The layout was never the fault. So
+neither road (a) nor road (b) was needed as posed, and the eighty-four
+were a debt against a mistake.
+
+What is real is smaller and one file wide. `v[2]` is a single name, and
+a single name is indistinguishable from a number at the point where an
+operand standing where a record is wanted gets converted into one -
+the conversion the library leans on so that `n*v` of a real and a
+`Complex` means what it says. Taking `v[2]` for a number built
+`Complex(v[2])`, a record whose real part is a whole record, and the
+operator was handed a pair of pairs. That is where `[2,2]` came from,
+and why `abs` reported wanting 2 fields and getting 5: not a layout
+turned inside out, but a constructor applied to something already
+built.
+
+Two arms fix it, and only one of them earns its place. Reading a
+subscript on an array of records as the record it is - the arm
+`record_class_of` never had for `Expr::Index` - together with not
+converting what is already a record: **817, unchanged, tests green,
+and the twelve-line model that reproduces the whole QuasiStatic family
+now flattens correctly**. Removing either turns the new test red.
+
+The same lookup for the _flat_ written form - `voltageSource.v[1]`,
+the name flattening actually produces - is now harmless where it cost
+thirteen before, because the recursion those thirteen died of was the
+constructor bug all along. But harmless is all it is: 817 with it and
+817 without, tests identical either way. Not shipped, by the rule.
+
+The method is the lasting part. Three shifts were spent measuring the
+corpus at five minutes a turn and reasoning about shapes; the fault
+fell out of a twelve-line model in one. Reproduce small, then measure.

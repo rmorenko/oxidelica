@@ -24,6 +24,20 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+Two numbers are comparable only if the same binary produced them. A
+lookup was recorded as firing nowhere, then as costing thirteen
+models: the difference was two builds mistaken for one. Put the change
+behind an environment switch and run the corpus twice from one binary,
+so that the only thing that differs between the numbers is the thing
+being measured.
+
+Reproduce small before measuring large. Three shifts went on the
+corpus at five minutes a run, reasoning about shapes from the outside,
+for a fault that a twelve-line model showed in one second - and the
+small model then served as the test. If a family of models refuses for
+one reason, write the smallest model that refuses the same way and
+work there.
+
 `oxidelica library check <library>` ranks what the library stumbles
 over, commonest first. That ranking is the work queue. Take the top of
 it, not whatever is most interesting.
