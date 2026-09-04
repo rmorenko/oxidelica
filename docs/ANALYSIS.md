@@ -2789,3 +2789,45 @@ proposal the language never made.
 
 A zero written down is worth the run that found it. Without this the
 next shift would have spent the same hour on the same idea.
+
+## The IF97 road is not a third trade: the refusal is right
+
+The suspicion that paid twice - the compiler demanding what the
+language merely proposes - was put to the IF97 family first, and this
+time the answer is no. Written down because a checked "no" is worth
+the run it cost.
+
+`HeatingSystem` now stops at `cannot evaluate parameters [tank.h_start
+= (reference_h + ...)]`, and the probe followed it to the end.
+`reference_h` is a constant of the medium, and its binding under
+`CompressibleLiquids.Common.LinearWater_pT` is
+
+```modelica
+constant ThermodynamicState state = StandardWater.setState_pT(reference_p, reference_T);
+reference_h = StandardWater.specificEnthalpy(state);
+```
+
+A **constant**, not a parameter. The language gives a tool no leave to
+defer a constant to the run - that is the whole of what makes it a
+constant rather than a parameter - so the deferral trade that moved
+`Evaluate` and `fixed` has nothing to take hold of here. The refusal
+stands.
+
+### Where the evaluation actually stops, probed
+
+Not for want of trying, which was the surprise. A six-line model
+calling `waterBaseProp_pT(101325, 298.15)` directly enters the
+inliner - the body is found, eight algorithm statements and no
+equations - and **thirty-eight assignments are executed** before it
+gives up: `aux.phase`, `aux.region`, `aux.R_s`, `aux.p`, `aux.T` fold
+to numbers, and the tail (`aux.pt`, `aux.pd`) still holds unfolded
+`IF97_Utilities` calls of its own. The refusal `nothing works out
+waterBaseProp_pT` names the outer call, but the outer call is not
+where it stopped; it stopped on a nested one, several layers in.
+
+So this family is neither a trade nor a road. It is the question of
+how deep a compile-time evaluator follows a numerical chain, and the
+measurement says this one already follows it thirty-eight statements
+before running out. Whether the remaining layers are worth carrying
+is a cost question, not a correctness one, and the register keeps it
+apart from the walls that were simply wrong.
