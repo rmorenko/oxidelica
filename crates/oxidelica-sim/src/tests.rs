@@ -247,3 +247,31 @@ fn the_banded_solver_agrees_with_the_dense_one() {
     let mut hollow = vec![vec![0.0, 0.0, 1.0], vec![1.0, 0.0, 0.0]];
     assert!(solve_banded(&mut hollow, 1, &[1.0, 1.0]).is_none());
 }
+
+/// The shapes a connection equation leaves behind. Solving `-p.i +
+/// r.p.i = 0` for one of its currents gives `-(-r.n.i)/-1`: the signs
+/// it was moved across and the coefficient it was divided by are all
+/// still written, and read literally that is not a name. Everything
+/// downstream that asks "is this just a name" said no, so a current
+/// that a connection set pins was never taken as a definition.
+///
+/// Folded here rather than read through later, which is one place
+/// instead of every place that looks.
+#[test]
+fn the_wrappers_a_connection_set_leaves_are_folded_away() {
+    let cases = [
+        ("-(-a)", "a"),
+        ("-(-a)/(-1)", "-a"),
+        ("a/1", "a"),
+        ("a*1", "a"),
+        ("-a/(-1)", "a"),
+        ("(-1)*(-a)", "a"),
+    ];
+    for (written, meant) in cases {
+        assert_eq!(
+            format!("{:?}", simplify(&expr_of(written))),
+            format!("{:?}", simplify(&expr_of(meant))),
+            "{written}"
+        );
+    }
+}

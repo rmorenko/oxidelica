@@ -574,7 +574,7 @@ fn reduce_index(
                 }
                 if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
                     if unknowns.contains(name) {
-                        candidates.push((name.clone(), other.clone()));
+                        candidates.push((name.clone(), simplify(other)));
                     }
                 }
                 let mut named = Vec::new();
@@ -587,7 +587,14 @@ fn reduce_index(
                         continue;
                     }
                     if let Some(solved) = solve_linear_for(l, r, name) {
-                        candidates.push((name.to_string(), solved));
+                        // Solved out of a connection equation, an
+                        // equality arrives wrapped in the signs it was
+                        // moved across and the coefficient it was
+                        // divided by: `-p.i + r.p.i = 0` gives
+                        // `-(-r.n.i)/-1`. Folded here, what is a plain
+                        // name is written as one, and everything after
+                        // this reads the shape rather than the wrapping.
+                        candidates.push((name.to_string(), simplify(&solved)));
                     }
                 }
             }

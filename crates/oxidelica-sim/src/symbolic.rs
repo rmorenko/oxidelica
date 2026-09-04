@@ -25,6 +25,11 @@ pub(crate) fn simplify(expr: &Expr) -> Expr {
         Expr::Str(_) => expr.clone(),
         Expr::Neg(inner) => match simplify(inner) {
             Expr::Number(n) => Expr::Number(-n),
+            // Two of them cancel. A connection set builds its signs by
+            // moving terms across, so `-(-i)` is the ordinary shape of
+            // a current that was on the other side, and left standing
+            // it hides a plain name from everything downstream.
+            Expr::Neg(twice) => *twice,
             other => Expr::Neg(Box::new(other)),
         },
         Expr::Call(name, args) => Expr::Call(name.clone(), args.iter().map(simplify).collect()),
@@ -48,8 +53,15 @@ pub(crate) fn simplify(expr: &Expr) -> Expr {
                 Mul if is(&l, 0.0) || is(&r, 0.0) => Expr::Number(0.0),
                 Mul if is(&l, 1.0) => r,
                 Mul if is(&r, 1.0) => l,
+                // Minus one is a sign, not a coefficient: solving a
+                // connection equation for one of its currents divides
+                // by the sign it was written with, and `x/-1` left as
+                // a division is a multiplication nobody meant.
+                Mul if is(&l, -1.0) => simplify(&Expr::Neg(Box::new(r))),
+                Mul if is(&r, -1.0) => simplify(&Expr::Neg(Box::new(l))),
                 Div if is(&l, 0.0) => Expr::Number(0.0),
                 Div if is(&r, 1.0) => l,
+                Div if is(&r, -1.0) => simplify(&Expr::Neg(Box::new(l))),
                 Pow if is(&r, 1.0) => l,
                 Pow if is(&r, 0.0) => Expr::Number(1.0),
                 _ => Expr::Bin(*op, Box::new(l), Box::new(r)),
