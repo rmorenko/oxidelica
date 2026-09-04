@@ -37,6 +37,16 @@ Pendulum        off: 6 victims   on: 1
 DoublePendulum  off: 13 victims  on: 10
 ```
 
+And the census will not show it. That change cost nine models and the
+refusal counts by kind moved not at all: the nine scattered one apiece
+into kinds that already existed. So the instruments are a hierarchy,
+and picking the wrong one reads as "no harm done". The floors catch a
+total that drops. The census catches a family that moves from one wall
+to another. A diffuse loss - a handful of models each failing
+differently - is caught by nothing but the list of which models run,
+diffed before against after. For a change that adds a definition, that
+diff is the witness; the census is not.
+
 Definitions are how reduction decides what it can reach through, so
 supplying one takes a variable out of the running as a state. The
 three hundred and sixty-three models that run stand on the present

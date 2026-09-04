@@ -3673,3 +3673,40 @@ Reverted, and the two measurements from before still stand: 819 to 717
 in the round, nine models in the run half for the narrowing. What is
 new is that neither number is the obstacle any more, because the
 obstacle now has an address.
+
+### `InlineAfterIndexReduction`: honoured, and the bill it presents
+
+The annotation is real, it is on the frame transforms beside their
+`derivative(noDerivative = R)`, and this compiler was not reading it
+at all - so those calls were inlined before reduction ever saw them.
+What reduction met was a body full of matrix entries, and the
+orientation of every frame became something it had to differentiate.
+That is the whole multibody family, and the diagnosis is confirmed:
+honouring the annotation changes what the refusal says, from _cannot
+differentiate `R.w`_ to a shape complaint about `R` itself. The call
+now stands, and the record travels.
+
+The bill is **819 to 781** - thirty-eight models - and every one of
+them dies the same death:
+
+```text
+an array value cannot be used where a scalar is expected:
+  Array([Array([Ref("body.frame_a.R.T[1,1]"), ...
+```
+
+**43 refusals of that one shape** across the corpus. So the work is
+not spread out, it is a single wall: a call left standing is handed a
+record, and the machinery that reads a standing call's arguments
+wants a scalar. Which is the third appearance of one fault - a name
+standing for an aggregate while the reader counts it as a scalar,
+after `v[1]` as a record and the constant array of records - and both
+of those were fixed by teaching the reader the shape from a table
+rather than rebuilding anything.
+
+So the order for the next shift is clear and the work is bounded: the
+argument of a standing call has to be allowed to be a record, in one
+place, `names.rs` where a scalar is demanded. Then the annotation
+costs nothing and the fifteen multibody models get their rule instead
+of a matrix to differentiate. Measured against the law: the victim
+lists have to be diffed before this ships, because a call that stays
+whole is a definition that reduction can no longer see through.
