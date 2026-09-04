@@ -106,6 +106,16 @@ small model then served as the test. If a family of models refuses for
 one reason, write the smallest model that refuses the same way and
 work there.
 
+Match the instrument to the question. The full corpus is for shipping
+and for the diff of which models run; asking what became of _one_
+model is `library check <library> --only <Class>`, which answers in
+under a second what the corpus answers in six minutes. Four corpus
+runs to learn the fate of one name is a habit rather than a
+measurement. The ladder, smallest first: a small model shows the
+mechanism, one corpus model shows a single victim's fate, the census
+shows a family moving, the diff of run lists shows a scattered loss,
+the floors show the total.
+
 `oxidelica library check <library>` ranks what the library stumbles
 over, commonest first. That ranking is the work queue. Take the top of
 it, not whatever is most interesting.

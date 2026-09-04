@@ -27,7 +27,7 @@ Usage:
   oxidelica library list
   oxidelica library add <name|git-url> [--version TAG] [--as NAME]
                             names: modelica (the Modelica Standard Library)
-  oxidelica library check [<directory>] [--list] [--refused]
+  oxidelica library check [<directory>] [--list] [--refused] [--only <Class>]
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -493,7 +493,7 @@ fn name_of_repository(url: &str) -> String {
         .to_string()
 }
 
-/// `library check [<directory>] [--list]`: read every file of a library
+/// `library check [<directory>] [--list] [--only <Class>]`: read every file of a library
 /// and every model in it, and say how far each got. What it prints is a
 /// count and the reasons that came up most, so that the distance
 /// between this compiler and a library is a number rather than an
@@ -503,6 +503,16 @@ fn name_of_repository(url: &str) -> String {
 /// many barriers stand behind one another.
 fn library_check(args: &[String]) -> Result<(), String> {
     let list = args.iter().any(|arg| arg == "--list");
+    // One model rather than the library. Asking what became of a
+    // single name used to mean running all thousand-odd of them, six
+    // minutes for one line - so the answer to "did this model
+    // survive" came at the price of a full corpus run, four times
+    // over in a bad shift.
+    let only = args
+        .iter()
+        .position(|arg| arg == "--only")
+        .and_then(|at| args.get(at + 1))
+        .cloned();
     let refused_each = args.iter().any(|arg| arg == "--refused");
     let directory = args.iter().find(|arg| !arg.starts_with("--"));
     let files = match directory {
@@ -562,9 +572,21 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let models: Vec<String> = classes
         .iter()
         .filter(|c| c.kind.is_model() && !c.partial)
-        .filter(|c| c.name.contains(".Examples.") || c.name.contains(".Test"))
+        .filter(|c| match &only {
+            // Named outright, whatever it is called and wherever it
+            // lives: a model asked for by name is not being sampled
+            // out of the examples, it is the question.
+            Some(wanted) => &c.name == wanted,
+            None => c.name.contains(".Examples.") || c.name.contains(".Test"),
+        })
         .map(|c| c.name.clone())
         .collect();
+    if only.is_some() && models.is_empty() {
+        return Err(format!(
+            "no model of the library is called `{}`",
+            only.unwrap_or_default()
+        ));
+    }
     // Which of them are meant to be run. A library is full of helper
     // models that live under Examples but are parts of examples rather
     // than examples - operational amplifier circuits with open pins,
