@@ -169,7 +169,18 @@ pub(super) fn expand(
                         sizes: shapes.sizes,
                         loop_vars: &loop_vars,
                         consts: shapes.consts,
-                        records: no_records(),
+                        // The names inside the comprehension are the
+                        // names outside it: `{real(v[k]*conj(i[k]))
+                        // for k in 1:m}` is how the quasi-static
+                        // libraries write power, and `v` is a
+                        // `Complex[m]` of the class holding it. Worked
+                        // out against an empty table the product of two
+                        // phasors was arithmetic on two names, and the
+                        // function it was handed to had nothing to bind
+                        // its record input to - which surfaced far away
+                        // as an unknown variable out of that function's
+                        // own body.
+                        records: shapes.records,
                     };
                     out.push(expand(body, &inner, registry, scope, imports, depth + 1)?);
                 }
@@ -933,6 +944,26 @@ pub(super) fn expand_call(
             // `'constructor'` is called if the record has one; failing
             // that, the fields are taken in the order they were
             // declared.
+            if std::env::var("OXI_F").is_ok() && name.ends_with(".re") {
+                for a in args {
+                    eprintln!(
+                        "F arg={:?} rec={:?}",
+                        format!("{a:?}").chars().take(50).collect::<String>(),
+                        record_class_of(a, shapes, registry, scope, imports)
+                    );
+                    if shapes.records.is_empty() {
+                        let bt = std::backtrace::Backtrace::force_capture().to_string();
+                        let where_ = bt
+                            .lines()
+                            .filter(|l| l.contains("/flatten/") && !l.contains("arrays.rs"))
+                            .take(3)
+                            .map(|l| l.trim().rsplit('/').next().unwrap_or(""))
+                            .collect::<Vec<_>>()
+                            .join(" < ");
+                        eprintln!("F from {where_}");
+                    }
+                }
+            }
             if let Some(class) = lookup(registry, name, scope, imports) {
                 if class.kind == ClassKind::Record
                     && operator_function(registry, &class.name, "constructor", args.len()).is_some()

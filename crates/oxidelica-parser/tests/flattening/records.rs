@@ -1068,3 +1068,36 @@ fn one_field_of_one_record_of_an_array_of_constants() {
     assert!(equations.contains("647.1"), "{equations}");
     assert!(!equations.contains("Member("), "{equations}");
 }
+
+#[test]
+fn a_comprehension_knows_what_the_class_holds_records_of() {
+    let m = parse_model(
+        "package P \
+           operator record C Real re; Real im; \
+             encapsulated operator '*' \
+               function mul import P.C; input C c1; input C c2; output C c3; \
+                 algorithm c3.re := c1.re*c2.re - c1.im*c2.im; \
+                 c3.im := c1.re*c2.im + c1.im*c2.re; end mul; end '*'; \
+           end C; \
+           function re input C c; output Real y; algorithm y := c.re; end re; \
+           model M parameter Integer m = 2; \
+             C v[m]; C i[m]; \
+             Real power[m] = {re(v[k]*i[k]) for k in 1:m}; \
+             Real out; \
+             equation \
+               for k in 1:m loop \
+                 v[k].re = k; v[k].im = 0; i[k].re = 2*k; i[k].im = 0; \
+               end for; \
+               out = power[1]*time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("a comprehension over an array of records");
+    // `{re(v[k]*i[k]) for k in 1:m}` is how the quasi-static libraries
+    // write power. Worked out against an empty table the product was
+    // arithmetic on two names, the function had nothing to bind its
+    // record input to, and its own `c.re` escaped into the flat model.
+    let equations = format!("{:?}", m.equations);
+    assert!(!equations.contains("\"c.re\""), "{equations}");
+    assert!(equations.contains("v[1].re"), "{equations}");
+}
