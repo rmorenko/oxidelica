@@ -24,6 +24,15 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+A rule that is right everywhere beats one that is right almost
+everywhere, even where the second is what other tools do. `abs` under
+a derivative could have taken `sign(x)*der(x)`, which is wrong at
+exactly zero - and zero is not a corner physical models avoid, it is
+where they work: a relay switching, friction breaking away, a gap
+closing, a flow reversing. The rule taken instead says nothing about
+`abs`: whatever does not move has a derivative of zero. Narrower,
+true everywhere, and it generalises past the case that prompted it.
+
 A name shortened to its tail is a guess, not a resolution. Twice now
 the same fault: a namesake of `fill` took the built-in's shape, and a
 derivative rule was matched by the last part of a dotted name, which

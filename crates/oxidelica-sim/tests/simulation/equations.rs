@@ -1914,3 +1914,19 @@ fn a_namesake_of_a_built_in_does_not_take_its_derivative() {
         "{refusal}"
     );
 }
+
+/// And only where it really does not move: `abs` of a state is still
+/// refused, because there the discontinuity is real and the answer
+/// would be a guess.
+#[test]
+fn abs_of_something_that_moves_is_still_refused() {
+    let refusal = refused(
+        "model M Real x(start = 1, fixed = true); Real u; Real y; \
+         equation \
+           der(x) = -x; \
+           u = abs(x); \
+           y = der(u); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    assert!(refusal.contains("abs"), "{refusal}");
+}

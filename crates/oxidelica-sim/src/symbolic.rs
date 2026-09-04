@@ -161,6 +161,23 @@ pub(crate) fn differentiate_at(
     }
     let d = |e: &Expr| differentiate_at(e, target, depth + 1);
     Ok(match expr {
+        // Whatever does not move has a derivative of zero, whichever
+        // function stands around it. `KinematicPTP` writes
+        // `1/max(abs(aux1))` where `aux1` is a quotient of two
+        // parameters: nothing in it changes with time, so the answer
+        // is zero and no rule for `abs` is needed to say so. Asked
+        // structurally instead, eleven models were refused for a
+        // function whose argument never moves.
+        //
+        // A rule for `abs` itself would be `sign(x)*der(x)`, which is
+        // what other tools do and is wrong at exactly zero - and zero
+        // is where physical models live rather than a corner they
+        // avoid: a relay switching, friction breaking away, a gap
+        // closing, a flow reversing. This says nothing about `abs`
+        // instead, and what it does say is true everywhere.
+        _ if matches!(target, DiffTarget::Time { .. }) && does_not_move(expr, target) => {
+            Expr::Number(0.0)
+        }
         Expr::Number(_) | Expr::Bool(_) => Expr::Number(0.0),
         Expr::Time => match target {
             DiffTarget::Time { .. } => Expr::Number(1.0),
@@ -330,4 +347,69 @@ pub(crate) fn differentiate_at(
         }
         _ => return Err("cannot differentiate this expression".to_string()),
     })
+}
+
+/// Whether nothing in an expression changes as time passes.
+///
+/// Strictly: every leaf is a literal, a parameter or a constant. Not
+/// `time`, not a state, not a discrete, not an algebraic unknown, and
+/// not a call whose arguments move - a call on things that do not move
+/// does not move either, whatever the function does inside.
+///
+/// The strictness is the point. A looser reading - "probably constant"
+/// - would be a guess, and a guess in differentiation is a wrong
+/// number rather than a refusal.
+fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
+    let DiffTarget::Time {
+        state_rhs,
+        params,
+        dummies,
+        alg_defs,
+    } = target
+    else {
+        return false;
+    };
+    match expr {
+        Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) => true,
+        Expr::Time => false,
+        Expr::Ref(name) => {
+            if state_rhs.contains_key(name) || dummies.contains_key(name) {
+                return false;
+            }
+            if params.contains_key(name) {
+                return true;
+            }
+            // An unknown whose definition does not move does not move
+            // either: `KinematicPTP` writes `aux1[i] = p_deltaq[i]/
+            // p_qd_max[i]` and then `1/max(abs(aux1))`, so `aux1` is
+            // an algebraic name standing for a quotient of two
+            // parameters. Followed one step at a time and never
+            // through itself, which is what keeps a definition that
+            // mentions its own name from being read as constant.
+            match alg_defs.get(name) {
+                Some(definition) => {
+                    let mut refs = Vec::new();
+                    definition.collect_refs(&mut refs);
+                    !refs.iter().any(|r| *r == name) && does_not_move(definition, target)
+                }
+                None => false,
+            }
+        }
+        Expr::Neg(inner) | Expr::Not(inner) => does_not_move(inner, target),
+        Expr::Bin(_, l, r)
+        | Expr::Elementwise(_, l, r)
+        | Expr::Rel(_, l, r)
+        | Expr::And(l, r)
+        | Expr::Or(l, r) => does_not_move(l, target) && does_not_move(r, target),
+        Expr::If(c, a, b) => {
+            does_not_move(c, target) && does_not_move(a, target) && does_not_move(b, target)
+        }
+        Expr::Call(_, args) | Expr::Array(args) => {
+            args.iter().all(|arg| does_not_move(arg, target))
+        }
+        Expr::Index(base, subscripts) => {
+            does_not_move(base, target) && subscripts.iter().all(|s| does_not_move(s, target))
+        }
+        _ => false,
+    }
 }
