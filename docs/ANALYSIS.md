@@ -3043,3 +3043,47 @@ stripped lookup in place, print the operand and the table at the
 moment `record_class_of` answers `None` for a name the tables should
 know. The mechanism is understood from both ends; only that one
 contradiction is left.
+
+### The layout underneath: an array of records is written fields outward
+
+The contradiction from the last shift is resolved, and it was a
+measurement error on my part: the stripped lookup does fire. Built as
+one binary with an environment switch, so that the two numbers cannot
+be confused with two builds, it moves the corpus from **817 to 804**.
+It is not inert. It costs thirteen, all of one family:
+`Magnetic.QuasiStatic.FundamentalWave`, every one of them refused for
+running deeper than the compiler follows.
+
+The recursion is easy to read once seen. An element known to be a
+record but never _written out_ as its fields hands the operator back
+the name it was called on: `v[1]` is a `Complex`, so apply `Complex`'s
+`*` to `v[1]`, whose operands are `v[1]` again, forever. Expanding the
+element into its fields ends it, and then the true refusal appears:
+
+```text
+function `ComplexMath.abs` wants 2 field(s) for `c`, got 5
+```
+
+Five is the length of the array. `converter_m.iSymmetricalComponent`
+is a `Complex[5]`, and `record_class_of` and `sizes` both know it -
+`rec=Some("Complex") size=Some([5])`. But the flat form is written
+**fields outward**: the array becomes the five `re` followed by the
+five `im`, not five phasors of two fields. So `[1]` picks the reals
+rather than the first phasor, and the operator was handed an array
+where one record was meant.
+
+Turning the layout around - elements outward, each element its fields
+
+- is four lines and was measured too: **733**. Eighty-four models are
+  written against the present order. That is the real floor under this
+  family: not a missing lookup, not a missing table, but a layout
+  decision that the corpus depends on in one direction and the complex
+  operators need in the other. Reversing it is a change to how every
+  array of records is named, and it needs its own shift with the
+  eighty-four in hand, not a patch at the end of this one.
+
+Eight probes, seven reverts, 817 unmoved. What is now known and was
+not: the plumbing is genuinely inert (817 with it, 817 without), the
+stripped lookup is _harmful alone_ (-13, one family, unbounded
+recursion), the recursion has a two-line cure, and behind that cure
+stands a corpus-wide layout question worth 84 models.
