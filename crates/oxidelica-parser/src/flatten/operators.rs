@@ -208,6 +208,11 @@ pub(super) fn record_class_of(
         // and the multiplication of two phasors fell back on
         // arithmetic.
         Expr::Index(base, _) => recur(base),
+        // An array written out is an array of whatever its items are:
+        // `{FluidConstants(molarMass = ..., ...)}` is how a medium
+        // declares its constants, and one of them subscripted is that
+        // record.
+        Expr::Array(items) => items.first().and_then(recur),
         // An operator returns the record it was found on; the operands
         // of a mixed expression need only one of them to say which.
         Expr::Bin(_, l, r) | Expr::Elementwise(_, l, r) => recur(l).or_else(|| recur(r)),

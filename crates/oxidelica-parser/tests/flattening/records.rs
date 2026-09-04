@@ -1041,3 +1041,30 @@ fn one_of_a_vector_of_records_multiplies_as_a_record() {
         m.components.iter().map(|c| &c.name).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn one_field_of_one_record_of_an_array_of_constants() {
+    let m = parse_model(
+        "package P \
+           record FC Real molarMass; Real criticalTemperature; end FC; \
+           constant Integer nS = 1; \
+           constant FC fluidConstants[nS] = {FC(molarMass = 0.018, \
+             criticalTemperature = 647.1)}; \
+           model M Real mm; Real tc; Real out; \
+             equation \
+               mm = fluidConstants[1].molarMass; \
+               tc = fluidConstants[1].criticalTemperature; \
+               out = (mm + tc)*time; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; \
+         end P;",
+    )
+    .expect("one field of one record of an array of constants");
+    // A record is its fields and an array is its elements, and both
+    // are the same kind of value once worked out. Read without saying
+    // which, `[1]` took the first field and `.molarMass` was then read
+    // off that number - `Member(Number(0.018), "molarMass")`.
+    let equations = format!("{:?}", m.equations);
+    assert!(equations.contains("0.018"), "{equations}");
+    assert!(equations.contains("647.1"), "{equations}");
+    assert!(!equations.contains("Member("), "{equations}");
+}

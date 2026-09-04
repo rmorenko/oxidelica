@@ -429,7 +429,31 @@ pub(super) fn expand(
             // this is how `a[i]` works inside a function whose `a` was bound
             // to an array literal.
             Expr::Index(base, subscripts) => {
-                let base_value = recur(base)?;
+                // An array of records written out is worked out one
+                // record at a time. A record is its fields and an array
+                // is its elements, and both are the same kind of value
+                // once worked out, so `{FluidConstants(molarMass = ...,
+                // criticalTemperature = ...)}` - how a medium declares
+                // its constants - came back as the two fields sitting
+                // where the one element should be, and `[1]` picked
+                // `molarMass`'s value rather than the record. The
+                // written form still says which is which.
+                let base_value = match base.as_ref() {
+                    Expr::Array(written)
+                        if !written.is_empty()
+                            && written.iter().all(|item| {
+                                record_class_of(item, shapes, registry, scope, imports).is_some()
+                            }) =>
+                    {
+                        Value::Array(
+                            written
+                                .iter()
+                                .map(&recur)
+                                .collect::<Result<Vec<_>, String>>()?,
+                        )
+                    }
+                    _ => recur(base)?,
+                };
                 match base_value {
                     Value::Array(_) => index_into(
                         base_value, subscripts, shapes, registry, scope, imports, depth,
@@ -459,13 +483,35 @@ pub(super) fn expand(
             // `ac.pin[:].v` - a member read off each of the connectors a
             // slice kept. The slice is an array of names, and the member
             // goes on every one of them.
-            Expr::Member(base, path) => match recur(base)? {
-                array @ Value::Array(_) => map_value(&array, &|element| match element {
-                    Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
-                    other => Expr::Member(Box::new(other), path.clone()),
-                }),
-                _ => scalar(expr)?,
-            },
+            Expr::Member(base, path) => {
+                // One record's field, where the record was worked out
+                // as its fields rather than named: `{FluidConstants(
+                // molarMass = ..., ...)}[1].molarMass` is how a medium
+                // is asked for one of its constants. The fields are in
+                // the order the record declares them, so the name of
+                // the field says which one - and read as a slice
+                // instead, `.molarMass` went onto both of them and an
+                // equation came out between one number and two.
+                let value = recur(base)?;
+                if let Some(of) = record_class_of(base, shapes, registry, scope, imports) {
+                    if let (Some(class), Value::Array(items)) = (registry.get(of.as_str()), &value)
+                    {
+                        let fields = record_fields_of(registry, class, 0);
+                        if fields.len() == items.len() {
+                            if let Some(place) = fields.iter().position(|field| field == path) {
+                                return Ok(items[place].clone());
+                            }
+                        }
+                    }
+                }
+                match value {
+                    array @ Value::Array(_) => map_value(&array, &|element| match element {
+                        Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
+                        other => Expr::Member(Box::new(other), path.clone()),
+                    }),
+                    _ => scalar(expr)?,
+                }
+            }
             // A named argument is its value under a name, and the value
             // may be an array: `actual = f(dps_fg, ...)` is how the
             // library writes a homotopy, and the whole thing used to fall
