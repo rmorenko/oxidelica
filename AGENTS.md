@@ -24,6 +24,26 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+A change that gives a name a definition changes which states index
+reduction keeps, and that is what to measure - not the number of
+models. Three shifts running, a rule true in itself cost models with
+no explanation: `sign` for `der(abs(x))`, "what a `when` assigns does
+not move", and narrowing the skip so a connection still defines its
+other side. The instrument settles it in one run - print the demoted
+victim at each reduction and diff the lists:
+
+```text
+Pendulum        off: 6 victims   on: 1
+DoublePendulum  off: 13 victims  on: 10
+```
+
+Definitions are how reduction decides what it can reach through, so
+supplying one takes a variable out of the running as a state. The
+three hundred and sixty-three models that run stand on the present
+choice. So a definition-adding change is not wrong for costing models,
+and not right for taking a small one: measure the victims, and if they
+move, the change is a different compiler rather than a fix.
+
 The small suite has a blind spot, and it is worth naming rather than
 discovering twice. A change on a path that only switches on at
 complexity cannot be guarded by a small model: reading

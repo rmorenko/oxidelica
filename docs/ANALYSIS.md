@@ -3591,3 +3591,45 @@ Reverted, measured, written down. Two shifts running, the mechanism
 named by the maintainer was real and the fix was one layer further in
 than it looked - which is the argument for squeezing first and
 theorising second, and for measuring before shipping either.
+
+### The unwritten law: a definition changes which states survive
+
+Three shifts running, a rule true in itself cost models and no account
+of why. `sign(x)*der(x)` for `abs`. "What a `when` assigns does not
+move." Narrowing the skip so a connection still defines its other
+side. Each was correct where it was checked; each lost ground when
+measured.
+
+The instrument settles it in one run. Print the state demoted at each
+reduction, run the corpus with the change behind a switch, and diff
+the lists:
+
+```text
+Pendulum        off: 6 victims   on: 1
+DoublePendulum  off: 13 victims  on: 10
+```
+
+The states are not the same states. Definitions are how index
+reduction decides what it can reach _through_, so supplying one takes
+a variable out of the running as a state and the whole selection moves
+behind it. The 363 models that run stand on the present choice, and
+they were not chosen for it - it is simply what the compiler has been
+doing.
+
+Measured properly, the third attempt is smaller than it looked: from
+one binary, **363 with the change off and 354 with it on** - nine
+models, not twelve, and none of them stop _flattening_. The census by
+`built` shows nothing at all, because the loss is entirely in the run
+half. That is worth knowing on its own: a change can be invisible to
+the refusal census and still cost nine models.
+
+So the law, and it goes in AGENTS.md: **a change that gives a name a
+definition changes which states reduction keeps, and the measurement
+is the victim list, not the model count**. A definition-adding change
+is not wrong for costing models and not right for taking a small one.
+If the victims move, what has been built is a different compiler
+rather than a fix - and it needs to be argued as one, with a reason
+why the new selection is better, not merely different.
+
+This explains all three reverts after the fact and should prevent the
+fourth.
