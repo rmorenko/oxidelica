@@ -3941,3 +3941,44 @@ nothing was shipped. The next move is to find where the prefix comes
 off - the argument is prefixed for every other purpose, since
 `rev.R_rel.T[1,1]` exists in the flat model - rather than to teach
 another reader to guess at unprefixed names.
+
+### The asymmetry, found in one run: it is a body's own input, not a lost prefix
+
+The instruction was to compare the two roads rather than hunt a loss
+along the pipeline, and one probe settled it. The same call, both
+arguments side by side:
+
+```text
+CMP-LATE resolve2 args=["Ref(\"R_rel\")", "Array([Ref(\"rev.frame_b.R.w[1]\")...])"]
+```
+
+The second argument is flat and prefixed. The first is bare. And
+everywhere else in the same model the name _is_ prefixed and written
+out:
+
+```text
+rev.frame_a.R.T[1,1] = rev.R_rel.T[1,1]*rev.frame_b.R.T[1,1] + ...
+```
+
+So nothing strips a prefix. `R_rel` at that call is not the joint's
+component at all - it is the _input of `Frames.absoluteRotation`_,
+whose body reads
+
+```modelica
+R2 := Orientation(T = R_rel.T*R1.T, w = resolve2(R_rel, R1.w) + R_rel.w);
+```
+
+Inlining that body binds `R_rel.T` and `R_rel.w` field by field, which
+is why every other use came out right, and leaves `R_rel` itself
+unbound - because a record has no single value to bind it to. The
+inner call keeps the body's own name, which belongs to no model and no
+table.
+
+That is the invariant stated plainly and broken: anything surviving
+into the run must carry the flat model's names, and this carries a
+function-local one. The fix follows from the fault rather than from
+the symptom - when a record input is bound field by field, a call
+inside the body that takes the record whole has to be given the
+caller's argument, written out, in place of the body's name for it.
+Not a reader taught to guess at bare names, which would be the fifth
+appearance of the same mistake in a new place.

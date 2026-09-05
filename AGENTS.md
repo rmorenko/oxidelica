@@ -81,6 +81,16 @@ closing, a flow reversing. The rule taken instead says nothing about
 `abs`: whatever does not move has a derivative of zero. Narrower,
 true everywhere, and it generalises past the case that prompted it.
 
+Anything that survives flattening carries the flat model's names. A
+call left standing, a body left for the walk, a parameter put off to
+the run - each is named as the flat model names it and never as the
+class that wrote it did. Two rules already said half of this from
+different ends: a name shortened to its tail is a guess, and a
+measuring pipe does not trim its own output. A name that lost its
+prefix is the same guess from the other end, and with the invariant
+stated the fourth appearance of the aggregate fault reads as a
+violation of it rather than as a fresh puzzle.
+
 A name shortened to its tail is a guess, not a resolution. Twice now
 the same fault: a namesake of `fill` took the built-in's shape, and a
 derivative rule was matched by the last part of a dotted name, which
