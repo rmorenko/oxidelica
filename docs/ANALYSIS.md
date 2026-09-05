@@ -3982,3 +3982,38 @@ inside the body that takes the record whole has to be given the
 caller's argument, written out, in place of the body's name for it.
 Not a reader taught to guess at bare names, which would be the fifth
 appearance of the same mistake in a new place.
+
+### Restoring the name works; the sixteen still do not arrive
+
+Road one was the right one and it is two lines. The check asked for
+came back exactly as predicted:
+
+```text
+B2 R <- R_rel            (fields bound: R.T, R.w)
+B4 body-bind R <- Array([Array([Array([Ref("rev.R_rel.T[1,1]") ...
+```
+
+Two roads bind a record input, and both leave the input's own name
+unbound - one has the caller's name in hand, the other has the fields
+already written out. Binding the name on each is small and exact: the
+body's `R_rel` becomes what the flat model calls it. `unknown variable
+R_rel` is gone from the small model, and the refusal moves on.
+
+But the ladder's second rung says stop. All sixteen still flatten and
+none run, and the wall that was single has split in two:
+
+- most now reach differentiation and stop there - `cannot
+differentiate through an algebraic variable`, `cannot differentiate
+this expression`;
+- some still stop on a record's name, but a different one:
+  `fixedFrame.frame_a.R`, `spring1.lineForce.frame_a.R` - records
+  reached through a _connector_ rather than passed as an argument.
+
+So the fix is right and incomplete twice over. The connector case is
+the same fault at a place the argument binding never sees, and the
+differentiation case is the wall behind it, which was always going to
+be there and is now visible.
+
+Nothing shipped: the sixteen were the condition, and they did not
+arrive. The floors stay at 819 and 363, and the two remaining shapes
+are named rather than guessed at - which is what the rung is for.
