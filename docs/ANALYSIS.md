@@ -3907,3 +3907,37 @@ With that, the series is one commit: `noDerivative`, the annotation,
 the aggregate argument, and the record written out at a standing call.
 The instrument makes the check cheap - sixteen models, one second
 each - and the floors move only if all sixteen arrive.
+
+### The record at a standing call, and the prefix that is missing from it
+
+Writing the record out where the call is built is the right place and
+does not finish the job, and the reason is worth having exactly.
+
+The argument arrives at the standing call as `Ref("R_rel")` - no path
+in front of it. The flat model holds `rev.R_rel.T[1,1]`. So three
+lookups all miss for the same reason:
+
+```text
+W4 R_rel  in_table=None  class=Frames.resolve2  decl=None
+```
+
+The table of records is keyed by the model's own paths, and `R_rel` is
+not one of them. The callee's declarations do not have it either,
+because `R_rel` is not a component of `resolve2` - the input there is
+called `R`, and `R_rel` is the _caller's_ name for what it passed. So
+the name at the call site belongs to neither party's table: it is the
+argument as the joint wrote it, with the joint's prefix already
+stripped somewhere between the joint and here.
+
+That is the missing link, and it is a different one from what was
+expected. Not "teach the reader that a record is its fields" - that
+part is written and correct - but "the argument of a standing call has
+lost the prefix that says whose record it is". A name without its path
+cannot be looked up in any table, whatever the table knows.
+
+So the ladder stopped at its first rung, which is what it is for: the
+small model still refuses, and none of the sixteen were run, and
+nothing was shipped. The next move is to find where the prefix comes
+off - the argument is prefixed for every other purpose, since
+`rev.R_rel.T[1,1]` exists in the flat model - rather than to teach
+another reader to guess at unprefixed names.
