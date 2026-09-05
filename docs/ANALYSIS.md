@@ -3873,3 +3873,37 @@ price, and the question about it is separate: a derivative loses its
 origin when it is renamed, and following the aliases afterwards cannot
 recover what the renaming dropped. That wants the `der` trail carried
 in the table rather than reconstructed by search.
+
+### Where the fourth appearance has to be fixed, and where it must not
+
+The wall the sixteen now stand at is in the run half, and the obvious
+place is the wrong one. `code.rs` refuses because its slot table has
+no entry for `rev.R_rel` - but a record has no slot by design, it has
+one per field, and giving it one would be inventing a value the model
+does not hold.
+
+Where the arguments of a standing call are taken apart is a few lines
+further on, and it already does the right thing for arrays:
+
+```rust
+Expr::Array(items) => items.iter().for_each(|item| leaves(item, out)),
+one => out.push(one),
+```
+
+An array written out is walked to its leaves; a record named by one
+name is pushed whole, and then looked up, and then refused. The fix is
+to let a record name be walked the same way - which needs the fields
+in the order the record declares them, and that is knowledge the
+flattening half has and the run half does not.
+
+So the fix belongs upstream, where the call is still being built and
+the record table is still in hand: a standing call's record argument
+is written out as its fields there, and the run half then sees exactly
+what it already knows how to walk. That is the same answer as the
+three earlier appearances - tell the reader the shape, at the place
+where the shape is known - rather than teaching a new reader to guess.
+
+With that, the series is one commit: `noDerivative`, the annotation,
+the aggregate argument, and the record written out at a standing call.
+The instrument makes the check cheap - sixteen models, one second
+each - and the floors move only if all sixteen arrive.
