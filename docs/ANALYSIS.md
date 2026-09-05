@@ -3832,3 +3832,44 @@ the chain is followed, and a bad one to make on a promise.
 The instrument built this shift is what made the difference: every
 question above was answered by `library check --only <Class>` in under
 a second, where the same questions cost four corpus runs yesterday.
+
+### The trade, named correctly, and where the sixteen stand now
+
+The trade was stated wrong last shift. With the series in: flatten
+819 to 819, run 363 to 362. The thirty-eight that standing calls cost
+come back, and **the multibody family does not arrive** - so what the
+series buys today is correctness and no gain, at minus one model. Not
+"a family against one".
+
+The new instrument answers the rest in a minute, one second per model.
+All sixteen were run under the series, and the answer is outcome (a),
+without exception: every one of them now stops at the same wall, and
+it is a wall the earlier one was hiding.
+
+```text
+PrismaticConstraint      unknown variable `R2`
+DoublePendulum           unknown variable `R_rel`
+HeatLosses               unknown variable `spring1.lineForce.frame_a.R`
+RollingWheel             unknown variable `R`
+Engine1a                 unknown variable `R_rel`
+...  sixteen of sixteen, all of one shape
+```
+
+An orientation is stored as its fields - `rev.R_rel.T[1,1]` and the
+rest - and a call that now stays whole asks for `rev.R_rel`, the name
+of the record itself, which nothing in the compiled model holds. So it
+is the aggregate-as-scalar fault a fourth time, and this time in the
+run half rather than in flattening: `code.rs` looks a name up in its
+slot table, finds no slot for a record, and refuses.
+
+That is a good place for it to be. The wall is single, named, and in
+one file, and the fix has the same shape as the three before it - the
+reader has to know that a record name stands for its fields rather
+than for a slot. Which means the series ships together with that, in
+one go, exactly as the maintainer proposed for outcome (a).
+
+`GenerationOfFMUs` is then not the series' last obstacle but its only
+price, and the question about it is separate: a derivative loses its
+origin when it is renamed, and following the aliases afterwards cannot
+recover what the renaming dropped. That wants the `der` trail carried
+in the table rather than reconstructed by search.
