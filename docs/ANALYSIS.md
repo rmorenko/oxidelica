@@ -4017,3 +4017,51 @@ be there and is now visible.
 Nothing shipped: the sixteen were the condition, and they did not
 arrive. The floors stay at 819 and 363, and the two remaining shapes
 are named rather than guessed at - which is what the rung is for.
+
+### The chain rule applied at last: four walls, and the fourth is a different animal
+
+One model, every wall knocked down locally and crudely, nothing kept.
+The question was only whether the chain has a bottom. It has, and the
+bottom is not what the line was aimed at.
+
+The walls, in the order they appeared:
+
+1. **`Index(Call(resolve2, ...))`** - a subscript on a standing call.
+   The message said only "cannot differentiate this expression"; made
+   to name itself, it named this. Knocked down by differentiating the
+   subscript through its base.
+2. **`Array([...])` under a derivative** - the written-out orientation
+   itself. Knocked down element by element.
+3. **`cannot differentiate through R.w[2]`** - an algebraic with no
+   definition to reach. Knocked down by pretending it has a derivative
+   of its own name.
+4. **`equation w[2] = rev...w[2] constrains no state`** - and this one
+   does not fall, because there is nothing behind it to differentiate.
+
+The fourth is the answer. `world.frame_b.R.w[2]` has two equations:
+
+```text
+world.frame_b.R.w[2] = 0
+world.frame_b.R.w[2] = rev.frame_a.R.w[2]
+```
+
+The world's frame does not turn, so its angular velocity is zero by
+declaration, and the connection then says the joint's inboard frame
+has the same. Neither equation mentions a state. Index reduction has
+nothing to do here at all: this is not a high-index system needing
+differentiation, it is a **redundant pair the matching cannot use** -
+one unknown, two equations, and a matching that wants each equation
+matched to an unknown of its own.
+
+So the line's diagnosis was right about every wall it named and wrong
+about where it ended. The multibody family does not need a
+derivative rule for rotations, nor a record travelling into a rule.
+It needs the matching to handle a connection between two things that
+are both already determined - which is a different subject from index
+reduction, and the fifth appearance of the record fault
+(`fixedFrame.frame_a.R`, through a connector) sits on the same road.
+
+Honest count of the line: five shifts, four correct changes, cost one
+model, gain zero. Every one of the four is right by the specification
+and needed. But the bottom of the chain is somewhere else, and that is
+a decision to take rather than another shift to spend.
