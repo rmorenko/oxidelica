@@ -276,7 +276,11 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // What the connections can still be asked, now that they are all
     // in: which ports are roots of the overconstrained graph, and how
     // many connections named each.
-    let GraphAnswers { roots, connected } = what_the_graph_answers(
+    let GraphAnswers {
+        roots,
+        rooted,
+        connected,
+    } = what_the_graph_answers(
         &acc.connection_graph,
         &acc.connects,
         &acc.roots,
@@ -363,7 +367,13 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     }
 
     // Those answers put wherever the model asked the question.
-    say_what_the_graph_answered(&mut model, &mut acc.conditional, &roots, &connected);
+    say_what_the_graph_answered(
+        &mut model,
+        &mut acc.conditional,
+        &roots,
+        &rooted,
+        &connected,
+    );
 
     // Clocked equations are lifted out before anything is checked:
     // what they leave behind is a `when` clause per clock, which the
@@ -497,9 +507,11 @@ fn build_the_model(
     // the answers in hand.
     if acc.graph_asked {
         let roots = choose_roots(&acc.connection_graph, &acc.connects)?;
+        let rooted = connections::rooted_map(&acc.connection_graph, &acc.connects, &roots);
         let counts = tally(&acc.connects);
         acc = Flat {
             roots,
+            rooted,
             counts,
             answered: true,
             ..Flat::default()
@@ -984,6 +996,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
 /// each port.
 struct GraphAnswers {
     roots: HashMap<String, bool>,
+    rooted: HashMap<String, bool>,
     connected: HashMap<String, f64>,
 }
 
@@ -1002,7 +1015,7 @@ fn what_the_graph_answers(
     connects: &[(String, bool, String, bool)],
     already: &HashMap<String, bool>,
     connect_rules: &[(String, Vec<Expr>)],
-    _model: &Model,
+    model: &Model,
 ) -> Result<GraphAnswers, String> {
     // An overconstrained graph is broken open before anything else
     // looks at it, and `Connections.isRoot` is answered from what that
@@ -1010,6 +1023,11 @@ fn what_the_graph_answers(
     // `connect` equations named a port. Both are questions about the
     // connections, and this is the last moment the answers are known.
     let roots = choose_roots(connection_graph, connects)?;
+    // `Connections.rooted` is answered from the same graph, by depth:
+    // which end of a branch the roots sit above. It is computed here,
+    // where the graph is still whole, and refuses a node it has no
+    // answer for rather than leave a bare call to be read as false.
+    let rooted = connections::graph_rooted(connection_graph, connects, &roots, model)?;
     // The second pass was built on the roots the first pass's graph
     // gave. If building on them drew a different graph, the model asks
     // the graph a question whose answer changes the graph, and there is
@@ -1049,7 +1067,11 @@ fn what_the_graph_answers(
         }
     }
 
-    Ok(GraphAnswers { roots, connected })
+    Ok(GraphAnswers {
+        roots,
+        rooted,
+        connected,
+    })
 }
 
 /// The graph's answers put wherever the model asked the question:
@@ -1062,9 +1084,10 @@ fn say_what_the_graph_answered(
     model: &mut Model,
     conditional: &mut [ConditionalEquations],
     roots: &HashMap<String, bool>,
+    rooted: &HashMap<String, bool>,
     connected: &HashMap<String, f64>,
 ) {
-    let answer = |expr: &Expr| answer_graph_queries(expr, roots, connected);
+    let answer = |expr: &Expr| answer_graph_queries(expr, roots, rooted, connected);
     for equation in model
         .equations
         .iter_mut()
@@ -1517,6 +1540,9 @@ struct Flat {
     /// roots. Empty while the graph has not been drawn - which is to
     /// say, on the first pass.
     roots: HashMap<String, bool>,
+    /// Which nodes `Connections.rooted` answers `true` for, drawn from
+    /// the same graph by depth. Empty on the first pass with `roots`.
+    rooted: HashMap<String, bool>,
     /// How many `connect` equations named each connector, as the pass
     /// before gathered them. This is what `cardinality` is answered
     /// from where the answer decides whether an equation exists at

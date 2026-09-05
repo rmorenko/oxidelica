@@ -397,6 +397,7 @@ fn one_tuple_equation(
 /// emptiness says nothing.
 pub(super) struct Graph<'a> {
     pub(super) known_roots: &'a HashMap<String, bool>,
+    pub(super) known_rooted: &'a HashMap<String, bool>,
     pub(super) known_counts: &'a HashMap<String, f64>,
     pub(super) answered: bool,
 }
@@ -433,6 +434,7 @@ fn flatten_if_equations<'a>(
     let no_loop_vars = HashMap::new();
     let Graph {
         known_roots,
+        known_rooted,
         known_counts,
         answered,
     } = *graph;
@@ -473,7 +475,7 @@ fn flatten_if_equations<'a>(
             if !answered {
                 return None;
             }
-            let told = answer_graph_queries(&asked, known_roots, known_counts);
+            let told = answer_graph_queries(&asked, known_roots, known_rooted, known_counts);
             const_eval(&told, &env)
         };
         let decidable = if_equation.branches.iter().all(|branch| {
@@ -1252,6 +1254,7 @@ pub(super) fn flatten_equations(
     // been made - a model with no overconstrained loop has no roots in
     // earnest, so emptiness says nothing.
     let known_roots = acc.roots.clone();
+    let known_rooted = acc.rooted.clone();
     let known_counts = acc.counts.clone();
     let answered = acc.answered;
     let mut whens_from_branches: Vec<&WhenClause> = Vec::new();
@@ -1276,6 +1279,7 @@ pub(super) fn flatten_equations(
         &tuple_equation,
         &Graph {
             known_roots: &known_roots,
+            known_rooted: &known_rooted,
             known_counts: &known_counts,
             answered,
         },

@@ -4118,40 +4118,21 @@ import does not reach. It surfaces at the run as `unknown function
 expanded with the child's `scope` and `imports` rather than the
 supplying class's. Not a multibody matter, and worth fixing on its own.
 
-### `Connections.rooted` queued with its full address
+### `Connections.rooted` answered by depth, not by being a root
 
-The panel's lead item is a standalone correctness fix, not a key to
-the multibody sixteen - it was measured at 2 models moving and 0.1
-running across 17. `Connections.rooted(A)` currently answers from the
-same map as `isRoot`, so it returns whether `A` is a root rather than
-whether `A` is the one nearer the root on its branch. That is a wrong
-number where a refusal is owed, which is why it is worth doing on its
-own terms.
+Done as a standalone correctness fix, exactly as the panel scoped it -
+2 models touched, 0 run, floors unmoved at 819 and 363. The point was
+never runs: a mutation making `rooted` always `false` passed all 438
+parser tests, so the behaviour was guarded by nothing.
 
-The work, sized precisely for one sitting:
-
-- `connections.rs`: the node/edge build inside `choose_roots`
-  (:437-537) should be extracted to a shared helper returning
-  `(nodes, edges)`, so a new `graph_depths(clauses, connects, roots)`
-  can BFS from the chosen roots along the same edges and return a
-  depth per node and the oriented branches. ~40 lines, and
-  `choose_roots`'s own parameter signature stays.
-- `answer_graph_queries` (:604-611): split the branch. `isRoot` as
-  now; `rooted(A)` finds the single `branch(A, B)` with `A` first and
-  answers `depth(A) < depth(B)`; no branch or more than one is a
-  refusal by the reference; a node not in the graph is a refusal
-  rather than `unwrap_or(false)`. Depth and branch data thread
-  alongside `roots` at the four `answer_graph_queries` call sites
-  (`equations.rs:476`, `extents.rs:464`, `mod.rs:1067`, and the
-  self-recursion).
-- Test: 25 lines, `rooted(L.a) = true` where `isRoot(L.a) = false`.
-  The existing test at connections.rs:327 is blind - it asks `rooted`
-  of the root itself.
-- Measure: `--only` on Pendulum, InitSpringConstant, DoublePendulum,
-  RevoluteConstraint, then the eight unmeasured of the sixteen, then
-  the run-list diff. Ceiling cost is 2 models.
-
-Left queued rather than rushed at the end of a long shift, where a
-connection-graph refactor is exactly the place a haste turns into the
-wrong-number-versus-refusal trap the panel spent its hour warning
-about.
+`rooted(a)` now answers which end of `a`'s branch the roots settled
+above: the node/edge build inside `choose_roots` was extracted to a
+shared helper, a `graph_depths` BFS walks from the chosen roots along
+the same edges, and `rooted(a)` is `depth(a) < depth(b)` for the
+single branch that names `a` first. A node the graph never held, or
+one first in no branch or in more than one, has no answer and is
+refused by name where the graph is still whole - not answered `false`,
+which would be the guess the invariant forbids. The old test at
+connections.rs:327 was blind, asking `rooted` of the root itself; it
+now asks it of a node with a real branch answer, and a new test shows
+`rooted(b) = true` where `isRoot(b) = false`, red without the fix.

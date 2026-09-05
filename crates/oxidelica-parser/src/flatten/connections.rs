@@ -418,22 +418,17 @@ pub(super) fn stream_mix(
     })
 }
 
-/// Break an overconstrained connection graph open, and say which nodes
-/// ended up as roots.
+/// The nodes and edges of the connection graph the clauses draw.
 ///
-/// Every part of the graph needs exactly one root: with none there is
-/// nothing for the rest of it to be measured against, and with two the
-/// equations that hold a loop closed would be stated twice. A declared
-/// root is taken as given; a potential one serves where a part has
-/// none, lowest priority first and by name after that, so the same
-/// model always breaks the same way.
-pub(super) fn choose_roots(
+/// A node is anything a `root`, `potentialRoot` or `branch` names, plus
+/// every connector a `connect` brings in one member at a time. An edge
+/// is a written branch or a connection between two nodes already there.
+/// This is the shape both root selection and depth measurement work
+/// over, so it is built once and shared.
+fn graph_nodes_and_edges(
     clauses: &[GraphClause],
     connects: &[(String, bool, String, bool)],
-) -> Result<HashMap<String, bool>, String> {
-    if clauses.is_empty() {
-        return Ok(HashMap::new());
-    }
+) -> (Vec<String>, Vec<(String, String)>) {
     let mut nodes: Vec<String> = Vec::new();
     let remember = |name: &str, nodes: &mut Vec<String>| {
         if !nodes.iter().any(|known| known == name) {
@@ -512,6 +507,75 @@ pub(super) fn choose_roots(
             }
         }
     }
+    (nodes, edges)
+}
+
+/// How deep each node sits below the root of its part, measured by a
+/// breadth-first walk from the chosen roots along the same edges.
+///
+/// `Connections.rooted(a)` asks whether `a` is the end of a branch
+/// nearer the root than its other end, which is a question about depth
+/// rather than about being a root. A node the walk never reaches keeps
+/// no depth, and asking `rooted` of it is refused rather than guessed.
+fn graph_depths(
+    clauses: &[GraphClause],
+    connects: &[(String, bool, String, bool)],
+    roots: &HashMap<String, bool>,
+) -> HashMap<String, i64> {
+    let (_nodes, edges) = graph_nodes_and_edges(clauses, connects);
+    let mut neighbours: HashMap<&str, Vec<&str>> = HashMap::new();
+    for (a, b) in &edges {
+        neighbours.entry(a).or_default().push(b);
+        neighbours.entry(b).or_default().push(a);
+    }
+    let mut depth: HashMap<String, i64> = HashMap::new();
+    // From every chosen root at once, so a node's depth is its
+    // distance to the nearest root - the same order the roots were
+    // chosen in, so ties break the same way each time.
+    let mut frontier: Vec<&str> = roots
+        .iter()
+        .filter(|(_, is_root)| **is_root)
+        .map(|(node, _)| node.as_str())
+        .collect();
+    frontier.sort_unstable();
+    for node in &frontier {
+        depth.insert((*node).to_string(), 0);
+    }
+    let mut level = 0;
+    while !frontier.is_empty() {
+        level += 1;
+        let mut next: Vec<&str> = Vec::new();
+        for node in frontier {
+            for &neighbour in neighbours.get(node).into_iter().flatten() {
+                if !depth.contains_key(neighbour) {
+                    depth.insert(neighbour.to_string(), level);
+                    next.push(neighbour);
+                }
+            }
+        }
+        next.sort_unstable();
+        frontier = next;
+    }
+    depth
+}
+
+/// Break an overconstrained connection graph open, and say which nodes
+/// ended up as roots.
+///
+/// Every part of the graph needs exactly one root: with none there is
+/// nothing for the rest of it to be measured against, and with two the
+/// equations that hold a loop closed would be stated twice. A declared
+/// root is taken as given; a potential one serves where a part has
+/// none, lowest priority first and by name after that, so the same
+/// model always breaks the same way.
+pub(super) fn choose_roots(
+    clauses: &[GraphClause],
+    connects: &[(String, bool, String, bool)],
+) -> Result<HashMap<String, bool>, String> {
+    if clauses.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let (nodes, edges) = graph_nodes_and_edges(clauses, connects);
 
     let mut parent: Vec<usize> = (0..nodes.len()).collect();
     fn root_of(parent: &mut Vec<usize>, index: usize) -> usize {
@@ -592,21 +656,136 @@ pub(super) fn choose_roots(
     Ok(chosen)
 }
 
+/// Which nodes `Connections.rooted` answers `true` for, given the roots
+/// already chosen, and a refusal for any the model asks about that have
+/// no answer.
+///
+/// The graph is known here for the last time, so this is where a
+/// `rooted` of a node the graph never held, or of one the branches do
+/// not point away from exactly once, is refused rather than left to
+/// answer `false` somewhere downstream.
+pub(super) fn graph_rooted(
+    clauses: &[GraphClause],
+    connects: &[(String, bool, String, bool)],
+    roots: &HashMap<String, bool>,
+    model: &Model,
+) -> Result<HashMap<String, bool>, String> {
+    if clauses.is_empty() {
+        return Ok(HashMap::new());
+    }
+    let depths = graph_depths(clauses, connects, roots);
+    let answers = rooted_answers(clauses, &depths);
+    let mut asked = Vec::new();
+    for equation in model.equations.iter().chain(model.initial_equations.iter()) {
+        nodes_asked_of_rooted(&equation.lhs, &mut asked);
+        nodes_asked_of_rooted(&equation.rhs, &mut asked);
+    }
+    for node in asked {
+        if !answers.contains_key(&node) {
+            return Err(format!(
+                "`Connections.rooted({node})` has no answer: `{node}` is not the near end \
+                 of exactly one branch of the connection graph"
+            ));
+        }
+    }
+    Ok(answers)
+}
+
+/// The `rooted` answers alone, without the refusal scan: used on the
+/// first pass, where the model is set aside and only the graph is kept.
+/// The authoritative refusal happens on the second pass, in
+/// `graph_rooted`, once the model is whole again.
+pub(super) fn rooted_map(
+    clauses: &[GraphClause],
+    connects: &[(String, bool, String, bool)],
+    roots: &HashMap<String, bool>,
+) -> HashMap<String, bool> {
+    if clauses.is_empty() {
+        return HashMap::new();
+    }
+    let depths = graph_depths(clauses, connects, roots);
+    rooted_answers(clauses, &depths)
+}
+
+/// Which nodes `Connections.rooted` answers `true` for, and which asked
+/// nodes it must refuse.
+///
+/// `rooted(a)` is true when `a` is the end of its branch nearer the
+/// root: the model writes `branch(a, b)` and asks `rooted(a)` to learn
+/// which of `a` and `b` the graph settled above the other. So the
+/// answer is `depth(a) < depth(b)` for the single branch that names `a`
+/// first. A node that is first in no branch, or in more than one, has
+/// no such answer, and neither does a node the graph never held - the
+/// specification makes that an error, and answering `false` would be a
+/// guess where a refusal is owed.
+///
+/// Only branches written out are read here, not connections: `rooted`
+/// is a question about the overconstrained graph the `branch`
+/// statements draw, which is where a loop is broken.
+fn rooted_answers(clauses: &[GraphClause], depths: &HashMap<String, i64>) -> HashMap<String, bool> {
+    let mut answers: HashMap<String, bool> = HashMap::new();
+    let mut seen_first: HashMap<&str, usize> = HashMap::new();
+    for clause in clauses {
+        if let GraphClause::Branch(a, _) = clause {
+            *seen_first.entry(a.as_str()).or_default() += 1;
+        }
+    }
+    for clause in clauses {
+        if let GraphClause::Branch(a, b) = clause {
+            if seen_first.get(a.as_str()) != Some(&1) {
+                continue;
+            }
+            if let (Some(da), Some(db)) = (depths.get(a), depths.get(b)) {
+                answers.insert(a.clone(), da < db);
+            }
+        }
+    }
+    answers
+}
+
+/// Every node a `Connections.rooted` in the model asks about, so the
+/// ones with no answer can be refused where the graph is still known.
+fn nodes_asked_of_rooted(expr: &Expr, out: &mut Vec<String>) {
+    if let Expr::Call(name, args) = expr {
+        if name == "Connections.rooted" && args.len() == 1 {
+            if let Expr::Ref(node) = &args[0] {
+                out.push(node.clone());
+            }
+        }
+    }
+    let _ = expr.try_map_children(&mut |child| {
+        nodes_asked_of_rooted(child, out);
+        Ok::<Expr, ()>(child.clone())
+    });
+}
+
 /// Answer `Connections.isRoot` and `Connections.rooted` from the roots
 /// that were chosen.
 pub(super) fn answer_graph_queries(
     expr: &Expr,
     roots: &HashMap<String, bool>,
+    rooted: &HashMap<String, bool>,
     connected: &HashMap<String, f64>,
 ) -> Expr {
-    let recur = |e: &Expr| answer_graph_queries(e, roots, connected);
+    let recur = |e: &Expr| answer_graph_queries(e, roots, rooted, connected);
     match expr {
-        Expr::Call(name, args)
-            if (name == "Connections.isRoot" || name == "Connections.rooted")
-                && args.len() == 1 =>
-        {
+        Expr::Call(name, args) if name == "Connections.isRoot" && args.len() == 1 => {
             match &args[0] {
                 Expr::Ref(node) => Expr::Bool(roots.get(node).copied().unwrap_or(false)),
+                _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+            }
+        }
+        Expr::Call(name, args) if name == "Connections.rooted" && args.len() == 1 => {
+            // Answered from the branch the node is first in - which of
+            // its two ends the graph rooted above the other. A node
+            // with no answer is left as it stands here; it was already
+            // refused where the graph was known, so it never reaches a
+            // reader that would take a bare call for a value.
+            match &args[0] {
+                Expr::Ref(node) => match rooted.get(node) {
+                    Some(value) => Expr::Bool(*value),
+                    None => Expr::Call(name.clone(), args.iter().map(recur).collect()),
+                },
                 _ => Expr::Call(name.clone(), args.iter().map(recur).collect()),
             }
         }

@@ -116,6 +116,13 @@ small model then served as the test. If a family of models refuses for
 one reason, write the smallest model that refuses the same way and
 work there.
 
+One corpus run gives both halves. `library check --list` prints the
+flattened list and the run list in a single pass; taking flat and ran
+is two runs at most, not four, and diffing before against after needs
+one baseline file, not a fresh run each time. Watch the example filter
+too - a `--list` that returned 1182 lines for 1043 examples was
+catching helpers like `BusUsage_Utilities.Part` that are not examples.
+
 Match the instrument to the question. The full corpus is for shipping
 and for the diff of which models run; asking what became of _one_
 model is `library check <library> --only <Class>`, which answers in

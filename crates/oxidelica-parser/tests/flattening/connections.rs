@@ -322,9 +322,13 @@ fn an_overconstrained_graph_is_broken_at_a_root() {
     ))
     .contains("more than one root"));
     // A potential root serves where no root was declared, and the
-    // answer is found wherever in an expression it was asked.
+    // answer is found wherever in an expression it was asked. `rooted`
+    // is asked of `arm.a`, the near end of the branch `Body` writes, so
+    // it has a real answer - the root chosen for the part sits above
+    // `arm.b`, so `arm.a` is rooted. Asking it of the potential root
+    // itself would have no answer, since nothing branches away from it.
     let m = parse_model(&format!(
-        "{FRAMES} model Loose Frame p; equation p.r = 0; Connections.potentialRoot(p, 2); end Loose; model M Loose maybe; Body arm; Real deep; equation connect(maybe.p, arm.a); deep = if not Connections.isRoot(arm.b) and (Connections.rooted(maybe.p) or false) then abs(-(if Connections.isRoot(maybe.p) then 2 else 3)) else 0; end M;"
+        "{FRAMES} model Loose Frame p; equation p.r = 0; Connections.potentialRoot(p, 2); end Loose; model M Loose maybe; Body arm; Real deep; equation connect(maybe.p, arm.a); deep = if not Connections.isRoot(arm.b) and (Connections.rooted(arm.a) or false) then abs(-(if Connections.isRoot(maybe.p) then 2 else 3)) else 0; end M;"
     ))
     .unwrap();
     let text = format!("{:?}", m.equations);
@@ -1596,5 +1600,54 @@ fn a_connect_to_a_disabled_component_is_no_connection() {
             .iter()
             .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "m.y")),
         "the model lost what it was left with"
+    );
+}
+
+/// `Connections.rooted(a)` asks which end of `a`'s branch the graph
+/// settled above the other - a question about depth, not about being a
+/// root. A node partway down a chain is rooted without being a root.
+#[test]
+fn rooted_is_about_depth_not_about_being_a_root() {
+    let m = parse_model(
+        "model M \
+           connector Frame Real r; flow Real f; end Frame; \
+           Frame a; Frame b; Frame c; Real here; Real deep; \
+         equation \
+           a.f = 0; b.f = 0; c.f = 0; \
+           Connections.root(a.r); \
+           Connections.branch(a.r, b.r); \
+           Connections.branch(b.r, c.r); \
+           here = if Connections.rooted(b.r) then 1 else 0; \
+           deep = if Connections.isRoot(b.r) then 1 else 0; \
+           annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    // Every graph query is answered - nothing bare is left.
+    assert!(!text.contains("Connections."), "all answered: {text}");
+    // `b` is rooted (nearer the root than `c`) but is not itself a
+    // root. Answering `rooted` from the root map would make both false.
+    assert!(
+        text.contains("here") && text.contains("Bool(true)"),
+        "rooted(b) is true: {text}"
+    );
+    // And a `rooted` of a node the graph never held is refused, not
+    // answered false.
+    let refused = parse_model(
+        "model M \
+           connector Frame Real r; flow Real f; end Frame; \
+           Frame a; Frame b; Real x; \
+         equation \
+           a.f = 0; b.f = 0; \
+           Connections.root(a.r); \
+           Connections.branch(a.r, b.r); \
+           x = if Connections.rooted(b.r) then 1 else 0; end M;",
+    );
+    // `b.r` is the far end of the only branch, first in none, so
+    // `rooted(b.r)` has no answer.
+    assert!(refused.is_err(), "far end has no rooted answer");
+    assert!(
+        refused.unwrap_err().to_string().contains("has no answer"),
+        "refused by name"
     );
 }

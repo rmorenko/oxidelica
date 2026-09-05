@@ -448,8 +448,12 @@ pub(super) fn unroll(
                     // first, since `cardinality(port[i])` is a
                     // question about one port of an array and it is
                     // the array layer that names it.
-                    let (roots, counts, answered) =
-                        (acc.roots.clone(), acc.counts.clone(), acc.answered);
+                    let (roots, rooted, counts, answered) = (
+                        acc.roots.clone(),
+                        acc.rooted.clone(),
+                        acc.counts.clone(),
+                        acc.answered,
+                    );
                     let settle = |condition: &Expr| {
                         let plain = substitute_refs(condition, &folded);
                         let plain =
@@ -461,7 +465,7 @@ pub(super) fn unroll(
                             return None;
                         }
                         let asked = side(condition).ok()?.scalar().ok()?;
-                        let told = answer_graph_queries(&asked, &roots, &counts);
+                        let told = answer_graph_queries(&asked, &roots, &rooted, &counts);
                         const_eval(&told, &settling)
                     };
                     let decidable = if_equation.branches.iter().all(|branch| {
