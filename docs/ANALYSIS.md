@@ -4136,3 +4136,26 @@ which would be the guess the invariant forbids. The old test at
 connections.rs:327 was blind, asking `rooted` of the root itself; it
 now asks it of a node with a real branch answer, and a new test shows
 `rooted(b) = true` where `isRoot(b) = false`, red without the fix.
+
+### Fresh census: the top is C-fluid, larger than thought
+
+With the multibody line parked, the top of the refusal census decides
+the next work. Folded by family rather than read line by line:
+
+- **cannot evaluate parameters: 62**, and **57 of those are media** -
+  a constant whose value needs a function run over a state,
+  `h_default = specificEnthalpy_pTX(...)` and its kin. This is the
+  largest named family by a wide margin, bigger than the panel's
+  earlier count of 25.
+- **unknown variable: 47** - the run-half aggregate-name walls among
+  them.
+- **structurally singular: 33** - what the differentiation shifts left.
+- **cannot differentiate: 29**, **diverged/singular: 16**, **unknown
+  function: 14**.
+
+So C-fluid is the queue's head, and its kind is known: a constant
+whose value is a call on the medium's own function over a state the
+model has not run yet. The interpreter that would settle it already
+exists one wall further on, where every deferred parameter settles at
+initialisation. The next shift starts there with a small model, not
+the corpus.
