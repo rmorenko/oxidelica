@@ -3243,3 +3243,30 @@ fn a_line_of_a_file_is_read_here() {
     assert!(settled("second").contains('3'), "{}", settled("second"));
     assert!(settled("past").contains('0'), "{}", settled("past"));
 }
+
+/// A function imported into a class by a deep single-name path is
+/// resolved where the modifier that calls it is written, not where it
+/// is worked out. `Body` imports `to_unit1` and writes
+/// `Shape sh(lengthDirection = to_unit1(r_CM))`; the modifier is
+/// worked out when `Shape` is built, and `Shape` never heard of that
+/// import. Left bare, the call surfaces at the run as an unknown
+/// function.
+#[test]
+fn a_call_in_a_modifier_keeps_its_import() {
+    let m = parse_model(
+        "package Lib \
+           package Conv function to_unit1 input Real v[2]; output Real n[2]; \
+             algorithm n := v; end to_unit1; end Conv; \
+           model Shape input Real d[2]; Real y; equation y = d[1]; end Shape; \
+           model Body import Lib.Conv.to_unit1; parameter Real r[2] = {3, 4}; \
+             Shape sh(d = to_unit1(r)); end Body; \
+           model M Body b; end M; \
+         end Lib;",
+    )
+    .unwrap();
+    // Whether the body is inlined or left standing, no bare `to_unit1`
+    // reaches an equation - it carries its full name across the child
+    // scope that never imported it.
+    let text = format!("{:?}", m.equations);
+    assert!(!text.contains("Call(\"to_unit1\""), "{text}");
+}

@@ -498,6 +498,15 @@ pub(super) fn instantiate_components(
                 .map(|(name, value)| {
                     let value = substitute_class_constants(value, registry, scope, imports, shadow);
                     let value = prefix_expr(&value, prefix, outers);
+                    // A call in the modifier is resolved to its full
+                    // name here, where the class that wrote the
+                    // modifier is still the scope: `Body` imports
+                    // `to_unit1` and writes `sh(lengthDirection =
+                    // to_unit1(r_CM))`, but the modifier is worked out
+                    // when `Shape` is built, and `Shape` never heard of
+                    // that import. Rewriting the call to the name the
+                    // import stands for carries it across.
+                    let value = resolve_call_names(&value, registry, scope, imports);
                     // A component with no dimensions at all takes its
                     // modifier whole, and so does one written `each`.
                     // An array of a single element is still an array:
@@ -1303,4 +1312,37 @@ pub(super) fn instantiate_one(
         }
     }
     Ok(())
+}
+
+/// Rewrite a bare function name in an expression to the full name its
+/// import stands for, in the scope where the expression was written.
+///
+/// A modifier `sh(lengthDirection = to_unit1(r_CM))` is written in the
+/// class that imports `to_unit1` but worked out in the child's scope,
+/// which never heard of that import. Resolving the name here, before
+/// the modifier descends, is what carries it across - and only where
+/// the name resolves to something with a different, fuller name of its
+/// own, so a name already whole or a local one is left alone.
+fn resolve_call_names(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    let mapped = expr
+        .try_map_children(&mut |child| {
+            Ok::<Expr, ()>(resolve_call_names(child, registry, scope, imports))
+        })
+        .expect("mapping cannot fail");
+    match &mapped {
+        Expr::Call(name, args) if !name.contains('.') => {
+            match lookup(registry, name, scope, imports) {
+                Some(found) if found.name != *name && found.name.ends_with(&format!(".{name}")) => {
+                    Expr::Call(found.name.clone(), args.clone())
+                }
+                _ => mapped,
+            }
+        }
+        _ => mapped,
+    }
 }
