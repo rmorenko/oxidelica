@@ -4065,3 +4065,55 @@ Honest count of the line: five shifts, four correct changes, cost one
 model, gain zero. Every one of the four is right by the specification
 and needed. But the bottom of the chain is somewhere else, and that is
 a decision to take rather than another shift to spend.
+
+### Parking the multibody series, with numbers rather than a shrug
+
+The panel retracted three readings, one of them the maintainer's, and
+the line is parked. What is recorded here is what was measured, so the
+next approach starts from fact.
+
+**Edit (4) is not free in isolation.** Re-derived from the session log
+(its source was in no commit) and run alone against the corpus: **818
+flatten, not 819**. It costs exactly one model, named by diffing the
+flatten lists:
+
+```text
+ModelicaTest.Media.TestAllProperties.IncompleteMedia.ReferenceAir_dT
+  an array value cannot be used where a scalar is expected: Array([Number...
+```
+
+Binding a record's own name to the written-out array lets a body's
+inner call take the record whole - which is the point - but a media
+function elsewhere reads that same name where a scalar is wanted and
+now refuses. So edit (4) is safe only with its companion, the
+standing-call reader that turns such a name back into fields. That is
+the concrete reason the series is one commit and not four: the parts
+are not independently floor-safe. The patch is saved at
+`docs/edit4_record_name_array_branch.patch.txt` so it need never be
+reconstructed from a log again.
+
+**`GenerationOfFMUs` was lost to a defect, not to a price.** The early
+return in `inlining.rs` for `InlineAfterIndexReduction` hands back a
+bare `Expr::Call` before the `noDerivative` machinery can wrap it in a
+`WithDerivative`. So the rule the series reads is never attached to a
+standing call at all, and that model's one lost run is this defect
+rather than the annotation's cost. The next approach must not pay for
+it twice.
+
+**The refusal text is not a family's signature.** It quotes the
+highest-indexed member of the deficient subset, and connection
+equations are appended last, so reversing equation order changes which
+equation is named. Reading a refusal as a diagnosis is not a
+measurement - the panel proved this by moving the named equation
+without changing the model.
+
+**`to_unit1` is a general import fault, reproduced in 26 lines.** A
+function imported into a class by a deep single-name path -
+`import Modelica.Units.Conversions.to_unit1` in `Parts/Body.mo` - is
+lost when it appears inside a _component modification_
+(`Shape sh(lengthDirection = to_unit1(r_CM))`): the modifier is
+written in `Body`'s terms but worked out in `Shape`'s scope, where the
+import does not reach. It surfaces at the run as `unknown function
+`to_unit1``. The address is `components.rs` where a modifier is
+expanded with the child's `scope` and `imports` rather than the
+supplying class's. Not a multibody matter, and worth fixing on its own.

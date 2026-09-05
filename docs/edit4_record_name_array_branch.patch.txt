@@ -1,0 +1,19 @@
+diff --git a/crates/oxidelica-parser/src/flatten/inlining.rs b/crates/oxidelica-parser/src/flatten/inlining.rs
+index 4b4caa2..a4e99eb 100644
+--- a/crates/oxidelica-parser/src/flatten/inlining.rs
++++ b/crates/oxidelica-parser/src/flatten/inlining.rs
+@@ -1609,6 +1609,14 @@ fn bind_the_arguments(
+                         by_element(&here, value, &mut Vec::new(), bindings);
+                         bindings.insert(here, value.clone());
+                     }
++                    // The record's own name, for a call inside the body
++                    // that takes it whole rather than by field:
++                    // `absoluteRotation` writes `resolve2(R_rel, R1.w)`,
++                    // and with only the fields bound that inner call
++                    // kept `R_rel` - the body's own name for its input,
++                    // which belongs to no model and no table. What was
++                    // handed in is what it stands for.
++                    bindings.insert(input.name.clone(), arg.clone());
+                     position += 1;
+                     continue;
+                 }
