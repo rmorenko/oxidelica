@@ -24,6 +24,17 @@ pub(super) fn expand(
     depth: usize,
 ) -> Result<Value, String> {
     if depth > MAX_DEPTH {
+        // A last resort before refusing, the same one `resolve` takes,
+        // and gated the same way: only while a parameter is being
+        // settled, where a number is the whole of what is wanted and no
+        // run stands behind it. An equation's deep expression is meant
+        // to stand for the run to walk, so folding it here ungated cost
+        // six models; the parameter mark is what tells the two apart.
+        if super::constants::SETTLING_PARAMETER.with(|on| on.get()) {
+            if let Some(number) = settled_by(expr, shapes).filter(|n| n.is_finite()) {
+                return Ok(Value::Scalar(Expr::Number(number)));
+            }
+        }
         return Err(format!(
             "an expression {NO_BOTTOM}, nested deeper than the compiler follows: {}",
             sketch(expr)

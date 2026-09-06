@@ -4414,3 +4414,39 @@ six models, so the media case has to be answered before the guard is
 reached - where the record body is built - and only for the bodies that
 have no run behind them to walk what stands. That is a narrower door
 than "fold deep numbers", and it is the one still to find.
+
+## C-fluid, the depth fold gated: the parameter mark is the discriminator
+
+The door the last section left to find was there already. The fold at
+the depth guard is right; what it lacked was the gate telling a media
+polynomial that should fold from a multibody expression that should
+stand. That gate is `SETTLING_PARAMETER`, the mark the flattener
+already sets while it works out a parameter's value - and its own
+comment says why it is the one: "a parameter's value, where a number is
+the whole of what is wanted." A parameter settles to a number with no
+run behind it; an equation's deep expression is meant to stand for the
+run to walk. The mark is exactly that distinction.
+
+Gated on it, the boundary fold in both guards (`resolve`, `expand`)
+folds a deep-but-finite expression to its number only while a parameter
+is being settled. Measured against the whole library: 819 flatten, 363
+run, the six models the ungated fold cost all restored, no shuffle, ten
+suites green. A twenty-line model - a record field built by a forty-
+round accumulation, read by a parameter - is the guard: it refuses on
+the parent (`build(2)[1]` stands) and folds to its number here, and a
+sim test carries the same case.
+
+This is real infrastructure: the air density iteration `dofpT` now
+folds standalone, red-to-green, where the parent refused
+`Inverses.dofpT(100000, 293, 1e-6)`. It does not by itself move a media
+model, because one wall further on `airBaseProp_pT` still stands - its
+call to `dofpT` passes `delp = iter.delp`, and `iter.delp` (a field of
+a record-class alias) arrives at the nested body as a bare name that the
+deep context did not fold. That is the same record-field failure as
+`R_s`, in the alias case rather than the component case, and it is the
+next wall, named and small.
+
+So the shift ships the gated fold - guarded, measured, no regression -
+and the C-fluid chain now folds two of its three deep walls (the record
+constant field, the deep numeric parameter). The third is a record-alias
+field read in a nested body, and it is where the next shift starts.

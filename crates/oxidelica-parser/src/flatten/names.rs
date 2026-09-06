@@ -470,6 +470,30 @@ pub(super) fn resolve(
         return Ok(expr.clone());
     }
     if depth > MAX_DEPTH {
+        // A last resort before refusing, but only while a parameter is
+        // being settled - where a number is the whole of what is
+        // wanted, and there is no run behind the value to walk what
+        // would otherwise stand. A media property is a polynomial
+        // dozens of terms deep over constants, and by here the count
+        // has been raised past the guard by callers that all came to
+        // an end; folded to its value it is depth zero like any other
+        // number. Gated on the parameter mark because an equation's
+        // deep expression is meant to stand for the run to walk - a
+        // boundary fold with no gate cost six models that relied on
+        // exactly that.
+        if super::constants::SETTLING_PARAMETER.with(|on| on.get()) {
+            let settled = match loop_vars.is_empty() {
+                true => const_eval(expr, consts),
+                false => {
+                    let mut env = consts.clone();
+                    env.extend(loop_vars.iter().map(|(k, v)| (k.clone(), *v)));
+                    const_eval(expr, &env)
+                }
+            };
+            if let Some(number) = settled.filter(|n| n.is_finite()) {
+                return Ok(Expr::Number(number));
+            }
+        }
         return Err(format!(
             "an expression {NO_BOTTOM}, nested deeper than the compiler follows: {}",
             sketch(expr)

@@ -860,3 +860,45 @@ fn a_field_of_a_record_constant_built_by_modifiers_folds() {
         result.rows[0][z]
     );
 }
+
+#[test]
+fn a_deep_field_of_a_record_folds_while_a_parameter_settles() {
+    // A parameter reads a field of a record a function builds, and the
+    // field is an arithmetic expression deeper than the compiler walks
+    // - a media property is a polynomial dozens of terms deep, and the
+    // air density iteration reads exactly such a field. Carried whole
+    // the tree runs past MAX_DEPTH and the record call stands, so the
+    // field read becomes `build(x)[1]`, an index the settler cannot
+    // evaluate. At the depth guard, and only while a parameter is being
+    // settled - where a number is the whole of what is wanted - the
+    // deep expression is folded to its number. Gated on the parameter
+    // mark: an ungated fold at the same boundary cost six equation-side
+    // models that need a deep expression to stand for the run.
+    let source = "package P \
+        record R Real f; end R; \
+        function build input Real x; output R r; protected Real t; \
+        algorithm t := x; \
+          for k in 1:40 loop t := t*1.01 + 1; end for; \
+          r.f := t; end build; \
+        function readf input Real x; output Real y; protected R r; \
+        algorithm r := build(x); y := r.f; end readf; \
+        model Use \
+          parameter Real v = readf(2.0); \
+          Real z(start = v, fixed = true); \
+        equation der(z) = 0; \
+          annotation(experiment(StopTime = 1)); end Use; \
+        model M Use u; end M; \
+      end P;";
+    let result = run(source);
+    // t starts at 2 and runs t := t*1.01 + 1 forty times.
+    let mut expected = 2.0_f64;
+    for _ in 0..40 {
+        expected = expected * 1.01 + 1.0;
+    }
+    let z = result.columns.iter().position(|c| c == "u.z").unwrap();
+    assert!(
+        (result.rows[0][z] - expected).abs() < 1e-6,
+        "u.z = {}, expected {expected}",
+        result.rows[0][z]
+    );
+}
