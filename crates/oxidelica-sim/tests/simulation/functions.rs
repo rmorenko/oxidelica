@@ -902,3 +902,68 @@ fn a_deep_field_of_a_record_folds_while_a_parameter_settles() {
         result.rows[0][z]
     );
 }
+
+#[test]
+fn a_constant_of_a_deep_iterating_medium_is_read_by_a_parameter() {
+    // A medium's `constant h_default = specificEnthalpy_pT(p, T)` whose
+    // body is `enthalpy(setState(p, T))`, where the medium redeclares
+    // `setState` to build a state whose enthalpy divides by a density
+    // computed with a Newton `while` over a polynomial deep enough that
+    // the constant road cannot fold it. Read by a parameter through a
+    // replaceable package - the shape of the ReferenceAir media. Without
+    // the fix the parameter is refused (`nothing gives a value`); with
+    // it the constant's binding is handed to the parameter's own walk,
+    // arguments folded, and the enthalpy comes to a number.
+    let source = "package P \
+        partial package Base \
+          constant Real p_default = 100000; \
+          constant Real T_default = 293; \
+          replaceable record State Real h; Real d; end State; \
+          replaceable partial function setState \
+            input Real p; input Real T; output State s; end setState; \
+          replaceable partial function enthalpy \
+            input State s; output Real h; end enthalpy; \
+          function specificEnthalpy_pT input Real p; input Real T; output Real h; \
+          algorithm h := enthalpy(setState(p, T)); end specificEnthalpy_pT; \
+          constant Real h_default = specificEnthalpy_pT(p_default, T_default); \
+        end Base; \
+        package Air \
+          extends Base; \
+          record HD Real f; Real pd; end HD; \
+          function helm input Real d; input Real T; output HD r; \
+          protected \
+            final constant Real[19] N = {0.11,0.71,0.61,0.07,0.08,0.13,0.01,0.04,0.03,0.0001,0.10,0.17,0.04,0.01,0.14,0.03,0.0002,0.014,0.009}; \
+          algorithm r.f := 0; \
+            for k in 1:19 loop r.f := r.f + N[k]*d^k*T^(0.001*k); end for; \
+            r.pd := 287*T; end helm; \
+          function density_pT input Real p; input Real T; output Real d; \
+          protected Integer i=0; Boolean found=false; Real dp; HD f; \
+          algorithm d := p/(287*T); \
+            while ((i<100) and not found) loop \
+              f := helm(d, T); \
+              dp := d*287*T - p + 0.0001*f.f; \
+              if abs(dp) <= 1e-6 then found := true; end if; \
+              d := d - dp/f.pd; i := i+1; end while; end density_pT; \
+          redeclare record extends State Real d; end State; \
+          redeclare function extends setState \
+          algorithm s := State(h = 1000*T + p/density_pT(p, T), d = density_pT(p, T)); end setState; \
+          redeclare function extends enthalpy \
+          algorithm h := s.h; end enthalpy; \
+        end Air; \
+        model Use \
+          replaceable package Medium = Base; \
+          parameter Real h = Medium.h_default; \
+          Real z(start = h, fixed = true); \
+        equation der(z) = 0; \
+          annotation(experiment(StopTime = 1)); end Use; \
+        model M Use u(redeclare package Medium = Air); end M; \
+      end P;";
+    let result = run(source);
+    // density_pT(100000, 293) solves near 1.189; h = 1000*293 + 100000/d.
+    let z = result.columns.iter().position(|c| c == "u.z").unwrap();
+    assert!(
+        (result.rows[0][z] - 377091.0).abs() < 5.0,
+        "u.z = {}",
+        result.rows[0][z]
+    );
+}

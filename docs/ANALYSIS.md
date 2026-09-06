@@ -4533,3 +4533,54 @@ that sends `iter.delp` through `resolve` in twenty lines, or land it
 together with the redeclare fix so a media model flattens and becomes
 the guard. The mechanism is now known to the line; what is missing is
 the test, not the understanding.
+
+## C-fluid, the parameter wall broken: the constant is handed to the run
+
+The previous note reverted the `iter.delp` fix for having no guard. This
+one lands it, with a second fix beside it and a hermetic guard for both,
+and the C-fluid parameter barrier - the reason this queue was named -
+falls: the media `h_default` refusals go from 62 to 0.
+
+Two fixes together, each small:
+
+`resolve`, the pass that works out a call's arguments, now folds a
+dotted class constant while a parameter is being settled (names.rs), so
+`delp = iter.delp` handed to the density iteration becomes a number
+rather than a bare name the while cannot settle. Gated on the parameter
+mark, the same split the depth fold turns on, so an equation's constant
+keeps its unit.
+
+`substitute_at`, where a constant is read, now hands a parameter the
+constant's binding when the constant road could not fold it to a number
+(constants.rs). A medium's `h_default = specificEnthalpy_pT(p, T)` has a
+body that iterates past the depth the constant fold follows, so
+`class_constant_at` returns nothing and the name reached the parameter
+bare. Handed the binding instead - with the sibling constants folded
+into its arguments - the parameter's own deeper walk, which folds a deep
+numeric field while a parameter settles, works it out. Gated the same
+way, because a run has to be behind the value to walk what stands.
+
+Measured: the media `h_default` barrier, 62 models that refused `... .
+h_start asks to be evaluated before the run`, is gone. DryAir1's
+`h_start` now evaluates, and the model advances to a body-level wall
+(`unknown variable volume.medium.state.h`, a ThermodynamicState field
+the equations read that the record layer has not expanded). The flatten
+and run floors do not move - the models that cleared the parameter wall
+stop at the next one, and the ones that ran still run - so the win is in
+the census, not the counts: 819 flatten and 363 run unchanged, no
+shuffle, ten suites green.
+
+The guard is hermetic this time. A fifty-line model carries the whole
+shape: a `replaceable package` medium whose `h_default` is
+`enthalpy(setState(p, T))`, the medium redeclaring `setState` to build a
+state whose enthalpy divides by a density solved with a Newton `while`
+over a nineteen-term polynomial deep enough that the constant road
+cannot fold it. Read by a parameter it is refused on the parent and
+folds here, and a sim test carries the same case. What no synthetic
+reached last shift, this one does, because it puts the depth past the
+guard where the corpus puts it.
+
+The remaining wall is the record field the model body reads -
+`state.h` where `state` is a `ThermodynamicState` the medium redeclared
+whole - and it is the last one between these media and a run. The
+parameter barrier that named this queue is closed.

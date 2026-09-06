@@ -253,6 +253,82 @@ pub(super) fn array_length(expr: &Expr, axis: usize) -> Option<i64> {
     (length.fract() == 0.0 && length >= 0.0).then_some(length as i64)
 }
 
+/// A class constant whose value could not be reduced to a number,
+/// handed back as its binding with the sibling constants folded in.
+///
+/// A medium's `h_default = specificEnthalpy_pTX(p_default, T_default,
+/// X_default)` has a body that iterates, so the constant road cannot
+/// make a number of it. While a parameter is being settled, though,
+/// there is a run behind the value that can walk the call - so it is
+/// handed the binding, with `p_default`/`T_default` folded to their
+/// numbers, rather than a bare name nothing declares. The arguments
+/// are folded here because the call reaches the parameter under a scope
+/// where the medium's own constants are out of view.
+fn class_constant_binding_at(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    let (class_path, member) = name.rsplit_once('.')?;
+    let class = lookup(registry, class_path, scope, imports)?;
+    let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
+    gather_package_constants(registry, class, 0, &mut constants);
+    let binding = constants
+        .iter()
+        .find(|(n, _)| n == member)
+        .and_then(|(_, binding)| binding.clone())?;
+    // Only a call is worth handing on: a name or a number the ordinary
+    // roads already answered, and anything else this pass has no
+    // environment to make sense of.
+    if !matches!(binding, Expr::Call(..)) {
+        return None;
+    }
+    // The sibling constants the round did settle, as numbers to fold
+    // into the call's arguments, the same way [`class_constant_at`]
+    // does before it walks a body. Left as names the arguments reach
+    // the run bare and it cannot evaluate them.
+    let settled_numbers: HashMap<String, Expr> = {
+        let mut values: HashMap<String, f64> = HashMap::new();
+        loop {
+            let mut progress = false;
+            for (other, other_binding) in &constants {
+                if values.contains_key(other) {
+                    continue;
+                }
+                if let Some(value) = other_binding.as_ref().and_then(|expr| {
+                    const_eval(expr, &values)
+                        .or_else(|| measured_constant(expr, &constants, &values))
+                }) {
+                    values.insert(other.clone(), value);
+                    progress = true;
+                }
+            }
+            if !progress {
+                break;
+            }
+        }
+        values
+            .into_iter()
+            .map(|(n, v)| (n, Expr::Number(v)))
+            .collect()
+    };
+    let binding = substitute_refs(&binding, &settled_numbers);
+    Some(substitute_at(
+        &binding,
+        registry,
+        &class.name,
+        &class.imports,
+        &[],
+        depth + 1,
+        true,
+    ))
+}
+
 /// A class constant that is an array rather than a number: the
 /// multibody world states its axis colours as `Types.Defaults
 /// .FrameColor`, a constant vector of three, and a name that comes to
@@ -559,6 +635,25 @@ fn substitute_at(
                 }
                 Some(value) => Expr::Number(value),
                 None => class_constant_array_at(registry, name, scope, imports, depth)
+                    .or_else(|| {
+                        // A constant whose value the arithmetic could
+                        // not reduce to a number - a medium's
+                        // `h_default = specificEnthalpy_pTX(p, T, X)`,
+                        // whose body iterates - is left as its binding
+                        // with the arguments folded in, but only while a
+                        // parameter is being settled. There the run
+                        // behind the value can walk what stands; carried
+                        // as a bare name it is refused. The constant's
+                        // own path could not fold it, but a parameter's
+                        // does the deeper walk, so the call is handed to
+                        // it rather than the name.
+                        SETTLING_PARAMETER
+                            .with(|on| on.get())
+                            .then(|| {
+                                class_constant_binding_at(registry, name, scope, imports, depth)
+                            })
+                            .flatten()
+                    })
                     .unwrap_or_else(|| expr.clone()),
             }
         }

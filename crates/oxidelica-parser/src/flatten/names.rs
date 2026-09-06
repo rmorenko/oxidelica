@@ -638,6 +638,20 @@ pub(super) fn resolve(
         // stay symbolic so they remain tunable.
         Expr::Ref(name) => match loop_vars.get(name) {
             Some(value) => Expr::Number(*value),
+            // A dotted name that is a constant of a class, folded to its
+            // value while a parameter is being settled (see ANALYSIS:
+            // the third C-fluid wall). `iter.delp` handed to a media
+            // iteration is a bare name the while cannot settle; gated on
+            // the parameter mark so an equation's constant keeps its
+            // unit.
+            None if name.contains('.')
+                && super::constants::SETTLING_PARAMETER.with(|on| on.get()) =>
+            {
+                match super::constants::class_constant_at(registry, name, scope, imports, 0) {
+                    Some(value) => Expr::Number(value),
+                    None => expr.clone(),
+                }
+            }
             None => expr.clone(),
         },
         Expr::Call(name, args) => {
