@@ -4488,3 +4488,48 @@ finding it needs corpus-direct instrumentation of where a bare
 next shift's first probe, and it is the last wall between the media
 constant and a number: two of the three deep walls now fold, and this
 one is a mis-qualified name, not a depth or a record-build.
+
+## C-fluid, the third wall traced: resolve does not fold a dotted constant
+
+The wall pinned last commit was traced to its mechanism this shift, and
+a fix was built, measured clean on the whole library, and reverted for
+having no automated guard - the same discipline the depth fold taught,
+one turn later.
+
+`iter.delp` fails because `resolve` - the pass that works out the
+arguments a call was written with - does not fold a dotted name that is
+a constant of a class. Its `Ref` arm folds a loop variable and leaves
+everything else the name it was (names.rs). A media function is handed
+`delp = iter.delp`, and left a bare name it travels into the run where
+the `while` that reads it cannot settle its trip count.
+
+The fix is four lines in that arm: a dotted name that `class_constant_at`
+answers is folded to its value, gated on `SETTLING_PARAMETER` so a
+constant read in an equation keeps its name and its unit still checks -
+ungated it broke two unit tests, the same parameter-versus-equation
+split the depth fold turns on. Measured: the corpus `airBaseProp_pT`,
+`specificEnthalpy_pTX`, and `dofpT` all fold red-to-green
+(`airBaseProp_pT(100000, 293)` gives rho 1.189, `specificEnthalpy_pTX`
+gives 19974), 819 flatten and 363 run unchanged, no shuffle, ten suites
+green.
+
+Why it was reverted: no automated guard. Every synthetic of the shape -
+an alias in a parent package, its constant handed as a named argument to
+a while-function threaded through a child package - folds `iter.delp` in
+an earlier pass and never reaches `resolve` at all, so the fix never
+fires on them and cannot be the thing they test. Instrumentation shows
+why: in the corpus the name reaches `resolve` under
+`airBaseProp_pT`'s scope, while in every synthetic it is folded by
+`substitute_at` first. The difference is depth - the corpus body is
+worked out far enough down that the constant pass has been bypassed and
+the argument falls to `resolve` - and reproducing that hermetically
+compounds with the depth guard the previous fix already turns on.
+
+So the fix is real and measured clean, but it moves no full model on its
+own (the redeclared-record wall is still ahead) and nothing automated
+would catch it rotting, because the models it helps do not flatten yet.
+The next shift lands it one of two ways: find the depth-routed repro
+that sends `iter.delp` through `resolve` in twenty lines, or land it
+together with the redeclare fix so a media model flattens and becomes
+the guard. The mechanism is now known to the line; what is missing is
+the test, not the understanding.
