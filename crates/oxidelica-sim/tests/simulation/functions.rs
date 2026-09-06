@@ -1050,3 +1050,76 @@ fn a_walked_body_answers_with_a_record_of_si_typed_fields() {
         result.rows[0][h]
     );
 }
+
+#[test]
+fn a_walked_body_reads_a_constant_array_by_index() {
+    // A body that cannot be inlined - its `for` runs to an input-given
+    // bound - reads a constant array declared with its numbers,
+    // `constant Real[5] w = {10, 20, 30, 40, 50}`, subscripted by the
+    // loop. This is the shape of every polynomial the media walk over -
+    // ReferenceAir's `Helmholtz` sums thirteen `N_0[k]` and nineteen
+    // `N[k]`. The walk laid such an array out at its length but filled
+    // the elements with the zero of a placeholder, dropping the binding,
+    // so every `w[k]` read nothing and the sum came to nothing. The
+    // binding is now laid into the elements.
+    let source = "package G \
+        function weightedSum input Real x; input Integer n; output Real y; \
+        protected constant Real[5] w = {10, 20, 30, 40, 50}; \
+        algorithm y := 0; \
+          for k in 1:n loop y := y + w[k] * x; end for; end weightedSum; \
+        model M Real y; Real z(start=0, fixed=true); Integer n; \
+        equation n = 3; y = weightedSum(2.0, n); der(z) = y - z; \
+          annotation(experiment(StopTime=1)); end M; \
+      end G;";
+    let result = run(source);
+    // (10 + 20 + 30) * 2 = 120.
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    assert!(
+        (result.rows[0][y] - 120.0).abs() < 0.01,
+        "y = {}",
+        result.rows[0][y]
+    );
+}
+
+#[test]
+fn a_walked_body_assigns_a_record_answered_by_a_call_inside_a_loop() {
+    // A Newton solve of the shape the media iterate their density by:
+    // inside a `while`, a whole record is assigned from a call -
+    // `r := helm(d)`, where `helm` answers with a `Derivs` the walk
+    // holds as an array of its fields, built from a constant array - and
+    // the record's fields are read back to take the next step. This is
+    // ReferenceAir's `dofpT`, whose `while` runs `f := Basic.Helmholtz(d,
+    // T)` and reads `f`'s fields through `Helmholtz_pT(f)`. The walk had
+    // no way to spread a call's whole-record answer over the elements, so
+    // `r` stayed a single unknown and the fields it should hold were
+    // never written. Walking the call and laying its answer out by
+    // element - and passing a whole record on as an argument - lets the
+    // iteration run.
+    let source = "package G \
+        record Derivs Real val; Real slope; end Derivs; \
+        function helm input Real d; output Derivs r; \
+        protected constant Real[3] c = {2, 3, 4}; \
+        algorithm r.val := 0; r.slope := 0; \
+          for k in 1:3 loop r.val := r.val + c[k]*d; r.slope := r.slope + c[k]; end for; \
+        end helm; \
+        function solve input Real p; input Integer maxit; output Real d; \
+        protected Derivs r; Integer i; Boolean found; \
+        algorithm d := p; i := 0; found := false; \
+          while (i < maxit) and not found loop \
+            r := helm(d); \
+            if abs(r.val - p) < 0.001 then found := true; \
+            else d := d - (r.val - p)/r.slope; end if; \
+            i := i + 1; end while; end solve; \
+        model M Real d; Real z(start=0, fixed=true); Integer maxit; \
+        equation maxit = 50; d = solve(90, maxit); der(z) = d - z; \
+          annotation(experiment(StopTime=1)); end M; \
+      end G;";
+    let result = run(source);
+    // helm sums c[k]*d = 9*d; the solve settles 9*d = 90, so d = 10.
+    let d = result.columns.iter().position(|c| c == "d").unwrap();
+    assert!(
+        (result.rows[0][d] - 10.0).abs() < 0.01,
+        "d = {}",
+        result.rows[0][d]
+    );
+}

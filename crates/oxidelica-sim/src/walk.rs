@@ -134,13 +134,31 @@ pub(crate) fn walk(
             continue;
         }
         // A declaration of its own length is one the body may read
-        // before it writes, so it is laid out before anything runs.
+        // before it writes, so it is laid out before anything runs. A
+        // constant or a start-valued array carries its numbers in a
+        // binding - `constant Real[13] N_0 = {...}`, the coefficients of
+        // the media's Helmholtz polynomial - and those are laid into the
+        // elements here; without them each `N_0[k]` reads the zero the
+        // placeholder left and the whole sum comes to nothing.
         if let Some(length) = declared_length(component, &frame) {
             frame.lengths.insert(component.name.clone(), length);
+            let laid = component
+                .binding
+                .as_ref()
+                .or(component.start.as_ref())
+                .map(|expr| elements_of(expr, &frame, programs, time, depth))
+                .transpose()?
+                .flatten();
             for index in 1..=length {
+                let worth = match &laid {
+                    Some(items) if items.len() == length => {
+                        number_of(&items[index - 1], &frame, programs, time, depth)?
+                    }
+                    _ => 0.0,
+                };
                 frame
                     .numbers
-                    .insert(format!("{}[{index}]", component.name), 0.0);
+                    .insert(format!("{}[{index}]", component.name), worth);
             }
             continue;
         }
@@ -381,6 +399,47 @@ fn elements_of(
                 .map(|item| to_scalar(item, frame, programs, time, depth))
                 .collect::<Result<Vec<_>, SimError>>()?,
         ),
+        // A whole record answered by a call - `f := Basic.Helmholtz(d,
+        // T)`, where `f` is a `HelmholtzDerivs` the walk holds as an
+        // array of its fields, or `nDerivs := Helmholtz_pT(f)`, which
+        // passes that record on and answers with another. The body is
+        // walked and every number it answers with becomes an element, so
+        // the assignment lands on `f[1]`, `f[2]`, and the rest, the same
+        // as a written-out array. An argument that is itself a record or
+        // an array is sent as its elements, under the shape the callee
+        // reads it by.
+        Expr::Call(name, args) if programs.contains_key(name) => {
+            let mut given = Vec::new();
+            let mut shapes = Vec::new();
+            for arg in args {
+                match arg {
+                    Expr::Ref(inner) if frame.lengths.contains_key(inner) => {
+                        let length = frame.lengths[inner];
+                        for index in 1..=length {
+                            given.push(number_of(
+                                &Expr::Ref(format!("{inner}[{index}]")),
+                                frame,
+                                programs,
+                                time,
+                                depth,
+                            )?);
+                        }
+                        shapes.push(vec![length]);
+                    }
+                    _ => {
+                        given.push(number_of(arg, frame, programs, time, depth)?);
+                        shapes.push(Vec::new());
+                    }
+                }
+            }
+            let answer = walk(programs, name, &given, &shapes, time, depth + 1)?;
+            // A body that answers with one number is a scalar call, and
+            // it stays one here: turning it into a one-element array
+            // would upset a scalar product or an elementwise operation
+            // that asked this of it. Only a genuine list - a record's
+            // fields, an array output - is spread.
+            (answer.len() > 1).then(|| answer.into_iter().map(Expr::Number).collect())
+        }
         // `v .* i` and its like: one operation per element. One side
         // may be a single number, which then goes with every element.
         Expr::Elementwise(op, a, b) => {
