@@ -4675,3 +4675,32 @@ not reach the array it sizes.
 
 The media are four walls into their bodies, each cleared with a guard
 and no model lost, and this is the fifth, named and small.
+
+## C-fluid, the fifth wall was an assert: an index in a loop check
+
+The array wall named last commit was not the array itself but a check
+over it. `X[nX]` expands fine; what stood was `X[i]` inside an assert.
+
+The media guard their mass fractions with `for i in 1:nX loop
+assert(X[i] >= 0 and X[i] <= 1, ...) end for`. The loop unroll folds
+the loop variable into an equation's sides and sends them through the
+array layer, so `X[i]` becomes `X[1]` - but the assert branch of the
+same unroll folded the variable and stopped, never expanding the
+condition. So `X[1]` stayed an index into the whole `X`, reached the
+run, and the model was refused for a subscript that survived
+flattening. The fix expands the assert condition the same way the
+equation is expanded, one round's `X[i]` becoming that round's element.
+
+Measured against MSL 4.1.0: DryAir1 clears the subscript wall and now
+reaches its equations - it stops at `algebraic loop diverged`, a
+numerical failure in the solve rather than a barrier in the flattener,
+which means the model is being simulated. Floors unchanged (819/363, no
+shuffle, ten suites green) on a core loop-unrolling path. Guarded by a
+flattening test that asserts the check reads `X[1]`, refused on the
+parent, and the small model it came from.
+
+Five walls into the media bodies, and DryAir1 is now in its own
+equations: the parameter, the state record, the empty mass fraction,
+the array expansion, and the check over it. What is left is a numeric
+one - an algebraic loop that needs a start the media do not give - and
+that is a different kind of work from clearing a barrier.

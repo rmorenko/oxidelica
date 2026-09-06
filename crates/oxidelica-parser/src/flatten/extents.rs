@@ -547,11 +547,33 @@ pub(super) fn unroll(
                     }
                 }
                 ForBody::Assert(condition, message) => {
+                    let shapes = Shapes {
+                        sizes,
+                        loop_vars: &loop_vars,
+                        consts,
+                        records,
+                    };
                     let condition = substitute_refs(condition, &folded);
                     let condition =
                         substitute_class_constants(&condition, registry, scope, imports, &[]);
-                    acc.asserts
-                        .push((prefix_expr(&condition, prefix, outers), message.clone()));
+                    // Through the array layer, the same as an equation
+                    // of the round: a `for i in 1:nX loop assert(X[i]
+                    // >= 0 ...)` names `X[i]`, and once `i` is this
+                    // round's number the subscript is an element name -
+                    // `X[1]` - not an index into a whole the run cannot
+                    // take. Left unexpanded the index reaches the run
+                    // and the model is refused for a subscript that
+                    // survived flattening.
+                    let condition = expand(
+                        &prefix_expr(&condition, prefix, outers),
+                        &shapes,
+                        registry,
+                        scope,
+                        imports,
+                        0,
+                    )?
+                    .into_expr();
+                    acc.asserts.push((condition, message.clone()));
                 }
             }
         }

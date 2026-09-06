@@ -1638,7 +1638,11 @@ fn a_call_may_stand_among_the_equations() {
     .expect("a check inside a loop");
     assert_eq!(m.asserts.len(), 3);
     let rounds = format!("{:?}", m.asserts);
-    assert!(rounds.contains("Number(3.0)"), "{rounds}");
+    // The loop variable is folded in and the subscript resolved to the
+    // element's own name, the same as an equation of the round: the
+    // third check reads `k[3]`, not an index into the whole `k` the run
+    // cannot take.
+    assert!(rounds.contains("Ref(\"k[3]\")"), "{rounds}");
 
     // A call may stand among the initial equations too, and a `for i
     // loop` may read its range off the check inside it.
@@ -3269,4 +3273,26 @@ fn a_call_in_a_modifier_keeps_its_import() {
     // scope that never imported it.
     let text = format!("{:?}", m.equations);
     assert!(!text.contains("Call(\"to_unit1\""), "{text}");
+}
+
+#[test]
+fn an_assert_in_a_for_loop_resolves_its_element() {
+    // A `for i in 1:n loop assert(X[i] >= 0, ...) end for` - the shape
+    // the media write to guard their mass fractions - must resolve
+    // `X[i]` to the element's own name when the loop unrolls, the same
+    // as an equation of the round. Left an index into the whole `X`, it
+    // reaches the run as a subscript that survived flattening.
+    let m = parse_model(
+        "model M parameter Integer n = 1; Real[n] X; \
+         equation X[1] = 1; \
+         for i in 1:n loop assert(X[i] >= 0, \"X out of range\"); end for; \
+         annotation(experiment(StopTime = 1)); end M;",
+    )
+    .expect("flattens");
+    assert_eq!(m.asserts.len(), 1);
+    let shown = format!("{:?}", m.asserts[0].0);
+    assert!(
+        shown.contains("Ref(\"X[1]\")"),
+        "the assert should read the element `X[1]`, got {shown}"
+    );
 }
