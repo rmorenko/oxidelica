@@ -4746,3 +4746,37 @@ first of the media to run - the first the run count has moved for since
 this queue was named. The barrier is numeric; its cause is a type
 resolved under the wrong scope, the third face of a family already
 twice cured.
+
+## C-fluid, the numeric wall probed deeper: not one pressure but three
+
+The pressure-at-zero diagnosis was probed with a fix this shift, and the
+fix taught the wall is wider than one start. Recorded so the next shift
+does not repeat the half-measure.
+
+The algebraic loop's Newton takes its guess from `algebraic_start`,
+built from each variable's `start` attribute. An initial equation says
+more: `volume.medium.p = volume.p_start` starts that pressure at a
+hundred kilopascal. Feeding the initial equations that fold with the
+parameters into the guess gave `volume.medium.p` its 101325 and
+`volume.medium.T` its 293.15 - measured, they arrive.
+
+But the loop still diverged, and the reason is the other two mediums.
+`ambient.medium.p` and `fixedMassFlowRate.medium.p` have no initial
+equation of their own - they are pure algebraic variables the
+connection sets equal to the volume's - so nothing seeds them and they
+start at zero. The medium's density solved at zero pressure runs away
+before the outer Newton can make the three pressures agree. The
+initial-equation guess is right and not enough: it seeds the ports that
+state their own start and leaves the ones that inherit it through a
+connection at zero.
+
+So the complete fix seeds every medium pressure, not just the ones with
+an initial equation - from the medium's `p_default`, the constant every
+medium carries for exactly this, or by propagating a connected set's
+guess from the member that has one. The former is the media's own answer
+to "what pressure to start at" and reaches every port; the latter is
+general but needs the connection sets in view where the guess is built.
+The next shift picks one, with DryAir1 the measure: three pressures
+seeded, the loop converges, and the first media model runs. The fix
+tried this shift - initial equations into the guess - was reverted for
+seeding only one of the three and moving no model.
