@@ -4450,3 +4450,41 @@ So the shift ships the gated fold - guarded, measured, no regression -
 and the C-fluid chain now folds two of its three deep walls (the record
 constant field, the deep numeric parameter). The third is a record-alias
 field read in a nested body, and it is where the next shift starts.
+
+## C-fluid, the third wall pinned: a record-alias constant mis-qualified
+
+With the deep numeric parameter folding (previous commit), the media
+chain's last wall is a single unresolved name, and this shift pinned it
+exactly without yet fixing it - because no small model reproduces it and
+chasing it blind is how the depth fold cost six models.
+
+The air density iteration `dofpT` now folds standalone. Inside the
+corpus it is called by `airBaseProp_pT` as
+`Inverses.dofpT(p=p, T=T, delp=iter.delp)`, and `iter.delp` is the one
+name the while condition cannot settle. `iter` is a record-class alias -
+`record iter = Inverses.accuracy` - declared in `Air_Utilities`;
+`accuracy` holds `constant Real delp = 1E-1`. Reading the value two
+ways proves the chain is otherwise whole: `...Air_Utilities.iter.delp`
+folds to 0.1, `...Inverses.accuracy.delp` folds to 0.1, and
+`dofpT(100000, 293, ...Air_Utilities.iter.delp)` with the field passed
+by its full path folds to 1.189. Only the bare `iter.delp` written
+inside `airBaseProp_pT` does not.
+
+The refusal names it `...Air_Utilities.Inverses.iter.delp` - and there
+is no `iter` in `Inverses`; the alias is one level up, in
+`Air_Utilities`. So the fault is a name qualified wrong: `iter.delp`
+written in a body of `Air_Utilities` and worked out while that body is
+inlined is being qualified against `Inverses`, the package the call it
+sits in belongs to, rather than climbing to `Air_Utilities` where the
+alias is declared. Resolved by full path it folds; resolved bare in the
+inline it lands on a package that has no such name.
+
+No small model reproduces it: every synthetic with the same shape - an
+alias in a parent package, its constant read bare from a body that a
+child package's call is threaded through - climbs correctly and folds.
+The corpus differs in some detail the synthetics do not yet carry, and
+finding it needs corpus-direct instrumentation of where a bare
+`iter.delp` is qualified during inline, not another guess. That is the
+next shift's first probe, and it is the last wall between the media
+constant and a number: two of the three deep walls now fold, and this
+one is a mis-qualified name, not a depth or a record-build.
