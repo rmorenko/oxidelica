@@ -1123,3 +1123,53 @@ fn a_walked_body_assigns_a_record_answered_by_a_call_inside_a_loop() {
         result.rows[0][d]
     );
 }
+
+#[test]
+fn a_record_constant_written_by_modifiers_is_read_through_an_extends() {
+    // `constant FluidConstants[1] waterConstants(each molarMass = ...)`
+    // is how the standard library states a medium's fluid data: a
+    // record constant with no binding at all, every field given by a
+    // modifier of the declaration. A medium then reaches it through an
+    // `extends` of its interface - `extends PartialMedium(fluidConstants
+    // = waterConstants)` - where the name belongs to the package the
+    // medium is written inside rather than to any base of it.
+    //
+    // Both halves were missing. The gathering asked only for a binding,
+    // so the declaration's modifiers were dropped and the constant was
+    // carried with no value; and the hop from the `extends` modifier to
+    // the named constant looked only in the gathered basket, which
+    // holds bases and not parents. `fluidConstants[1].molarMass` reached
+    // the flat model as a name nothing declares, and eighteen models of
+    // Media and Fluid stood on exactly that.
+    //
+    // Checked as a number rather than as a flattening: the molar mass
+    // has to arrive, not merely resolve.
+    let source = "package Outer \
+        record FluidConstants Real molarMass; Real criticalPressure; end FluidConstants; \
+        constant FluidConstants[1] waterConstants( \
+          each molarMass = 0.018015268, each criticalPressure = 22064000.0); \
+        package Interfaces \
+          constant Integer nS = 1; \
+          constant Outer.FluidConstants[nS] fluidConstants; \
+          model BaseProperties Real MM; \
+          equation MM = fluidConstants[1].molarMass; end BaseProperties; \
+        end Interfaces; \
+        package Water \
+          extends Outer.Interfaces(fluidConstants = waterConstants); \
+        end Water; \
+        model M Water.BaseProperties medium; Real z(start = 0, fixed = true); \
+        equation der(z) = medium.MM; \
+          annotation(experiment(StopTime = 1)); end M; \
+      end Outer;";
+    let result = run(source);
+    let mm = result
+        .columns
+        .iter()
+        .position(|c| c == "medium.MM")
+        .unwrap();
+    assert!(
+        (result.rows[0][mm] - 0.018015268).abs() < 1e-9,
+        "medium.MM = {}",
+        result.rows[0][mm]
+    );
+}

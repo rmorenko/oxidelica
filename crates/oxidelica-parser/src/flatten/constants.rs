@@ -445,7 +445,8 @@ fn gather_package_constants<'a>(
             let binding = component
                 .binding
                 .clone()
-                .or_else(|| component.start.clone());
+                .or_else(|| component.start.clone())
+                .or_else(|| written_by_modifiers(registry, class, component));
             // A declaration of this level outranks what this level's
             // own `extends` said - but only where it says something.
             // `constant SpecificEnthalpy reference_h` in a medium's
@@ -488,6 +489,68 @@ fn gather_package_constants<'a>(
         }
     }
 }
+
+/// A record constant whose value is written on the declaration rather
+/// than after an `=`, read back as the constructor call it describes.
+///
+/// `constant FluidConstants[1] waterConstants(each molarMass = 0.018,
+/// ...)` is how the standard library states a medium's fluid data: a
+/// record component with `constant` variability and no binding at all,
+/// every field set by a modifier of the declaration. The gathering
+/// asked only for a binding, found none, and carried the name with no
+/// value - so `fluidConstants[1].molarMass` reached the flat model as
+/// a name nothing declares. Eighteen media models stood on that.
+///
+/// The modifiers are turned into the constructor the record would have
+/// been written with, so that every road that already reads a record
+/// value - the field reader, the array builder - finds what it knows
+/// how to read. A field named through a dot (`state.p = ...`) is left
+/// alone: it modifies a field's own attribute rather than giving the
+/// field a value, and guessing at one is worse than carrying none.
+///
+/// An array declaration is answered with one element per position, all
+/// of them the same call. That is what `each` means, and it is the
+/// only form the corpus writes: a record array whose elements differ
+/// is given a binding instead, which the caller preferred already.
+fn written_by_modifiers(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    component: &Component,
+) -> Option<Expr> {
+    if component.modifiers.is_empty() {
+        return None;
+    }
+    let record = lookup(registry, &component.type_name, &class.name, &class.imports)
+        .filter(|of| of.kind == ClassKind::Record)?;
+    let fields: Vec<Expr> = component
+        .modifiers
+        .iter()
+        .filter(|(name, _)| !name.contains('.'))
+        .map(|(name, value)| Expr::NamedArg(name.clone(), Box::new(value.clone())))
+        .collect();
+    if fields.is_empty() {
+        return None;
+    }
+    let built = Expr::Call(record.name.clone(), fields);
+    // A scalar is the call itself; an array is that call at each of
+    // its positions. A length this pass cannot see is no answer at
+    // all - better the name it carried than an array of a guessed size.
+    match component.dimensions.as_slice() {
+        [] => Some(built),
+        [length] => {
+            let length = const_eval(length, &HashMap::new())?;
+            (length.fract() == 0.0 && (0.0..=MAX_WRITTEN_ELEMENTS).contains(&length))
+                .then(|| Expr::Array(vec![built; length as usize]))
+        }
+        _ => None,
+    }
+}
+
+/// How long a record array written by modifiers may be before this
+/// pass leaves it alone. The declarations that need this are a fluid's
+/// constants, which the library writes one or two of; a longer one is
+/// a value better carried than copied.
+const MAX_WRITTEN_ELEMENTS: f64 = 64.0;
 
 /// A constant's value in the shape its declaration gave it.
 ///
@@ -930,11 +993,21 @@ fn constant_array_of_package(
     // and the gate below judges whatever it finds. One hop,
     // not a loop: the corpus writes exactly one, and a
     // chain of two stays refused until a model shows one.
+    //
+    // The hop may land outside the basket. A medium is written
+    // `extends PartialTwoPhaseMedium(fluidConstants = waterConstants)`
+    // and `waterConstants` is a constant of `Modelica.Media.Water`, the
+    // package the medium is written inside rather than one it extends -
+    // so the gathering, which walks bases and not parents, does not
+    // hold it. Read only when the basket has no answer, and only for a
+    // bare name, so the dear walk is not paid for by the bindings that
+    // settle here.
     let binding = match &binding {
         Expr::Ref(other) => constants
             .iter()
             .find(|(known, _)| known == other)
             .and_then(|(_, held)| held.clone())
+            .or_else(|| enclosing_constant_array(registry, other, &owner.name, depth + 1))
             .unwrap_or(binding),
         _ => binding,
     };
