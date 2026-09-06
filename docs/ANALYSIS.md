@@ -4814,3 +4814,98 @@ that takes DryAir1 the last step chooses among those, and it is a
 different kind of shift from the seven that cleared its flattener walls.
 The barrier is named truly now: a loop over a black box, and the guess
 was a red herring the measurement caught.
+
+## The register at 819/367, and the largest name in it
+
+A census taken before any code, both halves from one pipe, so that the
+work of the shift was chosen by the ranking rather than by interest.
+The rows are added by meaning first, because the counter splits a
+family by its wording: the run half's kinds come to 452 refusals over
+452 models, and the families behind them are
+
+| family                      | models |
+| --------------------------- | -----: |
+| unbalanced model            |    167 |
+| a parameter without a value |    114 |
+| singular, of both kinds     |     46 |
+| unknown variable            |     37 |
+| an algebraic loop           |     34 |
+
+The parameter row is two wordings of one illness - `cannot evaluate
+parameters` at 52 and `parameter X has no value` at 62 - and read as
+separate rows it would have ranked below the loops. The singular row
+is the same trick: 33 structurally singular and 11 with a singular
+Jacobian, which are not one cause but are one question.
+
+None of those is where this shift went, and the reason is worth
+keeping. A row is a wall and not a family, so the rows were probed
+before one was chosen, and the probe found something the ranking hides:
+inside `unknown variable`, 37 models over fourteen distinct names, one
+name carries eighteen. `fluidConstants[1].molarMass` is the largest
+single cause in the run half of the register - larger than any
+unbalanced figure, which scatter across chapters - and it sat in a row
+ranked fourth.
+
+The lesson is the one already written about counting kinds, seen from
+inside a row rather than across two: the count of kinds is a lower
+bound on the families, and a single row may hold one enormous cause and
+thirteen singles. Ranking chose the wrong work here; ranking plus a
+probe of the row's contents chose the right one.
+
+## What eighteen models stood on: a value written on the declaration
+
+The name resolved nowhere because the value was never gathered. A
+medium's fluid data is written
+
+```modelica
+constant FluidConstants[1] waterConstants(
+  each molarMass = 0.018015268, each criticalPressure = 22064.0e3, ...);
+```
+
+which is a record constant with no binding at all - every field given
+by a modifier of the declaration - and it is reached from the medium
+through `extends PartialTwoPhaseMedium(fluidConstants = waterConstants)`,
+where the name belongs to `Modelica.Media.Water`, the package the medium
+is written _inside_ rather than one it extends.
+
+Two independent gaps, either alone enough to lose the number. The
+gathering asked a component only for its binding, so a declaration
+saying everything through modifiers was carried with no value; and the
+hop from an `extends` modifier to the constant it names read only the
+gathered basket, which walks bases and never parents. Both are fixed:
+a record constant reads as the constructor its modifiers describe, and
+the hop falls back to the enclosing packages.
+
+Shrinking the real model rather than growing a synthetic one is what
+found the second gap. The first synthetic model - a record constant
+with modifiers, read through an `extends` - passed with only half the
+fix in place, because the constant and its reader sat in the same
+package. Only when the constant was moved to the parent, which is where
+the library actually puts it, did the model go red again. A synthetic
+model tests the layer you imagined, and the parent-package hop was not
+it.
+
+Measured on one binary, before and after: 819 flatten and 367 run
+either way, the run and flatten lists identical line for line. All
+eighteen models cleared the wall and stopped at five different ones -
+`h_default` unresolved, `inStream` unknown, an unbalanced count, a
+`bpro` subscript, a differentiation that will not go through. So this
+is an entry emptied rather than a count moved, and the eighteen are
+five families now, not one. The next shift that wants them should
+probe those five before ranking them, on the evidence just above.
+
+## The diverged loops are five families, not one
+
+`algebraic loop diverged` counts 18 and reads as a single wall. Probed,
+it is five, and the two the media queue cares about are the smallest
+part of it: DryAir1 and DryAir2 are 2 models, and the black box behind
+them is the one already diagnosed. Six are FluidHeatFlow, whose
+`TwoPort` writes `flowPort.H_flow = semiLinear(m_flow, h_a, h_b)` and
+whose loops are over that zero-slope meeting point; five are Rotational
+friction, diverging on `clutch.tau` and `brake.tau`; three are
+Electrical and one Magnetic.
+
+Recorded because the media queue was about to take DryAir1 on the
+strength of the row: two models is not a shift's work, and the
+`semiLinear` six are a different and larger cause wearing the same
+words.
