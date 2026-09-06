@@ -122,16 +122,24 @@ if [ "$quick" -eq 0 ]; then
   # commit here that went red there was a formatter this script never
   # ran: the same versions the workflow names, so what passes here
   # passes there.
-  optional_step "Markdown, JSON and YAML" npx \
-    npx --yes prettier@3.9.6 --check "**/*.{md,json,yaml,yml}" --log-level warn
   # The same files CI lints, which is the ones git tracks: the running
   # note left for fable is ignored by git and is a journal rather than
   # a document - one heading per round, the same headings every round -
   # so linting it here made the preflight red for something CI never
   # sees, and a check that is always red is a check nobody runs.
+  # A library fetched to be measured against is the same case from the
+  # other end. `.msl/` is the standard library, git-ignored and written
+  # by somebody else, and its release notes carry a thousand duplicate
+  # headings: a desk that had run `library check` went red on prose no
+  # commit here can mend, while CI - which has no such directory when
+  # it lints - stayed green. Whatever the check ignores it ignores in
+  # both halves, or the two verdicts are not the same verdict.
+  optional_step "Markdown, JSON and YAML" npx \
+    npx --yes prettier@3.9.6 --check "**/*.{md,json,yaml,yml}" --log-level warn \
+    --ignore-path .gitignore
   optional_step "Markdown style" npx \
-    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target" "!QUESTION_FOR_FABLE.md" \
-    "!QUESTION_FOR_FABLE_ARCHIVE.md"
+    npx --yes markdownlint-cli2@0.23.2 "**/*.md" "!target" "!.msl" \
+    "!QUESTION_FOR_FABLE.md" "!QUESTION_FOR_FABLE_ARCHIVE.md"
   step "No Cyrillic outside the files that may hold it" python3 scripts/check_cyrillic.py
   optional_step "Unused dependencies" cargo-machete cargo machete
   step "Documentation builds, and every public item has some" \
