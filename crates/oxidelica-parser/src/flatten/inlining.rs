@@ -602,6 +602,30 @@ thread_local! {
     static INLINED: std::cell::RefCell<HashMap<String, Remembered>> =
         std::cell::RefCell::new(HashMap::new());
     static REMEMBERING: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    // The bodies whose folding is under way right now, keyed without
+    // the depth. A body written in a base and folded under the name it
+    // was reached by - `enthalpy_pT` folded under a medium - resolves
+    // an input that is a constant of that medium, and settling that
+    // constant walks the medium's whole basket, `h_default` among them,
+    // which is this same body again. The cache above misses it because
+    // its key carries the depth and the second asking is one deeper.
+    // This does not: the same class asked the same thing under the same
+    // name, already on the stack, is a circle rather than a nesting,
+    // and the call is left standing so the run walks it once instead of
+    // the fold going round for ever.
+    static FOLDING: RefCell<std::collections::HashSet<String>> =
+        RefCell::new(std::collections::HashSet::new());
+}
+
+/// A body marked as folding while this stands, unmarked when it falls.
+struct Folding(String);
+
+impl Drop for Folding {
+    fn drop(&mut self) {
+        FOLDING.with(|held| {
+            held.borrow_mut().remove(&self.0);
+        });
+    }
 }
 
 /// Remember what bodies come to while this stands, and forget it when
@@ -1009,6 +1033,18 @@ fn inline_body(
         checks.extend(said);
         return Ok(outputs);
     }
+    // The same, without the depth: a body already folding when it is
+    // reached again is a circle, not a nesting, and the depth-keyed
+    // cache above cannot see it. Left standing here, the run walks it
+    // once. A body that truly recurses - the m-phase winding halving
+    // its phase count - hands different arguments each turn, so its key
+    // moves and it is not caught.
+    let circle = format!("{}|{under}|{folded:?}|{args:?}|{shapes:?}", class.name);
+    if FOLDING.with(|held| held.borrow().contains(&circle)) {
+        return Err(format!("`{}` {NO_BOTTOM}", class.name));
+    }
+    FOLDING.with(|held| held.borrow_mut().insert(circle.clone()));
+    let _folding = Folding(circle);
     let mut said = Vec::new();
     let answer = worked_body(class, args, shapes, consts, registry, depth, &mut said);
     let told: Remembered = match &answer {
