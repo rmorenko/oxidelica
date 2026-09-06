@@ -4620,3 +4620,30 @@ The media are being walked into their bodies now, one wall at a time:
 the parameter that named the queue, then the state record it reads,
 then the mass fractions. Each is a kind cleared and a barrier named,
 and none has cost a model yet.
+
+## C-fluid, the empty mass fraction: a zero-length connector field
+
+The state record filled, DryAir1 stopped at `unknown variable
+shortPipe.port_b.Xi`. The fluid port carries `Xi[nXi]`, the independent
+mass fractions, and dry air is one substance with `nXi = 0` - so the
+port has no `Xi`, and the connection that would equate it names a
+variable nothing declares.
+
+The potential equalities a connection writes are one per member of the
+connector, and a member with dimensions is written whole rather than
+element by element. `Xi[0]` has a dimension, so it was written whole as
+`port_b.Xi = port.Xi` - and a zero-length array is no scalar the flat
+model carries. The fix skips a member the flat model does not have,
+neither as a scalar nor as any element, the same test the unconnected
+flow of a set of one already makes before it forces a name to zero.
+
+Measured: the `unknown variable` barrier from 31 to 20 across the two
+record fixes, and DryAir1 advances again - now to `subscripts and
+arrays survive flattening only as scalars`, an array wall deeper in.
+Floors unchanged (819/363, no shuffle, ten suites green) on a core
+connection path. Guarded by a sim test and a small model - a connector
+with a `Xi[0]` field, connected, refused on the parent and run here.
+
+Three walls into the media bodies now, each a kind cleared and none a
+model lost: the parameter, the state record, the empty mass fraction.
+The next is an array one, and the media are still walking toward a run.

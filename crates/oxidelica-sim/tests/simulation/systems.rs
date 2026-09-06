@@ -244,3 +244,31 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         "singular Jacobian in algebraic loop [\"x\"]"
     );
 }
+
+#[test]
+fn a_zero_length_array_field_of_a_connector_writes_no_equation() {
+    // A connector carries `Xi[nXi]`, and a single-substance medium has
+    // `nXi = 0`, so a fluid port has no `Xi` to equate. The potential
+    // equality would name `port.Xi` on both sides, which no component
+    // is called, and the model was refused `unknown variable`. The fix
+    // skips a connector member the flat model does not carry, so the
+    // connection is the two scalars it really is.
+    let result = run("package P \
+           connector Port Real p; flow Real m; Real Xi[0]; end Port; \
+           model Src Port port; Real s(start = 0, fixed = true); \
+           equation port.p = 100; der(s) = port.m; end Src; \
+           model Snk Port port; equation port.m = 1; end Snk; \
+           model M Src src; Snk snk; \
+           equation connect(src.port, snk.port); \
+             annotation(experiment(StopTime = 1)); end M; \
+         end P;");
+    // The connection carried the pressure and the flow, and `Xi` wrote
+    // nothing: the source integrates the flow it takes back.
+    let s = result.columns.iter().position(|c| c == "src.s").unwrap();
+    assert!(result.rows.len() > 1, "the model ran");
+    assert!(
+        result.rows[0][s].is_finite(),
+        "src.s = {}",
+        result.rows[0][s]
+    );
+}

@@ -843,6 +843,26 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         }
         for member_component in &held {
             let var = |path: &str| format!("{path}.{}", member_component.name);
+            // A member that is a zero-length array is no variable at
+            // all: a fluid port carries `Xi[nXi]`, the independent mass
+            // fractions, and a single-substance medium has `nXi = 0`,
+            // so the port has no `Xi` to equate. Left in, the potential
+            // equality names `port.Xi` on both sides, which no
+            // component of the flat model is called, and the whole
+            // model is refused for a connection that says nothing. So a
+            // member the flat model does not carry - as a scalar or as
+            // any element - contributes no equation, the same way an
+            // unconnected flow of one skips a name it has not got.
+            let carried = |path: &str| {
+                let whole = var(path);
+                acc.components
+                    .iter()
+                    .any(|c| c.name == whole || c.name.starts_with(&format!("{whole}[")))
+                    || acc.connectors.contains_key(&whole)
+            };
+            if !members.iter().any(|(path, _)| carried(path)) {
+                continue;
+            }
             // A parameter of a connector is not a variable the
             // connection solves for: the fluid ports of the heat-flow
             // library each carry the medium they are filled with, and
