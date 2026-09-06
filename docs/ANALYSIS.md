@@ -4451,7 +4451,7 @@ and the C-fluid chain now folds two of its three deep walls (the record
 constant field, the deep numeric parameter). The third is a record-alias
 field read in a nested body, and it is where the next shift starts.
 
-## C-fluid, the third wall pinned: a record-alias constant mis-qualified
+## C-fluid, the third wall pinned: a record-alias constant misqualified
 
 With the deep numeric parameter folding (previous commit), the media
 chain's last wall is a single unresolved name, and this shift pinned it
@@ -4487,7 +4487,7 @@ finding it needs corpus-direct instrumentation of where a bare
 `iter.delp` is qualified during inline, not another guess. That is the
 next shift's first probe, and it is the last wall between the media
 constant and a number: two of the three deep walls now fold, and this
-one is a mis-qualified name, not a depth or a record-build.
+one is a misqualified name, not a depth or a record-build.
 
 ## C-fluid, the third wall traced: resolve does not fold a dotted constant
 
