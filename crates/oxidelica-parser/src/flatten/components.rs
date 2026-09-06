@@ -1308,6 +1308,17 @@ pub(super) fn instantiate_one(
             // names mean nothing.
             let _asked =
                 inlining::AskedAs::resolving(&component.type_name, child, registry, scope, imports);
+            // A record kept empty in the base and redeclared whole by
+            // the medium - `ThermodynamicState`, whose fields a medium
+            // states and the interface leaves blank - is instantiated
+            // as the medium's, not the interface's. Resolving the type
+            // landed on the base that declares it; the mark above holds
+            // the name it was reached by, and under that name the
+            // redeclared record with its fields is found. Without this
+            // a `state` component comes out with no fields, and an
+            // equation reading `state.h` names a variable nothing
+            // declares.
+            let child = inlining::record_asked_under(child, registry);
             instantiate(registry, child, &child_prefix, &child_env, acc, depth + 1)?;
         }
     }

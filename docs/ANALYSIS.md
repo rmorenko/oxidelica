@@ -4584,3 +4584,39 @@ The remaining wall is the record field the model body reads -
 `state.h` where `state` is a `ThermodynamicState` the medium redeclared
 whole - and it is the last one between these media and a run. The
 parameter barrier that named this queue is closed.
+
+## C-fluid, the record instance filled: a state gets the medium's fields
+
+With the parameter barrier closed, DryAir1 stopped at a body-level
+wall: `unknown variable volume.medium.state.h`. This is the record
+instance one, and it was a four-line fix once found.
+
+`BaseProperties` holds a `ThermodynamicState state`, and its equations
+read `h = state.h`. `ThermodynamicState` is empty in the interface and
+redeclared whole by the medium - the same empty-placeholder record the
+function layer already knew to look past. But a component of that type
+was instantiated straight from the interface: resolving `state`'s type
+landed on the interface's empty record, so the instance came out with
+no fields and `state.h` named a variable nothing declared.
+
+The instantiation already holds the mark of the name the type was
+reached by - `AskedAs::resolving`, set so a body written in the base
+finds the medium's functions. The fix reads the record under that mark
+before instantiating it, through `record_asked_under`, the same call
+the record-building layer uses. Found under the medium, the record has
+its four fields, and `state.h`, `state.p`, `state.T`, `state.d` become
+components.
+
+Measured: the `state.*` unknowns go from 12 to 1, and the `unknown
+variable` barrier from 31 to 22 - nine kinds cleared. DryAir1 advances
+again, now to `shortPipe.port_b.Xi`, a mass-fraction wall further into
+the model. Floors unchanged (819/363, no shuffle, ten suites green):
+the models that cleared this wall stop at the next, and the win is the
+census. Guarded hermetically by a flattening test - a redeclared empty
+record whose instance's field is asserted to be a component - and the
+small model it came from, both refused on the parent.
+
+The media are being walked into their bodies now, one wall at a time:
+the parameter that named the queue, then the state record it reads,
+then the mass fractions. Each is a kind cleared and a barrier named,
+and none has cost a model yet.

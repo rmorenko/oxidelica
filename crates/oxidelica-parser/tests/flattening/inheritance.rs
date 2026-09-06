@@ -1897,3 +1897,37 @@ fn a_fixed_attribute_may_be_an_expression() {
         .message
         .contains("true/false"));
 }
+
+#[test]
+fn a_redeclared_empty_record_instance_expands_its_fields() {
+    // A record kept empty in the base and redeclared whole by the
+    // medium - `ThermodynamicState`, blank in the interface and stated
+    // with its fields by the medium - instantiated as a `state`
+    // component whose `state.h` an equation reads. Resolving the type
+    // lands on the interface where the record is empty, so without
+    // instantiating it under the medium the instance has no fields and
+    // `state.h` is unknown. The fix finds the redeclared record under
+    // the name the type was reached by.
+    let m = parse_model(
+        "partial package Base \
+           replaceable record State end State; \
+           replaceable partial model BaseProperties \
+             Real h; State state; \
+           equation h = state.h; end BaseProperties; \
+         end Base; \
+         package Air \
+           extends Base; \
+           redeclare record extends State Real h; end State; \
+           redeclare model extends BaseProperties end BaseProperties; \
+         end Air; \
+         model M Air.BaseProperties medium(h = 1000); end M;",
+    )
+    .expect("flattens");
+    // The redeclared record's field became a flat component of the
+    // state instance.
+    assert!(
+        m.components.iter().any(|c| c.name == "medium.state.h"),
+        "medium.state.h should be a component: {:?}",
+        m.components.iter().map(|c| &c.name).collect::<Vec<_>>()
+    );
+}
