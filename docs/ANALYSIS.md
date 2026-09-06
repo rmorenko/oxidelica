@@ -4704,3 +4704,45 @@ equations: the parameter, the state record, the empty mass fraction,
 the array expansion, and the check over it. What is left is a numeric
 one - an algebraic loop that needs a start the media do not give - and
 that is a different kind of work from clearing a barrier.
+
+## C-fluid, into the numerics: a pressure that starts at zero
+
+Five flattener walls cleared, DryAir1 is in its equations, and the
+sixth wall is the first that is not the flattener's: `algebraic loop
+diverged: [volume.medium.T, ..medium.p, ..]`. It is diagnosed here for
+the next shift, not fixed, because it is numeric and its cause is one
+isolated defect worth its own change.
+
+The loop couples the medium's `T`, `p`, `d` through `airBaseProp_pT`,
+which solves density over Helmholtz with a Newton of its own. The outer
+Newton needs a start near the answer, and it has one for `T` (288.15)
+and `d` (1.0) - but `medium.p` starts at zero, which is unphysical, and
+a density solved at zero pressure runs away. The start is there in the
+model: the medium writes `extends PartialPureSubstance(AbsolutePressure
+(start = 1e5), Density(start = 1.0), ...)`, giving the type of `p` a
+start of a hundred kilopascal. That start does not reach the component.
+
+Probed to the line: `medium.p` is the `p` of `BaseProperties`, and its
+type is resolved under the scope `PartialMedium.BaseProperties` - the
+interface that declares the model - where `AbsolutePressure` carries no
+start. The medium's `AbsolutePressure(start = 1e5)` is a modifier on
+the type in the medium's own `extends`, in view only under the medium's
+scope. The same probe shows `medium.state.p`, resolved under
+`Air_Base.ThermodynamicState`, does get the 100000: the record field is
+resolved under the medium, the model field under the base. So it is the
+asked-under question again, one layer over from where it was answered
+for functions and records: the type of a component in an inherited
+model has to be resolved under the medium the model was reached through,
+not the interface that wrote the model, or the attribute the medium set
+on that type is out of view.
+
+So the next shift carries the asked-under scope into `resolve_type` for
+a component of an inherited model, the way it is already carried into a
+body written in a base and a record kept empty by one. With `medium.p`
+resolved under the medium, `AbsolutePressure` has its `start = 1e5`, the
+pressure starts at a hundred kilopascal rather than zero, and the
+algebraic loop has a start it can converge from. DryAir1 may then be the
+first of the media to run - the first the run count has moved for since
+this queue was named. The barrier is numeric; its cause is a type
+resolved under the wrong scope, the third face of a family already
+twice cured.
