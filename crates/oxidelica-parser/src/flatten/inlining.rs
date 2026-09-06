@@ -842,7 +842,7 @@ pub(super) fn record_asked_under<'a>(
 /// question about the shape of the registry, and asking it the long
 /// way would colour the counts of every model that has no media in
 /// it. What is found is remembered for as long as the registry stands.
-fn descends_from(registry: &HashMap<&str, &ClassDef>, from: &str, wanted: &str) -> bool {
+pub(super) fn descends_from(registry: &HashMap<&str, &ClassDef>, from: &str, wanted: &str) -> bool {
     super::lookup::kindred_remembers(from, wanted, || reaches(registry, from, wanted, 0))
 }
 

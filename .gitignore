@@ -8,3 +8,7 @@ dist/
 /QUESTION_FOR_FABLE.md
 /fable_repro*.mo
 /QUESTION_FOR_FABLE_ARCHIVE.md
+
+# The standard library, checked out here by CI and by hand for the
+# floor check. Not part of the tree.
+.msl/

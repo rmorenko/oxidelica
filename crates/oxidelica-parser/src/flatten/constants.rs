@@ -589,6 +589,22 @@ fn substitute_at(
                     // The function the call really means: the medium this
                     // was asked under may have redeclared it with inputs
                     // its base never had.
+                    // A constant binds `outer(a)` where `outer` is
+                    // written in a base and calls a `replaceable`
+                    // sibling the model's package redeclared. The call
+                    // is bare - no head names the package - so nothing
+                    // here says under which class the body's own names
+                    // are read. The scope this was asked from is that
+                    // package, held across the body so the redeclared
+                    // sibling is found where the base only declared it
+                    // partial.
+                    let _asked = class
+                        .name
+                        .rsplit_once('.')
+                        .filter(|(pkg, _)| {
+                            scope != *pkg && inlining::descends_from(registry, scope, pkg)
+                        })
+                        .and_then(|_| inlining::AskedAs::under(scope));
                     let class = inlining::function_asked_under(class, registry);
                     inlining::inline_function(
                         class,

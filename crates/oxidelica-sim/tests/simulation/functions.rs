@@ -730,3 +730,54 @@ fn a_table_travels_whole_into_a_body_the_run_walks() {
     assert!(rows == 3.0, "rows = {rows}");
     assert!(held == 20.0 || held == 30.0, "held = {held}");
 }
+
+#[test]
+fn a_constant_folds_a_wrappers_redeclared_sibling() {
+    // A medium's `constant h_default = enthalpy_pT(p, T)` where the
+    // body of `enthalpy_pT` is written in the partial base and calls a
+    // `replaceable partial` sibling - `enthalpy(setState(p, T))` -
+    // that only the package extending the base redeclares. The wrapper
+    // call is bare, so nothing at the fold said under which class the
+    // body's own names were to be read; the bare `enthalpy`/`setState`
+    // inside resolved in the base, where they are still partial, and
+    // the constant stayed a bare name. Reading it as a parameter start
+    // was then refused as `cannot evaluate parameters`. The scope the
+    // constant was asked from is held across the wrapper body, so the
+    // redeclared siblings are found and the constant folds.
+    let source = "package P \
+        partial package PartialMedium \
+          constant Real p_default = 100000; \
+          constant Real T_default = 293.15; \
+          record State Real p; Real T; Real h; end State; \
+          replaceable partial function setState \
+            input Real p; input Real T; output State s; end setState; \
+          replaceable partial function enthalpy \
+            input State s; output Real h; end enthalpy; \
+          function enthalpy_pT input Real p; input Real T; output Real h; \
+          algorithm h := enthalpy(setState(p, T)); end enthalpy_pT; \
+          constant Real h_default = enthalpy_pT(p_default, T_default); \
+        end PartialMedium; \
+        package Air extends PartialMedium; \
+          redeclare function extends setState \
+          algorithm s := State(p = p, T = T, h = 1000*T + p/1000); end setState; \
+          redeclare function extends enthalpy \
+          algorithm h := s.h; end enthalpy; \
+        end Air; \
+        model DryAir1 \
+          replaceable package Medium = PartialMedium; \
+          parameter Real h_start = Medium.h_default; \
+          Real x(start = h_start, fixed = true); \
+        equation der(x) = 0; \
+          annotation(experiment(StopTime = 1)); end DryAir1; \
+        model M DryAir1 d(redeclare package Medium = Air); end M; \
+      end P;";
+    let result = run(source);
+    // h_default = enthalpy(setState(100000, 293.15))
+    //           = 1000*293.15 + 100000/1000 = 293250.
+    let x = result.columns.iter().position(|c| c == "d.x").unwrap();
+    assert!(
+        (result.rows[0][x] - 293_250.0).abs() < 1e-6,
+        "d.x = {}",
+        result.rows[0][x]
+    );
+}
