@@ -4372,3 +4372,45 @@ guard. What it leaves is the wall named exactly - the depth guard
 counts settled arithmetic as depth - and a twenty-line repro
 (`/tmp/deep5.mo` in spirit: a record field forty operations deep, read
 after inline) for the next shift to fold against.
+
+## C-fluid, the depth fold measured: a boundary fold costs six models
+
+The fix the last section pointed to - fold numeric subtrees so the
+depth guard does not fire on finite arithmetic - was built at the one
+place it belongs and measured against the whole library. It works for
+the media case and it regresses six other models, which is the finding.
+
+Built narrowly: at the two depth guards that refuse an expression for
+being deep (`resolve` in names.rs, `expand` in arrays.rs), and only at
+the boundary itself - `if depth > MAX_DEPTH`, try `const_eval`/
+`settled_by` and return the number if it settles finite, else refuse as
+before. Nothing shallower folds, so a parameter written on its own name
+stays tunable and the recursion-unrolling test that the eager version
+broke stays green. All ten suites pass. `deep5` (a record field forty
+operations deep) and the corpus `dofpT` both fold, red-to-green.
+
+Then the library measured 813 flatten against 819, down six:
+`PrismaticConstraint`, `RevoluteConstraint`, `UniversalConstraint`,
+`PlanarFourbar`, `ModelicaTest.Fluid.TestUtilities.Test01RegFun3`,
+`ModelicaTest.Math.Random.TestSpecial`. These are the models that
+_relied_ on the guard leaving a deep expression standing for the run to
+walk. Folding it to a number at the boundary took a value the run was
+going to compute itself and fixed it early, or fixed it wrong, and the
+model that flattened before did not. This is exactly the class of
+regression the limit of thirty-two cost the last time it moved, and it
+is why that limit was left alone.
+
+So the boundary is the wrong discriminator: `settled_by` returning a
+finite number does not tell a media polynomial that _should_ fold from
+a multibody expression that _should_ stand. The two are the same shape
+to the depth guard, and telling them apart needs something the guard
+does not have - which body asked, or whether the run will walk the
+result. Reverted whole: floors back to 819/363, six models restored,
+ten suites green.
+
+The finding for the next shift, now measured rather than guessed: the
+depth guard cannot be turned into a fold at its boundary without costing
+six models, so the media case has to be answered before the guard is
+reached - where the record body is built - and only for the bodies that
+have no run behind them to walk what stands. That is a narrower door
+than "fold deep numbers", and it is the one still to find.
