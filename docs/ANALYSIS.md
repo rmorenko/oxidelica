@@ -4259,3 +4259,63 @@ and named the corpus's true blocker for the next shift: the redeclared
 record that does not reach the inherited body which builds it. That is
 a resolution defect in the redeclare road, not a strictness the spec
 lifts, and it is where the 57 media wait.
+
+## C-fluid, the wall named: a field of a record constant built by modifiers
+
+The previous section closed on the wrong wall. It reported the corpus
+blocker as a redeclared record that does not reach the inherited body -
+read from `why ...Air_pT h_default`, which prints
+`setState_pTX answers with ThermodynamicState, which declares no
+fields`. Probing the **simulate** path, not the `why` path, told a
+different and truer story.
+
+`simulate` on the medium reaches `setState_pTX` fine: it reduces to
+`airBaseProp_pT(p, T)[3]`, an indexed record-returning call. The record
+_does_ reach; the `why`-path error was a red herring from a different
+route. What does not reduce is the density iteration inside, and the
+reason is one bare name.
+
+`airBaseProp_pT` calls `Inverses.dofpT`, a Newton `while` that starts
+from `d := p/(R_s*T)`. Instrumenting the loop head showed it running
+exactly one round and then failing to settle its condition, with `d`
+bound to `100000 / (R_s * 293)` where **`R_s` was still a `Ref`**. The
+gas constant had not folded. With `d` symbolic every later round is
+symbolic, `found` never decides, and the loop is refused as
+undecidable - which upstream reads as `h_default` having no value.
+
+`R_s` is written
+`constant FundamentalConstants Constants(R_s = 287.117, MM = ..., ...)`:
+a record component with `constant` variability whose fields are set by
+a **modifier list**, not by an equation. Reading `Constants.R_s` splits
+into head `...Basic.Constants` and field `R_s`, and the head is looked
+up as a class - which it is not. It is a component. So the constant
+road bailed to its `expr.clone()` fallback and the name travelled bare
+into the run.
+
+The fix is a new fallback in `class_constant_at`: where the head is not
+a class, take it apart into the package that holds the component and
+the component's own name, find the record-valued constant there, and
+read the field off its modifiers - or off the record's own declaration
+default where the modifier list leaves it out. Verified against the
+corpus: `...Basic.Constants.R_s` folds to 287.117, and `MM`, `rhored`,
+`Tred`, `pred`, `R_bar` all fold too, where the parent refused every
+one.
+
+### Still one wall on, and it is named too
+
+The floors did not move: 819 and 363, no shuffle. `dofpT` still does not
+fold, because one wall on there is another. With `R_s` folded, the loop
+now reaches `f := Basic.Helmholtz(d, T)`, and `Helmholtz` inlines to a
+record whose fields are left as unreduced `Bin` trees rather than
+numbers - `getf`'s read of `f.f` comes back as `Helmholtz(...)[6]`
+standing, an index into a call the run cannot walk to a scalar. The
+record-returning function inlines, but its fields are not folded on the
+way out, so a field read of the result does not resolve.
+
+So the shift shipped the record-constant field as a real corpus-chain
+unblock - guarded by a sim test that fails on the parent and the small
+model, floors held, and demonstrably folding what the parent refused -
+and named the next wall precisely: a record-returning function whose
+inlined fields are not reduced to numbers, so an index into the result
+stands. That is the next shift's first probe, and it is concrete: fold
+the fields of an inlined record before a field read is asked of it.

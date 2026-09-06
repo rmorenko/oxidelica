@@ -825,3 +825,38 @@ fn a_constant_folds_a_while_loop_over_a_sibling() {
         result.rows[0][z]
     );
 }
+
+#[test]
+fn a_field_of_a_record_constant_built_by_modifiers_folds() {
+    // `constant FundamentalConstants Constants(R_s = 287.117, ...)` is
+    // a record component with `constant` variability whose fields are
+    // set by a modifier list, not by an equation. Reading
+    // `Constants.R_s` asks a class named `Constants`, which is a
+    // component rather than a class, so the ordinary constant road
+    // bailed and the name reached the flat model bare - the true wall
+    // in front of the ReferenceAir media, whose density iteration
+    // starts from `p/(R_s*T)`. The fix reads the field off the record
+    // constant's modifiers, or off the record's own default where the
+    // modifier list leaves it out. Both are exercised.
+    let source = "package P \
+        record FundamentalConstants Real R_s; Real MM = 0.0289586; end FundamentalConstants; \
+        package Basic \
+          constant FundamentalConstants Constants(final R_s = 287.117); \
+        end Basic; \
+        model Use \
+          parameter Real gas = Basic.Constants.R_s; \
+          parameter Real molar = Basic.Constants.MM; \
+          Real z(start = gas + 1000*molar, fixed = true); \
+        equation der(z) = 0; \
+          annotation(experiment(StopTime = 1)); end Use; \
+        model M Use u; end M; \
+      end P;";
+    let result = run(source);
+    // 287.117 from the modifier, 0.0289586 from the record default.
+    let z = result.columns.iter().position(|c| c == "u.z").unwrap();
+    assert!(
+        (result.rows[0][z] - 316.0756).abs() < 1e-4,
+        "u.z = {}",
+        result.rows[0][z]
+    );
+}

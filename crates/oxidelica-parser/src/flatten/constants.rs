@@ -34,7 +34,16 @@ pub(super) fn class_constant_at(
         return None;
     }
     let (class_path, member) = name.rsplit_once('.')?;
-    let class = lookup(registry, class_path, scope, imports)?;
+    let Some(class) = lookup(registry, class_path, scope, imports) else {
+        // The head is not a class: it may be a record-valued constant,
+        // and the tail one of its fields. `Basic.Constants.R_s` where
+        // `Constants` is a `constant FundamentalConstants` whose fields
+        // are given by a modifier list, `R_s = 287.117` among them.
+        // The air model's density iteration reads its gas constant this
+        // way, and left unread the whole `while` stays symbolic and the
+        // media parameter is refused.
+        return record_constant_field(registry, class_path, member, scope, imports, depth);
+    };
     // An enumeration literal is the position it was declared at.
     if let Some(index) = class.enumeration.iter().position(|l| l == member) {
         return Some(index as f64 + 1.0);
@@ -125,6 +134,76 @@ pub(super) fn class_constant_at(
     // Constants of one package may build on each other, so resolve the
     // whole set to a fixpoint before reading the one asked for.
     settle(&constants).get(member).copied()
+}
+
+/// A field of a record-valued constant, read from the modifier list
+/// that gives the record its value.
+///
+/// `constant FundamentalConstants Constants(R_s = 287.117, MM = ...)`
+/// is how the air model writes its gas constants: a record component
+/// with `constant` variability whose fields are set by modifiers
+/// rather than by an equation. Reading `Constants.R_s` asks a class
+/// named `Constants`, which is not one - it is a component - so the
+/// ordinary constant road bails. This one takes the head apart into
+/// the package that holds the component and the component's own name,
+/// finds it there, and reads the field off its modifiers. A field the
+/// modifier list does not mention may still have a default on the
+/// record's own declaration, so that is the second place looked.
+fn record_constant_field(
+    registry: &HashMap<&str, &ClassDef>,
+    path: &str,
+    field: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Option<f64> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    let (owner_path, component_name) = path.rsplit_once('.')?;
+    let owner = lookup(registry, owner_path, scope, imports)?;
+    let component = owner
+        .components
+        .iter()
+        .find(|c| c.name == component_name)
+        .filter(|c| {
+            matches!(
+                c.variability,
+                Variability::Constant | Variability::Parameter
+            )
+        })?;
+    // The value the modifier list gives the field, worked out under
+    // the package that holds the record: `R_s = 287.117` is a literal,
+    // but a field may be written on another constant of the same
+    // package, and that is where its name means something.
+    let read = |expr: &Expr| {
+        let settled = substitute_at(
+            expr,
+            registry,
+            &owner.name,
+            &owner.imports,
+            &[],
+            depth + 1,
+            true,
+        );
+        const_eval(&settled, &HashMap::new())
+    };
+    if let Some((_, value)) = component.modifiers.iter().find(|(name, _)| name == field) {
+        if let Some(number) = read(value) {
+            return Some(number);
+        }
+    }
+    // A field the value did not mention may carry a default on the
+    // record's own declaration: `record FundamentalConstants Real
+    // R_bar = 8.31 ... end` gives one where a medium leaves it out.
+    let record = lookup(registry, &component.type_name, &owner.name, &owner.imports)?;
+    let declared = record
+        .components
+        .iter()
+        .find(|c| c.name == field)?
+        .binding
+        .as_ref()?;
+    read(declared)
 }
 
 /// A constant written as the length of another constant of the same
