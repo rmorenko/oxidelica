@@ -2128,6 +2128,36 @@ stderr, does not answer nothing where nothing ran, and does not cut
 its own output short. Where one line is wanted, take it without a
 pipe - `printf '%s\n' "${report%%$'\n'*}"`.
 
+## A measurement must run where the thing it measures fails
+
+ce42b15 passed a full preflight and was pushed. The very next command
+on a fresh terminal - `cargo test -p oxidelica-sim --test simulation` -
+aborted with a stack overflow, and CI went red on all three platforms
+and coverage. The preflight had not lied about the tree; it had
+measured a different tree than the one CI runs.
+
+The preflight builds release; `cargo test` with no `--release` builds
+debug. That alone was not the fault. The fault was that the fold this
+commit opened recursed deeply but not infinitely, and how deep a
+recursion a run survives is set by the stack it is given. The main
+thread is handed eight megabytes and finished the recursion; a test
+thread is handed two and aborted partway. The release preflight ran the
+body on the main thread and saw it return; the debug test ran it on a
+small-stack thread and saw it die. Same code, same recursion, opposite
+result, decided by which stack the run happened to be on.
+
+This is the fourth way a build has lied about its result, after the
+script that did not exist, the zero that came from nothing, and the
+pipe that cut itself short. The first three were the measurement
+reporting something other than what it measured; this one is the
+measurement running somewhere other than where the failure lives. The
+clause: a preflight runs the tests the way CI runs them - in debug, on
+test threads, not only as a release binary on the main thread - because
+a stack overflow hides on eight megabytes and shows on two, and the
+one that ships is the two. The depth guard that closed this circle
+(19c6a7c) is the real fix; this rule is so the next stack-deep fault is
+caught before the push rather than by the machine after it.
+
 ## The `dp_nominal` family: a barrier that fell without the models moving
 
 Eleven models were refused `parameter <pipe>.flowModel.dp_nominal has

@@ -96,6 +96,12 @@ library_floor() {
 
 step "Formatting" cargo fmt --all -- --check
 step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
+# Debug, no --release, the way CI runs them. Not a saving of time: a
+# recursion deep but not infinite survives the main thread's eight
+# megabytes and aborts a test thread's two, so a release binary run on
+# the main thread returns where a debug test on a small stack dies.
+# ce42b15 shipped green from a hand-run `cargo test --release` and
+# SIGABRTed CI on the next command. Measure where the failure lives.
 step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
 
