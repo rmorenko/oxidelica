@@ -4780,3 +4780,37 @@ The next shift picks one, with DryAir1 the measure: three pressures
 seeded, the loop converges, and the first media model runs. The fix
 tried this shift - initial equations into the guess - was reverted for
 seeding only one of the three and moving no model.
+
+## C-fluid, the numeric wall was never the guess: a loop over a black box
+
+The last two notes chased the algebraic guess. This shift disproved that
+whole line: forcing every pressure to a hundred kilopascal, every
+temperature to 293, every density to 1.2 - a physical start for all
+three mediums - the loop still diverges. The guess was never the wall.
+
+What the loop is: `h = airBaseProp_pT(p, T)[3]` and `d = airBaseProp_pT
+(p, T)[7]`, with `p` and `T` set through the connections, and
+`airBaseProp_pT` a function whose body solves a density with a Newton
+`while` of its own. Evaluated as a parameter it is exact and
+deterministic - `airBaseProp_pT(101325, 293).h` is 19971 every time. It
+is only inside the outer solve that it fails.
+
+So the wall is the one this project has not met before: an algebraic
+loop whose residual runs an iterative black box. The outer Newton builds
+its Jacobian by finite differences - perturb `p`, re-run the whole
+nested iteration, read the change - and a nested `while` that stops on a
+tolerance does not move smoothly with the perturbation: two nearby `p`
+give densities converged to different last steps, the difference quotient
+is noise, and the Jacobian it builds points nowhere. A good start does
+not save a Newton whose derivative is wrong.
+
+This is numeric-analysis work, not a barrier to clear or a scope to fix.
+The routes are known and none is small: give the media functions
+analytic derivatives so the outer Jacobian is exact rather than
+differenced through the iteration; or tighten the inner tolerance far
+below the outer step so the black box looks smooth to it; or solve the
+loop with a method that does not need a Jacobian at all. The next shift
+that takes DryAir1 the last step chooses among those, and it is a
+different kind of shift from the seven that cleared its flattener walls.
+The barrier is named truly now: a loop over a black box, and the guess
+was a red herring the measurement caught.
