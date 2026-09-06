@@ -4909,3 +4909,28 @@ Recorded because the media queue was about to take DryAir1 on the
 strength of the row: two models is not a shift's work, and the
 `semiLinear` six are a different and larger cause wearing the same
 words.
+
+## The singular rows probed, and one of them is already answered
+
+The other two rows the queue had not explored, probed the same way, so
+that the next shift is not the third to look at them from the outside.
+
+`structurally singular` counts 33 and is three things. Twenty-two
+cannot differentiate through an algebraic variable, and fourteen of
+those are MultiBody, which has a panel of its own and is the largest
+untouched family in the run half after the unbalanced. Five are an
+equation that constrains no state, where index reduction has nothing to
+work with. And six cannot differentiate `abs`.
+
+That six is worth naming because it looks like free work and is not.
+The obvious rule - `der(abs(x))` is `sign(x) * der(x)` - is the one
+this project measured and refused, since it is wrong at exactly zero
+and zero is where these models live: a flow reversing is the whole
+subject of `TestRegRoot2Derivatives`. The rule that replaced it says
+nothing about `abs` at all, and these six are what it does not reach.
+Taking them means an honest derivative for a function with a corner,
+not a special case, and a shift that opens it should say so before it
+starts rather than discover the refusal is deliberate.
+
+The remaining eleven of the 46 are a singular Jacobian in an algebraic
+loop, which is a numeric row and not a flattener one.
