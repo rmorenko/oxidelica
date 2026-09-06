@@ -781,3 +781,47 @@ fn a_constant_folds_a_wrappers_redeclared_sibling() {
         result.rows[0][x]
     );
 }
+
+#[test]
+fn a_constant_folds_a_while_loop_over_a_sibling() {
+    // A package constant whose binding is a call the arithmetic round
+    // cannot fold - `h_default = dsolve(target)`, where `dsolve`
+    // iterates with a `while` whose trip count depends only on the
+    // sibling constant `target`. The loop is decidable at translation,
+    // but the call reached the fold with `target` still a bare name,
+    // which the substitution under the package's scope did not resolve
+    // as one of the package's own constants. Left unfolded, the call
+    // reached the flat model with an argument nothing declares and the
+    // parameter reading it was refused. The fix folds the settled
+    // siblings into the binding first, so `dsolve(target)` becomes
+    // `dsolve(16)` and the loop runs to a number.
+    let source = "package P \
+        function dsolve input Real target; output Real x; \
+        protected Integer i = 0; Boolean found = false; Real f; \
+        algorithm x := 1.0; \
+          while ((i < 100) and not found) loop \
+            f := x*x - target; \
+            if abs(f) <= 1e-9 then found := true; end if; \
+            x := x - f/(2*x); i := i + 1; \
+          end while; \
+        end dsolve; \
+        package Medium \
+          constant Real target = 16.0; \
+          constant Real h_default = dsolve(target); \
+        end Medium; \
+        model Use \
+          parameter Real h_start = Medium.h_default; \
+          Real z(start = h_start, fixed = true); \
+        equation der(z) = 0; \
+          annotation(experiment(StopTime = 1)); end Use; \
+        model M Use u; end M; \
+      end P;";
+    let result = run(source);
+    // dsolve(16) is Newton for sqrt(16) = 4.
+    let z = result.columns.iter().position(|c| c == "u.z").unwrap();
+    assert!(
+        (result.rows[0][z] - 4.0).abs() < 1e-6,
+        "u.z = {}",
+        result.rows[0][z]
+    );
+}

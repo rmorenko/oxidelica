@@ -4189,3 +4189,73 @@ model has not run yet. The interpreter that would settle it already
 exists one wall further on, where every deferred parameter settles at
 initialisation. The next shift starts there with a small model, not
 the corpus.
+
+## C-fluid, the spec read: a parameter settles at initialisation, and a sibling folded
+
+The shift opened where the last left it: is a media constant's value
+_obliged_ at translation, or only wanted by initialisation? The
+chapter answers. Section 4.4.4: a **parameter** "has a value determined
+at initialization"; a **constant** is "unaffected even by the
+initialization problem." And 4.4.3 blesses the exact victim as legal:
+
+```modelica
+parameter Medium.SpecificEnthalpy h_start = if use_T_start then
+    Medium.specificEnthalpy_pTX(p_start, T_start, X_start) else Medium.h_default
+```
+
+`h_start` in `PartialTestModel` is a **parameter**, not a constant. Its
+value is due at initialisation, where a full interpreter with loops is
+legal - and that interpreter already runs: `der(z) = dsolve(16.0) - z`
+walks a `while` to convergence today. So refusing `h_start` because
+`h_default` has no _translation-time_ value is the compiler stricter
+than the language, a fourth entry in the genre above the Evaluate,
+fixed, and clock trades.
+
+### What the small model showed, and what it did not
+
+`dsolve(16.0)` called **directly** as a parameter binding folds to 4:
+the `while` executor runs at translation when the trip count is
+decidable (`statements.rs:300`, up to `MAX_WHILE_ROUNDS`). But the same
+call reached as a **package constant** - `h_default = dsolve(target)` -
+refused. The reason was one link: the call reached the fold with
+`target` still a bare name. `target` is a sibling constant of the same
+package, and the road that substitutes a constant's binding
+(`class_constant_at`) resolves the call under the package's scope,
+where a bare `target` is not looked up as one of the package's own
+constants. Left unfolded, `dsolve(target)` reached the flat model with
+an argument nothing declares, and the parameter reading it was refused.
+
+The fix folds the package's already-settled constants into each binding
+before it is walked: `dsolve(target)` becomes `dsolve(16)` and the loop
+runs to a number. It is guarded by a sim test that fails on the parent
+and a small model, and it is necessary - without it, wh1 (constant
+`dsolve(target)`) and wh5 (a `replaceable package` medium whose
+`h_default` iterates over `p_default`, `T_default`) both refuse; with
+it, both fold.
+
+### Why the corpus did not move
+
+The floors held at 819 and 363 with no shuffle of the running list.
+DryAir1 is untouched, and the reason is precise: its `h_default` fails
+**earlier** than the sibling argument, on record resolution.
+`why ...Air_pT h_default` reports `PartialMedium.setState_pTX answers
+with ThermodynamicState, which declares no fields: it is a record kept
+for another to redeclare, and the redeclaration did not reach here`.
+The medium redeclares that record whole in `Air_Base`; the inherited
+body of `specificEnthalpy_pTX` calls `setState_pTX` bare, and the
+redeclaration is not reaching that call. A synthetic mirror of the full
+shape - interface with an empty `ThermodynamicState`, `Air_Base`
+redeclaring it whole and the two functions, `Air_pT` extending
+`Air_Base`, a model naming `Medium = Air_pT`, the `X[:]=reference_X`
+default argument, a `while` in the state-builder - folds to the right
+number (`/tmp/rr4.mo`, `/tmp/wh5.mo`). The corpus does not, on some
+detail the synthetic still lacks: the record is redeclared at more than
+one level, its fields carry `stateSelect` modifiers written on other
+constants, and `reference_X` is an array sized by `nX = size(...)`.
+
+So this shift shipped the sibling-fold as an honest cousin - a real
+red-to-green on a faithful small model, no regression, floors held -
+and named the corpus's true blocker for the next shift: the redeclared
+record that does not reach the inherited body which builds it. That is
+a resolution defect in the redeclare road, not a strictness the spec
+lifts, and it is where the 57 media wait.

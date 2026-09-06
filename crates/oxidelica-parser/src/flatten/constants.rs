@@ -83,10 +83,25 @@ pub(super) fn class_constant_at(
     if let Some(answer) = settle(&constants).get(member).copied() {
         return Some(answer);
     }
+    // What the cheap round did settle, as numbers a binding can be
+    // written in terms of. A constant whose binding is a call the
+    // arithmetic round cannot fold - `h_default = enthalpy_pTX(p, T)`,
+    // whose body iterates - still has arguments that are siblings the
+    // round did settle: `p_default`, `T_default`. Folded into the call
+    // before it is walked, the body runs on numbers and comes to one;
+    // left as names, the call reaches the flat model with bare
+    // arguments nothing out there declares. The names are only the
+    // package's own settled constants, so this puts back what scope
+    // alone would have found had the arithmetic reached it.
+    let settled_numbers: HashMap<String, Expr> = settle(&constants)
+        .into_iter()
+        .map(|(name, value)| (name, Expr::Number(value)))
+        .collect();
     let constants: Vec<(String, Option<Expr>)> = constants
         .into_iter()
         .map(|(name, binding)| {
             let binding = binding.map(|expr| {
+                let expr = substitute_refs(&expr, &settled_numbers);
                 substitute_at(
                     &expr,
                     registry,
