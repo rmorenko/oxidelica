@@ -4319,3 +4319,56 @@ and named the next wall precisely: a record-returning function whose
 inlined fields are not reduced to numbers, so an index into the result
 stands. That is the next shift's first probe, and it is concrete: fold
 the fields of an inlined record before a field read is asked of it.
+
+## C-fluid, the next wall probed: the depth guard fires on finite numbers
+
+The probe named above was run this shift, and it went two levels deep
+before hitting a wall that is not about records at all.
+
+Probing the running compiler: `dofpT`, the air density `while`, refused
+because its loop body calls `Basic.Helmholtz(d, T)`, which inlines to a
+record whose fields are enormous but numeric. Carrying that record whole
+(an `expand` over the array of its fields) runs past `MAX_DEPTH` and
+throws `NO_BOTTOM`, so the whole call is left standing, and a field read
+of it becomes `Helmholtz(...)[6]`, an index the run cannot walk.
+
+A narrow fix was tried: in the `NO_BOTTOM` fallback of the record-carry,
+fold the numeric subtrees of what was built before carrying, so a field
+that is a number collapses to a digit and the depth is gone. It works
+for that path - corpus `dofpT` folds standalone, verified red-to-green
+(parent refuses `Inverses.dofpT(100000, 293, 1e-6)`, the fix folds it to
+1.189), and all ten suites stay green. But it was reverted, for three
+reasons that are the finding:
+
+1. **No corpus outcome.** `dofpT` folding does not move a model. One
+   wall on, `airBaseProp_pT` calls `dofpT` at depth 15, and there
+   `Helmholtz` hits the depth guard _inside its own body walk_ -
+   `worked_body` throws `NO_BOTTOM` before it ever returns an array, so
+   the fallback fold has nothing to fold. The refusal is the same
+   family one level deeper, and the narrow fix does not reach it.
+
+2. **No hermetic guard.** A 40-deep single-field expression
+   (`r.f := (((x*1.01+1)*1.01+1)...)`) reproduces the deeper case in
+   twenty lines and fails _with and without_ the narrow fix, both on
+   `worked_body`'s own `NO_BOTTOM`. It is a clean repro of the real
+   wall, and the narrow fix does not touch it - which is the proof the
+   fix was aimed at a symptom, not the cause.
+
+3. **The cause is the depth guard on finite arithmetic.** `MAX_DEPTH`
+   is 32. A media property is a polynomial dozens of terms deep over
+   constants - a finite number the compiler could compute - and the
+   walk refuses it for being deep, exactly as the limit of thirty-two
+   once guarded the stack under the name of a loop and cost five table
+   models. The real fix is to fold numeric subtrees _during_ the walk,
+   so depth accumulates through un-inlined calls but not through
+   settled arithmetic; a number is depth zero however it was written.
+   That is a change to how `worked_body`/`expand` count depth, and it
+   must be measured against the table models the last depth change
+   cost, not shipped narrow.
+
+So the shift did not ship on this family: one narrow fix built,
+verified, and reverted for reaching a symptom without an outcome or a
+guard. What it leaves is the wall named exactly - the depth guard
+counts settled arithmetic as depth - and a twenty-line repro
+(`/tmp/deep5.mo` in spirit: a record field forty operations deep, read
+after inline) for the next shift to fold against.
