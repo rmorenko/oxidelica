@@ -142,10 +142,10 @@ fn records_as_arrays(
             continue;
         };
         let members = record_fields(of);
-        let plain = of
-            .components
-            .iter()
-            .all(|member| member.dimensions.is_empty() && is_primitive(&member.type_name));
+        let plain = of.components.iter().all(|member| {
+            member.dimensions.is_empty()
+                && reduces_to_primitive(registry, &member.type_name, &of.name, &of.imports)
+        });
         if !plain || members.is_empty() {
             continue;
         }
@@ -171,7 +171,22 @@ fn qualified_calls(
     renamed: &HashMap<String, Expr>,
 ) -> Vec<Statement> {
     let inner = |body: &[Statement]| qualified_calls(body, registry, scope, imports, renamed);
-    let expr = |e: &Expr| substitute_refs(&qualified_in(e, registry, scope, imports), renamed);
+    // A body that is walked rather than inlined still reads the
+    // constants of the package it belongs to - the air model's
+    // `airBaseProp_pT` writes `aux.R_s := Constants.R_s`, a field of a
+    // record constant that the walk's frame of names has never heard.
+    // The parameter road folds such a constant to its number; the walk
+    // needs the same, or `Constants.R_s` reaches the run as an unknown
+    // and every value that flows from it is a NaN. So each statement's
+    // scalar constants are folded here, the way a component's binding
+    // above already is. Only the scalar ones: a constant that comes to
+    // an array or a record is left for the walk, which carries its own
+    // machinery for those - a list dropped over the top of it indexes
+    // past the end and panics.
+    let expr = |e: &Expr| {
+        let e = substitute_scalar_class_constants(e, registry, scope, imports);
+        substitute_refs(&qualified_in(&e, registry, scope, imports), renamed)
+    };
     // A member of a record is written as an element of an array, and a
     // statement may be filling one.
     let target = |name: &String| match renamed.get(name) {

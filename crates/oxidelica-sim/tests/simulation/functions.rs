@@ -967,3 +967,86 @@ fn a_constant_of_a_deep_iterating_medium_is_read_by_a_parameter() {
         result.rows[0][z]
     );
 }
+
+#[test]
+fn a_walked_body_reads_a_package_record_constant_field() {
+    // A body that cannot be inlined - its `for` runs to an input-given
+    // bound, so the unroller leaves the call standing and the run walks
+    // it - reads `Ref.Basic.Constants.R_s`, a field of a record constant
+    // built by modifiers in another package. This is the shape of
+    // ReferenceAir's `Helmholtz`, whose loops run to nineteen and whose
+    // body reads `Constants.R_s`. The parameter road already folds such a
+    // field; the walk carried none of it, so the run met a bare
+    // `Constants.R_s` and every value flowing from it was a NaN. The
+    // carried body now folds its class constants the way a binding does,
+    // and the number reaches the walk.
+    let source = "package Outer \
+        package Common \
+          record FundamentalConstants Real R_s; end FundamentalConstants; \
+        end Common; \
+        package Basic \
+          constant Outer.Common.FundamentalConstants Constants(final R_s = 287.117); \
+          function iterate input Real p; input Integer n; output Real y; \
+          protected Real acc; \
+          algorithm acc := p; \
+            for k in 1:n loop acc := 0.5 * (acc + p); end for; \
+            y := acc / Basic.Constants.R_s; end iterate; \
+        end Basic; \
+        function gasProp input Real p; input Integer n; output Real h; \
+        algorithm h := Basic.iterate(p, n); end gasProp; \
+        model M Real h; Real z(start = 0, fixed = true); Integer n; \
+        equation n = 3; h = Outer.gasProp(101325, n); der(z) = h - z; \
+          annotation(experiment(StopTime = 1)); end M; \
+      end Outer;";
+    let result = run(source);
+    // iterate(101325, 3) settles acc at 101325; h = 101325 / 287.117.
+    let h = result.columns.iter().position(|c| c == "h").unwrap();
+    assert!(
+        (result.rows[0][h] - 352.904913).abs() < 0.01,
+        "h = {}",
+        result.rows[0][h]
+    );
+}
+
+#[test]
+fn a_walked_body_answers_with_a_record_of_si_typed_fields() {
+    // A body that cannot be inlined - its `for` runs to an input-given
+    // bound - answers with a record whose fields are typed through the
+    // `SI` aliases, `Density` and `Temperature`, rather than bare
+    // `Real`. This is the shape of ReferenceAir's `Helmholtz`, whose
+    // output `HelmholtzDerivs` is eleven such fields. The walk writes a
+    // record's fields as elements of an array named for the record, but
+    // only for a record of plain numbers - and the bare test for one saw
+    // `SI.Temperature` (an alias of an alias of `Real`) as foreign and
+    // left the record whole. The caller then asked for the third field
+    // of a one-element answer and the run indexed past the end. Reading
+    // the alias chain to its primitive lets the record expand, and the
+    // field is read.
+    let source = "package SIRec \
+        package Units \
+          type Density = Real(final quantity=\"Density\", final unit=\"kg/m3\"); \
+          type ThermodynamicTemperature = Real(final unit=\"K\"); \
+          type Temperature = ThermodynamicTemperature; \
+        end Units; \
+        record Derivs \
+          SIRec.Units.Density d; SIRec.Units.Temperature T; Real f; \
+        end Derivs; \
+        function build input Real p; input Real t; input Integer n; output Derivs r; \
+        algorithm r.d := p/287.0; r.T := t; r.f := 0; \
+          for k in 1:n loop r.f := r.f + p; end for; end build; \
+        function firstDeriv input Real p; input Real t; input Integer n; output Real f; \
+        protected Derivs r; \
+        algorithm r := build(p, t, n); f := r.f + r.T; end firstDeriv; \
+        model M Real h; Real z(start=0, fixed=true); Integer n; \
+        equation n = 2; h = firstDeriv(101325, 293, n); der(z) = h - z; \
+          annotation(experiment(StopTime=1)); end M; \
+      end SIRec;";
+    let result = run(source);
+    // firstDeriv sums p twice and adds T: 2*101325 + 293 = 202943.
+    let h = result.columns.iter().position(|c| c == "h").unwrap();
+    assert!(
+        (result.rows[0][h] - 202943.0).abs() < 0.5,
+        "h = {}",
+        result.rows[0][h]
+    );
+}

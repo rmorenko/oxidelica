@@ -377,6 +377,56 @@ pub(super) fn is_primitive(type_name: &str) -> bool {
     )
 }
 
+/// Whether a scalar type reduces to a primitive - `Real` itself, or an
+/// alias of one that adds no dimension.
+///
+/// The standard library types nearly every number through `SI` -
+/// `SI.Density`, `SI.Temperature` - each an alias `type Density =
+/// Real`. A record of them, `HelmholtzDerivs`, is as plain a record of
+/// numbers as one written in `Real` outright, but the bare
+/// [`is_primitive`] test sees only the alias name and calls it foreign.
+/// This follows the alias chain the way [`resolve_type`] does and asks
+/// the same question at the end, refusing anything an alias gives a
+/// dimension - a record field that is an array is not a plain number.
+pub(super) fn reduces_to_primitive(
+    registry: &HashMap<&str, &ClassDef>,
+    type_name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> bool {
+    let mut name = type_name.to_string();
+    let mut scope = scope.to_string();
+    let mut imports = imports.to_vec();
+    for _ in 0..MAX_DEPTH {
+        if is_primitive(&name) {
+            return true;
+        }
+        let Some(class) = lookup(registry, &name, &scope, &imports) else {
+            return false;
+        };
+        if !class.enumeration.is_empty() {
+            return true;
+        }
+        let Some((base, _)) = class.alias_of.clone() else {
+            return false;
+        };
+        // An alias that adds a dimension - `type Orientation =
+        // Real[4]` - is not a plain scalar, and a field of one cannot
+        // be an element of the record's array.
+        if !class.alias_dimensions.is_empty() {
+            return false;
+        }
+        // The next alias in the chain names its base the way it was
+        // written - `type Temperature = ThermodynamicTemperature` is an
+        // alias inside `Units.SI`, and the base is found there, not
+        // where the record that used `Temperature` was written.
+        name = base;
+        scope = class.name.clone();
+        imports = class.imports.clone();
+    }
+    false
+}
+
 /// Pick one element out of a list written in full: `{1, 2, 3}[2]`, and
 /// a dimension at a time for a list of lists.
 fn pick_from_list(items: &[Expr], indices: &[i64]) -> Option<Expr> {

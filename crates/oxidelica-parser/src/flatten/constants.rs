@@ -586,6 +586,40 @@ fn gather_package_constant_types(
     }
 }
 
+/// Replace every dotted class constant that reduces to a number with
+/// that number, and leave everything else exactly as it was.
+///
+/// The full [`substitute_class_constants`] also folds a dotted constant
+/// that comes to an array or a record - it writes the list out where the
+/// name stood. A body that is walked rather than inlined carries its own
+/// machinery for a record (a field is an element of an array named for
+/// the record) and for an array constant, and a list dropped in over the
+/// top of that collides with it: the run indexes past the end and panics.
+/// So a walked body folds only the scalar constants - a package's
+/// `Constants.R_s` - and lets the walk keep the rest. Every reference the
+/// arithmetic cannot reduce to a number is returned untouched.
+pub(super) fn substitute_scalar_class_constants(
+    expr: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    if let Expr::Ref(name) = expr {
+        if name.contains('.') {
+            if let Some(value) = class_constant_at(registry, name, scope, imports, 0) {
+                return if class_constant_is_boolean(registry, name, scope, imports, 0) {
+                    Expr::Bool(value != 0.0)
+                } else {
+                    Expr::Number(value)
+                };
+            }
+        }
+    }
+    expr.map_children(&mut |child| {
+        substitute_scalar_class_constants(child, registry, scope, imports)
+    })
+}
+
 /// Replace every reference to a class constant with its value.
 pub(super) fn substitute_class_constants(
     expr: &Expr,
