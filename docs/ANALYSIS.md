@@ -4647,3 +4647,31 @@ with a `Xi[0]` field, connected, refused on the parent and run here.
 Three walls into the media bodies now, each a kind cleared and none a
 model lost: the parameter, the state record, the empty mass fraction.
 The next is an array one, and the media are still walking toward a run.
+
+## C-fluid, the array wall named for next: X[nX] not expanded
+
+Three body walls cleared, DryAir1 stops at the fourth, and it is named
+here for the next shift rather than fixed, so the shift ends on a clean
+tree.
+
+Probed: the refusal is `subscripts and arrays survive flattening only
+as scalars: volume.medium.X subscripted by [an expression of more than
+one number]`, and the equation behind it is `volume.medium.X[1] = 1`.
+`volume.medium.X` is declared nowhere - the array `X[nX]`, the full
+mass-fraction vector, did not expand into its element `X[1]`, so the
+subscript reaches the run as an `Index` into a name the flat model does
+not carry.
+
+`nX` is `nS = size(substanceNames, 1)`, one for dry air. The dimension
+is a constant the medium counts, and if it did not fold to one during
+instantiation the `X` component measured no length and produced no
+element - the same shape as `reference_X` and the trace-substance
+counts the constant road already learned to settle, but here at the
+point a component's dimensions are measured rather than a constant read.
+The next shift starts at where `instantiate_components` measures a
+component's dimensions, with `volume.medium.X` the probe: whether `nX`
+folds to one there, and if not, why the count the medium states does
+not reach the array it sizes.
+
+The media are four walls into their bodies, each cleared with a guard
+and no model lost, and this is the fifth, named and small.
