@@ -151,6 +151,51 @@ fn index_reduction_reaches_states_through_algebraic_definitions() {
 }
 
 #[test]
+fn index_reduction_differentiates_through_an_unsolvable_equation() {
+    // The saturating inductor's shape. The current `si` is determined
+    // by `Psi = 0.1*si + 1.9*Ipar*atan(si/Ipar)` and no rearrangement
+    // gets it alone on a side, so a derivative through it can only come
+    // from the implicit function theorem. The two components are joined
+    // at both pins, which is what makes each current look defined by
+    // the other and neither actually grounded.
+    //
+    // Written whole, voltages and ground included, because the half
+    // without them passes either way: with only the currents there is
+    // nothing to reduce, and a model simple enough to leave the
+    // voltages out is simple enough never to reach the rule. The shape
+    // the library uses is the test.
+    //
+    // The source sets the current to `2t`, so the voltage is
+    // `dPsi/di * di/dt = (0.1 + 1.9/(1 + (i/Ipar)^2)) * 2`, and at
+    // t = 1 with i = 2 and Ipar = 0.3 that is 0.283618581907... The
+    // number is the point: flattening is not evidence, and a
+    // derivative that is merely *taken* can be taken wrongly.
+    let result = run(
+        "model Sat Real srcy, ri, rpi, rni, rpv, rnv, rv; \
+         Real spi, sni, spv, snv, sv, si, Psi, gpi, gpv; \
+         parameter Real Ipar = 0.3; \
+         equation srcy = 2 * time; ri = srcy; \
+         0 = rpi + rni; ri = rpi; rv = rpv - rnv; \
+         0 = spi + sni; si = spi; sv = spv - snv; \
+         Psi = 0.1 * si + 1.9 * Ipar * atan(si / Ipar); sv = der(Psi); \
+         gpv = 0; rpv = gpv; snv = gpv; rpi + gpi + sni = 0; \
+         rnv = spv; rni + spi = 0; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end Sat;",
+    );
+    let value = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    assert!((value("si") - 2.0).abs() < 1e-9, "si = {}", value("si"));
+    let expected = (0.1 + 1.9 / (1.0 + (2.0f64 / 0.3).powi(2))) * 2.0;
+    assert!(
+        (value("sv") - expected).abs() < 1e-9,
+        "sv = {}, expected {expected}",
+        value("sv")
+    );
+}
+
+#[test]
 fn every_form_of_loop_comes_out_at_the_right_numbers() {
     // A set, a stepped range, a range the body is left to work out, and
     // two indices at once - all four unrolled and run.

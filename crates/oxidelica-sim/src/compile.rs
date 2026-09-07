@@ -478,6 +478,17 @@ fn try_match(
     false
 }
 
+/// Whether to differentiate implicitly through an unknown no
+/// rearrangement defines.
+///
+/// Behind a switch so that one binary can produce both numbers: two
+/// counts are comparable only when the same build made them, and this
+/// project has already once mistaken two builds for one measurement.
+/// On by default; `OXIDELICA_NO_IMPLICIT_DIFF=1` gives the old walk.
+fn implicit_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_IMPLICIT_DIFF").is_none()
+}
+
 /// Match every equation to an unknown, reducing the index where that
 /// cannot be done.
 ///
@@ -555,63 +566,68 @@ fn reduce_index(
         }
         reductions += 1;
 
-        // Explicit definitions let differentiation reach through
-        // algebraic unknowns.
-        // Definitions to differentiate through, built to a fixpoint so
-        // the graph is acyclic and grounds out in states and parameters.
-        // Explicit forms (`u = 2*x`) come first; an unknown that only
-        // appears inside a linear equation (`phi_rel = b - a` pins `a`)
-        // is defined by solving for it. A definition is accepted only
-        // once everything it references is itself grounded, which is
-        // what keeps `a := b` and `b := a` from chasing each other.
-        let alg_defs: HashMap<String, Expr> = {
-            let mut candidates: Vec<(String, Expr)> = Vec::new();
-            for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
-                // The equation under reduction cannot define its own
-                // way out: `u = 3` must be read through `u = 2*x`.
-                if index == eq {
-                    continue;
-                }
-                if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
-                    if unknowns.contains(name) {
-                        candidates.push((name.clone(), simplify(other)));
-                    }
-                }
-                let mut named = Vec::new();
-                l.collect_refs(&mut named);
-                r.collect_refs(&mut named);
-                named.sort_unstable();
-                named.dedup();
-                for name in named {
-                    if !unknowns.iter().any(|u| u == name) {
-                        continue;
-                    }
-                    if let Some(solved) = solve_linear_for(l, r, name) {
-                        // Solved out of a connection equation, an
-                        // equality arrives wrapped in the signs it was
-                        // moved across and the coefficient it was
-                        // divided by: `-p.i + r.p.i = 0` gives
-                        // `-(-r.n.i)/-1`. Folded here, what is a plain
-                        // name is written as one, and everything after
-                        // this reads the shape rather than the wrapping.
-                        candidates.push((name.to_string(), simplify(&solved)));
-                    }
+        let mut candidates: Vec<(String, Expr)> = Vec::new();
+        for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
+            // The equation under reduction cannot define its own
+            // way out: `u = 3` must be read through `u = 2*x`.
+            if index == eq {
+                continue;
+            }
+            if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
+                if unknowns.contains(name) {
+                    candidates.push((name.clone(), simplify(other)));
                 }
             }
+            let mut named = Vec::new();
+            l.collect_refs(&mut named);
+            r.collect_refs(&mut named);
+            named.sort_unstable();
+            named.dedup();
+            for name in named {
+                if !unknowns.iter().any(|u| u == name) {
+                    continue;
+                }
+                if let Some(solved) = solve_linear_for(l, r, name) {
+                    // Solved out of a connection equation, an
+                    // equality arrives wrapped in the signs it was
+                    // moved across and the coefficient it was
+                    // divided by: `-p.i + r.p.i = 0` gives
+                    // `-(-r.n.i)/-1`. Folded here, what is a plain
+                    // name is written as one, and everything after
+                    // this reads the shape rather than the wrapping.
+                    candidates.push((name.to_string(), simplify(&solved)));
+                }
+            }
+        }
+
+        // Definitions to differentiate through, built to a fixpoint so
+        // the graph is acyclic and grounds out in states, parameters
+        // and whatever is already grounded. A definition is accepted
+        // only once everything it references is itself grounded, which
+        // is what keeps `a := b` and `b := a` from chasing each other.
+        let settle = |grounded: &HashMap<String, (Expr, Expr)>| {
             let mut accepted: HashMap<String, Expr> = HashMap::new();
             loop {
                 let mut progress = false;
                 for (name, expr) in &candidates {
-                    if accepted.contains_key(name) {
+                    // A name the implicit rule already grounds keeps
+                    // that grounding. Taking a definition for it as
+                    // well is how a two-name cycle gets built: `i = p.i`
+                    // and `p.i = i` are both candidates, and with `i`
+                    // grounded implicitly both would be accepted and
+                    // chase each other until the depth guard fired.
+                    if accepted.contains_key(name) || grounded.contains_key(name) {
                         continue;
                     }
                     let mut refs = Vec::new();
                     expr.collect_refs(&mut refs);
-                    let grounded = refs.iter().all(|r| {
+                    let ok = refs.iter().all(|r| {
                         *r != name
-                            && (!unknowns.iter().any(|u| u == *r) || accepted.contains_key(*r))
+                            && (!unknowns.iter().any(|u| u == *r)
+                                || accepted.contains_key(*r)
+                                || grounded.contains_key(*r))
                     });
-                    if grounded {
+                    if ok {
                         accepted.insert(name.clone(), expr.clone());
                         progress = true;
                     }
@@ -621,6 +637,73 @@ fn reduce_index(
                 }
             }
             accepted
+        };
+
+        // The unknowns nothing above grounds. `Psi = Linf*i +
+        // c*atan(i/Ipar)` determines the current and cannot be solved
+        // for it, so the fixpoint has nothing to say and the walk
+        // refused the whole model. Its equation is kept whole instead,
+        // for the implicit function theorem to differentiate.
+        //
+        // Read after the first settling rather than before it, because
+        // the names that need this are exactly the ones a rearrangement
+        // *appears* to define and does not: `i = p.i` and `p.i = i` are
+        // each a definition of the other and ground nothing, so a name
+        // tested against the candidate list alone is never offered
+        // here. What settles is the test.
+        //
+        // Two conditions, and the second was paid for. The name must be
+        // the single unsettled one in the equation - an equation naming
+        // two determines neither on its own, and dividing by a slope
+        // belonging to a different variable is a wrong number where a
+        // refusal was owed. And the equation must be one no
+        // rearrangement solves: `0 = p.i + n.i` names one unsettled
+        // current and is perfectly linear in it, so taken here it would
+        // answer `der(p.i)` with `-der(n.i)` and go round the circuit
+        // for ever rather than reach the flux that actually moves. What
+        // this rule is for is the equation that *cannot* be rearranged,
+        // which is the one carrying the physics.
+        let empty = HashMap::new();
+        let settled = settle(&empty);
+        let implicit_defs: HashMap<String, (Expr, Expr)> = if implicit_enabled() {
+            let mut found: HashMap<String, (Expr, Expr)> = HashMap::new();
+            for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
+                if index == eq {
+                    continue;
+                }
+                let mut named = Vec::new();
+                l.collect_refs(&mut named);
+                r.collect_refs(&mut named);
+                named.sort_unstable();
+                named.dedup();
+                let unsettled: Vec<&str> = named
+                    .iter()
+                    .copied()
+                    .filter(|n| {
+                        unknowns.iter().any(|u| u == *n)
+                            && !dummies.contains_key(*n)
+                            && !settled.contains_key(*n)
+                    })
+                    .collect();
+                if let [only] = unsettled[..] {
+                    if solve_linear_for(l, r, only).is_none() {
+                        found
+                            .entry(only.to_string())
+                            .or_insert_with(|| (l.clone(), r.clone()));
+                    }
+                }
+            }
+            found
+        } else {
+            HashMap::new()
+        };
+
+        // Settled again, now that the implicit names count as ground:
+        // `p.i = i` is a definition once `i` has one.
+        let alg_defs = if implicit_defs.is_empty() {
+            settled
+        } else {
+            settle(&implicit_defs)
         };
 
         let residual = Expr::Bin(
@@ -635,6 +718,8 @@ fn reduce_index(
                 params,
                 dummies: &dummies,
                 alg_defs: &alg_defs,
+                implicit_defs: &implicit_defs,
+                holding: &[],
             },
         ) {
             Ok(d) => simplify(&d),
@@ -660,6 +745,7 @@ fn reduce_index(
             &rhs,
             &states,
             &alg_defs,
+            &implicit_defs,
             &companions,
             start_env,
             at_time,
@@ -724,6 +810,7 @@ fn choose_the_victim(
     rhs: &Expr,
     states: &[String],
     alg_defs: &HashMap<String, Expr>,
+    implicit_defs: &HashMap<String, (Expr, Expr)>,
     companions: &[String],
     start_env: &HashMap<String, f64>,
     at_time: f64,
@@ -755,6 +842,18 @@ fn choose_the_victim(
             } else if let Some(definition) = alg_defs.get(&name) {
                 let mut more = Vec::new();
                 definition.collect_refs(&mut more);
+                queue.extend(more.into_iter().map(str::to_string));
+            } else if let Some((l, r)) = implicit_defs.get(&name) {
+                // The same reach through an equation that determines a
+                // name without defining it. Left out, the walk stops at
+                // the current and never sees the flux behind it, so a
+                // constraint that does pin a state is reported as
+                // pinning none - the differentiation succeeds and the
+                // model is refused one line later, which is the worse
+                // half of a fix that only went halfway.
+                let mut more = Vec::new();
+                l.collect_refs(&mut more);
+                r.collect_refs(&mut more);
                 queue.extend(more.into_iter().map(str::to_string));
             }
         }

@@ -201,8 +201,25 @@ pub(crate) fn differentiate_at(
                 params,
                 dummies,
                 alg_defs,
+                implicit_defs,
+                holding,
             } => {
-                if let Some(rhs) = state_rhs.get(name) {
+                if holding.last() == Some(&name.as_str()) {
+                    // The name this implicit derivative is being taken
+                    // for: held still by construction, which is what
+                    // `dg/dt at x fixed` means.
+                    Expr::Number(0.0)
+                } else if holding.contains(&name.as_str()) {
+                    // Reached again through a *different* equation, so
+                    // the two determine each other and neither can be
+                    // differentiated alone - that wants a linear system
+                    // and not a quotient. Refused rather than held
+                    // still, which would be a wrong number where the
+                    // honest answer is that this is not implemented.
+                    return Err(format!(
+                        "`{name}` and the unknown determining it depend on each other"
+                    ));
+                } else if let Some(rhs) = state_rhs.get(name) {
                     rhs.clone()
                 } else if params.contains_key(name) {
                     Expr::Number(0.0)
@@ -215,6 +232,45 @@ pub(crate) fn differentiate_at(
                     // reaches the derivative through the equation that
                     // determines the variable).
                     d(definition)?
+                } else if let Some((l, r)) = implicit_defs.get(name) {
+                    // An unknown its equation cannot be solved for.
+                    // `Psi = Linf*i + c*atan(i/Ipar)` determines the
+                    // current from the flux, and no rearrangement puts
+                    // `i` alone on a side - but the derivative does not
+                    // need the solution, only the implicit function
+                    // theorem. With residual `g(t, x) = 0`,
+                    //
+                    //     dx/dt = -(dg/dt at x fixed) / (dg/dx).
+                    //
+                    // Both halves are derivatives this module already
+                    // takes: the numerator with `x` held still, the
+                    // denominator with respect to `x`. A slope of zero
+                    // is a genuine singularity and is refused rather
+                    // than divided by, since a wrong number is worse
+                    // than a refusal.
+                    let residual = Expr::Bin(Sub, Box::new(l.clone()), Box::new(r.clone()));
+                    let slope = simplify(&differentiate_at(
+                        &residual,
+                        &DiffTarget::Variable(name),
+                        depth + 1,
+                    )?);
+                    if matches!(slope, Expr::Number(s) if s == 0.0) {
+                        return Err(format!(
+                            "the equation determining `{name}` does not depend on it"
+                        ));
+                    }
+                    let mut chain: Vec<&str> = holding.to_vec();
+                    chain.push(name.as_str());
+                    let held = DiffTarget::Time {
+                        state_rhs,
+                        params,
+                        dummies,
+                        alg_defs,
+                        implicit_defs,
+                        holding: &chain,
+                    };
+                    let motion = simplify(&differentiate_at(&residual, &held, depth + 1)?);
+                    bin(Div, Expr::Neg(Box::new(motion)), slope)
                 } else {
                     return Err(format!(
                         "cannot differentiate through algebraic variable `{name}`"
@@ -377,6 +433,8 @@ fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
         params,
         dummies,
         alg_defs,
+        implicit_defs,
+        holding,
     } = target
     else {
         return false;
@@ -385,7 +443,13 @@ fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) => true,
         Expr::Time => false,
         Expr::Ref(name) => {
-            if state_rhs.contains_key(name) || dummies.contains_key(name) {
+            if holding.contains(&name.as_str()) {
+                return true;
+            }
+            if state_rhs.contains_key(name)
+                || dummies.contains_key(name)
+                || implicit_defs.contains_key(name)
+            {
                 return false;
             }
             if params.contains_key(name) {

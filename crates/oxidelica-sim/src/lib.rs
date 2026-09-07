@@ -446,6 +446,21 @@ enum DiffTarget<'a> {
         /// Explicit definitions of algebraic unknowns, differentiated
         /// recursively when their derivative is needed.
         alg_defs: &'a HashMap<String, Expr>,
+        /// Algebraic unknowns determined by an equation that cannot be
+        /// solved for them - `Psi = Linf*i + c*atan(i/Ipar)` determines
+        /// the current and no rearrangement gets it alone on a side.
+        /// The equation each such name is matched to, kept whole so the
+        /// derivative can be taken implicitly.
+        implicit_defs: &'a HashMap<String, (Expr, Expr)>,
+        /// The names being held still while implicit derivatives are
+        /// worked out: inside `dg/dt at x fixed`, `x` does not move.
+        ///
+        /// A chain rather than one name, because the chain is what has
+        /// to be checked for cycles. `0 = p.i + n.i` determines either
+        /// pin's current from the other, so a name entered through its
+        /// own equation a second time would recurse until the depth
+        /// guard fired and blame an expression that was never deep.
+        holding: &'a [&'a str],
     },
     /// Differentiate with respect to one variable, all else constant.
     Variable(&'a str),
