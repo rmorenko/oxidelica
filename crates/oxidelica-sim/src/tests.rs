@@ -275,3 +275,50 @@ fn the_wrappers_a_connection_set_leaves_are_folded_away() {
         );
     }
 }
+
+#[test]
+fn two_implicit_unknowns_determining_each_other_are_refused() {
+    // Two unknowns, each determined by an equation no rearrangement
+    // solves, and each equation naming the other name. Reaching the
+    // second one from inside the first one's `dg/dt at x fixed` means
+    // neither can be differentiated alone - that wants a linear system
+    // and not a quotient, and the honest answer is a refusal.
+    //
+    // The mutual guard on `Ref` was written for exactly this and could
+    // not be reached: `does_not_move` answered true for every name in
+    // the chain, so a name from the middle was silently folded to zero
+    // and the derivative came out as a number with a term missing. A
+    // wrong number where a refusal was owed is the worst thing this
+    // compiler can do, so the test is on the refusal and not on a
+    // model flattening.
+    let state_rhs = HashMap::new();
+    let params: HashMap<String, f64> = HashMap::from([("k".to_string(), 0.3)]);
+    let dummies = HashMap::new();
+    let alg_defs = HashMap::new();
+    // g1: Psi1 = 0.1*a + k*a*a*b, determining `a` and naming `b`.
+    // g2: Psi2 = 0.1*b + k*b*b*a, determining `b` and naming `a`.
+    let implicit_defs: HashMap<String, (Expr, Expr)> = HashMap::from([
+        (
+            "a".to_string(),
+            (expr_of("0.1 * a + k * a * a * b"), Expr::Time),
+        ),
+        (
+            "b".to_string(),
+            (expr_of("0.1 * b + k * b * b * a"), Expr::Time),
+        ),
+    ]);
+    let target = DiffTarget::Time {
+        state_rhs: &state_rhs,
+        params: &params,
+        dummies: &dummies,
+        alg_defs: &alg_defs,
+        implicit_defs: &implicit_defs,
+        holding: &[],
+    };
+    let outcome = differentiate(&Expr::Ref("a".to_string()), &target);
+    let reason = outcome.expect_err("mutually determined unknowns cannot be differentiated");
+    assert!(
+        reason.contains("depend on each other"),
+        "expected the mutual refusal, got: {reason}"
+    );
+}

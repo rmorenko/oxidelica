@@ -443,8 +443,21 @@ fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
         Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) => true,
         Expr::Time => false,
         Expr::Ref(name) => {
-            if holding.contains(&name.as_str()) {
+            // Only the innermost held name stands still. `dg/dt at x
+            // fixed` holds `x`, and nothing else in the chain: a name
+            // from further up is reached through a *different*
+            // equation, which makes the two determine each other, and
+            // that is refused by the walk itself rather than answered.
+            // Read as "everything in the chain is constant", this
+            // folded such a name to zero and returned a derivative with
+            // a term missing - a wrong number where the refusal on
+            // `Ref` was owed, and the refusal was unreachable for as
+            // long as it stood.
+            if holding.last() == Some(&name.as_str()) {
                 return true;
+            }
+            if holding.contains(&name.as_str()) {
+                return false;
             }
             if state_rhs.contains_key(name)
                 || dummies.contains_key(name)
