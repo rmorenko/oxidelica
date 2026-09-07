@@ -5060,3 +5060,131 @@ The two heating transistor models refuse on `der(T2.vbc)` - a
 derivative already carried as an unknown, needing a second
 differentiation rather than a first. Fourteen are MultiBody and
 parked under their own panel.
+
+## The unbalanced row surveyed: seventy-three models, seven families
+
+The largest entry of the run half was carried forward from an old
+census as "167 models, 13 of them machine-shaped". Both halves of that
+were stale. Measured on the corpus at 362 flattened / 362 built with
+`scripts/refusals.sh .msl/Modelica unbalanced`, the row holds **73**
+models, and the machine-shaped part of it is **14**, not 13.
+
+The script cuts the row along two axes before anything is probed, and
+the first axis is the one that matters most: the _sign_ of the miss.
+Too few equations and too many are different illnesses and may not be
+added together.
+
+- **too few equations (`-`): 63 models.** The spread is narrow -
+  29 at `-2`, 12 at `-1`, 8 at `-3`, 7 at `-4` - with a thin tail at
+  `-19`, `-24`, `-25`, `-40`, `-80`.
+- **too many equations (`+`): 10 models.** Four small (`+1`, `+2`) and
+  a cluster of transformers at `+60` and `+120`.
+
+By chapter the row is overwhelmingly Electrical (about half), then
+Mechanics, then Fluid, Clocked, Thermal, StateGraph, Magnetic.
+
+A second fact about the row, before the families: **47 of the 73 are
+helper classes** - `.Utilities.`, `.BaseClasses.`, `.Components.` -
+and not runnable examples. The row is therefore worth much less to the
+run count than its size suggests; the 26 that are examples proper are
+the part that could move a floor.
+
+### The families, probed one model per cell
+
+**1. The adaptor's dead derivative branch - 13 models, all `-2` to
+`-4`.** `Modelica.Blocks.Interfaces.Adaptors.FlowToPotentialAdaptor`
+writes `y1 = if use_pder then der(y) else 0`, and every model in this
+family instantiates it with `use_pder=false, use_fder=false`. The
+refusal names `der(voltageToCurrent1.y1)` as undetermined: the branch
+that is _not_ taken is still generating a derivative unknown. The
+conditional's condition is an `Evaluate=true` structural parameter and
+is false, so the `der` should never have been minted at all. Probed on
+`Utilities.Resistor` (41 equations for 43 unknowns): `why` shows the
+flat equation still carrying the whole `if`, and the conditional
+connectors `pder`/`pder2` correctly absent - "declared nowhere". So
+the connectors were removed by the conditional-declaration layer and
+the equation was not folded by the same knowledge. Same wall in
+Electrical, Mechanics.Rotational, Mechanics.Translational and
+Thermal.HeatTransfer, which is why it looks like four chapters and is
+one class. This is the largest family and the most localised.
+
+**2. The DC machine and H-bridge chain - 14 models, `-1` to `-3`.**
+`dcpm.airGapDC.pin_ap.v`, `dcpm.internalSupport.tau`,
+`hbridge.fire_n`. Probed on `DCPM_Start` (190 for 191): `pin_ap.v`
+_is_ named by two equations, one inside `airGapDC` and one from a
+connection, so this is not a missing equation but a matching that ends
+one short. The old note's "13 machine-shaped" is this family, now 14,
+and the note that it is not the same thing as the top of the census
+still holds.
+
+**3. Op-amps - 7 models, `-2` to `-5`.** `opAmp.i_s`, `opAmp.out.i`,
+`n2.i` repeat across `OpAmpCircuits.{Add,Buffer,Feedback,Gain}`,
+`ControlCircuit`, `DifferentialAmplifier` and `CauerLowPassOPV` (the
+`-19` in the tail, and the only large one). Probed on `Buffer`:
+`opAmp.i_s` has exactly one equation defining it and is still called
+undetermined, so like family 2 this is the matching and not the model.
+`CauerLowPassOPV` names 23 unknowns of the same shape, which suggests
+one repeated component and not 23 illnesses.
+
+**4. Classes with no equations at all - 5 models.** `BufferMain` (0
+equations for 80 unknowns), `Buffer_Recipe_TBD` (0 for 40),
+`Adapter_Inference`, `Adapter_Superposition`,
+`ComponentsThrottleControl.SpeedControl`. `Buffer_Recipe_TBD` is a
+`class` holding `Boolean S0..S14` and an actuator connector, with its
+whole content in `algorithm` sections elsewhere; `why Recipe1.S0`
+answers "named by: no equation of the flat model". These are not
+models anybody simulates and the refusal is arguably correct. Park
+them: five models of the row are noise.
+
+**5. Too many equations - 10 models, two shapes.** The StateGraph four
+(`CompositeStep`, `CompositeStep1`, `CompositeStep2`, `MakeProduct`,
+`+1`/`+2`) refuse with "nothing is left for
+`initStep.inPort[1].occupied = inPort.occupied`" while `why` shows
+`inPort.occupied` _also_ fixed by `inPort.occupied = false`. A
+connector's default and the connection equation are both being
+counted, so one of the two is spurious. The transformer three
+(`Rectifier6pulse` `+60`, `Rectifier12pulse` `+120`,
+`AsymmetricalLoad` `+60`) and `TestSensors` (`+2`) refuse over
+`star2.plug_p.pin[k].v = star2.pin_n.v`, a polyphase star generating
+one equation per phase where the connection set already has them. Both
+shapes are equation generation counting something twice, and the
+transformer numbers being exact multiples of 60 says how mechanical
+the duplication is.
+
+**6. The expandable-bus robot - 5 models, `-2` to `-24`.**
+`axisControlBus.motorSpeed`, `motion_ref_axisUsed.y`, `moving[2..24]`
+in `RobotR3.Utilities.{Motor,Controller,AxisType2,GearType2,
+PathToAxisControlBus}`. The `-24` one is the largest single miss after
+the equationless classes. All are helper classes.
+
+**7. Singles and small pairs - the remaining ~19.** Clocked's
+`inverseBlockConstraints.y2` and `T_c`, the FluxTubes pair with
+`mass.a` and `stopper_xMax.lossPower`, StateGraph's `Tank`/`valve`/
+`Source` over `outflow1.open`, `Rotational.Utilities.{DirectInertia,
+InverseInertia}` over `inertia.a`. Several of these have the same
+shape as families 2 and 3 - `inertia.a` is named by two equations,
+`outflow1.open` by one - and the charter's warning applies: a column
+of ones may be one layer, and this batch has not been probed to the
+layer yet.
+
+### What the survey says about where to work
+
+The count of kinds here is one row; the count of families is seven,
+and the two ends of the gap are exactly what the charter says they
+would be. Ranked by what they could actually buy:
+
+- Family 1 is 13 models on one class and one unfolded `if`, and it is
+  the only family where the cause is visible without opening the
+  matching. It is also the only one whose fix is plainly local. But 10
+  of its 13 are helper classes.
+- Families 2, 3, 6 and much of 7 all show the same signature - a name
+  with equations naming it, still reported as determined by nothing -
+  which is a matching that comes up short rather than 30 separate
+  faults. If that is one layer, it is the largest thing in the row by
+  a wide margin, and a probe into the matching is worth more than any
+  of the individual families.
+- Family 5 is a different illness entirely (duplication in equation
+  generation) and must not be counted with the rest.
+- Family 4 should be excluded from the row's size in future readings.
+
+No code was written for this entry; it is reconnaissance.
