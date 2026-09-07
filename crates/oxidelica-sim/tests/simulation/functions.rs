@@ -372,6 +372,34 @@ fn a_record_given_to_a_function_whole_is_read_field_by_field() {
 }
 
 #[test]
+fn a_walked_body_hands_a_record_it_was_just_given() {
+    // The shape the water tables are written in throughout:
+    // `hvl_p(p, boilingcurve_p(p))` works the whole property record
+    // out at the call site and hands it straight on. Taken as a
+    // single number - which is what a call argument used to become -
+    // the reader's `bpro[1]` names nothing at all, and the run stops
+    // on an unknown variable rather than on anything the model said.
+    let result = run("package P record Props Real a; Real b; end Props; \
+         function mk input Real p; output Props bpro; \
+         algorithm bpro.a := p; bpro.b := 2 * p; end mk; \
+         function take input Real p; input Props bpro; output Real y; \
+         algorithm y := bpro.a + bpro.b; end take; \
+         function pass input Real p; output Real y; \
+         algorithm y := take(p, mk(p)); end pass; end P; \
+         model M function walked input Real p; output Real r; \
+         protected Real h; \
+         algorithm h := P.pass(p); \
+         if h > 0 then r := h; else r := -h; end if; \
+         while r > 100 loop r := r - 1; end while; end walked; \
+         Real y; equation y = walked(time + 1); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // Two at the end: the record's own fields are `2` and `4`, and
+    // their sum is six. A number, not a refusal.
+    assert!((result.rows.last().unwrap()[at("y")] - 6.0).abs() < 1e-12);
+}
+
+#[test]
 fn a_walked_body_answers_with_a_record() {
     // The shape the standard library's water is written in: a body
     // that cannot be unrolled fills one member of a record in one

@@ -426,10 +426,25 @@ fn elements_of(
                         }
                         shapes.push(vec![length]);
                     }
-                    _ => {
-                        given.push(number_of(arg, frame, programs, time, depth)?);
-                        shapes.push(Vec::new());
-                    }
+                    // An argument that is itself a call answering with
+                    // a record goes over as that record's fields, the
+                    // same as a named one. The water tables are written
+                    // this way throughout - `hvl_p(p, boilingcurve_p(p))`
+                    // hands the boiling curve's whole property record
+                    // straight to the reader - and taken as one number
+                    // the callee's `bpro[1]` names nothing at all.
+                    _ => match elements_of(arg, frame, programs, time, depth)? {
+                        Some(items) => {
+                            for item in &items {
+                                given.push(number_of(item, frame, programs, time, depth)?);
+                            }
+                            shapes.push(vec![items.len()]);
+                        }
+                        None => {
+                            given.push(number_of(arg, frame, programs, time, depth)?);
+                            shapes.push(Vec::new());
+                        }
+                    },
                 }
             }
             let answer = walk(programs, name, &given, &shapes, time, depth + 1)?;

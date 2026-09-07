@@ -66,6 +66,40 @@ pub(crate) fn shape_of(expr: &Expr) -> String {
     }
 }
 
+/// The several numbers an argument stands for, where it stands for
+/// several rather than one.
+///
+/// Only a call to a body the run carries that answers with more than
+/// one number - a record, or an array output. Everything else is a
+/// scalar here and says so by answering `None`, so that a caller can
+/// take the cheap road for it.
+fn record_answer(expr: &Expr, ctx: &EvalCtx) -> Result<Option<Vec<f64>>, SimError> {
+    let (Expr::Call(name, args), Some(programs)) = (expr, ctx.programs) else {
+        return Ok(None);
+    };
+    if !programs.contains_key(name.as_str()) {
+        return Ok(None);
+    }
+    let (mut given, mut lengths) = (Vec::new(), Vec::new());
+    for arg in args {
+        match record_answer(arg, ctx)? {
+            Some(fields) => {
+                lengths.push(vec![fields.len()]);
+                given.extend(fields);
+            }
+            None => {
+                given.push(eval(arg, ctx)?);
+                lengths.push(Vec::new());
+            }
+        }
+    }
+    let answer = crate::walk::walk(programs, name, &given, &lengths, ctx.time, ctx.depth + 1)?;
+    // A body that answers with one number is a scalar call and stays
+    // one: spreading it into a one-element array would tell the callee
+    // it was handed a vector where a number was meant.
+    Ok((answer.len() > 1).then_some(answer))
+}
+
 pub(crate) fn truth(yes: bool) -> f64 {
     if yes {
         1.0
@@ -300,14 +334,33 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     // Inside a walked body one call hands another
                     // numbers it has already worked out, and a name
                     // that stands for several is written out as an
-                    // array before it gets here.
-                    let lengths = vec![Vec::new(); vals.len()];
+                    // array before it gets here. An argument that is
+                    // itself a call answering with a record is not:
+                    // the water tables are written `hvl_p(p,
+                    // boilingcurve_p(p))` throughout, handing a whole
+                    // property record straight on, and taken as one
+                    // number the reader's `bpro[1]` names nothing at
+                    // all. So each argument is asked how many numbers
+                    // it stands for before it is worked out.
+                    let (mut given, mut lengths) = (Vec::new(), Vec::new());
+                    for arg in args {
+                        match record_answer(arg, ctx)? {
+                            Some(fields) => {
+                                lengths.push(vec![fields.len()]);
+                                given.extend(fields);
+                            }
+                            None => {
+                                given.push(eval(arg, ctx)?);
+                                lengths.push(Vec::new());
+                            }
+                        }
+                    }
                     // A call inside a walked body asks for the one
                     // number a body written that way answers with.
                     return crate::walk::walk(
                         programs,
                         name,
-                        &vals,
+                        &given,
                         &lengths,
                         ctx.time,
                         ctx.depth + 1,
