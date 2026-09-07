@@ -129,6 +129,43 @@ fn expandable_connector_error_paths() {
 }
 
 #[test]
+fn streams_are_read_under_a_subscript_and_through_a_base_class() {
+    const PORT: &str = "connector Port Real p; flow Real m; stream Real h; end Port;\
+                        connector Port_a extends Port; end Port_a;";
+
+    // A stream member the connector says through an `extends` is a
+    // stream member all the same. This is the shape of the library's
+    // fluid ports, where `FluidPort_a` adds nothing to `FluidPort`
+    // but an icon.
+    let m = parse_model(&format!(
+        "{PORT} model M Port_a port; Real y; \
+         equation port.p = 1; port.h = 7; y = inStream(port.h); end M;"
+    ))
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    assert!(
+        !text.contains("inStream"),
+        "an inherited stream member is still a stream member: {text}"
+    );
+
+    // And a call under a subscript is still a call. The library asks
+    // its media for a whole property vector and takes one field of
+    // it, so every `inStream` a medium sees arrives inside an index.
+    let m = parse_model(&format!(
+        "{PORT} function props input Real x; output Real[2] y; \
+         algorithm y := {{x, 2 * x}}; end props;\
+         model M Port_a port; Real y; \
+         equation port.p = 1; port.h = 7; y = props(inStream(port.h))[2]; end M;"
+    ))
+    .unwrap();
+    let text = format!("{:?}", m.equations);
+    assert!(
+        !text.contains("inStream"),
+        "a call under a subscript was left standing: {text}"
+    );
+}
+
+#[test]
 fn streams_mix_by_their_connection_set() {
     const PORT: &str = "connector Port Real p; flow Real m; stream Real h; end Port;";
 

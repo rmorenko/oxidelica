@@ -274,10 +274,69 @@ fn names_it(expr: &Expr, path: &str) -> bool {
     matches!(expr, Expr::Ref(name) if name == path)
 }
 
+/// What a connector class holds, base classes included and record
+/// members spread into their fields.
+///
+/// A connector may say what it holds through an `extends`: the fluid
+/// ports of the library are one `FluidPort` carrying the flow, the
+/// pressure and the streams, and `FluidPort_a` and `FluidPort_b` add
+/// nothing to it but an icon. Read from the class alone those two
+/// hold nothing at all - which is how eight valve models reached the
+/// run with `inStream` still standing in their equations.
+pub(super) fn connector_members(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+) -> Vec<Component> {
+    fn gather(
+        registry: &HashMap<&str, &ClassDef>,
+        class: &ClassDef,
+        out: &mut Vec<Component>,
+        depth: usize,
+    ) {
+        if depth > MAX_DEPTH {
+            return;
+        }
+        for extend in &class.extends {
+            if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+                gather(registry, base, out, depth + 1);
+            }
+        }
+        for component in &class.components {
+            // A member that is a record is not one variable but the
+            // fields it holds: the magnetic ports of the
+            // fundamental-wave machines carry a complex potential and
+            // a complex flux, and flattening knows those by `V_m.re`
+            // and `V_m.im`. Equating the record's own name would name
+            // a variable the flat model does not have. A field with
+            // dimensions of its own is left whole, since the name it
+            // would take is not one this knows.
+            let held = lookup(registry, &component.type_name, &class.name, &class.imports)
+                .filter(|of| of.kind == ClassKind::Record)
+                .filter(|_| component.dimensions.is_empty());
+            match held {
+                Some(record) => {
+                    let mut fields = Vec::new();
+                    gather(registry, record, &mut fields, depth + 1);
+                    for mut field in fields {
+                        field.name = format!("{}.{}", component.name, field.name);
+                        field.flow = component.flow;
+                        field.stream = component.stream;
+                        field.variability = component.variability;
+                        out.push(field);
+                    }
+                }
+                None => out.push(component.clone()),
+            }
+        }
+    }
+    let mut out = Vec::new();
+    gather(registry, class, &mut out, 0);
+    out
+}
+
 /// Replace `inStream(...)` and `actualStream(...)` with the mix the
 /// connection set defines for them.
 pub(super) fn resolve_streams(expr: &Expr, context: &StreamContext) -> Result<Expr, String> {
-    let recur = |e: &Expr| resolve_streams(e, context);
     Ok(match expr {
         Expr::Call(name, args) if name == "inStream" || name == "actualStream" => {
             let [Expr::Ref(target)] = args.as_slice() else {
@@ -287,24 +346,13 @@ pub(super) fn resolve_streams(expr: &Expr, context: &StreamContext) -> Result<Ex
             };
             stream_mix(target, context, name == "actualStream")?
         }
-        Expr::Call(name, args) => Expr::Call(
-            name.clone(),
-            args.iter().map(recur).collect::<Result<_, _>>()?,
-        ),
-        Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner)?)),
-        Expr::Not(inner) => Expr::Not(Box::new(recur(inner)?)),
-        Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::And(l, r) => Expr::And(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::Or(l, r) => Expr::Or(Box::new(recur(l)?), Box::new(recur(r)?)),
-        Expr::If(c, a, b) => Expr::If(
-            Box::new(recur(c)?),
-            Box::new(recur(a)?),
-            Box::new(recur(b)?),
-        ),
-        // Everything else is a leaf here, or an array form that never
-        // survives to this point.
-        _ => expr.clone(),
+        // And the same, further down. Written out by hand this walk
+        // stopped at the variants it had not named - a subscript
+        // among them, which is where eight valve models kept their
+        // `inStream`: the enthalpy reaches the medium as
+        // `waterBaseProp_ph(p, inStream(h), 0, 0)[9]`, and the walk
+        // never looked inside the index.
+        other => other.try_map_children(&mut |e| resolve_streams(e, context))?,
     })
 }
 
@@ -328,7 +376,8 @@ pub(super) fn stream_mix(
         ));
     };
     let class = context.registry[class_name.as_str()];
-    let Some(component) = class.components.iter().find(|c| c.name == member) else {
+    let held = connector_members(context.registry, class);
+    let Some(component) = held.iter().find(|c| c.name == member) else {
         return Err(format!("connector `{class_name}` has no member `{member}`"));
     };
     if !component.stream {
@@ -336,8 +385,7 @@ pub(super) fn stream_mix(
             "`{name}` is not a stream variable; `inStream` reads only those"
         ));
     }
-    let flow_name = class
-        .components
+    let flow_name = held
         .iter()
         .find(|c| c.flow)
         .map(|c| c.name.clone())

@@ -722,61 +722,11 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         // the same members, and connecting them is the whole point.
         let class_name = acc.connectors[members[0].0].clone();
         let class = registry[class_name.as_str()];
-        // A connector may say what it holds through a base class: the
-        // multibody frames are one `Frame` with the position, the
+        // The multibody frames are one `Frame` with the position, the
         // orientation and the two flows, and `Frame_a` and `Frame_b`
-        // add nothing to it but an icon. Read from the class alone
-        // those two hold nothing at all, and a flow nobody sums is a
+        // add nothing to it but an icon; a flow nobody sums is a
         // variable no equation ever names.
-        let members_of = |class: &ClassDef| -> Vec<Component> {
-            let mut out = Vec::new();
-            fn gather(
-                registry: &HashMap<&str, &ClassDef>,
-                class: &ClassDef,
-                out: &mut Vec<Component>,
-                depth: usize,
-            ) {
-                if depth > MAX_DEPTH {
-                    return;
-                }
-                for extend in &class.extends {
-                    if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports)
-                    {
-                        gather(registry, base, out, depth + 1);
-                    }
-                }
-                for component in &class.components {
-                    // A member that is a record is not one variable
-                    // but the fields it holds: the magnetic ports of
-                    // the fundamental-wave machines carry a complex
-                    // potential and a complex flux, and flattening
-                    // knows those by `V_m.re` and `V_m.im`. Equating
-                    // the record's own name would name a variable the
-                    // flat model does not have. A field with
-                    // dimensions of its own is left whole, since the
-                    // name it would take is not one this knows.
-                    let held = lookup(registry, &component.type_name, &class.name, &class.imports)
-                        .filter(|of| of.kind == ClassKind::Record)
-                        .filter(|_| component.dimensions.is_empty());
-                    match held {
-                        Some(record) => {
-                            let mut fields = Vec::new();
-                            gather(registry, record, &mut fields, depth + 1);
-                            for mut field in fields {
-                                field.name = format!("{}.{}", component.name, field.name);
-                                field.flow = component.flow;
-                                field.stream = component.stream;
-                                field.variability = component.variability;
-                                out.push(field);
-                            }
-                        }
-                        None => out.push(component.clone()),
-                    }
-                }
-            }
-            gather(registry, class, &mut out, 0);
-            out
-        };
+        let members_of = |class: &ClassDef| connector_members(registry, class);
         let held = members_of(class);
         let shape = |class: &ClassDef| -> Vec<(String, bool, bool)> {
             let mut members: Vec<(String, bool, bool)> = members_of(class)
@@ -926,8 +876,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
     // `inStream` and `actualStream` are functions of the connection
     // set, so only now, with the sets known, do they have a value.
     let any_streams = acc.connectors.values().any(|class_name| {
-        registry[class_name.as_str()]
-            .components
+        connector_members(registry, registry[class_name.as_str()])
             .iter()
             .any(|c| c.stream)
     });
