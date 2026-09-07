@@ -636,21 +636,60 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
             false => seen.0 = true,
         }
     }
+    // Which member of which port carries flow, so that a port can
+    // tell an equation about its potential from one about its flow.
+    let flow_members: HashSet<(String, String)> = acc
+        .connectors
+        .iter()
+        .filter_map(|(path, class_name)| {
+            let class = registry.get(class_name.as_str())?;
+            Some(
+                connector_members(registry, class)
+                    .into_iter()
+                    .filter(|member| member.flow)
+                    .map(|member| (path.clone(), member.name))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .flatten()
+        .collect();
     // What the model already writes about a port by hand. A port the
     // level above says nothing about carries nothing and is set to
     // zero; one that level writes equations against - the flow named
     // outright, rather than joined - is spoken for, and a zero would
     // be one equation more than the model has unknowns.
+    //
+    // Two ways of being spoken for, and reading only the first cost
+    // fourteen machines. The level *above* the port writing anything
+    // at all about it is one: an enclosing model that sets a port's
+    // pressure and enthalpy by hand has taken the port in charge
+    // instead of connecting it, and a zero there is one equation too
+    // many. The port's own class writing about it is not - a machine
+    // reads its support angle in a binding of its own,
+    // `phiMechanical = flange.phi - internalSupport.phi`, which says
+    // nothing about who takes the reaction torque, and counting it
+    // withheld the zero that torque was owed. What silences the port
+    // from inside is the flow itself being named, since that is the
+    // equation a zero would duplicate.
     let mut spoken_for: HashSet<String> = HashSet::new();
     for equation in &acc.equations {
         let mut refs = Vec::new();
         equation.lhs.collect_refs(&mut refs);
         equation.rhs.collect_refs(&mut refs);
         for name in refs {
-            let Some((path, _)) = name.rsplit_once('.') else {
+            let Some((path, member)) = name.rsplit_once('.') else {
                 continue;
             };
-            spoken_for.insert(path.to_string());
+            // The instance holding the port: an equation written there
+            // is the port's own class speaking, and anywhere else is
+            // the level above.
+            let from_above = match path.rsplit_once('.') {
+                Some((owner, _)) => equation.origin != owner,
+                None => true,
+            };
+            if from_above || flow_members.contains(&(path.to_string(), member.to_string())) {
+                spoken_for.insert(path.to_string());
+            }
         }
     }
     let mut half_seams: Vec<(String, bool)> = sides

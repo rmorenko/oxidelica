@@ -5301,3 +5301,51 @@ single model.
 Which shrinks the prize. The 30-odd models of families 2, 3, 6 and 7
 are not one beast; family 2's fourteen machines are, and the rest have
 to be re-read with the arithmetic before anyone plans against them.
+
+## The arithmetic applied to the whole row
+
+The test the previous section proposed is now in `scripts/refusals.sh`,
+where `unbalanced` prints how many names each refusal listed against
+how far the balance misses. One pass over the library splits the row
+in two:
+
+```text
+  97 honestly-short          named == the deficit
+  65 matching-fell-short     named >  the deficit
+```
+
+By chapter, the two halves are not the same library. Where the
+matching fell short: Electrical 25, Magnetic 19, Mechanics 12, then
+Fluid 3, ModelicaTest.Fluid 3, and singles in Media, Thermal and
+StateGraph. Where the model is honestly short: Electrical 33, Magnetic
+21, Mechanics 9, Fluid 7, ModelicaTest.Fluid 7, StateGraph 6, Clocked
+6, ModelicaTest.Media 5.
+
+So the two questions are asked of the same three chapters, and the
+work queue reads differently for each. The 65 want the matching, or
+what it can reach through: the equations are there and it did not
+place them. The 97 want whatever never wrote the equation, which is a
+different search - and StateGraph and Clocked appear only on that
+side, so they are not matching failures at all.
+
+Family 2, the fourteen machines, was the first of the 65 to be taken,
+and the finding was not in the matching: `internalSupport.tau` had no
+equation because the port's zero flow was withheld. The check that
+asked whether a port was already spoken for threw the member away and
+kept the path, so `internalSupport.phi` appearing in
+`phiMechanical = flange.phi - internalSupport.phi` silenced the torque
+beside it. Two machines run for it - `DCPM_Start` and
+`DCPM_withLosses`, 374 to 376, no victims - and the other twelve
+moved on to the next wall rather than falling: `DCEE_Start` and its
+neighbours now refuse with `algebraic loop diverged` over
+`inertiaRotor.a`, and `DCPM_Temperature` with a fixed initial value of
+`wMechanical`. A census entry emptied, a wall behind it named.
+
+Which also corrects the reading above: a model counted as
+`matching-fell-short` need not have a matching fault. Nine names
+against a deficit of one meant the matching could not place eight, and
+it could not place them because one equation of the eight-way chain
+was never written. The arithmetic says the equations are probably
+there; it does not say the matching is at fault. It is still the
+cheaper half of the row to look at, because the excess points at a
+chain rather than at a single name.

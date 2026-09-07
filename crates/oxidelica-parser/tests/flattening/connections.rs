@@ -1728,3 +1728,55 @@ fn an_if_a_structural_parameter_settles_keeps_only_the_branch_that_stands() {
         "a condition only the run settles was folded away"
     );
 }
+
+#[test]
+fn a_potential_read_by_hand_does_not_withhold_the_ports_zero_flow() {
+    // A port its own class joins from the inside, and the level above
+    // leaves alone, is owed a zero for the flow it carries. That zero
+    // was withheld whenever the model wrote *any* equation naming
+    // *any* member of the port, because the check that asked whether
+    // the port was already spoken for threw the member away and kept
+    // the path. A machine reads its support angle in a binding -
+    // `phiMechanical = flange.phi - internalSupport.phi` - which says
+    // nothing about the reaction torque, and fourteen machines of the
+    // standard library were refused as unbalanced over exactly that
+    // torque.
+    let model = parse_model(
+        "connector Pin Real phi; flow Real tau; end Pin;\
+         model Blob Pin p; equation p.tau = 2 * p.phi - 1; end Blob;\
+         model Inner output Real gap = b.p.phi - internal.phi; Blob b;\
+           protected Pin internal; equation connect(internal, b.p); end Inner;\
+         model Top Inner i; end Top;",
+    )
+    .expect("flattens");
+    let is_the_zero = |e: &oxidelica_parser::EquationItem| {
+        matches!(&e.lhs, Expr::Ref(name) if name == "i.internal.tau")
+            && matches!(e.rhs, Expr::Number(v) if v == 0.0)
+    };
+    let zeroed = model.equations.iter().any(is_the_zero);
+    assert!(
+        zeroed,
+        "a port whose potential a binding reads still owes its flow a zero: {:?}",
+        model.equations
+    );
+
+    // And the flow named outright still silences it: that equation is
+    // the one a zero would duplicate.
+    let model = parse_model(
+        "connector Pin Real phi; flow Real tau; end Pin;\
+         model Blob Pin p; equation p.tau = 2 * p.phi - 1; end Blob;\
+         model Inner Blob b; protected Pin internal;\
+           equation internal.tau = 0; connect(internal, b.p); end Inner;\
+         model Top Inner i; end Top;",
+    )
+    .expect("flattens");
+    let zeros = model
+        .equations
+        .iter()
+        .filter(|e| {
+            matches!(&e.lhs, Expr::Ref(name) if name == "i.internal.tau")
+                && matches!(e.rhs, Expr::Number(v) if v == 0.0)
+        })
+        .count();
+    assert_eq!(zeros, 1, "the flow the model states was stated twice");
+}
