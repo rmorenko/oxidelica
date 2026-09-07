@@ -4934,3 +4934,53 @@ starts rather than discover the refusal is deliberate.
 
 The remaining eleven of the 46 are a singular Jacobian in an algebraic
 loop, which is a numeric row and not a flattener one.
+
+## The eighteen split, and a chain of three under them
+
+The eighteen models that cleared `fluidConstants` last shift were
+probed one by one, which the shift before had asked for and not done.
+They are not one wall but five: eight at `unknown function inStream`,
+three at `unknown variable Medium.h_default`, four unbalanced, two at
+`bpro[5]`, one structurally singular. The largest was taken, and
+behind it stood two more of the same kind, so the three were walked as
+a chain rather than reverted one at a time.
+
+**`inStream` under a subscript.** The walk that rewrites `inStream`
+into its connection set's mix was written out by hand, variant by
+variant, and stopped at the ones nobody had named. A subscript was
+among them, and every `inStream` a medium sees arrives inside one:
+`waterBaseProp_ph(p, inStream(h), 0, 0)[9]`. The second half of the
+same fault was the layer deciding which connectors carry streams at
+all, which read a class's own components where the fluid ports say
+everything through an `extends`. Eight models, no count moved.
+
+**A record handed straight on.** `hvl_p(p, boilingcurve_p(p))` works a
+whole property record out at the call site and passes it to the
+reader. Both sides of the run knew how to take an answer of several
+numbers and neither knew how to give an argument of several, so the
+reader's `bpro` arrived as one number and `bpro[1]` named nothing.
+Two models, 367 to 369 - the first count moved in this family.
+
+**A constant whose value only a walked body knows.** `h_default =
+specificEnthalpy_pTX(...)` reduces to a call and no further. Three
+gaps, each enough alone: the recipe was handed on only while a
+parameter was being settled; only for a bare call, not one under a
+subscript; and the bodies travelling with a model were gathered from
+its equations alone, so the value settled before the run met a
+function the compiler was carrying the text of and said nothing works
+it out. Eight models, no count moved.
+
+Two things worth keeping from how this went. The third fix cost a
+model before it was right - gathering bodies from declarations made an
+unwalkable generator refuse a whole model, and the noise generators
+are written on a `startTime` no equation reads. The floor caught it at
+818, and the flatten-list diff named it in one line where the totals
+only said something was wrong.
+
+And the small models lied twice. Written to test the third fix they
+passed with and without it, three times running, because a body simple
+enough to write in a test is simple enough to inline - which is the
+blind spot this file already names, met from a new direction. What
+distinguished it in the end was the shape the library actually uses: a
+body answering with a vector, asked for one field of it. Reproduce
+small, but reproduce the shape rather than the story.
