@@ -5034,3 +5034,29 @@ and without the fix, because a model with nothing to reduce never
 reaches the rule; what distinguished it was the shape the library
 uses, voltages and ground included. The test asserts the voltage -
 0.283618581907 at unit time - rather than that the model ran.
+
+### What the row still holds, probed and left
+
+The nineteen that remain were probed rather than left as a number, so
+the next shift starts inside them.
+
+The `CombiTable2D` pair wants a rule this project has already measured
+and refused. `trapezoid1.T_start` is assigned by a `when`, and between
+events its derivative is indeed zero - which is true, and useless: the
+reduction demotes a state on the strength of that zero and has built
+something that stops holding the moment the clause fires. It cost two
+models when it was tried. Anyone opening this pair is taking on what a
+`when`-assigned name's derivative honestly is, not the shortcut.
+
+The two `MovingCoilActuator` models are a different shape from the
+inductor and were not reachable by the same fix. `pmActuator.r.p.i` is
+named by the very equation under reduction, so the rule above will not
+offer it - an equation cannot define its own way out. What determines
+it is the matching, and reaching it means asking the matching rather
+than the definitions. Larger than a link, and honestly a separate
+piece of work.
+
+The two heating transistor models refuse on `der(T2.vbc)` - a
+derivative already carried as an unknown, needing a second
+differentiation rather than a first. Fourteen are MultiBody and
+parked under their own panel.
