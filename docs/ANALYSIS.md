@@ -5065,7 +5065,9 @@ parked under their own panel.
 
 The largest entry of the run half was carried forward from an old
 census as "167 models, 13 of them machine-shaped". Both halves of that
-were stale. Measured on the corpus at 362 flattened / 362 built with
+were stale. Measured on the corpus at 362 models that flattened
+without running and 362 that ran - two list lengths, not the
+flatten/run pair - with
 `scripts/refusals.sh .msl/Modelica unbalanced`, the row holds **73**
 models, and the machine-shaped part of it is **14**, not 13.
 
@@ -5188,3 +5190,114 @@ would be. Ranked by what they could actually buy:
 - Family 4 should be excluded from the row's size in future readings.
 
 No code was written for this entry; it is reconnaissance.
+
+## The adaptor's dead branch: two layers reading one annotation
+
+The survey's family 1 was thirteen models on `FlowToPotentialAdaptor`
+and its mirror, and the cause was visible without opening the matching:
+
+```modelica
+parameter Boolean use_pder = true annotation(Evaluate = true);
+RealOutput pder if use_pder "Optional output for der(potential)";
+equation
+  y1 = if use_pder then der(y) else 0;
+  y2 = if (use_pder and use_pder2) then der(y1) else 0;
+```
+
+With `use_pder = false` the layer of conditional _declarations_ reads
+the annotation and removes the connector. The `if` in the _equation_ was
+not read with the same knowledge, so `der(y)` stayed standing in a
+branch nothing takes, and `y2` was then owed a derivative of `y1` -
+which no equation moves. `Utilities.Resistor` refused as 41 equations
+for 43 unknowns over exactly that.
+
+Two layers held the same annotation and only one acted on it. They now
+read it together: an `if` expression whose condition is settled by a
+parameter carrying `Evaluate = true` is replaced by the branch that
+stands, before anything can be owed a derivative of the other.
+
+The narrowing is the whole of the correctness. Folding on _any_ settled
+parameter was tried first and four tests said no in one run - a Boolean
+constant came through as `Number(2.0)`, and `v = if high then {1, 2}
+else {3, 4}` was built one way where the declaration promised a
+parameter the run could be handed again. An ordinary parameter settles
+to a number that is still the run's to change; `Evaluate = true` is the
+declaration saying this one is structure. Both readings measure the
+same on the corpus, so the narrow one is taken on the strength of the
+tests alone, which is the cheapest news this change had.
+
+Measured from one binary, the fold behind an environment switch, two
+passes over the corpus and the run lists diffed line by line:
+
+```text
+819 flatten / 369 run  ->  820 / 374
+721 / 364 (runnable)   ->  722 / 369
+```
+
+Five models gained, none lost: `GenerationOfFMUs` in both Analog and
+Translational, `ResonanceCircuits`, and the two `ToroidalCore` flux
+tubes. Ten of family 1's thirteen were helper classes and are not
+counted as examples, which is why thirteen models at the wall buys
+five on the board.
+
+`Utilities.Resistor` itself flattens further and stops one storey up:
+`nothing determines v1, voltageToCurrent2.pin_p.v` - its own top-level
+inputs, connected to nothing, which is the family the entry below this
+one names. A wall behind a wall, as expected, and it is that family and
+not this one.
+
+## Probing the shared signature: it is two layers, not one
+
+The survey above ranked "families 2, 3, 6 and much of 7" highest on the
+strength of a shared signature - a name with equations naming it, still
+reported as determined by nothing - and said that if it were one layer
+it would be the largest thing in the row. It was probed on the two the
+survey named, `DCPM_Start` from family 2 and `Buffer` from family 3.
+
+It is two layers, and the number that separates them was in the refusal
+all along: how many names it lists against how far short the counts are.
+
+`Buffer` is 41 equations for 45 unknowns and names exactly four -
+`n2.i`, `opAmp.i_s`, `opAmp.out.i`, `r1.n.v`. A maximum matching that
+leaves as many unmatched as the deficit has found nothing pathological;
+it is reporting a model genuinely short of four equations. And what is
+short is visible in the source: `Buffer` extends `PartialOpAmp`, whose
+connectors `p1`, `n1`, `p2`, `n2` are the block's own terminals and are
+connected to nothing. Shrunk, the whole of it is twelve characters of
+model:
+
+```modelica
+model Unconn2
+  connector Pin Real v; flow Real i; end Pin;
+  Pin p1;
+  Real x;
+equation
+  x = p1.v;
+end Unconn2;
+```
+
+which refuses with `2 algebraic equation(s) for 3 unknown(s); nothing
+determines x`. A `flow` variable of an unconnected connector gets its
+zero, and the potential beside it gets nothing - correctly, for a model
+that is a component rather than a system. These are partial circuits
+awaiting a testbench, and the run half counts them as examples.
+
+`DCPM_Start` is the other shape: 190 equations for 191 unknowns, one
+short, and it names _nine_. Nine unmatched names against a deficit of
+one is not a model missing equations, it is a matching that could not
+place eight it had equations for. `pin_ap.v` is named by two, `ie.n.v`
+by two, `internalSupport.tau` and `powerBalance.powerMechanical` by one
+apiece, and all four sit in the machine chain. This is the layer the
+survey was hoping for, and it is family 2 alone.
+
+So the signature does not name a family; the arithmetic does. **Names
+listed equal to the deficit** means the model really is short and the
+question is which equation was never generated. **Names listed greater
+than the deficit** means the matching failed, and the excess is how
+badly. That test costs nothing - both numbers are already printed in
+every unbalanced refusal - and it splits the row without opening a
+single model.
+
+Which shrinks the prize. The 30-odd models of families 2, 3, 6 and 7
+are not one beast; family 2's fourteen machines are, and the rest have
+to be re-read with the arithmetic before anyone plans against them.

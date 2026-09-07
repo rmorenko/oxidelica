@@ -1688,3 +1688,43 @@ fn rooted_is_about_depth_not_about_being_a_root() {
         "refused by name"
     );
 }
+
+#[test]
+fn an_if_a_structural_parameter_settles_keeps_only_the_branch_that_stands() {
+    use crate::shared::equations_of;
+
+    // The layer of conditional declarations reads a structural
+    // parameter and removes what it disables, so the adaptors of the
+    // standard library lose their optional derivative connectors. An
+    // `if` expression on the same parameter was not read with that
+    // knowledge, and `y1 = if use_pder then der(y) else 0` left a
+    // derivative of `y` standing in a branch nothing takes - with `y2`
+    // then owing a derivative of `y1`, which no equation moves. The
+    // model was refused as unbalanced over unknowns that belong to a
+    // part of it that does not exist.
+    let model = parse_model(
+        "model M parameter Boolean use = false annotation(Evaluate = true); \
+         Real y; Real y1; Real y2; \
+         equation y = time; y1 = if use then der(y) else 0; \
+         y2 = if use then der(y1) else 0; end M;",
+    )
+    .expect("flattens");
+    let written = equations_of(&model);
+    assert!(
+        written.iter().all(|e| !e.contains("der(")),
+        "a branch nothing takes left a derivative standing: {written:?}"
+    );
+
+    // A condition the run decides is left exactly as it was written.
+    // Folding it would be a branch chosen on a guess, and a wrong
+    // number is worse than a refusal.
+    let model = parse_model(
+        "model N Real c; Real y; \
+         equation c = sin(time); y = if c > 0 then 1 else 2; end N;",
+    )
+    .expect("flattens");
+    assert!(
+        equations_of(&model).iter().any(|e| e.contains("if")),
+        "a condition only the run settles was folded away"
+    );
+}

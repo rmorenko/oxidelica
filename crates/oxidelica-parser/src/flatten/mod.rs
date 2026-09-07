@@ -366,6 +366,8 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
     }
 
+    fold_structural_ifs(&mut model, &acc.const_values);
+
     // Those answers put wherever the model asked the question.
     say_what_the_graph_answered(
         &mut model,
@@ -1041,6 +1043,70 @@ fn what_the_graph_answers(
         rooted,
         connected,
     })
+}
+
+/// An `if` expression whose condition the parameters already settled,
+/// replaced by the branch that stands.
+///
+/// A structural parameter decides a shape, and the layer of conditional
+/// declarations reads it that way: `RealOutput pder if use_pder` with
+/// `use_pder = false` leaves no connector behind. An `if` *expression*
+/// on the same parameter was not read with the same knowledge, so
+/// `y1 = if use_pder then der(y) else 0` kept `der(y)` - and with `y1`
+/// itself then feeding `y2 = if ... then der(y1) else 0`, the model was
+/// owed a derivative of something no equation ever moved. Thirteen
+/// adaptors of the standard library stood there.
+///
+/// Only a *structural* parameter is read this way, and that is the
+/// whole of the narrowing. An ordinary parameter settles to a number
+/// too, but it is a number the run is meant to be handed again: folding
+/// `if high then {1, 2} else {3, 4}` would build one model where the
+/// declaration promised two. `Evaluate = true` is the declaration
+/// saying the opposite - that this value is part of the structure - and
+/// it is the same word the layer of conditional declarations acts on
+/// one storey below. So the two layers now read the same annotation,
+/// which is what they should have agreed on from the start.
+///
+/// Only a condition the parameters answer outright is folded. A
+/// condition the run decides is left exactly as written: what the
+/// compiler cannot settle it must not pretend to have settled, and a
+/// branch chosen wrongly is a wrong number where a refusal was owed.
+fn fold_structural_ifs(model: &mut Model, consts: &HashMap<String, f64>) {
+    let structural: HashMap<String, f64> = model
+        .components
+        .iter()
+        .filter(|component| {
+            matches!(component.variability, Variability::Parameter)
+                && component.annotations.iter().any(|entry| {
+                    matches!(entry, Expr::NamedArg(name, value)
+                        if name == "Evaluate" && matches!(value.as_ref(), Expr::Bool(true)))
+                })
+        })
+        .filter_map(|component| {
+            let value = consts.get(&component.name)?;
+            Some((component.name.clone(), *value))
+        })
+        .collect();
+    if structural.is_empty() {
+        return;
+    }
+    fn fold(expr: &Expr, consts: &HashMap<String, f64>) -> Expr {
+        if let Expr::If(condition, then, otherwise) = expr {
+            if let Some(truth) = const_eval(condition, consts) {
+                let taken = if truth != 0.0 { then } else { otherwise };
+                return fold(taken, consts);
+            }
+        }
+        expr.map_children(&mut |child| fold(child, consts))
+    }
+    for equation in model
+        .equations
+        .iter_mut()
+        .chain(model.initial_equations.iter_mut())
+    {
+        equation.lhs = fold(&equation.lhs, &structural);
+        equation.rhs = fold(&equation.rhs, &structural);
+    }
 }
 
 /// The graph's answers put wherever the model asked the question:
