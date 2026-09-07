@@ -170,8 +170,7 @@ fn index_reduction_differentiates_through_an_unsolvable_equation() {
     // t = 1 with i = 2 and Ipar = 0.3 that is 0.283618581907... The
     // number is the point: flattening is not evidence, and a
     // derivative that is merely *taken* can be taken wrongly.
-    let result = run(
-        "model Sat Real srcy, ri, rpi, rni, rpv, rnv, rv; \
+    let result = run("model Sat Real srcy, ri, rpi, rni, rpv, rnv, rv; \
          Real spi, sni, spv, snv, sv, si, Psi, gpi, gpv; \
          parameter Real Ipar = 0.3; \
          equation srcy = 2 * time; ri = srcy; \
@@ -180,8 +179,7 @@ fn index_reduction_differentiates_through_an_unsolvable_equation() {
          Psi = 0.1 * si + 1.9 * Ipar * atan(si / Ipar); sv = der(Psi); \
          gpv = 0; rpv = gpv; snv = gpv; rpi + gpi + sni = 0; \
          rnv = spv; rni + spi = 0; \
-         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end Sat;",
-    );
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end Sat;");
     let value = |name: &str| {
         let index = result.columns.iter().position(|c| c == name).unwrap();
         result.rows.last().unwrap()[index]

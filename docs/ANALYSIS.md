@@ -4984,3 +4984,53 @@ blind spot this file already names, met from a new direction. What
 distinguished it in the end was the shape the library actually uses: a
 body answering with a vector, asked for one field of it. Reproduce
 small, but reproduce the shape rather than the story.
+
+## The unknown that cannot be solved for, and where three models went
+
+The `singular` row's largest part - twenty-two models that cannot
+differentiate through an algebraic variable - was probed rather than
+guessed at, and the eight non-MultiBody ones turned out to be four
+families and not one: three inverse models under `GenerationOfFMUs`,
+three summing currents at a node, two transistors, two `CombiTable2D`
+tests. The probe was worth a minute; a shift that had trusted the row
+would have gone looking for one cause.
+
+What the largest of them wanted was a rule the reduction did not have.
+It could reach a derivative through an unknown some equation defined
+outright, or one a linear rearrangement produced - and the saturating
+inductor writes neither. `Psi = Linf*i + c*atan(i/Ipar)` ties the
+current to the flux and nothing puts `i` alone on a side. The refusal
+named the current, so what it looked like was a missing definition,
+and what it was is a function that cannot be inverted.
+
+The solution was never needed, only the derivative. With residual
+`g(t, x) = 0` the implicit function theorem gives `dx/dt` as
+`-(dg/dt at x fixed) / (dg/dx)`, and both halves are derivatives this
+module already takes. Which is the general shape of several fixes in
+this file: the compiler was asking for more than the question needed.
+
+Two things had to move with it, and the second is the one worth
+remembering. The equation offered for a name must be one no
+rearrangement solves - `0 = p.i + n.i` is linear in either current, and
+taken here it answers `der(p.i)` with `-der(n.i)` and goes round the
+circuit for ever rather than reaching the flux. And the choice of which
+state to demote walks the same equations: without that the
+differentiation succeeded and the model was refused one line later for
+a constraint that pins no state. A fix that goes halfway moves the
+refusal without moving the model, and reads from outside like a fix
+that did nothing.
+
+The measurement is the shape the charter asks for and worth quoting as
+an instance of it. Totals identical - 819 and 369 - and the run list
+identical line for line. The census is where the work shows: the row
+went 22 to 19, no other row lost anything, and the three are named -
+`GenerationOfFMUs` twice and `TestSaturatingInductor`, now standing at
+an algebraic loop and an initialisation that is not square. A wall
+removed and not a count moved, so the floors stayed where they were.
+
+And the small model lied once more, in the way this file has now
+recorded three times. Written with the currents alone it passed with
+and without the fix, because a model with nothing to reduce never
+reaches the rule; what distinguished it was the shape the library
+uses, voltages and ground included. The test asserts the voltage -
+0.283618581907 at unit time - rather than that the model ran.
