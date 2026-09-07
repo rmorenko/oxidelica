@@ -284,8 +284,16 @@ fn class_constant_binding_at(
         .and_then(|(_, binding)| binding.clone())?;
     // Only a call is worth handing on: a name or a number the ordinary
     // roads already answered, and anything else this pass has no
-    // environment to make sense of.
-    if !matches!(binding, Expr::Call(..)) {
+    // environment to make sense of. A call under a subscript is still
+    // a call - the media ask a body for a whole property vector and
+    // take one field of it, `waterBaseProp_pT(p, T, 0)[5]` - and read
+    // as "not a call" that constant travels as a bare name.
+    let reaches_a_call = match &binding {
+        Expr::Call(..) => true,
+        Expr::Index(base, _) => matches!(base.as_ref(), Expr::Call(..)),
+        _ => false,
+    };
+    if !reaches_a_call {
         return None;
     }
     // The sibling constants the round did settle, as numbers to fold
@@ -318,6 +326,13 @@ fn class_constant_binding_at(
             .collect()
     };
     let binding = substitute_refs(&binding, &settled_numbers);
+    // Inside a constant's own binding a number is the whole of what is
+    // wanted, exactly as it is inside a parameter's: nothing here will
+    // read `T_default` for its unit, and left standing it reaches the
+    // run as a name nothing declares. So the arguments are worked out
+    // under the same mark a settling parameter works under, whichever
+    // road the asking came down.
+    let _settling = SettlingParameter::now();
     Some(substitute_at(
         &binding,
         registry,
@@ -737,19 +752,14 @@ fn substitute_at(
                         // not reduce to a number - a medium's
                         // `h_default = specificEnthalpy_pTX(p, T, X)`,
                         // whose body iterates - is left as its binding
-                        // with the arguments folded in, but only while a
-                        // parameter is being settled. There the run
-                        // behind the value can walk what stands; carried
-                        // as a bare name it is refused. The constant's
-                        // own path could not fold it, but a parameter's
-                        // does the deeper walk, so the call is handed to
-                        // it rather than the name.
-                        SETTLING_PARAMETER
-                            .with(|on| on.get())
-                            .then(|| {
-                                class_constant_binding_at(registry, name, scope, imports, depth)
-                            })
-                            .flatten()
+                        // with the arguments folded in. The run behind
+                        // the value can walk what stands; carried as a
+                        // bare name it is refused, which is what eight
+                        // fluid models met as `unknown variable
+                        // Medium.h_default`. The constant's own path
+                        // could not fold it, so the call is handed on
+                        // rather than the name.
+                        class_constant_binding_at(registry, name, scope, imports, depth)
                     })
                     .unwrap_or_else(|| expr.clone()),
             }

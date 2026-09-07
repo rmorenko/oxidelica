@@ -521,7 +521,34 @@ fn a_function_may_leave_a_value_unset_in_one_branch() {
     );
 }
 
-/// A carried body may shout, and may read a package constant.
+/// A constant whose value only a walked body knows.
+#[test]
+fn a_constant_whose_value_a_body_must_be_walked_for() {
+    // How the media of the library write their defaults: `h_default =
+    // specificEnthalpy_pTX(p_default, T_default, X_default)`, which
+    // folds to a body asked for a whole property vector with one
+    // field taken - `waterBaseProp_pT(101325, 293.15, 0)[5]` - and no
+    // further, because that body iterates. A model naming such a
+    // constant in an equation used to be told `unknown variable
+    // Medium.h_default`: the compiler's own name for a value it was
+    // holding the recipe for. The recipe is handed on now, arguments
+    // folded in, and the run walks it.
+    let result = run("package Medium \
+         function props input Real p; input Real t; output Real[2] h; \
+         protected Integer k; \
+         algorithm h[1] := 0; h[2] := 0; k := 0; \
+         while k < 3 loop h[1] := h[1] + p * t; h[2] := h[1] * 2; k := k + 1; \
+         end while; end props; \
+         constant Real p_default = 2; \
+         constant Real T_default = 5; \
+         constant Real h_default = props(p_default, T_default)[1]; end Medium; \
+         model M Real y; equation y = Medium.h_default + time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // Three rounds of two times five, and one for the time at the end.
+    assert!((result.rows.last().unwrap()[at("y")] - 31.0).abs() < 1e-12);
+}
+
 #[test]
 fn a_walked_body_may_shout_and_read_a_constant() {
     // Two things the standard library's own numerical bodies do, and

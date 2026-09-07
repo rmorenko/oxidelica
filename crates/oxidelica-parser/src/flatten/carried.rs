@@ -59,8 +59,41 @@ pub(super) fn programs_used(
             }
         }
     }
+    // And what a declaration was written with. A parameter settled
+    // before the run may be a call to a body nothing could inline -
+    // a medium's `h_default = specificEnthalpy_pTX(p, T, X)` folds
+    // to `waterBaseProp_pT(101325, 293.15, 0)[5]` and no further -
+    // and the work before the run walks such a call the same way the
+    // run does. Gathered from the equations alone that body travels
+    // with nothing, and what the model hears is that nothing works
+    // out a function the compiler is carrying the text of.
+    //
+    // Kept apart from what the equations want, because the two are
+    // owed different answers. A body the equations call and the walk
+    // cannot carry is a model that cannot run, and saying so is the
+    // point. A body only a declaration names may never be asked at
+    // all - the noise generators are written on a `startTime` nothing
+    // reads - and refusing the whole model for one of those cost a
+    // model that used to flatten. So one is required and the other is
+    // taken if it can be had.
+    let mut from_declarations: Vec<String> = Vec::new();
+    for component in &model.components {
+        for written in [&component.binding, &component.start].into_iter().flatten() {
+            gather_calls(written, registry, "", &[], &mut from_declarations);
+        }
+    }
     // Everything those call, and everything that calls in turn.
     let mut out: Vec<ClassDef> = Vec::new();
+    // What no equation asked for, by name, itself included and
+    // everything it calls: a body reached only through one of these is
+    // wanted only as much as the one that reached it.
+    let mut optional: std::collections::HashSet<String> = from_declarations
+        .iter()
+        .filter(|name| !wanted.contains(name))
+        .cloned()
+        .collect();
+
+    wanted.extend(from_declarations);
     while let Some(name) = wanted.pop() {
         if out.iter().any(|already| already.name == name) {
             continue;
@@ -79,7 +112,16 @@ pub(super) fn programs_used(
                 None => continue,
             },
         };
-        walkable(class, registry)?;
+        // A body no equation asked for is taken if it can be had and
+        // passed over if it cannot: refusing the whole model for a
+        // generator nothing ever calls would lose a model that used
+        // to flatten. One an equation named is refused as before.
+        if let Err(why) = walkable(class, registry) {
+            if !optional.contains(&name) {
+                return Err(why);
+            }
+            continue;
+        }
         // A body names what it calls the way it was written there; the
         // walk looks names up in one table, so they are made to agree.
         let mut carried = (*class).clone();
@@ -108,13 +150,20 @@ pub(super) fn programs_used(
             &renamed,
         );
         out.push(carried);
+        let mut calls = Vec::new();
         gather_calls_in_statements(
             &class.algorithm,
             registry,
             &class.name,
             &class.imports,
-            &mut wanted,
+            &mut calls,
         );
+        // What an optional body calls is wanted only as much as it is:
+        // a generator nothing asks for asks in turn for nothing.
+        if optional.contains(&name) {
+            optional.extend(calls.iter().filter(|c| !wanted.contains(c)).cloned());
+        }
+        wanted.extend(calls);
     }
     Ok(out)
 }
