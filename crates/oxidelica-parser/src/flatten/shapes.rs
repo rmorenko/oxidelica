@@ -41,6 +41,96 @@ pub(super) fn collect_shapes_given(
     collect_shapes_under(registry, class, "", consts, given, handed, out, depth)
 }
 
+/// The shapes of the members a handed-down value actually names.
+///
+/// A modifier handed down an `extends` may name a member of a sibling
+/// component rather than a declaration of the class handing it: an
+/// induction machine writes `extends PartialBasicMachine(final idq_rs
+/// = airGap.i_rs)`, where `airGap` stands beside the `extends` and is
+/// no declaration of the base at all. Measured only through records,
+/// that member had no shape, so the value came back whole and every
+/// element of the bound array was tied to the whole array - one
+/// equation per pair where one per element was owed.
+///
+/// Only the names the modifiers write are looked up. Walking into
+/// every component of every class to measure members nobody asks
+/// about cost nine models and seven times the flattening, since a
+/// shape measured under the wrong constants is worse than no shape
+/// at all.
+pub(super) fn collect_member_shapes_named(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    consts: &HashMap<String, f64>,
+    handed: &[(String, Expr)],
+    out: &mut HashMap<String, Vec<i64>>,
+) {
+    // What the values name, dotted, with the head and the tail apart.
+    // A value naming a member is a name and nothing else: `final
+    // idq_rs = airGap.i_rs` is the whole of it. A name buried in
+    // arithmetic is not looked for, since a shape is wanted only
+    // where the value comes back whole and is spread over elements,
+    // and that is the bare name.
+    let mut wanted: Vec<(String, String)> = Vec::new();
+    for (_, value) in handed {
+        let Expr::Ref(name) = value else {
+            continue;
+        };
+        {
+            let Some((head, tail)) = name.split_once('.') else {
+                continue;
+            };
+            // Only a plain member, not a path through several
+            // components: a deeper name is a guess about which class
+            // each step lands in, and this compiler owes a refusal
+            // rather than a guess.
+            if tail.contains('.') || out.contains_key(name.as_str()) {
+                continue;
+            }
+            wanted.push((head.to_string(), tail.to_string()));
+        }
+    }
+    if wanted.is_empty() {
+        return;
+    }
+    let scope = class.name.as_str();
+    for component in &class.components {
+        // An array of components has no one shape to read a member
+        // off, so it is left unmeasured rather than guessed at.
+        if !component.dimensions.is_empty() {
+            continue;
+        }
+        if !wanted.iter().any(|(head, _)| head == &component.name) {
+            continue;
+        }
+        let Some(of) = lookup(registry, &component.type_name, scope, &class.imports) else {
+            continue;
+        };
+        if !matches!(of.kind, ClassKind::Model | ClassKind::Block) {
+            continue;
+        }
+        let mut below = HashMap::new();
+        collect_shapes_under(
+            registry,
+            of,
+            "",
+            consts,
+            &HashMap::new(),
+            &[],
+            &mut below,
+            0,
+        );
+        for (head, tail) in &wanted {
+            if head != &component.name {
+                continue;
+            }
+            if let Some(shape) = below.get(tail.as_str()) {
+                out.entry(format!("{head}.{tail}"))
+                    .or_insert_with(|| shape.clone());
+            }
+        }
+    }
+}
+
 /// The same, for the members of a record below a name.
 #[allow(clippy::too_many_arguments)]
 fn collect_shapes_under(

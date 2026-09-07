@@ -2032,3 +2032,41 @@ fn a_named_argument_is_expanded_before_it_is_named() {
         "the named argument was not spread: {said}"
     );
 }
+
+/// A value handed down an `extends` may name a member of a sibling
+/// component rather than a declaration of the class handing it: an
+/// induction machine writes `extends PartialBasicMachine(final idq_rs
+/// = airGap.i_rs)`, where `airGap` stands beside the `extends` and is
+/// no declaration of the base at all.
+///
+/// Measured only through records, that member had no shape, so the
+/// value came back whole and every element of the bound array was
+/// tied to the whole array - `idq_rs[2] = i_rs[1]` written beside
+/// `idq_rs[1] = i_rs[1]`. That is both a wrong equation and one
+/// equation per pair where one per element was owed, and the machines
+/// refused as unbalanced by exactly that surplus.
+#[test]
+fn a_handed_value_naming_a_member_of_a_sibling_is_measured() {
+    let m = parse_model(
+        "model Inner Real y[2]; equation y[1] = 10; y[2] = 20; end Inner; \
+         partial model Base input Real u[2]; Real z[2]; equation z = 2 * u; end Base; \
+         model Mid extends Base(final u = inner1.y); Inner inner1; end Mid; \
+         model M Mid a; end M;",
+    )
+    .unwrap();
+    let written = format!("{:?}", m.equations);
+    // One equation per element, each element to its own.
+    assert!(written.contains("a.u[1]"), "{written}");
+    assert!(written.contains("a.u[2]"), "{written}");
+    let says = |lhs: &str, rhs: &str| {
+        m.equations
+            .iter()
+            .any(|e| format!("{:?}", e.lhs).contains(lhs) && format!("{:?}", e.rhs).contains(rhs))
+    };
+    assert!(says("a.u[1]", "a.inner1.y[1]"), "{written}");
+    assert!(says("a.u[2]", "a.inner1.y[2]"), "{written}");
+    // And never an element bound to a place that is not its own,
+    // which is what the whole array spread over the elements gave.
+    assert!(!says("a.u[1]", "a.inner1.y[2]"), "{written}");
+    assert!(!says("a.u[2]", "a.inner1.y[1]"), "{written}");
+}

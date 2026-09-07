@@ -5349,3 +5349,55 @@ was never written. The arithmetic says the equations are probably
 there; it does not say the matching is at fault. It is still the
 cheaper half of the row to look at, because the excess points at a
 chain rather than at a single name.
+
+## The induction machines: a member of a sibling had no shape
+
+The next family of the 65 was taken from the same census, grouped by
+prefix: of the 25 `matching-fell-short` models in Electrical, 14 are
+`Machines`, 5 `QuasiStatic`, 5 `Analog`, 1 `PowerConverters`. The
+fourteen stand apart from every other model in the chapter by the sign
+of the miss - all of them have _too many_ equations, `+19` to `+28`,
+where the rest of the chapter is short. A surplus that large is not a
+missing equation; it is a written one, written too often.
+
+`why` named the cause in a single call, before a line was changed:
+
+```text
+equation: aimc.idq_rs[1] = aimc.airGap.i_rs[1]
+equation: aimc.idq_rs[2] = aimc.airGap.i_rs[1]
+```
+
+The right-hand index does not advance with the left. The machine hands
+its base `extends PartialBasicInductionMachine(final idq_rs =
+airGap.i_rs)`, and a value handed down an `extends` is spread over the
+elements of what it binds. Spreading asks how long the value is, and
+the shapes travelling with a modifier were collected under short names
+only - a name with a dot in it was dropped outright. `airGap` is a
+component standing _beside_ the `extends`, not a declaration of the
+class, so `airGap.i_rs` was measured nowhere, came back whole, and was
+bound to every element in turn. Two illnesses at once: a wrong
+equation, `idq_rs[2] = i_rs[1]`, and one equation per pair where one
+per element was owed - which is precisely the surplus counted.
+
+A twelve-line model shows it whole and is now
+`tests/small/a_modifier_naming_a_member_of_a_sibling_component.mo`.
+
+The first fix was too broad and the corpus said so at once: measuring
+the members of every component of every class cost **nine models of
+flattening** (820 to 811) and took flattening from 1684s to 2133s, a
+third again. A shape measured under constants that do not apply is
+worse than no shape. Narrowed to the members a modifier actually
+names - and only a bare `Ref`, only a plain member, only under a
+scalar component - the pass is free: flat and ran lists identical
+model for model, and `DoublePendulum` at 50.6s against 50.8s without.
+
+The numbers are 820 / 376 / 722 / 371, unmoved. This is deliberately
+recorded as a correctness fix and not a count: `IMC_DOL` went from a
+surplus of 22 equations to 14, so the family moved two-thirds of the
+way to its wall and stopped at another. What was removed is a wrong
+equation, which by the rules of this project is the worst thing the
+compiler can produce and worth removing on its own terms. The
+remaining 14 are a different family - `fixed.flange.phi =
+airGap.support.phi` and its neighbours, a connection matter rather
+than a shape one - and that is where the next shift on these machines
+begins.

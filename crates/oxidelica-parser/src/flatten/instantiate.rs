@@ -657,6 +657,19 @@ fn instantiate_bases(
             &mut handed_shapes,
             0,
         );
+        // What the modifiers this `extends` carries name below a
+        // sibling component - `final idq_rs = airGap.i_rs` - measured
+        // where those names still mean something. Only the members
+        // actually named are looked up.
+        let named_below: Vec<(String, Expr)> = extend
+            .modifiers
+            .iter()
+            .map(|(n, e)| {
+                let e = substitute_class_constants(e, registry, scope, imports, shadow);
+                (n.clone(), prefix_expr(&e, "", outers))
+            })
+            .collect();
+        collect_member_shapes_named(registry, class, &here, &named_below, &mut handed_shapes);
         let handed_shapes = prefixed_sizes(&handed_shapes, prefix);
         // A value handed to a base is written where this class stands,
         // and may ask how long an array of this class is: a table
