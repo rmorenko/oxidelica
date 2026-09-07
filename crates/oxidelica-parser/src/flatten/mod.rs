@@ -1296,6 +1296,18 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
     for equations in [&mut model.equations, &mut model.initial_equations] {
         let mut written = Vec::with_capacity(equations.len());
         for equation in equations.drain(..) {
+            // A side that already names one element is not a whole
+            // array, however whole the other side is: `is[2] =
+            // plug_sp.pin.i` is the second element of the machine's
+            // currents read off the second pin, and not three
+            // equations about `is[2]`. Written out as three, two of
+            // them are false and the model carries a surplus of them
+            // to the balance check - which is what stood between
+            // every induction machine and its run.
+            if element_read(&equation.lhs, &known).is_some() {
+                written.push(equation);
+                continue;
+            }
             let whole = whole_shape(&equation.lhs, &known)
                 .into_iter()
                 .chain(whole_shape(&equation.rhs, &known))

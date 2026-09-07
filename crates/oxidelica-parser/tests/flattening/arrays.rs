@@ -1465,6 +1465,28 @@ fn a_member_of_an_array_is_read_element_by_element() {
     );
 }
 
+/// A side that already names one element is not a whole array, so the
+/// equation about it is one and not one per element. Written out per
+/// element, `is[2] = plug.pin.i` claimed the second current was every
+/// pin's at once: two false equations, and a surplus that made every
+/// induction machine of the library refuse as unbalanced.
+#[test]
+fn an_element_read_off_an_array_stays_one_equation() {
+    let m = parse_model(
+        "model M model Pin Real v; end Pin; \
+         model Plug parameter Integer m = 3; Pin pin[m]; end Plug; \
+         parameter Integer m = 3; \
+         output Real vs[m] = plug.pin.v; \
+         Plug plug(final m = m); end M;",
+    )
+    .expect("an element read off an array");
+    let about: Vec<String> = equations_of(&m)
+        .into_iter()
+        .filter(|line| line.starts_with("vs[2] ="))
+        .collect();
+    assert_eq!(about, vec!["vs[2] = plug.pin[2].v"], "{about:?}");
+}
+
 /// An equation between two whole arrays nothing had measured yet is
 /// one equation per element. Written on a base, it is read before the
 /// components it names are built, so their shape is not known there.
