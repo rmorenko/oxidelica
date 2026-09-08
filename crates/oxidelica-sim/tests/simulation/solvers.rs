@@ -730,3 +730,39 @@ fn the_end_of_a_run_is_an_event_of_its_own() {
     assert_eq!(stopped.rows.last().unwrap()[flag], 0.0);
     assert!(stopped.terminated.is_some());
 }
+
+#[test]
+fn a_saturating_amplifier_does_not_send_newton_between_the_rails() {
+    // An idealised operational amplifier: a gain of 15000 clipped to
+    // plus or minus fifteen volts, with a resistive divider from the
+    // output back to the inverting input. The whole of it is one
+    // algebraic loop, and the solution sits on the sloped part
+    // between the rails.
+    //
+    // Started from zero, the first residual puts the iterate on the
+    // flat of the limiter, where the Jacobian claims a step across to
+    // the other rail clears the residual. It does not: the same
+    // argument sends the next step back, and undamped Newton spends
+    // its fifty iterations swinging between plus and minus fifteen.
+    // Shortening the step until the residual falls walks off the flat
+    // and onto the slope, where Newton converges as it should.
+    let result = run("model OpAmp \
+         parameter Real V0 = 15000; parameter Real R1 = 1000; parameter Real R2 = 1000; \
+         Real in_p_v; Real in_n_v; Real out_v; Real r_i; Real mid_v; \
+         equation \
+         in_p_v = time; \
+         out_v = smooth(0, noEvent(if V0*(in_p_v - in_n_v) > 15 then 15 \
+             else if V0*(in_p_v - in_n_v) < -15 then -15 else V0*(in_p_v - in_n_v))); \
+         out_v - mid_v = R2*r_i; mid_v = R1*r_i; in_n_v = mid_v; \
+         annotation(experiment(StopTime = 1, Interval = 0.25, Tolerance = 1e-8)); end OpAmp;");
+    // A divider of equal resistors makes this a buffer of gain two,
+    // so the output follows twice the input until the rails cut in -
+    // and at t = 1 the ideal 2 V is well inside them.
+    let out = result.columns.iter().position(|c| c == "out_v").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[out] - 2.0).abs() < 1e-3,
+        "out_v = {}, wanted 2",
+        last[out]
+    );
+}

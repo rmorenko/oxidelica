@@ -432,10 +432,21 @@ impl CompiledModel {
         }
     }
 
-    /// Solve one implicit algebraic block by damped-free Newton
-    /// iteration with a finite-difference Jacobian. `alg_guess` supplies
-    /// warm starts (the previous evaluation point) and receives the
+    /// Solve one implicit algebraic block by damped Newton iteration
+    /// with a finite-difference Jacobian. `alg_guess` supplies warm
+    /// starts (the previous evaluation point) and receives the
     /// solution.
+    ///
+    /// The step is the full Newton one until the iteration is caught
+    /// walking in a circle, and shortened to a descent from then on.
+    /// The circle is what a saturating amplifier does to an undamped
+    /// step: on the flat of a limiter the Jacobian says the residual
+    /// can be cleared by a step landing on the opposite rail, the full
+    /// step takes it, and the same argument sends the next one back.
+    /// Damping from the start instead would be worse than either - a
+    /// magnetic curve entering saturation raises its residual once and
+    /// then converges, and a rule demanding descent every time
+    /// shortens the step that was about to work.
     pub(crate) fn solve_implicit_block(
         &self,
         t: f64,
@@ -472,6 +483,8 @@ impl CompiledModel {
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
 
+        let mut seen: Vec<Vec<f64>> = Vec::new();
+        let mut damped = false;
         for _ in 0..50 {
             let f = residual(values, &v);
             let converged = f
@@ -524,9 +537,46 @@ impl CompiledModel {
                     block_names()
                 ));
             };
-            for j in 0..n {
-                v[j] -= dv[j];
+            let full: Vec<f64> = (0..n).map(|j| v[j] - dv[j]).collect();
+            // Newton's full step is right unless it walks in a circle.
+            // On the flat of a limiter the Jacobian says the residual
+            // can be cleared by a step onto the opposite rail; taken,
+            // the same argument sends the next step back, and the
+            // iteration swings between two points until the budget is
+            // out. Nothing about the residual gives this away - it is
+            // as large at one rail as at the other - so what is watched
+            // for is the return itself.
+            let circling = seen.iter().any(|old: &Vec<f64>| {
+                old.iter()
+                    .zip(&full)
+                    .all(|(a, b)| (a - b).abs() <= 1e-6 * (1.0 + a.abs()))
+            });
+            seen.push(v.clone());
+            if seen.len() > 4 {
+                seen.remove(0);
             }
+            // Once a block has walked in a circle, every later step of
+            // this solve is shortened until the residual falls. Before
+            // that it is not: insisting on descent from the start
+            // shortens steps that were about to work, and a magnetic
+            // curve entering saturation rises once before it converges.
+            damped |= circling;
+            let mut next = full;
+            if damped {
+                let norm = |r: &[f64]| r.iter().map(|x| x * x).sum::<f64>().sqrt();
+                let before = norm(&f);
+                let mut lambda = 1.0f64;
+                for _ in 0..20 {
+                    if next.iter().all(|value| value.is_finite())
+                        && norm(&residual(values, &next)) < before
+                    {
+                        break;
+                    }
+                    lambda /= 2.0;
+                    next = (0..n).map(|j| v[j] - lambda * dv[j]).collect();
+                }
+            }
+            v = next;
             if v.iter().any(|value| !value.is_finite()) {
                 return err(format!("algebraic loop diverged: {:?}", block_names()));
             }
