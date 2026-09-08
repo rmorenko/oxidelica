@@ -1890,6 +1890,16 @@ fn evaluate_parameters(
                         }
                         _ => return None,
                     };
+                    // An initial equation holds at t = 0 and evaluating
+                    // it there is honest. An ordinary one holds
+                    // throughout, so a side that names `time` has no
+                    // one number to give: read at zero, `r = 2*time`
+                    // would make `r` nothing but zero and take the
+                    // line out of the continuous set, which is a wrong
+                    // answer where the refusal that names `r` is owed.
+                    if names_time(value) {
+                        return None;
+                    }
                     let context = EvalCtx {
                         vars: &params,
                         time: 0.0,
@@ -2851,6 +2861,19 @@ pub(crate) fn asks_to_hide(annotations: &[Expr]) -> bool {
         }
         _ => false,
     })
+}
+
+/// Whether an expression names `time` anywhere below it.
+fn names_time(expr: &Expr) -> bool {
+    if matches!(expr, Expr::Time) {
+        return true;
+    }
+    let mut found = false;
+    expr.map_children(&mut |child| {
+        found |= names_time(child);
+        child.clone()
+    });
+    found
 }
 
 /// Collect `lhs - rhs` for every relation in an expression: these are

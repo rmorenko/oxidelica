@@ -628,3 +628,21 @@ fn a_parameter_is_settled_by_an_ordinary_equation_that_defines_it() {
     // `r` is -1.25, so the state decays to `exp(-1.25)` at t = 1.
     assert!((last[at] - 0.286_504_8).abs() < 1e-6, "x = {}", last[at]);
 }
+
+/// An ordinary equation whose other side names `time` does not settle
+/// a parameter.
+#[test]
+fn an_ordinary_equation_that_names_time_does_not_settle_a_parameter() {
+    // The round that settles a parameter from an ordinary equation
+    // evaluates the other side at t = 0. For an initial equation that
+    // is honest - it holds only at t = 0 - but an ordinary equation
+    // holds throughout, so `r = 2*time` read this way makes `r` the
+    // number zero and drops the line from the continuous set. That is
+    // a wrong answer where a refusal is owed.
+    let message = refused(
+        "model M parameter Real r(fixed = false); Real x(start = 1, fixed = true); \
+         equation r = 2 * time; der(x) = r * x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    assert!(message.contains('r'), "the refusal names r: {message}");
+}
