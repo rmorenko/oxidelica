@@ -753,6 +753,7 @@ fn reduce_index(
             at_time,
             &mut selection_records,
             anchored,
+            state_rhs,
         )?;
         let dummy = derivative_name(&victim);
         let victim_rhs = state_rhs
@@ -819,6 +820,7 @@ fn choose_the_victim(
     at_time: f64,
     selection_records: &mut Vec<(Expr, String, Vec<String>)>,
     anchored: &dyn Fn(&str) -> bool,
+    state_rhs: &HashMap<String, Expr>,
 ) -> Result<String, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
@@ -899,9 +901,45 @@ fn choose_the_victim(
     // about it is then contradicted rather than honoured. Prefer any
     // other state the constraint reaches, and fall back to the
     // anchored ones only when the constraint reaches nothing else.
+    //
+    // The anchor is not always at the level the choice is made at.
+    // Demoting a position commits the next differentiation to the
+    // velocity that position's own equation names, because that
+    // velocity becomes the companion the level below prefers - and by
+    // then it may be the only candidate there is, so the protection
+    // arrives at a level where it can no longer do anything. A state
+    // therefore counts as anchored when anything down its chain of
+    // derivatives is: `s` whose `der(s) = v` with `v` fixed is as bad
+    // a victim as `v` itself, and refusing it here is what leaves the
+    // level below a free choice to make.
+    let anchored_below = |name: &str| -> bool {
+        let mut queue = vec![name.to_string()];
+        let mut seen: Vec<String> = Vec::new();
+        while let Some(here) = queue.pop() {
+            if seen.contains(&here) {
+                continue;
+            }
+            if anchored(&here) {
+                return true;
+            }
+            seen.push(here.clone());
+            let Some(rhs) = state_rhs.get(&here) else {
+                continue;
+            };
+            let mut named = Vec::new();
+            rhs.collect_refs(&mut named);
+            queue.extend(
+                named
+                    .into_iter()
+                    .filter(|n| states.iter().any(|s| s == n))
+                    .map(str::to_string),
+            );
+        }
+        false
+    };
     let free: Vec<String> = candidates
         .iter()
-        .filter(|name| !anchored(name))
+        .filter(|name| !anchored_below(name))
         .cloned()
         .collect();
     let candidates = if free.is_empty() { candidates } else { free };

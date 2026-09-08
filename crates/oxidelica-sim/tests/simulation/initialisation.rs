@@ -537,3 +537,40 @@ fn index_reduction_spares_a_state_the_model_anchored() {
     assert!((at("v1") - 1.0).abs() < 1e-6, "{}", at("v1"));
     assert!((at("s1") - 0.1).abs() < 1e-6, "{}", at("s1"));
 }
+
+/// Sparing an anchor is not enough if the level below it strands one.
+#[test]
+fn a_demotion_does_not_strand_the_anchor_one_level_down() {
+    // Two masses held rigidly together again, but the constraint is
+    // written about the positions alone: `s2 = 3*s1`. That level has
+    // two candidates and neither is anchored, so the protection has
+    // nothing to say there and `s1` is taken on sensitivity.
+    // Differentiating once leaves a constraint over the velocities,
+    // where `v1` - the one the model anchored - is by then the only
+    // candidate, because taking `s1` is what committed the level below
+    // to it. The anchor is contradicted by a choice made one level
+    // above where the anchor lives, and the model refused for it.
+    //
+    // Demoting `s2` instead costs nothing: its own level is a free
+    // choice either way, and the level below then reaches `v2`, which
+    // the model said nothing about.
+    let result = run("model M Real s1; Real v1(start = -2, fixed = true); \
+         Real s2; Real v2; Real f; \
+         equation v1 = der(s1); v2 = der(s2); der(v1) = f + 1; 2 * der(v2) = -f; \
+         s2 = 3 * s1; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.1)); end M;");
+    let at = |name: &str| {
+        let column = result
+            .columns
+            .iter()
+            .position(|held| held == name)
+            .unwrap_or_else(|| panic!("{name} is not a column: {:?}", result.columns));
+        result.rows[result.rows.len() - 1][column]
+    };
+    // The velocity the model fixed is the velocity the run starts
+    // from. The rigid link makes the second mass move at three times
+    // the first, so the two accelerations and the shared force settle
+    // `f` at -6/7 and the anchored mass accelerates at 1/7.
+    assert!((at("v1") + 1.985_714_285_7).abs() < 1e-6, "{}", at("v1"));
+    assert!((at("v2") + 5.957_142_857_1).abs() < 1e-6, "{}", at("v2"));
+}
