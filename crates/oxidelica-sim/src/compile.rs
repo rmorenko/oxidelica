@@ -1684,10 +1684,14 @@ fn describe(expr: &Expr) -> String {
     }
 }
 
+/// What the parameters came to, the initial equations claimed for
+/// them, and the ordinary equations that turned out to define one.
+type Parameters = (HashMap<String, f64>, Vec<usize>, Vec<usize>);
+
 fn evaluate_parameters(
     model: &Model,
     programs: &HashMap<String, ClassDef>,
-) -> Result<(HashMap<String, f64>, Vec<usize>), SimError> {
+) -> Result<Parameters, SimError> {
     let mut params: HashMap<String, f64> = HashMap::new();
     // What the first round could not settle, kept until the rounds
     // that might settle it have run.
@@ -1697,6 +1701,8 @@ fn evaluate_parameters(
     // declaration, and the initial equations claimed for them.
     let mut unknowns: Vec<&oxidelica_parser::Component> = Vec::new();
     let mut claimed: Vec<usize> = Vec::new();
+    // The ordinary equations that turned out to define a parameter.
+    let mut defined: Vec<usize> = Vec::new();
     for c in &model.components {
         if matches!(
             c.variability,
@@ -1858,6 +1864,50 @@ fn evaluate_parameters(
                 None => true,
             }
         });
+        // And what an ordinary equation settles. A filter writes
+        // `r[1] = -(2.5*cr[1])` among its equations, with `cr` left to
+        // the initialisation and `r` to that line - so a parameter
+        // whose declaration gives it no value can still be defined,
+        // and by an equation that is not an initial one. The shape
+        // asked for is the same: the parameter alone on a side, and
+        // the other side a number with what is settled so far, which
+        // is what keeps a state out of it. The equation has done its
+        // work here and is dropped from the continuous set below,
+        // where the parameter is not an unknown and counting the line
+        // would leave one equation too many.
+        unknowns.retain(|c| {
+            let taken = model
+                .equations
+                .iter()
+                .enumerate()
+                .filter(|(at, _)| !defined.contains(at))
+                .find_map(|(at, equation)| {
+                    let value = match (&equation.lhs, &equation.rhs) {
+                        (Expr::Ref(named), value) | (value, Expr::Ref(named))
+                            if *named == c.name =>
+                        {
+                            value
+                        }
+                        _ => return None,
+                    };
+                    let context = EvalCtx {
+                        vars: &params,
+                        time: 0.0,
+                        programs: Some(programs),
+                        depth: 0,
+                    };
+                    eval(value, &context).ok().map(|number| (at, number))
+                });
+            match taken {
+                Some((at, number)) => {
+                    defined.push(at);
+                    params.insert(c.name.clone(), number);
+                    progress = true;
+                    false
+                }
+                None => true,
+            }
+        });
         if unknowns.is_empty() || !progress {
             break;
         }
@@ -2012,7 +2062,7 @@ fn evaluate_parameters(
             return err(why);
         }
     }
-    Ok((params, claimed))
+    Ok((params, claimed, defined))
 }
 
 /// Compile a model, either from its declared start (`resume` absent) or
@@ -2081,7 +2131,8 @@ pub(crate) fn compile_at(
         .iter()
         .map(|class| (class.name.clone(), class.clone()))
         .collect();
-    let (params, settled_parameters) = evaluate_parameters(model, &programs)?;
+    let (params, settled_parameters, parameter_definitions) =
+        evaluate_parameters(model, &programs)?;
 
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
@@ -2149,7 +2200,7 @@ pub(crate) fn compile_at(
         .equations
         .iter()
         .enumerate()
-        .filter(|(at, _)| !discrete_equations.contains(at))
+        .filter(|(at, _)| !discrete_equations.contains(at) && !parameter_definitions.contains(at))
         .map(|(_, equation)| equation)
         .chain(
             model

@@ -602,3 +602,29 @@ fn a_parameter_is_settled_by_an_initial_equation_that_cannot_be_solved_for_it() 
     let root = 0.428_977_9;
     assert!((last[at] - root).abs() < 1e-6, "y = {}", last[at]);
 }
+
+/// A parameter the declaration leaves open is settled by an ordinary
+/// equation that defines it.
+#[test]
+fn a_parameter_is_settled_by_an_ordinary_equation_that_defines_it() {
+    // How a filter states the pole it built from its coefficients:
+    // `cr` is left to the initialisation and `r = -(2.5 * cr)` stands
+    // among the ordinary equations. Read only among the initial ones,
+    // `r` is a parameter nothing gives a value to and the model is
+    // refused, though the line that defines it is right there.
+    let result = run(
+        "model M parameter Real cr(fixed = false); parameter Real r(fixed = false); \
+         Real x(start = 1, fixed = true); \
+         initial equation cr = 0.5; \
+         equation r = -(2.5 * cr); der(x) = r * x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    let last = result.rows.last().expect("a final row");
+    let at = result
+        .columns
+        .iter()
+        .position(|column| column == "x")
+        .unwrap_or_else(|| panic!("x in {:?}", result.columns));
+    // `r` is -1.25, so the state decays to `exp(-1.25)` at t = 1.
+    assert!((last[at] - 0.286_504_8).abs() < 1e-6, "x = {}", last[at]);
+}
