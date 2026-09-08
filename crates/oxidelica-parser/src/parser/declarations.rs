@@ -59,6 +59,7 @@ impl Parser {
 
             let mut start = None;
             let mut fixed = None;
+            let mut fixed_expr = None;
             let mut unit = None;
             let (mut min, mut max) = (None, None);
             let mut modifiers = Vec::new();
@@ -102,8 +103,8 @@ impl Parser {
                                 // parameter the model may well have
                                 // given a value.
                                 let expr = self.expr()?;
-                                fixed = match expr {
-                                    Expr::Bool(yes) => Some(yes),
+                                fixed = match &expr {
+                                    Expr::Bool(yes) => Some(*yes),
                                     // A number is not a truth, and the
                                     // language does not convert one to
                                     // the other: `fixed = 1` is a type
@@ -113,7 +114,10 @@ impl Parser {
                                             "fixed expects true/false, found a number".to_string(),
                                         ))
                                     }
-                                    _ => None,
+                                    _ => {
+                                        fixed_expr = Some(expr);
+                                        None
+                                    }
                                 };
                             }
                             "unit" => match self.bump() {
@@ -196,6 +200,7 @@ impl Parser {
                 variability,
                 start,
                 fixed,
+                fixed_expr,
                 unit,
                 min,
                 max,

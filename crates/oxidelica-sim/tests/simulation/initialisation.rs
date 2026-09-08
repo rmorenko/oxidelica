@@ -646,3 +646,44 @@ fn an_ordinary_equation_that_names_time_does_not_settle_a_parameter() {
     );
     assert!(message.contains('r'), "the refusal names r: {message}");
 }
+
+/// A `fixed` flag written as an expression is settled where the
+/// parameters are, and decides who owes the value.
+#[test]
+fn a_fixed_flag_written_as_an_expression_is_settled_with_the_parameters() {
+    // How the fluid valves say it: `Av(fixed = CvData == CvTypes.Av)`
+    // says the coefficient is given where the model chose to give it
+    // and solved for where it did not. Read as `false` outright - or
+    // dropped - the flag says nothing, and the parameter is one
+    // nothing gives a value to.
+    let result = run(
+        "model M parameter Boolean b = false; parameter Real Av(fixed = b); \
+         Real x(start = 1, fixed = true); \
+         initial equation Av = 2; \
+         equation der(x) = -Av * x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    let last = result.rows.last().expect("a final row");
+    let at = result
+        .columns
+        .iter()
+        .position(|column| column == "x")
+        .unwrap_or_else(|| panic!("x in {:?}", result.columns));
+    // The flag is false, so the initialisation settles `Av` at 2 and
+    // the state decays to `exp(-2)`.
+    assert!((last[at] - 0.135_335_3).abs() < 1e-6, "x = {}", last[at]);
+}
+
+/// The other side of the same flag: where it comes to true, the
+/// declaration owes the value and is refused when it has none.
+#[test]
+fn a_fixed_flag_that_comes_to_true_asks_the_declaration_for_the_value() {
+    let message = refused(
+        "model M parameter Boolean b = true; parameter Real Av(fixed = b); \
+         Real x(start = 1, fixed = true); \
+         initial equation Av = 2; \
+         equation der(x) = -Av * x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    assert!(message.contains("Av"), "the refusal names Av: {message}");
+}

@@ -136,8 +136,16 @@ pub struct Component {
     pub variability: Variability,
     /// The `start` attribute from the modifier: `Real x(start = 1.0)`.
     pub start: Option<Expr>,
-    /// The `fixed` attribute.
+    /// The `fixed` attribute, where the declaration wrote a literal.
     pub fixed: Option<bool>,
+    /// The `fixed` attribute where what was written is an expression
+    /// rather than a literal: the fluid valves say
+    /// `Av(fixed = CvData == CvTypes.Av)`, which the language allows
+    /// and which says the coefficient is given where the model chose
+    /// to give it and solved for where it did not. Nothing is known
+    /// about the names here, so the expression is carried on the
+    /// component and settled where the parameters themselves are.
+    pub fixed_expr: Option<Expr>,
     /// The `unit` attribute: `Real v(unit = "V")`, or inherited from a
     /// type alias. Feeds the dimensional check; `None` is unchecked.
     pub unit: Option<String>,

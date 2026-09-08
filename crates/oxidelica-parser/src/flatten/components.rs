@@ -1040,6 +1040,16 @@ pub(super) fn instantiate_one(
                 )?
                 .scalar()
             };
+            // The `fixed` flag written as an expression is carried
+            // the same way a start is: in the terms of the flat model
+            // rather than the class that wrote it, since anything
+            // surviving flattening carries the flat model's names.
+            // What it comes to is decided where the parameters are,
+            // which is the only place the names in it are worth
+            // anything.
+            flat.fixed_expr = flat.fixed_expr.as_ref().map(|expr| {
+                resolve_value(expr).unwrap_or_else(|_| prefix_expr(expr, prefix, outers))
+            });
             flat.start = match site.start {
                 Some(expr) => Some(expr.clone()),
                 None => flat.start.as_ref().map(&resolve_value).transpose()?,
@@ -1127,7 +1137,18 @@ pub(super) fn instantiate_one(
                 }
             }
             if let Some(value) = modifier(&format!("{}.fixed", component.name)) {
-                flat.fixed = Some(!matches!(value, Expr::Bool(false) | Expr::Number(0.0)));
+                // A modifier from above outranks the declaration, and
+                // outranks an expression the declaration carried too.
+                match value {
+                    Expr::Bool(_) | Expr::Number(_) => {
+                        flat.fixed = Some(!matches!(value, Expr::Bool(false) | Expr::Number(0.0)));
+                        flat.fixed_expr = None;
+                    }
+                    other => {
+                        flat.fixed = None;
+                        flat.fixed_expr = Some(other);
+                    }
+                }
             }
             // On a variable rather than a parameter, a binding is a
             // declaration equation: `Support support(tau = -flange.tau)`

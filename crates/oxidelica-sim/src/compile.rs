@@ -1697,6 +1697,9 @@ fn evaluate_parameters(
     // that might settle it have run.
     let mut stuck_on: Option<String> = None;
     let mut pending: Vec<(&str, &Expr)> = Vec::new();
+    // The components whose `fixed` was written as an expression, held
+    // until the parameters it names have values.
+    let mut deferred: Vec<&oxidelica_parser::Component> = Vec::new();
     // The parameters the initialisation settles rather than the
     // declaration, and the initial equations claimed for them.
     let mut unknowns: Vec<&oxidelica_parser::Component> = Vec::new();
@@ -1719,6 +1722,21 @@ fn evaluate_parameters(
                 && c.binding.is_none();
             if asks_the_initialization {
                 unknowns.push(c);
+                continue;
+            }
+            // A flag written as an expression - `Av(fixed = CvData ==
+            // CvTypes.Av)` - is not known yet, because the names in it
+            // are parameters this very round settles. Which side of
+            // the question it falls on decides whether the parameter
+            // is an unknown of the initialisation or wants a value
+            // here, so it is put aside and asked once there is
+            // something to ask with.
+            if c.variability == Variability::Parameter
+                && c.fixed.is_none()
+                && c.fixed_expr.is_some()
+                && c.binding.is_none()
+            {
+                deferred.push(c);
                 continue;
             }
             match c.binding.as_ref().or(c.start.as_ref()) {
@@ -1819,6 +1837,68 @@ fn evaluate_parameters(
                 "cannot evaluate parameters [{}]: {because}",
                 names.join(", ")
             ));
+            break;
+        }
+    }
+
+    // Now the flags written as expressions can be asked. A flag that
+    // comes to false says the initialisation settles the parameter; a
+    // flag that comes to true says the declaration does, and then the
+    // start is where the value is. A flag that comes to nothing is
+    // refused by name rather than guessed at: reading it as either
+    // truth gives a wrong answer where a refusal is owed, and the two
+    // wrong answers are a parameter solved for twice and a parameter
+    // solved for never.
+    for c in deferred {
+        let flag = c.fixed_expr.as_ref().expect("a deferred flag was written");
+        let context = EvalCtx {
+            vars: &params,
+            time: 0.0,
+            programs: Some(programs),
+            depth: 0,
+        };
+        let settled = match eval(flag, &context) {
+            Ok(value) => value != 0.0,
+            Err(_) => {
+                return err(format!(
+                    "parameter {} says `fixed = {}`, and that is not something \
+                     the parameters settle",
+                    c.name,
+                    flag.describe()
+                ))
+            }
+        };
+        if settled {
+            match c.start.as_ref() {
+                Some(expr) => pending.push((&c.name, expr)),
+                None => return err(format!("parameter {} has no value", c.name)),
+            }
+        } else {
+            unknowns.push(c);
+        }
+    }
+    // A start taken this way is usually a literal, but may stand on
+    // another parameter, so it is settled by the same rounds.
+    loop {
+        let before = pending.len();
+        pending.retain(|(name, expr)| {
+            match eval(
+                expr,
+                &EvalCtx {
+                    vars: &params,
+                    time: 0.0,
+                    programs: Some(programs),
+                    depth: 0,
+                },
+            ) {
+                Ok(v) => {
+                    params.insert((*name).to_string(), v);
+                    false
+                }
+                Err(_) => true,
+            }
+        });
+        if pending.is_empty() || pending.len() == before {
             break;
         }
     }

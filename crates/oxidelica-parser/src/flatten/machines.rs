@@ -722,6 +722,7 @@ pub(super) fn blank_component() -> Component {
         variability: Variability::Continuous,
         start: None,
         fixed: None,
+        fixed_expr: None,
         unit: None,
         min: None,
         max: None,

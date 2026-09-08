@@ -235,16 +235,18 @@ pub(super) fn resolve_type(
                 }
                 "fixed" => {
                     // A literal settles the flag; an expression is
-                    // left unsettled rather than read as `false`.
-                    // `Av(fixed = CvData == CvTypes.Av)` says the
-                    // coefficient is given where the model chose to
-                    // give it, and calling that `false` told the
-                    // initialisation to solve for a parameter that
-                    // may well have a value - which then read as
-                    // having none at all.
-                    if component.fixed.is_none() {
-                        if let Expr::Bool(yes) = value {
-                            component.fixed = Some(*yes);
+                    // carried on the component and settled where the
+                    // parameters are. `Av(fixed = CvData ==
+                    // CvTypes.Av)` says the coefficient is given
+                    // where the model chose to give it, and neither
+                    // reading it as `false` nor dropping it says that:
+                    // the first tells the initialisation to solve for
+                    // a parameter that may well have a value, and the
+                    // second loses the only line that knew.
+                    if component.fixed.is_none() && component.fixed_expr.is_none() {
+                        match value {
+                            Expr::Bool(yes) => component.fixed = Some(*yes),
+                            other => component.fixed_expr = Some(other.clone()),
                         }
                     }
                     false
@@ -307,8 +309,15 @@ pub(super) fn resolve_type(
         for (name, value) in attributes {
             match name.as_str() {
                 "start" if component.start.is_none() => component.start = Some(value),
-                "fixed" if component.fixed.is_none() => {
-                    component.fixed = Some(matches!(value, Expr::Bool(true)))
+                // The same rule as the modifier road above, which
+                // this used to contradict: reading an expression as
+                // `false` is exactly the guess the comment there
+                // warns against.
+                "fixed" if component.fixed.is_none() && component.fixed_expr.is_none() => {
+                    match value {
+                        Expr::Bool(yes) => component.fixed = Some(yes),
+                        other => component.fixed_expr = Some(other),
+                    }
                 }
                 "min" if component.min.is_none() => component.min = Some(value),
                 "max" if component.max.is_none() => component.max = Some(value),
