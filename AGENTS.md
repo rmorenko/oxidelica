@@ -133,6 +133,15 @@ mechanism, one corpus model shows a single victim's fate, the census
 shows a family moving, the diff of run lists shows a scattered loss,
 the floors show the total.
 
+Point the instrument at the root of the corpus, not at a subtree of
+it. `--only <Class>` run against `.msl/Modelica` sees a library cut
+off from its siblings, and what comes back is `unknown base class` -
+a refusal about the context rather than about the model, which reads
+exactly like "the change under test had nothing to do with it". The
+root is `.msl`. This cost a shift's reading before it was caught, and
+it was caught by comparing the two roots rather than by believing the
+first number.
+
 `oxidelica library check <library>` ranks what the library stumbles
 over, commonest first. That ranking is the work queue. Take the top of
 it, not whatever is most interesting.
