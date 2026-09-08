@@ -499,6 +499,7 @@ fn implicit_enabled() -> bool {
 /// term), then demote one state appearing in it to an algebraic
 /// unknown. Its former state equation determines the dummy that
 /// replaces its derivative, which restores the balance.
+#[allow(clippy::too_many_arguments)]
 fn reduce_index(
     mut states: Vec<String>,
     mut unknowns: Vec<String>,
@@ -507,6 +508,7 @@ fn reduce_index(
     params: &HashMap<String, f64>,
     start_env: &HashMap<String, f64>,
     at_time: f64,
+    anchored: &dyn Fn(&str) -> bool,
 ) -> Result<Reduction, SimError> {
     let mut dummies: HashMap<String, String> = HashMap::new();
     // States named in the right-hand side of an already-demoted state:
@@ -750,6 +752,7 @@ fn reduce_index(
             start_env,
             at_time,
             &mut selection_records,
+            anchored,
         )?;
         let dummy = derivative_name(&victim);
         let victim_rhs = state_rhs
@@ -815,6 +818,7 @@ fn choose_the_victim(
     start_env: &HashMap<String, f64>,
     at_time: f64,
     selection_records: &mut Vec<(Expr, String, Vec<String>)>,
+    anchored: &dyn Fn(&str) -> bool,
 ) -> Result<String, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
@@ -889,6 +893,18 @@ fn choose_the_victim(
     } else {
         favoured
     };
+    // A state the model anchored - a start it declared as fixed - is
+    // the worst thing to demote: demoted, its value is solved from
+    // the constraints, and the initial condition the model wrote
+    // about it is then contradicted rather than honoured. Prefer any
+    // other state the constraint reaches, and fall back to the
+    // anchored ones only when the constraint reaches nothing else.
+    let free: Vec<String> = candidates
+        .iter()
+        .filter(|name| !anchored(name))
+        .cloned()
+        .collect();
+    let candidates = if free.is_empty() { candidates } else { free };
     // The runtime monitor compares the victim against exactly the
     // set the pivot weighed - alternatives of another derivative
     // level would make a healthy selection look wrong.
@@ -2148,6 +2164,12 @@ pub(crate) fn compile_at(
         &params,
         &start_env,
         resume.as_ref().map_or(0.0, |point| point.time),
+        &|name: &str| {
+            model
+                .components
+                .iter()
+                .any(|c| c.name == name && c.fixed == Some(true) && c.start.is_some())
+        },
     )?;
 
     let mut matched_var: Vec<usize> = vec![0; n_alg];

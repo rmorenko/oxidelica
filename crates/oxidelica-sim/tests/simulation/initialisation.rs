@@ -508,3 +508,32 @@ fn an_if_among_the_initial_equations_stays_initial() {
     // Started at three and integrated one for a second.
     assert!((at("b.y") - 4.0).abs() < 1e-6, "{}", at("b.y"));
 }
+
+/// A state the model anchored is not the one index reduction demotes.
+#[test]
+fn index_reduction_spares_a_state_the_model_anchored() {
+    // Two masses held rigidly together. The constraint `s1 = s2`
+    // reaches both velocities, and demoting the one the model gave a
+    // fixed start to solves that velocity from the constraint - which
+    // contradicts the initial condition instead of honouring it, and
+    // the model is refused for it. Ten models of the library refuse
+    // exactly this way. Demote the free one and both are satisfied.
+    let result = run(
+        "model M Real s1(start = 0, fixed = true); Real v1(start = 1, fixed = true); \
+         Real s2(start = 0); Real v2(start = 0); Real f; \
+         equation der(s1) = v1; der(v1) = f; der(s2) = v2; der(v2) = -f; s1 = s2; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.1)); end M;",
+    );
+    let at = |name: &str| {
+        let column = result
+            .columns
+            .iter()
+            .position(|held| held == name)
+            .unwrap_or_else(|| panic!("{name} is not a column: {:?}", result.columns));
+        result.rows[result.rows.len() - 1][column]
+    };
+    // The velocity the model fixed is the velocity the run keeps, and
+    // the free mass is dragged along at the same speed.
+    assert!((at("v1") - 1.0).abs() < 1e-6, "{}", at("v1"));
+    assert!((at("s1") - 0.1).abs() < 1e-6, "{}", at("s1"));
+}
