@@ -574,3 +574,31 @@ fn a_demotion_does_not_strand_the_anchor_one_level_down() {
     assert!((at("v1") + 1.985_714_285_7).abs() < 1e-6, "{}", at("v1"));
     assert!((at("v2") + 5.957_142_857_1).abs() < 1e-6, "{}", at("v2"));
 }
+
+/// An initial equation that no rearrangement solves still settles the
+/// parameter it is about.
+#[test]
+fn a_parameter_is_settled_by_an_initial_equation_that_cannot_be_solved_for_it() {
+    // How a saturating inductor states the shape of its curve:
+    // `(Lnom - Linf)/(Lzer - Linf) = Ipar/Inom*(pi/2 - atan(Ipar/Inom))`,
+    // with `Ipar` on both sides of an arctangent and nowhere alone.
+    // Read only for a name against a number, this equation settles
+    // nothing and stays in the initialisation, where it counts against
+    // the states - of which this model has none - and the whole model
+    // is refused for an initialisation that is not square.
+    let result = run(
+        "model M parameter Real p(fixed = false, start = 1); Real y; \
+         equation y = p * time; \
+         initial equation 0.5 = p * (1.5707963267948966 - atan(p)); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    let last = result.rows.last().expect("a final row");
+    let at = result
+        .columns
+        .iter()
+        .position(|column| column == "y")
+        .unwrap_or_else(|| panic!("y in {:?}", result.columns));
+    // The root of `0.5 = p*(pi/2 - atan p)`, and `y` is that at t = 1.
+    let root = 0.428_977_9;
+    assert!((last[at] - root).abs() < 1e-6, "y = {}", last[at]);
+}

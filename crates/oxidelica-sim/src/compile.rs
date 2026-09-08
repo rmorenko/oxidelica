@@ -1862,6 +1862,100 @@ fn evaluate_parameters(
             break;
         }
     }
+    // What the initialisation settles without saying so outright.
+    //
+    // `(Lnom - Linf)/(Lzer - Linf) = Ipar/Inom*(pi/2 - atan(Ipar/Inom))`
+    // is how a saturating inductor states its shape parameter, and no
+    // rearrangement puts `Ipar` alone on a side. The round above asks
+    // for a name against a number and finds neither, so the equation
+    // stayed in the initialisation - where it counts against the
+    // states, of which such a model may have none, and the whole model
+    // was refused as an initialisation that is not square.
+    //
+    // The equation is a residual in one unknown, so it is solved as
+    // one: Newton from the declared start, with the slope taken by
+    // difference. Only where the equation names exactly one unsettled
+    // parameter and everything else in it already has a value - an
+    // equation naming two determines neither on its own, and a number
+    // invented for one of them would be a wrong answer given as a
+    // right one. A solve that does not converge leaves the parameter
+    // to the round below, which falls back on its start.
+    loop {
+        let mut progress = false;
+        unknowns.retain(|c| {
+            let Some(start) = c.start.as_ref() else {
+                return true;
+            };
+            fn context<'a>(
+                vars: &'a HashMap<String, f64>,
+                programs: &'a HashMap<String, ClassDef>,
+            ) -> EvalCtx<'a> {
+                EvalCtx {
+                    vars,
+                    time: 0.0,
+                    programs: Some(programs),
+                    depth: 0,
+                }
+            }
+            let Ok(guess) = eval(start, &context(&params, programs)) else {
+                return true;
+            };
+            let taken = model
+                .initial_equations
+                .iter()
+                .enumerate()
+                .filter(|(at, _)| !claimed.contains(at))
+                .find_map(|(at, equation)| {
+                    let mut named = Vec::new();
+                    equation.lhs.collect_refs(&mut named);
+                    equation.rhs.collect_refs(&mut named);
+                    if !named.iter().any(|name| *name == c.name) {
+                        return None;
+                    }
+                    if named
+                        .iter()
+                        .any(|name| *name != c.name && !params.contains_key(*name))
+                    {
+                        return None;
+                    }
+                    let residual = |value: f64| {
+                        let mut vars = params.clone();
+                        vars.insert(c.name.clone(), value);
+                        let at = context(&vars, programs);
+                        Ok::<f64, SimError>(eval(&equation.lhs, &at)? - eval(&equation.rhs, &at)?)
+                    };
+                    let mut value = guess;
+                    for _ in 0..50 {
+                        let f = residual(value).ok()?;
+                        if f.abs() < 1e-12 {
+                            return Some((at, value));
+                        }
+                        let step = 1e-7 * (1.0 + value.abs());
+                        let slope = (residual(value + step).ok()? - f) / step;
+                        if slope == 0.0 || !slope.is_finite() {
+                            return None;
+                        }
+                        value -= f / slope;
+                        if !value.is_finite() {
+                            return None;
+                        }
+                    }
+                    None
+                });
+            match taken {
+                Some((at, number)) => {
+                    claimed.push(at);
+                    params.insert(c.name.clone(), number);
+                    progress = true;
+                    false
+                }
+                None => true,
+            }
+        });
+        if unknowns.is_empty() || !progress {
+            break;
+        }
+    }
     // One nothing settled keeps its start value, which is what the
     // language says a start is for where nothing else decides.
     for c in unknowns {
