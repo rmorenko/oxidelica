@@ -485,8 +485,25 @@ impl CompiledModel {
 
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
-        for _ in 0..50 {
+        for iteration in 0..50 {
             let f = residual(values, &v);
+            // A residual that is not a number is not a step away from
+            // the solution: the block never had a finite one to step
+            // from. Reported as divergence it names a thing that did
+            // not happen and sends the reader to the solver, when
+            // what went wrong is upstream - an explicit assignment
+            // whose divisor vanished in the branch the model starts
+            // in. Say which residual, and say what it was.
+            if iteration == 0 {
+                if let Some((i, bad)) = f.iter().enumerate().find(|(_, x)| !x.is_finite()) {
+                    return err(format!(
+                        "residual {i} of algebraic loop {:?} is {bad} at t = {t}, \
+                         before any Newton step: the equations cannot be evaluated \
+                         at the values the block starts from",
+                        block_names()
+                    ));
+                }
+            }
             let converged = f
                 .iter()
                 .zip(&v)

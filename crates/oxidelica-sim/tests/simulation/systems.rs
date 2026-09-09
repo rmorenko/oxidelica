@@ -262,16 +262,21 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
             .to_string()
     };
 
-    // `1 / x = 0` has no solution, and Newton walks straight off the
-    // number line rather than merely failing to converge - the run has
-    // to say which loop it was, not hand back a NaN.
+    // `1 / x = 0` has no solution, and at the start value of zero it
+    // has no residual either. Nothing has diverged - Newton has not
+    // taken a step, and cannot, because the equation it was handed
+    // cannot be evaluated where the block begins. Saying "diverged"
+    // sent the reader to the solver for a fault that is upstream of
+    // it, so the refusal names the residual and its value instead.
     assert_eq!(
         refused(
             "model D Real x; Real s(start = 0, fixed = true); \
              equation 1 / x = 0; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end D;"
         ),
-        "algebraic loop diverged: [\"x\"]"
+        "residual 0 of algebraic loop [\"x\"] is inf at t = 0, before any \
+         Newton step: the equations cannot be evaluated at the values the \
+         block starts from"
     );
 
     // The other way a loop fails: `x^2 * y = 1` where y is sin(t),
