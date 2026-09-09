@@ -340,7 +340,73 @@ fn build_plan(
             residuals,
         });
     }
+    if std::env::var_os("OXIDELICA_MODE_PROBE").is_some() {
+        probe_mode_conditions(&ordered_algs, &stages);
+    }
     (ordered_algs, stages)
+}
+
+/// What an `if` inside a torn block branches on.
+///
+/// A block whose slope is an `if` is a block whose plan is a guess
+/// about which branch holds, and two quite different illnesses read
+/// alike from outside. A condition built from parameters and
+/// discretes alone stands still between events, so a mode-wise
+/// substitution could in principle give the block a plan that
+/// survives; a condition naming a continuous unknown of the block
+/// itself moves under Newton within the step, and no substitution
+/// helps. This prints the condition and the names it reads so that
+/// the two can be counted apart before either is worked on, which is
+/// what said the substitution was not worth writing: of the
+/// twenty-nine models standing at the residual-is-NaN wall, fourteen
+/// look like the first kind, eight are mixed, four are the second,
+/// and three have no conditional in the block at all.
+///
+/// Behind an environment switch so that both numbers come from one
+/// binary.
+fn probe_mode_conditions(ordered_algs: &[String], stages: &[PlanStage]) {
+    let report = |what: &str, expr: &Expr, block: &[usize]| {
+        let mut found = Vec::new();
+        expr.for_each(&mut |node| {
+            if let Expr::If(condition, _, _) = node {
+                found.push(condition.as_ref().clone());
+            }
+        });
+        for condition in found {
+            let mut refs = Vec::new();
+            condition.collect_refs(&mut refs);
+            refs.sort_unstable();
+            refs.dedup();
+            // A name of the block itself is what makes the condition
+            // move under iteration; everything else stands still
+            // between events, whether it is a parameter or a discrete.
+            let names: Vec<&str> = block.iter().map(|&v| ordered_algs[v].as_str()).collect();
+            let continuous: Vec<&&str> = refs.iter().filter(|r| names.contains(r)).collect();
+            eprintln!(
+                "mode-probe: {what} branches on {condition:?}; reads {refs:?}; \
+                 of the block: {continuous:?}; family {}",
+                if continuous.is_empty() { "A" } else { "B" }
+            );
+        }
+    };
+    for stage in stages {
+        let PlanStage::Implicit {
+            vars,
+            inner,
+            residuals,
+            ..
+        } = stage
+        else {
+            continue;
+        };
+        for (lhs, rhs) in residuals {
+            report("a residual", lhs, vars);
+            report("a residual", rhs, vars);
+        }
+        for (_, expr) in inner {
+            report("an inner assignment", expr, vars);
+        }
+    }
 }
 
 /// How many times a constraint may be differentiated before the model
