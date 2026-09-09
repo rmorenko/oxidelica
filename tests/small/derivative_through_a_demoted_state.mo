@@ -17,11 +17,19 @@
 // Supplying that definition was built and measured, and it is parked.
 // It takes this model and IMC_DOL to the next wall - `aimc.fixed.
 // flange.phi = aimc.airGap.support.phi` constrains no state - and the
-// transformer shape with them, but it also makes
-// ControlledDCDrives.CurrentControlledDCPM grow without bound and be
-// killed, so no corpus number could be taken. A definition reached
-// through a dummy is a definition reached through the equation that
-// determined the dummy, and somewhere that walk stops being finite.
+// transformer shape with them.
+//
+// One cause of the unbounded growth behind it has since been removed
+// and shipped on its own: the quotient rule squared a denominator that
+// does not move, and index reduction differentiates its own output, so
+// `J^2` became `(J^2)^2` once per reduction.
+// ControlledDCDrives.CurrentControlledDCPM no longer dies of memory -
+// it reaches a verdict - but it takes 338 seconds to do it, and a
+// corpus run under the rule is still killed on another model. What
+// remains is that a definition is inlined wherever its name appears,
+// with no sharing, so the twentieth reduction still builds an
+// expression of ninety million characters. That is the next wall, and
+// it is a different one from the wall this model names.
 model DerivativeThroughADemotedState
   Modelica.Electrical.Machines.BasicMachines.InductionMachines.IM_SquirrelCage aimc;
   Modelica.Mechanics.Rotational.Components.Inertia load(J = 0.29);

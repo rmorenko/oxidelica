@@ -5605,3 +5605,63 @@ Two more models stand at the same census row and are not machines:
 both refused for `trapezoid1.T_start`. They do not move under the rule
 either, and they are a different family - a source's start attribute,
 not a connection.
+
+## Where the growth came from, and what it was not
+
+The question left above was a question about termination, and the
+answer was measured rather than guessed. The instrument was the probe
+already built, printing the reduction number and the expression under
+it; the fork put to it was whether the reduction number climbs for
+ever, which is a fixpoint demoting in a circle, or stands still while
+memory grows, which is an explosion inside the walk.
+
+Neither, as they were put. The reduction number stood still at twenty,
+and the expression under it went 986, 1910, 14112, 90847, 4979469,
+111942871 characters. A factor of twenty-two per reduction, killed for
+memory rather than looping: the walk was finite all along and its
+answers were not.
+
+The shape in the dump named the cause. Every division carried
+`Bin(Pow, Ref("dcpm.inertiaRotor.J"), Number(2.0))`, then
+`Pow(Pow(J,2),2)`, then that squared again. The quotient rule is
+written the general way and always emits `b^2`, so a division by a
+parameter answers `(a'*J - a*0)/J^2`. The zero folds; the `J` against
+`J^2` does not, because nothing in `simplify` cancels a name against
+its own square. Harmless once - and index reduction differentiates its
+own output, so the residue is squared once per reduction. `tau/J` is
+the shape of every rotational model in the library.
+
+The rule that replaces it says the identity instead: a denominator
+whose derivative is zero divides the derivative and nothing else.
+Narrower than a cancellation rule, true everywhere, and it needs no
+arithmetic on `simplify`'s part.
+
+Asking it of the _derivative_ rather than of the denominator is what
+made it cover both doors, and the second door was found by measuring
+after the first was shut. Guarded only for time, the model stopped
+dying of memory and still grew - 9840, 57642, 2939832, 93577290 - and
+the reason is that `solve_linear_for` differentiates by _variable_, not
+by time, where a test on `does_not_move` is inert by construction. It
+mints the candidate definitions the fixpoint hands back to the walk, so
+it was squaring `L` and `J` on the way in. One identity, two entrances.
+
+The fix ships on its own, without the parked rule. Its corpus numbers
+are 820 / 386 / 722 / 381 - unchanged - and the run list diffs empty
+against the previous shift's, name for name, which is the witness a
+change of this kind owes. It is not a change that adds a definition and
+so has no victims to map; it is a change that stops an answer growing.
+
+What it bought under the parked rule is the difference between a
+verdict and a corpse: `CurrentControlledDCPM` used to be killed, and
+now reaches a refusal. It takes 338 seconds to do it, and a corpus run
+with the gate on is still killed - on a different model, later in the
+pass, past the 840th, which the previous shift never saw because the
+first victim stopped the run at the 420th. So the barrier moved and did
+not fall.
+
+What remains is the inlining itself. A definition is expanded wherever
+its name appears and shared nowhere, so the same `der(loadInertia.w)`
+subtree is written out 125 times in one expression at reduction 18.
+That is what still makes ninety million characters out of twenty
+reductions, and it is a wall about common subexpressions rather than
+about machines or about differentiation. The parked rule waits on it.

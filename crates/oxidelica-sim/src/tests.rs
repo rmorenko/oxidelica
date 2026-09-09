@@ -322,3 +322,63 @@ fn two_implicit_unknowns_determining_each_other_are_refused() {
         "expected the mutual refusal, got: {reason}"
     );
 }
+
+/// Differentiating by a still denominator must not grow the expression.
+///
+/// Index reduction differentiates its own output, so any residue the
+/// quotient rule leaves behind is raised to a power once per reduction.
+/// A division by a parameter is the common shape - `tau/J` in every
+/// rotational model - and the general rule answers it with
+/// `(a'*J - a*0)/J^2`, whose `J^2` becomes `(J^2)^2` the next time
+/// round. On CurrentControlledDCPM that ran to 111M characters by the
+/// twentieth reduction and was killed for memory.
+///
+/// Measured as repeated differentiation, because one pass looks
+/// harmless: it is the growth and not the first answer that is the bug.
+#[test]
+fn a_still_denominator_does_not_grow_under_repeated_differentiation() {
+    let state_rhs: HashMap<String, Expr> = HashMap::from([("w".to_string(), expr_of("tau"))]);
+    let params: HashMap<String, f64> = HashMap::from([("j".to_string(), 0.5)]);
+    let dummies = HashMap::new();
+    let alg_defs: HashMap<String, Expr> = HashMap::from([("tau".to_string(), expr_of("w"))]);
+    let implicit_defs = HashMap::new();
+    let target = DiffTarget::Time {
+        state_rhs: &state_rhs,
+        params: &params,
+        dummies: &dummies,
+        alg_defs: &alg_defs,
+        implicit_defs: &implicit_defs,
+        holding: &[],
+    };
+
+    let mut expr = simplify(&expr_of("w / j"));
+    let first = format!("{expr:?}").len();
+    for round in 0..6 {
+        expr = simplify(&differentiate(&expr, &target).expect("a quotient by a parameter"));
+        let size = format!("{expr:?}").len();
+        assert!(
+            size <= first * 3,
+            "round {round}: {size} characters against {first} at the start - \
+             the denominator is squaring itself"
+        );
+    }
+}
+
+/// The same identity through the door `solve_linear_for` uses.
+///
+/// A slope taken against one name has every parameter beside it
+/// standing still, so `(a/L)` differentiated by `a` is `1/L` and not
+/// `(1*L - a*0)/L^2`. This is not a second rule but the same one seen
+/// from the other side, and it had to be measured separately: guarding
+/// only the time walk left CurrentControlledDCPM growing through the
+/// candidate definitions this mints - 10k, 64k, 3.4M, 110M characters.
+#[test]
+fn a_slope_by_variable_does_not_square_its_denominator() {
+    let solved = solve_linear_for(&expr_of("q"), &expr_of("a / l"), "a")
+        .expect("a quotient linear in its numerator");
+    let printed = format!("{solved:?}");
+    assert!(
+        !printed.contains("Pow"),
+        "the slope squared its denominator: {printed}"
+    );
+}

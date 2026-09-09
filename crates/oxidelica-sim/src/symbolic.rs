@@ -293,15 +293,50 @@ pub(crate) fn differentiate_at(
             bin(Mul, d(a)?, (**b).clone()),
             bin(Mul, (**a).clone(), d(b)?),
         ),
-        Expr::Bin(Div, a, b) => bin(
-            Div,
-            bin(
-                Sub,
-                bin(Mul, d(a)?, (**b).clone()),
-                bin(Mul, (**a).clone(), d(b)?),
-            ),
-            bin(Pow, (**b).clone(), Expr::Number(2.0)),
-        ),
+        Expr::Bin(Div, a, b) => {
+            // A denominator whose derivative is zero divides the
+            // derivative and nothing else: `(a/J)' = a'/J` exactly,
+            // and no quotient rule is wanted. Written the general way
+            // the answer carries `(a'*J - a*0)/J^2`, whose zero folds
+            // while the `J/J^2` does not - nothing here cancels a name
+            // against its own square.
+            //
+            // Harmless once and fatal in a loop. Index reduction
+            // differentiates its own output, so a model demoting a
+            // state per reduction squares the denominator again each
+            // time. On ControlledDCDrives.CurrentControlledDCPM the
+            // reduction number stood still at twenty while the
+            // expression went 14k, 90k, 5M, 111M characters - a factor
+            // of twenty-two a reduction, killed for memory rather than
+            // looping. Every division there is by a parameter; it is
+            // the shape of the answer that grows.
+            //
+            // Asked of the derivative rather than of the denominator,
+            // which is what makes it cover both doors. Time is one:
+            // `J` is a parameter and does not move. The other is
+            // `solve_linear_for`, which takes a slope against a single
+            // name with every parameter beside it standing still, and
+            // it mints the candidate definitions the fixpoint then
+            // hands back to the walk. Guarding only the first left the
+            // growth in place through the second - 10k, 64k, 3.4M,
+            // 110M over the same reductions - which is how the two
+            // doors were found to be one identity.
+            let da = d(a)?;
+            let db = d(b)?;
+            if matches!(simplify(&db), Expr::Number(n) if n == 0.0) {
+                bin(Div, da, (**b).clone())
+            } else {
+                bin(
+                    Div,
+                    bin(
+                        Sub,
+                        bin(Mul, da, (**b).clone()),
+                        bin(Mul, (**a).clone(), db),
+                    ),
+                    bin(Pow, (**b).clone(), Expr::Number(2.0)),
+                )
+            }
+        }
         Expr::Bin(Pow, base, exponent) => {
             let Expr::Number(c) = **exponent else {
                 return Err("cannot differentiate a non-constant exponent".to_string());
