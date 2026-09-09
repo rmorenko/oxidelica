@@ -291,6 +291,23 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         ),
         "singular Jacobian in algebraic loop [\"x\"]"
     );
+
+    // A residual is built from the block's inner assignments, so a
+    // residual that is NaN was usually handed one. Named by number
+    // alone the refusal points at the solver, which is the one place
+    // the fault is not; here `u = y/(y - x)` divides by nothing at the
+    // start values and is what the reader has to be sent to.
+    assert_eq!(
+        refused(
+            "model N Real x; Real u; Real y; Real s(start = 0, fixed = true); \
+             equation u = y / (y - x); y = x; u * x = 1; der(s) = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end N;"
+        ),
+        "residual 0 of algebraic loop [\"x\"] is NaN at t = 0, before any \
+         Newton step: the equations cannot be evaluated at the values the \
+         block starts from; the block's own values are not numbers: \
+         [\"u = NaN\"]"
+    );
 }
 
 #[test]

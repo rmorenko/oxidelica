@@ -5724,3 +5724,42 @@ somewhere, and the choice between the two compilers is not one a
 performance fix gets to make quietly. It ships behind
 `OXIDELICA_SHARED_DERIVATIVES=1`, with the numbers above as what it
 costs and what it buys.
+
+## What the four victims of the shared derivative actually are
+
+The rule was parked with a list of four names and no account of why
+each was on it. Probed one at a time, they are two causes and not one,
+and neither is the tearing being unlucky.
+
+`DCPM_Start` refuses with `cannot differentiate through algebraic
+variable dcpm.inertiaRotor.a`, and the probe over the settling
+fixpoint says why the name has no definition to reach through. Among
+the candidates for it are `a := der(w)` and, minted by an earlier
+reduction, `der(w) := a`. Each is a definition of the other, so the
+fixpoint accepts neither and the walk meets `a` with nothing under it.
+Grounding minted names as axioms - counting them settled because they
+carry their own equation - was tried and overflows the stack in a
+second: the cycle is real, and hiding the acyclicity test only lets
+the walk run round it. What the family wants is the pair recognised as
+one fact, `a` and `der(w)` being the same quantity under two names,
+which is a question about how a minted name is related to the state it
+came from rather than about the order of the fixpoint.
+
+`Translational.Examples.Brake` refuses in the solver, and the block it
+refuses in is the finding. With the rule off the loop holds twenty
+unknowns and tears `brake1.a - mass2.a`; with it on, the minted
+`der(der(brake1.s_a))` and its neighbours join, the loop holds
+twenty-six, and both brakes are inside one block instead of one each.
+The refusal now names where the fault entered - `brake1.sa` is NaN
+before any Newton step - and `brake1.sa` is divided by a coefficient
+that is `unitForce` when locked and zero in every other branch. That
+divisor was always zero at t = 0; what changed is that the second
+brake is now in the block whose starting values are evaluated, so a
+division that used to sit outside the loop is now inside it. The wall
+is the mode-dependent slope already counted as family A above, met by
+one more model because the block grew.
+
+So neither victim is evidence that keeping a name is wrong. One is a
+cycle between a minted derivative and the algebraic it defines; the
+other is an existing wall reached by a bigger block. Both are worth
+their own work, and until it is done the gate stays parked.

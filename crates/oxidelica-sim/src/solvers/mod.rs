@@ -496,10 +496,29 @@ impl CompiledModel {
             // in. Say which residual, and say what it was.
             if iteration == 0 {
                 if let Some((i, bad)) = f.iter().enumerate().find(|(_, x)| !x.is_finite()) {
+                    // Which of the block's own values is not a number
+                    // says where the fault entered: a residual built
+                    // from finite inputs cannot come out NaN, so the
+                    // first unknown that is one is the assignment to
+                    // look at. Named, this refusal points at a line;
+                    // unnamed, it points at the solver, which is the
+                    // one place the fault is not.
+                    let mut bad_names: Vec<String> = Vec::new();
+                    for (var, _) in inner {
+                        let value = values[self.algebraic_slots[*var]];
+                        if !value.is_finite() {
+                            bad_names.push(format!("{} = {value}", self.algebraics[*var]));
+                        }
+                    }
+                    let entered = if bad_names.is_empty() {
+                        String::new()
+                    } else {
+                        format!("; the block's own values are not numbers: {bad_names:?}")
+                    };
                     return err(format!(
                         "residual {i} of algebraic loop {:?} is {bad} at t = {t}, \
                          before any Newton step: the equations cannot be evaluated \
-                         at the values the block starts from",
+                         at the values the block starts from{entered}",
                         block_names()
                     ));
                 }

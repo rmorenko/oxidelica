@@ -399,11 +399,25 @@ fn probe_mode_conditions(ordered_algs: &[String], stages: &[PlanStage]) {
         else {
             continue;
         };
-        for (lhs, rhs) in residuals {
+        for (i, (lhs, rhs)) in residuals.iter().enumerate() {
+            // The residual whole, not only its conditions. A block
+            // that cannot be evaluated at its starting values is
+            // named by the solver by number alone, and the number
+            // says nothing about which equation was meant.
+            eprintln!(
+                "mode-probe: residual {i} of block {:?}: {lhs:?} = {rhs:?}",
+                vars.iter()
+                    .map(|&v| ordered_algs[v].as_str())
+                    .collect::<Vec<_>>()
+            );
             report("a residual", lhs, vars);
             report("a residual", rhs, vars);
         }
-        for (_, expr) in inner {
+        for (var, expr) in inner {
+            eprintln!(
+                "mode-probe: inner {} := {expr:?}",
+                ordered_algs[*var].as_str()
+            );
             report("an inner assignment", expr, vars);
         }
     }
