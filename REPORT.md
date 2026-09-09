@@ -3,7 +3,7 @@
 ## What was asked
 
 Answer 22 in `QUESTION_FOR_FABLE.md` proposed variant 2: settle an `if`
-*expression* whose condition holds still into the branch that holds, on
+_expression_ whose condition holds still into the branch that holds, on
 the reasoning that a conditional left standing gives the algebraic layer
 a slope that is zero down one arm, and a block torn on such a slope
 divides by that zero. The wall it was aimed at is the models whose
@@ -15,30 +15,30 @@ All three were done, and the third says the substitution does not pay.
 ## 1. The sieve
 
 The wall is 29 models, not the 39 the census suggested: the census
-counts *kinds* of refusal and `library check --refused` prints one line
+counts _kinds_ of refusal and `library check --refused` prints one line
 per model, so several census rows share models. Measured with
 `./target/release/oxidelica library check .msl --refused`, counting the
 four kinds of run-time loop failure:
 
-| kind | models |
-| --- | --- |
-| residual ... is NaN before any step | 21 |
-| algebraic loop did not converge | 4 |
-| singular Jacobian | 3 |
-| algebraic loop diverged | 1 |
-| **total** | **29** |
+| kind                                | models |
+| ----------------------------------- | ------ |
+| residual ... is NaN before any step | 21     |
+| algebraic loop did not converge     | 4      |
+| singular Jacobian                   | 3      |
+| algebraic loop diverged             | 1      |
+| **total**                           | **29** |
 
 Each was then run under `OXIDELICA_MODE_PROBE=1`, which prints every
 `if` inside a torn block together with the names its condition reads and
 whether any of them is an unknown of that same block. Classified by the
 answer:
 
-| family | models | meaning |
-| --- | --- | --- |
-| A | 14 | every condition reads only parameters and discretes |
-| AB | 8 | both kinds present in one model |
-| B | 4 | at least one condition reads a continuous unknown of the block |
-| none | 3 | no conditional in the block at all |
+| family | models | meaning                                                        |
+| ------ | ------ | -------------------------------------------------------------- |
+| A      | 14     | every condition reads only parameters and discretes            |
+| AB     | 8      | both kinds present in one model                                |
+| B      | 4      | at least one condition reads a continuous unknown of the block |
+| none   | 3      | no conditional in the block at all                             |
 
 The prediction was that a third family would be found if there was one,
 and there is: three models - `Resistor`, `DCSE_SinglePhase` and
@@ -46,7 +46,7 @@ and there is: three models - `Resistor`, `DCSE_SinglePhase` and
 guilty block. Their residual is not a number for some other reason
 entirely, and no mode-wise anything will move them.
 
-So the number the sieve gives, *before the code was written*, is: at
+So the number the sieve gives, _before the code was written_, is: at
 most 22 models (14 A plus 8 AB) could possibly be helped.
 
 The pipe for every count above is
@@ -76,7 +76,7 @@ step size underflow at 0.5.
 Several further small models were written to try to produce an honest
 witness for the substitution, and all of them either ran on the base
 compiler already or failed on it for an unrelated reason. The only
-honest small witness found was a model with a conditional *coefficient*
+honest small witness found was a model with a conditional _coefficient_
 whose else-arm is `0/0`, which fails at `t = 0` on the base compiler
 and at the flip with the substitution in place.
 
@@ -100,23 +100,23 @@ sliding arm had been substituted, and it was caught by reading the first
 row rather than the last.
 
 The substitution is only half done until the arithmetic it exposes is
-folded. A branch that becomes `0 * z` still *names* `z`, the matcher
+folded. A branch that becomes `0 * z` still _names_ `z`, the matcher
 pairs the equation with it, and the division by zero happens exactly as
 before.
 
 Then the corpus, from one binary each time:
 
-| gate | flatten | run | runnable flatten | runnable run |
-| --- | --- | --- | --- | --- |
-| baseline (s22) | 820 | 386 | 722 | 381 |
-| parameters and discretes | 820 | 364 | 722 | 359 |
-| parameters only | 820 | 386 | 722 | 381 |
+| gate                     | flatten | run | runnable flatten | runnable run |
+| ------------------------ | ------- | --- | ---------------- | ------------ |
+| baseline (s22)           | 820     | 386 | 722              | 381          |
+| parameters and discretes | 820     | 364 | 722              | 359          |
+| parameters only          | 820     | 386 | 722              | 381          |
 
 The wide gate costs 22 models net: 26 lost against 4 won. The run-list
 diff names them, and they are one family - `CharacteristicIdealDiodes`
 and eighteen bridges of `Modelica.Electrical.PowerConverters`. The
 cause is that a discrete looks like it belongs in the gate and does
-not. A diode's `off` is discrete and does hold still *between* events,
+not. A diode's `off` is discrete and does hold still _between_ events,
 but it is precisely the discrete the event iteration is in the act of
 deciding: settling on its present value hands the block a plan for the
 mode it is leaving. What holds still between events and what holds
