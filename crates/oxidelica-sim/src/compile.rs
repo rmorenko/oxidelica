@@ -774,6 +774,24 @@ fn reduce_index(
             settle(&implicit_defs)
         };
 
+        if std::env::var_os("OXIDELICA_DEFS_PROBE").is_some() {
+            eprintln!(
+                "defs-probe: reduction {reductions} on {lhs:?} = {rhs:?}: {} candidates, {} settled, {} implicit, {} dummies",
+                candidates.len(),
+                alg_defs.len(),
+                implicit_defs.len(),
+                dummies.len()
+            );
+            let mut ds: Vec<&String> = dummies.keys().collect();
+            ds.sort();
+            eprintln!("defs-probe:   dummies: {ds:?}");
+            for (name, expr) in &candidates {
+                if !alg_defs.contains_key(name) {
+                    eprintln!("defs-probe:   candidate not settled: {name} := {expr:?}");
+                }
+            }
+        }
+
         let residual = Expr::Bin(
             oxidelica_parser::BinOp::Sub,
             Box::new(lhs.clone()),

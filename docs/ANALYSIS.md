@@ -5556,3 +5556,52 @@ local attempt.
 
 Unmoved, and correctly so: 2671 / 0 / 820 / 386 / 722 + 381. The
 committed change is an instrument and moves no number.
+
+## Shift 24: the machine wall probed, and a definition that grows
+
+The largest row of the run half's census is 51 models refused for
+`cannot differentiate through algebraic variable`. Fifteen are
+multibody and parked behind their own panel; twenty-five are machines,
+in three shapes, and each was confirmed refused today with `--only`
+against `.msl`:
+
+| shape       | models | first witness          | variable                         |
+| ----------- | ------ | ---------------------- | -------------------------------- |
+| flange      | 10     | `IMC_DOL`              | `aimc.inertiaRotor.flange_b.phi` |
+| air gap     | 11     | `SMPM_NoLoad`          | `smpm.airGap.spacePhasor_s.i_`   |
+| transformer | 4      | `TransformerTestbench` | `transformer.l2sigma.plug_n.pin` |
+
+The mechanism is not the one the multibody model shows. It is not the
+skip of the equation under reduction: a probe printing every candidate
+definition the fixpoint threw away, and the demoted states beside it,
+names the cause outright. `aimc.inertiaRotor.phi` is already demoted at
+the eighth reduction - it is in `dummies`, and its derivative is the
+dummy that replaced it, one lookup for `differentiate`. The fixpoint
+gathering definitions accepts one only when every name in it is a
+parameter, a state or already accepted, and a demoted state is none of
+the three. So `flange_b.phi = inertiaRotor.phi` was discarded and the
+flange was called a variable nothing can differentiate.
+
+Counting a demoted state as ground is four lines, and it works on the
+models: `IMC_DOL` and `TransformerTestbench` pass the wall and stop at
+the next one - `aimc.fixed.flange.phi = aimc.airGap.support.phi`
+constrains no state - which is a kind removed. The air gap shape does
+not move. The smallest witness is a machine and a load in seven lines,
+now `tests/small/derivative_through_a_demoted_state.mo`.
+
+It is parked, and for a reason no small model showed. Under the rule,
+`Modelica.Electrical.Machines.Examples.ControlledDCDrives.CurrentControlledDCPM`
+grows without bound and is killed; two corpus runs died at the same
+420th model with the gate on, and the same binary without it completed
+in the usual time at 820 / 386 / 722 / 381. So there is no corpus
+number for the rule, and there will not be one until the growth is
+understood: a definition reached through a dummy is a definition
+reached through the equation that determined the dummy, and somewhere
+that walk stops being finite. That is the next shift's question, and
+it is a question about termination rather than about machines.
+
+Two more models stand at the same census row and are not machines:
+`ModelicaTest.Tables.CombiTable2Ds.Test33` and `CombiTable2Dv.Test33`,
+both refused for `trapezoid1.T_start`. They do not move under the rule
+either, and they are a different family - a source's start attribute,
+not a connection.
