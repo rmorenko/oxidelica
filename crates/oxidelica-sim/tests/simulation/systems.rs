@@ -337,3 +337,37 @@ fn a_zero_length_array_field_of_a_connector_writes_no_equation() {
         result.rows[0][s]
     );
 }
+
+#[test]
+fn a_constraint_that_grows_past_the_ceiling_names_its_model() {
+    // A differentiated constraint that copies itself from reduction
+    // to reduction will eat a machine's memory, and a process killed
+    // by the operating system says nothing about which model did it.
+    // The ceiling turns that into a refusal naming the equation, the
+    // reduction and the size reached. The threshold in force is far
+    // above anything a healthy model reaches, so the test lowers it
+    // rather than building a giant: what is under test is that the
+    // guard fires and says something usable, not the number itself.
+    //
+    // The environment is shared by the tests of this binary, so the
+    // variable is set and taken away around the one compile.
+    let model = parse_model(
+        "model N Real x(start = 1); Real v(start = 0); Real y; Real f; \
+         equation der(x) = v; der(v) = f; y = x*x + 1; y = 2; end N;",
+    )
+    .unwrap();
+    let error = {
+        let _guard = LOWERED_CEILING.lock().unwrap_or_else(|e| e.into_inner());
+        std::env::set_var("OXIDELICA_MAX_CONSTRAINT_NODES", "1");
+        let error = compile(&model).unwrap_err();
+        std::env::remove_var("OXIDELICA_MAX_CONSTRAINT_NODES");
+        error
+    };
+    assert!(error.0.contains("grew to"), "{}", error.0);
+    assert!(error.0.contains("at reduction 1"), "{}", error.0);
+    assert!(error.0.contains(r#"Ref("y") = Number(2.0)"#), "{}", error.0);
+}
+
+/// Held while the constraint ceiling is lowered, since the environment
+/// belongs to the whole test binary and not to one test.
+static LOWERED_CEILING: std::sync::Mutex<()> = std::sync::Mutex::new(());

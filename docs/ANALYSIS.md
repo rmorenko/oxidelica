@@ -5811,3 +5811,26 @@ unknown in its own right with its equation handed to the matching,
 which is architecture rather than a local fix. The question has gone to
 the consulting model with both shapes in it, because taking the alias
 alone leads only to the wall next door.
+
+### Naming the model that eats the machine
+
+The measurement above had a hole in it: the corpus died of memory at
+every thread count and said nothing about which model was responsible,
+because the death was the operating system's and not the compiler's.
+A ceiling on the size of a differentiated constraint closes it. Index
+reduction counts the nodes of each folded derivative and refuses past
+two million, naming the equation, the reduction and the size reached,
+which is a sentence rather than a corpse.
+
+Run against the same probe, the corpus that used to die now finishes
+and names two models: `CurrentControlledDCPM`, whose constraint reaches
+five and three quarter million terms at the nineteenth reduction, and
+`SpeedControlledDCPM`, three and a half million at the eighteenth.
+Both are the constraint copying its own shape down the chain of
+reductions rather than anything peculiar to their physics, and both are
+in the family the shift was already mapping.
+
+The ceiling is worth having on its own account. Two million nodes is
+far above what any healthy model of the library reaches, so nothing
+that runs today notices it, and any future change to the grounding
+rules is measurable instead of fatal.

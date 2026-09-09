@@ -436,6 +436,38 @@ fn probe_mode_conditions(ordered_algs: &[String], stages: &[PlanStage]) {
 /// that is a small number.
 const MAX_INDEX_REDUCTIONS: usize = 256;
 
+/// How large a differentiated constraint may grow before index
+/// reduction gives up on it.
+///
+/// A refusal that names the model is worth a great deal more than a
+/// process killed for its memory. Lifting one condition of the
+/// grounding fixpoint made some model of the standard library copy
+/// its constraint from reduction to reduction until the corpus ran
+/// out of memory at every thread count, and because the death was the
+/// operating system's rather than the compiler's, nothing said which
+/// model it was. A ceiling on the size turns that into a sentence.
+///
+/// The number is set well above what a healthy model reaches: the
+/// largest constraint measured over the library is some thousands of
+/// nodes, and a copying chain passes a million within a handful of
+/// reductions.
+const MAX_CONSTRAINT_NODES: usize = 2_000_000;
+
+/// The ceiling in force, which `OXIDELICA_MAX_CONSTRAINT_NODES` may
+/// lower.
+///
+/// A guard whose threshold no test can reach is a guard nobody has
+/// seen work. The models that pass this ceiling honestly are the ones
+/// that eat a machine's memory getting there, which is precisely what
+/// cannot be written into a test; lowering the number lets a model of
+/// a dozen lines stand where they stand.
+fn max_constraint_nodes() -> usize {
+    std::env::var("OXIDELICA_MAX_CONSTRAINT_NODES")
+        .ok()
+        .and_then(|written| written.parse().ok())
+        .unwrap_or(MAX_CONSTRAINT_NODES)
+}
+
 /// What index reduction leaves behind: the system as it stands, and
 /// the matching that covers it.
 struct Reduction {
@@ -836,6 +868,16 @@ fn reduce_index(
         ) {
             Ok(d) => {
                 let folded = simplify(&d);
+                let mut nodes = 0usize;
+                folded.for_each(&mut |_| nodes += 1);
+                let ceiling = max_constraint_nodes();
+                if nodes > ceiling {
+                    return err(format!(
+                        "structurally singular model: differentiating the equation \
+                 {lhs:?} = {rhs:?} grew to {nodes} terms at reduction {reductions}, \
+                 past the {ceiling} this compiler will carry"
+                    ));
+                }
                 if std::env::var_os("OXIDELICA_GROWTH_PROBE").is_some() {
                     eprintln!(
                         "growth-probe: {reductions}\t{}",
