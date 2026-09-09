@@ -5763,3 +5763,51 @@ So neither victim is evidence that keeping a name is wrong. One is a
 cycle between a minted derivative and the algebraic it defines; the
 other is an existing wall reached by a bigger block. Both are worth
 their own work, and until it is done the gate stays parked.
+
+## The second wall: differentiating through an algebraic variable
+
+At 49b13e5 the census of refusals puts 51 models on `cannot
+differentiate through algebraic variable`, second only to the 137
+unbalanced, and unlike that one it is not a mixed bag. Two shapes of
+equation account for nearly all of it. One is an alias, `x = y`:
+`aimc.inertiaRotor.flange_b.phi = aimc.flange.phi` in the induction
+machines, `frame.R.T[i,j] = ...` in MultiBody, DoublePendulum among
+them. The other is the pair a connection writes, `x + y = 0`:
+`spacePhasor_s.i_[k] + lssigma.spacePhasor_b.i_[k] = 0` in the
+synchronous machines, and the same shape in the transformers and in
+FluxTubes.
+
+The two shapes are not one fault. For the alias, the probe on IMC_DOL's
+eighth reduction shows `aimc.inertiaRotor.phi` sitting in the dummy
+table - a name whose derivative the walk already knows how to take -
+while the three candidates around it, each an alias of the other, all
+fail to settle. The fixpoint counts as ground what it has accepted and
+what the implicit rule grounds, and does not count the dummies,
+although the implicit rule itself filters them out of its unsettled
+list. So the flange stands one hop from a known derivative and the hop
+is not taken.
+
+Counting dummies as ground was tried behind a switch and measured from
+one binary. It takes IMC_DOL off this wall and puts it on the next one
+along, `constrains no state`; it leaves SMEE_Generator and
+DoublePendulum exactly where they were; and it makes the corpus run out
+of memory at seven threads, at four and at two, while neither
+DoublePendulum nor IMC_DOL grows by a byte when run alone. Some model
+in the corpus explodes when that condition is lifted and the ordinary
+pass cannot say which. The change was reverted.
+
+The pair is a different animal, and the probe says so plainly. On
+SMEE's fourth reduction the only candidates for the current are
+`airGap.i_ss[2] := spacePhasor_s.i_[2]` and its inverse, which is a
+two-name cycle by construction, and the connection equation itself is
+deliberately withheld from the implicit rule because taking it would
+travel the circuit for ever instead of reaching the flux that moves.
+There is no ground to reach. The current is determined by the flux, and
+the flux equation names two unsettled names, so the rule's condition of
+a single unsettled name rejects that too.
+
+That is the same door as DCPM_Start: the current wants minting as an
+unknown in its own right with its equation handed to the matching,
+which is architecture rather than a local fix. The question has gone to
+the consulting model with both shapes in it, because taking the alias
+alone leads only to the wall next door.
