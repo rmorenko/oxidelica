@@ -153,7 +153,62 @@ pub(crate) fn solve_linear_for(lhs: &Expr, rhs: &Expr, var: &str) -> Option<Expr
 }
 
 pub(crate) fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
+    MINTED.with(|c| c.borrow_mut().clear());
     differentiate_at(expr, target, 0)
+}
+
+thread_local! {
+    /// Derivatives of definitions given a name of their own in this
+    /// call: the minted name against what it stands for. Only names
+    /// reached with nothing held still are minted - inside an implicit
+    /// derivative the chain of held names changes the answer, and a
+    /// name shared between two chains would carry the wrong one.
+    static MINTED: std::cell::RefCell<HashMap<String, Expr>> =
+        std::cell::RefCell::new(HashMap::new());
+    /// The rule turned on for this thread alone. A test measuring a
+    /// parked rule must not turn it on for the tests beside it, and an
+    /// environment variable in a test binary is shared by every thread
+    /// in it.
+    static SHARE_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the derivative of a definition becomes a name of its own.
+///
+/// A definition is written out afresh at every occurrence of the name
+/// it defines, and a machine model meets the same name many times in
+/// one differentiated constraint: `CurrentControlledDCPM` inlines
+/// eighty-three definitions five million times over in a single index
+/// reduction, and the expression goes from a kilobyte to five
+/// gigabytes over twenty of them. A table of answers does not help -
+/// measured, the sizes came out identical to the digit, because a
+/// cached tree is cloned into every occurrence just as a freshly
+/// worked one is. The cost is the shape and not the work.
+///
+/// So the derivative of a definition is given a name, `der(x)`, and
+/// the definition of that name joins the system once. The same move
+/// Pantelides makes for a demoted state, made for an algebraic one:
+/// k occurrences become k references.
+///
+/// Off by default, and the reason is measured rather than guessed.
+/// Inlining a definition is also what flattens an algebraic loop: with
+/// the name kept, `Translational.Examples.Brake` becomes a loop the
+/// tearing cannot plan, and three more models refuse alongside it,
+/// against two won. Four for two is not a fix, it is a different
+/// compiler, and the choice of which one to be is not this switch's to
+/// make quietly. `OXIDELICA_SHARED_DERIVATIVES=1` runs it.
+fn shared_derivatives() -> bool {
+    SHARE_HERE.with(|forced| forced.get())
+        || std::env::var_os("OXIDELICA_SHARED_DERIVATIVES").is_some()
+}
+
+/// Derivatives minted for definitions during the current top-level
+/// `differentiate`, waiting for the caller to put them in the system.
+pub(crate) fn take_minted_derivatives() -> Vec<(String, Expr)> {
+    MINTED.with(|m| {
+        let mut minted: Vec<(String, Expr)> = m.borrow_mut().drain().collect();
+        minted.sort_by(|a, b| a.0.cmp(&b.0));
+        minted
+    })
 }
 
 pub(crate) fn differentiate_at(
@@ -231,7 +286,35 @@ pub(crate) fn differentiate_at(
                     // differentiate the definition instead (Pantelides
                     // reaches the derivative through the equation that
                     // determines the variable).
-                    d(definition)?
+                    if shared_derivatives() && holding.is_empty() {
+                        // Written out here, the definition is written
+                        // out again at the next occurrence of the same
+                        // name, and index reduction differentiates its
+                        // own output. A name instead, defined once.
+                        let minted = crate::derivative_name(name);
+                        if !MINTED.with(|m| m.borrow().contains_key(&minted)) {
+                            // Claimed before the work, so a definition
+                            // reaching itself through another finds a
+                            // name rather than recurring for ever.
+                            MINTED.with(|m| {
+                                m.borrow_mut().insert(minted.clone(), Expr::Number(0.0));
+                            });
+                            match d(definition) {
+                                Ok(worked) => MINTED.with(|m| {
+                                    m.borrow_mut().insert(minted.clone(), worked);
+                                }),
+                                Err(reason) => {
+                                    MINTED.with(|m| {
+                                        m.borrow_mut().remove(&minted);
+                                    });
+                                    return Err(reason);
+                                }
+                            }
+                        }
+                        Expr::Ref(minted)
+                    } else {
+                        d(definition)?
+                    }
                 } else if let Some((l, r)) = implicit_defs.get(name) {
                     // An unknown its equation cannot be solved for.
                     // `Psi = Linf*i + c*atan(i/Ipar)` determines the
@@ -536,4 +619,11 @@ fn does_not_move(expr: &Expr, target: &DiffTarget) -> bool {
         }
         _ => false,
     }
+}
+
+/// Turn the shared-derivative rule on for this thread, for a test that
+/// measures it.
+#[cfg(test)]
+pub(crate) fn share_derivatives_here() {
+    SHARE_HERE.with(|forced| forced.set(true));
 }

@@ -590,6 +590,13 @@ fn reduce_index(
     // re-selection while the numbers are still healthy.
     let mut selection_records: Vec<(Expr, String, Vec<String>)> = Vec::new();
     let mut reductions = 0usize;
+    // The derivatives the walk has given names to, carried across
+    // reductions. They arrive already grounded - each was built out of
+    // states, parameters, dummies and other minted names at the moment
+    // it was made - so they are handed to the walk directly rather than
+    // offered to the fixpoint, which sees only `der(a) = der(b)` pairs
+    // and settles neither.
+    let mut minted_defs: HashMap<String, Expr> = HashMap::new();
     let (matched_eq, eq_vars, n_alg) = loop {
         let var_index: HashMap<&str, usize> = unknowns
             .iter()
@@ -768,11 +775,16 @@ fn reduce_index(
 
         // Settled again, now that the implicit names count as ground:
         // `p.i = i` is a definition once `i` has one.
-        let alg_defs = if implicit_defs.is_empty() {
+        let mut alg_defs = if implicit_defs.is_empty() {
             settled
         } else {
             settle(&implicit_defs)
         };
+        for (minted, value) in &minted_defs {
+            alg_defs
+                .entry(minted.clone())
+                .or_insert_with(|| value.clone());
+        }
 
         if std::env::var_os("OXIDELICA_DEFS_PROBE").is_some() {
             eprintln!(
@@ -808,7 +820,16 @@ fn reduce_index(
                 holding: &[],
             },
         ) {
-            Ok(d) => simplify(&d),
+            Ok(d) => {
+                let folded = simplify(&d);
+                if std::env::var_os("OXIDELICA_GROWTH_PROBE").is_some() {
+                    eprintln!(
+                        "growth-probe: {reductions}\t{}",
+                        format!("{folded:?}").len()
+                    );
+                }
+                folded
+            }
             Err(reason) => {
                 // The reason first, the equation after it. Written the
                 // other way the equation is a tree printed in full - some
@@ -822,6 +843,27 @@ fn reduce_index(
                 ));
             }
         };
+
+        // Every definition the walk gave a name to needs that name's
+        // equation in the system, once. Minted afresh each reduction,
+        // so a name already carrying its equation is skipped rather
+        // than given a second one, which would unbalance the model.
+        for (minted, value) in take_minted_derivatives() {
+            if minted_defs.contains_key(&minted) {
+                continue;
+            }
+            // A name the model already carries is not this walk's to
+            // define: `der(x)` is an unknown in its own right wherever
+            // the model wrote `der(x)` itself, and defining it a second
+            // time would state one equation too many.
+            if unknowns.iter().any(|u| u == &minted) || states.iter().any(|s| s == &minted) {
+                continue;
+            }
+            let value = simplify(&value);
+            minted_defs.insert(minted.clone(), value.clone());
+            unknowns.push(minted.clone());
+            algebraic_eqs.push((Expr::Ref(minted), value));
+        }
 
         // Demote a state the constraint actually constrains, choosing
         // the one it determines most strongly.

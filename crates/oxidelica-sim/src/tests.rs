@@ -340,21 +340,30 @@ fn a_still_denominator_does_not_grow_under_repeated_differentiation() {
     let state_rhs: HashMap<String, Expr> = HashMap::from([("w".to_string(), expr_of("tau"))]);
     let params: HashMap<String, f64> = HashMap::from([("j".to_string(), 0.5)]);
     let dummies = HashMap::new();
-    let alg_defs: HashMap<String, Expr> = HashMap::from([("tau".to_string(), expr_of("w"))]);
+    let mut alg_defs: HashMap<String, Expr> = HashMap::from([("tau".to_string(), expr_of("w"))]);
     let implicit_defs = HashMap::new();
-    let target = DiffTarget::Time {
-        state_rhs: &state_rhs,
-        params: &params,
-        dummies: &dummies,
-        alg_defs: &alg_defs,
-        implicit_defs: &implicit_defs,
-        holding: &[],
-    };
 
     let mut expr = simplify(&expr_of("w / j"));
     let first = format!("{expr:?}").len();
     for round in 0..6 {
-        expr = simplify(&differentiate(&expr, &target).expect("a quotient by a parameter"));
+        let taken = {
+            let target = DiffTarget::Time {
+                state_rhs: &state_rhs,
+                params: &params,
+                dummies: &dummies,
+                alg_defs: &alg_defs,
+                implicit_defs: &implicit_defs,
+                holding: &[],
+            };
+            differentiate(&expr, &target).expect("a quotient by a parameter")
+        };
+        // The derivative of a definition is a name now, and the name
+        // needs its equation before the next round can reach through
+        // it - which is what the reduction loop does with these.
+        for (minted, value) in take_minted_derivatives() {
+            alg_defs.entry(minted).or_insert_with(|| simplify(&value));
+        }
+        expr = simplify(&taken);
         let size = format!("{expr:?}").len();
         assert!(
             size <= first * 3,
@@ -380,5 +389,64 @@ fn a_slope_by_variable_does_not_square_its_denominator() {
     assert!(
         !printed.contains("Pow"),
         "the slope squared its denominator: {printed}"
+    );
+}
+
+/// A definition met k times costs one copy of its derivative, not k.
+///
+/// A definition is written out afresh wherever the name it defines
+/// occurs, and index reduction differentiates its own output: on
+/// `CurrentControlledDCPM` eighty-three definitions were inlined five
+/// million times in a single reduction, and the constraint reached
+/// five gigabytes. Memoising the work does not help, because a
+/// remembered tree is cloned into each occurrence exactly as a freshly
+/// worked one is - measured, the sizes came out identical to the
+/// digit. Only a *name* in place of the subtree makes the answer flat
+/// in k.
+///
+/// What is measured is the whole system the walk leaves behind - the
+/// differentiated expression and the definitions minted for it -
+/// because a rule that hides the body somewhere else has not made it
+/// smaller. k references are genuinely linear in k and that is not
+/// the fault; the fault is the *body* appearing k times, so the
+/// witness grows the body at a fixed k and asks what that costs.
+#[test]
+fn a_definition_met_many_times_is_referenced_and_not_copied() {
+    // The rule is parked behind a switch, so the witness turns it on
+    // for this thread alone: what is measured is the rule, and the
+    // tests running beside it keep the default.
+    share_derivatives_here();
+    let system_size = |k: usize, terms: usize| -> usize {
+        let state_rhs: HashMap<String, Expr> = HashMap::from([("x".to_string(), expr_of("u"))]);
+        let params: HashMap<String, f64> = HashMap::new();
+        let dummies = HashMap::new();
+        let body = vec!["x * x"; terms].join(" + ");
+        let alg_defs: HashMap<String, Expr> = HashMap::from([("u".to_string(), expr_of(&body))]);
+        let implicit_defs = HashMap::new();
+        let target = DiffTarget::Time {
+            state_rhs: &state_rhs,
+            params: &params,
+            dummies: &dummies,
+            alg_defs: &alg_defs,
+            implicit_defs: &implicit_defs,
+            holding: &[],
+        };
+        let sum = vec!["u"; k].join(" + ");
+        let taken = differentiate(&expr_of(&sum), &target).expect("a definition");
+        let minted: usize = take_minted_derivatives()
+            .iter()
+            .map(|(name, value)| name.len() + format!("{value:?}").len())
+            .sum();
+        format!("{taken:?}").len() + minted
+    };
+    // One occurrence pays for the body once, whatever else happens.
+    let once = system_size(1, 12);
+    // Twelve occurrences of the same fat definition must not pay
+    // for it twelve times: what they add is eleven names.
+    let many = system_size(12, 12);
+    assert!(
+        many < once * 2,
+        "the definition is copied rather than referenced: {once} characters for one \
+         occurrence against {many} for twelve"
     );
 }

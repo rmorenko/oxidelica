@@ -5665,3 +5665,62 @@ subtree is written out 125 times in one expression at reduction 18.
 That is what still makes ninety million characters out of twenty
 reductions, and it is a wall about common subexpressions rather than
 about machines or about differentiation. The parked rule waits on it.
+
+## A definition inlined is a definition copied
+
+The wall the previous shift left standing was measured before it was
+touched, and the two numbers it wanted came from one binary with the
+inlining counted on one side and answered from a table on the other.
+
+`CurrentControlledDCPM` meets 83 distinct definitions in a single index
+reduction, and inlines them 5,200,549 times between them. The heaviest
+are `der(loadInertia.phi)` and `loadTorque.w` at 927,888 apiece; four
+of the machine's currents follow at some 476,000 each. The size of the
+differentiated constraint over twenty reductions is 1,370, 9,744,
+57,546, 2,939,736, 93,577,194, 5,541,329,537 - the last is five
+gigabytes, and it is where the pass was killed.
+
+The second measurement is the one that decided the fix. A table of
+answers - the derivative of each name worked out once and remembered
+for the rest of the call - left the sizes **identical to the digit**,
+1,370 through 5,541,329,537. Nothing about a repeat is dear except the
+copy: a remembered tree is cloned into every occurrence exactly as a
+freshly worked one is. So memoisation was the wrong door, and this is
+the general shape worth keeping: a table trims repeated _work_, and
+what this cost was repeated _shape_.
+
+What the shape wants is a name. The derivative of a definition is now
+minted as `der(x)` and defined once, with the occurrences left as
+references - the move Pantelides already makes for a demoted state,
+made for an algebraic one. The name is claimed before its body is
+worked out, so a definition reaching itself through another finds a
+reference rather than recurring; and it is minted only where nothing is
+held still, because inside an implicit derivative the chain of held
+names changes what the answer is, and one name cannot carry two.
+
+The effect on the model that prompted it: the constraint no longer
+grows at all - 90, 34, 42, 92, 75, 59, 75, 81, 76, 81, 48, 69, 91
+characters over thirteen reductions, against thousands and then
+millions - and the model that took 338 seconds to reach a refusal now
+takes 0.33. The refusal behind it is `cannot differentiate through
+algebraic variable`, which is a wall of its own and not this one. With
+the rule on, a corpus run under the parked demotion gate reaches the
+end for the first time instead of being killed for memory.
+
+And the rule is parked all the same, because the list of victims says
+what no total could. Measured alone, without the demotion gate, it
+costs four models and wins two: `DCPM_Start`, `DCPM_withLosses`,
+`Translational.Examples.Brake` and `TestFrictionPosition` against
+`FilterWithDifferentiation` and `SinglePhaseInductance`. Run with the
+gate as well, the two lists are identical name for name, which says the
+four are this rule's doing and not the gate's.
+
+The cause is worth stating, because it is the same fact seen from the
+other side. Inlining a definition is also what _flattens an algebraic
+loop_: written out, `brake.a` and the force beside it collapse into
+something the tearing can plan, and kept as names they stay a loop it
+cannot. So the copying this fix removes was paying for itself
+somewhere, and the choice between the two compilers is not one a
+performance fix gets to make quietly. It ships behind
+`OXIDELICA_SHARED_DERIVATIVES=1`, with the numbers above as what it
+costs and what it buys.
