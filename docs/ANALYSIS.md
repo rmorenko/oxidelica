@@ -6081,3 +6081,95 @@ formed - the pass time is back to nine minutes, under the eleven it
 has always taken. The second: a binary rebuilt between the two halves
 of a comparison makes the comparison worthless, which was caught here
 only because the numbers were taken again afterwards from one build.
+
+### The link behind a start that was read: an honest zero, from the wrong end of a product
+
+The shares above left the nine open: the start is present and carried,
+and the block still cannot be evaluated. Probed on
+`Electrical.Analog.Examples.HeatingMOSInverter` - the torn values and
+every inner assignment printed as the block first forms its residual -
+the answer is the map's link 4 and not a fault of the reading.
+
+The two torn temperatures arrive as `288.15`, exactly as the reading
+put them there, and thirty-eight of the block's forty inner
+assignments produce ordinary numbers. The order they are evaluated in
+is a correct topological one; that was the first suspicion and it is
+wrong. What the printed order does show is which way each equation was
+solved:
+
+```text
+H_NMOS.LossPower <- ["H_NMOS.heatPort.Q_flow", "H_NMOS.LossPower"]
+H_NMOS.D.i       <- ["H_NMOS.LossPower", "H_NMOS.D.i"]
+H_NMOS.id        <- ["H_NMOS.D.i", "H_NMOS.id"]
+H_NMOS.v         <- ["H_NMOS.v", "H_NMOS.ugst", "H_NMOS.id"]
+H_NMOS.beta_t    <- ["H_NMOS.v", "H_NMOS.beta_t"]
+```
+
+Read downwards this is the transistor's own chain run backwards. The
+matching gave `LossPower = D.i*(D.v - S.v)` to `D.i` rather than to
+`LossPower`, so the assignment is a division by `D.v - S.v`, and every
+link below it inherits the infinity: `id` from `D.i`, `v` from `id`,
+and `beta_t` from `v` - which is how a quantity that cannot be
+negative for any non-negative temperature is printed as `-inf`. The
+device's forward direction never runs. `H_PMOS`, matched the other way
+round, evaluates the same five equations in the writing order and gets
+finite numbers throughout.
+
+The divisor is honestly zero, and that is the finding. `S` sits on the
+ground through `Capacitor1.n.v = G.p.v = 0`, and `Capacitor1` starts
+from `v(start = 0, fixed = true)`, so `D.v - S.v` is zero at `t = 0`
+because the model says the inverter starts with its output node
+discharged and no voltage across the device. Nothing is missing and
+nothing was guessed: this is a real zero of a real product, met from
+the end of the product that has to divide by it. So it is case (ii) -
+link 4 of the map, a source that is zero at the start - and no reading
+of starts can reach it, because there is no start to read.
+
+What stands behind it is therefore not a start at all but the choice
+of direction: a matching free to take `LossPower = D.i*(D.v - S.v)`
+for `LossPower`, whose evaluation is a multiplication and cannot
+divide by anything, took it for `D.i` instead. Whether tearing can be
+made to prefer the direction that multiplies over the direction that
+divides is a question about the matching, and it is not decided here.
+
+### The remainder of the wall, probed: one mechanism, four costumes
+
+The wall stands at thirty-eight models on the corpus as measured this
+shift (the forty-one of the earlier census less the three the divide-by-zero
+refusal took). Four of them were probed to answer the narrow question
+the shares left: is what stands behind them a start that could be read
+from somewhere, or something else entirely.
+
+| model                                  | torn variable probed  | what the assignment divides by      | is the divisor honestly zero                                 |
+| -------------------------------------- | --------------------- | ----------------------------------- | ------------------------------------------------------------ |
+| `Rotational.Examples.CoupledClutches`  | `clutch3.tau`         | `unitTorque` in an erased branch    | no - a live branch, `sa` is `inf` from above                 |
+| `FluidHeatFlow.Examples.SimpleCooling` | `pump.flowPort_b.h`   | `medium.cp` (finite), then `m_flow` | no - `h` arrives `inf` from a neighbour                      |
+| `Machines.InductionMachines.IMC_DOL`   | `aimc.airGap.i_sr[2]` | `RotationMatrix[1,2] = -sin(gamma)` | yes - `gamma = 0` at rest                                    |
+| `Media.Examples.ReferenceAir.DryAir1`  | `volume.medium.T`     | a media inversion                   | not reached - `T` has both a `start` and an initial equation |
+
+Two things follow, and they are what point four was for.
+
+The first is that the extension the last shift left on the table - a
+fixpoint that puts a read start back into `stated` so chains of length
+two propagate - would not reach these. In three of the four the torn
+variable's neighbours are not unvalued: they are valued `inf` or `NaN`
+already, having come through an assignment that divided. There is no
+start missing to read; there is a division that should not have been
+the direction chosen.
+
+The second is that `IMC_DOL` is `HeatingMOSInverter` again in another
+costume. `i_ss[1] = R[1,1]*i_sr[1] + R[1,2]*i_sr[2]` was matched to
+`i_sr[2]`, so evaluating it divides by `R[1,2] = -sin(gamma)`, and
+`gamma` is zero because the machine starts at rest. The equation read
+the other way round is a multiplication that cannot fail. The rotor
+angle being zero at `t = 0` is not a defect to be repaired by reading
+a start from somewhere: it is what standing still means.
+
+So the question that both halves of the wall now point at is the same
+one, and it is not about starts at all. It is whether the tearing may
+prefer, among the equations a variable could be solved from, one whose
+solution multiplies over one whose solution divides - and, where it
+must divide, whether the coefficient can be checked against zero at
+the values the block starts from rather than after the infinity has
+propagated. That is a question about the matching and about symbolic
+division, and by the standing arrangement it is not decided here.
