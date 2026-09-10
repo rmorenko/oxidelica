@@ -5878,3 +5878,43 @@ attempts at shrinking one failed: the path switches on only where
 substitution walks a Kirchhoff node round a circuit, and a circuit
 small enough to write in a test settles by substitution before the
 path is reached.
+
+## The slowest model in the library, and why it was slow
+
+`DoublePendulum` has been the slowest model in the corpus for as long
+as anyone has measured it, and the number had been quoted as
+forty-five seconds. Measured over three commits from one machine it
+was 59 seconds at `49b13e5`, 57 at `e0ded04` and 117 at `b44926a` -
+the rule that takes the derivative of a name the matching determines
+had doubled it, and that rule is on by default. The library job's
+trend followed: 64 minutes, then 73, then past the 90 minute ceiling,
+where the run was cancelled rather than failed. A cancelled run leaves
+the same blank space as a green one, so the floors at `b44926a` were
+checked by nobody.
+
+The profile put 2264 of 7300 samples inside `reduce_index` in
+`solve_linear_for`, which is asked for every equation and every name
+in it, at every reduction. It differentiates the equation and folds
+the result three times, and the answer is the same every time it is
+asked: inside one `reduce_index` the list of equations is only ever
+appended to, so the pair at an index is the pair that was there
+before. Held still by its index, the key is the index and the name -
+which is the bracket the note about tables asks for, found by asking
+what makes two askings different rather than by reaching for a cache
+first.
+
+The corpus run half fell from 2062 seconds of processor time to 633,
+`DoublePendulum` from 117 seconds to 27, and the list of models that
+run is identical in both directions - 389 before, 389 after, no model
+in the difference either way.
+
+The measurement also turned up a race that had been sitting in the
+tests. The test for the constraint ceiling lowered it through the
+environment, which belongs to the whole test binary rather than to one
+test, so any test compiling beside it saw a ceiling of one node and
+refused a model it should have run. A mutex around the setting cannot
+help, since the readers are the other tests and they hold no lock. It
+went unseen because the model it struck took two minutes to reach the
+read; it surfaced the moment that model became fast. The ceiling is
+now lowered for one thread, as the shared-derivative switch already
+was.
