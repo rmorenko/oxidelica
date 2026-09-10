@@ -368,4 +368,3 @@ fn a_constraint_that_grows_past_the_ceiling_names_its_model() {
     assert!(error.0.contains("at reduction 1"), "{}", error.0);
     assert!(error.0.contains(r#"Ref("y") = Number(2.0)"#), "{}", error.0);
 }
-

@@ -5884,13 +5884,13 @@ path is reached.
 `DoublePendulum` has been the slowest model in the corpus for as long
 as anyone has measured it, and the number had been quoted as
 forty-five seconds. Measured over three commits from one machine it
-was 59 seconds at `49b13e5`, 57 at `e0ded04` and 117 at `b44926a` -
-the rule that takes the derivative of a name the matching determines
-had doubled it, and that rule is on by default. The library job's
-trend followed: 64 minutes, then 73, then past the 90 minute ceiling,
-where the run was cancelled rather than failed. A cancelled run leaves
-the same blank space as a green one, so the floors at `b44926a` were
-checked by nobody.
+was 59 seconds at the commit before the ceiling guard, 57 seconds with
+it, and 117 once the rule for the derivative of a name the matching
+determines landed. That rule is on by default, and it had doubled the
+model. The library job's trend followed: 64 minutes, then 73, then
+past the 90 minute ceiling, where the run was cancelled rather than
+failed. A cancelled run leaves the same blank space as a green one, so
+the floors of the run that was cancelled were checked by nobody.
 
 The profile put 2264 of 7300 samples inside `reduce_index` in
 `solve_linear_for`, which is asked for every equation and every name
