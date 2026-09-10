@@ -687,3 +687,39 @@ fn a_fixed_flag_that_comes_to_true_asks_the_declaration_for_the_value() {
     );
     assert!(message.contains("Av"), "the refusal names Av: {message}");
 }
+
+/// A variable with no `start` of its own is often spoken for by one
+/// the model does state. `T = h/cp` with `T(start = 288.15)` says
+/// where `h` begins as plainly as a `start` on `h` would, and the
+/// silent zero taken instead is not a neutral guess: it puts the run
+/// at a temperature of absolute zero, which the next equation divides
+/// by. Read rather than invented, so the model still decides.
+#[test]
+fn a_start_is_read_from_the_equation_that_names_a_stated_neighbour() {
+    let result = run(
+        "model M parameter Real cp = 4000; Real T(start = 288.15); Real h; Real q; \
+         equation T = h/cp; q*T = 1; h = cp*(288 + q*q); \
+         annotation(experiment(StopTime = 0.002, Interval = 0.001)); end M;",
+    );
+    let at = |name: &str| {
+        result
+            .columns
+            .iter()
+            .position(|column| column == name)
+            .unwrap_or_else(|| panic!("{name} in {:?}", result.columns))
+    };
+    let first = &result.rows[0];
+    // `q = 1/T` with `T` near 288 is a small number, and `h = cp*T`
+    // follows it. From a start of zero the first residual is infinite
+    // and the block is never stepped at all.
+    assert!(
+        (first[at("T")] - 288.0).abs() < 1e-3,
+        "T = {}",
+        first[at("T")]
+    );
+    assert!(
+        (first[at("q")] - 1.0 / 288.0).abs() < 1e-6,
+        "q = {}",
+        first[at("q")]
+    );
+}

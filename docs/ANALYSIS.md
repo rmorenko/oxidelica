@@ -6027,3 +6027,57 @@ model: the equation determining X does not depend on it`, which is the
 same fact stated where it belongs. A row emptying by three while the
 run count rises by two is exactly the shape the charter describes, and
 here both halves were visible in one pair of censuses.
+
+### The shares behind that row, and what a start can be read from
+
+The map above said the row stands on two guesses and two faults, but
+nobody had counted how the models divide between them. Probed one by
+one - forty-one models of the census, each asked with `library check
+--only` and `why` about the variables its own message names - the
+division is:
+
+| where the model stands                       | models |
+| -------------------------------------------- | ------ |
+| torn variables, none of them given a `start` | 32     |
+| at least one torn variable given a `start`   | 9      |
+
+The nine are the interesting half, because a start that exists and a
+refusal that says the block began from nowhere cannot both be true.
+They are not: `HeatingMOSInverter` hands Newton `288.15` for both its
+temperatures, and the block still fails, because what is infinite is
+an _inner_ assignment evaluated after the torn values are placed.
+Which settles the question the map left open - link 1 is not one thing.
+A start present and carried is a different case from a start absent,
+and only the second is about where Newton begins.
+
+For the second the charter's rule stands: a number invented is a wrong
+answer waiting, and last shift's nudge proved it. But a number _read_
+is not invented. `T_port = flowPort.h/cp` with `T_port(start = 288.15)`
+says what `flowPort.h` starts from exactly as plainly as a `start` on
+`flowPort.h` would, and the silent zero taken instead is not neutral -
+in this family it means absolute zero, and the next equation divides
+by it. So a torn variable with no start of its own now takes one from
+an equation that names it and nothing else the model has not already
+valued, and only where it enters linearly, which is the one case with
+a single answer. Everything else keeps its zero.
+
+Measured over the corpus from one binary, with the rule behind an
+environment switch: 820 flatten and 391 run both ways, and the two run
+lists are identical name for name. The rule costs nothing and wins
+nothing today. It shipped anyway, because it is a _reading_ of the
+model where there was a guess, the case it fixes is real and has a
+test that fails without it, and the walls it does not reach are the
+ones the shares above locate: the FluidHeatFlow family gets its start
+read and then dies further in, at inner assignments whose divisors are
+still zero. That is the chain's next link, not this one.
+
+Two things were learned about cost on the way. The first shape of the
+rule scanned every equation for every unknown, which took one model
+from seconds to twenty-five minutes - the quadratic the charter warns
+about, met head on. Narrowed to one pass over the equations, and then
+to the torn variables alone - the only ones Newton ever reads a start
+for, since the rest are assigned outright before the residual is
+formed - the pass time is back to nine minutes, under the eleven it
+has always taken. The second: a binary rebuilt between the two halves
+of a comparison makes the comparison worthless, which was caught here
+only because the numbers were taken again afterwards from one build.

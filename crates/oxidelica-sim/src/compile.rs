@@ -2845,6 +2845,93 @@ pub(crate) fn compile_at(
 
     let ctx = ctx0;
     let derivatives: Vec<Expr> = states.iter().map(|s| state_rhs[s].clone()).collect();
+    // What the model itself says about where things stand at the
+    // start: the parameters, and every variable given a `start` that
+    // can be worked out before the run.
+    let mut stated: HashMap<String, f64> = params.clone();
+    for component in &model.components {
+        if let Some(expr) = &component.start {
+            if let Ok(value) = eval(expr, &ctx) {
+                stated.insert(component.name.clone(), value);
+            }
+        }
+    }
+    // A variable with no `start` of its own may still be spoken for by
+    // the model: `T_port = flowPort.h/cp` with `T_port(start = 288.15)`
+    // says exactly what `flowPort.h` starts from, and zero - which is
+    // what a silent start means - says a temperature of absolute zero
+    // and divides the next equation by it. So a start is *read* here
+    // rather than invented: only from an equation that names the
+    // variable and nothing else the model has not already valued, and
+    // only where the variable enters it linearly, which is the one
+    // case with a single answer. Anything else keeps the zero it had.
+    //
+    // Read in one pass over the equations rather than one scan per
+    // variable: an equation is a candidate for exactly one name - the
+    // single one it mentions that nothing has valued - so asking the
+    // equations what they can say costs the model once, where asking
+    // each variable what the equations say costs it as many times as
+    // there are unknowns.
+    let mut read_starts: HashMap<&str, f64> = HashMap::new();
+    {
+        // Only the torn variables are asked about. Everything else in
+        // an algebraic block is assigned outright before the residual
+        // is formed, so its start is written over without being read,
+        // and a whole model's worth of names solved for nothing is
+        // what the cost of this would otherwise be.
+        let iterated: std::collections::HashSet<&str> = stages
+            .iter()
+            .flat_map(|stage| match stage {
+                PlanStage::Implicit { torn, .. } => torn.as_slice(),
+                PlanStage::Explicit { .. } => &[],
+            })
+            .map(|&var| ordered_algs[var].as_str())
+            .collect();
+        let mut named: Vec<&str> = Vec::new();
+        for (lhs, rhs) in &algebraic_eqs {
+            named.clear();
+            lhs.collect_refs(&mut named);
+            rhs.collect_refs(&mut named);
+            let mut wanted: Option<&str> = None;
+            let mut alone = true;
+            for other in &named {
+                if stated.contains_key(*other) {
+                    continue;
+                }
+                match wanted {
+                    Some(first) if first == *other => {}
+                    Some(_) => {
+                        alone = false;
+                        break;
+                    }
+                    None => wanted = Some(other),
+                }
+            }
+            let (true, Some(name)) = (alone, wanted) else {
+                continue;
+            };
+            if !iterated.contains(name) || read_starts.contains_key(name) {
+                continue;
+            }
+            let Some(solved) = crate::symbolic::solve_linear_known(lhs, rhs, name, &stated) else {
+                continue;
+            };
+            let value = eval(
+                &solved,
+                &EvalCtx {
+                    vars: &stated,
+                    time: 0.0,
+                    programs: Some(&programs),
+                    depth: 0,
+                },
+            );
+            if let Ok(value) = value {
+                if value.is_finite() {
+                    read_starts.insert(name, value);
+                }
+            }
+        }
+    }
     let algebraic_start: Vec<f64> = ordered_algs
         .iter()
         .map(|name| {
@@ -2857,6 +2944,7 @@ pub(crate) fn compile_at(
                         .and_then(|c| c.start.as_ref())
                         .and_then(|expr| eval(expr, &ctx).ok())
                 })
+                .or_else(|| read_starts.get(name.as_str()).copied())
                 .unwrap_or(0.0)
         })
         .collect();
