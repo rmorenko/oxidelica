@@ -921,15 +921,126 @@ fn reduce_index(
             algebraic_eqs.push((Expr::Ref(minted), value));
         }
 
+        // A name the walk answered with a bare `der(x)` needs the
+        // equation that determines `x`, differentiated. Substitution
+        // could not find it - round a circuit it never terminates -
+        // but the matching assigns every unknown exactly one equation,
+        // and that is the one Pantelides differentiates.
+        //
+        // The matching in hand stopped at the equation under
+        // reduction, so it is finished first over the rest: a name
+        // matched by nobody even then is one nothing determines, and
+        // that is the old refusal in its old words.
+        //
+        // Each supplier is differentiated at most once per reduction,
+        // and differentiating it may name further unknowns, so the
+        // loop runs to emptiness. The ledger is exact by construction:
+        // one name in, one unknown and one equation out.
+        let mut needed = take_needed_derivatives();
+        // The equation the matching assigns to each name the walk had
+        // to mint for. `choose_the_victim` reaches through these as it
+        // already reaches through implicit ones: minting takes the
+        // derivative past a name, and a reach that stops there reports
+        // a constraint that does pin a state as pinning none.
+        let mut matched_defs: HashMap<String, (Expr, Expr)> = HashMap::new();
+        if !needed.is_empty() {
+            let mut matched_eq = matched_eq.clone();
+            for other in 0..algebraic_eqs.len() {
+                if other == eq || matched_eq.contains(&Some(other)) {
+                    continue;
+                }
+                let mut visited = vec![false; n_alg];
+                try_match(other, &eq_vars, &mut matched_eq, &mut visited);
+            }
+            let mut supplied: Vec<usize> = Vec::new();
+            while let Some(name) = needed.pop() {
+                let minted = derivative_name(&name);
+                if minted_defs.contains_key(&minted)
+                    || unknowns.iter().any(|u| u == &minted)
+                    || states.iter().any(|s| s == &minted)
+                {
+                    continue;
+                }
+                let index = unknowns.iter().position(|u| u == &name);
+                let Some(source) = index.and_then(|i| matched_eq.get(i).copied().flatten()) else {
+                    return err(format!(
+                        "structurally singular model: no equation determines `{name}`, \
+                 whose derivative the equation {lhs:?} = {rhs:?} needs"
+                    ));
+                };
+                if supplied.contains(&source) {
+                    return err(format!(
+                        "structurally singular model: the equation determining `{name}` \
+                 has already been differentiated in this reduction"
+                    ));
+                }
+                supplied.push(source);
+                let (sl, sr) = algebraic_eqs[source].clone();
+                matched_defs.insert(name.clone(), (sl.clone(), sr.clone()));
+                let source_residual = Expr::Bin(
+                    oxidelica_parser::BinOp::Sub,
+                    Box::new(sl.clone()),
+                    Box::new(sr.clone()),
+                );
+                let supply = match differentiate(
+                    &source_residual,
+                    &DiffTarget::Time {
+                        state_rhs: &*state_rhs,
+                        params,
+                        dummies: &dummies,
+                        alg_defs: &alg_defs,
+                        implicit_defs: &implicit_defs,
+                        holding: &[],
+                    },
+                ) {
+                    Ok(d) => simplify(&d),
+                    Err(reason) => {
+                        return err(format!(
+                            "structurally singular model: {reason}, differentiating the equation \
+                     {sl:?} = {sr:?} that determines `{name}`"
+                        ));
+                    }
+                };
+                for (also, value) in take_minted_derivatives() {
+                    if minted_defs.contains_key(&also)
+                        || unknowns.iter().any(|u| u == &also)
+                        || states.iter().any(|s| s == &also)
+                    {
+                        continue;
+                    }
+                    let value = simplify(&value);
+                    minted_defs.insert(also.clone(), value.clone());
+                    unknowns.push(also.clone());
+                    algebraic_eqs.push((Expr::Ref(also), value));
+                }
+                needed.extend(take_needed_derivatives());
+                unknowns.push(minted);
+                algebraic_eqs.push((supply, Expr::Number(0.0)));
+            }
+        }
+
         // Demote a state the constraint actually constrains, choosing
         // the one it determines most strongly.
+        // Reached through the equations the matching supplied as well
+        // as the implicit ones - both are equations that determine a
+        // name without defining it, and the reach cannot tell them
+        // apart nor should it.
+        let reach_defs = if matched_defs.is_empty() {
+            implicit_defs.clone()
+        } else {
+            let mut both = implicit_defs.clone();
+            for (name, pair) in matched_defs {
+                both.entry(name).or_insert(pair);
+            }
+            both
+        };
         let victim = choose_the_victim(
             &residual,
             &lhs,
             &rhs,
             &states,
             &alg_defs,
-            &implicit_defs,
+            &reach_defs,
             &companions,
             start_env,
             at_time,

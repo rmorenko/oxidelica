@@ -5834,3 +5834,47 @@ The ceiling is worth having on its own account. Two million nodes is
 far above what any healthy model of the library reaches, so nothing
 that runs today notices it, and any future change to the grounding
 rules is measurable instead of fatal.
+
+### Minting a derivative the matching can supply
+
+The door the last section named as architecture turned out to open.
+Substitution cannot reach the derivative of a current in a circuit: a
+Kirchhoff node rewrites into its neighbour and round the loop for
+ever, which is why the walk refused. The matching does not rewrite, it
+assigns - every unknown has exactly one equation determining it - so
+the equation the walk could not find by substituting is one the caller
+already holds. The walk now takes a name of its own for such a
+derivative and records the debt; `reduce_index` finishes the matching
+over the remaining equations, differentiates the one assigned to the
+name, and puts the pair into the system. A name matched by nobody even
+then is one nothing determines, which is the old refusal in its old
+words.
+
+The reach that chooses the victim was widened to the equations the
+matching supplied as well as the implicit ones. Both are equations
+that determine a name without defining it, and a reach that stopped at
+a minted name would report a constraint that does pin a state as
+pinning none.
+
+Measured from one binary with the change behind a switch: 820 flatten
+either way, 386 run without it and 389 with. The three are
+`Machines.Examples.Transformers.TransformerTestbench` and both
+`FluxTubes.Examples.MovingCoilActuator` models. The run list has no
+victim in it - the diff is acquisitions only - and the unbalanced
+family, summed across the wordings that split it, stands at 137 models
+before and 137 after, which is what says the supply ledger is exact:
+one name in, one unknown and one equation out.
+
+The two models that prompted the work are not among the three, and
+that is the expected shape rather than a disappointment. `SMEE_Generator`
+passes the wall and stops at the next one, a constraint on
+`der(smee.inertiaRotor.flange_b.phi)` that pins no state; `IMC_DOL`
+passes it and stops in an algebraic loop that starts from values that
+are not numbers. A wall taken is not a model bought, and the two are
+recorded here as walls taken.
+
+The witness is the corpus census rather than a small model. Nine
+attempts at shrinking one failed: the path switches on only where
+substitution walks a Kirchhoff node round a circuit, and a circuit
+small enough to write in a test settles by substitution before the
+path is reached.

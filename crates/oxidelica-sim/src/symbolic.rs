@@ -154,6 +154,7 @@ pub(crate) fn solve_linear_for(lhs: &Expr, rhs: &Expr, var: &str) -> Option<Expr
 
 pub(crate) fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
     MINTED.with(|c| c.borrow_mut().clear());
+    NEEDED.with(|c| c.borrow_mut().clear());
     differentiate_at(expr, target, 0)
 }
 
@@ -170,6 +171,26 @@ thread_local! {
     /// environment variable in a test binary is shared by every thread
     /// in it.
     static SHARE_HERE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Names whose derivative was answered with a bare `der(x)` that
+    /// nothing here can work out: the walk had no definition, no
+    /// dummy and no implicit equation for `x`, and the equation that
+    /// determines it is known to the matching rather than to this
+    /// module. The caller supplies each of these with its matched
+    /// equation, differentiated.
+    static NEEDED: std::cell::RefCell<Vec<String>> = const {
+        std::cell::RefCell::new(Vec::new())
+    };
+}
+
+/// The names minted with no value during the current top-level
+/// `differentiate`, for the caller to supply equations for.
+pub(crate) fn take_needed_derivatives() -> Vec<String> {
+    NEEDED.with(|n| {
+        let mut needed = std::mem::take(&mut *n.borrow_mut());
+        needed.sort();
+        needed.dedup();
+        needed
+    })
 }
 
 /// Whether the derivative of a definition becomes a name of its own.
@@ -354,6 +375,22 @@ pub(crate) fn differentiate_at(
                     };
                     let motion = simplify(&differentiate_at(&residual, &held, depth + 1)?);
                     bin(Div, Expr::Neg(Box::new(motion)), slope)
+                } else if holding.is_empty() {
+                    // Nothing here determines `name`, and substitution
+                    // is the wrong instrument for what does: a current
+                    // in a circuit is named by a Kirchhoff node that
+                    // rewrites into its neighbour for ever. The
+                    // matching knows which single equation determines
+                    // this unknown, so the derivative takes a name of
+                    // its own and the caller brings the equation.
+                    //
+                    // Only with nothing held still: inside an implicit
+                    // derivative the chain of held names changes the
+                    // answer, and a name shared between two chains
+                    // would carry the wrong one.
+                    let minted = crate::derivative_name(name);
+                    NEEDED.with(|n| n.borrow_mut().push(name.clone()));
+                    Expr::Ref(minted)
                 } else {
                     return Err(format!(
                         "cannot differentiate through algebraic variable `{name}`"
