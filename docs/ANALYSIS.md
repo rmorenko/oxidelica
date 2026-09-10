@@ -6304,3 +6304,84 @@ still seen as noise. That is a change to how degeneracy is decided
 for every block in the corpus, so it is written down with its numbers
 and left for a decision rather than made on the strength of one
 model.
+
+## The mixing rule, and an equation that says nothing on one branch
+
+The census taken at `f007b6c` puts `residual N of algebraic loop` at
+the top of the run half with 35 models, and the first thing to say
+about that row is that it is not one family. Sorted by which of the
+block's own values went first, the largest single group is
+FluidHeatFlow - ten models whose block starts with every enthalpy in
+it a NaN - and behind it sit the machine models entering through
+`RotationMatrix[1,1]`, the friction models entering through `sa`, and
+several singletons.
+
+The FluidHeatFlow group was probed to its mechanism. Printing the
+first inner assignment that comes out not a number, for `OneMass`:
+
+```text
+first non-finite inner: pump.h = NaN
+  code: Bin(Div,
+    Neg(Bin(Sub, Slot(163), If(Rel(Ge, Slot(123), Const(0.0)),
+                               Bin(Mul, Slot(185), Slot(123)),
+                               Const(0.0)))),
+    Neg(If(Rel(Ge, Slot(123), Const(0.0)), Const(0.0), Slot(123))))
+```
+
+The equation is the mixing rule of `BaseClasses.TwoPort`,
+`flowPort_a.H_flow = semiLinear(flowPort_a.m_flow, flowPort_a.h, h)`,
+which flattens to `if m_flow >= 0 then h_a * m_flow else h * m_flow`.
+The matching gave that equation to `h`, and on the branch the model
+starts in - the flow is positive - the right-hand side does not
+mention `h` at all. Solved for it, the assignment divides by an exact
+zero, and every enthalpy downstream of it is a NaN before Newton has
+taken a step.
+
+The smallest model with the shape is eleven lines, and what it does
+is worse than refusing:
+
+```modelica
+model FHF2
+  parameter Real cp = 1;
+  Real h(start = cp * 293.15); Real T; Real m_flow; Real h_a; Real H;
+equation
+  m_flow = 1;
+  h_a = cp * 300;
+  h = cp * T;
+  H = semiLinear(m_flow, h_a, h);
+  H = m_flow * h_a;
+end FHF2;
+```
+
+It reports a hundred successful steps and prints `h = NaN, T = NaN` as
+though they were answers. That is the guessing this project refuses
+elsewhere, arriving by a different road: no refusal is raised because
+the block is explicit rather than torn, so nothing looks at the value.
+
+### The rank that was measured and taken out again
+
+The obvious repair extends the solve-cost rank of the previous shift
+with a fourth level: a slope which is an identical zero down some
+branch of its own `if` is the dearest reading of all, because in that
+regime the equation does not determine the unknown for any values
+whatever. Written, it needs to see through the negation a residual's
+difference introduces and through a factor lifted out around the
+switch, and then it fires - `h` is ranked 3 where it had been 2.
+
+Measured on the family from one binary behind `OXIDELICA_NO_BRANCH_COST`,
+it is a loss. Not one of the ten FluidHeatFlow models runs with it on:
+the block is rematched, and the refusal moves from residual 0 to
+residual 1 or 2 of the same loop. And `SimpleCooling`, which runs
+without it, refuses with it. So the change is a victim with nothing
+bought, and it was taken out rather than carried on the strength of
+the mechanism being right.
+
+What the measurement says about the mechanism is narrower than it
+first appeared: the mixing rule's division by zero is real and is
+where the NaN enters, but the matching cannot avoid it by preference
+alone. Every enthalpy in the block sits in an equation of the same
+shape, so ranking one of them dearer only moves which one is given
+the vanishing branch. That points at tearing rather than at matching -
+choosing the torn set so that no explicit assignment is a division by
+a branch-dependent zero - which is a different layer and a larger
+change than a rank.
