@@ -356,10 +356,112 @@ fn lookup_at<'a>(
     // import is outranked by everything with a name of its own, which
     // is what keeps `import A.*;` from quietly shadowing a class the
     // enclosing package already had.
-    imports
+    if let Some(class) = imports
         .iter()
         .filter(|(local, _)| local == WILDCARD_IMPORT)
         .find_map(|(_, target)| registry.get(format!("{target}.{name}").as_str()).copied())
+    {
+        return Some(class);
+    }
+    // A name whose head is a *component* rather than a package:
+    // `world.gravityAcceleration`, where `world` is an instance and
+    // the function is a member of the class it was declared from.
+    // Everything above looks for a class called `world` and there is
+    // none, so the name fell through and the run met a call it could
+    // not place. It is tried last of all, after every reading that
+    // does not need the enclosing class's components, so nothing that
+    // resolved before resolves differently now.
+    //
+    // Off by default, and measured before that was decided. The link
+    // is right in itself - the test beside it is red without it - but
+    // it is the first of a chain, and the chain is not yet walked to
+    // its end: with it on the library flattens 817 rather than 820,
+    // the three being MultiBody's constraint examples, which stop one
+    // step later at `standardGravityAcceleration is missing its
+    // argument gravityType`. Reaching the function is what lets them
+    // reach the wall behind it. `OXIDELICA_COMPONENT_MEMBER=1` turns
+    // it on for the next shift to work from, and the default keeps
+    // the three models until the chain pays for itself.
+    if !component_member_wanted() {
+        return None;
+    }
+    member_of_a_component(registry, name, scope, 0)
+}
+
+/// Whether the reading through a component is in force here.
+///
+/// The environment answers for a whole corpus run, which is what a
+/// measurement wants; a thread answers for one test, which is what a
+/// test binary wants. Setting the environment from a test would be
+/// the race this project has already paid for once: the variable
+/// belongs to the process, and every other test compiling beside it
+/// would read the setting as its own.
+fn component_member_wanted() -> bool {
+    HERE.with(Cell::get) || std::env::var_os("OXIDELICA_COMPONENT_MEMBER").is_some()
+}
+
+thread_local! {
+    /// Whether this thread asked for the reading through a component.
+    static HERE: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Read names through components on this thread until the guard is
+/// dropped.
+pub fn reach_through_components_here() -> ComponentMemberGuard {
+    HERE.with(|here| here.set(true));
+    ComponentMemberGuard(())
+}
+
+/// Puts the reading back where it was.
+pub struct ComponentMemberGuard(());
+
+impl Drop for ComponentMemberGuard {
+    fn drop(&mut self) {
+        HERE.with(|here| here.set(false));
+    }
+}
+
+/// A member reached through a component of the class asking for it.
+///
+/// `world.gravityAcceleration` inside a body is not a package member:
+/// `world` is a component, and what stands after the dot is a member
+/// of the class the component was declared from. The language reaches
+/// class members through an instance this way, and it is how the
+/// MultiBody library names its gravity field.
+///
+/// The head is looked for among the components of the class the name
+/// was written in and of everything that class extends, since a body
+/// may call through an instance a base declared. What is reached is
+/// only ever a class - a function or a package - so this cannot
+/// answer a question about a variable.
+fn member_of_a_component<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<&'a ClassDef> {
+    if depth > MAX_DEPTH {
+        return None;
+    }
+    let (head, member) = name.split_once('.')?;
+    let holder = registry.get(scope)?;
+    let of_the_component = |component: &Component| -> Option<&'a ClassDef> {
+        if component.name != head {
+            return None;
+        }
+        let declared = plain_lookup(registry, &component.type_name, scope)?;
+        // Asked under the component's own class, so a member written
+        // in a base of it is reached the same way it would be from
+        // inside: `lookup` rather than a bare registry hit.
+        lookup(registry, member, &declared.name, &declared.imports)
+    };
+    if let Some(found) = holder.components.iter().find_map(of_the_component) {
+        return Some(found);
+    }
+    holder.extends.iter().find_map(|extend| {
+        let base = plain_lookup(registry, &extend.base, scope)?;
+        member_of_a_component(registry, name, &base.name, depth + 1)
+    })
 }
 
 thread_local! {

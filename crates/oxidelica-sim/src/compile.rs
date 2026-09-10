@@ -617,22 +617,6 @@ fn match_order_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_MATCH_ORDER").is_none()
 }
 
-/// How dearly an equation is solved for one of its unknowns.
-///
-/// The matching is free to give an equation to any unknown it
-/// mentions, and the choice decides what the run divides by. `a = b*c`
-/// given to `a` is a multiplication; given to `b` it is `a/c`, and a
-/// `c` that is zero at the start turns the block's first residual into
-/// a NaN before Newton has taken a step. The rank is only a
-/// preference - an augmenting path may still overrule it, which is why
-/// this is measured rather than believed:
-///
-/// - 0: the unknown stands alone on one side, so the equation is read
-///   off with no arithmetic at all;
-/// - 1: linear in the unknown with a slope naming no other unknown of
-///   the block, so what is divided by cannot move under Newton;
-/// - 2: anything else, which is where the divisions by a live unknown
-///   live.
 /// What ranking an equation for one of its names depends on, with the
 /// dear half separated from the half that moves.
 ///
@@ -687,8 +671,23 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str) -> SolveShape {
     SolveShape::Slope(Some(named))
 }
 
-/// The rank itself, which is the shape read against this block's other
-/// unknowns.
+/// How dearly an equation is solved for one of its unknowns: the
+/// shape above, read against this block's other unknowns.
+///
+/// The matching is free to give an equation to any unknown it
+/// mentions, and the choice decides what the run divides by. `a = b*c`
+/// given to `a` is a multiplication; given to `b` it is `a/c`, and a
+/// `c` that is zero at the start turns the block's first residual into
+/// a NaN before Newton has taken a step. The rank is only a
+/// preference - an augmenting path may still overrule it, which is why
+/// this is measured rather than believed:
+///
+/// - 0: the unknown stands alone on one side, so the equation is read
+///   off with no arithmetic at all;
+/// - 1: linear in the unknown with a slope naming no other unknown of
+///   the block, so what is divided by cannot move under Newton;
+/// - 2: anything else, which is where the divisions by a live unknown
+///   live.
 fn solve_cost(shape: &SolveShape, others: &[String]) -> u8 {
     match shape {
         SolveShape::Alone => 0,

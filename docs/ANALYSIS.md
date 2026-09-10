@@ -6385,3 +6385,114 @@ the vanishing branch. That points at tearing rather than at matching -
 choosing the torn set so that no explicit assignment is a division by
 a branch-dependent zero - which is a different layer and a larger
 change than a rank.
+
+## The rank that cost four run halves
+
+The library job reached its ninety minute ceiling a second time and
+was cancelled: 48, 42 and 45 minutes over three commits, then a run
+killed at 90m25s with nothing to report. The suspect was the last
+change to the compiler rather than the runner, and the switch the
+change already carried made the measurement cheap. From one binary
+over the whole library:
+
+```text
+rank on   flattening 1780s / 1043 models   running 3153s / 820 (3845ms each)
+rank off  flattening 1645s / 1043 models   running  591s / 820 ( 721ms each)
+```
+
+The rank alone costs more than four times what the entire run half
+cost before it existed. Nothing else in the pass moved: the flatten
+halves differ by the noise of a desk, and the difference is confined
+to the layer that changed - which is the stopping rule this project
+already wrote down for a slow path.
+
+The cause is the one the morning's fix had already named, met again
+one function further along. `solve_cost` answered two questions in one
+breath: the shape of the equation in the name, which is a
+differentiation and a fold, and whether the slope mentions another
+unknown *of this block*, which is a membership test. Only the second
+moves between reductions, as states are demoted and the unknown set
+shrinks. Answered together, the first was paid again at every
+reduction for an answer that could not have changed.
+
+Split into `solve_shape` - remembered by equation index and name,
+under the same bracket `solved_for` uses - and a `solve_cost` that
+reads the remembered shape against the current unknowns, the pass
+goes from 12m31 to 7m43 and the run half from 3153 seconds to 749.
+The run lists before and after are identical, 392 models each, so
+this is the same compiler with the repetition taken out.
+
+Which makes three instances of one method, and it is worth stating as
+a habit rather than as three anecdotes: when a path is slow, do not
+ask how to remember its answer. Ask which parts of the world the
+answer depends on, and then which of those parts the surrounding
+bracket already holds still. Both times here the answer split cleanly
+into a dear half that depended on nothing that moved and a cheap half
+that depended on everything that did.
+
+## The census's largest row, and the chain behind it
+
+`unknown function world.gravityAcceleration` is 16 models, the largest
+single-cause row of the run half's census once the rows that only
+share wording are added together. The mechanism took one second to
+find rather than a corpus run, because the twelve-line model with the
+same shape refuses the same way:
+
+```modelica
+model M
+  model W
+    function accel input Real x; output Real y;
+    algorithm y := 2 * x; end accel;
+  end W;
+  W w; Real a;
+equation
+  a = w.accel(2.0);
+end M;
+```
+
+`w` is a component, not a package. Every reading of a dotted name in
+`lookup_at` - the leading dot, the named imports, the walk out of the
+enclosing packages, the aliases, the wildcards - looks for a *class*
+called `w`, and there is none. The name fell through unresolved and
+reached the run as a call nothing could place. Modelica reaches class
+members through an instance, and nothing in the compiler did.
+
+The link itself is small: after every other reading has failed, look
+for the head among the components of the class the name was written
+in and of its bases, and ask the component's declared class for the
+member. A test is red without it and green with it.
+
+Measured from one binary, it is a loss of three and a gain of none:
+820 flattened without it, 817 with, the run half 392 either way. The
+three are MultiBody's constraint examples, and they do not fail for
+the lookup - they fail one step further along, at
+`standardGravityAcceleration is missing its argument gravityType`.
+Reaching the function is precisely what lets them reach the next
+wall.
+
+That is the chain shape this repository already has a rule for, and
+the rule says not to take it apart a link at a time. Two more links
+are mapped, both reproduced small:
+
+1. **The lookup.** Taken, behind `OXIDELICA_COMPONENT_MEMBER` and a
+   thread-local guard for the test. Off by default: the numbers above
+   are why.
+2. **A short definition's modifiers, filled in from a constant.**
+   `function accel = Scaled(c = 5);` inside a component works today -
+   `a = w.accel(2.0)` gives 10.
+3. **A short definition's modifiers, naming the holder's own
+   parameters.** `function accel = Scaled(c = k);` where `k` is a
+   parameter of the component gives `unknown variable k`. This is the
+   link the MultiBody family actually needs: `gravityAcceleration =
+   standardGravityAcceleration(gravityType = gravityType, g = g*...)`
+   names three parameters of `world`. The modifiers are remembered by
+   `remember_filled_inputs` under the resolved *class* name, a table
+   with nowhere to put an instance path, so a value naming the
+   holder's parameter arrives at the call without the prefix that
+   would make it a name of the flat model.
+
+Link 3 is the architectural one and is where the next shift starts.
+The table is keyed by class, and what it needs to carry is per
+instance; that is the same invariant this repository states as
+"anything that survives flattening carries the flat model's names",
+seen from the side of a table that cannot carry them.

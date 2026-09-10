@@ -902,3 +902,47 @@ fn a_boolean_constant_keeps_its_kind() {
         "a Boolean constant came through as a number: {said}"
     );
 }
+
+#[test]
+fn a_function_is_reached_through_a_component_that_holds_it() {
+    // `world.gravityAcceleration(r)` is how the multibody library asks
+    // for its gravity field: `world` is a component, not a package,
+    // and what stands after the dot is a member of the class the
+    // component was declared from. Every reading of a dotted name
+    // looked for a class called `world`, found none, and let the call
+    // through to the run, where it arrived as a function nothing could
+    // place - sixteen models, the largest single row of the census.
+    //
+    // The reading is off by default - it is the first link of a chain
+    // whose end is not reached yet, and on its own it costs three
+    // MultiBody models the wall behind it - so the test asks for it on
+    // this thread. Not through the environment: that belongs to the
+    // whole test binary, and every test compiling beside this one
+    // would read the setting as its own.
+    let _reading = oxidelica_parser::reach_through_components_here();
+    let m = parse_model(
+        "model M \
+           model W \
+             parameter Real k = 3; \
+             function accel input Real x; output Real y; \
+             algorithm y := 2 * x; end accel; \
+           end W; \
+           W w; Real a; \
+         equation \
+           a = w.accel(2.0); \
+         end M;",
+    )
+    .unwrap();
+    // The call was placed and inlined, so the equation says what the
+    // body says rather than naming a function. What matters is the
+    // number: `2 * 2`, however it is folded.
+    let rhs = rhs_of(&m, "a");
+    assert!(
+        !rhs.contains("w.accel"),
+        "the call was left standing: {rhs}"
+    );
+    assert!(
+        rhs.contains("4.0") || rhs.contains("2.0"),
+        "the body did not come through: {rhs}"
+    );
+}
