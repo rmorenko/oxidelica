@@ -6210,10 +6210,22 @@ the rank was measured rather than believed.
 
 Measured from one binary with `OXIDELICA_NO_MATCH_ORDER`, the corpus
 goes from 820 flattened and 390 run to 820 and 392, and the runnable
-pair from 722/385 to 722/387. Two models won, no victims: the diff of
-the run lists is `Modelica.Electrical.Analog.Examples.HeatingRectifier`
-and `Modelica.Thermal.FluidHeatFlow.Examples.SimpleCooling`, and
-nothing appears on the other side.
+pair from 722/385 to 722/387. Two models won: the diff of the run
+lists is `Modelica.Electrical.Analog.Examples.HeatingRectifier` and
+`Modelica.Thermal.FluidHeatFlow.Examples.SimpleCooling`.
+
+That measurement said "no victims", and it was wrong. The switch
+brackets the matching's rank and not the regularity check that came
+with it, so the diff of off against on could not see a victim of the
+check by construction; the diff that could is the old binary's run
+list against the new one, and it names
+`Modelica.Magnetic.FluxTubes.Examples.BasicExamples.SaturatedInductor`.
+It ran at `d87f8d5` and runs at neither the base of this change nor
+its head. The shift's true arithmetic against the previous binary is
+two won and one lost, which is the +1 the floors recorded and the
+reason the base measured 390 against a floor of 391 - a discrepancy
+that was explained away at the time by a difference between the desk
+and the builder that does not exist.
 
 The two models the last shift named are not among them, and that is
 worth saying plainly rather than letting the count imply otherwise.
@@ -6247,3 +6259,48 @@ the Jacobian's own scale rather than against the floating-point
 format. That is a question about the block - is there a direction the
 residual barely moves along, compared with the rest of the block -
 where the old one was a question about `f64`.
+
+### The victim, and what the scale test costs where the units are large
+
+The one model the regularity check cost was probed rather than
+assumed, because the two possible stories - a genuinely degenerate
+block that was previously guessed at, and a regular block newly
+refused - call for opposite work. Printing the block's Jacobian at
+the point of judgment settles it in one run:
+
+```text
+pivot 1e0  scale 3.3116960540533507e8  threshold 3.3116960540533505e1  n 4
+block ["source.p.i", "r_mLeak.port_p.Phi", "r_mFe.B", "r_mFe.Phi"]
+  row [1.0, 2000.0000000000002, 0.0, 0.0]
+  row [0.0, 1.0, 0.0, 1.0]
+  row [0.0, 0.0, 1.0, -1599.9999999999995]
+  row [0.0, 1200000.0, 0.0, -331169605.40533507]
+```
+
+That matrix is regular, and not marginally: eliminated, it has no
+small pivot in any absolute sense, and its determinant is far from
+zero. What sinks it is the comparison. One row carries a magnetic
+reluctance of order 1e8, which sets the whole matrix's scale, and the
+threshold `1e-7 * scale` then stands at 33 - so a pivot of exactly
+1.0, a coefficient of one in a row written in amperes, is judged
+"barely moving" against a row written in reciprocal henries.
+
+The scale test is right about what it was built for and wrong here
+for a nameable reason: a single scalar taken over the whole matrix
+compares coefficients of different physical dimensions. Rows of a
+Modelica block have no common unit, and in a magnetic model the
+spread between them is routinely eight orders. The block is not
+ill-conditioned in the sense the check means; it is heterogeneous in
+units, which every electro-magnetic model is.
+
+The obvious repair - lower the constant - is not taken, because it
+trades one arbitrary threshold for another and the test that prompted
+the check would begin to slip through again at some spread of units.
+What the numbers suggest instead is a per-row measure: judge each
+pivot against the scale of the row it came from, so that a
+coefficient of one in a row whose largest entry is two thousand is
+seen as live, while a coefficient of 1e-8 in a row of order one is
+still seen as noise. That is a change to how degeneracy is decided
+for every block in the corpus, so it is written down with its numbers
+and left for a decision rather than made on the strength of one
+model.
