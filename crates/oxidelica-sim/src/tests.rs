@@ -202,6 +202,29 @@ fn nonlinear_equations_are_not_solved_symbolically() {
 }
 
 #[test]
+fn an_equation_whose_slope_is_zero_is_not_solved_for_that_unknown() {
+    // `R = 100 * (1 + alpha * (T - 293.15))` with `alpha = 0` says
+    // nothing whatever about `T`. Divided through anyway it hands back
+    // an infinity, and the run reports it as a residual that could not
+    // be evaluated - which names the solver, the one place nothing is
+    // wrong. Zero written outright is caught with no parameters at all.
+    let lhs = expr_of("r");
+    let rhs = expr_of("100 * (1 + 0 * (a - 293.15))");
+    assert!(solve_linear_for(&lhs, &rhs, "a").is_none());
+
+    // The same equation with the coefficient behind a name. Judged
+    // without the parameter values the slope looks live, so this is the
+    // half that needs them in view; and with `alpha` nonzero the
+    // equation is solved as it always was.
+    let rhs = expr_of("100 * (1 + alpha * (a - 293.15))");
+    let mut known = HashMap::new();
+    known.insert("alpha".to_string(), 0.0);
+    assert!(solve_linear_known(&lhs, &rhs, "a", &known).is_none());
+    known.insert("alpha".to_string(), 1e-3);
+    assert!(solve_linear_known(&lhs, &rhs, "a", &known).is_some());
+}
+
+#[test]
 fn the_banded_solver_agrees_with_the_dense_one() {
     // A tridiagonal system with a dominant diagonal, the shape a
     // discretized field gives: both paths must land on the same

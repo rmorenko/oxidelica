@@ -133,6 +133,25 @@ pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
 /// in it: with residual `r = a*var + b`, the solution is `-b/a`, where
 /// `a` is the (var-free) derivative and `b` is `r` at `var = 0`.
 pub(crate) fn solve_linear_for(lhs: &Expr, rhs: &Expr, var: &str) -> Option<Expr> {
+    solve_linear_known(lhs, rhs, var, &HashMap::new())
+}
+
+/// The same, with the parameter values in view.
+///
+/// The slope decides whether an equation may be divided through, and a
+/// slope written `alpha*R` is a number the moment `alpha` is known. A
+/// zero there is not a small coefficient: it is the equation declining
+/// to mention its unknown, and `Resistor` with `alpha = 0` writes
+/// exactly that. Judged without the parameters the slope looks like a
+/// live coefficient, the division goes through, and the run reports an
+/// infinite residual against the solver rather than a refusal against
+/// the model.
+pub(crate) fn solve_linear_known(
+    lhs: &Expr,
+    rhs: &Expr,
+    var: &str,
+    known: &HashMap<String, f64>,
+) -> Option<Expr> {
     let residual = Expr::Bin(
         oxidelica_parser::BinOp::Sub,
         Box::new(lhs.clone()),
@@ -142,6 +161,37 @@ pub(crate) fn solve_linear_for(lhs: &Expr, rhs: &Expr, var: &str) -> Option<Expr
     let mut refs = Vec::new();
     slope.collect_refs(&mut refs);
     if refs.contains(&var) {
+        return None;
+    }
+    // A slope of zero is not a small coefficient, it is the equation
+    // saying it does not mention its unknown at all: `R = 100*(1 +
+    // alpha*(T - T_ref))` with `alpha = 0` constrains `R` and says
+    // nothing whatever about `T`. Divided through anyway it yields an
+    // infinity, and what the run then reports is a residual that could
+    // not be evaluated - which names the solver, the one place nothing
+    // is wrong. Refusing here leaves the equation for the tearing set,
+    // where an honest singular Jacobian can be raised about the thing
+    // that is actually undetermined.
+    //
+    // Judged with the parameters folded in, but kept out of the answer:
+    // what is being asked is whether the coefficient is zero, and the
+    // expression handed back stays in the model's own names so the
+    // arithmetic is the same as it always was.
+    //
+    // The names walked are the slope's own, not the table's. A model
+    // carries thousands of parameters and a slope mentions two, so the
+    // cheap direction is to ask the slope what it needs; the other way
+    // round pays the whole table on every equation.
+    let judged = {
+        let mut folded = slope.clone();
+        for name in &refs {
+            if let Some(value) = known.get(*name) {
+                folded = substitute(&folded, name, *value);
+            }
+        }
+        simplify(&folded)
+    };
+    if matches!(judged, Expr::Number(x) if x == 0.0) {
         return None;
     }
     let intercept = simplify(&substitute(&residual, var, 0.0));

@@ -5956,3 +5956,74 @@ victim named by its tail is as much of a guess here as anywhere else.
 And the probe has to be pointed at the root of the corpus: `--only`
 against a subtree answers `unknown base class`, which reads exactly
 like a refusal caused by the change under test and is not one.
+
+## The residual-is-NaN row: one wall in four storeys, not forty-one families
+
+The top of the run half's register is `residual N of algebraic loop` at
+forty-one models, with `algebraic loop did not converge` (6) and
+`singular Jacobian` (3) beside it. Probed, the three rows are not one
+family and the forty-one are not forty-one causes. What separates them
+is a phrase already in the message: every one of the forty-one says
+`at t = 0, before any Newton step`. Nothing has diverged, because
+nothing has stepped. The other two rows are the honest ones - a loop
+that was evaluated and would not converge, or would not determine its
+answer - and they belong to the rectifiers, where a bridge of ideal
+diodes really is hard. So the register's top row is a wall of its own,
+and the neighbours are not it.
+
+Behind the wall is a chain, walked here on `Modelica.Electrical.Analog.Examples.Resistor`
+until a twelve-line model showed it whole. The block's inner unknowns
+are solved symbolically and evaluated in order, so an equation linear
+in its unknown becomes a division, and each link is a divisor that is
+zero where the model begins:
+
+1. A torn variable with no `start` of its own gets zero, and
+   `v = R_actual*i` solved for `R_actual` divides by it. This is the
+   link the census sees, and it is a guess rather than a fault: the
+   same model with `i(start = 1)` runs and gives the right numbers.
+2. A slope that is a parameter valued zero. `R_actual = R*(1 + alpha*
+(T_heatPort - T_ref))` with `alpha = 0` does not mention
+   `T_heatPort` at all, and solving it for that temperature divides by
+   nothing. This link is taken by the change of this shift.
+3. A slope written as a literal zero, the same fault a fold earlier.
+4. A source that is zero at the start. `SineVoltage(f = 1)` is exactly
+   zero at `t = 0`, and the current it drives is the divisor of the
+   link above; started a quarter period along, the same model runs.
+
+The links are one mechanism seen at four depths, which is why removing
+any single one moves no count: the model dies one step later in the
+same family. The map is written down here so the next shift does not
+re-derive it, and so the two halves can be told apart - links 2 and 3
+are a wrong answer where a refusal was owed, and are worth taking on
+their own account whatever they cost in models; links 1 and 4 are a
+guess about where to start Newton, and are worth nothing unless the
+guess can be made without inventing a number.
+
+That last distinction was paid for in this shift. Retrying a start of
+zero a little off the origin takes links 1 and 4 together, and it was
+built, measured and thrown away: `1 / x = 0` has no solution, and from
+a nudged start Newton walks off happily towards one and the model
+compiles. A refusal became a wrong answer, which is the worst thing
+this compiler can do, and the test that says so was already written.
+So the guess is not available as a global rule. What might be is a
+start taken from the model rather than invented - the value a
+connected set's other member states, or a medium's own default - and
+that is the shape the next attempt should take.
+
+What shipped is the rule that needs no guess: an equation is not
+divided through by a coefficient that is zero. It is true everywhere
+rather than almost everywhere, and where it fires the refusal changes
+from `residual is inf` - which names the solver, the one place nothing
+is wrong - to `underdetermined algebraic loop`, which names the thing
+that is actually undetermined.
+
+Measured, that rule is worth two models and no losses: 389 run to 391,
+384 runnable to 386, the run lists differing by `PolyphaseInductance`
+and `SinglePhaseInductance` of `Magnetic.FundamentalWave` and by
+nothing else. The register moved by three rather than two - the
+residual row went 41 to 38 - and the third model is the reason to read
+both instruments: it did not run, it moved to `structurally singular
+model: the equation determining X does not depend on it`, which is the
+same fact stated where it belongs. A row emptying by three while the
+run count rises by two is exactly the shape the charter describes, and
+here both halves were visible in one pair of censuses.

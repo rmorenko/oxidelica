@@ -49,7 +49,7 @@ diff is the witness; the census is not.
 
 Definitions are how reduction decides what it can reach through, so
 supplying one takes a variable out of the running as a state. The
-three hundred and sixty-three models that run stand on the present
+three hundred and ninety-one models that run stand on the present
 choice. So a definition-adding change is not wrong for costing models,
 and not right for taking a small one: measure the victims, and if they
 move, the change is a different compiler rather than a fix.

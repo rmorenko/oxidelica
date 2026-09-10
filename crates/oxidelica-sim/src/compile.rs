@@ -159,6 +159,7 @@ fn build_plan(
     matched_var: &[usize],
     eq_vars: &[Vec<usize>],
     n_alg: usize,
+    known: &HashMap<String, f64>,
 ) -> (Vec<String>, Vec<PlanStage>) {
     // Kahn topological order over equations.
     let producer: Vec<usize> = {
@@ -216,7 +217,7 @@ fn build_plan(
                 var: index,
                 expr: lhs.clone(),
             }
-        } else if let Some(expr) = solve_linear_for(lhs, rhs, &var_name) {
+        } else if let Some(expr) = solve_linear_known(lhs, rhs, &var_name, known) {
             // Linear in its unknown: solved symbolically, no iteration.
             PlanStage::Explicit { var: index, expr }
         } else {
@@ -257,7 +258,7 @@ fn build_plan(
                 } else if matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs, name) {
                     Some((eq, lhs.clone()))
                 } else {
-                    solve_linear_for(lhs, rhs, name).map(|expr| (eq, expr))
+                    solve_linear_known(lhs, rhs, name, known).map(|expr| (eq, expr))
                 }
             })
             .collect();
@@ -2833,8 +2834,14 @@ pub(crate) fn compile_at(
     // 5. The order to evaluate in: what can be solved on its own is
     // an explicit assignment, and what is left over becomes one torn
     // block.
-    let (ordered_algs, stages) =
-        build_plan(&unknowns, &algebraic_eqs, &matched_var, &eq_vars, n_alg);
+    let (ordered_algs, stages) = build_plan(
+        &unknowns,
+        &algebraic_eqs,
+        &matched_var,
+        &eq_vars,
+        n_alg,
+        &params,
+    );
 
     let ctx = ctx0;
     let derivatives: Vec<Expr> = states.iter().map(|s| state_rhs[s].clone()).collect();
