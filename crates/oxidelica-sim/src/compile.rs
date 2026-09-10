@@ -633,7 +633,33 @@ fn match_order_enabled() -> bool {
 ///   the block, so what is divided by cannot move under Newton;
 /// - 2: anything else, which is where the divisions by a live unknown
 ///   live.
-fn solve_cost(lhs: &Expr, rhs: &Expr, name: &str, others: &[String]) -> u8 {
+/// What ranking an equation for one of its names depends on, with the
+/// dear half separated from the half that moves.
+///
+/// The rank asks two questions, and only one of them is about the
+/// block. Whether the name stands alone on a side, and what the slope
+/// of the residual mentions, are questions about the equation and the
+/// name alone; which of those mentions are unknowns *of this block* is
+/// the question that changes as reduction demotes states. Answering
+/// both together made the dear half - a differentiation and a fold -
+/// be paid again at every reduction for an answer that cannot have
+/// changed, which is what took the library's run half from 591
+/// seconds of processor time to 3153.
+enum SolveShape {
+    /// The name stands alone on one side and is named nowhere else, so
+    /// the equation is read off with no arithmetic at all.
+    Alone,
+    /// The residual's slope in the name, reduced to what it mentions.
+    /// `None` where the equation could not be differentiated, which is
+    /// as dear as it gets.
+    Slope(Option<Vec<String>>),
+}
+
+/// The half of the rank that does not move: worked once per equation
+/// and name, under the same bracket as `solved_for` - inside one
+/// reduction the equation list is only appended to, so the pair at an
+/// index is the pair that was there before.
+fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str) -> SolveShape {
     let mentions = |expr: &Expr| {
         let mut refs = Vec::new();
         expr.collect_refs(&mut refs);
@@ -642,7 +668,7 @@ fn solve_cost(lhs: &Expr, rhs: &Expr, name: &str, others: &[String]) -> u8 {
     if (matches!(lhs, Expr::Ref(n) if n == name) && !mentions(rhs))
         || (matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs))
     {
-        return 0;
+        return SolveShape::Alone;
     }
     let residual = Expr::Bin(
         oxidelica_parser::BinOp::Sub,
@@ -650,15 +676,27 @@ fn solve_cost(lhs: &Expr, rhs: &Expr, name: &str, others: &[String]) -> u8 {
         Box::new(rhs.clone()),
     );
     let Ok(slope) = differentiate(&residual, &DiffTarget::Variable(name)) else {
-        return 2;
+        return SolveShape::Slope(None);
     };
     let slope = simplify(&slope);
     let mut refs = Vec::new();
     slope.collect_refs(&mut refs);
-    if refs.iter().any(|r| others.iter().any(|o| o == r)) {
-        2
-    } else {
-        1
+    let mut named: Vec<String> = refs.into_iter().map(str::to_string).collect();
+    named.sort_unstable();
+    named.dedup();
+    SolveShape::Slope(Some(named))
+}
+
+/// The rank itself, which is the shape read against this block's other
+/// unknowns.
+fn solve_cost(shape: &SolveShape, others: &[String]) -> u8 {
+    match shape {
+        SolveShape::Alone => 0,
+        SolveShape::Slope(None) => 2,
+        SolveShape::Slope(Some(refs)) => match refs.iter().any(|r| others.iter().any(|o| o == r)) {
+            true => 2,
+            false => 1,
+        },
     }
 }
 
@@ -670,6 +708,7 @@ fn order_by_solve_cost(
     eq_vars: &mut [Vec<usize>],
     algebraic_eqs: &[(Expr, Expr)],
     unknowns: &[String],
+    shapes: &mut HashMap<(usize, String), SolveShape>,
 ) {
     for (eq, vars) in eq_vars.iter_mut().enumerate() {
         if vars.len() < 2 {
@@ -677,14 +716,14 @@ fn order_by_solve_cost(
         }
         let (lhs, rhs) = &algebraic_eqs[eq];
         let names: Vec<String> = vars.iter().map(|&v| unknowns[v].clone()).collect();
-        let mut ranked: Vec<(u8, usize)> = vars
-            .iter()
-            .zip(&names)
-            .map(|(&v, name)| {
-                let others: Vec<String> = names.iter().filter(|n| *n != name).cloned().collect();
-                (solve_cost(lhs, rhs, name, &others), v)
-            })
-            .collect();
+        let mut ranked: Vec<(u8, usize)> = Vec::with_capacity(vars.len());
+        for (&v, name) in vars.iter().zip(&names) {
+            let shape = shapes
+                .entry((eq, name.clone()))
+                .or_insert_with(|| solve_shape(lhs, rhs, name));
+            let others: Vec<String> = names.iter().filter(|n| *n != name).cloned().collect();
+            ranked.push((solve_cost(shape, &others), v));
+        }
         ranked.sort_by_key(|(cost, _)| *cost);
         *vars = ranked.into_iter().map(|(_, v)| v).collect();
     }
@@ -779,6 +818,13 @@ fn reduce_index(
     // equation mentions it - so a remembered refusal costs no more
     // than a remembered answer.
     let mut solved_for: HashMap<(usize, String), Option<Expr>> = HashMap::new();
+    // The same bracket serves the matching's rank, whose dear half -
+    // differentiating the equation and folding the slope - depends on
+    // the equation and the name and on nothing else. Which of the
+    // slope's names are unknowns of the block does move between
+    // reductions, so that half is asked afresh each time and only the
+    // shape is remembered.
+    let mut solve_shapes: HashMap<(usize, String), SolveShape> = HashMap::new();
     let (matched_eq, eq_vars, n_alg) = loop {
         let var_index: HashMap<&str, usize> = unknowns
             .iter()
@@ -807,7 +853,7 @@ fn reduce_index(
         // and makes the run divide by another unknown of the block.
         let mut eq_vars = eq_vars;
         if match_order_enabled() {
-            order_by_solve_cost(&mut eq_vars, &algebraic_eqs, &unknowns);
+            order_by_solve_cost(&mut eq_vars, &algebraic_eqs, &unknowns, &mut solve_shapes);
         }
         let eq_vars = eq_vars;
 
