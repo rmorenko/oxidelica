@@ -6410,7 +6410,7 @@ The cause is the one the morning's fix had already named, met again
 one function further along. `solve_cost` answered two questions in one
 breath: the shape of the equation in the name, which is a
 differentiation and a fold, and whether the slope mentions another
-unknown *of this block*, which is a membership test. Only the second
+unknown _of this block_, which is a membership test. Only the second
 moves between reductions, as states are demoted and the unknown set
 shrinks. Answered together, the first was paid again at every
 reduction for an answer that could not have changed.
@@ -6452,7 +6452,7 @@ end M;
 
 `w` is a component, not a package. Every reading of a dotted name in
 `lookup_at` - the leading dot, the named imports, the walk out of the
-enclosing packages, the aliases, the wildcards - looks for a *class*
+enclosing packages, the aliases, the wildcards - looks for a _class_
 called `w`, and there is none. The name fell through unresolved and
 reached the run as a call nothing could place. Modelica reaches class
 members through an instance, and nothing in the compiler did.
@@ -6484,9 +6484,9 @@ are mapped, both reproduced small:
    parameters.** `function accel = Scaled(c = k);` where `k` is a
    parameter of the component gives `unknown variable k`. This is the
    link the MultiBody family actually needs: `gravityAcceleration =
-   standardGravityAcceleration(gravityType = gravityType, g = g*...)`
+standardGravityAcceleration(gravityType = gravityType, g = g*...)`
    names three parameters of `world`. The modifiers are remembered by
-   `remember_filled_inputs` under the resolved *class* name, a table
+   `remember_filled_inputs` under the resolved _class_ name, a table
    with nowhere to put an instance path, so a value naming the
    holder's parameter arrives at the call without the prefix that
    would make it a name of the flat model.
