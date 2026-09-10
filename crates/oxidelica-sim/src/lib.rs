@@ -27,7 +27,7 @@ mod symbolic;
 mod tests;
 mod walk;
 
-pub use compile::compile;
+pub use compile::{compile, lower_the_ceiling_here, CeilingGuard};
 
 use code::*;
 use compile::*;

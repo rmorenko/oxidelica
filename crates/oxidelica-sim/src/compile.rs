@@ -462,10 +462,47 @@ const MAX_CONSTRAINT_NODES: usize = 2_000_000;
 /// cannot be written into a test; lowering the number lets a model of
 /// a dozen lines stand where they stand.
 fn max_constraint_nodes() -> usize {
+    if let Some(lowered) = lowered_ceiling() {
+        return lowered;
+    }
     std::env::var("OXIDELICA_MAX_CONSTRAINT_NODES")
         .ok()
         .and_then(|written| written.parse().ok())
         .unwrap_or(MAX_CONSTRAINT_NODES)
+}
+
+/// The ceiling lowered for this thread alone.
+///
+/// A test that lowers it through the environment lowers it for every
+/// test compiling beside it, because the environment belongs to the
+/// binary and the tests share one. A mutex around the setting does not
+/// help: the readers are the other tests, which hold no lock and are
+/// entitled to the real ceiling. This was a genuine race - it went
+/// unseen only because the model it struck took two minutes to reach
+/// the read, and it surfaced the moment that model got faster.
+pub(crate) fn lowered_ceiling() -> Option<usize> {
+    CEILING_HERE.with(|c| c.get())
+}
+
+thread_local! {
+    static CEILING_HERE: std::cell::Cell<Option<usize>> =
+        const { std::cell::Cell::new(None) };
+}
+
+/// Lower the constraint ceiling for this thread, for a test that means
+/// to see the guard fire. Undone by dropping the returned guard.
+pub fn lower_the_ceiling_here(nodes: usize) -> CeilingGuard {
+    CEILING_HERE.with(|c| c.set(Some(nodes)));
+    CeilingGuard(())
+}
+
+/// Puts the constraint ceiling back where it was.
+pub struct CeilingGuard(());
+
+impl Drop for CeilingGuard {
+    fn drop(&mut self) {
+        CEILING_HERE.with(|c| c.set(None));
+    }
 }
 
 /// What index reduction leaves behind: the system as it stands, and
@@ -643,6 +680,21 @@ fn reduce_index(
     // offered to the fixpoint, which sees only `der(a) = der(b)` pairs
     // and settles neither.
     let mut minted_defs: HashMap<String, Expr> = HashMap::new();
+    // What each equation solves for, worked once. Rearranging an
+    // equation for a name is the dearest thing in this loop - it
+    // differentiates the equation and folds the result three times -
+    // and it is asked afresh at every reduction for every equation
+    // and every name in it, though the answer cannot have changed:
+    // the list of equations is only ever appended to here, so the
+    // pair at a given index is the pair that was there before.
+    //
+    // That is the bracket the table needs, and it is what keeps the
+    // key small: inside one call the equation is held still by its
+    // index, so what is left to name is the index and the variable.
+    // Both halves are bounded - a name is asked for only where the
+    // equation mentions it - so a remembered refusal costs no more
+    // than a remembered answer.
+    let mut solved_for: HashMap<(usize, String), Option<Expr>> = HashMap::new();
     let (matched_eq, eq_vars, n_alg) = loop {
         let var_index: HashMap<&str, usize> = unknowns
             .iter()
@@ -708,15 +760,21 @@ fn reduce_index(
                 if !unknowns.iter().any(|u| u == name) {
                     continue;
                 }
-                if let Some(solved) = solve_linear_for(l, r, name) {
-                    // Solved out of a connection equation, an
-                    // equality arrives wrapped in the signs it was
-                    // moved across and the coefficient it was
-                    // divided by: `-p.i + r.p.i = 0` gives
-                    // `-(-r.n.i)/-1`. Folded here, what is a plain
-                    // name is written as one, and everything after
-                    // this reads the shape rather than the wrapping.
-                    candidates.push((name.to_string(), simplify(&solved)));
+                let answer = solved_for
+                    .entry((index, name.to_string()))
+                    .or_insert_with(|| {
+                        // Solved out of a connection equation, an
+                        // equality arrives wrapped in the signs it
+                        // was moved across and the coefficient it
+                        // was divided by: `-p.i + r.p.i = 0` gives
+                        // `-(-r.n.i)/-1`. Folded here, what is a
+                        // plain name is written as one, and
+                        // everything after this reads the shape
+                        // rather than the wrapping.
+                        solve_linear_for(l, r, name).map(|solved| simplify(&solved))
+                    });
+                if let Some(solved) = answer {
+                    candidates.push((name.to_string(), solved.clone()));
                 }
             }
         }

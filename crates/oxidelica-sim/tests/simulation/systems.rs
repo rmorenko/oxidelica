@@ -2,7 +2,7 @@
 
 use super::shared::*;
 use oxidelica_parser::parse_model;
-use oxidelica_sim::{compile, SolverMethod};
+use oxidelica_sim::{compile, lower_the_ceiling_here, SolverMethod};
 
 #[test]
 fn algebraic_chain_is_ordered() {
@@ -356,18 +356,16 @@ fn a_constraint_that_grows_past_the_ceiling_names_its_model() {
          equation der(x) = v; der(v) = f; y = x*x + 1; y = 2; end N;",
     )
     .unwrap();
+    // The ceiling is lowered for this thread alone, because the
+    // environment belongs to the whole test binary: lowering it there
+    // lowered it for whatever test happened to be compiling beside
+    // this one, and one of them refused a model it should have run.
     let error = {
-        let _guard = LOWERED_CEILING.lock().unwrap_or_else(|e| e.into_inner());
-        std::env::set_var("OXIDELICA_MAX_CONSTRAINT_NODES", "1");
-        let error = compile(&model).unwrap_err();
-        std::env::remove_var("OXIDELICA_MAX_CONSTRAINT_NODES");
-        error
+        let _guard = lower_the_ceiling_here(1);
+        compile(&model).unwrap_err()
     };
     assert!(error.0.contains("grew to"), "{}", error.0);
     assert!(error.0.contains("at reduction 1"), "{}", error.0);
     assert!(error.0.contains(r#"Ref("y") = Number(2.0)"#), "{}", error.0);
 }
 
-/// Held while the constraint ceiling is lowered, since the environment
-/// belongs to the whole test binary and not to one test.
-static LOWERED_CEILING: std::sync::Mutex<()> = std::sync::Mutex::new(());
