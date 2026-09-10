@@ -6173,3 +6173,77 @@ must divide, whether the coefficient can be checked against zero at
 the values the block starts from rather than after the infinity has
 propagated. That is a question about the matching and about symbolic
 division, and by the standing arrangement it is not decided here.
+
+## The matching may prefer to multiply, and what that uncovered
+
+The question the last shift left open - whether the matching may
+prefer, among the unknowns an equation could be given, one whose
+solution multiplies over one whose solution divides - is now measured
+rather than argued.
+
+The smallest model with the shape is twelve lines and refuses in one
+second:
+
+```modelica
+model Inv
+  Real c; Real a; Real b;
+equation
+  c = time;
+  a = b * c;
+  b = 1 - a;
+end Inv;
+```
+
+`a = b * c` mentions both `a` and `b`, and the matching was
+indifferent between them: it walked `eq_vars` in the order the names
+were collected and took the first that a path was free to. Given to
+`b` the assignment is `-a / -c`, and `c` is zero at `t = 0`, so the
+block's first residual is a NaN before Newton has taken a step. Given
+to `a` it is a multiplication that cannot fail.
+
+The preference is a rank over each equation's unknowns, cheapest
+first: nought where the unknown stands alone on one side, one where
+the slope names no other unknown of the block, two where solving
+divides by something that moves under Newton. It is only a
+preference - an augmenting path may still overrule it - which is why
+the rank was measured rather than believed.
+
+Measured from one binary with `OXIDELICA_NO_MATCH_ORDER`, the corpus
+goes from 820 flattened and 390 run to 820 and 392, and the runnable
+pair from 722/385 to 722/387. Two models won, no victims: the diff of
+the run lists is `Modelica.Electrical.Analog.Examples.HeatingRectifier`
+and `Modelica.Thermal.FluidHeatFlow.Examples.SimpleCooling`, and
+nothing appears on the other side.
+
+The two models the last shift named are not among them, and that is
+worth saying plainly rather than letting the count imply otherwise.
+`HeatingMOSInverter` still refuses, and the probe says why: its
+`-inf` comes from `beta_t = Beta * (T_heatPort/Tnom)^(-1.5)` with
+`T_heatPort` at zero, which is a start missing rather than a direction
+chosen. `IMC_DOL` still refuses too, its NaN entering through
+`RotationMatrix[1,1]`. So the wall named in the last census was two
+walls wearing one wording, and only one of them was the matching's.
+
+### What the change uncovered, which is the larger finding
+
+The rank turned a test red at once, and the red test was worth more
+than the change: `x = y + 1` beside `y = x - 1` is the same equation
+twice, and with the equations matched the other way round the
+compiler ran it and printed an answer that is an artefact of the
+initial guess.
+
+The regularity check had been asking the wrong question. It builds
+the block's Jacobian by finite differences and hands it to
+`solve_linear`, which declines only when a pivot falls below 1e-14.
+A column that cancels exactly in exact arithmetic does not come back
+as zero from a finite difference: it comes back as noise of order
+1e-8, nine orders above that floor, and reads as a live coefficient.
+Which of the two readings of a degenerate loop was reached decided
+whether the compiler refused it or guessed at it, and that is the
+worst thing this compiler can do.
+
+So the check now asks for the smallest pivot and judges it against
+the Jacobian's own scale rather than against the floating-point
+format. That is a question about the block - is there a direction the
+residual barely moves along, compared with the rest of the block -
+where the old one was a question about `f64`.

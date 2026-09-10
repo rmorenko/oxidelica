@@ -271,6 +271,28 @@ fn the_banded_solver_agrees_with_the_dense_one() {
     assert!(solve_banded(&mut hollow, 1, &[1.0, 1.0]).is_none());
 }
 
+#[test]
+fn the_smallest_pivot_sees_what_an_absolute_floor_misses() {
+    // The matrix a duplicated equation leaves once finite differences
+    // have been over it: the second row is the first, give or take the
+    // noise of a subtraction. `solve_linear` inverts it happily - its
+    // floor is 1e-14 and the noise is far above that - and the
+    // smallest pivot is what says the block is undetermined all the
+    // same, being nine orders below the matrix's own scale.
+    let mut near = vec![vec![1.0, -1.0], vec![1.0 + 6e-9, -1.0]];
+    assert!(solve_linear(&mut near.clone(), &[1.0, 1.0]).is_some());
+    let pivot = smallest_pivot(&mut near);
+    assert!(pivot < 1e-7, "pivot = {pivot}");
+
+    // A matrix that is honestly regular keeps a pivot of its own size.
+    let mut regular = vec![vec![2.0, 1.0], vec![1.0, 3.0]];
+    assert!(smallest_pivot(&mut regular) > 0.1);
+
+    // And an exactly singular one has none at all.
+    let mut singular = vec![vec![1.0, 2.0], vec![2.0, 4.0]];
+    assert_eq!(smallest_pivot(&mut singular), 0.0);
+}
+
 /// The shapes a connection equation leaves behind. Solving `-p.i +
 /// r.p.i = 0` for one of its currents gives `-(-r.n.i)/-1`: the signs
 /// it was moved across and the coefficient it was divided by are all

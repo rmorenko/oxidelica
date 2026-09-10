@@ -547,7 +547,23 @@ impl CompiledModel {
                         }
                     }
                     let probe = vec![1.0; n];
-                    if solve_linear(&mut jac, &probe).is_none() {
+                    // Judged against the Jacobian's own scale, not
+                    // against zero. The matrix here is built by finite
+                    // differences, and a column that cancels exactly in
+                    // exact arithmetic comes back as noise of order
+                    // 1e-8 rather than as a zero: `x = y + 1` beside
+                    // `y = x - 1` is the same equation twice, and its
+                    // Jacobian read absolutely looks invertible. What
+                    // makes a block underdetermined is a direction the
+                    // residual barely moves along *compared with the
+                    // rest of the block*, which is what this asks.
+                    let scale = jac
+                        .iter()
+                        .flat_map(|row| row.iter())
+                        .fold(0.0f64, |m, x| m.max(x.abs()));
+                    let singular = solve_linear(&mut jac.clone(), &probe).is_none()
+                        || smallest_pivot(&mut jac.clone()) <= 1e-7 * scale.max(1.0);
+                    if singular {
                         return err(format!(
                             "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
                             block_names()

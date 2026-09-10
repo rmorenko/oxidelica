@@ -135,6 +135,25 @@ fn tearing_shrinks_the_newton_system() {
 }
 
 #[test]
+fn a_product_equation_is_matched_where_it_multiplies() {
+    // The inverter's shape. `a = b * c` may be given to `a`, which
+    // multiplies, or to `b`, which divides by `c` - and `c` is zero at
+    // the start, so the second reading hands Newton a NaN residual
+    // before it has taken a step. The equation mentions both, and the
+    // matching used to take whichever came first.
+    let result = run("model P Real c; Real a; Real b; \
+         equation c = time; a = b * c; b = 1 - a; \
+         annotation(experiment(StopTime=0.2, Interval=0.1)); end P;");
+    let value = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    // a = c/(1 + c) at c = 0.2, and b = 1 - a.
+    assert!((value("a") - 0.2 / 1.2).abs() < 1e-9, "a = {}", value("a"));
+    assert!((value("b") - 1.0 / 1.2).abs() < 1e-9, "b = {}", value("b"));
+}
+
+#[test]
 fn index_reduction_reaches_states_through_algebraic_definitions() {
     // `u = 3` names no state, but `u = 2*x` ties it to one: x is
     // pinned at 1.5 and its velocity has to vanish.

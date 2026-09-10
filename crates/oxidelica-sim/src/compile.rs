@@ -607,6 +607,89 @@ fn unbalanced_because(algebraic_eqs: &[(Expr, Expr)], unknowns: &[String]) -> St
     )
 }
 
+/// Whether the matching may prefer an unknown it can solve for without
+/// dividing by another unknown.
+///
+/// Behind a switch so that one binary can produce both numbers: two
+/// counts are comparable only when the same build made them.
+/// On by default; `OXIDELICA_NO_MATCH_ORDER=1` gives the old order.
+fn match_order_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_MATCH_ORDER").is_none()
+}
+
+/// How dearly an equation is solved for one of its unknowns.
+///
+/// The matching is free to give an equation to any unknown it
+/// mentions, and the choice decides what the run divides by. `a = b*c`
+/// given to `a` is a multiplication; given to `b` it is `a/c`, and a
+/// `c` that is zero at the start turns the block's first residual into
+/// a NaN before Newton has taken a step. The rank is only a
+/// preference - an augmenting path may still overrule it, which is why
+/// this is measured rather than believed:
+///
+/// - 0: the unknown stands alone on one side, so the equation is read
+///   off with no arithmetic at all;
+/// - 1: linear in the unknown with a slope naming no other unknown of
+///   the block, so what is divided by cannot move under Newton;
+/// - 2: anything else, which is where the divisions by a live unknown
+///   live.
+fn solve_cost(lhs: &Expr, rhs: &Expr, name: &str, others: &[String]) -> u8 {
+    let mentions = |expr: &Expr| {
+        let mut refs = Vec::new();
+        expr.collect_refs(&mut refs);
+        refs.contains(&name)
+    };
+    if (matches!(lhs, Expr::Ref(n) if n == name) && !mentions(rhs))
+        || (matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs))
+    {
+        return 0;
+    }
+    let residual = Expr::Bin(
+        oxidelica_parser::BinOp::Sub,
+        Box::new(lhs.clone()),
+        Box::new(rhs.clone()),
+    );
+    let Ok(slope) = differentiate(&residual, &DiffTarget::Variable(name)) else {
+        return 2;
+    };
+    let slope = simplify(&slope);
+    let mut refs = Vec::new();
+    slope.collect_refs(&mut refs);
+    if refs.iter().any(|r| others.iter().any(|o| o == r)) {
+        2
+    } else {
+        1
+    }
+}
+
+/// Order each equation's unknowns by what solving for them costs.
+///
+/// Cheapest first, and ties left in the order they arrived so that a
+/// model with nothing to choose between is matched exactly as before.
+fn order_by_solve_cost(
+    eq_vars: &mut [Vec<usize>],
+    algebraic_eqs: &[(Expr, Expr)],
+    unknowns: &[String],
+) {
+    for (eq, vars) in eq_vars.iter_mut().enumerate() {
+        if vars.len() < 2 {
+            continue;
+        }
+        let (lhs, rhs) = &algebraic_eqs[eq];
+        let names: Vec<String> = vars.iter().map(|&v| unknowns[v].clone()).collect();
+        let mut ranked: Vec<(u8, usize)> = vars
+            .iter()
+            .zip(&names)
+            .map(|(&v, name)| {
+                let others: Vec<String> = names.iter().filter(|n| *n != name).cloned().collect();
+                (solve_cost(lhs, rhs, name, &others), v)
+            })
+            .collect();
+        ranked.sort_by_key(|(cost, _)| *cost);
+        *vars = ranked.into_iter().map(|(_, v)| v).collect();
+    }
+}
+
 // Augmenting-path maximum matching.
 fn try_match(
     eq: usize,
@@ -717,6 +800,16 @@ fn reduce_index(
                 vars
             })
             .collect();
+
+        // Cheapest-to-solve unknown first. The matching is otherwise
+        // indifferent about which unknown an equation takes, and the
+        // indifference is what hands a product equation to a factor
+        // and makes the run divide by another unknown of the block.
+        let mut eq_vars = eq_vars;
+        if match_order_enabled() {
+            order_by_solve_cost(&mut eq_vars, &algebraic_eqs, &unknowns);
+        }
+        let eq_vars = eq_vars;
 
         let n_alg = unknowns.len();
         let mut matched_eq: Vec<Option<usize>> = vec![None; n_alg];

@@ -99,6 +99,45 @@ pub(crate) fn solve_banded(matrix: &mut [Vec<f64>], band: usize, rhs: &[f64]) ->
     Some(x)
 }
 
+/// The smallest pivot Gaussian elimination with partial pivoting meets
+/// on this matrix.
+///
+/// `solve_linear` answers only "did it come apart", against a floor of
+/// 1e-14, which is the right question for arithmetic that is exact but
+/// the wrong one for a Jacobian built by finite differences: there, a
+/// column that ought to cancel comes back as noise near 1e-8 and reads
+/// as a live coefficient. The caller compares this against the
+/// matrix's own scale, which is a question about the block rather than
+/// about the floating-point format.
+pub(crate) fn smallest_pivot(a: &mut [Vec<f64>]) -> f64 {
+    let n = a.len();
+    let mut smallest = f64::INFINITY;
+    for col in 0..n {
+        let Some(pivot_row) = (col..n).max_by(|&r1, &r2| {
+            a[r1][col]
+                .abs()
+                .partial_cmp(&a[r2][col].abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            return 0.0;
+        };
+        let pivot = a[pivot_row][col].abs();
+        smallest = smallest.min(pivot);
+        if pivot == 0.0 {
+            return 0.0;
+        }
+        a.swap(col, pivot_row);
+        for row in (col + 1)..n {
+            let factor = a[row][col] / a[col][col];
+            let (upper, lower) = a.split_at_mut(row);
+            for (k, value) in lower[0].iter_mut().enumerate().take(n).skip(col) {
+                *value -= factor * upper[col][k];
+            }
+        }
+    }
+    smallest
+}
+
 pub(crate) fn solve_linear(a: &mut [Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
     let n = b.len();
     let mut x = b.to_vec();
