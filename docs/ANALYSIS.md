@@ -5918,3 +5918,41 @@ went unseen because the model it struck took two minutes to reach the
 read; it surfaced the moment that model became fast. The ceiling is
 now lowered for one thread, as the shared-derivative switch already
 was.
+
+## What the shared-derivative rule costs, model by model
+
+The rule that gives the derivative of a definition a name of its own
+is parked behind `OXIDELICA_SHARED_DERIVATIVES`, and the reason is
+that it buys two models and sells five. The five were probed one at a
+time against the root of the corpus, and the wall each of them stops
+at is worth naming, because they are not one family:
+
+- `DCMachines.DCPM_Start` and `DCMachines.DCPM_withLosses` stop at
+  `der(der(dcpm.inertiaRotor.flange_b.phi)) - der(der(dcpm.flange.phi))
+= 0`, a constraint that pins no state. The two derivatives are a
+  rigid connection differentiated twice, and with the definition
+  behind a name the reduction can no longer see through it to the
+  state either side stands for.
+- `Transformers.TransformerTestbench` stops at
+  `transformer.starpoint2.i = 0`, the same kind of thing one storey
+  lower: a current pinned to zero, constraining no state.
+- `Translational.Examples.Brake` stops in an algebraic loop over
+  `brake.a` and `brake1.flange_a.f` that the tearing cannot plan.
+  Inlining a definition is also what flattens a loop, so keeping the
+  name is what builds this one.
+- `ModelicaTest.Translational.TestFrictionPosition` stops with a loop
+  whose residual is infinite before the first Newton step, every value
+  in the block starting at minus infinity.
+
+`TransformerTestbench` is worth reading twice: the minting change of
+the previous shift bought it, and this rule sells it. Two rules
+interfering over one model, which is the clearest possible statement
+that these are two compilers rather than one compiler and a fix.
+
+Two notes on the probing itself. The rotational namesake of the
+friction model is not a victim - `ModelicaTest.Rotational.TestFrictionPosition`
+runs with the rule on, and only the translational one falls, so a
+victim named by its tail is as much of a guess here as anywhere else.
+And the probe has to be pointed at the root of the corpus: `--only`
+against a subtree answers `unknown base class`, which reads exactly
+like a refusal caused by the change under test and is not one.
