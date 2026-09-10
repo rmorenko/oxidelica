@@ -945,7 +945,11 @@ fn reduce_index(
         let mut matched_defs: HashMap<String, (Expr, Expr)> = HashMap::new();
         if !needed.is_empty() {
             let mut matched_eq = matched_eq.clone();
-            for other in 0..algebraic_eqs.len() {
+            // Only the equations the matching was built over. The
+            // minting above pushed equations of its own onto
+            // `algebraic_eqs`, and those have no row in `eq_vars`:
+            // each defines a name outright and so needs no matching.
+            for other in 0..eq_vars.len() {
                 if other == eq || matched_eq.contains(&Some(other)) {
                     continue;
                 }
