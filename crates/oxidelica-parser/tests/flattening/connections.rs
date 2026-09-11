@@ -1780,3 +1780,54 @@ fn a_potential_read_by_hand_does_not_withhold_the_ports_zero_flow() {
         .count();
     assert_eq!(zeros, 1, "the flow the model states was stated twice");
 }
+
+/// A `connect` between two connectors that carry an overconstrained
+/// record is an edge of the graph of 9.4 rather than an equality, and
+/// what the edge comes to is decided by a spanning tree: a connection
+/// whose two sides the written branches already tie together closes a
+/// loop and owes the record's `equalityConstraint` instead - a residue
+/// of no elements for the quasi-static reference angle, which is to
+/// say no equation at all. Written as a blanket equality, the ring of
+/// a source and a load is one equation more than the model has
+/// unknowns and the whole thing is refused as unbalanced.
+#[test]
+fn a_connection_closing_a_ring_of_the_graph_owes_no_equality() {
+    const RING: &str = "\
+        record Reference Real gamma; \
+          function equalityConstraint input Reference reference1; \
+            input Reference reference2; output Real residue[0]; \
+            algorithm end equalityConstraint; \
+        end Reference; \
+        connector Pin Real v; flow Real i; Reference reference; end Pin; \
+        model Source Pin pin_p; Pin pin_n; Real gamma(start = 0) = pin_p.reference.gamma; \
+        equation Connections.root(pin_p.reference); \
+          Connections.branch(pin_p.reference, pin_n.reference); \
+          pin_p.reference.gamma = pin_n.reference.gamma; \
+          pin_p.v - pin_n.v = 1; pin_p.i + pin_n.i = 0; der(gamma) = 2; end Source; \
+        model Load Pin pin_p; Pin pin_n; \
+        equation Connections.branch(pin_p.reference, pin_n.reference); \
+          pin_p.reference.gamma = pin_n.reference.gamma; \
+          pin_p.v - pin_n.v = pin_p.i; pin_p.i + pin_n.i = 0; end Load;";
+
+    let m = parse_model(&format!(
+        "{RING} model M Source source; Load load; \
+         equation connect(source.pin_p, load.pin_p); \
+           connect(load.pin_n, source.pin_n); end M;"
+    ))
+    .unwrap();
+    // The ring has two connections and the graph two parts, so exactly
+    // one of the two carries the angle and the other closes the loop.
+    let angles = m
+        .equations
+        .iter()
+        .filter(|e| {
+            format!("{:?}{:?}", e.lhs, e.rhs)
+                .matches("reference.gamma")
+                .count()
+                == 2
+        })
+        .count();
+    // One from the source, one from the load, one from the connection
+    // that is an edge of the tree - and none from the one that closes.
+    assert_eq!(angles, 3, "{:?}", m.equations);
+}

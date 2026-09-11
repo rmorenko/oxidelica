@@ -571,12 +571,48 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
             // members of a boundary port are boundary ports too, one
             // per phase, and cutting the join open must not lose
             // which side of the class each end was written from.
-            false => joined.extend(inside_a.into_iter().map(|member| {
-                (
-                    (format!("{a}.{member}"), *out_a),
-                    (format!("{b}.{member}"), *out_b),
-                )
-            })),
+            // And a port of ports may hold more than ports: a
+            // quasi-static plug carries a pin per phase *and* a
+            // reference angle, so cutting the join into the pins
+            // alone drops the angle on the floor. The outer pair is
+            // joined as well, and the equality loop below passes over
+            // the members their own pairs already speak for.
+            false => {
+                joined.extend(inside_a.iter().map(|member| {
+                    (
+                        (format!("{a}.{member}"), *out_a),
+                        (format!("{b}.{member}"), *out_b),
+                    )
+                }));
+                // Only where the port carries something that is not
+                // a port itself. An expandable bus holds nothing but
+                // signals, and every one of those is a connector
+                // joined in a set of its own: joining the pair of
+                // buses as well would state each of them twice - and
+                // whether a bus member is a connector is known only
+                // after the bus has been filled, so the expandable
+                // ones are read off the class rather than guessed at.
+                // A quasi-static plug holds a reference angle beside
+                // its pins, and that angle is what the outer pair is
+                // joined for.
+                let a_bus = registry
+                    .get(acc.connectors[a.as_str()].as_str())
+                    .is_some_and(|class| class.expandable);
+                let carries_more = !a_bus
+                    && registry
+                        .get(acc.connectors[a.as_str()].as_str())
+                        .is_some_and(|class| {
+                            connections::connector_members(registry, class)
+                                .iter()
+                                .any(|held| {
+                                    let named = held.name.split('.').next().unwrap_or(&held.name);
+                                    !inside_b.contains(&named)
+                                })
+                        });
+                if carries_more {
+                    joined.push(((a.clone(), *out_a), (b.clone(), *out_b)));
+                }
+            }
         }
     }
     // A member of a connection set is a connector together with the
@@ -757,6 +793,46 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         })
         .collect();
     sets.sort();
+    // The parts the written branches tie together, which is what tells
+    // a loop-closing connection of the overconstrained graph from an
+    // ordinary one. Drawn once: it is the same graph for every set.
+    let branch_parts = connections::branch_parts(&acc.connection_graph);
+    // Every node of the overconstrained graph, branches and roots
+    // alike: a ground declares its reference a root and ties nothing
+    // to it, and a member of that record is still an edge rather than
+    // an equality.
+    let graph_nodes: HashSet<&str> = acc
+        .connection_graph
+        .iter()
+        .flat_map(|clause| match clause {
+            GraphClause::Root(node) | GraphClause::PotentialRoot(node, _) => {
+                vec![node.as_str()]
+            }
+            GraphClause::Branch(a, b) => vec![a.as_str(), b.as_str()],
+        })
+        .collect();
+    let in_the_graph = |node: &str| graph_nodes.contains(node);
+    // And the tree drawn over those parts as the sets are walked. One
+    // graph spans every set - a plug's angle travels through the
+    // connections of the whole model - so what has already been tied
+    // together carries from one set to the next, and a tree kept per
+    // set would call the second ring of a model a first.
+    let mut tied: HashMap<usize, usize> = HashMap::new();
+    // Parts minted for graph nodes no branch names, kept across the
+    // sets: a ground's reference must be the same part wherever it is
+    // met, or the tree loses track of what it has already tied.
+    let mut lone: HashMap<String, usize> = HashMap::new();
+    let mut next_part = branch_parts.values().copied().max().map_or(0, |n| n + 1);
+    fn tie_root(tied: &mut HashMap<usize, usize>, part: usize) -> usize {
+        match tied.get(&part).copied() {
+            Some(up) if up != part => {
+                let found = tie_root(tied, up);
+                tied.insert(part, found);
+                found
+            }
+            _ => part,
+        }
+    }
     for members in sets.iter_mut() {
         // Connectors in one set must match in shape, not in name: a
         // signal output and a signal input are different classes with
@@ -834,6 +910,25 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         }
         for member_component in &held {
             let var = |path: &str| format!("{path}.{}", member_component.name);
+            // A member that is a connector in its own right is joined
+            // as a set of its own - the pins of a plug are joined pin
+            // to pin - and its equations are written there. Writing
+            // them here as well would state every one of them twice.
+            // A plug holds `pin[m]`, so the member is found as an
+            // element and never under the bare name: asking only for
+            // the name itself would write equations about a `pin` no
+            // component of the flat model is called.
+            let is_a_connector = |path: &str| {
+                let whole = var(path);
+                acc.connectors.contains_key(&whole)
+                    || acc
+                        .connectors
+                        .keys()
+                        .any(|known| known.starts_with(&format!("{whole}[")))
+            };
+            if members.iter().any(|(path, _)| is_a_connector(path)) {
+                continue;
+            }
             // A member that is a zero-length array is no variable at
             // all: a fluid port carries `Xi[nXi]`, the independent mass
             // fractions, and a single-substance medium has `nXi = 0`,
@@ -902,8 +997,96 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                     });
                 }
             } else if members.len() > 1 {
-                // Potential equalities against the first member.
+                // Potential equalities against the first member -
+                // except where the member belongs to the
+                // overconstrained graph of 9.4, where a connection is
+                // an edge rather than an equality. There the set is
+                // joined as a spanning tree: the branches the
+                // components wrote are already drawn, and each of
+                // those carries the equation its own component
+                // states, so a pair whose two sides a branch already
+                // ties together closes a loop. A loop-closing
+                // connection owes the record's `equalityConstraint`,
+                // which for the reference angle is a residue of no
+                // elements - no equation at all.
+                // A node of the graph that no branch names - a ground
+                // declaring the reference and tying nothing to it - is
+                // a part on its own rather than absent: left out, the
+                // set it stands in draws no tree at all and writes
+                // every equality it has.
+                let node_of = |path: &str, lone: &mut HashMap<String, usize>, next: &mut usize| {
+                    let whole = var(path);
+                    // The graph is drawn over the record, and the
+                    // member may be a field of it: the node is
+                    // `plug.reference` where the member is
+                    // `reference.gamma`.
+                    let node = match whole.rsplit_once('.') {
+                        Some((node, _)) if in_the_graph(node) => node.to_string(),
+                        _ if in_the_graph(&whole) => whole,
+                        _ => return None,
+                    };
+                    Some(match branch_parts.get(&node) {
+                        Some(part) => *part,
+                        None => *lone.entry(node).or_insert_with(|| {
+                            let part = *next;
+                            *next += 1;
+                            part
+                        }),
+                    })
+                };
+                // Every member of a set is joined to every other,
+                // so the set is walked in order and each in-graph
+                // member is tied to the tree the ones before it built.
+                // A member whose part is tied there already is the one
+                // that closes the loop, and its equality is what the
+                // record's `equalityConstraint` replaces - a residue of
+                // no elements, for the reference angle.
+                // And only where the record's constraint is empty:
+                // three residues of a multibody orientation are three
+                // equations this compiler does not write yet, and
+                // dropping the equalities there takes equations away
+                // and puts none back.
+                let empty_constraint =
+                    connections::constraint_is_empty(registry, class, &member_component.name);
+                let carries = |path: &str,
+                               lone: &mut HashMap<String, usize>,
+                               next: &mut usize,
+                               tied: &mut HashMap<usize, usize>,
+                               tree: &mut Option<usize>|
+                 -> bool {
+                    if !empty_constraint {
+                        return true;
+                    }
+                    let Some(part) = node_of(path, lone, next) else {
+                        return true;
+                    };
+                    match *tree {
+                        None => {
+                            *tree = Some(part);
+                            true
+                        }
+                        Some(so_far) => {
+                            let (ra, rb) = (tie_root(tied, so_far), tie_root(tied, part));
+                            if ra == rb {
+                                return false;
+                            }
+                            tied.insert(ra, rb);
+                            true
+                        }
+                    }
+                };
+                let mut tree = None;
+                carries(
+                    members[0].0,
+                    &mut lone,
+                    &mut next_part,
+                    &mut tied,
+                    &mut tree,
+                );
                 for (other, _) in &members[1..] {
+                    if !carries(other, &mut lone, &mut next_part, &mut tied, &mut tree) {
+                        continue;
+                    }
                     acc.equations.push(EquationItem {
                         lhs: Expr::Ref(var(other)),
                         rhs: Expr::Ref(var(members[0].0)),

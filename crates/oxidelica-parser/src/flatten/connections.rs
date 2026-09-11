@@ -565,6 +565,75 @@ fn graph_nodes_and_edges(
 /// nearer the root than its other end, which is a question about depth
 /// rather than about being a root. A node the walk never reaches keeps
 /// no depth, and asking `rooted` of it is refused rather than guessed.
+/// Which part of the overconstrained graph each node sits in once the
+/// written branches, and only those, have been drawn.
+///
+/// Section 9.4 makes a `connect` of two connectors holding an
+/// overconstrained record an edge of a graph rather than an equality,
+/// and what the edge comes to is decided by a spanning tree. A written
+/// `branch` is an edge of the tree by force - and one the component
+/// writes the equation for itself: `PlugToPin_p` says
+/// `plug_p.reference.gamma = pin_p.reference.gamma` in its own
+/// equation section. So two nodes a branch already ties together are
+/// spoken for before a single connection is looked at, and a
+/// connection joining two nodes of one such part closes a loop: it
+/// owes the record's `equalityConstraint` rather than an equality,
+/// and for the quasi-static reference angle that constraint is a
+/// residue of no elements at all - no equation.
+///
+/// What comes back is a part number per node. The connection sets are
+/// where the rest of the tree is drawn, so that is where the numbers
+/// are used: a set joins its members in order and writes an equality
+/// only where the two sides are in different parts.
+pub(super) fn branch_parts(clauses: &[GraphClause]) -> HashMap<String, usize> {
+    let mut nodes: Vec<&str> = Vec::new();
+    for clause in clauses {
+        if let GraphClause::Branch(a, b) = clause {
+            for end in [a, b] {
+                if !nodes.contains(&end.as_str()) {
+                    nodes.push(end);
+                }
+            }
+        }
+    }
+    let mut parent: Vec<usize> = (0..nodes.len()).collect();
+    fn root_of(parent: &mut Vec<usize>, index: usize) -> usize {
+        if parent[index] != index {
+            let found = root_of(parent, parent[index]);
+            parent[index] = found;
+        }
+        parent[index]
+    }
+    let at = |name: &str, nodes: &[&str]| {
+        nodes
+            .iter()
+            .position(|known| *known == name)
+            .expect("a branch's ends are nodes")
+    };
+    for clause in clauses {
+        if let GraphClause::Branch(a, b) = clause {
+            let (ia, ib) = (at(a, &nodes), at(b, &nodes));
+            let (ra, rb) = (root_of(&mut parent, ia), root_of(&mut parent, ib));
+            if ra != rb {
+                parent[ra] = rb;
+            }
+        }
+    }
+    (0..nodes.len())
+        .map(|index| {
+            let part = root_of(&mut parent, index);
+            (nodes[index].to_string(), part)
+        })
+        .collect()
+}
+
+/// How deep each node sits below the root of its part, measured by a
+/// breadth-first walk from the chosen roots along the same edges.
+///
+/// `Connections.rooted(a)` asks whether `a` is the end of a branch
+/// nearer the root than its other end, which is a question about depth
+/// rather than about being a root. A node the walk never reaches keeps
+/// no depth, and asking `rooted` of it is refused rather than guessed.
 fn graph_depths(
     clauses: &[GraphClause],
     connects: &[(String, bool, String, bool)],
@@ -869,4 +938,73 @@ pub(super) fn answer_graph_queries(
         // do.
         _ => expr.map_children(&mut |child| recur(child)),
     }
+}
+
+/// Whether the record a graph node names replaces a loop-closing
+/// connection with nothing at all.
+///
+/// A connection closing a loop owes `equalityConstraint(r1, r2)` in
+/// place of the equality, and how many equations that is is the length
+/// of the residue the function returns. The quasi-static reference
+/// angle returns `Real residue[0]` - no equations, so the connection
+/// simply goes. A multibody `Orientation` returns `residue[3]`, which
+/// is three equations this compiler does not yet write: dropping the
+/// equalities there would take equations away and put none back, and a
+/// model short of equations is refused. So the tree is drawn only
+/// where the residue is empty, and a record with a residue of its own
+/// keeps the equalities it had until the constraint is written out.
+pub(super) fn constraint_is_empty(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    member: &str,
+) -> bool {
+    // The member is a field path inside the connector -
+    // `reference.gamma` - and the record is what the first part names.
+    let Some(record) = member.split('.').next() else {
+        return false;
+    };
+    let held = connector_members(registry, class);
+    let Some(component) = held
+        .iter()
+        .find(|c| c.name.starts_with(&format!("{record}.")))
+    else {
+        return false;
+    };
+    // The declaration of the record itself, taken from the connector's
+    // own text rather than from the spread fields.
+    let of_record = |class: &ClassDef| -> Option<String> {
+        class
+            .components
+            .iter()
+            .find(|c| c.name == record)
+            .map(|c| c.type_name.clone())
+    };
+    let type_name = match of_record(class) {
+        Some(name) => name,
+        None => component.type_name.clone(),
+    };
+    let Some(record_class) = lookup(registry, &type_name, &class.name, &class.imports) else {
+        return false;
+    };
+    // The function is a class in its own right, registered under the
+    // record's qualified name: `...Types.Reference.equalityConstraint`.
+    let Some(constraint) = lookup(
+        registry,
+        &format!("{}.equalityConstraint", record_class.name),
+        &record_class.name,
+        &record_class.imports,
+    ) else {
+        return false;
+    };
+    // The residue is the function's output, and an output of no
+    // elements is what says the connection owes nothing.
+    constraint
+        .components
+        .iter()
+        .filter(|c| c.causality == Causality::Output)
+        .all(|c| {
+            c.dimensions
+                .iter()
+                .any(|d| matches!(d, Expr::Number(n) if *n == 0.0))
+        })
 }

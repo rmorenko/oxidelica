@@ -6867,7 +6867,7 @@ between two connectors that each hold connectors is cut open into
 pairs of the inner ones, because writing the equations against the
 outer pair would name something the flat model does not carry. That
 cut is right about the inner ports and wrong about everything else a
-port may hold beside them: a quasi-static plug carries `pin[m]` *and*
+port may hold beside them: a quasi-static plug carries `pin[m]` _and_
 a reference angle, and cutting the join into the pins alone dropped
 the angle on the floor. The repair is to join the outer pair as well
 and have the equality loop pass over members that are themselves
@@ -6890,7 +6890,7 @@ again by a different number.
 
 The reason is in the library rather than the compiler.
 `Polyphase.Basic.PlugToPin_p` is the component that fans a plug out to
-a pin, and its `Connections.branch` clauses are *commented out* in the
+a pin, and its `Connections.branch` clauses are _commented out_ in the
 standard library source, with the equality left standing outside them:
 
 ```modelica
@@ -6929,3 +6929,65 @@ next shift needs, in order:
 The small model that shows link one is thirty lines and lives in the
 shift notes rather than the tests, since committing a test for an
 uncommitted repair would be a test that does not fail.
+
+## The quasi-static reference angle: the chain taken whole
+
+The map of the previous shift had a wrong link in it, and the error is
+worth keeping: `PlugToPin_p` was read as having its `Connections.branch`
+commented out, and the architectural question was built on that reading.
+The branch is there, on the first line of the equation section; what is
+commented out are two `potentialRoot`s below it, and the file with the
+branch truly absent is `PlugToPins_p`, which is dead legacy. The rule
+that follows is cheap: read the whole file before quoting it, because
+`grep -n Connections` over one file costs a second and this cost a shift.
+
+With the branches present the chain has three links, and it was taken as
+one series.
+
+**Link one: a port of ports may hold more than ports.** A `connect`
+between two connectors that each hold connectors was cut open into pairs
+of the inner ones, which is right about the inner ports and silent about
+everything else the port holds: a quasi-static plug carries `pin[m]` and
+a reference angle, and the angle was dropped on the floor. The outer pair
+is now joined as well, and the equality loop passes over members that are
+themselves connectors, which their own pairs already speak for. On
+`EddyCurrentLosses` that took 2427 equations for 2485 unknowns to 2507 -
+the fifty-eight undetermined angles determined, and twenty-two too many.
+
+**Link two: a connection of the graph is an edge, not an equality.** By
+section 9.4 a connection between connectors carrying an overconstrained
+record contributes an edge, and a spanning tree decides what each edge
+comes to. The branches the components wrote are the tree's by right, and
+each carries the equation its own component states - `PlugToPin_p` writes
+`plug_p.reference.gamma = pin_p.reference.gamma` itself. So the sets are
+walked in order, each in-graph member tied to what the ones before it
+built, and a member already tied is the one closing the loop: its
+equality is what `equalityConstraint` replaces.
+
+**Link three: only where that constraint is empty.** For the reference
+angle the constraint returns `Real residue[0]` - no equations, so the
+connection simply goes. A multibody `Orientation` returns `residue[3]`,
+three equations this compiler does not yet write, and dropping the
+equalities there takes equations away and puts none back. Measured: with
+the rule ungated the corpus fell to 400 run from 405, and the five lost
+were all MultiBody. Gated on the residue's length they came back.
+
+**And a fourth that only the corpus could show.** Joining the outer pair
+is wrong for an expandable bus, whose members are all signals and all
+connectors in their own right: the pair of buses states every one of
+them a second time. Two `PathPlanning` models were lost that way and
+nothing smaller showed it - the fault needs a bus with a dozen members
+to appear at all. The outer pair is joined only where the port is not
+expandable and carries something that is not one of its own ports.
+
+The numbers of the whole chain, from one run of the script: 820 flatten
+and 405 run before, 820 flatten and **407 run** after, with the diff of
+the run lists showing no withdrawals at all and two additions,
+`FluxTubes.Examples.FixedShapes.CuboidSections` and `CylinderSections`.
+The floors move to 407 and 402 in the same commit.
+
+What did not come: `EddyCurrentLosses` itself, which was predicted to
+reach 2485 on 2485 and stands at 2505. Nineteen loop-closing connections
+are still being written as equalities somewhere the set walk does not
+see, and that is where the next attempt starts. The prediction is
+recorded as missed rather than adjusted.
