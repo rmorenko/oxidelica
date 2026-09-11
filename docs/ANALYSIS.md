@@ -6707,3 +6707,62 @@ not be evaluated to `underdetermined algebraic loop`, which is an
 honest statement about the enthalpy of a port nothing is flowing
 through. That is the next wall in that chapter, and it is a different
 question: what an initial equation should pin when the flow is zero.
+
+## A declaration a base already wrote, word for word
+
+The census of the run half, after the branched-slope change, ranked
+`unbalanced model` first at 137 once rows of the same meaning were
+added together. But the probe, not the counter, found the largest
+cluster that was actually one layer: twenty-four models of the
+quasi-static magnetic and electrical chapters, split by the counter
+across `unbalanced model` (11) and `two equations for der(...gamma)`
+(13) - one family wearing two wordings, which is exactly the blind
+spot the register is known to have.
+
+The smallest member of it, `EddyCurrentLosses`, showed the mechanism
+in one second. `TwoPortElementary` declares
+
+```modelica
+SI.AngularVelocity omega = der(port_p.reference.gamma);
+```
+
+and `EddyCurrent`, which extends it through `TwoPort`, declares the
+very same line again. We kept both. The language says an element
+inherited more than once is included once; two copies of a declaration
+with a binding are two equations for one derivative, and the model
+cannot be run at all.
+
+The smallest model that fails the same way is eleven lines:
+
+```modelica
+model Base
+  Real w = der(g);
+  Real g;
+end Base;
+
+model Dup
+  extends Base;
+  Real w = der(g);
+equation
+  g = 2.0 * time;
+end Dup;
+```
+
+The rule taken is narrow on purpose: a declaration is a repetition
+only when the base says the same thing in every respect the compiler
+can compare - the same type, the same variability, the same causality,
+the same dimensions, the same binding, and a binding actually present.
+A class that changes any of those is saying something, and what it
+says is not for this rule to swallow. A `redeclare` and a `replaceable`
+are both left alone for the same reason.
+
+**What it was worth: no model, and a family one storey up.** 820/405
+before and after, runnable 722/400 both ways, and the two run lists are
+identical line for line - no addition and no loss. The register is the
+only instrument that shows the work: `two equations for der` went from
+16 to 4 and `unknown variable` from 16 to 27, with `unbalanced` moving
+137 to 138. Twelve models travelled past the wall this change removed
+and stopped at the next one, which for the machine chapter is
+`unknown variable imcQS.vs[1]` and for `EddyCurrentLosses` is an
+unbalanced count. That is the next question in the chapter, and it is
+a different one.

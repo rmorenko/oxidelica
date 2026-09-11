@@ -2010,3 +2010,22 @@ fn a_coefficient_an_equation_settles_to_zero_is_not_divided_by() {
         at("x")
     );
 }
+
+/// A class may write a declaration its base already wrote, word for
+/// word, and the language says the element is included once. The
+/// quasi-static magnetic library does exactly this: `TwoPortElementary`
+/// declares `omega = der(port_p.reference.gamma)` and `EddyCurrent`,
+/// which extends it, declares the same line again. Taken as two
+/// elements the model has two equations for one derivative and is
+/// refused outright, which is what twenty-four models of the standard
+/// library met.
+#[test]
+fn a_declaration_repeated_from_a_base_is_one_element() {
+    let result = run("model Base Real w = der(g); Real g; end Base; \
+         model D extends Base; Real w = der(g); \
+         equation g = 2.0 * time; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end D;");
+    let last = result.rows.last().unwrap();
+    let w = last[1];
+    assert!((w - 2.0).abs() < 1e-9, "w={w}, expected 2");
+}

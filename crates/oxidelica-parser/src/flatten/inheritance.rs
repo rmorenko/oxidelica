@@ -348,3 +348,51 @@ pub(super) fn descends_from_external_object(
             .is_some_and(|base| descends_from_external_object(registry, base, depth + 1))
     })
 }
+
+/// Whether a base of this class declares `component` in the very same
+/// words the class writes itself.
+///
+/// The quasi-static magnetic library writes `SI.AngularVelocity omega =
+/// der(port_p.reference.gamma)` in `TwoPortElementary` and writes the
+/// same line again in `EddyCurrent`, which extends it. Two declarations
+/// of one name are one element, and the language says so: an element
+/// handed down more than once is included once. Kept whole - the same
+/// type, the same variability, the same binding - because a class that
+/// changes any of those is saying something, and what it says is not
+/// for this rule to swallow. Taken apart, the model has two equations
+/// for one derivative and cannot be run at all.
+pub(super) fn a_base_says_the_same(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    component: &Component,
+    depth: usize,
+) -> bool {
+    if depth > MAX_DEPTH {
+        return false;
+    }
+    for extend in &class.extends {
+        let base = match extend.from_base {
+            true => inherited_class(registry, class, &extend.base, 0),
+            false => lookup(registry, &extend.base, &class.name, &class.imports),
+        }
+        .filter(|found| found.name != class.name);
+        let Some(base) = base else {
+            continue;
+        };
+        let twin = base.components.iter().any(|held| {
+            held.name == component.name
+                && held.type_name == component.type_name
+                && held.variability == component.variability
+                && held.causality == component.causality
+                && held.dimensions == component.dimensions
+                && held.binding == component.binding
+                && held.binding.is_some()
+                && !held.replaceable
+                && !component.redeclaration
+        });
+        if twin || a_base_says_the_same(registry, base, component, depth + 1) {
+            return true;
+        }
+    }
+    false
+}

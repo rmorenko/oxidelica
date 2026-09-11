@@ -147,6 +147,16 @@ pub(super) fn instantiate_components(
             continue;
         }
 
+        // A base merged just now declared this very thing in the very
+        // same words, so the declaration here is a repetition and not a
+        // second element. Written out twice, its binding becomes two
+        // equations for one variable, which is a model that cannot run.
+        if std::env::var_os("OXIDELICA_NO_REPEATED_DECLARATION").is_none()
+            && a_base_says_the_same(registry, class, component, 0)
+        {
+            continue;
+        }
+
         // A selective `extends` broke this component: leave it out, and
         // mark it disabled so the connections to it fall away too.
         if component_broken(&component.name, &mut broke_something) {
