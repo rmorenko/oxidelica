@@ -950,9 +950,46 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                     .and_then(|of| registry.get(of.as_str()))
                     .is_some_and(|of| of.alias_causality == Causality::Output)
             };
+            // An `input` of the model itself states the set where
+            // nothing inside does: seen from inside, a value handed
+            // down from above is a source, and everything the block
+            // wired it to takes its value from there. Read the other
+            // way round the equality points inward, the top-level name
+            // is left with nothing writing it, and the model is refused
+            // as unbalanced - which is what a block asked for on its
+            // own rather than as a component of an example did.
+            //
+            // An `output` inside comes first all the same. A set
+            // holding one is already told what to carry, and a
+            // top-level input joined to it is being read rather than
+            // supplied - a source's signal handed out through the
+            // model's own port. Asked the other way round, the port
+            // took the value of its start and the source's equation
+            // had nothing left to determine.
+            //
+            // Which way the name is causal is asked of the name's own
+            // connector and never of the set's: a set joins an output
+            // to an input, so one class is picked to describe the set
+            // and it answers for the other member as well. Asked of
+            // the set, the `y` of a block whose `u` is a signal was
+            // read as an input and given a value of its own on top of
+            // the one the model computes.
+            //
+            // Only a name of the top level qualifies, which is a name
+            // with no dot in it. The same connector one layer down is a
+            // port of a component, and the class above owes it a value.
+            let handed_down = |path: &str| {
+                !path.contains('.')
+                    && acc
+                        .connectors
+                        .get(path)
+                        .and_then(|of| registry.get(of.as_str()))
+                        .is_some_and(|of| of.alias_causality == Causality::Input)
+            };
             let source = members
                 .iter()
                 .find(|(path, _)| states_it(path))
+                .or_else(|| members.iter().find(|(path, _)| handed_down(path)))
                 .unwrap_or(&members[0]);
             for other in members.iter() {
                 if other == source {
@@ -961,6 +998,41 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 acc.equations.push(EquationItem {
                     lhs: Expr::Ref(other.0.to_string()),
                     rhs: Expr::Ref(source.0.to_string()),
+                    origin: String::new(),
+                });
+            }
+            // The one name the set leaves standing is the source, and
+            // where the source is an `input` of the model itself,
+            // nothing anywhere writes it. A value supplied from above
+            // has no above at the top of the tree: the model was
+            // flattened as the whole of the run. The set is joined
+            // inward - a block hands its own `u` to the component
+            // doing the work - so it is not one of the sets nothing
+            // names, and the rule for those does not reach it. What it
+            // stands at is the same as there: its own declared start.
+            //
+            // Unless something in the set is written by name already.
+            // A signal the model states outright - a source's `y = 2 *
+            // time`, written by its own class rather than declared as
+            // an output - is what the whole set carries, and the port
+            // it reaches is reading that value rather than waiting on
+            // one. Given a start as well, the set has two definitions
+            // and one of them has nothing left to determine.
+            let written_inside = members
+                .iter()
+                .any(|(path, _)| stated_outright.contains(*path));
+            if handed_down(source.0) && !written_inside {
+                let declared = acc.components.iter().find(|c| c.name == *source.0);
+                let value = match declared.and_then(|c| c.start.clone()) {
+                    Some(start) => start,
+                    None => match declared.map(|c| c.type_name.as_str()) {
+                        Some("Boolean") => Expr::Bool(false),
+                        _ => Expr::Number(0.0),
+                    },
+                };
+                acc.equations.push(EquationItem {
+                    lhs: Expr::Ref(source.0.to_string()),
+                    rhs: value,
                     origin: String::new(),
                 });
             }

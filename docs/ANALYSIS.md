@@ -7172,3 +7172,76 @@ equations into every model with a port on a boundary, and no test in
 the tree asks that question - the diff of the run lists is the only
 instrument that names five diffuse losses, and it named them by
 model in one pass.
+
+## A block asked for on its own has no level above it
+
+The wall the machines stand at was taken the way the previous one was:
+by the smallest member of the family rather than the loudest. Of the
+thirty-two `unbalanced model` refusals from Machines and Magnetic,
+`ControlledDCDrives.Utilities.LimitedPI` is the smallest at 31
+equations for 33 unknowns, and `why` named what the census could not:
+
+```text
+in ...Utilities.LimitedPI, about `controlError`:
+  equation: controlError = u - u_m
+in ...Utilities.LimitedPI, about `integrator.u`:
+  equation: integrator.u = addAntiWindup.y
+```
+
+Both names the refusal called undetermined have equations of their
+own. Two equations were missing rather than two names unwritten, and
+the two are `u` and `u_m` - the block's own inputs. Twelve lines
+reproduce it:
+
+```modelica
+block Wrap
+  RealInput u; RealOutput y; Gain gain;
+equation
+  connect(u, gain.u);
+  connect(gain.y, y);
+end Wrap;
+```
+
+`u` is joined, so the rule of the previous shift - a connector no
+`connect` names anywhere - does not reach it. But it is joined
+_inward_: the block hands its own input to the component doing the
+work, and the equality was written pointing the wrong way, from the
+port into the model. Nothing then wrote the top-level name at all. A
+block asked for on its own is the whole of the run, and the level
+above that would have supplied the value is not there.
+
+So a top-level `input` states its set, before the ordering by
+causality that the set otherwise uses, and where the set has no other
+source it stands at its own declared start.
+
+Two guards were bought with red tests rather than reasoning, and each
+is a rule about which question is being asked of which name:
+
+- Causality is asked of the _name's own_ connector, never of the
+  set's. A set joins an output to an input, so one of the two classes
+  is picked to describe the set and would answer for the other member
+  as well: asked of the set, the `y` of a block whose `u` is a signal
+  was read as an input and given a value on top of the one the model
+  computes. `LimitedPI` came out at 34 equations for 33 unknowns.
+- An `output` inside the set comes first all the same. A set holding
+  one is already told what to carry, and a top-level input joined to
+  it is reading that value rather than waiting on one. So is a set
+  holding a name the model states outright - a source's `y = 2 *
+time`, written by its own class rather than declared as an output.
+  Either way the port must not also take its start, or the set has two
+  definitions and one of them has nothing left to determine.
+
+The corpus reads 2671 files, 820 flatten, and **445 run against 428**;
+runnable 722 flatten and 416 run, unmoved, since all seventeen
+additions are utility models rather than examples with an experiment.
+The diff of the run lists has no withdrawals. Beside `LimitedPI` the
+seventeen are the inverse-model utilities of four chapters at once -
+`DirectInertia` and `InverseInertia`, `DirectMass` and `InverseMass`,
+`InverseCapacitor` and `InverseInductor`, `DirectCapacity` and
+`Conduction` - which are written as blocks taking a signal in and are
+exactly the shape this rule describes. The run floor moves here.
+
+The machines themselves did not move, and that is the expected half:
+`TranslatoryArmatureAndStopper` and `SpeedControl` are still refused,
+one wall further along. The census entry loses this storey rather than
+the family.

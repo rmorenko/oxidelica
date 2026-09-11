@@ -431,3 +431,32 @@ fn an_unconnected_causal_connector_stands_at_its_start() {
     assert!(result.rows.len() > 1, "the model ran");
     assert_eq!(result.rows[0][y], 5.0, "y = 4 + 1");
 }
+
+#[test]
+fn an_input_of_the_model_itself_stands_at_its_start() {
+    // A block asked for on its own, rather than as a component of an
+    // example, is the whole of the run: its own `input` is a value
+    // handed down from a level above that is not there. The connection
+    // joining it inward was read the other way round, so the top-level
+    // name was left with nothing writing it and the whole block was
+    // refused as unbalanced - the wall `LimitedPI` of the controlled DC
+    // drives stood at, and three more machine utilities behind it.
+    let result = run("package P \
+           connector RealInput = input Real; \
+           connector RealOutput = output Real; \
+           block Gain RealInput u; RealOutput y; parameter Real k = 2; \
+           equation y = k*u; end Gain; \
+           block Wrap RealInput u(start = 3); RealOutput y; Gain gain; \
+           equation connect(u, gain.u); connect(gain.y, y); \
+             annotation(experiment(StopTime = 1)); end Wrap; \
+         end P;");
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows[0][index]
+    };
+    // The input stands at the start its declaration gave it, and the
+    // value travels through the component and out again.
+    assert_eq!(at("u"), 3.0);
+    assert_eq!(at("gain.y"), 6.0, "the gain of two over a start of three");
+    assert_eq!(at("y"), 6.0, "and out through the block's own output");
+}
