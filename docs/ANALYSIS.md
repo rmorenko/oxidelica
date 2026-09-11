@@ -6496,3 +6496,75 @@ The table is keyed by class, and what it needs to carry is per
 instance; that is the same invariant this repository states as
 "anything that survives flattening carries the flat model's names",
 seen from the side of a table that cannot carry them.
+
+### The chain walked to its end, and what it was worth
+
+The five links, taken as one series after the map was walked rather
+than one at a time:
+
+1. **The lookup**, `world.gravityAcceleration` read through the
+   component that holds the class. Already written, behind a switch.
+2. **A short definition's modifiers from a constant.** Already worked.
+3. **A short definition's modifiers naming the holder's parameters.**
+   The filled-in inputs were remembered as written, so `c = k` reached
+   the run as a bare `k` that nothing answered for. They now carry the
+   flat model's names, which is the invariant this repository states
+   for anything surviving flattening.
+4. **The order the components are written in.** An `outer` reaches the
+   shared instance from anywhere, and `User u; inner World world;` is
+   as legal as the other order. In that order the walk met
+   `world.accel(...)` before it had ever looked inside `World`, and
+   the table of filled-in inputs was still empty: `standardGravityAcceleration
+is missing its argument gravityType`. The shared instance's aliases
+   are now read before the components that reach it.
+5. **The same order, one storey up: shapes.** With the inputs arriving,
+   the value one of them carried - `g * normalizeWithAssert(n)` - named
+   an array of the world that nothing had measured yet, and the call
+   answered with a scalar where a vector was declared: `an equation
+between shapes [3] and []`. The shared instance's array lengths are
+   now taken at the same point.
+
+Past link 5 `RevoluteConstraint` flattens and reaches a wall of another
+family - `structurally singular model`, the tearing question - so the
+chain has an end and this is it.
+
+**What the series was worth: no models, and a whole family moved.**
+820 flatten and 392 run on both sides, from one binary with
+`OXIDELICA_COMPONENT_MEMBER_OFF` as the only difference, and the two
+lists of models that ran are identical line for line.
+
+The census is where the work shows, and it shows it whole:
+
+```text
+  16 -> 0   unknown function `world.gravityAcceleration`
+   0 -> 15  subscripts and arrays survive flattening only as scalars
+   4 -> 0   structurally singular: cannot differentiate function
+   0 -> 4   structurally singular: cannot differentiate this expression
+```
+
+Sixteen models out of the largest row of the run half's census, and
+fifteen of them standing together at one new wall, a wall that did not
+exist before because nothing reached it. This is precisely the thing
+the register was written to catch and no count of models can: a family
+that travels one storey up entire. Had the shift read only the floors,
+five walls removed would have read as a wasted day.
+
+The zero was checked against the thing it is supposed to be able to
+show, which is the rule this repository has for zeroes: on the twelve
+line model the switch prints one run with the reading and none without
+it, so the pipe can say something other than nothing. And the first
+pair of numbers taken this shift was thrown away for the opposite
+reason - both corpus runs went through a `target/release` binary built
+before the change, which is the scar about two numbers being comparable
+only if the same binary produced them, met from the direction of a
+script that does not build what it measures.
+
+So the row of sixteen models _was_ one family after all, which the
+lookup's first measurement could not have shown: read alone it moved
+three models and looked like a loss, and only the whole series shows
+the sixteen travelling together. Fifteen now stand at `subscripts and
+arrays survive flattening only as scalars` and one at tearing. That
+split is the next shift's queue, and it is the larger half that is
+newly reachable rather than the architectural one - which is the
+opposite of what the map predicted, and the reason the register was
+run rather than reasoned about.

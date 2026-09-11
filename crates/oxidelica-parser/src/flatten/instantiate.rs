@@ -367,7 +367,7 @@ fn settle_naming<'a>(
 
     // The class's own aliases join its imports, with any redeclarations
     // from outside already applied.
-    let imports = effective_imports(registry, class, scope, &redeclares, 0)?;
+    let imports = effective_imports(registry, class, scope, &redeclares, prefix, outers, 0)?;
     // What a component's class keeps to itself is nobody else's to
     // read. This says nothing about the flat model, so it is asked
     // once per class rather than once per instance.
@@ -437,6 +437,41 @@ fn settle_the_inner_instances(
     let mut named: Vec<(&String, &InnerInstance)> = inners.iter().collect();
     named.sort_by(|a, b| a.1.path.cmp(&b.1.path));
     for (_, instance) in named {
+        // What a shared instance's class aliases filled in, under the
+        // instance's own path. An `outer` reaches the shared instance
+        // from anywhere, and nothing says the reaching component is
+        // written after the `inner` one: `User u; inner World world;`
+        // is as legal as the other order, and in that order the walk
+        // meets `world.accel(...)` before it has ever looked inside
+        // `World`. Read then, the table that carries a short
+        // definition's filled-in inputs is empty and the call arrives
+        // without them. Filling it here makes the answer the same in
+        // either order.
+        if let Some(shared) = registry.get(instance.class.as_str()) {
+            let below = format!("{}.", instance.path);
+            let no_outers = HashMap::new();
+            let _ = effective_imports(registry, shared, &shared.name, &[], &below, &no_outers, 0);
+            // And how long its arrays are, for the same reason. The
+            // value a filled-in input carries may name one of them -
+            // `g * normalize(n)` names the world's axis - and a shape
+            // nothing has measured leaves the call answering with a
+            // scalar where a vector was declared.
+            let mut shapes: HashMap<String, Vec<i64>> = HashMap::new();
+            collect_shapes_given(
+                registry,
+                shared,
+                &acc.const_values,
+                &HashMap::new(),
+                &[],
+                &mut shapes,
+                0,
+            );
+            for (name, shape) in prefixed_sizes(&shapes, &below) {
+                if !acc.sizes.iter().any(|(known, _)| known == &name) {
+                    acc.sizes.push((name, shape));
+                }
+            }
+        }
         // What this pass has settled here, under the short names the
         // class writes. A shared instance says `massDynamics =
         // energyDynamics` about itself, one parameter reading its

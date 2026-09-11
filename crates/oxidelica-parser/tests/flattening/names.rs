@@ -913,13 +913,8 @@ fn a_function_is_reached_through_a_component_that_holds_it() {
     // through to the run, where it arrived as a function nothing could
     // place - sixteen models, the largest single row of the census.
     //
-    // The reading is off by default - it is the first link of a chain
-    // whose end is not reached yet, and on its own it costs three
-    // MultiBody models the wall behind it - so the test asks for it on
-    // this thread. Not through the environment: that belongs to the
-    // whole test binary, and every test compiling beside this one
-    // would read the setting as its own.
-    let _reading = oxidelica_parser::reach_through_components_here();
+    // The reading is in force by default now, as the last link of the
+    // chain it opened, so nothing has to be asked for here.
     let m = parse_model(
         "model M \
            model W \

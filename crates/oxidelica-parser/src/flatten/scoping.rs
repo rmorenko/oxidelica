@@ -22,6 +22,8 @@ pub(super) fn effective_imports(
     class: &ClassDef,
     scope: &str,
     redeclares: &[Redeclare],
+    prefix: &str,
+    outers: &HashMap<String, String>,
     depth: usize,
 ) -> Result<Vec<(String, String)>, String> {
     let mut imports = class.imports.clone();
@@ -34,7 +36,9 @@ pub(super) fn effective_imports(
     if depth <= MAX_DEPTH {
         for extend in &class.extends {
             if let Some(base) = lookup(registry, &extend.base, class.name.as_str(), &imports) {
-                for held in effective_imports(registry, base, scope, redeclares, depth + 1)? {
+                for held in
+                    effective_imports(registry, base, scope, redeclares, prefix, outers, depth + 1)?
+                {
                     if !imports.iter().any(|(local, _)| *local == held.0) {
                         imports.push(held);
                     }
@@ -106,6 +110,16 @@ pub(super) fn effective_imports(
             .filter(|held| !held.is_empty())
             .or_else(|| Some(alias.modifiers.clone()).filter(|held| !held.is_empty()));
         if let Some(filled) = filled {
+            // What survives flattening carries the flat model's names.
+            // `function accel = Scaled(c = k)` written in a component
+            // means *that component's* `k`, and the value is read
+            // again where the call is inlined - long after the class
+            // that wrote it is out of view. Left as written, the name
+            // reaches the run bare and nothing answers for it.
+            let filled = filled
+                .into_iter()
+                .map(|(name, value)| (name, prefix_expr(&value, prefix, outers)))
+                .collect();
             super::statements::remember_filled_inputs(&target, filled);
         }
         // What the alias itself wrote, kept apart from what a

@@ -1931,3 +1931,79 @@ fn a_redeclared_empty_record_instance_expands_its_fields() {
         m.components.iter().map(|c| &c.name).collect::<Vec<_>>()
     );
 }
+
+/// An input a class alias filled in names the component that holds it.
+///
+/// `function accel = Scaled(c = k)` written inside a model means that
+/// model's own `k`, and the value is read again where the call is
+/// inlined - by which point the class that wrote it is out of view.
+/// Remembered as written, the bare name reaches the run and nothing
+/// answers for it.
+#[test]
+fn a_filled_input_carries_the_flat_model_s_names() {
+    let m = parse_model(
+        "package P \
+           partial function Base input Real u; output Real y; end Base; \
+           function Scaled extends Base; input Real c = 1; \
+             algorithm y := c * u; end Scaled; \
+           model Holder parameter Real k = 2; \
+             function accel = Scaled(c = k); \
+             Real z; equation z = accel(time); end Holder; \
+           model Top Holder h; \
+             annotation(experiment(StopTime = 1, Interval = 1)); end Top; \
+         end P;",
+    )
+    .expect("the filled input reaches the component that holds it");
+    let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+    assert!(
+        names.contains(&"h.k"),
+        "the holder's parameter is instantiated: {names:?}"
+    );
+    let written = format!("{:?}", m.equations);
+    assert!(
+        !written.contains("Ref(\"k\")"),
+        "no bare `k` survives flattening: {written}"
+    );
+}
+
+/// A shared instance answers the same however its holders are ordered.
+///
+/// An `outer` reaches the `inner` instance from anywhere, and nothing
+/// says the reaching component is written after it. Read before the
+/// walk has looked inside the shared class, a short definition's
+/// filled-in inputs are not there yet and the array it names has no
+/// measured length; the call then arrives without its argument, or
+/// with a scalar where a vector was declared.
+#[test]
+fn a_shared_instance_is_read_before_the_components_that_reach_it() {
+    let source = |order: &str| {
+        format!(
+            "package P \
+               function len input Real v[:]; output Real r; \
+                 algorithm r := sqrt(v * v); end len; \
+               function norm input Real v[:]; output Real result[size(v, 1)]; \
+                 algorithm result := v / len(v); end norm; \
+               partial function Base input Real u[3]; output Real y[3]; end Base; \
+               function Scaled extends Base; input Real c[3]; \
+                 algorithm y := c; end Scaled; \
+               model World parameter Real g = 9.81; \
+                 parameter Real n[3] = {{0, -1, 0}}; \
+                 replaceable function accel = Scaled(c = g * norm(n)) \
+                   constrainedby Base; end World; \
+               model User outer World world; Real z[3]; \
+                 equation z = world.accel({{1, 2, 3}}); end User; \
+               model Top {order} \
+                 annotation(experiment(StopTime = 1, Interval = 1)); end Top; \
+             end P;"
+        )
+    };
+    for order in ["inner World world; User u;", "User u; inner World world;"] {
+        let m =
+            parse_model(&source(order)).unwrap_or_else(|why| panic!("`{order}` flattens: {why}"));
+        let written = format!("{:?}", m.equations);
+        assert!(
+            written.contains("u.z[1]"),
+            "`{order}` builds the reaching component: {written}"
+        );
+    }
+}

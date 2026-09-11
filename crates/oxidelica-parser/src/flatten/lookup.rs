@@ -372,42 +372,46 @@ fn lookup_at<'a>(
     // does not need the enclosing class's components, so nothing that
     // resolved before resolves differently now.
     //
-    // Off by default, and measured before that was decided. The link
-    // is right in itself - the test beside it is red without it - but
-    // it is the first of a chain, and the chain is not yet walked to
-    // its end: with it on the library flattens 817 rather than 820,
-    // the three being MultiBody's constraint examples, which stop one
-    // step later at `standardGravityAcceleration is missing its
-    // argument gravityType`. Reaching the function is what lets them
-    // reach the wall behind it. `OXIDELICA_COMPONENT_MEMBER=1` turns
-    // it on for the next shift to work from, and the default keeps
-    // the three models until the chain pays for itself.
-    if !component_member_wanted() {
+    // On by default now, as the last link of the chain it opened. Read
+    // alone it cost three models - MultiBody's constraint examples,
+    // which stopped one step later at `standardGravityAcceleration is
+    // missing its argument gravityType` - and reaching the function
+    // is precisely what let them reach that wall and the two behind
+    // it. The chain was walked to its end before any of it was turned
+    // on, which is why the numbers here are the chain's and not this
+    // reading's. `OXIDELICA_COMPONENT_MEMBER` is kept as the
+    // instrument that measured it, turned around: it now says which
+    // side of the change a number came from by taking the reading
+    // away.
+    if component_member_refused() {
         return None;
     }
     member_of_a_component(registry, name, scope, 0)
 }
 
-/// Whether the reading through a component is in force here.
+/// Whether the reading through a component is held back here.
 ///
-/// The environment answers for a whole corpus run, which is what a
-/// measurement wants; a thread answers for one test, which is what a
-/// test binary wants. Setting the environment from a test would be
-/// the race this project has already paid for once: the variable
-/// belongs to the process, and every other test compiling beside it
-/// would read the setting as its own.
-fn component_member_wanted() -> bool {
-    HERE.with(Cell::get) || std::env::var_os("OXIDELICA_COMPONENT_MEMBER").is_some()
+/// The reading is in force by default; this is what takes it away
+/// again, so that one binary can print the numbers from either side
+/// of the change. The environment answers for a whole corpus run,
+/// which is what a measurement wants; a thread answers for one test,
+/// which is what a test binary wants. Setting the environment from a
+/// test would be the race this project has already paid for once: the
+/// variable belongs to the process, and every other test compiling
+/// beside it would read the setting as its own.
+fn component_member_refused() -> bool {
+    HERE.with(Cell::get) || std::env::var_os("OXIDELICA_COMPONENT_MEMBER_OFF").is_some()
 }
 
 thread_local! {
-    /// Whether this thread asked for the reading through a component.
+    /// Whether this thread asked for the reading through a component
+    /// to be held back.
     static HERE: Cell<bool> = const { Cell::new(false) };
 }
 
-/// Read names through components on this thread until the guard is
-/// dropped.
-pub fn reach_through_components_here() -> ComponentMemberGuard {
+/// Hold the reading through components back on this thread until the
+/// guard is dropped.
+pub fn hold_back_components_here() -> ComponentMemberGuard {
     HERE.with(|here| here.set(true));
     ComponentMemberGuard(())
 }

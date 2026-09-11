@@ -60,9 +60,7 @@ mod tables;
 #[cfg(test)]
 mod tests;
 
-pub use lookup::{
-    counts as name_counts, reach_through_components_here, ComponentMemberGuard, Trail,
-};
+pub use lookup::{counts as name_counts, hold_back_components_here, ComponentMemberGuard, Trail};
 /// Working an expression of this class out where it stands: the array
 /// layer, with the class's names, shapes and loop variables in view.
 type ExpandHere<'a> = dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String> + 'a;

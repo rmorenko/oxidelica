@@ -17,8 +17,8 @@ pub use ast::{
     WhenClause,
 };
 pub use flatten::{
-    class_info, flatten as flatten_named, name_counts, reach_through_components_here,
-    read_table_file, ClassInfo, ComponentMemberGuard, Trail,
+    class_info, flatten as flatten_named, hold_back_components_here, name_counts, read_table_file,
+    ClassInfo, ComponentMemberGuard, Trail,
 };
 pub use library::{
     download_root, downloaded_libraries, library_directories, library_directory, library_files,
