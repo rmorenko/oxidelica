@@ -7285,3 +7285,55 @@ a singular Jacobian in an algebraic loop and `ComparisonPullInStroke`
 at a residual of one. That is the expected shape - the tallest entry
 of the register drains, and what stood behind it is a numerical wall
 of its own.
+
+## A parameter the initialisation was left to solve
+
+The entry above drained to twenty-two, and what was left under the
+same wording was a different fault. `TwoMasses`, the two-mass
+conduction demo, declares the temperature its masses settle at as a
+parameter the declaration does not give a value to:
+
+```modelica
+parameter SI.Temperature T_final_K(fixed = false);
+initial equation
+  T_final_K = (mass1.T*mass1.C + mass2.T*mass2.C)/(mass1.C + mass2.C);
+```
+
+The parameter rounds settle what they can before the run: a name
+against a number, then an ordinary equation that defines one, then a
+residual in a single unknown solved by Newton. This equation answers
+to none of them, because the side opposite the parameter names two
+states, and no round before the run knows what a state is worth. So
+the parameter fell through to the rule that a start stands where
+nothing else decides - and the section was then counted against the
+states alone, one equation for two unknowns, refused as an
+initialisation that is not square.
+
+It is square. `fixed = false` is the statement that the declaration
+is not where the value comes from, and a parameter nothing else
+settled is therefore the section's own unknown, to be solved for
+beside the states rather than ahead of them. The unknown vector is
+widened by those parameters, each written into its slot before the
+residual is evaluated so that the equations reach it the way they
+reach any parameter, and the solved value goes back into the slot and
+the reported parameter list, because a parameter solved for is a
+parameter for the whole run. The start it was declared with is not
+discarded: it becomes the guess Newton begins from, which is what a
+start is for.
+
+The refusal now names what it counted, states and parameters apart,
+rather than calling every unknown a state.
+
+The corpus reads 2671 files, 820 flatten, and **451 run against 450**;
+runnable **422 against 421**. The diff of the run lists has no
+withdrawals and one arrival, `TwoMasses`. Both run floors move here.
+
+The register is the instrument that shows the rest, and the counts
+are honest about it: the not-square entry goes 22 to 18 while one
+model runs, because the other three moved a storey. All three are the
+lightning models - `DemonstrateLightning`,
+`LightningLosslessTransmissionLine`,
+`LightningSegmentedTransmissionLine` - and all three now stand at an
+initialisation that is singular, the entry for which fills by exactly
+the three it lost. The flatten half of the register is identical line
+for line, which is what a change confined to the run half owes.

@@ -657,6 +657,14 @@ impl SlotTable {
         slot
     }
 
+    /// The slot a name already has, or nothing. Asked rather than
+    /// `slot` where a name that was never placed is an answer in
+    /// itself: minting one here would give the run a name it has no
+    /// equation for.
+    pub(crate) fn known(&self, name: &str) -> Option<Slot> {
+        self.index.get(name).copied()
+    }
+
     /// Resolve an expression into code, refusing anything that names a
     /// variable or a function the model does not have.
     pub(crate) fn compile(&self, expr: &Expr) -> Result<Code, SimError> {

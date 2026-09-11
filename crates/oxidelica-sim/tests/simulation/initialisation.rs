@@ -739,3 +739,35 @@ fn a_state_the_initial_section_says_nothing_about_starts_where_it_was_put() {
     assert!((first[index("x")] - 3.0).abs() < 1e-9);
     assert!((first[index("y")] - 5.0).abs() < 1e-12);
 }
+
+#[test]
+fn a_parameter_left_to_the_initialisation_is_solved_beside_the_states() {
+    // `T_final_K = (mass1.T*mass1.C + mass2.T*mass2.C)/(mass1.C + mass2.C)`
+    // is how the two-mass conduction demo states the temperature its
+    // masses settle at. The equation names two states, so no round
+    // among the parameters can put a number to it, and reading the
+    // parameter's start as its value left the section counted against
+    // the states alone - one equation for two unknowns, refused as an
+    // initialisation that is not square.
+    //
+    // It has two equations and two unknowns once the parameter is
+    // counted as what it is: the section's other unknown, solved for
+    // beside the states rather than ahead of them.
+    let model = parse_model(
+        "model M parameter Real avg(start = 0, fixed = false); \
+         Real x(start = 2, fixed = true); Real y(start = 4, fixed = true); \
+         equation der(x) = -x; der(y) = -y; \
+         initial equation avg = (x + y) / 2; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    // The states keep the starts they pinned, and the parameter is the
+    // mean of them: 3, not the 0 its start guessed.
+    assert_eq!(compiled.initial, vec![2.0, 4.0]);
+    let avg = compiled
+        .parameters
+        .iter()
+        .find(|(name, _)| name == "avg")
+        .unwrap_or_else(|| panic!("avg among {:?}", compiled.parameters));
+    assert!((avg.1 - 3.0).abs() < 1e-9, "avg = {}", avg.1);
+}

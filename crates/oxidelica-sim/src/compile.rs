@@ -2297,7 +2297,7 @@ fn describe(expr: &Expr) -> String {
 
 /// What the parameters came to, the initial equations claimed for
 /// them, and the ordinary equations that turned out to define one.
-type Parameters = (HashMap<String, f64>, Vec<usize>, Vec<usize>);
+type Parameters = (HashMap<String, f64>, Vec<usize>, Vec<usize>, Vec<String>);
 
 fn evaluate_parameters(
     model: &Model,
@@ -2707,9 +2707,21 @@ fn evaluate_parameters(
             break;
         }
     }
-    // One nothing settled keeps its start value, which is what the
-    // language says a start is for where nothing else decides.
+    // One nothing settled is still an unknown of the initialisation,
+    // and its start is the guess Newton begins from rather than the
+    // answer. `T_final_K = (mass1.T*mass1.C + mass2.T*mass2.C)/(...)`
+    // names two states, so no round above could put a number to it -
+    // and reading the start as the value would leave the equation
+    // counted against the states alone, which is an initialisation of
+    // one equation for two unknowns and refused as not square.
+    //
+    // The name is carried out so the initialisation can solve for it
+    // beside the states. The start still goes into the parameters,
+    // because everything between here and there reads a parameter by
+    // looking its value up, and a guess is what a start is for.
+    let mut unsettled: Vec<String> = Vec::new();
     for c in unknowns {
+        unsettled.push(c.name.clone());
         match c.start.as_ref() {
             Some(start) => {
                 let context = EvalCtx {
@@ -2763,7 +2775,7 @@ fn evaluate_parameters(
             return err(why);
         }
     }
-    Ok((params, claimed, defined))
+    Ok((params, claimed, defined, unsettled))
 }
 
 /// Compile a model, either from its declared start (`resume` absent) or
@@ -2832,7 +2844,7 @@ pub(crate) fn compile_at(
         .iter()
         .map(|class| (class.name.clone(), class.clone()))
         .collect();
-    let (params, settled_parameters, parameter_definitions) =
+    let (params, settled_parameters, parameter_definitions, unsettled_parameters) =
         evaluate_parameters(model, &programs)?;
 
     // 1b. The discrete layer: what changes only at an event, and what
@@ -3574,7 +3586,21 @@ pub(crate) fn compile_at(
         })
         .collect();
     if resume.is_none() {
-        compiled.solve_initialization(&initial_equations, &fixed_states, &derivatives, &table)?;
+        // The parameters the initialisation is left to solve for,
+        // paired with the slot each is read from. One whose name the
+        // table never gave a slot is one nothing in the equations
+        // reads, and it stands at its start.
+        let unsettled: Vec<(String, Slot)> = unsettled_parameters
+            .iter()
+            .filter_map(|name| table.known(name).map(|slot| (name.clone(), slot)))
+            .collect();
+        compiled.solve_initialization(
+            &initial_equations,
+            &fixed_states,
+            &derivatives,
+            &table,
+            &unsettled,
+        )?;
         compiled.check_block_regularity()?;
     }
     Ok(compiled)
@@ -3771,11 +3797,17 @@ impl CompiledModel {
         fixed: &[bool],
         derivative_exprs: &[Expr],
         table: &SlotTable,
+        unsettled: &[(String, Slot)],
     ) -> Result<(), SimError> {
         if initial_equations.is_empty() {
             return Ok(());
         }
-        let n = self.states.len();
+        // The unknowns of the initialisation are the states and the
+        // `fixed = false` parameters nothing settled: both are things
+        // the section solves for, and counting only the states made a
+        // square problem read as a lopsided one.
+        let states = self.states.len();
+        let n = states + unsettled.len();
         // A state no initial equation says anything about is not an
         // unknown of the initialisation: nothing in the section can
         // move it, so it stands at the start value it was given. An
@@ -3797,7 +3829,7 @@ impl CompiledModel {
         // it did not mention would answer it with an arithmetic
         // complaint instead.
         let declared = fixed.iter().filter(|f| **f).count();
-        let filled = if initial_equations.len() + declared == n {
+        let mut filled = if initial_equations.len() + declared == n {
             fixed.to_vec()
         } else {
             let mut mentioned: Vec<&str> = Vec::new();
@@ -3811,11 +3843,17 @@ impl CompiledModel {
                 .map(|(state, &declared)| declared || !mentioned.iter().any(|name| name == state))
                 .collect()
         };
+        // A parameter left to the initialisation is never pinned: its
+        // `fixed = false` is exactly the statement that the
+        // declaration is not where its value comes from.
+        filled.resize(n, false);
         let pinned = filled.iter().filter(|f| **f).count();
         if initial_equations.len() + pinned != n {
             return err(format!(
-                "initialization is not square: {} initial equation(s) and {pinned} fixed start(s) for {n} state(s)",
-                initial_equations.len()
+                "initialization is not square: {} initial equation(s) and {pinned} fixed start(s) \
+                 for {n} unknown(s) ({states} state(s) and {} parameter(s) left to it)",
+                initial_equations.len(),
+                unsettled.len()
             ));
         }
         let fixed = &filled[..];
@@ -3831,7 +3869,13 @@ impl CompiledModel {
             })
             .collect::<Result<Vec<_>, SimError>>()?;
 
-        let guess = self.initial.clone();
+        // The guess: the states start where they were declared to, and
+        // a parameter left to the initialisation starts at the value
+        // its `start` gave it, which is already in the template.
+        let mut guess = self.initial.clone();
+        for (_, slot) in unsettled {
+            guess.push(self.values_template[*slot]);
+        }
         let mut values = self.values_template.clone();
         let mut derivatives = Vec::new();
         let mut alg_guess = self.algebraic_start.clone();
@@ -3842,7 +3886,13 @@ impl CompiledModel {
                         derivatives: &mut Vec<f64>,
                         alg_guess: &mut Vec<f64>|
          -> Result<Vec<f64>, SimError> {
-            self.eval_point(0.0, y, values, derivatives, alg_guess)?;
+            // A parameter under solution is written into its slot
+            // before anything reads it: the equations reach it the way
+            // they reach any parameter, by looking the slot up.
+            for ((_, slot), value) in unsettled.iter().zip(&y[states..]) {
+                values[*slot] = *value;
+            }
+            self.eval_point(0.0, &y[..states], values, derivatives, alg_guess)?;
             let mut out = Vec::with_capacity(n);
             for (lhs, rhs) in &substituted {
                 out.push(lhs.run(values, 0.0) - rhs.run(values, 0.0));
@@ -3879,6 +3929,17 @@ impl CompiledModel {
                             .to_string(),
                     );
                 }
+                // The states go back as the point the run begins from;
+                // a parameter solved for is a parameter from here on,
+                // so its slot holds the answer for the whole run and
+                // the reported value is the one that was solved.
+                for ((name, slot), value) in unsettled.iter().zip(&y[states..]) {
+                    self.values_template[*slot] = *value;
+                    if let Some(entry) = self.parameters.iter_mut().find(|(had, _)| had == name) {
+                        entry.1 = *value;
+                    }
+                }
+                y.truncate(states);
                 self.initial = y;
                 return Ok(());
             }
