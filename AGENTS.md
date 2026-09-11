@@ -451,6 +451,29 @@ judgment: the whole corpus is eleven minutes over 1043 models, and
 CI's library job runs in forty-six against a ninety-minute ceiling.
 One model taking minutes is a giant, not work that was bought.
 
+And there are now two instruments for it, so that a shift is not spent
+hunting with two binaries what one run can say.
+
+`library check <library> --slow N` prints the N dearest models by
+name, the flatten half and the run half apart. That is what says
+whether a cost is spread over hundreds or sits in five, and which
+five. Measured on the whole corpus: the dearest to flatten is
+`Spice3BenchmarkFourBitBinaryAdder.FOURBIT` at 66s, then three
+`MultiBody.Examples.Loops.Engine1*` at 44 to 53; the dearest to run
+are `RollingWheelSetPulling` and `RollingWheelSetDriving` at 54 to
+56s, with `Engine1a` beside them. `DoublePendulum` at 23s is no
+longer the giant the note above made it - the wheel sets and the
+engines are, and MultiBody owns almost the whole list either way.
+
+`scripts/library_floor.sh` holds the time per model to a ceiling, one
+for each half, beside the five counts. Those are the numbers to move
+with a change, and the total is not: a check that grew longer because
+more models pass is the point, and a check where each model got
+dearer is a regression. The ceilings are the build machine's
+numbers - the slower of the two, the opposite way round from the
+counts and for the same reason: a threshold is set where the machine
+that fires it can reproduce it.
+
 ## Tests
 
 A bug fix comes with a test that fails without it. Check that it does:

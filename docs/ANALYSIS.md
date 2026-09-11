@@ -6766,3 +6766,63 @@ and stopped at the next one, which for the machine chapter is
 `unknown variable imcQS.vs[1]` and for `EddyCurrentLosses` is an
 unbalanced count. That is the next question in the chapter, and it is
 a different one.
+
+## Where the time goes, asked from one run
+
+A shift was spent hunting a slowdown with two binaries and two runs of
+the corpus, and the numbers the hunt wanted were already being
+gathered - they were simply never printed by name. `library check`
+knows what each model cost, in both halves, and until now it totalled
+them and threw the detail away.
+
+`--slow N` prints the N dearest models with their seconds, the
+flattening half and the run half apart. Measured on the whole library
+at 820 flatten / 405 run:
+
+```text
+  dearest     65.7s  Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
+  dearest     53.0s  Modelica.Mechanics.MultiBody.Examples.Loops.Engine1a
+  dearest     45.2s  Modelica.Mechanics.MultiBody.Examples.Loops.Engine1b
+  dearest     44.0s  Modelica.Mechanics.MultiBody.Examples.Loops.Engine1b_analytic
+  dearest     42.5s  ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck2
+  slowest run 55.8s  Modelica.Mechanics.MultiBody.Examples.Elementary.RollingWheelSetPulling
+  slowest run 53.9s  Modelica.Mechanics.MultiBody.Examples.Elementary.RollingWheelSetDriving
+  slowest run 53.9s  Modelica.Mechanics.MultiBody.Examples.Loops.Engine1a
+  slowest run 39.3s  Modelica.Mechanics.MultiBody.Examples.Loops.Fourbar2
+  slowest run 33.2s  Modelica.Mechanics.MultiBody.Examples.Rotational3DEffects.GyroscopicEffects
+```
+
+Two things the totals could not have said. The cost sits in a handful
+rather than spread over hundreds: twenty models out of 1043 carry
+about a third of the flattening half between them. And the two halves
+rank differently - `FOURBIT` is the dearest thing in the library to
+flatten and does not appear in the run half at all, while the rolling
+wheel sets are the dearest to run and nowhere near the top of the
+other list. A single "dearest" list would have named one and hidden
+the other.
+
+It also corrects a note that has stood in AGENTS.md for some time.
+`DoublePendulum` was written down as the known giant at forty-five
+seconds; it is 23s to run and not in the flattening list, and the
+things above it are the wheel sets, the engines and the Spice
+benchmark. MultiBody owns nearly the whole ranking either way, which
+makes it a chapter rather than a model.
+
+**A ceiling on the time per model, beside the five counts.** The other
+half of the same instrument. The floor script held five counts and
+reported the time without holding it to anything, which is what let a
+regression take the run half from 591s to 3153s and go unnoticed for
+two days, until it killed two build machine runs on the ninety minute
+cap. What is held is the time per model that reached each half, not
+the total: the total growing is coverage growing, which is the point
+of the work, and the per-model number growing is the compiler getting
+slower, which is not.
+
+The pair is written from the build machine's numbers rather than a
+desk's - 4143ms and 2657ms there against 1666ms and 889ms here, a
+factor of two and a half - which is the opposite way round from the
+counts, and for the same reason: a threshold belongs where the machine
+that fires it can reproduce it. The ceilings are 7000ms and 4500ms,
+about two thirds of headroom over the dearest run seen, because two
+runs of the same code on the same machine already differ by a seventh
+and this is a trap for a factor of five, not a benchmark.

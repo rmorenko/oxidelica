@@ -697,6 +697,32 @@ fn checking_with_no_directory_reads_what_is_in_view() {
     assert!(text.contains("refused"), "{text}");
     assert!(text.contains("dearest"), "{text}");
     assert!(text.contains("Lib.Examples."), "{text}");
+
+    // `--slow N` asks the same of both halves, and takes its count
+    // from the argument. The flag is written before the directory
+    // here on purpose: the count is an argument without dashes, and
+    // reading "the first thing without dashes" as the library made
+    // the check answer about a library called `20`.
+    let out = bin()
+        .args([
+            "library",
+            "check",
+            "--slow",
+            "1",
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("2, of which 1 flatten"), "{text}");
+    assert!(text.contains("slowest run"), "{text}");
+    assert_eq!(
+        text.lines().filter(|l| l.contains("dearest")).count(),
+        1,
+        "one dearest asked for, one printed: {text}"
+    );
+    assert!(text.contains("Lib.Examples.Good"), "{text}");
 }
 
 #[test]

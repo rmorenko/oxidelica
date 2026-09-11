@@ -28,6 +28,7 @@ Usage:
   oxidelica library add <name|git-url> [--version TAG] [--as NAME]
                             names: modelica (the Modelica Standard Library)
   oxidelica library check [<directory>] [--list] [--refused] [--only <Class>]
+                            [--slow N]  the N dearest models, by half
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -514,7 +515,33 @@ fn library_check(args: &[String]) -> Result<(), String> {
         .and_then(|at| args.get(at + 1))
         .cloned();
     let refused_each = args.iter().any(|arg| arg == "--refused");
-    let directory = args.iter().find(|arg| !arg.starts_with("--"));
+    // The dearest models by name, both halves apart. A time per model
+    // says the compiler got slower; it does not say where, and a
+    // hunt for the where used to mean two binaries and two runs of
+    // the corpus. `--slow N` answers it from the run already being
+    // made: the N models that cost the most flattening, and the N
+    // that cost the most running, each with its seconds.
+    let slow: usize = args
+        .iter()
+        .position(|arg| arg == "--slow")
+        .and_then(|at| args.get(at + 1))
+        .and_then(|given| given.parse().ok())
+        .unwrap_or(0);
+    // The directory is the argument that is neither a flag nor a
+    // flag's value. Written as "the first thing without dashes" it
+    // read `--slow 20` as a library called `20` whenever the flag
+    // came first, and answered about no library at all.
+    let directory = args
+        .iter()
+        .enumerate()
+        .find(|(at, arg)| {
+            !arg.starts_with("--")
+                && !matches!(
+                    at.checked_sub(1).and_then(|before| args.get(before)),
+                    Some(flag) if flag == "--only" || flag == "--slow"
+                )
+        })
+        .map(|(_, arg)| arg);
     let files = match directory {
         Some(path) => {
             // A library is checked where it was named, and its
@@ -784,14 +811,35 @@ fn library_check(args: &[String]) -> Result<(), String> {
     // cost is spread over hundreds or sits in five - and those want
     // different answers: a queue instead of stripes for the first, a
     // look at the five for the second.
-    if std::env::var("OXIDELICA_DEAREST").is_ok() {
+    // `OXIDELICA_DEAREST` is the twelve dearest to flatten, kept for
+    // what already calls it; `--slow N` is the same question asked of
+    // both halves, because a run that grew slower is not answered by
+    // a list of models that were dear to flatten.
+    let dearest = std::env::var("OXIDELICA_DEAREST").is_ok();
+    if dearest || slow > 0 {
+        let many = if slow > 0 { slow } else { 12 };
         let mut by_cost: Vec<(&String, f64)> = answers
             .iter()
             .map(|(at, (_, spent))| (&models[*at], spent.flattening.as_secs_f64()))
             .collect();
         by_cost.sort_by(|a, b| b.1.total_cmp(&a.1));
-        for (name, seconds) in by_cost.iter().take(12) {
+        for (name, seconds) in by_cost.iter().take(many) {
             println!("  dearest {seconds:8.1}s  {name}");
+        }
+        if slow > 0 {
+            // The run half apart. A model that never reached it spent
+            // no time there, and printing a column of zeroes would
+            // bury the handful that matter, so only what ran is
+            // ranked.
+            let mut by_run: Vec<(&String, f64)> = answers
+                .iter()
+                .filter(|(_, (_, spent))| !spent.running.is_zero())
+                .map(|(at, (_, spent))| (&models[*at], spent.running.as_secs_f64()))
+                .collect();
+            by_run.sort_by(|a, b| b.1.total_cmp(&a.1));
+            for (name, seconds) in by_run.iter().take(many) {
+                println!("  slowest run {seconds:8.1}s  {name}");
+            }
         }
     }
     let answers: Vec<(usize, Answer)> = answers
