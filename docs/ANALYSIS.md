@@ -7033,3 +7033,80 @@ and no additions. The floors do not move because the numbers do not.
 Where the remaining nine equalities go is the next question, and the
 instrument for it exists: the same probe, printing the drops as well as
 the writes, already lists them by name.
+
+### Link six: the nine were never equalities at all
+
+The previous link left a question with a number on it - twenty-nine
+equalities dropped where twenty were owed - and the number was wrong in
+a way no amount of reasoning about connection sets would have found. The
+suspicion of record was that array indexes had been lost on the way to a
+graph node, so `plugToPin_p[1].plug_p.reference` and
+`plugToPin_p[2].plug_p.reference` were being read as one node and the
+connections of different elements as a repeat of one edge.
+
+The probe was restored on the dropped side, naming both connectors and
+the node each was read as, and it refuted that outright in one second.
+The indexes are intact:
+
+```text
+ring drop: loss_e.plugToPins_p.plugToPin_p[2].plug_p.reference.gamma
+         = loss_e.plugToPins_p.plugToPin_p[1].plug_p.reference.gamma
+ring drop: loss_e.plugToPins_p.plugToPin_p[3].plug_p.reference.gamma
+         = loss_e.plugToPins_p.plugToPin_p[1].plug_p.reference.gamma
+```
+
+Better than reading the thirty-one names: the probe also prints the
+branch clauses and the equalities it does write, so the graph can be
+built outside the compiler and its cyclomatic number taken. Over 242
+nodes, 86 branch edges and 185 connection edges spanning two components,
+the number of independent loops is **31** - exactly the count of drops.
+Every one of the thirty-one was a genuine loop closure, and the ring
+machinery had nothing left to answer for. A small model written to the
+predicted shape - a wrapper holding an array of three pass-throughs -
+ran green without any change at all, which said the same thing from the
+other end.
+
+So the deficit of nine was never a shortage of equations. It was a
+surplus of unknowns, and the refusal had been naming them all along:
+
+```text
+nothing determines loss_e.omega, powerb_e.omega, resistor_e.omega, ...
+```
+
+Seventeen of the nineteen were `omega`, and `oxidelica why` showed the
+same variable declared twice in one component. The smallest member of
+the family said it plainest -
+`SinglePhase.Examples.SeriesResonance` at 129 equations for 133
+unknowns, where the whole chain is two classes deep:
+`TwoPinElementary` declares a bare `SI.AngularVelocity omega` and states
+it with `omega = der(pin_p.reference.gamma)`, and `TwoPin`, which
+extends it, declares the identical bare `omega` again.
+
+That is the shape link four of an earlier chain already fixed - a
+declaration a base wrote word for word is one element - except that the
+rule asked for a binding to be present, and these copies have none. The
+rule now asks instead that the two declarations agree in every respect
+that can be compared, the attributes a modifier may carry among them: a
+class that changes a `start`, a `min` or a unit is saying something, and
+only a word-for-word repetition says nothing.
+
+The instrument ladder is the finding as much as the fix is. The corpus
+would have said nothing; the census counts refusals and this family had
+one refusal, unchanged in wording through three shifts. What answered it
+was `--only` on one model in under a second, then `why` on one variable,
+then the same on the smallest member of the family instead of the
+largest. Three shifts were spent on a ring machinery that turned out to
+be correct, because the count of dropped equalities looked like an
+accusation and nobody took the graph's cyclomatic number to check it.
+A number that looks like evidence is not evidence until something
+independent produces it.
+
+The corpus is the first number this chain has moved since it began.
+2671 files read, 820 flatten as before, and **421 run against 407**;
+runnable 722 flatten and 416 run against 402. The diff of the run lists
+has no withdrawals and fourteen additions, and they are the family and
+its neighbours - `SeriesResonance`, `ParallelResonance`,
+`MultipleResonance`, `SeriesBode`, `BalancingStar`, `BalancingDelta`,
+`UnsymmetricalLoad`, `EddyCurrentLosses`, `PolyphaseInductance`, two
+`ToroidalCore` models, and three `HBridge` converters that carry the
+same quasi-static interfaces. Both floors move in this commit.

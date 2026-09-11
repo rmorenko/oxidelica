@@ -679,6 +679,11 @@ fn unbalanced_because(algebraic_eqs: &[(Expr, Expr)], unknowns: &[String]) -> St
     };
     named.sort();
     named.dedup();
+    if std::env::var_os("OXIDELICA_BALANCE_PROBE").is_some() {
+        for name in &named {
+            eprintln!("balance: {kind} {name}");
+        }
+    }
     // A handful of names is a barrier one can go and look at; the whole
     // list is the noise this refusal used to print.
     let shown = named.iter().take(6).cloned().collect::<Vec<_>>().join(", ");

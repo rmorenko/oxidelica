@@ -361,6 +361,18 @@ pub(super) fn descends_from_external_object(
 /// changes any of those is saying something, and what it says is not
 /// for this rule to swallow. Taken apart, the model has two equations
 /// for one derivative and cannot be run at all.
+///
+/// A binding is not what makes the repetition: `TwoPinElementary`
+/// declares a bare `SI.AngularVelocity omega` and states it in an
+/// equation, and `TwoPin`, which extends it, declares the identical
+/// bare `omega` again. Asking for a binding to be present let that
+/// shape through, and the flat model then carried two unknowns called
+/// `omega` with one equation between them - every quasi-static
+/// component of the electrical library one unknown over. What the rule
+/// asks instead is that the two declarations agree in every respect
+/// that can be compared, the attributes a modifier may carry among
+/// them: a class that changes a `start`, a `min` or a unit is saying
+/// something, and only a word-for-word repetition says nothing.
 pub(super) fn a_base_says_the_same(
     registry: &HashMap<&str, &ClassDef>,
     class: &ClassDef,
@@ -386,7 +398,16 @@ pub(super) fn a_base_says_the_same(
                 && held.causality == component.causality
                 && held.dimensions == component.dimensions
                 && held.binding == component.binding
-                && held.binding.is_some()
+                && held.modifiers == component.modifiers
+                && held.start == component.start
+                && held.fixed == component.fixed
+                && held.min == component.min
+                && held.max == component.max
+                && held.unit == component.unit
+                && held.condition == component.condition
+                && held.flow == component.flow
+                && held.stream == component.stream
+                && held.scope == component.scope
                 && !held.replaceable
                 && !component.redeclaration
         });

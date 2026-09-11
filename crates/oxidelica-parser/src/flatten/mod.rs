@@ -797,6 +797,15 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
     // a loop-closing connection of the overconstrained graph from an
     // ordinary one. Drawn once: it is the same graph for every set.
     let branch_parts = connections::branch_parts(&acc.connection_graph);
+    if std::env::var_os("OXIDELICA_RING_PROBE").is_some() {
+        for clause in &acc.connection_graph {
+            match clause {
+                GraphClause::Branch(a, b) => eprintln!("ring branch: {a} -- {b}"),
+                GraphClause::Root(a) => eprintln!("ring root: {a}"),
+                GraphClause::PotentialRoot(a, p) => eprintln!("ring proot: {a} ({p})"),
+            }
+        }
+    }
     // Every node of the overconstrained graph, branches and roots
     // alike: a ground declares its reference a root and ties nothing
     // to it, and a member of that record is still an edge rather than
@@ -1098,6 +1107,34 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                 );
                 for (other, _) in &members[1..] {
                     if !carries(other, &mut lone, &mut next_part, &mut tied, &mut tree) {
+                        // `OXIDELICA_RING_PROBE=1` names what the
+                        // spanning tree decided not to write: which
+                        // pair of connectors, which member, and which
+                        // graph node each side was read as. A count of
+                        // dropped equalities says a model is short of
+                        // some; the names say which ring the compiler
+                        // thought it had already closed.
+                        if std::env::var_os("OXIDELICA_RING_PROBE").is_some() {
+                            let node = |path: &str| {
+                                let whole = format!("{path}.{}", member_component.name);
+                                let record =
+                                    member_component.name.split('.').next().unwrap_or_default();
+                                match whole.rsplit_once('.') {
+                                    Some((node, _)) if in_the_graph(node) => node.to_string(),
+                                    _ if in_the_graph(&whole) => whole,
+                                    _ if record.is_empty() => String::new(),
+                                    _ => format!("{path}.{record}"),
+                                }
+                            };
+                            eprintln!(
+                                "ring drop: {} = {} [member {}] nodes {} / {}",
+                                var(other),
+                                var(members[0].0),
+                                member_component.name,
+                                node(other),
+                                node(members[0].0),
+                            );
+                        }
                         continue;
                     }
                     acc.equations.push(EquationItem {
@@ -1105,6 +1142,9 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                         rhs: Expr::Ref(var(members[0].0)),
                         origin: String::new(),
                     });
+                    if std::env::var_os("OXIDELICA_RING_PROBE").is_some() {
+                        eprintln!("ring keep: {} = {}", var(other), var(members[0].0));
+                    }
                 }
             }
         }

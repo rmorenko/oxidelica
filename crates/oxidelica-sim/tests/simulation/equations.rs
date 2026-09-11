@@ -2029,3 +2029,22 @@ fn a_declaration_repeated_from_a_base_is_one_element() {
     let w = last[1];
     assert!((w - 2.0).abs() < 1e-9, "w={w}, expected 2");
 }
+
+/// And a binding is not what makes a declaration a repetition. The
+/// quasi-static electrical library declares a bare `SI.AngularVelocity
+/// omega` in `TwoPinElementary`, states it in an equation there, and
+/// declares the identical bare `omega` again in `TwoPin`, which extends
+/// it. Asking for a binding to be present let that shape through, and
+/// the flat model carried two unknowns called `omega` with one equation
+/// between them - every quasi-static component of the library one
+/// unknown over, and `SeriesResonance` refused as unbalanced.
+#[test]
+fn a_declaration_repeated_without_a_binding_is_one_element() {
+    let result = run("model Base Real w; Real g; equation w = der(g); end Base; \
+         model D extends Base; Real w; \
+         equation g = 2.0 * time; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end D;");
+    let last = result.rows.last().unwrap();
+    let w = last[1];
+    assert!((w - 2.0).abs() < 1e-9, "w={w}, expected 2");
+}
