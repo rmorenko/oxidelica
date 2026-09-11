@@ -6625,3 +6625,85 @@ gravity.
 Twelve of the fifteen still stand at the same text, so the wall is a
 wall for more than one reason, and the next probe starts where this
 one did: print the expression, not the family.
+
+## A coefficient the model writes as sometimes zero
+
+`residual N of algebraic loop` stood at the top of the run half with
+forty models under it. The kind is not a family, so the first thing
+taken was the list and its spread over chapters: eleven in
+`Modelica.Thermal.FluidHeatFlow`, eleven in
+`Modelica.Electrical.Machines`, five in `Mechanics.Rotational`, and
+the rest in ones and twos. Eleven under one chapter is one shared
+component and not eleven illnesses, so `FluidHeatFlow` was the cluster
+worth probing, and `TestCylinder` - a block of one unknown - was the
+smallest member of it.
+
+The probe printed the block whole, and the mechanism was in the
+smallest line of it:
+
+```text
+inner cylinder2.flowPort.h :=
+  -(H_flow - (if m_flow >= 0 then 0 else h*m_flow))
+  / -(if m_flow >= 0 then m_flow else 0)
+```
+
+That divisor is what `semiLinear(m_flow, flowPort.h, h)` leaves behind
+when the plan solves the enthalpy equation for the port's own
+enthalpy. On the branch where the flow runs out of the component the
+equation does not mention that enthalpy at all - the coefficient is a
+literal zero - and the plan is made once for the whole run. So the
+division is an infinity waiting for the model to enter the branch,
+which at `t = 0` with no flow it does immediately, and what the run
+then reported was a residual it could not evaluate: a refusal naming
+the solver, the one place nothing was wrong.
+
+This is the same rule as the previous series, one spelling further
+out. There the slope was a number the model settled to zero; here it
+is an `if` with a zero branch written into the source. Both are the
+equation declining to mention its unknown, and in both cases refusing
+to divide leaves the equation in the tearing set, where the connection
+equality that does determine the enthalpy becomes the residual.
+
+Only an _outright_ zero branch counts. A branch carrying some other
+expression may be zero at a moment, but so may any coefficient, and
+refusing on that would leave nothing solvable at all.
+
+Reproduced in twelve lines before anything was touched:
+
+```modelica
+model Half
+  Real m; Real h; Real H;
+equation
+  m = time - 1;
+  H = if m >= 0 then h * m else 3 * m;
+  H = 0;
+end Half;
+```
+
+Before the change `h` runs at `inf` and ends `NaN`; after it, the
+compiler says `singular Jacobian in algebraic loop ["h"]`, which is
+the truth about a model that pins `h` only where the flow is positive.
+
+**What it was worth: seven models, and the floors moved.** 820/398 to
+820/405, runnable 722/393 to 722/400. Seven additions, no removals:
+
+```text
+> Modelica.Mechanics.Rotational.Examples.CoupledClutches
+> Modelica.Mechanics.Rotational.Examples.OneWayClutch
+> Modelica.Mechanics.Rotational.Examples.OneWayClutchDisengaged
+> Modelica.Mechanics.Rotational.Examples.SimpleGearShift
+> Modelica.Thermal.FluidHeatFlow.Examples.IndirectCooling
+> Modelica.Thermal.FluidHeatFlow.Examples.PumpDropOut
+> ModelicaTest.Rotational.TestFriction
+```
+
+Worth reading twice: only two of the seven are from the chapter the
+probe was aimed at. The clutches were reached by the same rule from a
+quite different direction - a clutch writes its torque the same way a
+pipe writes its enthalpy - which is the sign the rule is about
+coefficients and not about fluids. The other nine of the
+`FluidHeatFlow` eleven moved one storey up, from a residual that could
+not be evaluated to `underdetermined algebraic loop`, which is an
+honest statement about the enthalpy of a port nothing is flowing
+through. That is the next wall in that chapter, and it is a different
+question: what an initial equation should pin when the flow is zero.

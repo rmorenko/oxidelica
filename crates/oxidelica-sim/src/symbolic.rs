@@ -194,12 +194,55 @@ pub(crate) fn solve_linear_known(
     if matches!(judged, Expr::Number(x) if x == 0.0) {
         return None;
     }
+    // The same refusal for a coefficient the model itself writes as
+    // sometimes zero. `semiLinear(m, h_a, h_b)` is `if m >= 0 then
+    // h_a*m else h_b*m`, so an equation for the upstream enthalpy has
+    // the slope `if m >= 0 then m else 0`: on the branch the flow runs
+    // the other way the equation does not mention that enthalpy at
+    // all. Judged by one branch the slope looks live, the division
+    // goes through, and the first residual of the block is infinite
+    // before Newton has taken a step. Left alone the equation joins
+    // the tearing set, where the connection equality that does
+    // determine the enthalpy is the residual that gets solved.
+    if branch_is_zero(&judged) && std::env::var_os("OXIDELICA_NO_BRANCHED_SLOPE").is_none() {
+        return None;
+    }
     let intercept = simplify(&substitute(&residual, var, 0.0));
     Some(simplify(&Expr::Bin(
         oxidelica_parser::BinOp::Div,
         Box::new(Expr::Neg(Box::new(intercept))),
         Box::new(slope),
     )))
+}
+
+/// Whether a slope written as a conditional takes the value zero on
+/// one of its branches.
+///
+/// A plan is made once and holds for the whole run, so a coefficient
+/// that is zero on a branch the model will enter is a division that
+/// will produce an infinity at some point during it - which the run
+/// reports against the solver rather than against the equation. Only
+/// a branch that is *outright* zero counts: a branch whose value is
+/// some other expression may well be zero at a moment, but so may any
+/// coefficient, and refusing on that would leave nothing solvable.
+fn branch_is_zero(slope: &Expr) -> bool {
+    match slope {
+        Expr::If(_, a, b) => {
+            matches!(a.as_ref(), Expr::Number(x) if *x == 0.0)
+                || matches!(b.as_ref(), Expr::Number(x) if *x == 0.0)
+                || branch_is_zero(a)
+                || branch_is_zero(b)
+        }
+        // A conditional under an arithmetic node carries its zero
+        // upward: `2 * (if c then m else 0)` is zero on that branch
+        // as surely as the conditional itself is. A sum does not -
+        // the other term may be what makes it live - so only the
+        // shapes where a zero factor decides the whole are followed.
+        Expr::Neg(inner) => branch_is_zero(inner),
+        Expr::Bin(oxidelica_parser::BinOp::Mul, l, r) => branch_is_zero(l) || branch_is_zero(r),
+        Expr::Bin(oxidelica_parser::BinOp::Div, l, _) => branch_is_zero(l),
+        _ => false,
+    }
 }
 
 pub(crate) fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {

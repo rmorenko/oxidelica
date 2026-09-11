@@ -225,6 +225,26 @@ fn an_equation_whose_slope_is_zero_is_not_solved_for_that_unknown() {
 }
 
 #[test]
+fn an_equation_whose_slope_is_zero_on_a_branch_is_not_solved_for_that_unknown() {
+    // `semiLinear(m, h_port, h)` is `if m >= 0 then h_port*m else h*m`,
+    // so the equation for the port's enthalpy has the slope `if m >= 0
+    // then m else 0`: on the branch where the flow runs the other way
+    // the equation says nothing about `h_port` at all. Divided through
+    // by that slope, the plan hands back an infinity the moment the
+    // model enters the branch, and the run reports a residual it could
+    // not evaluate - against the solver, which is the one place nothing
+    // is wrong.
+    let lhs = expr_of("hf");
+    let rhs = expr_of("if m >= 0 then h * m else 0");
+    assert!(solve_linear_for(&lhs, &rhs, "h").is_none());
+
+    // A conditional both of whose branches mention the unknown is the
+    // ordinary case and is solved as it always was.
+    let rhs = expr_of("if m >= 0 then h * m else h * 2");
+    assert!(solve_linear_for(&lhs, &rhs, "h").is_some());
+}
+
+#[test]
 fn the_banded_solver_agrees_with_the_dense_one() {
     // A tridiagonal system with a dominant diagonal, the shape a
     // discretized field gives: both paths must land on the same
