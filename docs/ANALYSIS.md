@@ -6826,3 +6826,106 @@ that fires it can reproduce it. The ceilings are 7000ms and 4500ms,
 about two thirds of headroom over the dearest run seen, because two
 runs of the same code on the same machine already differ by a seventh
 and this is a trap for a factor of five, not a benchmark.
+
+## The quasi-static reference angle: a chain walked, and parked
+
+Twenty-one models of the library are stopped by the same name. Taken
+from `library check .msl --refused` at 820 flatten / 405 run, every
+model whose refusal quotes a `gamma`:
+
+```text
+Electrical.Machines.Examples.InductionMachines.IMC_DOL
+Electrical.Machines.Examples.InductionMachines.IMC_Inverter
+Electrical.Machines.Examples.InductionMachines.IMC_Steinmetz
+Electrical.Machines.Examples.InductionMachines.IMC_Transformer
+Electrical.Machines.Examples.InductionMachines.IMC_YD
+Electrical.Machines.Examples.InductionMachines.IMC_YDarc
+Electrical.Machines.Examples.InductionMachines.IMS_Start
+Electrical.Machines.Examples.Transformers.IMC_Transformer
+Electrical.QuasiStatic.Polyphase.Examples.BalancingDelta
+Electrical.QuasiStatic.Polyphase.Examples.BalancingStar
+Electrical.QuasiStatic.SinglePhase.Examples.ParallelResonance
+Magnetic.QuasiStatic.FluxTubes.Examples.BasicExamples.QuadraticCoreAirgap
+Magnetic.QuasiStatic.FluxTubes.Examples.BasicExamples.ToroidalCoreAirgap
+Magnetic.QuasiStatic.FluxTubes.Examples.BasicExamples.ToroidalCoreQuadraticCrossSection
+Magnetic.QuasiStatic.FluxTubes.Examples.FixedShapes.CuboidSections
+Magnetic.QuasiStatic.FluxTubes.Examples.FixedShapes.CylinderSections
+Magnetic.QuasiStatic.FluxTubes.Examples.Leakage.CylinderLeakage
+Magnetic.QuasiStatic.FluxTubes.Examples.Leakage.GeneralLeakage
+Magnetic.QuasiStatic.FluxTubes.Examples.LinearInductor
+Magnetic.QuasiStatic.FluxTubes.Examples.NonLinearInductor
+Magnetic.QuasiStatic.FundamentalWave.Examples.Components.EddyCurrentLosses
+```
+
+The smallest, `EddyCurrentLosses`, answers in a second, and what it
+says is that the model is short of equations rather than over:
+2427 for 2485 unknowns, with `loss_e.plugToPins_p.plug_p.reference.gamma`
+among the fifty-eight named by nothing at all.
+
+**Link one: a port of ports may hold more than ports.** A `connect`
+between two connectors that each hold connectors is cut open into
+pairs of the inner ones, because writing the equations against the
+outer pair would name something the flat model does not carry. That
+cut is right about the inner ports and wrong about everything else a
+port may hold beside them: a quasi-static plug carries `pin[m]` *and*
+a reference angle, and cutting the join into the pins alone dropped
+the angle on the floor. The repair is to join the outer pair as well
+and have the equality loop pass over members that are themselves
+ports, which their own pairs already speak for.
+
+Measured on `EddyCurrentLosses`: 2427 equations became 2507 against
+2485 unknowns, and the fifty-eight names that nothing determined are
+determined. The model is now *over*determined by twenty-two, and the
+twenty-two are all reference angles.
+
+**Link two, which does not fit: the graph is empty where the loop
+is.** Twenty-two too many is what section 9.4 exists for - a
+connection closing a loop of the overconstrained graph owes the
+record's `equalityConstraint` rather than an equality, which for the
+reference angle is a residue of no elements. Breaking the graph open
+with a spanning tree from the chosen roots and keeping only the
+tree's equalities was written and measured, and it cuts forty-eight
+where twenty-two are wanted: the model goes to 2459 for 2485, short
+again by a different number.
+
+The reason is in the library rather than the compiler.
+`Polyphase.Basic.PlugToPin_p` is the component that fans a plug out to
+a pin, and its `Connections.branch` clauses are *commented out* in the
+standard library source, with the equality left standing outside them:
+
+```modelica
+  //Connections.potentialRoot(plug_p.reference);
+  //Connections.potentialRoot(pin_p.reference);
+  plug_p.reference.gamma = pin_p.reference.gamma;
+```
+
+So the graph the compiler can see has no edges across exactly the
+components where the ring closes, and a spanning tree over it cannot
+tell a loop-closing connection from any other. The tree drops
+equalities the model needed and keeps ones it did not.
+
+**Parked, with the map.** Link one is a real repair sitting on a
+second that does not yet exist, and the charter is explicit that a
+chain is taken whole or not at all: a link removed from the middle
+moves no number by construction. Neither link is committed. What the
+next shift needs, in order:
+
+1. Which equalities are the twenty-two. The probe is
+   `library check .msl --refused --only ...EddyCurrentLosses` with
+   link one applied, whose message names them: they are
+   `plugToPin_p[2].plug_p.reference.gamma = plugToPin_p[1]...` and
+   its fellows, one per phase beyond the first.
+2. Whether the dependency can be seen without the `branch` clauses the
+   library did not write - the plug fans out to `m` pins, all `m`
+   equalities say the same angle, and `m - 1` of them are dependent
+   by the shape of the fan rather than by the graph.
+3. Whether that is a rule this compiler should have at all, or whether
+   the honest answer is that the model is overdetermined as written
+   and the standard library leans on a tool reading the commented-out
+   clauses some other way. This is the question for a consultation:
+   it is architectural, and three local attempts moved the failure
+   rather than removing it.
+
+The small model that shows link one is thirty lines and lives in the
+shift notes rather than the tests, since committing a test for an
+uncommitted repair would be a test that does not fail.
