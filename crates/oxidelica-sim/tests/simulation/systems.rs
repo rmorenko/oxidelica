@@ -387,3 +387,47 @@ fn a_constraint_that_grows_past_the_ceiling_names_its_model() {
     assert!(error.0.contains("at reduction 1"), "{}", error.0);
     assert!(error.0.contains(r#"Ref("y") = Number(2.0)"#), "{}", error.0);
 }
+
+#[test]
+fn an_unconnected_input_of_a_connector_stands_at_its_start() {
+    // A connector carrying an `input` that no `connect` names is
+    // supplied from outside the model, exactly as an unconnected
+    // `flow` carries nothing. The compiler counted it as an unknown
+    // and refused the whole model as unbalanced - a value that was
+    // never the model's to find. Fifteen models of the standard
+    // library stood at this, the smallest of them
+    // `StateGraph.Examples.Utilities.Source`.
+    let result = run("package P \
+           connector Outflow output Real out; input Real open(start = 3); end Outflow; \
+           model M Outflow outflow; \
+           equation outflow.out = 2*outflow.open; \
+             annotation(experiment(StopTime = 1)); end M; \
+         end P;");
+    // The input stands at the start its declaration gave it, and the
+    // output the model does state is computed from it.
+    let out = result
+        .columns
+        .iter()
+        .position(|c| c == "outflow.out")
+        .unwrap();
+    assert!(result.rows.len() > 1, "the model ran");
+    assert_eq!(result.rows[0][out], 6.0, "outflow.out = 2 * 3");
+}
+
+#[test]
+fn an_unconnected_causal_connector_stands_at_its_start() {
+    // The same for a connector that is one value rather than a set of
+    // members - `connector RealInput = input Real`, which is how every
+    // signal of the standard library is written. A block whose input
+    // the example never wires is waiting on its environment, not short
+    // of an equation.
+    let result = run("package P \
+           connector RealInput = input Real; \
+           model M RealInput u(start = 4); Real y; \
+           equation y = u + 1; \
+             annotation(experiment(StopTime = 1)); end M; \
+         end P;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    assert!(result.rows.len() > 1, "the model ran");
+    assert_eq!(result.rows[0][y], 5.0, "y = 4 + 1");
+}

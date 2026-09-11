@@ -650,6 +650,15 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         .filter(|path| !joined_paths.contains(path.as_str()))
         .map(|path| (path.clone(), false))
         .collect();
+    // Which connectors no `connect` names anywhere. A set of one is
+    // not the same thing: a port joined from inside its own class and
+    // left alone by the level above stands as a set of one too, and
+    // what it is short of is the seam rather than a value. An `input`
+    // is given its start below, and only for a connector of the first
+    // kind - giving one to the second writes over what the class
+    // inside already states, and the model comes out with more
+    // equations than unknowns.
+    let never_joined: HashSet<String> = alone.iter().map(|(path, _)| path.clone()).collect();
     // A port its own class joins from the inside, and the level above
     // leaves alone, carries nothing through: nothing outside it is
     // there to take the flow. It stands as a set of one on the side
@@ -821,6 +830,19 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         })
         .collect();
     let in_the_graph = |node: &str| graph_nodes.contains(node);
+    // What the model states outright, by name on the left of an
+    // equation. An `input` nothing is joined to is given its start
+    // value below, and a name the model already defines must not be
+    // given a second definition: `outflow1.open = valveControl` is
+    // the model speaking for one of the two.
+    let stated_outright: HashSet<String> = acc
+        .equations
+        .iter()
+        .filter_map(|equation| match &equation.lhs {
+            Expr::Ref(name) => Some(name.clone()),
+            _ => None,
+        })
+        .collect();
     // And the tree drawn over those parts as the sets are walked. One
     // graph spans every set - a plug's angle travels through the
     // connections of the whole model - so what has already been tied
@@ -888,6 +910,33 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         // `connector RealInput = input Real` - joins on itself: there
         // is no member to name, so the paths are the variables.
         if held.is_empty() && class.alias_of.is_some() {
+            // A causal connector nothing else is joined to takes its
+            // value from outside the model, the same reading as an
+            // unconnected `input` member below: the set of one says
+            // nobody inside writes it, and what it stands at is its
+            // own declared start. A valve whose control signal the
+            // example never wires is not a model short of an
+            // equation; it is a model waiting on its environment.
+            if members.len() == 1
+                && class.alias_causality == Causality::Input
+                && never_joined.contains(members[0].0)
+                && !stated_outright.contains(members[0].0)
+            {
+                let declared = acc.components.iter().find(|c| c.name == members[0].0);
+                let value = match declared.and_then(|c| c.start.clone()) {
+                    Some(start) => start,
+                    None => match declared.map(|c| c.type_name.as_str()) {
+                        Some("Boolean") => Expr::Bool(false),
+                        _ => Expr::Number(0.0),
+                    },
+                };
+                acc.equations.push(EquationItem {
+                    lhs: Expr::Ref(members[0].0.to_string()),
+                    rhs: value,
+                    origin: String::new(),
+                });
+                continue;
+            }
             // Which side the equation defines is not the order the
             // set happened to be in: an `input` takes its value from
             // whatever it was connected to, and an `output` states
@@ -1005,6 +1054,36 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                         origin: String::new(),
                     });
                 }
+            } else if members.len() == 1
+                && member_component.causality == Causality::Input
+                && never_joined.contains(members[0].0)
+                && !stated_outright.contains(&var(members[0].0))
+            {
+                // An `input` nothing is joined to is supplied from
+                // outside the model, exactly as an unconnected `flow`
+                // carries nothing: the set of one says nobody inside
+                // writes it. The environment of this run writes
+                // nothing either, so what it stands at is its own
+                // declared start - the same reading a function gives
+                // an argument the caller left out.
+                //
+                // Without this the name is an unknown no equation
+                // determines, and the model is refused as unbalanced
+                // for a value that was never the model's to find.
+                let whole = var(members[0].0);
+                let declared = acc.components.iter().find(|c| c.name == whole);
+                let value = match declared.and_then(|c| c.start.clone()) {
+                    Some(start) => start,
+                    None => match declared.map(|c| c.type_name.as_str()) {
+                        Some("Boolean") => Expr::Bool(false),
+                        _ => Expr::Number(0.0),
+                    },
+                };
+                acc.equations.push(EquationItem {
+                    lhs: Expr::Ref(whole),
+                    rhs: value,
+                    origin: String::new(),
+                });
             } else if members.len() > 1 {
                 // Potential equalities against the first member -
                 // except where the member belongs to the

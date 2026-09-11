@@ -7110,3 +7110,65 @@ its neighbours - `SeriesResonance`, `ParallelResonance`,
 `UnsymmetricalLoad`, `EddyCurrentLosses`, `PolyphaseInductance`, two
 `ToroidalCore` models, and three `HBridge` converters that carry the
 same quasi-static interfaces. Both floors move in this commit.
+
+## An input nobody wired is not a model short of an equation
+
+The census taken over 421 running models ranks the run half by kind,
+and the rows have to be added before they are read: `unbalanced model`
+carries 116 of them, ahead of `cannot evaluate parameters` at 52,
+`parameter has no value` at 50 and the algebraic-loop rows at 46
+together. That top row is a bush rather than a family - the machines,
+the fluid vessels and the operational amplifiers each stand at it for
+their own reason - and the way in was the smallest member by equation
+count rather than the most interesting by name.
+
+The smallest was `StateGraph.Examples.Utilities.Source` at one
+equation for two unknowns, and twelve lines reproduce it whole:
+
+```modelica
+model TopInput
+  connector Outflow output Real out; input Boolean open; end Outflow;
+  Outflow outflow1;
+equation
+  if outflow1.open then outflow1.out = 1; else outflow1.out = 0; end if;
+end TopInput;
+```
+
+`outflow1.open` is an `input` that no `connect` names. Nothing inside
+the model writes it, and nothing was ever going to: an input is
+supplied from outside, exactly as an unconnected `flow` carries
+nothing. The compiler counted it as an unknown and refused the whole
+model for a value that was never the model's to find. The same for a
+connector that is one value rather than a set of members -
+`connector RealInput = input Real`, which is how every signal of the
+standard library is written - and that second layer is why `valve` and
+the mixing-unit blocks stood at the same wall one storey up.
+
+The first cut of the fix gave every set of one its start value, and
+the corpus answered 416 against 421: five models lost, twelve
+withdrawn and seven added. The withdrawals name the blind spot. A set
+of one is not the same thing as a connector nobody joined: a port its
+own class joins from the inside and the level above leaves alone
+stands as a set of one too, and what it is short of is the seam rather
+than a value. Giving it one wrote over what the class inside already
+states, and `Modulation` came out with 37 equations for 27 unknowns -
+ten equations too many. The narrowed rule asks that no `connect`
+anywhere names the connector, which is a set the flattener already
+computes for the unconnected-flow zero.
+
+Narrowed, the corpus reads 2671 files, 820 flatten, **428 run against
+421**; runnable 722 flatten and 416 run, unmoved. The diff of the run
+lists has no withdrawals and seven additions: `Source` and `Tank` of
+the StateGraph utilities, `CriticalDamping`, `MixingUnit`,
+`IntakeManifold` and `TorqueGeneration` of the clocked systems, and
+the batch plant's `Controller`. Only the total run floor moves; the
+runnable pair is untouched, because all seven are utility models
+rather than examples with an experiment.
+
+Worth recording as method: the first measurement was the useful one
+precisely because it went down. A change that had only been checked on
+the family it was written for would have shipped ten spurious
+equations into every model with a port on a boundary, and no test in
+the tree asks that question - the diff of the run lists is the only
+instrument that names five diffuse losses, and it named them by
+model in one pass.
