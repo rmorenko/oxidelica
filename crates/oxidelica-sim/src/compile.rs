@@ -201,6 +201,92 @@ fn build_plan(
         expr.collect_refs(&mut refs);
         refs.contains(&name)
     };
+    // What the slope test may treat as a number. A parameter is one,
+    // and so is an algebraic name whose own equation reads it off a
+    // constant: `R_rel.T[3,2] = e[3]*e[2] + ... - e[1]*sin(phi)` with
+    // an axis of `{0,0,1}` is the number zero however the run reaches
+    // it. Judged without that, the slope looks live, the equation is
+    // divided through by it, and the first residual of the block comes
+    // out infinite before Newton has taken a step - a refusal naming
+    // the solver, which is the one place nothing is wrong.
+    //
+    // A fixpoint, because one such name feeds the next - and the
+    // tests are sorted by price, because the dear half here is the
+    // fold and a model carries tens of thousands of equations. The
+    // shape - a name standing alone on one side - is one comparison
+    // and is asked once. What each candidate needs is gathered once.
+    // Then only a candidate all of whose needs are already numbers is
+    // folded at all, and a round revisits only what the last round's
+    // new values could have unblocked.
+    let settled = {
+        struct Candidate<'a> {
+            name: &'a str,
+            body: &'a Expr,
+            needs: Vec<String>,
+        }
+        let mut candidates: Vec<Candidate<'_>> = Vec::new();
+        for (eq, &var) in matched_var.iter().enumerate().take(n_alg) {
+            let name = unknowns[var].as_str();
+            let (lhs, rhs) = &algebraic_eqs[eq];
+            let body = if matches!(lhs, Expr::Ref(n) if n == name) {
+                rhs
+            } else if matches!(rhs, Expr::Ref(n) if n == name) {
+                lhs
+            } else {
+                continue;
+            };
+            let mut refs = Vec::new();
+            body.collect_refs(&mut refs);
+            if refs.contains(&name) {
+                continue;
+            }
+            let mut needs: Vec<String> = refs.into_iter().map(str::to_string).collect();
+            needs.sort_unstable();
+            needs.dedup();
+            candidates.push(Candidate { name, body, needs });
+        }
+        let mut settled = known.clone();
+        loop {
+            let mut grew = false;
+            candidates.retain(|candidate| {
+                if settled.contains_key(candidate.name) {
+                    return false;
+                }
+                // Two ways a body ends in a number, and both are
+                // asked with lookups alone. Either every name it
+                // reads is already one - or one of them is a zero,
+                // which is how a term naming something live
+                // disappears: `e[1]*sin(phi)` with an axis that has
+                // no first component is nothing at all, whatever the
+                // angle does. Anything else cannot fold and the
+                // expense of trying is the thing being avoided.
+                let all_known = candidate.needs.iter().all(|n| settled.contains_key(n));
+                let has_zero = candidate
+                    .needs
+                    .iter()
+                    .any(|n| matches!(settled.get(n), Some(v) if *v == 0.0));
+                if !all_known && !has_zero {
+                    return true;
+                }
+                let mut folded = candidate.body.clone();
+                for need in &candidate.needs {
+                    if let Some(value) = settled.get(need) {
+                        folded = crate::symbolic::substitute(&folded, need, *value);
+                    }
+                }
+                if let Expr::Number(value) = crate::symbolic::simplify(&folded) {
+                    settled.insert(candidate.name.to_string(), value);
+                    grew = true;
+                }
+                false
+            });
+            if !grew {
+                break;
+            }
+        }
+        settled
+    };
+    let known = &settled;
     let mut ordered_algs: Vec<String> = Vec::new();
     let mut stages: Vec<PlanStage> = Vec::new();
     for &eq in &emitted {

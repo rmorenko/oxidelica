@@ -1973,3 +1973,40 @@ fn abs_of_something_that_moves_is_still_refused() {
     );
     assert!(refusal.contains("abs"), "{refusal}");
 }
+
+/// A coefficient the model works out to be zero is a zero, whether a
+/// parameter says so outright or an equation reads it off parameters
+/// that do. `c = e3*e2 + ... - e1*sin(phi)` about an axis with no
+/// first component is nothing at all, however the angle moves; and an
+/// equation divided through by that nothing turns the block's first
+/// residual into an infinity before Newton takes a step, which is
+/// reported against the solver - the one place nothing is wrong.
+#[test]
+fn a_coefficient_an_equation_settles_to_zero_is_not_divided_by() {
+    let run = run("model M parameter Real e1 = 0; parameter Real e2 = 0; \
+         parameter Real e3 = 1; Real phi(start = 0.1); Real c; Real x; Real y; \
+         equation \
+           der(phi) = 1; \
+           c = (e3*e2) + ((0 - (e3*e2))*cos(phi)) - (e1*sin(phi)); \
+           c*x = y - 1; \
+           y = 3*x + 2; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;");
+    let last = run.rows.last().unwrap();
+    let at = |name: &str| last[run.columns.iter().position(|c| c == name).unwrap()];
+    // With `c` zero the pair reads `y = 1` and `y = 3x + 2`.
+    assert!(
+        (at("c") - 0.0).abs() < 1e-12,
+        "c should be zero, got {}",
+        at("c")
+    );
+    assert!(
+        (at("y") - 1.0).abs() < 1e-9,
+        "y should be 1, got {}",
+        at("y")
+    );
+    assert!(
+        (at("x") - (-1.0 / 3.0)).abs() < 1e-9,
+        "x should be -1/3, got {}",
+        at("x")
+    );
+}
