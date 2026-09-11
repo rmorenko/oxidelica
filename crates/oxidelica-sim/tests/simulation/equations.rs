@@ -2,7 +2,7 @@
 
 use super::shared::*;
 use oxidelica_parser::parse_model;
-use oxidelica_sim::{compile, SimResult};
+use oxidelica_sim::{compile, SimResult, SolverMethod};
 
 #[test]
 fn decay_matches_analytic() {
@@ -1067,6 +1067,39 @@ fn a_bound_over_a_whole_array_is_not_an_assertion_per_element() {
          annotation(experiment(StopTime = 1, Interval = 1)); end M;");
     let index = result.columns.iter().position(|c| c == "d.y[1]").unwrap();
     assert!((result.rows.last().unwrap()[index] - 1e-5).abs() < 1e-12);
+}
+
+#[test]
+fn a_bound_written_out_holds_each_element_to_its_own() {
+    // `x[3](min = {1, 2, 1})` attaches one bound to the whole array,
+    // and each element of that array is its own component by the time
+    // the run is built. The element a bound holds is chosen by the
+    // subscript on the flat name, so `x[2]` is held to the second
+    // number written rather than to the array entire - which is what
+    // reached the code generator before, as an array of three where
+    // one value was wanted.
+    let result = run("model M Real x[3](min = {1, 2, 1}); \
+         equation x[1] = 5; x[2] = 6; x[3] = 7; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let index = result.columns.iter().position(|c| c == "x[2]").unwrap();
+    assert!((result.rows.last().unwrap()[index] - 6.0).abs() < 1e-12);
+}
+
+#[test]
+fn a_bound_written_out_names_the_element_that_broke_it() {
+    // And the assertion is the one Modelica means: the second element
+    // against the second bound, naming itself when it goes under.
+    let broken = run_on(
+        "model M Real x[3](min = {0, 10, 0}); \
+         equation x[1] = 2; x[2] = 3; x[3] = 4; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+        SolverMethod::Dopri45,
+    )
+    .expect_err("the second element is under its bound");
+    assert!(
+        broken.contains("`x[2]` went below its min of 10"),
+        "{broken}"
+    );
 }
 
 #[test]

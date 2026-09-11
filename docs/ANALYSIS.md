@@ -6568,3 +6568,60 @@ split is the next shift's queue, and it is the larger half that is
 newly reachable rather than the architectural one - which is the
 opposite of what the map predicted, and the reason the register was
 run rather than reasoned about.
+
+### The wall the family moved to, and what stood at it
+
+The fifteen models the last series left standing at `subscripts and
+arrays survive flattening only as scalars` were probed rather than
+reasoned about, and the probe took one second where the corpus takes
+eleven minutes. `Pendulum` refused at `code.rs:738` with `an array of
+3 written out`, and a print at that point named the expression: the
+literal `{1, 1, 1}`.
+
+That is not the gravity vector the map predicted. It is `min={1,1,1}`,
+the bound on `Modelica.Mechanics.MultiBody.Types.RotationSequence`,
+arriving at the run through `bound_asserts`. A bound written over a
+whole array is attached to the array, and every element of that array
+is its own component by the time the run is built - so the assertion
+built for `x[2]` compared one number against three.
+
+The twelve-line model showed it in one second:
+
+```modelica
+model B
+  Real x[3](min = {1, 1, 1});
+equation
+  x[1] = 2; x[2] = 3; x[3] = 4;
+end B;
+```
+
+The layer already knew the shape of this problem from the other side:
+`names_an_array_maker` skips a bound written as `zeros(m)`, because a
+call would reach the code generator as a function nothing knows. A
+bound written out reaches it as an array instead, and the two are the
+same fault in two spellings. The difference is that a written-out
+bound _can_ be answered: the flat name carries the subscript, `x[2]`
+is held to the second number written, and that is the assertion
+Modelica means. A name with no subscript, with more than one, or with
+a subscript that chooses nothing is skipped as the array makers are -
+a refusal rather than a guess about which number was meant.
+
+**What it was worth: three models, and the floors moved.** 820/392 to
+820/395, runnable 722/387 to 722/390. The diff of the run lists is
+three additions and no removals:
+
+```text
+> Modelica.Mechanics.MultiBody.Examples.Elementary.Pendulum
+> Modelica.Mechanics.MultiBody.Examples.Elementary.UserDefinedGravityField
+> ModelicaTest.Rotational.TestMove
+```
+
+Two of the three are the family the last series moved here, which is
+the first time this ladder has paid in models rather than in storeys.
+The third had nothing to do with `MultiBody` and was reached by the
+same rule, which is the sign the rule is about bounds and not about
+gravity.
+
+Twelve of the fifteen still stand at the same text, so the wall is a
+wall for more than one reason, and the next probe starts where this
+one did: print the expression, not the family.

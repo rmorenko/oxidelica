@@ -2123,6 +2123,16 @@ fn with_transport_equations(model: &Model) -> Model {
     out
 }
 
+/// The element of a written-out bound that a flat name is held to:
+/// `x[2]` takes the second. A name with no subscript, with more than
+/// one, or with a subscript that does not choose an element of what
+/// was written, is answered with nothing rather than with a guess.
+fn element_of<'a>(name: &str, items: &'a [Expr]) -> Option<&'a Expr> {
+    let inside = name.strip_suffix(']')?.rsplit_once('[')?.1;
+    let which: usize = inside.parse().ok()?;
+    items.get(which.checked_sub(1)?)
+}
+
 /// Whether a bound is written over a whole array rather than over the
 /// one value it is attached to.
 fn names_an_array_maker(expr: &Expr) -> bool {
@@ -2155,6 +2165,22 @@ fn bound_asserts(model: &Model) -> Vec<(Expr, String)> {
             if names_an_array_maker(limit) {
                 continue;
             }
+            // A bound written out - `x[3](min = {1, 1, 1})` - is
+            // attached to the array as a whole, and each element of
+            // that array is its own component here, named `x[2]` as
+            // the flat model names it. The bound this element is held
+            // to is the matching element of what was written, so the
+            // subscript on the name chooses it. Anything else - a
+            // matrix, a name whose subscript does not choose - has no
+            // one value to compare against, and a comparison against
+            // the whole array is not the assertion Modelica means.
+            let limit = match limit {
+                Expr::Array(items) => match element_of(&component.name, items) {
+                    Some(one) => one,
+                    None => continue,
+                },
+                one => one,
+            };
             out.push((
                 Expr::Rel(
                     op,
