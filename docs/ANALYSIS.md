@@ -7245,3 +7245,43 @@ The machines themselves did not move, and that is the expected half:
 `TranslatoryArmatureAndStopper` and `SpeedControl` are still refused,
 one wall further along. The census entry loses this storey rather than
 the family.
+
+## A state the initial section says nothing about
+
+An `initial equation` section was counted against every state of the
+model, so a model with nine states and a section written about two of
+them was refused as an initialisation that is not square. It was the
+tallest entry in the run half of the register, thirty-three models,
+and the model that names it plainest is four lines long: two states,
+one initial equation, and a refusal that the problem has one equation
+for two unknowns.
+
+It has two. The section can only move the states it mentions;
+whatever it is silent about is not an unknown of the initialisation
+at all, and stands at the start value it was declared with. Filling
+those in is what makes the problem square, and it is the same rule
+the language states - a start value is a guess only where something
+else has an opinion about it.
+
+Mentioned is asked of the whole section rather than of each equation,
+because an equation relating two states pins neither on its own and
+both are unknowns of the system the section forms. And the filling in
+is allowed only where it makes a lopsided problem square, never where
+the problem was square already: a section that pins nothing, or one
+written about an algebraic variable, has its own diagnosis waiting
+below, and pinning the states it did not mention would answer that
+with an arithmetic complaint instead. Both restrictions were bought
+by red tests.
+
+The corpus reads 2671 files, 820 flatten, and **450 run against 445**;
+runnable **421 against 416**. The diff of the run lists has no
+withdrawals, and the five are `DCPM_Drive`, `LinearInductor` and
+`NonLinearInductor` of the quasi-static flux tubes, `FreeBody`, and
+`Vehicle`. Both run floors move here.
+
+The solenoid comparisons are the other half of the entry and they
+moved a storey rather than out: `ComparisonQuasiStatic` now stands at
+a singular Jacobian in an algebraic loop and `ComparisonPullInStroke`
+at a residual of one. That is the expected shape - the tallest entry
+of the register drains, and what stood behind it is a numerical wall
+of its own.

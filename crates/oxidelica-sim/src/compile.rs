@@ -3776,13 +3776,49 @@ impl CompiledModel {
             return Ok(());
         }
         let n = self.states.len();
-        let pinned = fixed.iter().filter(|f| **f).count();
+        // A state no initial equation says anything about is not an
+        // unknown of the initialisation: nothing in the section can
+        // move it, so it stands at the start value it was given. An
+        // `initial equation` written about two states out of nine
+        // means the other seven start where they were declared to,
+        // and counting them as unknowns made a square problem read as
+        // a lopsided one - which is what refused the solenoid
+        // comparisons and thirty-two models beside them.
+        //
+        // Mentioned is asked of the whole section rather than of one
+        // equation, because an equation relating two states pins
+        // neither on its own and both are then unknowns of the system
+        // the section forms.
+        //
+        // The filling in is only allowed to make a lopsided problem
+        // square, never to reshape one that already was: a section
+        // that pins nothing (`0 = 0`) or names an algebraic variable
+        // has its own diagnosis waiting below, and pinning the states
+        // it did not mention would answer it with an arithmetic
+        // complaint instead.
+        let declared = fixed.iter().filter(|f| **f).count();
+        let filled = if initial_equations.len() + declared == n {
+            fixed.to_vec()
+        } else {
+            let mut mentioned: Vec<&str> = Vec::new();
+            for equation in initial_equations {
+                equation.lhs.collect_refs(&mut mentioned);
+                equation.rhs.collect_refs(&mut mentioned);
+            }
+            self.states
+                .iter()
+                .zip(fixed)
+                .map(|(state, &declared)| declared || !mentioned.iter().any(|name| name == state))
+                .collect()
+        };
+        let pinned = filled.iter().filter(|f| **f).count();
         if initial_equations.len() + pinned != n {
             return err(format!(
                 "initialization is not square: {} initial equation(s) and {pinned} fixed start(s) for {n} state(s)",
                 initial_equations.len()
             ));
         }
+        let fixed = &filled[..];
 
         // `der(x)` in an initial equation is the right-hand side the
         // model gives that state, so a steady start reads `der(x) = 0`.

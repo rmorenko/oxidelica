@@ -723,3 +723,19 @@ fn a_start_is_read_from_the_equation_that_names_a_stated_neighbour() {
         first[at("q")]
     );
 }
+
+#[test]
+fn a_state_the_initial_section_says_nothing_about_starts_where_it_was_put() {
+    // Two states, and the section speaks about one of them. The other
+    // is not an unknown of the initialisation - nothing there can move
+    // it - so it stands at its declared start rather than making the
+    // problem read as lopsided.
+    let result = run("model M Real x(start = 1); Real y(start = 5); \
+         equation der(x) = -x; der(y) = 0; \
+         initial equation x = 3; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    assert!((first[index("x")] - 3.0).abs() < 1e-9);
+    assert!((first[index("y")] - 5.0).abs() < 1e-12);
+}
