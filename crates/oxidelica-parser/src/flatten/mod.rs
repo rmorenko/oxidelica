@@ -1020,10 +1020,23 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
                     // member may be a field of it: the node is
                     // `plug.reference` where the member is
                     // `reference.gamma`.
+                    // A connector of a record that carries an
+                    // `equalityConstraint` is a node of that graph
+                    // whether a `branch` names it or not. Gathering the
+                    // nodes from the clauses alone missed every
+                    // connector a component merely passes through -
+                    // `PlugToPins_p` joins its outer plug to an array
+                    // of inner ones and writes no branch of its own -
+                    // and a node the tree cannot see neither carries
+                    // the tree nor closes a loop, so the ring beyond it
+                    // was written out as an equality and the model came
+                    // out over-determined.
+                    let record = member_component.name.split('.').next().unwrap_or_default();
                     let node = match whole.rsplit_once('.') {
                         Some((node, _)) if in_the_graph(node) => node.to_string(),
                         _ if in_the_graph(&whole) => whole,
-                        _ => return None,
+                        _ if record.is_empty() => return None,
+                        _ => format!("{path}.{record}"),
                     };
                     Some(match branch_parts.get(&node) {
                         Some(part) => *part,

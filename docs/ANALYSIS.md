@@ -6991,3 +6991,45 @@ reach 2485 on 2485 and stands at 2505. Nineteen loop-closing connections
 are still being written as equalities somewhere the set walk does not
 see, and that is where the next attempt starts. The prediction is
 recorded as missed rather than adjusted.
+
+### Link five: a pass-through is a node of the graph
+
+The nineteen the previous attempt could not account for were found by a
+probe rather than by reasoning about shapes: a counter printed, for each
+equality the set walk writes about a graph record, whether the walk
+considered the node to be in the graph at all. It named the line in one
+second. The nodes were gathered from the `branch` and `root` clauses
+alone, so a connector no clause names was outside the graph entirely -
+and `PlugToPins_p` is exactly that, an outer plug joined to an array of
+inner converters by plain `connect` equations and writing no branch of
+its own. The probe's output on `EddyCurrentLosses`:
+
+```text
+in_graph=true  loss_e.plugToPins_n.plugToPin_n[1].pin_n.reference.gamma = ...
+in_graph=false loss_e.plugToPins_n.plug_n.reference.gamma = ...
+in_graph=false loss_e.plug_n.reference.gamma = ...
+```
+
+A node the walk cannot see does two wrong things at once: its connection
+is written as a blanket equality, and - worse - it does not carry the
+spanning tree, so a connection beyond it that really does close a ring is
+never recognised as closing one. Every connector of a record carrying an
+`equalityConstraint` is a node of that graph whether a branch names it or
+not, which is what the rule now says.
+
+Measured, and the prediction missed again in the other direction:
+`EddyCurrentLosses` went from 2505 equations for 2485 unknowns to **2476
+for 2485**, and `BalancingStar` from over to 1214 for 1217. The family
+has crossed from over-determined to under-determined - twenty-nine
+equalities dropped where twenty were owed - so the wall it stands at is a
+different one and the models still do not run. That is the shape the
+notes describe: a family taken one storey up moves no count of models.
+
+The corpus says the storey was climbed without cost: 2671 files read,
+820 flatten, 407 run, runnable 722 and 402 - identical to the run before
+it, and the diff of the run lists is empty name for name, no withdrawals
+and no additions. The floors do not move because the numbers do not.
+
+Where the remaining nine equalities go is the next question, and the
+instrument for it exists: the same probe, printing the drops as well as
+the writes, already lists them by name.

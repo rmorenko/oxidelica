@@ -1831,3 +1831,59 @@ fn a_connection_closing_a_ring_of_the_graph_owes_no_equality() {
     // that is an edge of the tree - and none from the one that closes.
     assert_eq!(angles, 3, "{:?}", m.equations);
 }
+
+/// And a ring that reaches the graph through a component writing no
+/// `branch` of its own. `PlugToPins_p` in the quasi-static libraries
+/// passes its outer plug through to an array of inner converters with
+/// plain `connect` equations, so its own plug is named by no clause of
+/// the graph. Gathering the nodes from the clauses alone left such a
+/// connector outside the graph entirely: the connections naming it
+/// wrote blanket equalities and, worse, did not carry the spanning
+/// tree, so the connection that really closes the ring beyond it was
+/// never recognised as closing one. Every connector of a record with an
+/// empty `equalityConstraint` is a node whether a branch names it or
+/// not, which is what makes a pass-through carry the tree.
+#[test]
+fn a_pass_through_carries_the_tree_of_the_graph() {
+    const RING: &str = "\
+        record Reference Real gamma; \
+          function equalityConstraint input Reference reference1; \
+            input Reference reference2; output Real residue[0]; \
+            algorithm end equalityConstraint; \
+        end Reference; \
+        connector Pin Real v; flow Real i; Reference reference; end Pin; \
+        model Source Pin pin_p; Pin pin_n; Real gamma(start = 0) = pin_p.reference.gamma; \
+        equation Connections.root(pin_p.reference); \
+          Connections.branch(pin_p.reference, pin_n.reference); \
+          pin_p.reference.gamma = pin_n.reference.gamma; \
+          pin_p.v - pin_n.v = 1; pin_p.i + pin_n.i = 0; der(gamma) = 2; end Source; \
+        model Load Pin pin_p; Pin pin_n; \
+        equation Connections.branch(pin_p.reference, pin_n.reference); \
+          pin_p.reference.gamma = pin_n.reference.gamma; \
+          pin_p.v - pin_n.v = pin_p.i; pin_p.i + pin_n.i = 0; end Load; \
+        model Wrapper Pin pin_p; Pin pin_n; Load load; \
+        equation connect(pin_p, load.pin_p); connect(load.pin_n, pin_n); end Wrapper;";
+
+    let m = parse_model(&format!(
+        "{RING} model M Source source; Wrapper wrapper; \
+         equation connect(source.pin_p, wrapper.pin_p); \
+           connect(wrapper.pin_n, source.pin_n); end M;"
+    ))
+    .unwrap();
+    let angles = m
+        .equations
+        .iter()
+        .filter(|e| {
+            format!("{:?}{:?}", e.lhs, e.rhs)
+                .matches("reference.gamma")
+                .count()
+                == 2
+        })
+        .count();
+    // One from the source, one from the inner load, and one for each
+    // of the three connections that are edges of the tree - the fourth
+    // closes the ring and owes no equality. Before the fix the
+    // wrapper's own two pins were no nodes at all, so all four
+    // connections wrote an equality and the count was six.
+    assert_eq!(angles, 5, "{:?}", m.equations);
+}
