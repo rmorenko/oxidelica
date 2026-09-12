@@ -7509,7 +7509,50 @@ to `A` as an equation instead of settling it to a number. The divisor
 there is not a live unknown at all - it is a constant the plan failed
 to recognise, which is a different layer from this one.
 
-The census entry is the measure of the rest: twenty-six models stood at
-this wall and two moved, so the remaining twenty-four are at the same
-wording for other reasons. MultiBody owns eight of them through
-`z_a`, which is a family of its own.
+The census entry is the measure of the rest: twenty-six models stand at
+this wall for other reasons, counted after the move rather than before
+it. MultiBody owns eight of them through `z_a`, which is a family of
+its own.
+
+## The residual nothing could evaluate, mapped
+
+The census taken after the divisor rule put the residual wording at
+twenty-seven, not the twenty-five the previous shift predicted: two
+models arrived rather than one, and the two rows that emptied by one
+apiece say where from - `algebraic loop diverged` and an initial value
+fixed against its constraints. The prediction had counted the traffic
+one way only. The previous note's "remaining twenty-four" was the same
+error and is corrected here rather than in place: what stood at the
+wall after that shift was twenty-six.
+
+Named, the twenty-seven are three families and two singles. Eight are
+magnetic, where a reluctance is written `R_m = 1/G_m` and `G_m` is an
+unknown whose declaration left it at zero. Eight are MultiBody, through
+`z_a` and the wheels' `der_angles`, where the value that is not a
+number is an inner assignment of the block rather than the residual
+itself. Eleven are the machines, all reading `airGap` in a block of
+thirty-odd unknowns. `DrumBoiler` and a reversing valve of ModelicaTest
+stand alone.
+
+The magnetic eight are the layer this shift took. A block whose
+residual is not a number at the point it starts from has not diverged:
+it was never evaluated, and the question it was asked - the reciprocal
+of zero - is one neither the model nor the plan is at fault for, since
+the division stands in the equation rather than in an assignment the
+plan chose. So the block is started again, from each of a handful of
+magnitudes in turn, and the first start that solves is the answer. Only
+that one refusal is retried, and the test that says why is
+`der(x)^2 = 4`: a block that converged on an ambiguous solution has
+been evaluated and has something true to say, and a retry would hand
+back whichever root it happened to land on.
+
+The corpus is unmoved at 820 flatten and 460 run, runnable 722 and 431,
+and the reason is the link behind this one. All eight now reach Newton
+and all eight are refused a step later: `leakage.G_m` for a singular
+Jacobian, `r_mFe.mu_r` and the quasi-static inductor the same. That is
+the third link of the chain - the leakage element writes
+`(1 - c_usefulFlux)*R_m = c_usefulFlux*R_mUsefulTot` beside
+`R_m = 1/G_m`, and what the corpus says about it is that the pair does
+not pin the block down as the compiler tears it. The work is a link
+taken on a mapped chain rather than a model won, and it is recorded as
+that.

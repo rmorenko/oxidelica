@@ -447,6 +447,29 @@ impl CompiledModel {
     /// magnetic curve entering saturation raises its residual once and
     /// then converges, and a rule demanding descent every time
     /// shortens the step that was about to work.
+    /// A block whose residual is not a number at the point it starts
+    /// from has not diverged: it was asked a question arithmetic
+    /// cannot answer, and nearly always the question is a reciprocal
+    /// of an unknown standing at the zero its declaration left it.
+    /// `R_m = 1/G_m` is the whole of it - nothing about the model is
+    /// wrong, and the plan cannot avoid it either, because the
+    /// division is written in the equation rather than in an
+    /// assignment the plan chose. What is wrong is only the point the
+    /// iteration was handed.
+    ///
+    /// So the block is tried again from off the zero rather than
+    /// given up on. Which value to move to is not a free choice and
+    /// no single one serves: near the pole the slope is enormous and
+    /// Newton creeps, far from it the slope is flat and the Jacobian
+    /// reads as singular, and the distance at which a reciprocal
+    /// turns from one into the other is the model's own scale, which
+    /// this layer does not know. So several are tried in turn, and
+    /// the first that solves is the answer - which is then checked
+    /// exactly as any other solution of the block is.
+    ///
+    /// A block whose residual is a number where it stands is left
+    /// alone entirely: the first attempt is the start it was handed,
+    /// and the rest of the list is never reached.
     pub(crate) fn solve_implicit_block(
         &self,
         t: f64,
@@ -454,6 +477,55 @@ impl CompiledModel {
         stage: &AlgStage,
         alg_guess: &mut [f64],
         validate: bool,
+    ) -> Result<(), SimError> {
+        let first = self.solve_implicit_block_from(t, values, stage, alg_guess, validate, None);
+        // Only the one refusal is retried, and it has to be named
+        // rather than taken as "anything that failed". A block that
+        // did not converge, or converged on a solution it cannot call
+        // unique, has been evaluated and has something to say about
+        // the model; started again from elsewhere it would say the
+        // same thing more slowly, and `der(x)^2 = 4` - which has two
+        // roots and must be refused - would come back with whichever
+        // root the retry happened to land on. What is retried is the
+        // block that was never evaluated at all.
+        let unevaluated = matches!(&first, Err(e) if e.0.contains("before any Newton step"));
+        if !unevaluated || std::env::var_os("OXIDELICA_NO_ZERO_STEP").is_some() {
+            return first;
+        }
+        let AlgStage::Implicit { torn: block, .. } = stage else {
+            return first;
+        };
+        if !block.iter().any(|&i| alg_guess[i] == 0.0) {
+            return first;
+        }
+        for magnitude in [1e-6, 1e-3, 1.0, 1e3] {
+            let start: Vec<f64> = block
+                .iter()
+                .map(|&i| {
+                    if alg_guess[i] == 0.0 {
+                        magnitude
+                    } else {
+                        alg_guess[i]
+                    }
+                })
+                .collect();
+            let again =
+                self.solve_implicit_block_from(t, values, stage, alg_guess, validate, Some(&start));
+            if again.is_ok() {
+                return again;
+            }
+        }
+        first
+    }
+
+    fn solve_implicit_block_from(
+        &self,
+        t: f64,
+        values: &mut [f64],
+        stage: &AlgStage,
+        alg_guess: &mut [f64],
+        validate: bool,
+        start: Option<&[f64]>,
     ) -> Result<(), SimError> {
         let AlgStage::Implicit {
             torn: block,
@@ -465,7 +537,10 @@ impl CompiledModel {
             return Ok(());
         };
         let n = block.len();
-        let mut v: Vec<f64> = block.iter().map(|&i| alg_guess[i]).collect();
+        let mut v: Vec<f64> = match start {
+            Some(given) => given.to_vec(),
+            None => block.iter().map(|&i| alg_guess[i]).collect(),
+        };
 
         let residual = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
             for (j, &index) in block.iter().enumerate() {

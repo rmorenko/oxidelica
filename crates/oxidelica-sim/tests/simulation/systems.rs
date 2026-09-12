@@ -573,3 +573,22 @@ fn a_stream_carrying_nothing_still_says_which_enthalpies_are_equal() {
         result.rows[0][port]
     );
 }
+
+#[test]
+fn a_block_that_starts_where_it_cannot_be_evaluated_is_tried_from_elsewhere() {
+    // `R_m = 1/G_m` names a block whose unknown starts at the zero its
+    // declaration left it, and a reciprocal has nothing to say there.
+    // That is not a fault of the model and not one the plan can route
+    // around - the division is in the equation, not in an assignment
+    // the plan chose - so the block is started again from off the
+    // zero. The number is the check: `G_m` is the reciprocal of the
+    // reluctance the rest of the model fixes.
+    let result = run(
+        "model S Real G_m; Real R_m; Real x(start = 1, fixed = true); \
+         equation der(x) = 0; R_m = 2 + x; R_m = 1 / G_m; \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); end S;",
+    );
+    let at = |name: &str| result.rows[0][result.columns.iter().position(|c| c == name).unwrap()];
+    assert!((at("R_m") - 3.0).abs() < 1e-9, "R_m = {}", at("R_m"));
+    assert!((at("G_m") - 1.0 / 3.0).abs() < 1e-9, "G_m = {}", at("G_m"));
+}
