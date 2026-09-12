@@ -460,3 +460,26 @@ fn an_input_of_the_model_itself_stands_at_its_start() {
     assert_eq!(at("gain.y"), 6.0, "the gain of two over a start of three");
     assert_eq!(at("y"), 6.0, "and out through the block's own output");
 }
+
+#[test]
+fn a_stream_carrying_nothing_still_says_which_enthalpies_are_equal() {
+    // `semiLinear(m, h_port, h)` is `h_port*m` one way and `h*m` the
+    // other, so at `m = 0` it is zero whichever way it is read and
+    // says nothing at all about `h_port`. A component connected to
+    // one whose flow has stopped therefore has an enthalpy nothing
+    // determines, and the block it sits in is underdetermined - which
+    // is what nine models of the standard library were refused for.
+    // The language says what the missing equation is: where the flow
+    // is zero the two enthalpies are equal.
+    let result = run("model S Real m; Real h_port; Real h; Real H; \
+         equation m = 0; h = 300; H = semiLinear(m, h_port, h); H = 0; \
+         annotation(experiment(StopTime=0.01, Interval=0.01)); end S;");
+    let port = result.columns.iter().position(|c| c == "h_port").unwrap();
+    // The number, not the fact that it compiled: with nothing
+    // flowing, the port carries the enthalpy of what it is joined to.
+    assert!(
+        (result.rows[0][port] - 300.0).abs() < 1e-9,
+        "{}",
+        result.rows[0][port]
+    );
+}

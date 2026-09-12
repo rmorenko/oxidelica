@@ -407,6 +407,15 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         }
         crate::check::verify(&with_branches)?;
     }
+    // A stream of components carrying enthalpy says nothing about
+    // which enthalpy is which where the flow through it is zero. The
+    // language says what the missing equation is, and it is put in
+    // here, once the model as written has been checked as written.
+    for equation in &mut model.equations {
+        if let Some(rewritten) = semilinear_at_zero(equation) {
+            *equation = rewritten;
+        }
+    }
     // The branches themselves travel to the compiler, which settles
     // which one applies and compiles that mode as its own model.
     model.conditional = acc.conditional;
@@ -2278,4 +2287,119 @@ struct Shapes<'a> {
     /// Record instances in scope, by name, with the class each one is
     /// of: what tells an overloaded operator which record it is for.
     records: &'a HashMap<String, String>,
+}
+
+/// An equation with a `semiLinear` on one side, rewritten so that it
+/// still says something when the flow through it is zero.
+///
+/// `H = semiLinear(m, h_a, h_b)` is `h_a*m` one way and `h_b*m` the
+/// other. At `m = 0` both branches are zero whatever the enthalpies
+/// are, so the equation determines neither of them, and a stream of
+/// components connected end to end leaves a chain of enthalpies that
+/// nothing pins down - which is exactly what the solver reports as an
+/// underdetermined loop, or, where the finite differences do not
+/// cancel quite as cleanly, as a singular Jacobian. The language says
+/// what the missing equation is (3.7.2.5): where the flow is zero the
+/// two enthalpies are equal, since nothing is being carried and the
+/// mixing has no direction to prefer.
+///
+/// So the equation becomes a conditional on the flow: the transport
+/// equation while the flow is nonzero, and `h_a = h_b` at the moment
+/// it is not. Both halves hold at once - at `m = 0` the transport
+/// equation is `H = 0`, which the other side already says - so
+/// nothing is lost by swapping one for the other there.
+///
+/// Only an equation whose whole side is the call is taken. A
+/// `semiLinear` under arithmetic is a term of something larger, and
+/// what the larger equation determines is not this one's to decide.
+///
+/// This runs after the checks rather than while the equations are
+/// being written, and that is not an accident of where it was put.
+/// The two branches it makes carry different dimensions - one is a
+/// difference of enthalpies, the other a flow of energy - and the
+/// unit layer is right to say so of anything a model writes. What is
+/// written here is not a model's expression but a plan for solving
+/// one, and a plan is not the thing the dimensional check is over.
+fn semilinear_at_zero(equation: &EquationItem) -> Option<EquationItem> {
+    if std::env::var_os("OXIDELICA_NO_SEMILINEAR_CHAIN").is_some() {
+        return None;
+    }
+    // The call itself is gone by now: the array layer wrote it out as
+    // the conditional it stands for, which is the only shape the rest
+    // of the compiler ever sees. So the shape is what is matched, and
+    // matched exactly - the same flow on the test and on both
+    // products, the two enthalpies differing only in which branch
+    // they stand on. Anything looser would catch an ordinary
+    // conditional that happens to multiply by the thing it tests.
+    fn transported(side: &Expr) -> Option<(&Expr, &Expr, &Expr)> {
+        let Expr::If(condition, positive, negative) = side else {
+            return None;
+        };
+        let Expr::Rel(RelOp::Ge, flow, right) = condition.as_ref() else {
+            return None;
+        };
+        if **right != Expr::Number(0.0) {
+            return None;
+        }
+        fn factor<'a>(branch: &'a Expr, flow: &Expr) -> Option<&'a Expr> {
+            match branch {
+                Expr::Bin(BinOp::Mul, enthalpy, rate) if rate.as_ref() == flow => {
+                    Some(enthalpy.as_ref())
+                }
+                _ => None,
+            }
+        }
+        let flow = flow.as_ref();
+        Some((flow, factor(positive, flow)?, factor(negative, flow)?))
+    }
+    let (parts, other) = match (transported(&equation.lhs), transported(&equation.rhs)) {
+        // Both sides a transport term is not the shape this is about:
+        // which of the four enthalpies would be paired is a guess.
+        (Some(_), Some(_)) => return None,
+        (Some(parts), None) => (parts, &equation.rhs),
+        (None, Some(parts)) => (parts, &equation.lhs),
+        (None, None) => return None,
+    };
+    let (flow, positive, negative) = parts;
+    // Only where both enthalpies are variables the model has left for
+    // the equation to pin down. `semiLinear(u, 2, 5)` is a pair of
+    // slopes written out, and both are settled already: rewriting it
+    // would say `y = 2 - 5` where the meaning is `y = 0`, which is a
+    // wrong number in place of a right one - the worst thing this
+    // compiler can do, and the reason this is a test rather than a
+    // remark. A stream's two enthalpies are plain names, and that is
+    // the shape taken.
+    if !matches!(positive, Expr::Ref(_)) || !matches!(negative, Expr::Ref(_)) {
+        return None;
+    }
+    // The same name on both sides means the equation already says
+    // `H = 0` at zero flow, and there is nothing missing to supply.
+    if positive == negative {
+        return None;
+    }
+    let transport = if std::ptr::eq(other, &equation.rhs) {
+        equation.lhs.clone()
+    } else {
+        equation.rhs.clone()
+    };
+    Some(EquationItem {
+        lhs: other.clone(),
+        rhs: Expr::If(
+            Box::new(Expr::Rel(
+                RelOp::Eq,
+                Box::new(flow.clone()),
+                Box::new(Expr::Number(0.0)),
+            )),
+            // At zero flow the transported quantity is zero, and what
+            // the equation is worth is carried in its place: the
+            // difference of the two enthalpies, which has to vanish.
+            Box::new(Expr::Bin(
+                BinOp::Sub,
+                Box::new(positive.clone()),
+                Box::new(negative.clone()),
+            )),
+            Box::new(transport),
+        ),
+        origin: equation.origin.clone(),
+    })
 }

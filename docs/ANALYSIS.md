@@ -7337,3 +7337,64 @@ lightning models - `DemonstrateLightning`,
 initialisation that is singular, the entry for which fills by exactly
 the three it lost. The flatten half of the register is identical line
 for line, which is what a change confined to the run half owes.
+
+## A stream that carries nothing still says which enthalpies are equal
+
+`semiLinear(m, h_a, h_b)` is `h_a*m` where the flow runs one way and
+`h_b*m` where it runs the other, and the two meet at zero. They meet
+rather too well: at `m = 0` the expression is zero whatever the
+enthalpies are, so the equation that carries it determines neither of
+them. A chain of components joined end to end therefore has a chain of
+enthalpies that nothing pins down the moment the flow through it
+stops, which is the state most of these models start in.
+
+What the solver made of that was three different refusals for one
+cause. Where the finite differences cancelled cleanly the block was
+`underdetermined`; where they left noise the same block was a
+`singular Jacobian`; and where an explicit assignment had already been
+minted by dividing through the vanishing slope, the first residual was
+not a number at all. The census reads these as three families, and the
+probe reads them as one wall - which is the gap between counting kinds
+and probing layers, seen again.
+
+The language says what the missing equation is (3.7.2.5): where the
+flow is zero the two enthalpies are equal, since nothing is being
+carried and the mixing has no direction to prefer. So the equation
+becomes a conditional on the flow, with the transport term while the
+flow is nonzero and the difference of the two enthalpies at the moment
+it is not. Nothing is lost by the swap: at zero flow the transport
+equation says `H = 0`, which the other side of it already says.
+
+Three things about the shape were learned by getting them wrong, and
+each is held by something.
+
+The rewrite runs _after_ the checks rather than while the equations
+are written. Its two branches carry different dimensions - a
+difference of enthalpies against a flow of energy - and the unit layer
+is right to say so of anything a model writes. What is written here is
+not a model's expression but a plan for solving one, and a plan is not
+what the dimensional check is over. Put before the layer, it turned
+nine models from a bad answer into a refusal about units.
+
+Only where both enthalpies are plain names. `semiLinear(u, 2, 5)` is a
+pair of slopes written out, both settled already, and rewriting it
+says `y = 2 - 5` where the meaning is `y = 0` - a wrong number in
+place of a right one, which is the worst thing this compiler can do.
+A test in the flattening suite had this covered and went red within
+the minute, which is the cheapest possible news.
+
+And the transport term is swapped _for_ the difference rather than
+added to it. Carrying both keeps the branch an identity in the
+transported quantity, which reads well and costs everything: with
+nothing solvable there, every member of the family fell back to an
+infinite residual. Measured on nine models, the added form won none
+and the swapped form won three.
+
+The corpus reads 2671 files, 820 flatten, and **454 run against 451**;
+runnable **425 against 422**. Both run floors move here. The diff of
+the run lists, taken from one binary with the change switched off and
+on, has no withdrawals and three arrivals - `OneMass`, `TwoMass` and
+`ParallelCooling`. The other six of the family moved a storey rather
+than through the door: they stand now at an infinite first residual,
+where the enthalpy is determined but something upstream of it is not
+a number, and that is a different wall in a different layer.
