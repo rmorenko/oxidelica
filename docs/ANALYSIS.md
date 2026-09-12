@@ -7419,7 +7419,7 @@ enthalpy downstream of it was NaN before Newton had taken a step.
 
 The compiler already knew how to read a start out of an equation: it
 did it for the torn variables of an algebraic block, where a bad guess
-costs convergence. What it did not do was read one for a *state*,
+costs convergence. What it did not do was read one for a _state_,
 where a bad guess is not a guess at all - a state's start is where the
 run begins, and nothing later writes over it.
 
