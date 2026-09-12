@@ -3141,12 +3141,31 @@ pub(crate) fn compile_at(
     // there are unknowns.
     let mut read_starts: HashMap<&str, f64> = HashMap::new();
     {
-        // Only the torn variables are asked about. Everything else in
-        // an algebraic block is assigned outright before the residual
-        // is formed, so its start is written over without being read,
-        // and a whole model's worth of names solved for nothing is
-        // what the cost of this would otherwise be.
-        let iterated: std::collections::HashSet<&str> = stages
+        // A state with no `start` of its own is read about here too,
+        // and with more at stake than an algebraic one: its value is
+        // not written over by anything, it is where the run begins. A
+        // mass written `m = rho*A*s` with the length given a start
+        // and the mass none begins at zero, and the enthalpy the next
+        // equation divides by it is not a number from the first step
+        // onwards. The equation says what the mass starts from; the
+        // silence of the declaration says nothing, and zero is not
+        // what it says.
+        let mut named: Vec<&str> = Vec::new();
+        // Whose start is worth the solving. The torn variables,
+        // because a block iterates from theirs; the silent states,
+        // because theirs is where the run begins; and whatever stands
+        // between the two along an equation, because a temperature
+        // nothing iterates on is what makes an enthalpy readable and
+        // the enthalpy is what makes the total readable.
+        //
+        // The reach is grown from the wanted names rather than from
+        // the whole model, and the growth is by naming alone - no
+        // solving, no evaluation. That order is the whole cost of
+        // this: asking every name in a model of ten thousand
+        // equations to be solved for took the corpus from eleven
+        // minutes to twenty-five, and asking only the names within
+        // reach of one that wants an answer costs a walk.
+        let mut wanted_names: std::collections::HashSet<&str> = stages
             .iter()
             .flat_map(|stage| match stage {
                 PlanStage::Implicit { torn, .. } => torn.as_slice(),
@@ -3154,48 +3173,102 @@ pub(crate) fn compile_at(
             })
             .map(|&var| ordered_algs[var].as_str())
             .collect();
-        let mut named: Vec<&str> = Vec::new();
-        for (lhs, rhs) in &algebraic_eqs {
-            named.clear();
-            lhs.collect_refs(&mut named);
-            rhs.collect_refs(&mut named);
-            let mut wanted: Option<&str> = None;
-            let mut alone = true;
-            for other in &named {
-                if stated.contains_key(*other) {
+        for state in &states {
+            if std::env::var_os("OXIDELICA_NO_READ_STATE_START").is_some() {
+                break;
+            }
+            let silent = model
+                .components
+                .iter()
+                .find(|c| &c.name == state)
+                .is_none_or(|c| c.start.is_none());
+            if silent && resumed(state).is_none() {
+                wanted_names.insert(state.as_str());
+            }
+        }
+        // As far as one equation reaches, and no further. A name two
+        // equations away from anything wanting a start is not what
+        // this is for, and each round of growth is a walk over every
+        // equation in the model: measured with the growth unbounded,
+        // the corpus went from eleven minutes to eighteen.
+        {
+            let mut grown: Vec<&str> = Vec::new();
+            for (lhs, rhs) in &algebraic_eqs {
+                named.clear();
+                lhs.collect_refs(&mut named);
+                rhs.collect_refs(&mut named);
+                if named.iter().any(|name| wanted_names.contains(name)) {
+                    grown.extend(named.iter().copied());
+                }
+            }
+            wanted_names.extend(grown);
+        }
+        // Read until nothing more can be read, and not past a few
+        // rounds. One equation's answer is what makes the next one
+        // readable: a temperature gives an enthalpy, the enthalpy and
+        // a mass give a total, and a single pass gets whichever of
+        // the three comes first and leaves the rest at zero. Each
+        // round costs a walk over every equation, so the rounds are
+        // capped: the chains this is for are three or four links, and
+        // a model with a chain as deep pays the walk once per link.
+        for _ in 0..4 {
+            let learned_before = read_starts.len();
+            for (lhs, rhs) in &algebraic_eqs {
+                named.clear();
+                lhs.collect_refs(&mut named);
+                rhs.collect_refs(&mut named);
+                let mut wanted: Option<&str> = None;
+                let mut alone = true;
+                for other in &named {
+                    if stated.contains_key(*other) {
+                        continue;
+                    }
+                    match wanted {
+                        Some(first) if first == *other => {}
+                        Some(_) => {
+                            alone = false;
+                            break;
+                        }
+                        None => wanted = Some(other),
+                    }
+                }
+                let (true, Some(name)) = (alone, wanted) else {
+                    continue;
+                };
+                // Whether the name is one whose start is *used* is a
+                // separate question from whether reading it is worth
+                // the pass: a temperature nothing iterates on is what
+                // makes the enthalpy readable, and the enthalpy is
+                // what makes the total readable. So the question
+                // asked is the wider one - is this name within reach
+                // of something that wants a start - and the answer is
+                // a lookup in a set worked out once above, which is
+                // what keeps the solving off every name in the model.
+                if !wanted_names.contains(name) || read_starts.contains_key(name) {
                     continue;
                 }
-                match wanted {
-                    Some(first) if first == *other => {}
-                    Some(_) => {
-                        alone = false;
-                        break;
+                let Some(solved) = crate::symbolic::solve_linear_known(lhs, rhs, name, &stated)
+                else {
+                    continue;
+                };
+                let value = eval(
+                    &solved,
+                    &EvalCtx {
+                        vars: &stated,
+                        time: 0.0,
+                        programs: Some(&programs),
+                        depth: 0,
+                    },
+                );
+                if let Ok(value) = value {
+                    if value.is_finite() {
+                        read_starts.insert(name, value);
+                        stated.insert(name.to_string(), value);
                     }
-                    None => wanted = Some(other),
                 }
             }
-            let (true, Some(name)) = (alone, wanted) else {
-                continue;
-            };
-            if !iterated.contains(name) || read_starts.contains_key(name) {
-                continue;
-            }
-            let Some(solved) = crate::symbolic::solve_linear_known(lhs, rhs, name, &stated) else {
-                continue;
-            };
-            let value = eval(
-                &solved,
-                &EvalCtx {
-                    vars: &stated,
-                    time: 0.0,
-                    programs: Some(&programs),
-                    depth: 0,
-                },
-            );
-            if let Ok(value) = value {
-                if value.is_finite() {
-                    read_starts.insert(name, value);
-                }
+            if read_starts.len() == learned_before {
+                break;
             }
         }
     }
@@ -3215,6 +3288,21 @@ pub(crate) fn compile_at(
                 .unwrap_or(0.0)
         })
         .collect();
+
+    // A state whose start was read from an equation rather than from
+    // its declaration begins where the equation put it. Written here
+    // rather than where `initial` was built, because the reading
+    // needs the plan and the plan needs the states.
+    if std::env::var_os("OXIDELICA_NO_READ_STATE_START").is_none() {
+        for (state, slot) in states.iter().zip(initial.iter_mut()) {
+            if *slot != 0.0 {
+                continue;
+            }
+            if let Some(&value) = read_starts.get(state.as_str()) {
+                *slot = value;
+            }
+        }
+    }
 
     // What the run has to watch: one indicator per relation anywhere
     // in the model.

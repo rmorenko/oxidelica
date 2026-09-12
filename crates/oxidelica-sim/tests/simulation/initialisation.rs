@@ -771,3 +771,38 @@ fn a_parameter_left_to_the_initialisation_is_solved_beside_the_states() {
         .unwrap_or_else(|| panic!("avg among {:?}", compiled.parameters));
     assert!((avg.1 - 3.0).abs() < 1e-9, "avg = {}", avg.1);
 }
+
+/// A state the declaration says nothing about starts where the
+/// equations put it, not at zero.
+#[test]
+fn a_state_with_no_start_is_read_from_the_equation_that_defines_it() {
+    // The shape a cylinder of fluid has: a mass written as a volume
+    // times a density, and an enthalpy carried as a total that the
+    // specific enthalpy is got back from by dividing. The volume is
+    // given a start and the mass is not, so the mass began at zero,
+    // the division by it gave infinity, and the temperature the model
+    // reports was not a number from the first step onwards.
+    //
+    // Nothing about that is the solver's doing: the equation
+    // `m = rho * s` says what the mass starts from as plainly as a
+    // `start` would, and reading it is the difference between a run
+    // and a column of NaN.
+    let model = parse_model(
+        "model M parameter Real rho = 2; Real s(start = 3); Real m; Real h(start = 5); Real H; \
+         equation m = rho * s; H = m * h; der(H) = 0; der(s) = 0; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    // `m` is 6 where its declaration is silent, and the total `H` it
+    // and the specific enthalpy make is 30. Read in that order: the
+    // second is only readable once the first has been read.
+    let state = |name: &str| {
+        let index = compiled
+            .states
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
+        compiled.initial[index]
+    };
+    assert!((state("H") - 30.0).abs() < 1e-9, "H = {}", state("H"));
+}

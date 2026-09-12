@@ -7398,3 +7398,50 @@ on, has no withdrawals and three arrivals - `OneMass`, `TwoMass` and
 than through the door: they stand now at an infinite first residual,
 where the enthalpy is determined but something upstream of it is not
 a number, and that is a different wall in a different layer.
+
+## A state the declaration is silent about does not start at zero
+
+`Modelica.Thermal.FluidHeatFlow` was left with nine models standing at
+three different walls after the `semiLinear` work of the last shift:
+two at a singular Jacobian, one underdetermined, and three at an
+infinite first residual. The probe read the three residual ones first,
+because a loop of one variable is the smallest thing in the family,
+and what it found was not in the solver at all.
+
+`TestCylinder` joins two cylinders of fluid. Each writes its mass as a
+volume, `m = rho*A*s`, and carries its energy as a total, `H = m*h`,
+from which the specific enthalpy is got back by dividing. The
+declaration gives `s` a start and `m` none - there is nothing to give
+it, the equation already says what it is. But a state with no `start`
+began at zero, so the mass began at zero, so the division that
+recovers `h` was a division by zero at the very first step, and every
+enthalpy downstream of it was NaN before Newton had taken a step.
+
+The compiler already knew how to read a start out of an equation: it
+did it for the torn variables of an algebraic block, where a bad guess
+costs convergence. What it did not do was read one for a *state*,
+where a bad guess is not a guess at all - a state's start is where the
+run begins, and nothing later writes over it.
+
+Three things about the shape were learned by measuring, and two of
+them by getting the cost wrong.
+
+The reading has to chain. A temperature gives an enthalpy, the
+enthalpy and a mass give a total: one pass over the equations gets
+whichever link happens to come first and leaves the rest at zero, so
+the pass repeats until nothing more can be learned, and the value
+learned is written back into what the next round may read from.
+
+The chaining has to be bounded, and so does what it is asked about.
+Unbounded, with every name in the model a candidate, the corpus went
+from eleven minutes to twenty-five; bounded in rounds but still asked
+of every name, it was eighteen. What makes it cheap is asking only the
+names within one equation's reach of something that actually wants a
+start - the torn variables and the silent states - which is a set
+worked out once, by naming alone, with no solving and no evaluation in
+it.
+
+And a slow measurement is worth doubting before the change is blamed.
+One of those numbers was not the change: a timing run left behind a
+stray process eating eight cores, and with it gone the model measured
+77 seconds with the change switched off and 77 with it on.
