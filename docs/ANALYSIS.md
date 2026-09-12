@@ -7445,3 +7445,71 @@ And a slow measurement is worth doubting before the change is blamed.
 One of those numbers was not the change: a timing run left behind a
 stray process eating eight cores, and with it gone the model measured
 77 seconds with the change switched off and 77 with it on.
+
+## A torn block that divides by its own unknown
+
+The largest entry of the run half's census was `residual N of algebraic
+loop ... is NaN at t = 0, before any Newton step`, twenty-six models,
+and the wording put the fault in the solver. The probe put it in the
+plan. Nineteen of the twenty-six said NaN, six said `-inf` and one
+`inf`, which is one kind of arithmetic and not three.
+
+The smallest of them, `Modelica.Electrical.Analog.Examples.Resistor`,
+is twelve lines of physics: a heated resistance whose value depends on
+a temperature the dissipated power drives. Its loop holds `i`, `R_actual`
+and `T` together, and `oxidelica why` said `R_actual` had no binding, a
+start of nothing, and two equations naming it. The plan probe said the
+rest: the block's inner chain was
+
+```text
+inner i        := -Q / -v
+inner R_actual := -v / -i
+inner T        := ...R_actual...
+```
+
+An inner assignment of a torn block is evaluated before Newton has
+moved anything, at whatever its divisor happens to hold - and an
+unknown of the block holds its declared `start`, which is zero unless
+a declaration said otherwise. So `R_actual := v/i` divides by zero on
+the first evaluation, every time, and every value below it in the chain
+is NaN before a step is taken. The refusal then names the solver, which
+is the one place nothing was wrong.
+
+The fix is to keep such an equation out of the explicit set, so that
+Newton carries it with the rest of the block and no division by a
+starting value is done at all. The first two attempts at the rule are
+the finding.
+
+**A chain of two links, not one.** Refusing only a divisor belonging to
+the same block moved the wall one step: the divisor became `v`, an
+explicit algebraic that a sine source makes zero at `t = 0`. The rule
+had to reach any live unknown, settled or not, and taking one link
+alone would have measured zero.
+
+**A rule right almost everywhere cost six models.** Refusing every live
+divisor ran the corpus at 455 against a floor of 459, and the diff of
+run lists named the victims: four `ToroidalCore*` and two inductors, all
+of FluxTubes. The plan probe, run twice from one binary, named what had
+been dropped in one line - `coil.L_stat := if abs(i) > eps then Psi/i
+else L`. The library had guarded its own division, and a guarded
+division cannot be reached where it would fail. Refused along with the
+rest it grew the Newton system until those blocks came back singular.
+
+So the rule asks two things rather than one: the divisor is an unknown
+whose start is certainly zero, and nothing the model wrote stands
+between the division and that zero. With both, the corpus went 459 to
+460 and the runnable pair 430 to 431 - two models gained,
+`Resistor` and `HeatingMOSInverter`, and one lost,
+`Modelica.Magnetic.QuasiStatic.FluxTubes.Examples.NonLinearInductor`.
+
+That loss is the next link of the chain and is left named rather than
+chased: its refusal is `-inf` from `r_mFe.B = r_mFe.Phi / r_mFe.A`,
+where `r_mFe.A = r_mFe.area` is a parameter equality the matching gave
+to `A` as an equation instead of settling it to a number. The divisor
+there is not a live unknown at all - it is a constant the plan failed
+to recognise, which is a different layer from this one.
+
+The census entry is the measure of the rest: twenty-six models stood at
+this wall and two moved, so the remaining twenty-four are at the same
+wording for other reasons. MultiBody owns eight of them through
+`z_a`, which is a family of its own.

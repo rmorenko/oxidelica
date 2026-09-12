@@ -245,6 +245,67 @@ fn branch_is_zero(slope: &Expr) -> bool {
     }
 }
 
+/// Whether an expression divides by any of the given names without
+/// having guarded against that name being zero.
+///
+/// An inner assignment of a torn block is evaluated before Newton has
+/// moved anything, at whatever the block's unknowns happen to start
+/// from - and a block unknown starts at its declared `start`, which is
+/// zero unless a declaration said otherwise. So a divisor that is
+/// itself such an unknown is a division by zero on the first
+/// evaluation: `v = R_actual*i` solved as `R_actual := v/i` reads `i`
+/// at its start of zero, and the whole chain below it comes out NaN
+/// before a single step is taken. The refusal that follows names the
+/// solver, which is the one place nothing is wrong.
+///
+/// A division the model itself guarded is not one of these, and the
+/// distinction is worth six models. The standard library writes
+/// `L_stat = if abs(i) > eps then Psi/i else L_nominal`, which is a
+/// division that cannot be reached where it would fail; refusing it
+/// along with the rest grows the Newton system until the magnetic
+/// examples' blocks come back singular. So a division under a
+/// conditional that tests the divisor is left alone, and only a
+/// division nothing stands between counts.
+///
+/// Only the divisor is walked, and only for the names handed in: a
+/// parameter in a denominator is a number the plan can trust, and a
+/// name settled before the block runs is evaluated before it.
+pub(crate) fn divides_by_any(expr: &Expr, names: &[&str]) -> bool {
+    // The names a conditional tests on the way down, so that a
+    // division below it can tell whether its own divisor was the
+    // thing asked about.
+    fn walk(expr: &Expr, names: &[&str], guarded: &[&str]) -> bool {
+        match expr {
+            Expr::If(condition, then, otherwise) => {
+                let mut tested = Vec::new();
+                condition.collect_refs(&mut tested);
+                let mut deeper: Vec<&str> = guarded.to_vec();
+                deeper.extend(tested.iter().copied());
+                walk(condition, names, guarded)
+                    || walk(then, names, &deeper)
+                    || walk(otherwise, names, &deeper)
+            }
+            Expr::Bin(oxidelica_parser::BinOp::Div, dividend, divisor) => {
+                let mut refs = Vec::new();
+                divisor.collect_refs(&mut refs);
+                let unguarded = refs
+                    .iter()
+                    .any(|name| names.contains(name) && !guarded.contains(name));
+                unguarded || walk(dividend, names, guarded) || walk(divisor, names, guarded)
+            }
+            other => {
+                let mut found = false;
+                other.map_children(&mut |child| {
+                    found |= walk(child, names, guarded);
+                    child.clone()
+                });
+                found
+            }
+        }
+    }
+    walk(expr, names, &[])
+}
+
 pub(crate) fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
     MINTED.with(|c| c.borrow_mut().clear());
     NEEDED.with(|c| c.borrow_mut().clear());

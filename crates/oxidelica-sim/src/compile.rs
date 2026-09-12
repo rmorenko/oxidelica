@@ -160,6 +160,7 @@ fn build_plan(
     eq_vars: &[Vec<usize>],
     n_alg: usize,
     known: &HashMap<String, f64>,
+    starts_at_zero: &dyn Fn(&str) -> bool,
 ) -> (Vec<String>, Vec<PlanStage>) {
     // Kahn topological order over equations.
     let producer: Vec<usize> = {
@@ -348,6 +349,40 @@ fn build_plan(
                 }
             })
             .collect();
+
+        // An inner assignment of the block runs before Newton has
+        // moved anything, at whatever its divisor happens to hold -
+        // and an unknown of the block holds its declared `start`,
+        // which is zero unless a declaration said otherwise. So an
+        // assignment dividing by an unknown whose start *is* zero is
+        // a division by zero on the first evaluation, every time:
+        // `v = R_actual*i` solved for `R_actual` reads `i := 0`, the
+        // whole chain below comes out NaN before a step is taken, and
+        // what the run reports is a residual it could not evaluate,
+        // naming the solver rather than the plan that divided. Left
+        // out of the explicit set the equation joins the tearing set,
+        // where Newton carries it with the rest of the block.
+        //
+        // Held to a start that is *certainly* zero rather than to any
+        // live divisor, and the difference is six models: a divisor
+        // that merely might vanish is an ordinary coefficient, and
+        // refusing those grows the Newton system until the magnetic
+        // examples' blocks come back singular. What is refused here
+        // is the division that cannot come out as a number at all.
+        let block_names: Vec<&str> = unknowns
+            .iter()
+            .map(String::as_str)
+            .filter(|name| !known.contains_key(*name) && starts_at_zero(name))
+            .collect();
+        let solvable: HashMap<usize, Expr> =
+            if std::env::var_os("OXIDELICA_NO_BLOCK_DIVISOR").is_some() {
+                solvable
+            } else {
+                solvable
+                    .into_iter()
+                    .filter(|(_, expr)| !crate::symbolic::divides_by_any(expr, &block_names))
+                    .collect()
+            };
 
         // Equations that resist explicit solution force their unknown
         // into the tearing set; then tear greedily until the rest sorts
@@ -3101,6 +3136,19 @@ pub(crate) fn compile_at(
     // 5. The order to evaluate in: what can be solved on its own is
     // an explicit assignment, and what is left over becomes one torn
     // block.
+    // Where an algebraic unknown begins, which is what says whether
+    // dividing by it is certainly a division by zero. A declaration
+    // that names no `start` means zero, so a name the model never
+    // mentions counts as one.
+    let starts_at_zero = |name: &str| -> bool {
+        match model.components.iter().find(|c| c.name == name) {
+            Some(component) => match &component.start {
+                Some(expr) => matches!(eval(expr, &ctx0), Ok(value) if value == 0.0),
+                None => true,
+            },
+            None => true,
+        }
+    };
     let (ordered_algs, stages) = build_plan(
         &unknowns,
         &algebraic_eqs,
@@ -3108,6 +3156,7 @@ pub(crate) fn compile_at(
         &eq_vars,
         n_alg,
         &params,
+        &starts_at_zero,
     );
 
     let ctx = ctx0;

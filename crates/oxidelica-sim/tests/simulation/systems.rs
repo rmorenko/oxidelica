@@ -154,6 +154,93 @@ fn a_product_equation_is_matched_where_it_multiplies() {
 }
 
 #[test]
+fn a_torn_block_does_not_divide_by_its_own_unknown() {
+    // The heated resistor's shape, and the reason a whole family of
+    // library models would not start. The loop is `v = R*i` with `R`
+    // depending on a temperature the dissipated power drives, so the
+    // block holds `i`, `R` and `T` together. Solved explicitly for
+    // `R` the assignment reads `R := v/i`, and `i` begins at zero
+    // because nothing has told it otherwise - so the whole inner
+    // chain is NaN before Newton has taken a step, and the refusal
+    // names the solver rather than the plan that divided.
+    //
+    // Carried in the tearing set instead, the same equations have an
+    // answer, and this checks the answer rather than the running:
+    // every one of the loop's equations has to hold at the values
+    // reported, which is what a guessed start would not give.
+    let result = run(
+        "model H Real i(start = 0); Real v; Real R_actual; Real T(start = 288.15); Real Q; \
+         parameter Real R = 100; parameter Real alpha = 1e-3; \
+         parameter Real T_ref = 293.15; parameter Real G = 50; \
+         equation v = 220 * sin(6.2831853 * time); v = R_actual * i; \
+         R_actual = R * (1 + alpha * (T - T_ref)); \
+         Q = v * i; Q = G * (T - 293.15); \
+         annotation(experiment(StopTime=0.2, Interval=0.1)); end H;",
+    );
+    let value = |name: &str, row: usize| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows[row][index]
+    };
+    for row in [0, 1, 2] {
+        let (v, i, r, t, q) = (
+            value("v", row),
+            value("i", row),
+            value("R_actual", row),
+            value("T", row),
+            value("Q", row),
+        );
+        assert!((v - r * i).abs() < 1e-6, "v = {v}, R*i = {}", r * i);
+        assert!(
+            (r - 100.0 * (1.0 + 1e-3 * (t - 293.15))).abs() < 1e-6,
+            "R = {r}, T = {t}"
+        );
+        assert!((q - v * i).abs() < 1e-6, "Q = {q}, v*i = {}", v * i);
+        assert!(
+            (q - 50.0 * (t - 293.15)).abs() < 1e-6,
+            "Q = {q}, G*dT = {}",
+            50.0 * (t - 293.15)
+        );
+    }
+}
+
+#[test]
+fn a_guarded_division_stays_an_explicit_assignment() {
+    // The other half of the rule above, and the half that is worth
+    // six models. The standard library writes its static inductance
+    // as `if abs(i) > eps then Psi/i else L_nominal`: a division by a
+    // block unknown that begins at zero, and one that cannot be
+    // reached where it would fail, because the model tested the
+    // divisor itself. Refused along with the unguarded ones, the
+    // Newton system grows until the magnetic examples' blocks come
+    // back singular - so a guarded division is left where it was.
+    //
+    // Checked by the answer rather than by the running: on the branch
+    // the guard sends the start to, `L` is the nominal value exactly,
+    // and once current flows it is the ratio the division says.
+    let result = run("model G Real i(start = 0); Real L; Real v; \
+         parameter Real eps = 1e-6; parameter Real L_nom = 7; \
+         equation v = 2 * time; i * 3 = v; \
+         L = if abs(i) > eps then v / i else L_nom; \
+         annotation(experiment(StopTime=0.2, Interval=0.1)); end G;");
+    let value = |name: &str, row: usize| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows[row][index]
+    };
+    assert!(
+        (value("L", 0) - 7.0).abs() < 1e-9,
+        "at the start the guard holds: L = {}",
+        value("L", 0)
+    );
+    // `i*3 = v` makes the ratio three wherever current flows.
+    assert!(
+        (value("L", 2) - 3.0).abs() < 1e-7,
+        "L = {}, i = {}",
+        value("L", 2),
+        value("i", 2)
+    );
+}
+
+#[test]
 fn index_reduction_reaches_states_through_algebraic_definitions() {
     // `u = 3` names no state, but `u = 2*x` ties it to one: x is
     // pinned at 1.5 and its velocity has to vanish.
@@ -311,21 +398,24 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         "singular Jacobian in algebraic loop [\"x\"]"
     );
 
-    // A residual is built from the block's inner assignments, so a
-    // residual that is NaN was usually handed one. Named by number
-    // alone the refusal points at the solver, which is the one place
-    // the fault is not; here `u = y/(y - x)` divides by nothing at the
-    // start values and is what the reader has to be sent to.
+    // A block whose divisor is one of its own unknowns is not given
+    // that division to do: `u = y/(y - x)` divides by a difference of
+    // two unknowns that both begin at zero, so the plan carries the
+    // equation in the tearing set rather than assigning through it.
+    // The model still has no solution - `y = x` makes the divisor
+    // identically zero, whatever the values - so the refusal stands;
+    // what changed is that it names the whole block it could not
+    // evaluate instead of naming an inner assignment that no longer
+    // exists.
     assert_eq!(
         refused(
             "model N Real x; Real u; Real y; Real s(start = 0, fixed = true); \
              equation u = y / (y - x); y = x; u * x = 1; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end N;"
         ),
-        "residual 0 of algebraic loop [\"x\"] is NaN at t = 0, before any \
+        "residual 0 of algebraic loop [\"u\", \"x\"] is NaN at t = 0, before any \
          Newton step: the equations cannot be evaluated at the values the \
-         block starts from; the block's own values are not numbers: \
-         [\"u = NaN\"]"
+         block starts from"
     );
 }
 
