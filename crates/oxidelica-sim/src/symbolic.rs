@@ -215,6 +215,105 @@ pub(crate) fn solve_linear_known(
     )))
 }
 
+/// Solve `lhs = rhs` for a variable that stands only under a division.
+///
+/// A reluctance is written `R_m = 1/G_m`, and no amount of linear
+/// solving reaches `G_m`: the equation is linear in the *reciprocal*
+/// and nothing else. With no explicit solution the equation joins the
+/// tearing set, and Newton is handed a one-dimensional block whose
+/// derivative is `-1/G_m^2` - which is enormous beside the pole and
+/// flat away from it. Started off the zero it walks outward, the slope
+/// dies away faster than the residual does, and what comes back is
+/// `singular Jacobian` about an equation that has one plain answer.
+///
+/// So the reciprocal is solved for instead, and the answer inverted:
+/// with `u = 1/var`, an equation linear in `u` gives `u` in closed
+/// form, and `var = 1/u`. This is exact rather than a guess at a
+/// starting point, which is what makes it worth doing at the plan's
+/// layer rather than the solver's.
+///
+/// The substitution has to be honest about where `var` occurs. If the
+/// variable appears anywhere except as a whole divisor - multiplied in
+/// as well, say, or inside a call - then `1/u` is not what stands
+/// there, and the equation is quadratic rather than linear in either
+/// unknown. Those are left alone, so this widens what can be solved
+/// without claiming anything the substitution does not support.
+pub(crate) fn solve_reciprocal_known(
+    lhs: &Expr,
+    rhs: &Expr,
+    var: &str,
+    known: &HashMap<String, f64>,
+) -> Option<Expr> {
+    // A name no equation of this model could have written, so that
+    // the reciprocal cannot collide with something the model calls
+    // its own. The substituted equation is solved and thrown away;
+    // only the inverted answer, in the model's own names, is kept.
+    let fresh = format!("$recip${var}");
+    let left = as_reciprocal(lhs, var, &fresh)?;
+    let right = as_reciprocal(rhs, var, &fresh)?;
+    // Both sides free of the divisor shape means the variable never
+    // appeared at all, and this is not the equation for it.
+    if !mentions_name(&left, &fresh) && !mentions_name(&right, &fresh) {
+        return None;
+    }
+    let solved = solve_linear_known(&left, &right, &fresh, known)?;
+    // The reciprocal's own solution must not mention the variable it
+    // replaced, or the inversion would be circular.
+    if mentions_name(&solved, var) || mentions_name(&solved, &fresh) {
+        return None;
+    }
+    // A reciprocal of zero is the equation saying it has no solution,
+    // not a value to hand back. `1/x = 0` is satisfied by no `x` at
+    // all, and inverted without asking it yields an infinity that the
+    // run would carry as though it were a number - the guessing this
+    // compiler owes a refusal instead of. Left alone, the equation
+    // reaches the layer that says an algebraic loop has come apart,
+    // which is the true thing to say about it.
+    if matches!(simplify(&solved), Expr::Number(x) if x == 0.0) {
+        return None;
+    }
+    Some(simplify(&Expr::Bin(
+        oxidelica_parser::BinOp::Div,
+        Box::new(Expr::Number(1.0)),
+        Box::new(solved),
+    )))
+}
+
+/// Rewrite `a / var` as `a * u`, refusing any other occurrence of `var`.
+///
+/// The refusal is the point. A variable that also stands on its own
+/// makes the equation quadratic once the reciprocal is introduced, and
+/// handing back a linear-looking expression there would give a wrong
+/// number where a refusal is owed.
+fn as_reciprocal(expr: &Expr, var: &str, fresh: &str) -> Option<Expr> {
+    match expr {
+        Expr::Bin(oxidelica_parser::BinOp::Div, dividend, divisor) if matches!(divisor.as_ref(), Expr::Ref(name) if name == var) =>
+        {
+            // The dividend still has to be clean: `var / var` is one,
+            // not something to solve.
+            if mentions_name(dividend, var) {
+                return None;
+            }
+            Some(Expr::Bin(
+                oxidelica_parser::BinOp::Mul,
+                Box::new(dividend.as_ref().clone()),
+                Box::new(Expr::Ref(fresh.to_string())),
+            ))
+        }
+        Expr::Ref(name) if name == var => None,
+        _ => expr
+            .try_map_children(&mut |child| as_reciprocal(child, var, fresh).ok_or(()))
+            .ok(),
+    }
+}
+
+/// Whether an expression mentions a name.
+fn mentions_name(expr: &Expr, var: &str) -> bool {
+    let mut refs = Vec::new();
+    expr.collect_refs(&mut refs);
+    refs.contains(&var)
+}
+
 /// Whether a slope written as a conditional takes the value zero on
 /// one of its branches.
 ///

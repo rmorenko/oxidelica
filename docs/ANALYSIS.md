@@ -7525,14 +7525,23 @@ one way only. The previous note's "remaining twenty-four" was the same
 error and is corrected here rather than in place: what stood at the
 wall after that shift was twenty-six.
 
-Named, the twenty-seven are three families and two singles. Eight are
+Named, the twenty-seven are three families and two singles. Seven are
 magnetic, where a reluctance is written `R_m = 1/G_m` and `G_m` is an
-unknown whose declaration left it at zero. Eight are MultiBody, through
+unknown whose declaration left it at zero. Seven are MultiBody, through
 `z_a` and the wheels' `der_angles`, where the value that is not a
 number is an inner assignment of the block rather than the residual
 itself. Eleven are the machines, all reading `airGap` in a block of
 thirty-odd unknowns. `DrumBoiler` and a reversing valve of ModelicaTest
 stand alone.
+
+The two family sizes were each written as eight the shift the map was
+made, which sums to twenty-nine against a row that says twenty-seven,
+and a map that does not add up is not one work can be chosen from. The
+sizes above are counted from the named list rather than from memory:
+the raw report is now written beside the census by the same run, so
+counting the members of a family costs nothing over counting the
+kinds, and there is no longer a reason to take a family's size from
+what the last note said it was.
 
 The magnetic eight are the layer this shift took. A block whose
 residual is not a number at the point it starts from has not diverged:
@@ -7556,3 +7565,49 @@ the third link of the chain - the leakage element writes
 not pin the block down as the compiler tears it. The work is a link
 taken on a mapped chain rather than a model won, and it is recorded as
 that.
+
+## An unknown that stands only under a division
+
+The chain's fourth link, and the one that was actually load-bearing.
+The magnetic block refused for a singular Jacobian, which reads as a
+model the compiler cannot be blamed for; probed, what stood there was
+a block that should never have been torn at all.
+
+`R_m = 1/G_m` is how every reluctance in the library is written, and
+it is linear in the reciprocal and in nothing else. Linear solving
+cannot reach `G_m`, so the equation joined the tearing set, and Newton
+was handed a block of one whose derivative is `-1/G_m^2` - enormous
+beside the pole, flat away from it. The retry of the shift before
+started it off the zero at four magnitudes in turn, and all four
+walked outward to where the slope dies away faster than the residual
+does. The refusal named a singular Jacobian about an equation with one
+plain answer.
+
+Solved for the reciprocal and inverted there is no iteration at all.
+With `u = 1/var`, an equation linear in `u` has a closed form, and
+`var = 1/u`. The substitution is refused wherever the variable stands
+anywhere except as a whole divisor: multiplied in as well, the
+equation is quadratic once the reciprocal is introduced, and a
+linear-looking answer there would be a wrong number where a refusal is
+owed. So this widens what can be solved without claiming anything the
+substitution does not support.
+
+Measured from one binary with `OXIDELICA_NO_RECIPROCAL` as the switch,
+the corpus went 460 to 462 and the runnable pair 431 to 433. The two
+are `Magnetic.QuasiStatic.FluxTubes.Examples.BasicExamples.QuadraticCoreAirgap`
+and `Magnetic.QuasiStatic.FluxTubes.Examples.Leakage.GeneralLeakage`,
+and the diff of the run lists shows nothing lost against them. The
+test is `an_unknown_that_stands_only_under_a_division`, which checks
+the permeance comes out a sixteenth rather than checking that
+something was solved.
+
+The chain is not finished, and its fifth link is now visible rather
+than guessed at. The transient twin of one of the two won,
+`FluxTubes.Examples.BasicExamples.QuadraticCoreAirgap`, no longer
+refuses about `leakage.G_m` at all: it refuses as an underdetermined
+loop over
+`leakage.Phi`, the two coils' voltages and a pair of flux derivatives,
+which is a different layer and wants its own probe. The remaining five
+of the magnetic seven still stand at `r_mFe.mu_r` and the solenoids'
+yoke permeances, where the reluctance is behind a saturation curve
+rather than a plain reciprocal.

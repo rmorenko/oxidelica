@@ -307,6 +307,10 @@ fn build_plan(
         } else if let Some(expr) = solve_linear_known(lhs, rhs, &var_name, known) {
             // Linear in its unknown: solved symbolically, no iteration.
             PlanStage::Explicit { var: index, expr }
+        } else if let Some(expr) = reciprocal_solution(lhs, rhs, &var_name, known) {
+            // Linear in the unknown's reciprocal, which is the same
+            // closed form one inversion away.
+            PlanStage::Explicit { var: index, expr }
         } else {
             PlanStage::Implicit {
                 vars: vec![index],
@@ -345,7 +349,9 @@ fn build_plan(
                 } else if matches!(rhs, Expr::Ref(n) if n == name) && !mentions(lhs, name) {
                     Some((eq, lhs.clone()))
                 } else {
-                    solve_linear_known(lhs, rhs, name, known).map(|expr| (eq, expr))
+                    solve_linear_known(lhs, rhs, name, known)
+                        .or_else(|| reciprocal_solution(lhs, rhs, name, known))
+                        .map(|expr| (eq, expr))
                 }
             })
             .collect();
@@ -4127,4 +4133,23 @@ impl CompiledModel {
             })
             .collect()
     }
+}
+
+/// The reciprocal solution, behind the switch that lets one binary
+/// produce both numbers.
+///
+/// Two numbers are comparable only if the same binary produced them,
+/// so the rule that widens what can be solved is asked for rather
+/// than compiled in, and a corpus run with the switch set is the
+/// before to the run without it.
+fn reciprocal_solution(
+    lhs: &Expr,
+    rhs: &Expr,
+    name: &str,
+    known: &HashMap<String, f64>,
+) -> Option<Expr> {
+    if std::env::var_os("OXIDELICA_NO_RECIPROCAL").is_some() {
+        return None;
+    }
+    crate::symbolic::solve_reciprocal_known(lhs, rhs, name, known)
 }

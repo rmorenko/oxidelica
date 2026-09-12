@@ -9,6 +9,14 @@
 #
 # Usage: scripts/refusals.sh <library directory> [half]
 #   half: refused (default), built, both, or unbalanced
+#
+# The raw report is kept as well as counted. Counting kinds throws the
+# model names away, and the names are what a family is mapped from, so
+# a shift that wants both used to pay for the pass twice - six minutes
+# to learn which kinds, six more to learn who. The report is written to
+# the file named by REFUSALS_RAW, or to a name beside the library's in
+# the temporary directory, and the path is printed first so that the
+# list can be read from the same run that produced the counts.
 set -euo pipefail
 
 usage="usage: refusals.sh <library directory> [refused|built|both|unbalanced]"
@@ -28,7 +36,10 @@ refused | built | both | unbalanced) ;;
 esac
 cd "$(dirname "$0")/.."
 
+raw="${REFUSALS_RAW:-${TMPDIR:-/tmp}/refusals-raw.txt}"
 report="$(./target/release/oxidelica library check "$directory" --refused)"
+printf '%s\n' "$report" >"$raw"
+echo "=== the raw report is in $raw ==="
 
 kinds() {
     # The message with the model name and the quoted particulars taken

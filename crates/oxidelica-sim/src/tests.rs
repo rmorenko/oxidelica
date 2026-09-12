@@ -245,6 +245,49 @@ fn an_equation_whose_slope_is_zero_on_a_branch_is_not_solved_for_that_unknown() 
 }
 
 #[test]
+fn an_unknown_that_stands_only_under_a_division_is_solved_by_its_reciprocal() {
+    // `R_m = 1/G_m` is the shape every magnetic reluctance is written
+    // in, and it is linear in the reciprocal and in nothing else. No
+    // amount of linear solving reaches `G_m`, so the equation used to
+    // join the tearing set, where Newton's one-dimensional block has
+    // the slope `-1/G_m^2` - enormous beside the pole, flat away from
+    // it - and the refusal that came back named a singular Jacobian
+    // about an equation with one plain answer.
+    let known = HashMap::new();
+    assert!(solve_linear_for(&expr_of("r"), &expr_of("1 / g"), "g").is_none());
+    let solved = solve_reciprocal_known(&expr_of("r"), &expr_of("1 / g"), "g", &known).unwrap();
+    // With `R_m = 16` the permeance is a sixteenth, and the answer is
+    // the value rather than the mere fact that something was solved.
+    assert!((value_of(&solved, &[("r", 16.0)]) - 0.0625).abs() < 1e-12);
+
+    // The same through a coefficient, which is how the pair actually
+    // reads once the leakage equation is folded in: `v = phi/g` gives
+    // `g = phi/v`.
+    let solved = solve_reciprocal_known(&expr_of("v"), &expr_of("phi / g"), "g", &known).unwrap();
+    assert!((value_of(&solved, &[("v", 10.0), ("phi", 2.5)]) - 0.25).abs() < 1e-12);
+
+    // An unknown that also stands outside the division makes the
+    // equation quadratic once the reciprocal is introduced, and a
+    // linear-looking answer there would be a wrong number where a
+    // refusal is owed.
+    assert!(solve_reciprocal_known(&expr_of("r"), &expr_of("g + 1 / g"), "g", &known).is_none());
+    // And an equation that never divides by it at all is not this
+    // rule's business.
+    assert!(solve_reciprocal_known(&expr_of("r"), &expr_of("2 * g"), "g", &known).is_none());
+
+    // `1/g = 0` is satisfied by no `g` whatever, and the reciprocal it
+    // solves for comes out zero. Inverted without asking, that is an
+    // infinity handed back as though it were a value - the guessing
+    // this compiler owes a refusal instead of. Left alone, the
+    // equation reaches the layer that says the loop came apart.
+    assert!(solve_reciprocal_known(&expr_of("1 / g"), &expr_of("0"), "g", &known).is_none());
+
+    // A division under a call is not a whole divisor, so the
+    // substitution does not apply and nothing is claimed about it.
+    assert!(solve_reciprocal_known(&expr_of("r"), &expr_of("sin(1 / g)"), "g", &known).is_none());
+}
+
+#[test]
 fn the_banded_solver_agrees_with_the_dense_one() {
     // A tridiagonal system with a dominant diagonal, the shape a
     // discretized field gives: both paths must land on the same
