@@ -1594,6 +1594,13 @@ fn whole_record<'a>(
     // own, and those are part of the key. So the subscripts come off
     // from the right, and the first name the table knows is the one.
     let mut shortened = path.to_string();
+    // The path as written is asked first. An instance below an array
+    // sits at a path the table filed with the subscripts on it -
+    // `mediums[1].state` is a record the walk filed under that very
+    // name - and shortening before asking throws the answer away.
+    if let Some(of) = shapes.records.get(&shortened) {
+        return registry.get(of.as_str()).copied();
+    }
     while let Some(open) = shortened.rfind('[') {
         let close = shortened[open..].find(']')?;
         shortened = format!("{}{}", &shortened[..open], &shortened[open + close + 1..]);

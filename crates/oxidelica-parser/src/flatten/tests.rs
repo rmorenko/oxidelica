@@ -749,3 +749,56 @@ fn a_state_whose_fields_arrive_from_below_is_still_a_record() {
         "the state handed to the submodel went unnamed"
     );
 }
+
+#[test]
+fn a_state_below_a_subscript_is_still_a_record_where_the_equation_is_written() {
+    // A pipe holds its media as an array - `Medium.BaseProperties[n]
+    // mediums` - and writes an equation between one of their states
+    // and a state it declared itself: `statesFM[1] = mediums[1].state`.
+    // The walk that files what is a record descends into each element
+    // of the array and files `mediums[1].state` under the medium's
+    // own record, but it does so as a walk of its own: the class
+    // writing the equation never steps through the subscript, so its
+    // table holds `statesFM` and not the other side. One side is then
+    // written out as its fields and the other stays a bare name, and
+    // what the compiler sees is an equation between shapes that do
+    // not fit.
+    let m = parse_model(
+        "package Q \
+         package PartialMedium \
+           replaceable record ThermodynamicState end ThermodynamicState; \
+           replaceable partial model BaseProperties Real p; Real T; \
+             ThermodynamicState state; end BaseProperties; \
+         end PartialMedium; \
+         package Water extends PartialMedium; \
+           redeclare record extends ThermodynamicState Real p; Real T; \
+           end ThermodynamicState; \
+           redeclare model extends BaseProperties \
+           equation state.p = p; state.T = T; end BaseProperties; \
+         end Water; \
+         partial model PartialDistributedVolume \
+           replaceable package Medium = PartialMedium; \
+           parameter Integer n = 2; Medium.BaseProperties mediums[n]; \
+         end PartialDistributedVolume; \
+         partial model PartialTwoPortFlow \
+           extends PartialDistributedVolume; \
+           Medium.ThermodynamicState statesFM[2]; \
+         equation statesFM[1] = mediums[1].state; \
+           statesFM[2] = mediums[n].state; end PartialTwoPortFlow; \
+         model Pipe extends PartialTwoPortFlow; \
+         equation for i in 1:n loop mediums[i].p = 1e5; \
+           mediums[i].T = 300; end for; end Pipe; \
+         model M Pipe pipe1(redeclare package Medium = Water); end M; \
+         end Q;",
+    )
+    .unwrap();
+    let named = |name: &str| {
+        m.equations
+            .iter()
+            .any(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+    };
+    assert!(
+        named("pipe1.statesFM[1].p") && named("pipe1.statesFM[1].T"),
+        "the state below a subscript was not read as a record"
+    );
+}

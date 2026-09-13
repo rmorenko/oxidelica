@@ -8057,3 +8057,74 @@ the real library, the two numbers from one binary, the victims named,
 and the next link located rather than guessed at. The chain is now six
 links deep, which is past the depth at which the map goes to a second
 reader.
+
+## The chain walked to its end: three links, two models, nothing lost
+
+The map the previous shift parked was right, and the sixth link was
+where it said. Walked with the probe rather than reasoned about, the
+chain turned out to be three links and not one, and only the three
+together move a number - which is exactly the shape the rules warn
+about, where a link taken from the middle measures zero by
+construction.
+
+The fifth link is the redeclaration environment reaching
+`collect_records` on both steps, the base one and the component one.
+The sixth is what the probe was pointed at: a printed record table,
+name by name, for the class that writes the equation the pipes refuse
+on. It showed the table filled by three different descents:
+
+```text
+class=Q.PartialTwoPortFlow prefix=pipe1.            pipe1.statesFM -> Water.ThermodynamicState
+class=Q.PartialMedium.BaseProperties prefix=pipe1.mediums[1].
+                                          pipe1.mediums[1].state -> Water.ThermodynamicState
+```
+
+Both entries are right, and they are in different tables. The walk
+that descends through each element of an array files
+`mediums[1].state` under a prefix that already carries the subscript;
+the class writing `statesFM[1] = mediums[1].state` never steps
+through a subscript itself, so its own table holds one side of that
+equation and not the other. One side is then written out as the
+medium's five fields and the other stays a bare name, which is the
+`an equation between shapes [1, 5] and [1]` the whole family refused
+on.
+
+The seventh link is smaller and was found by taking the sixth: the
+lookup shortens a path by cutting subscripts off from the right
+_before_ asking the table about the path as written. A name the walk
+filed with its subscripts on is thrown away by the shortening that
+was meant to find it. Asking as written first, and shortening only
+after, is the whole of it.
+
+Measured from one binary, the whole chain against nothing:
+
+```text
+off: 1043 examples, 821 flatten, 466 run; runnable 912, 723 flatten, 437 run
+on:  1043 examples, 823 flatten, 466 run; runnable 912, 725 flatten, 437 run
+```
+
+The run list is identical line for line and the flattened list gains
+two without losing any:
+`Modelica.Fluid.Examples.HeatExchanger.HeatExchangerSimulation` and
+`ModelicaTest.Fluid.TestComponents.Vessels.TestInitialization`.
+
+The sixth link was built twice, and the first build is worth
+recording. Handing the class the accumulated table whole cost the two
+media models `ExtendedProperties` and `TestTwoPhaseStates` of
+`Modelica.Media.Examples.TwoPhaseWater`, on `dynamicViscosity wants 5
+field(s) for state, got 0`: an entry another descent had filed under
+the interface's empty record outranked the one the class had resolved
+for itself. Narrowed to the names a
+class genuinely cannot reach - those below a subscript, under its own
+prefix - both came back and both gains stayed. The narrowing is by a
+test on the path, which is a guess of the kind this repository
+distrusts, and that is what the consultation now standing in
+`QUESTION_FOR_FABLE.md` asks about: whether three descents filling one
+table should be one place instead.
+
+What the chain does not buy is a running pipe. `HeatingSystem` and its
+family now flatten and stop one wall further on, at `cannot evaluate
+parameters [tank.h_start = ...]`, which is a different family with a
+map of its own. So this is a count that moved by two and a wall that
+moved for a family of twenty-odd - the second being the larger half,
+and the register is where it shows.

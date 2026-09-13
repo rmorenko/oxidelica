@@ -1023,6 +1023,29 @@ pub(super) fn flatten_equations(
 ) -> Result<(), String> {
     let scope = class.name.as_str();
     let broken = env.broken;
+    // An instance below an array of models is filed by the walk that
+    // built it, under the path it sits at - `mediums[1].state`. The
+    // class writing the equation never descends through the subscript
+    // itself, so its own table does not hold that name, and an
+    // equation between such a state and one the class declared reads
+    // as an equation between a record and a bare name.
+    let records_all: HashMap<String, String> = {
+        // Only the names this class's own walk cannot reach: a record
+        // that sits below a subscript, where the walk down stopped at
+        // the array. Every other name the class knows for itself, and
+        // taking the wider table whole would let an entry another
+        // descent filed under the interface's empty record outrank
+        // the one this class resolved.
+        let mut all: HashMap<String, String> = acc
+            .records
+            .iter()
+            .filter(|(path, _)| path.contains("].") && path.starts_with(prefix))
+            .map(|(path, of)| (path.clone(), of.clone()))
+            .collect();
+        all.extend(records_here.iter().map(|(k, v)| (k.clone(), v.clone())));
+        all
+    };
+    let records_here = &records_all;
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
         let expr = substitute_class_constants(expr, registry, scope, imports, shadow);

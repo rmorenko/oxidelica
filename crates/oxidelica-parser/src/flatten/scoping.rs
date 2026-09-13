@@ -315,17 +315,30 @@ pub(super) fn collect_records(
     if depth > MAX_DEPTH {
         return;
     }
+    // The names in force where this walk started: a component's
+    // `redeclare package Medium = Medium` is written in the terms of
+    // the class holding it, and what it says has to stay in front of
+    // whatever the classes below bring with them. Without it, the
+    // walk reads a base under the base's own names alone and lands on
+    // the interface's empty record.
+    let handed: Vec<(String, String)> = imports
+        .iter()
+        .filter(|(local, _)| local != "*")
+        .cloned()
+        .collect();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, imports) {
-            collect_records(
-                registry,
-                base,
-                prefix,
-                &base.name,
-                &base.imports,
-                out,
-                depth + 1,
-            );
+            // The base step under the names the class above had: a
+            // `Medium.ThermodynamicState` two `extends` below the
+            // class that named the medium means the medium that
+            // class named.
+            let mut below = handed.clone();
+            for held in &base.imports {
+                if !below.iter().any(|(local, _)| *local == held.0) {
+                    below.push(held.clone());
+                }
+            }
+            collect_records(registry, base, prefix, &base.name, &below, out, depth + 1);
         }
     }
     for component in &class.components {
@@ -379,7 +392,21 @@ pub(super) fn collect_records(
             // the same reason, one layer down.
             let _asked =
                 inlining::AskedAs::resolving(&component.type_name, of, registry, scope, imports);
-            collect_records(registry, of, &below, &of.name, &of.imports, out, depth + 1);
+            // The component step, the same way: what the holding
+            // class knows a name to mean outranks what the component's
+            // own class does.
+            let mut names: Vec<(String, String)> = Vec::new();
+            for held in component.redeclares.iter().filter(|r| r.class_level) {
+                if let Some(found) = lookup(registry, &held.type_name, scope, imports) {
+                    names.push((held.name.clone(), found.name.clone()));
+                }
+            }
+            for held in handed.iter().chain(of.imports.iter()) {
+                if !names.iter().any(|(local, _)| *local == held.0) {
+                    names.push(held.clone());
+                }
+            }
+            collect_records(registry, of, &below, &of.name, &names, out, depth + 1);
         }
     }
 }
