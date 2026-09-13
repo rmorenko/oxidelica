@@ -7970,3 +7970,90 @@ the part already taken is the shrunk vessel with its state filled from
 below. Threading the environment through is a change to what the table
 means for every model holding a record, not only for the fluid ones,
 and it wants a run list of its own on either side.
+
+## The fifth link taken, measured, and parked one link further on
+
+The redeclaration environment does reach `collect_records`, and the
+mechanism the previous shift mapped was right in every particular. A
+component's `redeclare package Medium = Medium` is written in the terms
+of the class holding it, so resolving the target there and putting it
+in front of the entries the class below brought with it is what says
+which medium a name means. The same has to happen on the base step:
+`states` is declared as `Medium.ThermodynamicState` two `extends`
+below the vessel that named the medium, and a walk that steps into a
+base under the base's own names alone lands on the interface's empty
+record again.
+
+Shrunk from the real library rather than grown synthetically, the
+witness is a vessel whose `Medium` alias sits in a base of the base -
+`PartialLumpedVolume` holds `medium`, `PartialLumpedVessel` extends it
+and holds the heat transfer model, and the heat transfer model reaches
+`PartialHeatTransfer` through `PartialVesselHeatTransfer`. Three
+earlier attempts at the small model settled without the change,
+because with the alias written on the vessel itself the walk never
+had to carry anything. The model that reproduces has the alias one
+storey down from the component, and switching the change off gives
+the corpus's own words: `nothing determines
+tank.heatTransfer.states[1].p`.
+
+Measured from one binary with the change behind
+`OXIDELICA_RECORD_REDECLARES_OFF`, the two halves are these:
+
+```text
+off: 1043 examples, 821 flatten, 466 run; runnable 912, 723 flatten, 437 run
+on:  1043 examples, 799 flatten, 466 run; runnable 912, 701 flatten, 437 run
+```
+
+The run counts do not move and the list of models that ran is
+identical. The flatten count falls by twenty-two, and the diff of the
+flattened lists names the victims: one gained,
+`ModelicaTest.Fluid.TestComponents.Vessels.TestInitialization`, and
+twenty-three lost, all of them pipes -
+`ModelicaTest.Fluid.TestPipesAndValves.{Branching,Series}Pipes*`,
+`ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipe*`,
+`Modelica.Fluid.Examples.{HeatingSystem,NonCircularPipes}`.
+
+The victims are not a scattered loss. They are the same family one
+link along, and the register says so: the row `an equation between
+shapes [1, 5] and [1]` is absent before the change and carries twelve
+lines after it, with sibling rows for `[1, 2]` and `[10, 5]`. The
+model that stands for all of them refuses on
+
+```text
+an equation between shapes [1, 5] and [1]:
+  Ref("pipe1.statesFM[2].phase") = Ref("pipe1.mediums[1].state")
+```
+
+which is exactly the wall the change was built to remove, seen from
+the other side: `statesFM` is now filed as the medium's five-field
+state and `mediums[i].state` is still filed as the interface's empty
+one, so the two sides of an equation the pipe writes no longer agree
+on what a state is. Making the component step carry the names in force
+exactly as the base step does - the obvious symmetry, and it is a
+fault worth naming, since the two steps had drifted apart - was
+measured on a second full pass and gives the same 799 flatten to the
+digit, with the flattened list identical line for line to the first.
+So the asymmetry is real and is not what holds the pipes.
+
+What holds them is the sixth link, and the shape of it is now known:
+the record table is built per class as the walk goes down, and
+`Modelica.Fluid.Interfaces.PartialDistributedVolume` declares
+`mediums` as `Medium.BaseProperties[n]` in a class the pipe reaches
+through a chain of its own, one the vessel's chain does not pass
+through. The two names are filed by two different descents, and until
+both descents carry the same medium the equation between them cannot
+balance. The measurement to make first is which descent files
+`mediums` and under what, since the fix is either a third place to
+carry the names or - more likely, and worth asking before building -
+one place for all three, which the drift between the base step and
+the component step already argues for.
+
+The work is parked honestly. The change is reverted rather than
+committed: it costs twenty-two models and buys one, and a link taken
+from the middle of a chain that has not been walked to its end is
+exactly what the rules say not to keep. What the shift bought is the
+map - the mechanism confirmed, the small model that reproduces it from
+the real library, the two numbers from one binary, the victims named,
+and the next link located rather than guessed at. The chain is now six
+links deep, which is past the depth at which the map goes to a second
+reader.
