@@ -7607,7 +7607,90 @@ than guessed at. The transient twin of one of the two won,
 refuses about `leakage.G_m` at all: it refuses as an underdetermined
 loop over
 `leakage.Phi`, the two coils' voltages and a pair of flux derivatives,
-which is a different layer and wants its own probe. The remaining five
-of the magnetic seven still stand at `r_mFe.mu_r` and the solenoids'
-yoke permeances, where the reluctance is behind a saturation curve
-rather than a plain reciprocal.
+which is a different layer and wants its own probe.
+
+Of the magnetic models still standing, four stand at `r_mFe.mu_r` and
+the solenoids' yoke permeances, where the reluctance is behind a
+saturation curve rather than a plain reciprocal, and they are
+`FluxTubes.Examples.BasicExamples.SaturatedInductor`,
+`SolenoidActuator.ComparisonPullInStroke`,
+`SolenoidActuator.ComparisonQuasiStatic` and
+`QuasiStatic.FluxTubes.Examples.NonLinearInductor`. The fifth is the
+twin of the paragraph above, and it is at a different wall
+entirely - the count said five at one wall where the raw list says
+four there and one elsewhere, and the raw list is now printed by the
+same pass that counts, so there is no longer any reason to read the
+map off a count.
+
+## A block judged by the units its equations are written in
+
+The fifth link, and the last of the chain. `leakage.G_m` had been
+removed as a wall and the twin refused one step later as an
+underdetermined loop of nine - `leakage.Phi`, the coils' voltages, a
+pair of flux derivatives. Probed, the block is not underdetermined at
+all. Its Jacobian inverts, and its smallest singular value is 1.3e-4
+against a largest of 7.2e7: ill-conditioned, which a solver lives
+with, and not a family of solutions.
+
+What refused it was the test rather than the block. A converged block
+is checked for regularity by comparing the smallest pivot Gaussian
+elimination meets against the largest entry of the whole matrix, and
+for this block those are 6.0e-3 and 7.2e7, so the pivot sits three
+orders under a floor of 7.2 and the verdict follows. But the spread
+between one row and another is the units its equations are written in,
+and a magnetic circuit has no way of avoiding a wide one: a permeance
+near `mu_0` and a reluctance near its reciprocal are in the same block
+by construction. The test was asking about webers and amperes as much
+as about the model.
+
+Each row divided through by its own largest entry asks the question
+that was meant. That is a change of units on one equation and nothing
+else, so it cannot turn a soluble block into an insoluble one, and
+scaled this block keeps a pivot of 5.9e-5 against a floor of 1e-7.
+
+Two things are deliberately left alone, and the tests are what said so
+rather than an argument - both were written the other way first and
+both turned an existing test red within the minute. The columns are
+left because a column belongs to an unknown and this Jacobian is built
+by finite differences: the column of an unknown the residual does not
+really depend on is not zero, it is noise near 1e-8, and divided by
+its own largest entry that noise becomes a coefficient of one. With
+columns scaled, `x = y + 1` beside `y = x - 1` - the same equation
+twice, the thing the check exists to catch - comes back invertible.
+The single row is left for the opposite reason: scaled, its one entry
+is always one, so no block of one could ever read singular again and
+`1/x = 0` would be answered with a number instead of a refusal. Rows
+carry the units; the columns carry the evidence.
+
+Measured on the corpus, it went 462 to 466 and the runnable pair 433
+to 437, with nothing lost against the four. One of the four is the
+twin the link before had uncovered,
+`FluxTubes.Examples.BasicExamples.QuadraticCoreAirgap`, and the chain
+of five is finished with it. The other three were not predicted and
+are the finding: `QuasiStatic.FluxTubes.Examples.Leakage.CylinderLeakage`
+is of the same family, and
+`Electrical.PowerConverters.Examples.DCDC.HBridge.HBridge_DC_Drive`
+and `Thermal.FluidHeatFlow.Examples.WaterPump` are not magnetic at
+all - a drive and a pump, both carrying a block that mixes a
+resistance with a conductance or a mass flow with a pressure, which is
+the same wide spread of units arriving from somewhere else entirely.
+So this was a wall across the library rather than a magnetic one, and
+the probe that found it was pointed at magnetics only because that is
+where the chain happened to lead. `WaterPump` had been parked two
+shifts ago as underdetermined; it was not underdetermined, and the
+parking list is shorter by it.
+
+`MovingCoilActuator.ArmatureStroke` moved off this wall in the same
+change without running, and now refuses about a fixed initial value
+for `cActuator.x`, which is a different layer and not this family.
+
+The `mu_r` wall is a separate matter and was probed in the same shift
+without being taken. Scaled by rows, `SaturatedInductor`'s block of
+three keeps a pivot of 1.3e-8 against a floor of 1e-7 - still under
+it, because that block is conditioned at 1e8 in earnest rather than by
+its units. So row scaling is not the answer there, and neither is the
+retry off the zero: the block converges and is then refused as
+underdetermined, where what is true of it is that it is
+ill-conditioned. Telling those two apart wants a measure of
+conditioning rather than a pivot against a floor, which is a larger
+change than a shift, and the wall is parked with that as its map.

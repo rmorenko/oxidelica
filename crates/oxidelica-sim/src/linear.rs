@@ -99,6 +99,55 @@ pub(crate) fn solve_banded(matrix: &mut [Vec<f64>], band: usize, rhs: &[f64]) ->
     Some(x)
 }
 
+/// Each row divided by its own largest entry, so that a pivot can be
+/// judged against the number one rather than against whichever
+/// equation of the block happens to carry the largest coefficient.
+///
+/// Whether a block has one solution does not depend on the units its
+/// equations are written in, and dividing a row through is exactly a
+/// change of those units - the same equation, stated per unit instead
+/// of per thousand. The pivot test compares against the whole
+/// matrix's largest entry, though, and that comparison does depend on
+/// them: a magnetic circuit carries a permeance near `mu_0` beside a
+/// reluctance near its reciprocal in one block by construction, so its
+/// Jacobian spans eleven decades while being perfectly invertible, and
+/// read unscaled every such block was called underdetermined. Scaled
+/// by rows, the quadratic core's block has a smallest singular value
+/// of 1.7e-5 against a largest of 2.1 - ill-conditioned, which is a
+/// thing a solver lives with, and not at all the same as having a
+/// family of solutions.
+///
+/// The columns are deliberately left alone, and so is the matrix of
+/// one row, and the tests are what said so rather than an argument.
+/// A column belongs to an unknown, and in exact arithmetic scaling one
+/// would be as defensible - but this Jacobian is built by finite
+/// differences, so the column of an unknown the residual does not
+/// really depend on is not zero, it is noise near 1e-8. Divided by its
+/// own largest entry that noise becomes a coefficient of one, and
+/// `x = y + 1` beside `y = x - 1` - the same equation twice, which is
+/// the thing this check exists to catch - comes back invertible.
+/// The single row is the other end of it: scaled, its one entry is
+/// always one, so no one-by-one block could ever read singular again,
+/// and `1/x = 0` would be answered with a number instead of a
+/// refusal. Below two rows there is no spread between equations to
+/// take out, which is the whole point of scaling, so there is nothing
+/// lost by leaving it.
+pub(crate) fn equilibrate_rows(a: &mut [Vec<f64>]) {
+    if a.len() < 2 {
+        return;
+    }
+    for row in a.iter_mut() {
+        let largest = row.iter().fold(0.0f64, |m, x| m.max(x.abs()));
+        // An all-zero row has no scale to be divided by, and it is
+        // exactly the row the caller must go on calling singular.
+        if largest > 0.0 {
+            for value in row.iter_mut() {
+                *value /= largest;
+            }
+        }
+    }
+}
+
 /// The smallest pivot Gaussian elimination with partial pivoting meets
 /// on this matrix.
 ///

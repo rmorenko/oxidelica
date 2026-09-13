@@ -621,6 +621,22 @@ impl CompiledModel {
                             row[j] = (fp[i] - f[i]) / h;
                         }
                     }
+                    // Judged on a matrix whose rows have each been
+                    // divided through by their own largest entry. The
+                    // spread between one equation of a block and
+                    // another is a matter of the units they are
+                    // written in, and the comparison below is against
+                    // the whole matrix's largest entry, so without
+                    // taking that spread out the test asks about the
+                    // units as much as about the block. A magnetic
+                    // circuit is where this bites: a permeance near
+                    // `mu_0` and a reluctance near its reciprocal are
+                    // in one block by construction, and read unscaled
+                    // every such block is called underdetermined
+                    // while being plainly invertible.
+                    if std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none() {
+                        equilibrate_rows(&mut jac);
+                    }
                     let probe = vec![1.0; n];
                     // Judged against the Jacobian's own scale, not
                     // against zero. The matrix here is built by finite

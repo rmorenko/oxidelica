@@ -356,6 +356,65 @@ fn the_smallest_pivot_sees_what_an_absolute_floor_misses() {
     assert_eq!(smallest_pivot(&mut singular), 0.0);
 }
 
+#[test]
+fn a_block_is_not_underdetermined_for_being_written_in_small_units() {
+    // The Jacobian `QuadraticCoreAirgap` actually presents, taken from
+    // the block over `leakage.Phi` and the coils' voltages. A magnetic
+    // circuit puts a permeance near `mu_0` and a reluctance near its
+    // reciprocal in the same block by construction, so its rows run
+    // over eleven decades. The matrix is invertible - its smallest
+    // singular value is 1.3e-4 - but judged against the largest entry
+    // of the whole matrix the smallest pivot is three orders below the
+    // floor, which is a verdict about the units the rows are written
+    // in rather than about the block.
+    let core = vec![
+        vec![-7.16e7, 0.0, 0.0, 0.0, 0.0, 7.96e6, 0.0, 0.0, 0.0],
+        vec![0.0, -7.16e7, -1.49e5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, -6.04e-3, -1.011, -102.13, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 0.0, -1.0, 9.0, 0.0, 0.0, 0.0, 0.0],
+        vec![0.0, 0.0, 4.04e-3, 2.011, 103.13, 0.0, 0.0, 0.0, 0.0],
+        vec![1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, -1.0],
+        vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        vec![0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, -1e4],
+        vec![-7.16e5, 0.0, 0.0, 0.0, 0.0, -8.67e6, 0.0, 0.0, -2.14e6],
+    ];
+    let scale = |m: &[Vec<f64>]| {
+        m.iter()
+            .flat_map(|row| row.iter())
+            .fold(0.0f64, |a, x| a.max(x.abs()))
+            .max(1.0)
+    };
+    assert!(solve_linear(&mut core.clone(), &[1.0; 9]).is_some());
+    assert!(
+        smallest_pivot(&mut core.clone()) <= 1e-7 * scale(&core),
+        "unscaled, this block was supposed to read singular"
+    );
+
+    // Each row divided through by its own largest entry, the same
+    // block keeps a pivot well clear of the floor: the spread between
+    // its equations was the units, and taking it out is what lets the
+    // test ask about the block.
+    let mut scaled = core.clone();
+    equilibrate_rows(&mut scaled);
+    let pivot = smallest_pivot(&mut scaled.clone());
+    assert!(pivot > 1e-7 * scale(&scaled), "pivot {pivot:e}");
+
+    // And the duplicated equation is as singular after scaling as
+    // before it. Rows carry the units; the evidence that an unknown is
+    // not really determined sits in the columns, which is why the
+    // columns are left alone.
+    let mut duplicate = vec![vec![1.0, -1.0], vec![1.0 + 6e-9, -1.0]];
+    equilibrate_rows(&mut duplicate);
+    assert!(smallest_pivot(&mut duplicate.clone()) <= 1e-7 * scale(&duplicate));
+
+    // A single row is left alone outright: scaled, its one entry would
+    // always be one, so no block of one could read singular again and
+    // `1/x = 0` would be answered with a number instead of a refusal.
+    let mut alone = vec![vec![1e-12]];
+    equilibrate_rows(&mut alone);
+    assert_eq!(alone[0][0], 1e-12);
+}
+
 /// The shapes a connection equation leaves behind. Solving `-p.i +
 /// r.p.i = 0` for one of its currents gives `-(-r.n.i)/-1`: the signs
 /// it was moved across and the coefficient it was divided by are all
