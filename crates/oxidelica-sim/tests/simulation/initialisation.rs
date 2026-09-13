@@ -806,3 +806,41 @@ fn a_state_with_no_start_is_read_from_the_equation_that_defines_it() {
     };
     assert!((state("H") - 30.0).abs() < 1e-9, "H = {}", state("H"));
 }
+
+/// A parameter the initialisation solves for needs no start of its
+/// own: the start is where Newton begins, and `fixed = false` is the
+/// statement that the declaration is not where the value comes from.
+#[test]
+fn a_parameter_left_to_the_initialisation_needs_no_start() {
+    // The shape a valve has: a flow coefficient nobody writes down,
+    // pinned by a nominal operating point stated as an initial
+    // equation. Asking such a parameter for a start asked it for the
+    // very thing it had just said it did not have, and the model was
+    // refused with `has no value` while the equation that determines
+    // it stood unread.
+    let model = parse_model(
+        "model M parameter Real Av(fixed = false); parameter Real m_nom = 4; Real x; \
+         initial equation m_nom = 2 * Av; equation der(x) = -x + Av; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    // Solved, not guessed: `4 = 2 * Av` has one answer and it is two.
+    let av = compiled
+        .parameters
+        .iter()
+        .find(|(name, _)| name == "Av")
+        .unwrap_or_else(|| panic!("Av among {:?}", compiled.parameters));
+    assert!((av.1 - 2.0).abs() < 1e-9, "Av = {}", av.1);
+}
+
+/// And the refusal is still owed where nothing determines the value.
+/// A parameter that keeps its `fixed = true` says the declaration is
+/// where its value comes from, so a declaration that gives none is a
+/// model with a hole in it rather than one the initialisation solves.
+#[test]
+fn a_parameter_nothing_settles_is_still_refused() {
+    assert!(
+        refused("model M parameter Real p; Real x; equation der(x) = -x + p; end M;")
+            .contains("has no value")
+    );
+}

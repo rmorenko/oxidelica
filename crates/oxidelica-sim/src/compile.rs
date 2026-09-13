@@ -2760,26 +2760,36 @@ fn evaluate_parameters(
     // beside the states. The start still goes into the parameters,
     // because everything between here and there reads a parameter by
     // looking its value up, and a guess is what a start is for.
+    //
+    // A start that is missing is not a value that is missing. What
+    // `fixed = false` says is that the declaration is not where the
+    // value comes from, so the start was never the answer here - it is
+    // where Newton begins, and a guess nobody wrote is the zero the
+    // declaration would have given anyway. Refusing for the want of one
+    // asked the parameter for the very thing it said it did not have,
+    // and it refused `valve.Av` of the heating system, the analytic
+    // loops' `positiveBranch` and eight others whose initial equations
+    // stood ready to solve for them.
+    //
+    // What is still owed a refusal is a parameter the initialisation
+    // cannot in fact determine, and that is a question about the shape
+    // of the section rather than about one declaration: too few initial
+    // equations for the unknowns they share is what the squareness
+    // check below counts, and it names the whole imbalance instead of
+    // whichever parameter was reached first.
     let mut unsettled: Vec<String> = Vec::new();
     for c in unknowns {
         unsettled.push(c.name.clone());
-        match c.start.as_ref() {
-            Some(start) => {
-                let context = EvalCtx {
-                    vars: &params,
-                    time: 0.0,
-                    programs: Some(programs),
-                    depth: 0,
-                };
-                match eval(start, &context) {
-                    Ok(number) => {
-                        params.insert(c.name.clone(), number);
-                    }
-                    Err(_) => return err(format!("parameter {} has no value", c.name)),
-                }
-            }
-            None => return err(format!("parameter {} has no value", c.name)),
-        }
+        let guess = c.start.as_ref().and_then(|start| {
+            let context = EvalCtx {
+                vars: &params,
+                time: 0.0,
+                programs: Some(programs),
+                depth: 0,
+            };
+            eval(start, &context).ok()
+        });
+        params.insert(c.name.clone(), guess.unwrap_or(0.0));
     }
     // Asked again, now that the initialisation has claimed what it
     // can and the starts have stood in for the rest: a parameter that
