@@ -8174,3 +8174,75 @@ built; `HeatingSystem` does not move under any step of it, since
 reads no records at all; and the shortening loop, instrumented with a
 counter, falls silent during the equation phase. Anything else that
 moves is a burden on the one-level table that the answer did not see.
+
+## The medium's reference constants: a chain walked to six links and parked
+
+The census at `fb5df36` puts `cannot evaluate parameters` at the top of
+the run half once the wordings are added together: 42 models refuse
+there, against 29 for the largest algebraic-loop row. The family is the
+fluid one, and `Modelica.Fluid.Examples.HeatingSystem` is its
+representative - it flattens and then refuses with `nothing gives a
+value to beta_const, cp_const, kappa_const, reference_d, reference_h`.
+
+The reader's prediction from the previous shift is confirmed by
+measurement: `HeatingSystem` does not move under any step of the record
+table reform, and the wall it stands at belongs elsewhere. But the
+report's guess at where was wrong. It is not `settle_parameters`; it is
+the constants layer, and the mechanism is exactly the breed AGENTS.md
+now counts for the third time - two spellings of one name taking two
+different roads.
+
+`Modelica.Media.CompressibleLiquids.LinearWater_pT_Ambient` extends a
+base that gives its reference constants by calls into the IF97 steam
+tables: `reference_d = StandardWater.density(state)`, where `state` is
+itself `constant ThermodynamicState state = setState_pT(reference_p,
+reference_T)`. Written with a path, `Medium.reference_d` is answered by
+`class_constant_binding_at`, which hands the call on for the run to
+walk. Written bare - which is how a body of the interface says it, and
+how it arrives after inlining - nothing hands anything on, so the name
+travels into the run and the parameters cannot be evaluated.
+
+The chain was walked with a probe, each removal local and unrecorded,
+and it does not end inside a shift. The links, in order:
+
+1. A bare constant under the asked-as medium has no road handing on a
+   call binding. Built: `asked_as_constant_binding`, the twin of the
+   dotted road. Fires; `reference_d` now comes back as `state.d`.
+2. `record_constant_field` reads a record constant's fields off its
+   modifier list only. A record whose whole value is a call is not
+   read at all. Built: take the field by its declared position out of
+   the array the record layer answers a record-returning call with.
+3. That road never reaches, because `state` is bare too, and
+   `record_constant_field` splits on a dot and gives up without one.
+   Built: `asked_as_record_owner`, the mark again.
+4. The component is not found even then, because the lookup reads
+   `owner.components` and `state` is declared by the base the medium
+   extends. Built: `with_inherited_components`.
+5. The call now stands with its arguments still bare - `setState_pT(
+reference_p, reference_T)` - because they too are given values by
+   the medium's `extends`. Folding them from `gathering_settled` works
+   and costs the shift's second scar: one model went from eleven
+   seconds to over six minutes, since asking the gathering settles the
+   whole IF97 basket for a binding that mostly needs none of it.
+   Ordering the cheap substitution first and the gathering only on
+   what it could not answer brings it back to nine seconds.
+6. And there the walk stops without reaching the end. With arguments
+   folded to numbers the call is still not inlined -
+   `PartialTwoPhaseMedium.setState_pT` is a `redeclare replaceable`
+   whose body calls `setState_pTX`, and what comes back is an array of
+   two where a scalar is wanted. `HeatingSystem` no longer flattens at
+   all, which is worse than the wall it started at.
+
+So the chain is parked, not taken: six links deep, the sixth not
+mapped, and the state at the end of five is a regression rather than a
+gain. The work is parked honestly - the code is reverted and the
+baseline is the same `cannot evaluate parameters` as before - and the
+map above is what a later shift starts from rather than rediscovering.
+
+Two things worth carrying out of it regardless of the chain. The
+minting ledger's price ordering has a third instance now, and it is
+written into AGENTS.md's performance note by implication rather than by
+name: the dear reader is `gathering_settled`, and it must never be the
+first test. And the probe that made this cheap was the same one each
+time - print what a road hands on, run `--only` on the one model, five
+seconds a round. Four corpus runs would have said less.

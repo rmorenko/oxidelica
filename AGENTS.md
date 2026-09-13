@@ -100,7 +100,13 @@ the worst thing this compiler can do. What resolution looks like here
 is an empty head - `.sin`, the compiler's own function with its path
 resolved away - and anything with a path still on it belongs to
 whoever wrote it. If a name has to be shortened to be recognised, the
-lookup is in the wrong place.
+lookup is in the wrong place. Third time, the same breed wearing a
+different coat: a record table narrowed by whether the key contains
+`].` is a test of _who wrote the entry_ dressed as a test of what the
+name is, because the writer that must be excluded is the only one that
+reads dimensions. When a test on the spelling of a name stands in for
+a fact the structure does not record, the fix is to make the structure
+record it.
 
 Two numbers are comparable only if the same binary produced them. A
 lookup was recorded as firing nowhere, then as costing thirteen
