@@ -616,7 +616,19 @@ pub(super) fn numbers_of_one(
         return None;
     }
     let mut all = 0;
-    for field in &of.components {
+    // The bases' fields count too: a record three `extends` deep
+    // holds the numbers its bases declared, and counting only its own
+    // makes it look emptier than it is - so a value of the true length
+    // matches neither reading and is dropped.
+    for field in record_fields::record_components(registry, of, 0)
+        .iter()
+        // A `constant` belongs to the class rather than to any value
+        // of it: the battery records inherit a `constant String
+        // CellType`, and counting it makes one record more things than
+        // the declaration holds - which is a value matching neither
+        // reading and dropped.
+        .filter(|field| field.variability != Variability::Constant)
+    {
         let mut many = 1;
         for dimension in &field.dimensions {
             let length = const_eval(dimension, &HashMap::new())?;

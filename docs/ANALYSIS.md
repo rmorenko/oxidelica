@@ -7694,3 +7694,60 @@ underdetermined, where what is true of it is that it is
 ill-conditioned. Telling those two apart wants a measure of
 conditioning rather than a pivot against a floor, which is a larger
 change than a shift, and the wall is parked with that as its map.
+
+## A record is its bases' fields too: the Spice3 parameter family
+
+`parameter ... has no value` counted fifty in the run half of the
+census, the third largest row after the unbalanced models and the
+parameters that will not evaluate. Twenty of the fifty were one
+family: the Spice3 transistors, which work their technology parameters
+out in a function and hand the answer to a `final parameter` record.
+The row's wording split them - `m_oxideThicknessIsGiven`, `m_uic`,
+`m_bFac` - and the layer behind all of them was one.
+
+Three links, and the first was found by shrinking the real model to
+twenty-two lines rather than by reading the library. A record built by
+a function and handed to a parameter comes apart field by field, and
+the gatherer that took it apart read only the record's own
+declarations. The Spice3 records are three `extends` deep and nearly
+everything they hold is declared above the name the value was written
+against, so the value came apart into more pieces than there were
+names to take them - and the hand-over was dropped whole, leaving
+every field without a value. The same blind spot sat in four places:
+the gatherer of names, the counter of numbers a record holds, the
+walk that follows a field to its type, and the one that gathers a
+record's starts. `record_components` already answered all four
+correctly and is now what all four ask.
+
+A red test was the judge of the second attempt, as the note on
+performance keys says it usually is: a record's `constant` field
+belongs to the class and not to any value of it, so counting it makes
+the record one thing larger than the declaration and the value matches
+neither reading. The battery records inherit a `constant String
+CellType`, and the test that named them was written two shifts before
+this change existed.
+
+The second link is the language's own rule, and worth stating because
+the refusal looked like a missing value: a variable of a function body
+starts at its `start` attribute, and a field of an output record is
+such a variable. `jfetInitEquations` assigns four fields of a record
+of fifteen and leaves the rest at the zeros their declarations name.
+Answering a generic zero for those would have been a guess - a red
+test caught that too, because `SI.Voltage m_vds(start = -2.0)` starts
+at minus two and what the declaration writes beats the default for the
+type.
+
+The third: `out_c := in_c` is how every Spice3 precalculation begins,
+copy what was handed in and then write over the handful of fields this
+step works out. The name on the right was bound field by field and so
+had no value of its own to substitute, which left the copy answering
+nothing. Copied field by field it is the statement the writer meant.
+
+The chain was taken whole and moves no count: 820 flatten and 466 run
+before and after, with the run list identical model for model. What it
+moves is the wall - the twenty now refuse about singular structure and
+underdetermined loops, real questions about the circuits rather than
+about the compiler's reading of a record. `Inverter` reaches `no
+equation determines vin.T0`, `CascodeCircuit` an underdetermined loop
+in `J2.irs`. That is a family taken a storey up, and the run count is
+a separate claim this change does not make.

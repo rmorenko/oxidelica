@@ -1424,6 +1424,18 @@ fn worked_body(
                             .get(&member)
                             .cloned()
                             .or_else(|| declared(&field))
+                            // A variable of a function body starts at
+                            // its `start` attribute, and a field of an
+                            // output record is such a variable: what no
+                            // branch assigned is what it started as.
+                            // This is the language's own rule rather
+                            // than a default invented here, which is
+                            // what makes it a value and not a guess -
+                            // the Spice3 precalculations lean on it,
+                            // assigning eight fields of a record of
+                            // forty and leaving the rest at the zero
+                            // their declarations name.
+                            .or_else(|| record_fields::starts_at(&member, registry, &class.name))
                             .ok_or_else(|| {
                                 format!(
                                     "function `{}` never assigns `{member}` of its output, and \

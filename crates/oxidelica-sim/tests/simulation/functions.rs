@@ -1228,3 +1228,81 @@ fn a_record_constant_written_by_modifiers_is_read_through_an_extends() {
         result.rows[0][mm]
     );
 }
+
+#[test]
+fn a_record_answered_by_a_call_hands_down_its_inherited_fields() {
+    // A record three `extends` deep, built by a function and handed to
+    // a parameter: the shape the Spice3 mosfets are written in, where
+    // `mos1RenameParameters` answers with a record whose `IsGiven`
+    // fields are declared two records above the one the declaration
+    // names. Taking the fields from the record's own declarations
+    // alone left the inherited ones with nothing - the value came
+    // apart into more pieces than there were names to take them, and
+    // the whole hand-over was dropped, so twenty models refused with
+    // `parameter ... has no value` for a number their constructor had
+    // already worked out.
+    let result = run("model M \
+           record Base Real a; end Base; \
+           record Mid extends Base; Real b; end Mid; \
+           record Sub extends Mid; end Sub; \
+           function make input Real x; output Mid r; \
+           algorithm r.a := x; r.b := 2 * x; end make; \
+           parameter Sub p = make(3.0); \
+           Real y; \
+         equation y = p.a + p.b; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // The inherited field as well as the record's own, by value: 3 and
+    // 6, not a flattening that happened to go through.
+    assert!((last[at("y")] - 9.0).abs() < 1e-12, "y = {}", last[at("y")]);
+}
+
+#[test]
+fn a_field_no_branch_assigned_holds_the_start_its_record_declares() {
+    // A variable of a function body starts at its `start` attribute,
+    // and a field of an output record is such a variable. The Spice3
+    // precalculations lean on it outright: `jfetInitEquations` assigns
+    // four fields of a record of fifteen and leaves the rest at the
+    // zeros their declarations name. Refusing them left twenty models
+    // without a number the language had already given.
+    let result = run("model M \
+           record R Real a; Real c(start = 7.0); end R; \
+           function make input Real x; output R r; \
+           algorithm r.a := x; end make; \
+           parameter R p = make(3.0); \
+           Real y; \
+         equation y = p.a + p.c; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // The start the declaration names, not a zero invented here.
+    assert!(
+        (last[at("y")] - 10.0).abs() < 1e-12,
+        "y = {}",
+        last[at("y")]
+    );
+}
+
+#[test]
+fn a_record_assigned_whole_from_another_carries_its_fields() {
+    // `out_c := in_c` and then a handful of fields written over is how
+    // every Spice3 precalculation starts. The name on the right was
+    // bound field by field and has no value of its own, so the copy
+    // answered nothing and every field not written over was left with
+    // no value at all.
+    let result = run("model M \
+           record R Real a; Real b; end R; \
+           function make input R i; output R r; \
+           algorithm r := i; r.b := 2 * i.a; end make; \
+           parameter R src(a = 3.0, b = 1.0); \
+           parameter R p = make(src); \
+           Real y; \
+         equation y = p.a + p.b; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // `a` copied over as 3, `b` written over as 6, so 9 - and not the
+    // 4 the copy's own value would have made.
+    assert!((last[at("y")] - 9.0).abs() < 1e-12, "y = {}", last[at("y")]);
+}

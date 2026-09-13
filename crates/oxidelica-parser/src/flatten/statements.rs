@@ -578,6 +578,35 @@ fn one_assignment(
                     return Ok(());
                 }
             }
+            // The other way a whole record arrives: under the name of
+            // another record, which was itself bound field by field
+            // and so has no value of its own to substitute. `out_c :=
+            // in_c` is how the Spice3 precalculations start - copy
+            // what was handed in, then write over the handful of
+            // fields this step works out - and a name that answers
+            // nothing left every field not written over with no value
+            // at all. Copied field by field it is the same statement
+            // the writer meant, and the fields the step assigns after
+            // it overwrite their copies in the ordinary way.
+            if let Expr::Ref(from) = &value {
+                let copied: Vec<(String, Expr)> = fields
+                    .iter()
+                    .filter_map(|field| {
+                        let held = bindings.get(&format!("{from}.{field}"))?;
+                        Some((format!("{target}.{field}"), held.clone()))
+                    })
+                    .collect();
+                if !copied.is_empty() {
+                    bindings.remove(&target);
+                    for (member, held) in copied {
+                        if !assigned.contains(&member) {
+                            assigned.push(member.clone());
+                        }
+                        bindings.insert(member, held);
+                    }
+                    return Ok(());
+                }
+            }
         }
     }
     if !assigned.contains(&target) {

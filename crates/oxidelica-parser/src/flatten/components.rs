@@ -857,12 +857,23 @@ fn record_value_per_field(
     // record for having one was what left the machines' loss
     // parameters unset, since a friction record states its
     // reference torque as a `final` field.
-    let fields: Vec<String> = of
-        .components
-        .iter()
-        .map(|field| field.name.clone())
+    // Every field the record has, its bases' among them. Read from
+    // the record's own declarations alone, a field declared one
+    // `extends` up is not in the list at all, so the value coming
+    // apart has more pieces than there are names to take them and the
+    // whole hand-over is dropped - which is what left the Spice3
+    // mosfets' `IsGiven` fields, declared three records up, without
+    // the values their constructor had already worked out. The same
+    // gatherer the rest of the flattener reads a record with, so the
+    // two cannot disagree about what a record is.
+    let held: Vec<Component> = record_fields::record_components(registry, of, 0)
+        .into_iter()
+        // Not the class's own constants: those are the same for every
+        // value of the record and are not pieces a value is made of.
+        .filter(|field| field.variability != Variability::Constant)
         .collect();
-    let settable: Vec<bool> = of.components.iter().map(|field| !field.is_final).collect();
+    let fields: Vec<String> = held.iter().map(|field| field.name.clone()).collect();
+    let settable: Vec<bool> = held.iter().map(|field| !field.is_final).collect();
     if fields.is_empty() || !settable.iter().any(|may| *may) {
         return Vec::new();
     }

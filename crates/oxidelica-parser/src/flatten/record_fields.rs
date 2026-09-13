@@ -217,7 +217,7 @@ pub(super) fn starts_at(
     // field of it.
     if name == root {
         let mut fields = Vec::new();
-        for field in &record?.components {
+        for field in &record_components(registry, record?, 0) {
             fields.push(starts_at(
                 &format!("{name}.{}", field.name),
                 registry,
@@ -225,6 +225,13 @@ pub(super) fn starts_at(
             )?);
         }
         return Some(Expr::Array(fields));
+    }
+    // What the field's own declaration says it starts at beats the
+    // language's default for its type: `SI.Voltage m_vds(start = -2.0)`
+    // starts at minus two, and answering zero for it would be a wrong
+    // number where the declaration gave a right one.
+    if let Some(written) = written_start(name, declared, registry, class) {
+        return Some(written);
     }
     Some(match starting_type(name, declared, registry, class) {
         Some(Started::Boolean) => Expr::Bool(false),
@@ -235,6 +242,33 @@ pub(super) fn starts_at(
         // about a value that is really missing.
         None => return None,
     })
+}
+
+/// The `start` a record's own declaration writes on the field `name`
+/// names, where there is one. `None` where the field is reached but
+/// says nothing about its start, and where it cannot be reached at all.
+fn written_start(
+    name: &str,
+    declared: &Component,
+    registry: &HashMap<&str, &ClassDef>,
+    within: &ClassDef,
+) -> Option<Expr> {
+    let mut current = declared.type_name.clone();
+    let mut within = within;
+    let mut found: Option<Component> = None;
+    for field in name.split('.').skip(1) {
+        let holding = lookup(registry, &current, &within.name, &within.imports)?;
+        let held = record_components(registry, holding, 0)
+            .into_iter()
+            .find(|c| c.name == field)?;
+        current = held.type_name.clone();
+        found = Some(held);
+        within = holding;
+    }
+    let held = found?;
+    // Written either way round: as an attribute of the declaration, or
+    // as the one value a declaration may give outright.
+    held.start.clone().or_else(|| held.binding.clone())
 }
 
 /// What kind of start a declaration has.
@@ -264,12 +298,15 @@ fn starting_type(
     let mut within = within;
     for field in name.split('.').skip(1) {
         let holding = lookup(registry, &current, &within.name, &within.imports)?;
-        current = holding
-            .components
-            .iter()
+        // Its bases' fields among its own: the Spice3 records are
+        // three `extends` deep and most of what they hold is declared
+        // above the name the value was written against, so reading
+        // only the record's own declarations loses the field's type
+        // and with it the start it was owed.
+        current = record_components(registry, holding, 0)
+            .into_iter()
             .find(|c| c.name == field)?
-            .type_name
-            .clone();
+            .type_name;
         within = holding;
     }
     started_by(&current, registry, within, 0)
