@@ -8128,3 +8128,49 @@ parameters [tank.h_start = ...]`, which is a different family with a
 map of its own. So this is a count that moved by two and a wall that
 moved for a family of twenty-odd - the second being the larger half,
 and the register is where it shows.
+
+## What the second reader said, and where the next shift starts
+
+The consultation was asked and answered in the same shift, so the map
+for what follows is written down rather than guessed at. It took the
+narrowing by `"]."` not as evidence that the place is wrong, but as
+evidence that the table does not remember which descent wrote an
+entry, so the provenance had to be encoded in a substring of a name.
+The repair it argues for is not to teach the table to remember the
+writer, but to leave it with one.
+
+The place is not a new one. `acc.instances`, `acc.connectors`,
+`acc.handles` and `acc.sizes` are all written by the builder at the
+point of building; the record table alone is filled by a
+reconstruction, and three times over. The insertion it names is at the
+component descent in `components.rs`, where `child` has already been
+through `record_asked_under` and the flat name already carries the
+subscript - one line, no reconstruction, and the `AskedAs` chain still
+standing because real calls hold it.
+
+Two warnings come with it and both are worth keeping. The symmetric
+place, beside `acc.instances` in `instantiate`, is a trap:
+`instantiate_bases` re-enters with the same prefix, so a `record
+extends` would have the base's pass overwrite the derived record with
+the interface's name - the fifth link's own disease, reproduced in one
+line. And a pass over the finished flat model is both too late, since
+equations are flattened in the middle of the walk, and blind, since
+the flat model has already dissolved a record into its fields.
+
+On the third question it splits the answer: shortening a path by its
+subscripts is a definition against a key that names a declaration, and
+a guess against a key that names an instance. Both kinds share one
+table today, which is why the shortening looks like guesswork; the
+seventh link put the exact key first, and the reform would make that
+precedence structural rather than incidental. The loop is not to be
+removed - `expand` serves both phases, and during building the table
+it reads is the declarations' one, where shortening is lawful.
+
+It also left predictions to be caught by, which is the half that makes
+the next shift cheap: the corpus under the reform moves only models
+holding a modifier that names a record under a neighbour not yet
+built; `HeatingSystem` does not move under any step of it, since
+`cannot evaluate parameters` belongs to `settle_parameters`, which
+reads no records at all; and the shortening loop, instrumented with a
+counter, falls silent during the equation phase. Anything else that
+moves is a burden on the one-level table that the answer did not see.
