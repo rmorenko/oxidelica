@@ -7865,17 +7865,108 @@ a missing shape is asked again while a wrong one is not is what
 caught it before it was measured.
 
 Taken as one series, since a link removed from the middle of a chain
-moves no number by construction. The measurement: `cannot evaluate
-parameters` fell from 60 lines to 42, the `dxs` half of it from 23 to
-zero, and the census is otherwise identical line for line - the
-eighteen models that moved are named in it, each now standing at
-`unbalanced model`, one storey up. The five floors did not move:
-2671 / 820 / 466 / 722 / 437. That is the shape the charter describes
-for a change that moves a wall rather than the count, and the wall
-behind this one is the unbalanced row, whose fluid quarter these
-eighteen now join.
+moves no number by construction. The measurement: the `dxs` half of
+the row fell from 23 to zero, and seventeen models moved, each now
+standing at `unbalanced model`, one storey up. Seventeen and not
+eighteen: the count of 60 lines falling to 42 was a count of
+occurrences, and one of the eighteen it caught was the ranking
+summary's own line at the foot of the raw report, which vanished with
+the family it summarised. The named rows are the models: `cannot
+evaluate parameters` 56 to 39 against `unbalanced model` 101 to 118,
+seventeen either way. An occurrence is not a model, exactly as a row
+is not a family. The census is otherwise unmoved by row, though not
+quite identical line for line: `BranchingPipes15`, `16`, `17` and
+`DynamicPipeInitialization` changed their wording without leaving
+their row, `dxs` giving way to the next name nothing determines. The
+five floors did not move: 2671 / 820 / 466 / 722 / 437. That is the
+shape the charter describes for a change that moves a wall rather
+than the count, and the wall behind this one is the unbalanced row,
+whose fluid quarter these seventeen now join.
 
 What is left of the row after the chain: the function-valued half (15)
 is the largest remaining subfamily and is a different question
 entirely - it asks the compiler to work out a call before the run, not
 to subscript a name - and the medium's `data` fields (12) behind it.
+
+## The unbalanced row read by victim rather than by wording
+
+The row the seventeen joined is now the top of the register at 118
+named lines, and read as one row it is not one family. Sorted by what
+the refusal says nothing determines, the whole of it:
+
+```text
+35  fluid: a medium state inside heatTransfer or flowModel
+28  machine and magnetic windings
+27  everything else, mostly one apiece
+19  electrical: a pin current or potential
+ 6  fluid: the m_flow of a device
+ 3  blocks: a connector nothing was joined to
+```
+
+So the largest true family in the register is the fluid one at 35,
+which is larger than the 25 machine models the earlier reading called
+the top, and larger than either of the two tops of `cannot evaluate
+parameters` - the call before the run (16) and the medium's `data`
+fields (16), both of which the seventeen also fed. Twenty-nine of the
+thirty-five name `heatTransfer.Ts`, and twenty-eight name a field of
+`heatTransfer.states`; they come from `ModelicaTest.Fluid` (23),
+`ModelicaTest.Media` (6) and `Modelica.Fluid` (6).
+
+## What a state record is worth when its fields arrive from below
+
+The probe on the smallest of the thirty-five,
+`ModelicaTest.Fluid.TestComponents.Vessels.TestSimpleTank`, says the
+declaration is there and the equation between it and the medium is
+not:
+
+```text
+declared: Real tank.heatTransfer.states[1].p
+  bound to: nothing
+named by: no equation of the flat model
+```
+
+The vessel writes `HeatTransfer heatTransfer(final states =
+{medium.state})`, so there is a value; it is simply lost. Shrinking
+the complaining model rather than growing a synthetic one puts the
+cause in the shape of the record. `PartialMedium` declares
+`ThermodynamicState` with no fields at all, and every medium fills it
+by `redeclare record extends ThermodynamicState`. The table of which
+instances are records is built by `collect_records`, which resolves a
+declaration's type plainly - and plainly, `Medium.ThermodynamicState`
+is the interface's empty one. Filed under a record of no fields, an
+equation between two states is an equation between two empty lists,
+and `push_equations` drops it without a word: the fields are declared,
+so `why` finds them, and nothing names them.
+
+The small model reproduces it exactly. With the fields written in the
+base, the equation appears and the model settles; with the base left
+empty and the fields moved into a `redeclare record extends`, the
+refusal is the corpus's own, `nothing determines states[1].p`. That
+is the mechanism, and it is one `AskedAs` mark short of the answer
+instantiation already has - `record_asked_under` is what the component
+layer calls for the same reason one layer down.
+
+The chain is deeper than the mark, and the mark is worth its own
+measurement. Set in `collect_records`, on the declaration and on the
+walk below it, it moves the small model and does not move the vessel:
+the vessel reaches its medium through a `replaceable package Medium`
+redeclared at the instance, and the table is built with the imports of
+the class rather than with the redeclarations that reached it - which
+`collect_records` is not given at all. Measured over the corpus from
+one baseline taken before it, the mark is worth a model: 820 flatten
+to 821, the runnable pair 722 to 723, and the run counts stand exactly
+where they were at 466 and 437. `ModelicaTest.Media.TestOnly.IdealGasN2`
+crossed from `function SingleGasNasa.spe...` to flattening, and stands
+now at `unknown variable medium.data.MM`, one wall further along. The
+list of models that ran is identical line for line, so nothing was
+paid for it.
+
+What is left is the fifth link, and it is parked honestly with its
+map: the family is the 35 fluid states, the layer is
+`scoping::collect_records`, the missing piece is the redeclaration
+environment that `settle_naming` works out one call earlier in
+`instantiate` and does not hand on, and the test that goes red without
+the part already taken is the shrunk vessel with its state filled from
+below. Threading the environment through is a change to what the table
+means for every model holding a record, not only for the fluid ones,
+and it wants a run list of its own on either side.

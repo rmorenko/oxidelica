@@ -338,6 +338,29 @@ pub(super) fn collect_records(
             continue;
         };
         let name = format!("{prefix}{}", component.name);
+        // A record kept empty in the interface and filled by the
+        // medium - `ThermodynamicState`, whose fields `PartialMedium`
+        // leaves blank and `PartialSimpleMedium` states - resolves to
+        // the interface's own, which has no fields at all. Filed under
+        // that, the table says `medium.state` is a record of nothing,
+        // an equation between two such records is an equation between
+        // two empty lists, and the value a modifier gave it is dropped
+        // without a word. Instantiation already asks the question the
+        // other way round; the table has to agree with it, or the
+        // fields exist and nothing determines them.
+        let of = match of.kind == ClassKind::Record {
+            true => {
+                let _asked = inlining::AskedAs::resolving(
+                    &component.type_name,
+                    of,
+                    registry,
+                    scope,
+                    imports,
+                );
+                inlining::record_asked_under(of, registry)
+            }
+            false => of,
+        };
         if of.kind == ClassKind::Record {
             out.insert(name.clone(), of.name.clone());
         }
@@ -346,6 +369,16 @@ pub(super) fn collect_records(
             ClassKind::Record | ClassKind::Model | ClassKind::Block | ClassKind::Connector
         ) {
             let below = format!("{name}.");
+            // The medium the declaration named, held while the tree
+            // below it is walked. `Medium.BaseProperties` resolves to
+            // the interface that declares it, and the `state` inside
+            // that base is written with no path at all - so without
+            // the name it was reached by, the walk lands on the
+            // interface's empty record and files a state of no
+            // fields. This is the same mark instantiation sets for
+            // the same reason, one layer down.
+            let _asked =
+                inlining::AskedAs::resolving(&component.type_name, of, registry, scope, imports);
             collect_records(registry, of, &below, &of.name, &of.imports, out, depth + 1);
         }
     }

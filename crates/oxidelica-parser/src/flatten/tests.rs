@@ -701,3 +701,51 @@ fn whether_a_name_is_read_later_sees_every_kind_of_statement() {
     // work, refusing one something reads is wrong.
     assert!(super::algorithms::read_later(&[], "o", 1_000));
 }
+
+#[test]
+fn a_state_whose_fields_arrive_from_below_is_still_a_record() {
+    // A medium leaves `ThermodynamicState` empty in the interface and
+    // fills it by `redeclare record extends`, and a vessel hands the
+    // state to a submodel as a modifier: `HeatTransfer ht(final states
+    // = {medium.state})`. Resolved plainly, the declaration inside the
+    // submodel lands on the interface's empty record, an equation
+    // between two records of no fields is an equation between two
+    // empty lists, and it is dropped without a word - which leaves the
+    // fields declared and nothing to name them.
+    let m = parse_model(
+        "package P \
+         package PartialMedium \
+           replaceable record ThermodynamicState end ThermodynamicState; \
+           replaceable partial model BaseProperties Real p; Real T; \
+             ThermodynamicState state; end BaseProperties; \
+         end PartialMedium; \
+         package Water extends PartialMedium; \
+           redeclare record extends ThermodynamicState Real p; Real T; \
+           end ThermodynamicState; \
+           redeclare model extends BaseProperties \
+           equation state.p = p; state.T = T; end BaseProperties; \
+         end Water; \
+         partial model PartialHT replaceable package Medium = PartialMedium; \
+           input Medium.ThermodynamicState states[1]; Real Ts[1] = {states[1].T}; \
+         end PartialHT; \
+         model IdealHT extends PartialHT; Real port[1]; \
+         equation Ts = port; end IdealHT; \
+         model Vessel replaceable package Medium = PartialMedium; \
+           Medium.BaseProperties medium; \
+           IdealHT ht(redeclare package Medium = Medium, \
+             final states = {medium.state}); \
+         equation medium.p = 1e5; medium.T = 300; end Vessel; \
+         model M Vessel v(redeclare package Medium = Water); end M; \
+         end P;",
+    )
+    .unwrap();
+    let named = |name: &str| {
+        m.equations
+            .iter()
+            .any(|e| format!("{:?}", e.lhs) == format!("Ref({name:?})"))
+    };
+    assert!(
+        named("v.ht.states[1].p") && named("v.ht.states[1].T"),
+        "the state handed to the submodel went unnamed"
+    );
+}
