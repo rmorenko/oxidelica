@@ -7751,3 +7751,77 @@ about the compiler's reading of a record. `Inverter` reaches `no
 equation determines vin.T0`, `CascodeCircuit` an underdetermined loop
 in `J2.irs`. That is a family taken a storey up, and the run count is
 a separate claim this change does not make.
+
+## The census instrument was verified against itself
+
+The shift that taught the census to keep its raw report also took its
+measurements with it, which the charter forbids: a pure move must
+leave the register identical line for line, and the register cannot
+testify about a change to the register made in the same shift. The
+check costs one pass and was owed. The script from before the change
+and the script from after were run on one binary over the whole
+corpus, and the two count sections diff clean at 276 lines. The only
+difference in the whole output is the new line naming where the raw
+report was written. Every number taken since is sound.
+
+## `parameter has no value` was two layers, and one was ours
+
+The row counted thirty after the Spice3 records were repaired, and
+reading it as one family would have been a mistake in the other
+direction from the usual: not a family split across wordings, but a
+row holding two unrelated things.
+
+Twenty of the thirty are utility and base classes - `OpAmpCircuits.PI`,
+`Noise.Utilities.NormalDensity`, `ControlledDCDrives.Utilities.IdealDcDc`
+and seventeen like them. Their parameters are unbound on purpose,
+because the class is meant to be extended or instantiated with values
+supplied, never simulated alone. The refusal is correct and the models
+are not examples in any useful sense; what they are is the example
+filter catching helpers, the same blind spot the charter names about
+`--list` returning more lines than there are examples. Work aimed at
+this row should count twenty-five as five.
+
+The ten that were real models were one layer, and a nine-line model
+showed it in a second:
+
+```modelica
+model InitParam
+  parameter Real Av(fixed = false);
+  parameter Real m_nom = 4.0;
+  Real x;
+initial equation
+  m_nom = 2 * Av;
+equation
+  der(x) = -x + Av;
+end InitParam;
+```
+
+The machinery to solve such a parameter beside the states already
+existed and was reached through `unsettled_parameters`. What refused
+the model was the step before it, which reads a `fixed = false`
+parameter's `start` to have a guess for Newton and refused where none
+was written. A start is a guess here by construction - `fixed = false`
+says the declaration is not the source of the value - so its absence
+is the zero the declaration would have given, not a missing value.
+
+Five models left the wall: `HeatingSystem`, `Fourbar_analytic`,
+`PlanarLoops_analytic` from the row itself, and `Engine1b_analytic`
+and `EngineV6_analytic` from a row the counter worded differently. The
+count of the row moved by three while five models moved, which is the
+charter's warning about adding rows of one meaning before reading a
+number, seen from the measuring end rather than the planning one.
+
+## The unbalanced hundred is five families, not one
+
+Split by what the refusal says nothing determines, the largest row of
+the run half comes apart along physical lines rather than staying
+whole: 25 machine-shaped (`airGap`, `friction.flange`, `psi_m`, with
+`DCPM_Cooling` as a representative), 24 fluid (`heatTransfer.Ts`,
+`m_flow`, `Wb_flow`; `AST_BatchPlant.Test.OneTank`), 21 circuit
+(`opAmp` and bare pin currents; `CauerLowPassOPV`), 6 multibody
+(`frame_a`, `frame_b`; `ForceAndTorque`) and 24 that match none of
+these. By chapter the same models are 29 Magnetic, 27 Electrical, 22
+Fluid across the two libraries, 10 Mechanics, 6 Media, 5 StateGraph.
+No single repair reaches a quarter of the row, and the earlier note
+that the machines and the row's top are different families holds in
+the larger shape too.
