@@ -806,6 +806,20 @@ fn spread_over_elements(
             }
         }
     }
+    // The same, where the array is not the whole value but a term of
+    // it. A pipe hands its base `final dheights = height_ab*dxs`, and
+    // `dxs` is an array of the extending class that the base has never
+    // heard of; spread whole, every element of `dheights` is bound to
+    // `height_ab` times the entire array, and the run is left with a
+    // parameter nothing gives a value to. Subscripted, each element
+    // gets the term that was meant.
+    if items.len() == 1 && !element_names.is_empty() {
+        if let Some(per_element) =
+            over_handed_elements(&items[0], env.handed_shapes, element_names.len())
+        {
+            return Ok(per_element);
+        }
+    }
     if items.len() == 1 && element_names.len() > 1 {
         return Ok(vec![items[0].clone(); element_names.len()]);
     }
@@ -818,6 +832,78 @@ fn spread_over_elements(
         ));
     }
     Ok(items)
+}
+
+/// One value written over an array of the class above, taken apart
+/// into one value per element.
+///
+/// The rule the caller states is about a bare name; this is the same
+/// rule where the name is a term of a larger expression. Every handed
+/// array the value names must be the length of the component, or there
+/// is no one way to subscript them together and the value is left
+/// whole for the caller's other rules to judge. At least one such name
+/// has to be found, so that a value naming none of them - a true
+/// scalar - still spreads.
+fn over_handed_elements(
+    value: &Expr,
+    handed: &HashMap<String, Vec<i64>>,
+    count: usize,
+) -> Option<Vec<Expr>> {
+    if count == 0 {
+        return None;
+    }
+    // What the value names that the class above knows as an array.
+    // Gathered before anything is rewritten, because a length that
+    // does not match means this value is not one to take apart at all.
+    let mut shape: Option<Vec<i64>> = None;
+    let mut mismatched = false;
+    let mut survey = |expr: &Expr| {
+        if let Expr::Ref(name) = expr {
+            if let Some(named) = handed.get(name.as_str()) {
+                match index_tuples(named).len() == count {
+                    true => shape = Some(named.clone()),
+                    false => mismatched = true,
+                }
+            }
+        }
+    };
+    walk_refs(value, &mut survey);
+    let shape = shape.filter(|_| !mismatched)?;
+    Some(
+        index_tuples(&shape)
+            .into_iter()
+            .map(|at| subscript_handed(value, handed, count, &at))
+            .collect(),
+    )
+}
+
+/// Every name in an expression, to a reader that only looks.
+fn walk_refs(expr: &Expr, f: &mut dyn FnMut(&Expr)) {
+    f(expr);
+    expr.map_children(&mut |child| {
+        walk_refs(child, f);
+        child.clone()
+    });
+}
+
+/// One element of every handed array the value names, the rest of the
+/// expression left as it stands. Only the arrays of the component's
+/// own length are subscripted; a name of any other shape is not one
+/// this element has a share of.
+fn subscript_handed(
+    expr: &Expr,
+    handed: &HashMap<String, Vec<i64>>,
+    count: usize,
+    at: &[i64],
+) -> Expr {
+    if let Expr::Ref(name) = expr {
+        if let Some(shape) = handed.get(name.as_str()) {
+            if index_tuples(shape).len() == count {
+                return Expr::Ref(element_name(name, at));
+            }
+        }
+    }
+    expr.map_children(&mut |child| subscript_handed(child, handed, count, at))
 }
 
 /// A record value handed down as one modifier per field.

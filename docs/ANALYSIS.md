@@ -7825,3 +7825,57 @@ Fluid across the two libraries, 10 Mechanics, 6 Media, 5 StateGraph.
 No single repair reaches a quarter of the row, and the earlier note
 that the machines and the row's top are different families holds in
 the larger shape too.
+
+## `cannot evaluate parameters` is five subfamilies, and the largest was a subscript
+
+Read as one row, the top of the run half at 60 lines looked like one
+wall. Sorted by what the refusal says nothing gives a value to, it
+came apart into five: 23 whose missing name is a pipe's `dxs`, 15 that
+name no variable at all but a function the compiler could not work out
+(`dgesv`, `waterBaseProp_ph`, a colour map), 12 whose missing names
+are the fields of a medium's `data` record, 3 on a multibody joint's
+`rod1`, 2 on a pump's operating point, and one apiece besides. The
+largest of them was bigger than the largest subfamily of the
+unbalanced hundred, which is why it was taken first.
+
+And it was not a family at all in the end: it was one rule with a hole
+in it, in two links.
+
+The first link. A value handed down an `extends` is written in the
+names of the class handing it, and the base has never heard of them,
+so the value comes back whole and is spread over every element. A bare
+name was already taken apart one element apiece - that is what
+`handed_shapes` is for. A name inside arithmetic was not: a pipe
+writes `extends PartialTwoPortFlow(final dheights = height_ab*dxs)`,
+and every element of `dheights` was bound to `height_ab` times the
+entire array. Nothing can work that out, and the refusal named `dxs`,
+which is a name the flat model does not have.
+
+The second link, which the first stands on. Subscripting needs the
+array's length, and `dxs` is declared `Real[n]` where `n` is settled
+by the very `extends` carrying the modifier, two levels below the
+declaration asking for it. Measured in source order, base first, the
+length was simply absent. The reading now falls back to the numbers
+the class settles for its own scalar names - but last, after every
+cheaper reading, and with what the model handed in outranking the
+class's defaults. That ordering is the whole of it: a first attempt
+read the default `nNodes = 2` where the site had written `nNodes = 1`,
+which is a wrong shape settled for good, and the charter's rule that
+a missing shape is asked again while a wrong one is not is what
+caught it before it was measured.
+
+Taken as one series, since a link removed from the middle of a chain
+moves no number by construction. The measurement: `cannot evaluate
+parameters` fell from 60 lines to 42, the `dxs` half of it from 23 to
+zero, and the census is otherwise identical line for line - the
+eighteen models that moved are named in it, each now standing at
+`unbalanced model`, one storey up. The five floors did not move:
+2671 / 820 / 466 / 722 / 437. That is the shape the charter describes
+for a change that moves a wall rather than the count, and the wall
+behind this one is the unbalanced row, whose fluid quarter these
+eighteen now join.
+
+What is left of the row after the chain: the function-valued half (15)
+is the largest remaining subfamily and is a different question
+entirely - it asks the compiler to work out a call before the run, not
+to subscript a name - and the medium's `data` fields (12) behind it.

@@ -6,6 +6,7 @@
 //! caller handed in.
 
 use super::*;
+use std::cell::OnceCell;
 
 /// Dimensions of every array component of a class and of its bases.
 pub(super) fn collect_shapes(
@@ -147,6 +148,20 @@ fn collect_shapes_under(
         return;
     }
     let scope = class.name.as_str();
+    // The whole numbers this class settles for itself, worked out only
+    // where a dimension goes unmeasured otherwise. A length is usually
+    // a name of the class carrying it - `parameter SI.Length[n]
+    // lengths` beside the `extends` that sets `n` - and the visit
+    // below reaches declarations in source order, base first, so a
+    // length standing above the number it names is measured against
+    // nothing. That is what left a pipe's `dxs` shapeless: `n` is set
+    // by the very `extends` carrying the modifier.
+    //
+    // Behind a cell rather than worked out outright, because every
+    // class of the library passes through here and nearly all of them
+    // measure fine off what they were handed. A test that costs
+    // nothing goes first.
+    let declared: OnceCell<HashMap<String, f64>> = OnceCell::new();
     for extend in &class.extends {
         if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
             collect_shapes_under(
@@ -219,7 +234,16 @@ fn collect_shapes_under(
                     Expr::Ref(name) => lookup(registry, name, scope, &class.imports)
                         .filter(|c| !c.enumeration.is_empty())
                         .map(|c| c.enumeration.len() as i64)
-                        .or_else(|| dimension_value(dimension, consts, out)),
+                        .or_else(|| dimension_value(dimension, consts, out))
+                        // Last, and only where every cheaper reading
+                        // came back with nothing: the number this
+                        // class settles for the name itself.
+                        .or_else(|| {
+                            let numbers = declared.get_or_init(|| {
+                                settled_numbers(registry, class, consts, handed, 0)
+                            });
+                            dimension_value(dimension, numbers, out)
+                        }),
                     Expr::ColonSubscript => {
                         // What the model handed this component beats
                         // what its declaration wrote: the declaration
@@ -319,6 +343,99 @@ fn collect_shapes_under(
             out.insert(format!("{prefix}{}", component.name), sizes);
         }
     }
+}
+
+/// The whole numbers a class settles for its own scalar names.
+///
+/// A dimension is usually a name of the class carrying it, and what
+/// gives that name its value may stand anywhere: in a base visited
+/// later, or on the `extends` that reaches the base. A pipe declares
+/// `Real[n] dxs` and says `extends PartialTwoPortFlow(final n =
+/// nNodes)` below it, so `n` cannot be read from the declarations in
+/// the order they are written.
+///
+/// What the model handed in outranks everything: `nNodes` is the
+/// pipe's own default of two until a site writes `nNodes = 1`, and
+/// measuring `dxs` at two there would be a wrong shape settled for
+/// good - worse than none, since a name with no shape is asked again
+/// later. So the handed values are read first and are never overruled
+/// by a declaration. Anything that does not settle to a whole number
+/// is left out rather than guessed at.
+fn settled_numbers(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    consts: &HashMap<String, f64>,
+    handed: &[(String, Expr)],
+    depth: usize,
+) -> HashMap<String, f64> {
+    let mut out = HashMap::new();
+    if depth > MAX_DEPTH {
+        return out;
+    }
+    // The bases' defaults first, so that a class extending them may
+    // overrule what they say.
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, &class.name, &class.imports) {
+            // The handed values travel down with the walk. What the
+            // model wrote is about the whole instance, bases and all:
+            // a site writing `nNodes = 1` on a pipe is answering a
+            // name the pipe's base declares, and a base measured
+            // without it settles the default of two - a wrong shape,
+            // and a wrong shape is settled for good.
+            out.extend(settled_numbers(registry, base, consts, handed, depth + 1));
+        }
+    }
+    // Then this class's own declarations.
+    for component in &class.components {
+        if !component.dimensions.is_empty() || component.variability == Variability::Continuous {
+            continue;
+        }
+        if let Some(binding) = &component.binding {
+            if let Some(number) = whole_number(binding, consts, &out) {
+                out.insert(component.name.clone(), number);
+            }
+        }
+    }
+    // Then what its `extends` say, which are written against the names
+    // just gathered: `final n = nNodes` answers with a name of this
+    // class.
+    for extend in &class.extends {
+        for (name, value) in &extend.modifiers {
+            if let Some(number) = whole_number(value, consts, &out) {
+                out.insert(name.clone(), number);
+            }
+        }
+    }
+    // And last what the model handed in, which overrules all of it -
+    // written into the names the `extends` answer with as well as its
+    // own, since a modifier setting `nNodes` is what `n` was defined
+    // from.
+    for (name, value) in handed {
+        if let Some(number) = whole_number(value, consts, &out) {
+            out.insert(name.clone(), number);
+        }
+    }
+    for extend in &class.extends {
+        for (name, value) in &extend.modifiers {
+            if let Some(number) = whole_number(value, consts, &out) {
+                out.insert(name.clone(), number);
+            }
+        }
+    }
+    out
+}
+
+/// A value that settles to a whole number against the numbers in view,
+/// and nothing else.
+fn whole_number(
+    value: &Expr,
+    consts: &HashMap<String, f64>,
+    so_far: &HashMap<String, f64>,
+) -> Option<f64> {
+    let mut both = so_far.clone();
+    both.extend(consts.iter().map(|(name, held)| (name.clone(), *held)));
+    let number = const_eval(value, &both)?;
+    (number.fract() == 0.0).then_some(number)
 }
 
 /// How long a range comes to, for a flexible `:` size read from one.

@@ -2007,3 +2007,136 @@ fn a_shared_instance_is_read_before_the_components_that_reach_it() {
         );
     }
 }
+
+/// An array of the extending class, named inside a value handed down.
+///
+/// A bare name handed to a base was already taken apart one element
+/// apiece. A name buried in arithmetic was not: a pipe writes `extends
+/// PartialTwoPortFlow(final dheights = height_ab*dxs)`, and `dxs` is a
+/// declaration of the pipe that the base has never heard of. Spread
+/// whole, every element of `dheights` is bound to `height_ab` times
+/// the entire array - a value no parameter can be worked out from, and
+/// twenty-three models of the library refused at the run for it.
+#[test]
+fn an_array_named_inside_a_handed_down_value_is_taken_apart() {
+    let m = parse_model(
+        "model Base parameter Integer n = 2; parameter Real[n] dheights = zeros(n); \
+           Real y; equation y = sum(dheights) + time; end Base; \
+         model Pipe extends Base(final dheights = height_ab*dxs); \
+           parameter Real height_ab = 3; \
+           final parameter Real[n] dxs = {0.25, 0.75}; end Pipe; \
+         model Top Pipe pipe1; end Top;",
+    )
+    .expect("an array named inside a handed-down value");
+    // One element apiece, and each the element that was meant: the
+    // first of `dxs` under the first of `dheights`. Spread whole, both
+    // would name `pipe1.dxs`, which is not a name the flat model has.
+    let value = |of: &str| {
+        format!(
+            "{:?}",
+            m.components
+                .iter()
+                .find(|c| c.name == of)
+                .unwrap_or_else(|| panic!("`{of}` is a component of the flat model"))
+                .binding
+        )
+    };
+    assert!(
+        value("pipe1.dheights[1]").contains("pipe1.dxs[1]"),
+        "the first element takes the first of the array: {}",
+        value("pipe1.dheights[1]")
+    );
+    assert!(
+        value("pipe1.dheights[2]").contains("pipe1.dxs[2]"),
+        "the second element takes the second: {}",
+        value("pipe1.dheights[2]")
+    );
+}
+
+/// And a value that names no array of the class above still spreads.
+///
+/// The rule above is about a name the extending class knows as an
+/// array of the component's own length. A true scalar - a number, or a
+/// name of any other shape - says one thing about every element, and
+/// taking it apart would be a subscript of something that has none.
+#[test]
+fn a_scalar_handed_down_still_spreads_over_every_element() {
+    let m = parse_model(
+        "model Base parameter Integer n = 2; parameter Real[n] dheights = zeros(n); \
+           Real y; equation y = sum(dheights) + time; end Base; \
+         model Pipe extends Base(final dheights = 2*height_ab); \
+           parameter Real height_ab = 3; end Pipe; \
+         model Top Pipe pipe1; end Top;",
+    )
+    .expect("a scalar handed down an extends");
+    for of in ["pipe1.dheights[1]", "pipe1.dheights[2]"] {
+        let written = format!(
+            "{:?}",
+            m.components
+                .iter()
+                .find(|c| c.name == of)
+                .unwrap_or_else(|| panic!("`{of}` is a component of the flat model"))
+                .binding
+        );
+        assert!(
+            written.contains("pipe1.height_ab") && !written.contains('['),
+            "`{of}` takes the scalar whole: {written}"
+        );
+    }
+}
+
+/// A length the `extends` below the declaration settles.
+///
+/// `parameter Real[n] dxs` may stand above the `extends` that gives
+/// `n` its value - a pipe declares its normalized lengths and says
+/// `extends PartialTwoPortFlow(final n = nNodes)` beneath them - so
+/// the declarations cannot be measured in the order they are written.
+///
+/// And the number the site wrote outranks the class's own default:
+/// measuring at the default where a site overruled it would settle a
+/// wrong shape, which is worse than none, since a name with no shape
+/// is asked again later.
+#[test]
+fn a_length_the_extends_settles_is_measured_at_what_the_site_wrote() {
+    let source = |nodes: &str| {
+        format!(
+            "model Base parameter Integer n = 2; parameter Real[n] dheights = zeros(n); \
+               Real y; equation y = sum(dheights) + time; end Base; \
+             model Pipe \
+               final parameter Real[n] dxs = fill(1.0/n, n); \
+               parameter Real height_ab = 3; \
+               parameter Integer nNodes = 2; \
+               extends Base(final n = nNodes, final dheights = height_ab*dxs); \
+             end Pipe; \
+             model Top Pipe pipe1({nodes}); end Top;"
+        )
+    };
+    // Left at the default, the pipe has two elements and each takes
+    // its own of the array.
+    let m = parse_model(&source("")).expect("the default length");
+    let named = |m: &oxidelica_parser::Model, of: &str| {
+        m.components
+            .iter()
+            .find(|c| c.name == of)
+            .map(|c| format!("{:?}", c.binding))
+    };
+    assert!(
+        named(&m, "pipe1.dheights[2]")
+            .expect("two elements at the default")
+            .contains("pipe1.dxs[2]"),
+        "the second element takes the second of the array"
+    );
+    // Overruled to one, there is one element and one value, and
+    // nothing measured against the default of two survives.
+    let m = parse_model(&source("nNodes = 1")).expect("the length the site wrote");
+    assert!(
+        named(&m, "pipe1.dheights[1]")
+            .expect("one element where the site wrote one")
+            .contains("pipe1.dxs[1]"),
+        "the one element takes the one value"
+    );
+    assert!(
+        named(&m, "pipe1.dheights[2]").is_none(),
+        "a pipe of one node has no second element"
+    );
+}
