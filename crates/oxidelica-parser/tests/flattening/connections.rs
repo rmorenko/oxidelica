@@ -589,6 +589,36 @@ fn connects_generate_kirchhoff_equations() {
 }
 
 #[test]
+fn a_port_of_the_top_model_closes_its_count_through_its_own_ports() {
+    // A port may hold ports: the thermal bus of the machine
+    // libraries carries a heat port per winding beside its scalar
+    // ones, and the model's own bus is joined from inside and by
+    // nobody from above. Every one of those members stands where
+    // the bus stands, so the flow through each is zero - the same
+    // reading the bus itself gets.
+    //
+    // Decided on the dot in the path, `bus.winding` looked like a
+    // port of a component and was left carrying a flow no equation
+    // named, which is what refused the induction machines of
+    // `FundamentalWave` as unbalanced.
+    let source = "connector HP Real T; flow Real Q; end HP;\
+         connector Bus HP winding; HP core; end Bus;\
+         model Src Bus b; equation b.core.T = 300; b.winding.T = 300; end Src;\
+         model Top Src s; Bus bus; equation connect(s.b, bus); end Top;";
+    let m = parse_model(source).unwrap();
+    for member in ["bus.winding.Q", "bus.core.Q"] {
+        // The name has to stand alone on the left: the Kirchhoff sum
+        // over the set names it too, and a test that reads the sum as
+        // the zero passes whether or not the zero was written.
+        let zeroed = m.equations.iter().any(|e| {
+            matches!(&e.lhs, Expr::Ref(name) if name == member)
+                && matches!(&e.rhs, Expr::Number(value) if *value == 0.0)
+        });
+        assert!(zeroed, "the flow through `{member}` must be zeroed");
+    }
+}
+
+#[test]
 fn cardinality_counts_the_connections_to_a_port() {
     // How many `connect` equations name a port. The specification
     // deprecates the operator and says it will be removed, but while it

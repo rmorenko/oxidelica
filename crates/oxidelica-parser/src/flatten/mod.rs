@@ -533,6 +533,32 @@ fn build_the_model(
     Ok(acc)
 }
 
+/// Whether a connector is a port of the model being flattened, rather
+/// than a port of one of its components.
+///
+/// A port of the top model has no level above it to be joined from, so
+/// its outside half stands as a set of one and the flow through it is
+/// zero. That was read off the path: a name with no dot in it. But a
+/// port may hold ports - the thermal bus of the machine libraries
+/// carries a heat port per winding beside its scalar ones - and
+/// `bus.winding[1]` is as much a port of the top model as `bus` is,
+/// while `component.pin` is not. What decides it is the head of the
+/// path: the thing the port hangs off. Where that head is itself a
+/// connector of the model, everything below it stands where it stands;
+/// where the head is a component, the port belongs to that component
+/// and the level above is real.
+///
+/// Read off the dot alone, a bus member was left carrying a flow no
+/// equation named, and the induction machines of `FundamentalWave`
+/// were refused as unbalanced by exactly the number of members their
+/// thermal port holds.
+fn is_a_port_of_the_top(connectors: &HashMap<String, String>, path: &str) -> bool {
+    match path.split_once('.') {
+        None => true,
+        Some((head, _)) => connectors.contains_key(head),
+    }
+}
+
 /// What every `connect` of the model comes to.
 ///
 /// The connectors joined by connections fall into sets, and a set is
@@ -800,7 +826,7 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         .filter(|(path, (has_inside, has_outside))| {
             *has_inside
                 && !*has_outside
-                && !path.contains('.')
+                && is_a_port_of_the_top(&acc.connectors, path)
                 && !by_hand.contains(**path)
                 && acc
                     .connectors
