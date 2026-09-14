@@ -8246,3 +8246,44 @@ name: the dear reader is `gathering_settled`, and it must never be the
 first test. And the probe that made this cheap was the same one each
 time - print what a road hands on, run `--only` on the one model, five
 seconds a round. Four corpus runs would have said less.
+
+### Link three paid, and a fourth instance of the same scar
+
+The chain's third link is now taken: a field of a record constant named
+without a path is read. A package writes `constant St ref(p = 1e5)` and
+then `constant Real d = ref.p` beside it, and the reader took the head
+apart on a dot, so a sibling record was unreachable and every field of
+one was left standing as a bare name. Two tests hold it, one for a
+record the package declares and one for a record a base declares, and
+the second was red until the lookup was taken through the `extends`.
+
+What that lookup cost is the finding, and it is the fourth appearance of
+the ordering scar in this one layer. Reaching through the `extends`
+means gathering every component of every base, which allocates, and the
+first version asked for the gathering before asking whether the class
+declared the name itself. That question is put to every dotted name in a
+library whose head is not a class, which is most names that are not
+classes, so the gathering ran unconditionally. One model measured it:
+`Modelica.Media.Examples.MoistAir` went from two seconds to eighty-eight,
+and the whole corpus from eleven minutes to over two hours, standing for
+a third of that on a single model. Asking the free question first -
+the class's own components - and the dear one only of a class that
+extends something brings MoistAir back to two seconds and the corpus to
+eight and a half minutes, with the same five floors and a ran list
+identical name for name.
+
+The instrument that settled it was `sample` on one `--only` run, not the
+corpus. The profile named `class_constant_at` calling
+`function_components` outright, which is the whole diagnosis in one
+line; the two corpus runs the previous shift spent on the same question
+said only that something was slow. A giant is found with a narrow pipe
+and a profiler, and the corpus is what confirms the cure afterwards.
+
+The wall behind the link is named, and it is not where the chain was
+left. `Modelica.Fluid.Examples.HeatingSystem` still refuses at
+`cannot evaluate parameters`, but `tank.h_start` now reads as a mix of
+prefixed and bare names - `reference_h`, `cp_const`, `reference_d`
+carrying no path beside `heater.reference_h` that does - which is the
+flat model's own invariant broken: anything that survives flattening
+carries the flat model's names. The next shift starts there rather than
+at link six.

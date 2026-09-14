@@ -1101,3 +1101,37 @@ fn a_comprehension_knows_what_the_class_holds_records_of() {
     assert!(!equations.contains("\"c.re\""), "{equations}");
     assert!(equations.contains("v[1].re"), "{equations}");
 }
+
+#[test]
+fn a_field_of_a_record_constant_named_without_a_path_is_read() {
+    // A package writes `constant Real d = ref.p` beside `constant St
+    // ref(p = ...)`: the record is a sibling, so the name carries no
+    // path at all. The reader took the head apart on a dot and gave up
+    // without one, so every such field was left as a bare name and the
+    // model that asked for it could not evaluate its parameters.
+    let m = parse_model(
+        "package P record St Real p; Real T; end St; \
+         constant St ref(p = 1e5, T = 300); constant Real d = ref.p; end P; \
+         model M parameter Real d = P.d; Real x; equation der(x) = -x + d; end M;",
+    )
+    .unwrap();
+    let said = format!("{:?}", m.components);
+    assert!(said.contains("100000"), "{said}");
+    assert!(!said.contains("Ref(\"P.d\")"), "{said}");
+}
+
+#[test]
+fn a_record_constant_a_base_declared_is_found_through_the_extends() {
+    // The record may be declared by a base the package extends rather
+    // than by the package itself, which is how a medium comes by the
+    // state its reference constants are read from.
+    let m = parse_model(
+        "package B record St Real p; end St; constant St ref(p = 7); end B; \
+         package P extends B; constant Real d = ref.p; end P; \
+         model M parameter Real d = P.d; Real x; equation der(x) = -x + d; end M;",
+    )
+    .unwrap();
+    let said = format!("{:?}", m.components);
+    assert!(said.contains("7"), "{said}");
+    assert!(!said.contains("Ref(\"P.d\")"), "{said}");
+}

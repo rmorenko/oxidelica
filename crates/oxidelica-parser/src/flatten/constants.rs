@@ -160,18 +160,30 @@ fn record_constant_field(
     if depth > MAX_CONSTANT_DEPTH {
         return None;
     }
-    let (owner_path, component_name) = path.rsplit_once('.')?;
-    let owner = lookup(registry, owner_path, scope, imports)?;
-    let component = owner
-        .components
-        .iter()
-        .find(|c| c.name == component_name)
-        .filter(|c| {
-            matches!(
-                c.variability,
-                Variability::Constant | Variability::Parameter
-            )
-        })?;
+    // A sibling constant of the same package is named bare: a package
+    // writes `constant Real d = ref.p` beside `constant St ref`, and
+    // `ref` carries no path at all. Splitting on a dot gives up there,
+    // which is what kept a record constant's field unreadable whenever
+    // the record was a sibling rather than something with a head. So
+    // where there is no dot the owner is looked for among the packages
+    // the question was asked inside - and only packages, because what a
+    // model holds is a component of the flat model and belongs to it:
+    // a `parameter Pair L0(d = 2)` of a model must reach the run as
+    // `gap.L0.d`, not as the digit the modifier happened to say.
+    let (owner, component) = match path.rsplit_once('.') {
+        Some((owner_path, component_name)) => {
+            let owner = lookup(registry, owner_path, scope, imports)?;
+            // A name with a head may be a parameter as well: the run
+            // is not asked to give a value to a package's own.
+            let held = declared_record(registry, owner, component_name, false)?;
+            (owner, held)
+        }
+        // A name with no path is only answered for a constant: a
+        // parameter of a package is still something the run may be
+        // asked to give a value to.
+        None => enclosing_record_constant(registry, path, scope)?,
+    };
+    let component = &component;
     // The value the modifier list gives the field, worked out under
     // the package that holds the record: `R_s = 287.117` is a literal,
     // but a field may be written on another constant of the same
@@ -204,6 +216,74 @@ fn record_constant_field(
         .binding
         .as_ref()?;
     read(declared)
+}
+
+/// A component of a class that could hold a record constant, looked
+/// for under the class itself before under everything it extends.
+///
+/// The ordering is the whole of this function's reason for being.
+/// Gathering a class's inherited components allocates a vector of
+/// every component of every base, and this is asked of every dotted
+/// name in a library whose head is not a class - which is most names
+/// that are not classes at all. So the free question goes first: does
+/// the class declare the name itself. The dear one is asked only of a
+/// class that extends something, which alone can hide a declaration in
+/// a base - and that is how a medium comes by the state its reference
+/// constants are read from.
+fn declared_record(
+    registry: &HashMap<&str, &ClassDef>,
+    owner: &ClassDef,
+    name: &str,
+    constant_only: bool,
+) -> Option<Component> {
+    let wanted = |c: &Component| {
+        c.name == name
+            && if constant_only {
+                c.variability == Variability::Constant
+            } else {
+                matches!(
+                    c.variability,
+                    Variability::Constant | Variability::Parameter
+                )
+            }
+    };
+    if let Some(held) = owner.components.iter().find(|c| wanted(c)) {
+        return Some(held.clone());
+    }
+    if owner.extends.is_empty() {
+        return None;
+    }
+    super::inlining::with_inherited_components(owner, registry)
+        .into_iter()
+        .find(wanted)
+}
+
+/// The package a bare record constant is declared by, with the
+/// declaration: the class the question was asked under, or a package it
+/// is written inside.
+///
+/// `constant Real d = ref.p` names its sibling without a path, and
+/// nothing in the name says which class holds it. The walk is the same
+/// one [`enclosing_constant_at`] makes for a scalar - out through the
+/// packages the scope is written inside - and it stops at the first
+/// that declares a constant of the name, inherited ones included.
+fn enclosing_record_constant<'a>(
+    registry: &HashMap<&str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+) -> Option<(&'a ClassDef, Component)> {
+    let mut prefix = scope;
+    loop {
+        if let Some(owner) = registry
+            .get(prefix)
+            .filter(|owner| owner.kind == ClassKind::Package)
+        {
+            if let Some(held) = declared_record(registry, owner, name, true) {
+                return Some((owner, held));
+            }
+        }
+        prefix = prefix.rsplit_once('.')?.0;
+    }
 }
 
 /// A constant written as the length of another constant of the same
