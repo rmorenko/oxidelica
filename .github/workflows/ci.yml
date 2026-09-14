@@ -233,6 +233,10 @@ jobs:
   audit:
     name: advisories
     runs-on: ubuntu-latest
+    # The daily cron exists for the heavy job and nothing else. This
+    # sweep is the reason the weekly cron is there, so it wakes on
+    # that one and sleeps through the nights the code did not move.
+    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1'
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable

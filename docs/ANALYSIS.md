@@ -8640,3 +8640,82 @@ already gets its flow equation, so a hand-written probe that leaves
 one dangling refuses correctly and proves nothing. The layer is not
 clear enough to change, and a definition-adding change measured
 against an unclear layer is how nine models were lost before.
+
+## The thirteen machines are eight, two and twenty-two
+
+The family was taken by name from a census that was three commits old,
+and the first thing the probe said was that the census was stale.
+Eight of the thirty-two machine-shaped models in that unbalanced row
+run now: `DCMachines.DCPM_Cooling`, the four
+`PowerConverters.DCDC.HBridge` examples, and the three
+`Magnetic.QuasiStatic.FluxTubes` airgap examples. Nothing in this
+shift moved them; they were won earlier and the census had not been
+retaken. That is the cost of choosing work from a file rather than
+from a run, and it is cheap to avoid - `--only` answers for one model
+in under a second, and thirty-two of them took three minutes.
+
+Of the twenty-four that remain, two are short of equations and
+twenty-two have too many. The shortage pair is
+`Electrical.Machines.Examples.InductionMachines.IMC_withLosses` at
+501 for 504 and its `FundamentalWave` namesake at 864 for 865. The
+excess is uniformly two equations in nine of them -
+`IMC_Conveyor`, `IMC_Initialize`, `IMC_Inverter`, `IMC_Steinmetz`,
+`IMC_YD`, `SMEE_Rectifier`, `SMPM_Braking`, `SMPM_CurrentSource`,
+`SMPM_VoltageSource`, each at exactly +2 - and larger in the thirteen
+polyphase and comparison models, which carry the same converter
+several times over.
+
+### The probe's list is leftovers on both sides, not the cause
+
+The earlier map read the excess side's list as the culprits, because
+it names connection equations of the polyphase converter and the
+shortage side's list reads as unremarkable leftovers. Measured, the
+two sides are the same kind of list. `SMPM_Braking` shrunk to a
+machine, a star and a resistive load is 552 equations for 551 - one
+too many - and the probe prints eleven equations. `IMC_Conveyor` is
+two too many and the probe prints eighteen. A list whose length has
+no relation to the excess is what a matching leaves behind when it
+runs out, not what it could not place. So the instrument answers
+"which equations were not reached", and on neither side does that
+name the equation that should not exist.
+
+### The converter chain is not the shape, and the winding runs
+
+The chain drawn inside `PolyphaseElectroMagneticConverter` -
+`connect(singlePhaseElectroMagneticConverter[k-1].port_n, [k].port_p)`
+in a `for` loop, with the ends on the component's own ports - was the
+suspected shape, and two small models say it is not. A chain of that
+drawing over a scalar `flow` runs; the same chain over a `flow` of
+record type, which is what `Phi` is, runs too; and adding a
+conditional array of components connected to every link, which is what
+`strayPermeance ... if useStrayPermeance` is, still runs. The
+suspected shape was also `Modelica.Mechanics`-shaped in
+`PartialBasicMachine` - a protected `internalSupport` joined to a
+`Fixed` that exists only when `useSupport` is false - and a small
+model of that runs as well.
+
+The real `SymmetricPolyphaseWinding`, driven from a polyphase source
+into a reluctance, runs on its own with the library's own default
+`ratioCommonLeakage = 1`. With the ratio at zero, so that the
+conditional `stray` permeance is absent, it does not run - but the
+refusal there is an algebraic loop residual, not an imbalance. So the
+winding is not where the two equations are, and neither is the
+converter beneath it.
+
+`useSupport` makes no difference to the count either: `true` and
+`false` both give 552 for 551 on the shrunk model. What does change it
+is the phase count, and in the wrong direction - the same machine at
+`m = 5` is 585 for 589, four equations _short_. A family whose sign
+flips with a parameter that ought only to change its size is one fault
+seen from two ends, and the excess and the shortage are very probably
+the same thing.
+
+Parked, and more honestly than last time. The barrier is above the
+winding and below the example, in what the machine assembles from
+`airGap`, `permanentMagnet`, `strayLoad` and the mechanical chain; a
+model small enough to hold it has not been found, and four small
+models of the shapes that were suspected are all green. The next
+probe worth building is one that prints which equations a matching
+_did_ place against the machine's own components, since the list of
+what it could not reach has now been shown to say nothing on either
+side.
