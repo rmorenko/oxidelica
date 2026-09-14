@@ -8432,3 +8432,24 @@ still; noise shows up as everything moving together, or as one number
 moving and no model behind it. The ceilings stay where they are - one
 firing that was measured and explained is the instrument working, and
 raising it on the first fire would be turning it off.
+
+## What became of the opAmp family
+
+The seam above was aimed at the operational amplifiers, and the note
+that reported it said the rest of the family would refuse one storey
+up as `structurally singular`. Probed with the seam in place, that
+turns out to overstate what is left. Of the fourteen examples under
+`Analog.Examples.OpAmps`, thirteen now flatten and run: Adder,
+Comparator, Differentiator, HighPass, Integrator, InvertingAmplifier,
+InvertingSchmittTrigger, LCOscillator, LowPass, Multivibrator,
+NonInvertingAmplifier, SchmittTrigger, SignalGenerator, Subtracter and
+VoltageFollower among them.
+
+One does not: `ControlCircuit`, which flattens and then refuses with
+`initialization is not square: 3 initial equation(s) and 4 fixed`.
+That is not the family's own wall but the parked triple the notes
+already carry, met by a fourteenth model. So the opAmp family is not
+work waiting at the top of the census; it is finished except for a
+model whose remaining barrier belongs to another queue. Whoever reads
+the unbalanced row next should subtract the opAmps from it before
+planning against the number.
