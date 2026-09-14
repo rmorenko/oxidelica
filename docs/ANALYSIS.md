@@ -8453,3 +8453,32 @@ work waiting at the top of the census; it is finished except for a
 model whose remaining barrier belongs to another queue. Whoever reads
 the unbalanced row next should subtract the opAmps from it before
 planning against the number.
+
+## The measurement that settled the ceiling
+
+The note above told the two firings apart by building two binaries and
+timing six models, and concluded noise. A cleaner witness arrived
+afterwards and is worth recording, because it needs no second binary
+at all: `e7a563b` was run twice by CI on the same machine, once by the
+push and once by the scheduled pass an hour later. Same commit, same
+1043 models, same runner image.
+
+```text
+push      7686ms per model flattening   red
+schedule  5939ms per model flattening   green
+```
+
+A spread of 29% on identical code, with nothing between the two runs
+but which hardware the day handed out. The ceiling stood at 7000, in
+the middle of that band, so which side of it a commit landed on was a
+coin toss - and a threshold that fires on a coin toss teaches its
+readers to ignore it, which is worse than not having one.
+
+That is the third outcome the shift was told to look for, and it is
+the one the numbers support: not noise to be waved away and not a
+regression to be fixed, but a boundary drawn too tight to be read.
+The ceilings are therefore raised, to 12000 and 8000, with the spread
+that justifies them written beside them in the script. They still
+catch what they were built for - the index reduction that went from
+591s to 3153s is a factor of five and clears them by a mile - and they
+no longer fire on the weather.

@@ -43,15 +43,27 @@
 # the faster machine does the same. Both are set where the check can
 # be reproduced where it fires.
 #
-# The headroom is wide on purpose - about two thirds again over the
-# dearest run seen, where two runs of the same code on the same
-# machine already differ by a seventh. This is not a benchmark and a
-# few percent is noise. It is a trap for the kind of regression that
-# was paid for once: an index reduction that took the run half from
-# 591s to 3153s, a factor of five, went unnoticed for two days and
-# then killed two build machine runs on the ninety minute cap. A
-# factor of five clears these ceilings by a mile, and a fifth does
-# not wake them.
+# The headroom is wide on purpose, and it was measured too narrow
+# once. The first pair was set about two thirds over the dearest run
+# then seen, on a belief that two runs of one code differ by a
+# seventh. They differ by far more than that. One commit was run
+# twice on this machine, once by a push and once by the schedule an
+# hour later, with the same binary over the same 1043 models: 5939ms
+# per model flattening on the green run and 7686ms on the red one, a
+# spread of 29% with nothing between them but which runners the day
+# handed out. The desk is wilder still - two whole-corpus passes of
+# one binary reporting the same 471 models printed 1725ms and 3412ms,
+# a factor of two.
+#
+# So the ceilings are set above the noise rather than above the
+# dearest sample, which is what makes them readable: a firing is then
+# news instead of a coin toss. This is not a benchmark and a third of
+# a percent is not a finding. It is a trap for the kind of regression
+# that was paid for once: an index reduction that took the run half
+# from 591s to 3153s, a factor of five, went unnoticed for two days
+# and then killed two build machine runs on the ninety minute cap. A
+# factor of five still clears these by a mile, and the noise band no
+# longer wakes them.
 #
 # `--slow N` on the check itself is the other half of this pair: the
 # ceiling says the compiler got slower, and the list of the dearest
@@ -73,8 +85,8 @@ RUNNABLE_RUN_FLOOR=440
 UNREAD_CEILING=0
 # Milliseconds per model that reached each half. See the note above
 # for why these are the build machine's numbers and not a desk's.
-FLATTEN_MS_CEILING=7000
-RUN_MS_CEILING=4500
+FLATTEN_MS_CEILING=12000
+RUN_MS_CEILING=8000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
