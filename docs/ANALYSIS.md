@@ -8538,3 +8538,63 @@ What this change buys is that the next reader of that row sees which
 equations are surplus instead of a phrase repeated eight times. It
 costs no models and wins none, and the honest measurement of it is
 the test that reproduces the library's wording in twelve characters.
+
+## Seventy-two percent of a measurement spent on three models
+
+The library check takes as long as its dearest models, and `--slow`
+says which those are. Measured on a quiet machine over 1043 models,
+the run half cost 3757s and three names took 2693s of it:
+
+```text
+1643s  Spice3BenchmarkFourBitBinaryAdder.FOURBIT
+ 825s  Spice3BenchmarkFourBitBinaryAdder
+ 225s  ...TWOBIT
+```
+
+Seventy-two percent of the time on three models of one package. The
+flatten half is milder and the same shape: `EngineV6` at 241s and
+three `BranchingPipes` at 145 to 177s take 925s of 3028.
+
+That is what pushed the library job into its ninety minute ceiling,
+where a cancelled run leaves the same blank space on the page as a
+green one - two commits went without a verdict from it for exactly
+this reason. And what those three models measure is the speed of the
+numerical solver on a large circuit rather than how much of the
+library this compiler reads; they grow dearer on their own as more of
+them passes.
+
+So they are carved out, and the carving is written down rather than
+done quietly. `scripts/heavy_models.txt` names them with what each
+cost and the date it was measured; `library check --without <file>`
+takes them out of the main run and `--only-from <file>` makes them the
+whole of a scheduled one. One file serves both, so the two cannot
+drift apart.
+
+The half that makes it honest is the second floor. A model taken out
+of a measurement and given none has its regression hidden for ever, so
+`scripts/heavy_floor.sh` holds the same counts over exactly this list,
+and it checks the length of the list too: a name quietly deleted would
+otherwise lower every count it holds and pass.
+
+The floors of the main run came down by exactly what moved, and the
+arithmetic is in the script so that nobody reads it as a regression a
+week later: flatten 822 = 819 + 3, runnable flatten 724 = 723 + 1. The
+run halves did not move at all, 472 = 472 + 0, because none of the
+three runs yet - the time they cost is spent reaching a refusal, an
+underdetermined algebraic loop in `FOURBIT`'s case. Which is the
+finding worth keeping separate from the saving: the dearest model in
+the corpus is dear on the way to failing.
+
+A note on what was not carved out. `DynamicPipeEnergyConservationCheck`
+costs 199s and stays, because what it measures is whether the answer is
+right, and a physical check is not a benchmark however dear it is.
+
+A slowdown was suspected in the compiler before this was measured, and
+there was none. The same models timed one at a time on the current
+binary came out at 1598s for `FOURBIT` against the 1643s measured
+clean, and 196s for `EngineV6` against 241s. Both are inside the noise
+band these notes already record for the corpus, in the faster
+direction. The 91 minute CI runs and a 32 minute local pass were the
+runner's weather and a stray parallel job, not a regression - which is
+why nothing was fixed here, and why the numbers are written down: a
+phantom chased twice is a shift lost twice.

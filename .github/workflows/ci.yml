@@ -8,6 +8,11 @@ on:
     # Weekly, so a new advisory shows up on its own rather than in
     # whichever commit happens to come next.
     - cron: "0 6 * * 1"
+    # Daily, for the heavy models below, which no push measures. They
+    # cost most of an hour between them and nothing waits on the answer,
+    # so once a night is the right rate: a regression in one of them is
+    # a morning's news rather than a week's.
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 env:
@@ -96,6 +101,44 @@ jobs:
         run: |
           cargo build --release -p oxidelica-cli
           ./scripts/library_floor.sh .msl
+
+  # The models the check above does not measure, measured here. Three
+  # `Spice3` benchmarks cost seventy-two percent of the run half between
+  # them and what they measure is the speed of the solver, so they are
+  # named in `scripts/heavy_models.txt` and skipped there - but a model
+  # carved out of a measurement and given no floor has its regression
+  # hidden for ever, so they keep floors of their own here.
+  #
+  # On the schedule and by hand, not on every push: nothing waits on
+  # this, and red here is a finding for the next shift rather than a
+  # stop signal - a benchmark can grow slower because of the runner it
+  # was handed.
+  heavy:
+    name: the heavy models still read
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # Wider than the main job's ninety, because these are the models
+    # that job could not afford. Measured on a desk at around forty-five
+    # minutes for the three, and a shared runner is the slower machine.
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: The standard library
+        uses: actions/checkout@v5
+        with:
+          repository: modelica/ModelicaStandardLibrary
+          ref: v4.1.0
+          path: .msl
+
+      - name: Read them
+        run: |
+          cargo build --release -p oxidelica-cli
+          ./scripts/heavy_floor.sh .msl
 
   # Coverage and the linters for everything that is not Rust run once,
   # where the tooling is cheapest to install.

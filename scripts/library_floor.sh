@@ -70,13 +70,32 @@
 # models by half says where, from the same run rather than from two
 # more.
 #
+# A handful of models are not measured here at all. The names are in
+# `scripts/heavy_models.txt` with what each cost and when: three
+# `Spice3` benchmarks took 2693s of a 3757s run half between them,
+# seventy-two percent of the time on three names, and what they measure
+# is the speed of the solver rather than how much of the library reads.
+# They are held to floors of their own by `scripts/heavy_floor.sh` on a
+# schedule, so nothing is hidden by the carving - and the floors below
+# came down by exactly what moved:
+#
+#   flatten 822 = 819 here + 3 in the scheduled run
+#   run     472 = 472 here + 0 in the scheduled run
+#   runnable flatten 724 = 723 here + 1 in the scheduled run
+#   runnable run     441 = 441 here + 0 in the scheduled run
+#
+# The run halves did not move because none of the three runs yet: what
+# they cost is spent reaching a refusal. That is written down because a
+# number that did not fall is as easy to misread a week later as one
+# that did.
+#
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=822
+FLATTEN_FLOOR=819
 RUN_FLOOR=472
-RUNNABLE_FLATTEN_FLOOR=724
+RUNNABLE_FLATTEN_FLOOR=723
 RUNNABLE_RUN_FLOOR=441
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
@@ -96,7 +115,7 @@ cd "$(dirname "$0")/.."
 # difference nobody can fix. The list goes to a file rather than the
 # log, and the log gets the run half of it, which is where the
 # machines disagree.
-report="$(./target/release/oxidelica library check --list "$directory")"
+report="$(./target/release/oxidelica library check --list --without scripts/heavy_models.txt "$directory")"
 ran_list="$(echo "$report" | grep '^  ran   ' | sed 's/^  ran   //' | sort)"
 printf '%s\n' "$ran_list" > /tmp/oxidelica_ran.txt
 echo "models that ran: $(wc -l < /tmp/oxidelica_ran.txt)"

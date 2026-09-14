@@ -3,6 +3,7 @@
 
 use oxidelica_parser::{Variability, WhenAction};
 use oxidelica_sim::compile;
+use std::collections::HashSet;
 use std::process::ExitCode;
 use std::sync::atomic::Ordering;
 
@@ -29,6 +30,8 @@ Usage:
                             names: modelica (the Modelica Standard Library)
   oxidelica library check [<directory>] [--list] [--refused] [--only <Class>]
                             [--slow N]  the N dearest models, by half
+                            [--without <file>] every model but those named
+                            [--only-from <file>] only the models named
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -515,6 +518,42 @@ fn library_check(args: &[String]) -> Result<(), String> {
         .and_then(|at| args.get(at + 1))
         .cloned();
     let refused_each = args.iter().any(|arg| arg == "--refused");
+    // A named set of models, taken out of the check or made the whole
+    // of it. Three models of `Spice3` cost seventy-two percent of the
+    // run half between them, and what they measure is the speed of the
+    // solver rather than how much of the library reads - so they run on
+    // a schedule of their own, against floors of their own. One list
+    // serves both halves of that arrangement: the main check passes it
+    // to `--without`, the scheduled one to `--only-from`, and neither
+    // can drift from the other because there is only one file.
+    let named_in = |flag: &str| -> Result<Option<HashSet<String>>, String> {
+        let Some(path) = args
+            .iter()
+            .position(|arg| arg == flag)
+            .and_then(|at| args.get(at + 1))
+        else {
+            return Ok(None);
+        };
+        // A file that is not there is a failure and not an empty set.
+        // Read as empty, `--without` would quietly measure everything
+        // and `--only-from` would measure nothing and hold its floors
+        // against it, which is the shape of the zero this project has
+        // already been bitten by.
+        let text = std::fs::read_to_string(path)
+            .map_err(|why| format!("cannot read the list of models `{path}`: {why}"))?;
+        let names: HashSet<String> = text
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.starts_with('#'))
+            .map(str::to_string)
+            .collect();
+        if names.is_empty() {
+            return Err(format!("the list of models `{path}` names none"));
+        }
+        Ok(Some(names))
+    };
+    let without = named_in("--without")?;
+    let only_from = named_in("--only-from")?;
     // The dearest models by name, both halves apart. A time per model
     // says the compiler got slower; it does not say where, and a
     // hunt for the where used to mean two binaries and two runs of
@@ -538,7 +577,10 @@ fn library_check(args: &[String]) -> Result<(), String> {
             !arg.starts_with("--")
                 && !matches!(
                     at.checked_sub(1).and_then(|before| args.get(before)),
-                    Some(flag) if flag == "--only" || flag == "--slow"
+                    Some(flag) if flag == "--only"
+                        || flag == "--slow"
+                        || flag == "--without"
+                        || flag == "--only-from"
                 )
         })
         .map(|(_, arg)| arg);
@@ -606,8 +648,34 @@ fn library_check(args: &[String]) -> Result<(), String> {
             Some(wanted) => &c.name == wanted,
             None => c.name.contains(".Examples.") || c.name.contains(".Test"),
         })
+        // The carved-out set, either taken out or made the whole of
+        // the check. Applied after the sampling above rather than
+        // instead of it, so that the scheduled run measures the same
+        // models by the same rule as the main one, minus or plus this
+        // list - two rules would be two different measurements.
+        .filter(|c| match &without {
+            Some(named) => !named.contains(&c.name),
+            None => true,
+        })
+        .filter(|c| match &only_from {
+            Some(named) => named.contains(&c.name),
+            None => true,
+        })
         .map(|c| c.name.clone())
         .collect();
+    // A list that named nothing the library holds is a measurement of
+    // nothing that would still hold its floors against zero. Say it
+    // instead: the likeliest cause is a name misspelt in the file, and
+    // a misspelt name in `--without` silently measures the giant it was
+    // meant to carve out.
+    if let Some(named) = &only_from {
+        if models.is_empty() {
+            return Err(format!(
+                "none of the {} model(s) named by `--only-from` is in this library",
+                named.len()
+            ));
+        }
+    }
     if only.is_some() && models.is_empty() {
         return Err(format!(
             "no model of the library is called `{}`",

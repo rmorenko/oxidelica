@@ -423,6 +423,135 @@ fn a_library_counts_its_runnable_examples_apart() {
     );
 }
 
+/// A library with two examples and a file naming one of them, which is
+/// the shape both halves of the heavy-model arrangement are asked in.
+fn two_examples_and_a_list(name: &str) -> (TempDir, std::path::PathBuf) {
+    let library = TempDir::new(name);
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Cheap Real x(start = 1); equation der(x) = -x; end Cheap; \
+         model Dear Real y(start = 1); equation der(y) = -y; end Dear; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let list = library.0.join("heavy.txt");
+    std::fs::write(&list, "# a note\n\nLib.Examples.Dear\n").unwrap();
+    (library, list)
+}
+
+#[test]
+fn a_named_set_of_models_is_taken_out_of_the_check_or_made_the_whole_of_it() {
+    // Three `Spice3` benchmarks cost seventy-two percent of the run
+    // half, so the main check skips them and a scheduled one measures
+    // exactly them. One file names the set for both, and these are the
+    // two readings of it: the check must count one model either way, and
+    // the two must not be the same model.
+    let (library, list) = two_examples_and_a_list("carved");
+    let without = bin()
+        .args([
+            "library",
+            "check",
+            "--list",
+            "--without",
+            list.to_str().unwrap(),
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(without.status.success(), "{}", stderr(&without));
+    let text = stdout(&without);
+    assert!(
+        text.contains("example models: 1, of which 1 flatten and 1 run"),
+        "{text}"
+    );
+    assert!(text.contains("Lib.Examples.Cheap"), "{text}");
+    assert!(!text.contains("Lib.Examples.Dear"), "{text}");
+
+    let only_from = bin()
+        .args([
+            "library",
+            "check",
+            "--list",
+            "--only-from",
+            list.to_str().unwrap(),
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(only_from.status.success(), "{}", stderr(&only_from));
+    let text = stdout(&only_from);
+    assert!(
+        text.contains("example models: 1, of which 1 flatten and 1 run"),
+        "{text}"
+    );
+    assert!(text.contains("Lib.Examples.Dear"), "{text}");
+    assert!(!text.contains("Lib.Examples.Cheap"), "{text}");
+}
+
+#[test]
+fn a_list_of_models_that_cannot_be_read_is_a_refusal_and_not_an_empty_set() {
+    // Read as empty, `--without` measures the giant it was meant to
+    // carve out and `--only-from` measures nothing while holding its
+    // floors against zero. Both are a measurement that lies, which is
+    // the failure this project has been bitten by before, so a missing
+    // file, a file naming nothing, and a name no model answers to each
+    // say so instead.
+    let (library, list) = two_examples_and_a_list("bad list");
+    let missing = list.with_file_name("nowhere.txt");
+    for flag in ["--without", "--only-from"] {
+        let out = bin()
+            .args([
+                "library",
+                "check",
+                flag,
+                missing.to_str().unwrap(),
+                library.0.to_str().unwrap(),
+            ])
+            .output()
+            .unwrap();
+        assert!(!out.status.success(), "{flag}: {}", stdout(&out));
+        assert!(
+            stderr(&out).contains("cannot read the list of models"),
+            "{flag}: {}",
+            stderr(&out)
+        );
+    }
+    let comments = list.with_file_name("comments.txt");
+    std::fs::write(&comments, "# nothing but a note\n\n").unwrap();
+    let out = bin()
+        .args([
+            "library",
+            "check",
+            "--without",
+            comments.to_str().unwrap(),
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "{}", stdout(&out));
+    assert!(stderr(&out).contains("names none"), "{}", stderr(&out));
+
+    let absent = list.with_file_name("absent.txt");
+    std::fs::write(&absent, "Lib.Examples.NoSuchModel\n").unwrap();
+    let out = bin()
+        .args([
+            "library",
+            "check",
+            "--only-from",
+            absent.to_str().unwrap(),
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "{}", stdout(&out));
+    assert!(
+        stderr(&out).contains("is in this library"),
+        "{}",
+        stderr(&out)
+    );
+}
+
 #[test]
 fn checking_nothing_says_so() {
     let empty = TempDir::new("empty");

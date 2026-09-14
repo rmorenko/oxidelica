@@ -1,0 +1,37 @@
+# The models carved out of the library check into a run of their own.
+#
+# A handful of models eat most of the check. Measured on a quiet
+# machine over 1043 models, the run half cost 3757s in total and three
+# of these took 2693s of it - seventy-two percent of the time on three
+# names. What they measure is the speed of the numerical solver on a
+# large circuit, not how much of the library this compiler reads, and
+# they grow dearer on their own as more of them passes. Held in the
+# main check they push the library job at its ninety minute ceiling,
+# where a cancelled job leaves the same blank space on the page as a
+# green one and the commit has been checked by nobody.
+#
+# So they run on a schedule instead, under `scripts/heavy_floor.sh`,
+# which holds its own five floors over exactly this list. Carving a
+# model out without giving it a floor would hide its regression for
+# ever, which is the one thing this arrangement must not do.
+#
+# The price and the date it was measured stay beside each name. A cost
+# without a date is a cost nobody can check, and this list is the only
+# place the decision is written down: what is here is not measured by
+# the main check, so anything added here has to be subtracted from the
+# main check's floors in the same commit.
+#
+# What does NOT belong here: a model that is dear because it is a
+# physical check rather than a speed benchmark.
+# `DynamicPipeEnergyConservationCheck` costs 199s and stays in the main
+# run, because what it measures is whether the answer is right.
+#
+# A blank line and a line beginning with `#` are ignored; everything
+# else is one class name.
+
+# 1643s to run, 2026-09-14
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
+# 825s to run, 2026-09-14
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
+# 225s to run, 2026-09-14
+Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT

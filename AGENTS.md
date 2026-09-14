@@ -480,6 +480,39 @@ numbers - the slower of the two, the opposite way round from the
 counts and for the same reason: a threshold is set where the machine
 that fires it can reproduce it.
 
+### A giant is carved out with a floor, or not at all
+
+A handful of models can own a measurement. Three `Spice3` benchmarks
+took 2693 seconds of a 3757 second run half - seventy-two percent of
+the time on three names - which is what walked the library job into
+its ninety minute ceiling, and a cancelled run is a commit nobody
+checked. Where what a model measures is the speed of the solver rather
+than how much of the library reads, it belongs in a run of its own:
+`scripts/heavy_models.txt` names the set, `library check --without`
+takes it out of the main pass and `--only-from` makes it the whole of
+the scheduled one, from that one file so the two cannot drift.
+
+Two rules go with it, and both are about honesty rather than speed.
+A model carved out of a measurement and given no floor has its
+regression hidden for ever, so the scheduled run holds the same counts
+over exactly that list. And the floors of the main pass come down by
+exactly what left, with the arithmetic written where they are set -
+`flatten 822 = 819 here + 3 in the scheduled run` - because a number
+that fell for a good reason and a number that fell from a regression
+look identical a week later.
+
+What does not get carved out is a model that is dear because it checks
+an answer. `DynamicPipeEnergyConservationCheck` costs 199 seconds and
+stays: a physical check is not a benchmark however dear it is.
+
+And before carving, rule out the weather. A slowdown suspected across
+two 91 minute CI runs and a 32 minute local pass turned out to be
+nothing - the same models timed one at a time came out at 1598s
+against 1643s and 196s against 241s, inside the noise band these notes
+already record and on the faster side of it. `--only` on the dearest
+models answers that in minutes, where a corpus pass answers it in
+half an hour and a bisect in a shift.
+
 ## Tests
 
 A bug fix comes with a test that fails without it. Check that it does:
