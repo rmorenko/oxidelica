@@ -712,8 +712,14 @@ fn unbalanced_because(algebraic_eqs: &[(Expr, Expr)], unknowns: &[String]) -> St
             unmatched_eqs
                 .iter()
                 .map(|eq| {
+                    // The equation is written out as the flat model has
+                    // it. The shortened spelling next door was made for
+                    // a bound, where anything but a number or a name is
+                    // "its limit"; used here it turns an equation into
+                    // that phrase and names nothing at all, which is the
+                    // one thing a refusal may not do.
                     let (lhs, rhs) = &algebraic_eqs[*eq];
-                    format!("{} = {}", describe(lhs), describe(rhs))
+                    format!("{} = {}", lhs.describe(), rhs.describe())
                 })
                 .collect(),
         )

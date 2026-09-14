@@ -124,6 +124,14 @@ fn compile_error_paths() {
     // state, so this asks for a model that is unbalanced the other way.
     let said = compile_err("model M Real y; equation y = 1; y + 1 = 2; end M;");
     assert!(said.contains("nothing is left for"), "{said}");
+    // And the equation is written out, not reduced to a phrase. The
+    // machine models of the library refused with `nothing is left for
+    // its limit = 0`, which names no equation at all: the shortened
+    // spelling belongs to a bound's message and turns a sum into
+    // "its limit".
+    let said = compile_err("model M Real y; equation y = 1; y + y = 2; end M;");
+    assert!(!said.contains("its limit"), "{said}");
+    assert!(said.contains("y + y = 2"), "{said}");
 
     // der inside an algebraic expression is read where it stands.
     assert!(compile(

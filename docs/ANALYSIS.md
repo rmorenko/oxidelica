@@ -8482,3 +8482,59 @@ that justifies them written beside them in the script. They still
 catch what they were built for - the index reduction that went from
 591s to 3153s is a factor of five and clears them by a mile - and they
 no longer fire on the weather.
+
+## The machine family, and the refusal that named no equation
+
+The machine models were taken up as the largest family inside the
+unbalanced row: a dozen or so entries written in one hand, `aimc`,
+`smee`, `smpm`, `smr`, each saying `nothing is left for` some flange
+angle. The first question was whether they are one layer or one
+wording, and probing answered it in one second apiece, from the root
+of the corpus rather than from a subtree.
+
+They are two libraries with similar names, not one family. The
+`Electrical.Machines` examples - `IMC_DOL`, `IMC_YD`, `IMC_Inverter` -
+do not refuse as unbalanced at all; they reach a `residual N of
+algebraic loop` or an `initialization is not square`. It is the
+`Magnetic.FundamentalWave` machines that are unbalanced, and there by
+exactly two equations: 813 for 811, 830 for 828, 811 for 809. The
+same excess of two across a dozen models is the signature of one
+cause, but it is not the cause the census's wording suggested.
+
+Probing the balance of `Magnetic.FundamentalWave...IMC_Inverter`
+printed eight equations with nothing left to solve for, and one of
+them was this:
+
+```text
+balance: nothing is left for its limit = 0
+```
+
+`its limit` is not an equation. It is the phrase a bound's assertion
+uses for a right-hand side that is neither a number nor a name, and
+the unbalanced refusal had borrowed that spelling to print equations
+with. Any equation whose side is a sum, a call or an index came out
+as those two words, so a refusal built to name what the model is
+short of named nothing at all - the one thing this compiler's notes
+say a refusal may not do. The parser's own `Expr::describe` writes
+the expression out, and the refusal now uses it. The test is a
+two-equation model whose extra equation is `y + y = 2`: before the
+change it refused with `nothing is left for its limit = 2`, which is
+the library's exact wording in twelve characters.
+
+That is a repair to an instrument rather than to the compiler, and
+it must not be credited with anything else. The census taken this
+shift ran on the binary as it stood before the change, so the drop it
+shows in the unbalanced row - 91 to 63 against the previous census -
+belongs to the commits between the two and not to this one. What
+moved with it is instructive on its own: the rows naming algebraic
+loops went 47 to 55 and the structurally singular rows 43 to 58,
+while the run half's refusals in total fell only from 356 to 351. The
+models walked from one wall to the next, as the notes predict of a
+family taken one storey up, and a reader who had counted the
+unbalanced row alone would have claimed twenty-eight models that were
+never won.
+
+What this change buys is that the next reader of that row sees which
+equations are surplus instead of a phrase repeated eight times. It
+costs no models and wins none, and the honest measurement of it is
+the test that reproduces the library's wording in twelve characters.
