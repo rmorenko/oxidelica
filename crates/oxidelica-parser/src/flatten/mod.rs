@@ -756,6 +756,62 @@ fn join_the_connections(registry: &HashMap<&str, &ClassDef>, acc: &mut Flat) -> 
         .map(|(path, _)| ((*path).to_string(), false))
         .collect();
     half_seams.sort();
+    // And the same seam at the other end of the tree. A port of the
+    // model being flattened is joined from inside by that model's own
+    // `connect` and from outside by nobody - there is no level above,
+    // because this model is the whole of the run. Nothing outside it
+    // is there to take the flow, so its outside half stands as a set
+    // of one and the flow through it is zero, exactly as for a
+    // submodel port the level above left alone. Without this the port
+    // carries a flow no equation names, and the model is refused as
+    // unbalanced: an operational amplifier circuit written as a
+    // reusable block with `p1`, `p2`, `n1` and `n2` of its own is
+    // short precisely four equations, one per port.
+    //
+    // Only a port that carries flow. A causal connector - a block's
+    // `RealInput` - has no flow to zero, and the rule for a set of
+    // one already gives it the value it waits on from outside.
+    //
+    // And only a port the model says nothing about. What silences a
+    // port is the model writing a definition against it - a member of
+    // it standing alone on the left of an equation. A ground written
+    // as a port of the top model with `g.v = 0` is such a port: the
+    // model has taken it in charge as its reference, and the current
+    // it draws is exactly what the connection sum is there to find, so
+    // a zero would be one equation more than the model has unknowns.
+    //
+    // Merely being read is not it: the four-pin interface of the
+    // electrical library writes `i1 = p1.i` to give the port current a
+    // name, which introduces `i1` and determines that. A port silenced
+    // by a reading of itself is a port left one equation short, which
+    // is the whole opAmp family.
+    let by_hand: HashSet<&str> = acc
+        .equations
+        .iter()
+        .filter_map(|equation| match &equation.lhs {
+            Expr::Ref(name) => name.rsplit_once('.'),
+            _ => None,
+        })
+        .filter_map(|(path, _)| acc.connectors.get_key_value(path).map(|(known, _)| known))
+        .map(String::as_str)
+        .collect();
+    let mut top_seams: Vec<(String, bool)> = sides
+        .iter()
+        .filter(|(path, (has_inside, has_outside))| {
+            *has_inside
+                && !*has_outside
+                && !path.contains('.')
+                && !by_hand.contains(**path)
+                && acc
+                    .connectors
+                    .get(**path)
+                    .and_then(|of| registry.get(of.as_str()))
+                    .is_some_and(|of| connector_members(registry, of).iter().any(|m| m.flow))
+        })
+        .map(|(path, _)| ((*path).to_string(), true))
+        .collect();
+    top_seams.sort();
+    alone.extend(top_seams);
     alone.extend(half_seams);
     alone.sort();
     alone.dedup();

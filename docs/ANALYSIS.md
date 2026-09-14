@@ -8334,3 +8334,101 @@ design, because a name buys nothing over a digit without one. Where
 the declaration does carry a unit the chain runs clean through, which
 is what the two tests show. What stands behind link five is the record
 builder, and that is parked ground rather than this chain's.
+
+## A port of the top model has nothing above it
+
+The census taken at `e7a563b` put `unbalanced model` at the head of the
+run half by a wide margin: 91 models once the rows the counter had
+split by their wording were added back together, against 43 for
+`structurally singular model` and 39 for `cannot evaluate parameters`.
+Probed rather than read, its top entry was not one family but it held
+one that was plain: seven models of the operational amplifiers, each
+short between two and nineteen equations, each naming its own ports -
+`n2.i`, `p1_2.i` - among the unknowns nothing determined.
+
+The mechanism is the seam, seen from the end the compiler had not
+looked at. A port is joined from two sides, and the flat model owes an
+equation for each; where the level above leaves a submodel's port
+alone, the compiler already mints the zero that says nothing outside
+takes the flow. The model being flattened has no level above it at
+all - it is the whole of the run - so its own ports are joined from
+inside by its own `connect` and from outside by nobody, and the zero
+they were owed was never written. A circuit written as a reusable
+block with four pins of its own is short exactly four equations, one
+per pin, and that is what the count said.
+
+What nearly hid it is the shape of the test that withholds the zero,
+and it took two goes to get right. A port the model speaks for must
+not be given a second value, and asked as "is the port named
+anywhere", the four-pin interface of the electrical library answers
+yes for every port it has - `i1 = p1.i` introduces `i1` and determines
+`i1`, not the port. Naming is not speaking for. Narrowed the other way,
+to only the flow standing on the left, the test let through a ground
+written as a port of the top model, `g.v = 0`, where the current the
+ground draws is exactly what the connection sum is there to find; that
+cost three simulation tests their balance, and the preflight caught
+it. What silences a port is any member of it standing alone on the
+left of an equation, which is both readings' answer where they agree
+and the right one where they do not.
+
+Measured with one binary and an environment switch, twice over the
+whole corpus, and the settled rule measured again against the same
+baseline for the same numbers: 466 models ran without the seam and 471 with it, 437
+runnable against 440, and the flattened lists are identical line for
+line. The five are `CauerLowPassOPV`, `CauerLowPassSC`,
+`DifferentialAmplifier`, `SwitchedCapacitor` and
+`TranslatoryArmatureAndStopper` - the last of which was parked ground,
+freed by a fix aimed elsewhere. Nothing was lost. The rest of the
+opAmp family did not come with them: their balance now closes and they
+refuse one storey up, as `structurally singular model: equation
+Ref("p1.i") = Number(0.0) constrains no state`, which is a wall of its
+own and the next thing to probe.
+
+## A ceiling that fired on noise, and how it was told apart
+
+Two time ceilings fired within a day of each other, and both read as a
+regression until they were measured. CI called `e7a563b` red with
+`flattening is 7023ms per model, and the ceiling is 7000ms` - a third
+of a percent over - against 4178ms and 4456ms on the two commits
+before it, on the same machine over the same 1043 models. A jump of
+58% in one commit, and the commit in question touched the constants
+layer, which is the layer the notes above say has cost a whole shift
+three separate times. The reading wrote itself.
+
+It was wrong, and what showed it was two binaries against a handful of
+models rather than a fourth corpus pass. `5444b45` built into its own
+worktree, `e7a563b` built beside it, six models timed one by one from
+the root of the corpus - the fluid models where the medium's constants
+are in play, and `ChuaCircuit` and `DoublePendulum` as controls:
+
+```text
+                        5444b45   e7a563b
+HeatingSystem             12.14      6.19
+PumpingSystem              4.93      4.95
+HeatExchangerSimulation   10.40     10.38
+ThreeTanks                 1.32      1.32
+DoublePendulum            31.62     31.90
+ChuaCircuit                0.31      0.31
+```
+
+The change made the model it was aimed at twice as fast and left
+everything else alone to the digit. Nothing in the fluid family got
+dearer, which is where a slowdown from that commit would have had to
+live.
+
+What the number was is desk noise of the same size. Two whole-corpus
+runs from that shift, both on the same code and both reporting the
+same 466 models run, printed 1725ms and 3412ms per model - a factor of
+two between two runs of one binary. A machine that can vary by 98%
+between identical runs can certainly clear a ceiling by 0.3%, and the
+`48461ms` in a third log from the same night is the same instrument
+catching a laptop that went to sleep mid-pass.
+
+So the rule this leaves: a time ceiling firing is a question, not a
+verdict, and the cheap way to answer it is two binaries over six
+models rather than another pass over a thousand. A regression in a
+layer shows up as a family getting dearer while the controls hold
+still; noise shows up as everything moving together, or as one number
+moving and no model behind it. The ceilings stay where they are - one
+firing that was measured and explained is the instrument working, and
+raising it on the first fire would be turning it off.

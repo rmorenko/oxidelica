@@ -1887,3 +1887,62 @@ fn a_pass_through_carries_the_tree_of_the_graph() {
     // connections wrote an equality and the count was six.
     assert_eq!(angles, 5, "{:?}", m.equations);
 }
+
+#[test]
+fn a_port_of_the_top_model_carries_nothing_out() {
+    // A port of the model being flattened is joined from inside by
+    // that model's own `connect` and from outside by nobody: this
+    // model is the whole of the run, so there is no level above to
+    // take the flow. Its outside half is a set of one and the flow is
+    // zero, the same reading a submodel port gets when the level
+    // above leaves it alone. Without it the port carries a flow no
+    // equation names and the model is short one equation per port,
+    // which is what refused every operational amplifier circuit of
+    // the standard library.
+    let source = "connector Pin Real v; flow Real i; end Pin;\
+         model R Pin p; Pin n; equation p.v - n.v = 100 * p.i; p.i + n.i = 0; end R;\
+         model Top Pin p; Pin n; R r; equation connect(p, r.p); connect(n, r.n); end Top;";
+    let m = parse_model(source).unwrap();
+    for port in ["p.i", "n.i"] {
+        let zeroed = m.equations.iter().any(|e| {
+            format!("{:?}", e.lhs) == format!("Ref({port:?})")
+                && format!("{:?}", e.rhs).contains("0.0")
+        });
+        assert!(zeroed, "the top model's `{port}` must carry nothing out");
+    }
+}
+
+#[test]
+fn a_top_port_the_model_speaks_for_keeps_its_own_equation() {
+    // Naming the port current is not speaking for the port. The
+    // four-pin interface of the electrical library writes `i1 = p1.i`,
+    // which introduces `i1`; read as the port speaking for itself, the
+    // zero is withheld and the model stays one equation short. What
+    // silences the port is a member of it standing on the left of an
+    // equation - a ground written as `g.v = 0`, where the current the
+    // ground draws is what the connection sum is there to find.
+    let read = "connector Pin Real v; flow Real i; end Pin;\
+         model R Pin p; Pin n; equation p.v - n.v = 100 * p.i; p.i + n.i = 0; end R;\
+         model Top Pin p; Pin n; Real i1; R r;\
+         equation i1 = p.i; connect(p, r.p); connect(n, r.n); end Top;";
+    let m = parse_model(read).unwrap();
+    let zeroed = m.equations.iter().any(|e| {
+        format!("{:?}", e.lhs) == "Ref(\"p.i\")" && format!("{:?}", e.rhs).contains("0.0")
+    });
+    assert!(zeroed, "a port merely read is not spoken for");
+
+    let stated = "connector Pin Real v; flow Real i; end Pin;\
+         model R Pin p; Pin n; equation p.v - n.v = 100 * p.i; p.i + n.i = 0; end R;\
+         model Top Pin p; Pin n; R r;\
+         equation n.v = 0; connect(p, r.p); connect(n, r.n); end Top;";
+    let m = parse_model(stated).unwrap();
+    let zeros = m
+        .equations
+        .iter()
+        .filter(|e| format!("{:?}", e.lhs) == "Ref(\"n.i\")")
+        .count();
+    assert_eq!(
+        zeros, 0,
+        "a port the model speaks for is not given a second value"
+    );
+}
