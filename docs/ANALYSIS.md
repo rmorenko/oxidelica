@@ -8598,3 +8598,45 @@ direction. The 91 minute CI runs and a 32 minute local pass were the
 runner's weather and a stray parallel job, not a regression - which is
 why nothing was fixed here, and why the numbers are written down: a
 phantom chased twice is a shift lost twice.
+
+## The machine family is two families, and the refusal shows one side
+
+The thirteen machine models in the unbalanced row were treated as one
+barrier because the names in their refusals rhyme - `airGap`, `pin_ap`,
+`fire_n`. Probed with `OXIDELICA_BALANCE_PROBE=1`, they are two shapes
+that have nothing in common but the library they live in.
+
+`Modelica.Electrical.Machines.Examples.InductionMachines.IMC_withLosses`
+is 501 equations for 504 unknowns: three equations short. The probe
+names thirteen unmatched unknowns, and `oxidelica why` finds that every
+one of them already has an equation of its own -
+`aimc.powerBalance.powerMechanical` has exactly one, and so does
+`aimc.airGap.spacePhasor_s.v_[1]`, and so does `combiTable1Ds.y[2]`,
+which belongs to a table and not to a machine at all. So the thirteen
+are the leftovers of a matching that ran out of equations, not the
+cause of anything: what to look for is the three equations the flat
+model never wrote, and no victim in the list points at them.
+
+`Modelica.Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL`
+is the mirror image: too many equations, and the probe names the
+equations with nothing left to solve for. There the list is not
+leftovers - it is the connection equations of a polyphase converter,
+`singlePhaseElectroMagneticConverter[k].port_n` against
+`[k+1].port_p`, a chain drawn inside a component, alongside ordinary
+`flange.phi` equalities. The two halves of the family therefore need
+opposite work: one is a missing definition, the other a connection
+counted twice.
+
+What the census cannot show, and this is the reason to write it down:
+both print the word `unbalanced`, so they are adjacent rows of one
+instrument and read as one queue. The probe separates them in a
+second each, and the earlier reading - "their bus sits inside a
+component, not at the top" - is true of the second shape only.
+
+Parked rather than fixed, because neither shape has a small model yet.
+Four small models were written against the first shape and all four
+were red for a reason of their own making: an unconnected connector
+already gets its flow equation, so a hand-written probe that leaves
+one dangling refuses correctly and proves nothing. The layer is not
+clear enough to change, and a definition-adding change measured
+against an unclear layer is how nine models were lost before.
