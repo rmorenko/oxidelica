@@ -7,6 +7,13 @@
 # absent prints nothing, which is why the counts are printed as a
 # whole list rather than grepped for one name.
 #
+# The heavy models are left out, exactly as `library_floor.sh` leaves
+# them out: their refusals are counted by the scheduled run instead.
+# Three known refusals live there - two underdetermined algebraic loops
+# and one structurally singular model - and paying forty-five minutes a
+# census to be told about them again is the whole reason they were
+# carved out.
+#
 # Usage: scripts/refusals.sh <library directory> [half]
 #   half: refused (default), built, both, or unbalanced
 #
@@ -37,7 +44,7 @@ esac
 cd "$(dirname "$0")/.."
 
 raw="${REFUSALS_RAW:-${TMPDIR:-/tmp}/refusals-raw.txt}"
-report="$(./target/release/oxidelica library check "$directory" --refused)"
+report="$(./target/release/oxidelica library check --without scripts/heavy_models.txt "$directory" --refused)"
 printf '%s\n' "$report" >"$raw"
 echo "=== the raw report is in $raw ==="
 

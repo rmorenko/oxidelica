@@ -14,6 +14,11 @@ on:
     # a morning's news rather than a week's.
     - cron: "0 4 * * *"
   workflow_dispatch:
+    inputs:
+      model:
+        description: "One heavy model to run on its own, e.g. Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT. Empty runs the whole list against its floors."
+        required: false
+        default: ""
 
 env:
   CARGO_TERM_COLOR: always
@@ -24,6 +29,12 @@ jobs:
   test:
     name: test on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # The daily cron exists for the heavy job below, and nothing else
+    # here has anything to say about a night on which the code did not
+    # move. Left unguarded this job woke a morning with the runner's
+    # weather. The weekly cron is the advisory sweep, and a full pass
+    # once a week is worth having.
+    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1'
     strategy:
       fail-fast: false
       matrix:
@@ -73,6 +84,12 @@ jobs:
   library:
     name: the standard library still reads
     runs-on: ubuntu-latest
+    # The daily cron exists for the heavy job below, and nothing else
+    # here has anything to say about a night on which the code did not
+    # move. Left unguarded this job woke a morning with the runner's
+    # weather. The weekly cron is the advisory sweep, and a full pass
+    # once a week is worth having.
+    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1'
     # A ceiling of our own. Without one the job runs under GitHub's
     # six hours, which is not a limit anybody chose: a model that
     # takes for ever would hold a runner most of a working day before
@@ -135,16 +152,33 @@ jobs:
           ref: v4.1.0
           path: .msl
 
-      - name: Read them
+      - name: Read them all, against their floors
+        if: github.event.inputs.model == ''
         run: |
           cargo build --release -p oxidelica-cli
           ./scripts/heavy_floor.sh .msl
+
+      # One model by hand. This does not go through `heavy_floor.sh`:
+      # that script's floors and its check on the length of the list are
+      # counted over the whole list, and a single model would put every
+      # one of them on the floor. An instrument, not a ratchet.
+      - name: Read the one model asked for
+        if: github.event.inputs.model != ''
+        run: |
+          cargo build --release -p oxidelica-cli
+          time ./target/release/oxidelica library check .msl --only '${{ github.event.inputs.model }}'
 
   # Coverage and the linters for everything that is not Rust run once,
   # where the tooling is cheapest to install.
   quality:
     name: coverage and linters
     runs-on: ubuntu-latest
+    # The daily cron exists for the heavy job below, and nothing else
+    # here has anything to say about a night on which the code did not
+    # move. Left unguarded this job woke a morning with the runner's
+    # weather. The weekly cron is the advisory sweep, and a full pass
+    # once a week is worth having.
+    if: github.event_name != 'schedule' || github.event.schedule == '0 6 * * 1'
     steps:
       - uses: actions/checkout@v5
 
