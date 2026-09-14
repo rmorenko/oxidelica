@@ -205,6 +205,17 @@ fn record_constant_field(
             return Some(number);
         }
     }
+    // What the record was given as a whole, rather than field by
+    // field. A medium writes `extends PartialLinearFluid(state =
+    // setState_pT(p, T))`, and that value belongs to the `extends`
+    // list rather than to the declaration the walk found - the
+    // declaration is the interface's, and says nothing. The scalar
+    // road already reads those modifiers when it gathers a package's
+    // constants, so the same gathering answers here, and the field is
+    // taken from the constructor the binding comes to.
+    if let Some(number) = record_binding_field(registry, owner, path, field, depth) {
+        return Some(number);
+    }
     // A field the value did not mention may carry a default on the
     // record's own declaration: `record FundamentalConstants Real
     // R_bar = 8.31 ... end` gives one where a medium leaves it out.
@@ -216,6 +227,54 @@ fn record_constant_field(
         .binding
         .as_ref()?;
     read(declared)
+}
+
+/// A field of a record constant whose value was written as a whole,
+/// as the binding of the constant rather than a modifier on it.
+///
+/// `constant ThermodynamicState state = setState_pT(reference_p,
+/// reference_T)` is how a linear fluid says where its reference
+/// numbers come from, and a medium may say it in its `extends` rather
+/// than in a declaration. The gathering is what knows both, so the
+/// binding is taken from there, settled under the package that holds
+/// it, and the field read off whatever it came to.
+fn record_binding_field(
+    registry: &HashMap<&str, &ClassDef>,
+    owner: &ClassDef,
+    path: &str,
+    field: &str,
+    depth: usize,
+) -> Option<f64> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
+    gather_package_constants(registry, owner, 0, &mut constants);
+    let binding = constants
+        .iter()
+        .find(|(name, _)| name == path)
+        .and_then(|(_, held)| held.clone())?;
+    let settled = substitute_at(
+        &binding,
+        registry,
+        &owner.name,
+        &owner.imports,
+        &[],
+        depth + 1,
+        true,
+    );
+    // A record comes to a constructor call, and the field is one of
+    // its named arguments: `State(p = 101325, T = 298.15)`. Anything
+    // else is a shape this has no way to take a field of, and saying
+    // so is better than guessing at a position.
+    let Expr::Call(_, args) = &settled else {
+        return None;
+    };
+    let wanted = args.iter().find_map(|arg| match arg {
+        Expr::NamedArg(name, value) if name == field => Some(value.as_ref().clone()),
+        _ => None,
+    })?;
+    const_eval(&wanted, &HashMap::new())
 }
 
 /// A component of a class that could hold a record constant, looked
@@ -278,6 +337,28 @@ fn enclosing_record_constant<'a>(
             .get(prefix)
             .filter(|owner| owner.kind == ClassKind::Package)
         {
+            // Nothing above declares it, and a medium is the one place
+            // that would: `constant ThermodynamicState state` belongs
+            // to whichever medium extended the interface, and the
+            // interface the body is written in says nothing about it.
+            // The walk outwards cannot reach downwards, so the mark the
+            // flattener already carries is asked - the same road
+            // `asked_as_constant` takes for a scalar, here for a record.
+            //
+            // The medium first, where the mark names one. The interface
+            // declares the name and leaves it empty for whoever extends
+            // it to fill - `constant ThermodynamicState state` of a
+            // linear fluid - so answering from the interface is
+            // answering with the blank, and the blank looks exactly
+            // like an answer. One text, two gatherings, the same shape
+            // the scalar road already guards against.
+            if let Some(under) = super::inlining::asked_as_package(registry, &owner.name) {
+                if let Some(medium) = registry.get(under.as_str()) {
+                    if let Some(held) = declared_record(registry, medium, name, true) {
+                        return Some((medium, held));
+                    }
+                }
+            }
             if let Some(held) = declared_record(registry, owner, name, true) {
                 return Some((owner, held));
             }
@@ -1622,7 +1703,27 @@ fn mint_asked_as_constant(
     let Some(value) =
         class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
     else {
-        return refuse(&minted);
+        // No number, and the name is a constant of the medium all the
+        // same. Refusing here used to let the bare name travel on into
+        // the flat model, where nothing declares it: `reference_h` of
+        // a linear water medium is bound to a call on the steam tables
+        // that the arithmetic cannot fold, so the mint said no and the
+        // name arrived with its prefix gone. What the model then met
+        // was `nothing gives a value to reference_h`, which names a
+        // thing no model ever wrote.
+        //
+        // A name shortened to its tail is a guess. The binding is what
+        // the dotted road hands on in the same spot, and the medium on
+        // the mark is the class under which to read it, so it is read
+        // there rather than dropped.
+        return class_constant_binding_at(
+            registry,
+            &format!("{under}.{name}"),
+            &under,
+            &[],
+            depth + 1,
+        )
+        .or_else(|| refuse(&minted));
     };
     MINTED.with(|held| {
         held.borrow_mut()

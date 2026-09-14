@@ -1306,3 +1306,98 @@ fn a_record_assigned_whole_from_another_carries_its_fields() {
     // 4 the copy's own value would have made.
     assert!((last[at("y")] - 9.0).abs() < 1e-12, "y = {}", last[at("y")]);
 }
+
+#[test]
+fn a_mediums_unfoldable_constant_reaches_a_parameter_with_its_path() {
+    // A medium declares `reference_h` in its interface with no value and
+    // gives it one in the `extends` - a call on the steam tables, taken
+    // apart by an index, which the constant road cannot fold to a
+    // number. Minting the name as the flat model's own asks for a
+    // number and used to refuse when there was none; what the refusal
+    // let go was the *bare* name, so `reference_h` arrived in the flat
+    // model with its prefix gone and nothing out there declared it.
+    // That is what every Fluid model on a compressible liquid met, as
+    // `nothing gives a value to reference_h`. The binding is handed on
+    // instead, read under the medium the asking was made from.
+    let source = "package Liq \
+        type SpecificEnthalpy = Real(unit = \"J/kg\"); \
+        partial package PartialFluid \
+          constant Liq.SpecificEnthalpy reference_h; \
+          constant Real cp_const; \
+          function enth input Real T; output Real h; \
+          algorithm h := reference_h + (T - 298.15) * cp_const; end enth; \
+        end PartialFluid; \
+        function props input Real p; input Real T; output Real[3] v; \
+        algorithm v := {p * 0.001, T * 4.2, p / T}; end props; \
+        package Water \
+          extends Liq.PartialFluid( \
+            reference_h = Liq.props(reference_p, reference_T)[2], \
+            cp_const = 4181.9); \
+          constant Real reference_p = 101325; \
+          constant Real reference_T = 298.15; \
+        end Water; \
+        model Inner package Medium = Liq.Water; \
+          parameter Real h_start = Medium.enth(300.0); \
+          Real y(start = h_start, fixed = true); \
+        equation der(y) = 0; end Inner; \
+        model M Liq.Inner heater; \
+          annotation(experiment(StopTime = 1)); end M; \
+      end Liq;";
+    let result = run(source);
+    // reference_h = 298.15 * 4.2 = 1252.23, and the slope on top is
+    // (300 - 298.15) * 4181.9 = 7736.515: 8988.745 in all.
+    let y = result.columns.iter().position(|c| c == "heater.y").unwrap();
+    assert!(
+        (result.rows[0][y] - 8988.745).abs() < 0.01,
+        "heater.y = {}",
+        result.rows[0][y]
+    );
+}
+
+#[test]
+fn a_mediums_record_constant_is_read_through_the_extends_that_gave_it() {
+    // The link below the one above. The medium's reference enthalpy is
+    // a function of a record constant - `constant ThermodynamicState
+    // state = setState_pT(reference_p, reference_T)` - and the record
+    // is declared empty in the interface and given its value by the
+    // `extends` of whichever medium the model chose. The record road
+    // read the declaration it walked out to, which is the interface's
+    // blank, and the fields arrived in the flat model as bare
+    // `state.p`, `state.T`. Now the medium on the mark is asked first,
+    // and the value is taken from the `extends` the way the scalar
+    // road already takes it.
+    let source = "package Liq \
+        type SpecificEnthalpy = Real(unit = \"J/kg\"); \
+        record State Real p; Real T; end State; \
+        partial package PartialFluid \
+          constant Liq.SpecificEnthalpy reference_h; \
+          constant Real cp_const; \
+          constant Liq.State state; \
+          function fromState input Liq.State s; output Real h; \
+          algorithm h := s.p * 0.001 + s.T; end fromState; \
+          function enth input Real T; output Real h; \
+          algorithm h := reference_h + (T - 298.15) * cp_const; end enth; \
+        end PartialFluid; \
+        package Water \
+          extends Liq.PartialFluid( \
+            reference_h = Liq.Water.fromState(state), \
+            cp_const = 4181.9, \
+            state = Liq.State(p = 101325, T = 298.15)); \
+        end Water; \
+        model Inner package Medium = Liq.Water; \
+          parameter Real h_start = Medium.enth(300.0); \
+          Real y(start = h_start, fixed = true); \
+        equation der(y) = 0; end Inner; \
+        model M Liq.Inner heater; \
+          annotation(experiment(StopTime = 1)); end M; \
+      end Liq;";
+    let result = run(source);
+    // reference_h = 101325*0.001 + 298.15 = 399.475, and the slope on
+    // top is (300 - 298.15) * 4181.9 = 7736.515: 8135.99 in all.
+    let y = result.columns.iter().position(|c| c == "heater.y").unwrap();
+    assert!(
+        (result.rows[0][y] - 8135.99).abs() < 0.01,
+        "heater.y = {}",
+        result.rows[0][y]
+    );
+}

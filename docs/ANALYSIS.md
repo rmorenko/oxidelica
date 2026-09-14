@@ -8287,3 +8287,50 @@ carrying no path beside `heater.reference_h` that does - which is the
 flat model's own invariant broken: anything that survives flattening
 carries the flat model's names. The next shift starts there rather than
 at link six.
+
+### Links four and five, and what a refusal was letting go
+
+The mixed names of the previous note had one writer, and it was the
+mint that turns a medium's constant into a name of the flat model.
+The mint asks for a number before it writes the name, and where there
+is none it refuses - and what the refusal let go was the _bare_ name,
+the one the body was written with. `reference_h` of a linear water
+medium is bound to a call on the steam tables that no arithmetic
+folds, so the mint said no and the name arrived in the flat model with
+its prefix gone, beside `heater.reference_h` on the other branch of
+the same `if`, which had a number and so was written properly. That is
+the invariant broken from the inside: a name shortened to its tail is
+a guess, and here the guess was made by the one road that knew the
+full name and chose not to write it. The binding is handed on instead,
+read under the medium on the mark, which is what the dotted road
+already does in the same spot.
+
+The link below it is the record the reference constants are read from.
+`constant ThermodynamicState state = setState_pT(reference_p,
+reference_T)` is declared empty in the interface and given its value by
+the `extends` of whichever medium the model chose, and the record road
+walked outwards to the interface, found the declaration, and answered
+with the blank. The blank looks exactly like an answer - the same "one
+text, two gatherings" the scalar road already guards against - so the
+medium on the mark is asked first, and the value is taken from the
+`extends` through the gathering rather than from the declaration.
+
+Both links cost a model, and it is the model the work was aimed at.
+`Modelica.Fluid.Examples.HeatingSystem` used to flatten while carrying
+a name nothing declared, which it could never have run on; it now
+refuses one wall further along, at an array in an equation rather than
+in a parameter. That is a model given back for a fault removed, and
+the floors move down with it - 823 to 822 flattened, 725 to 724
+runnable - because a ratchet that is not wound is not a ratchet, and
+one wound in the wrong direction knowingly is better than one wound on
+a number nobody measured. The run halves did not move: 466 and 437,
+and the diff of the two ran lists is empty.
+
+The chain has a fifth link and it was walked before the shift closed.
+A record constant handed to a call as a whole - `reference_d =
+density(state)` - reaches the same mint, and there the gate that
+stops it is the unit: a constant with no unit is not a candidate, by
+design, because a name buys nothing over a digit without one. Where
+the declaration does carry a unit the chain runs clean through, which
+is what the two tests show. What stands behind link five is the record
+builder, and that is parked ground rather than this chain's.
