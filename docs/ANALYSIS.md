@@ -9161,3 +9161,73 @@ record-field-value road. Neither moves the model, and both were taken
 out rather than left standing behind a switch, because a change that
 cures nothing is not a link of this chain - the link is the deferral,
 and it has not been built.
+
+### The fourth link taken: a reduction that answers before it can
+
+The deferral the chronicle called for was not needed, and what the
+chain actually stood on is smaller and worse. The value of a record's
+field - `powerBalance(final powerStator = activePower(vs, is))` - is
+worked out where the component stands, with two tables of lengths to
+hand: this class's own, which has not measured `vs` yet, and the
+lengths of the class that wrote the modifier, which has. The second
+was put in view only after the first reading refused.
+
+It never refused. `sum` of a name whose length is not in view comes
+back as the name itself - a deliberate lateness, written so that
+`sum(rs.resistor.LossPower)` can wait for the array to be built - and
+the test that decides whether to wait asks whether the name is dotted.
+A bare `vs` fails that test, so the reduction summed itself to
+nothing, reported success, and the second reading was never made. The
+modifier arrived as the bare array and was spread over the elements:
+three equations for `powerStator` where one was owed, each naming one
+phase.
+
+Measured on the corpus, one binary, `OXIDELICA_NO_WRITERS_LENGTHS`
+either way: 819 flatten and 479 run with the change, which is the
+floor to the digit. The machines did not start running - their
+refusal changed from `imcQS.vs[1].re.re` to `imcQS.vs[1]`, which is a
+different wall rather than the same one - and the honest reading of a
+change that moves no count is that the family is still standing. What
+it is worth keeping for is not a model but a silent wrong answer: the
+power of one phase presented as the power of all three, written
+without a word said. The test goes red without the change.
+
+That is the fourth breed of the same fault these notes already record
+three times over: a test on the spelling of a name standing in for a
+fact the structure does not record. The name is not what says whether
+an array has been built yet; the table of lengths is.
+
+The fix is to stop treating the writer's lengths as a second attempt.
+They go in with this class's own from the start, this class's entries
+winning where both know a name, because the value is read here and
+what the writer called `v` is not what this class calls `v`. With
+that, the small model runs and `imcQS.vs[1]` is gone from the
+machines - the equation for `powerStator` comes out whole, one per
+machine rather than one per phase.
+
+### The machine ten at the NaN wall are two families, not one
+
+Probed at the point the residual is first evaluated, the eleven
+`Machines` models refusing before any Newton step split cleanly:
+
+- the DC three - `DCEE_Start`, `DCSE_Start`, `DCSE_SinglePhase` -
+  stand in a block of two or three unknowns whose bad residual is a
+  division by `dcee.lesigma.L`. That inductance is `Le * sigmae`, and
+  `sigmae` is `0` by default in `DcElectricalExcitedData`. A stray
+  inductance of exactly zero is not a mistake in the library: it says
+  the stray branch is a short, `v = 0`, and the compiler instead
+  solved the inductor for `der(i) = v/L` and divided by nothing. The
+  cause is a structural one - what an inductor's equation means when
+  its inductance is a parameter worth zero - rather than anything the
+  solver can start from elsewhere.
+- the `aimc` seven - `IMC_DOL`, `IMC_Inverter`, `IMC_Steinmetz`,
+  `IMC_Transformer` (twice over, under two packages), `IMC_YD`,
+  `IMC_YDarc`, `IMS_Start` - stand in an eighteen-unknown block round
+  the air gap, where residual 11 is the one that is infinite and its
+  expression is a page of arithmetic over the space-phasor transform.
+  No zero parameter is in sight: the stray inductances all have
+  sensible starts.
+
+So the machine ten is not one cause, and a fix aimed at the DC three
+would leave seven standing. Recorded here because the census counts
+them as one row and the probe is what tells them apart.

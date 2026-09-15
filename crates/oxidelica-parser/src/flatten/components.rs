@@ -1227,17 +1227,32 @@ pub(super) fn instantiate_one(
                     records: no_records(),
                 };
                 let worked = substitute_class_constants(&value, registry, scope, imports, &[]);
-                let mut reach;
-                let mut done = expand(&worked, &shapes, registry, scope, imports, 0)
-                    .and_then(|value| value.scalar());
-                if done.is_err() && !outer_sizes.is_empty() {
-                    reach = sizes.clone();
-                    reach.extend(outer_sizes.iter().map(|(n, s)| (n.clone(), s.clone())));
-                    shapes.sizes = &reach;
-                    done = expand(&worked, &shapes, registry, scope, imports, 0)
-                        .and_then(|value| value.scalar());
+                // The writer's own lengths go in with this class's
+                // from the start rather than after a refusal. A
+                // reduction over an array nothing here has measured
+                // does not refuse: `sum` of a name it cannot see the
+                // length of comes back as the name, which is a wrong
+                // number wearing the shape of a right one, and a
+                // second attempt is never made because the first
+                // reported success. Where both know a name, this
+                // class's own entry stays - the value is read here,
+                // and what the writer called `v` is not what this
+                // class calls `v`.
+                let reach = match std::env::var_os("OXIDELICA_NO_WRITERS_LENGTHS").is_none()
+                    && !outer_sizes.is_empty()
+                {
+                    true => {
+                        let mut reach = outer_sizes.clone();
+                        reach.extend(sizes.iter().map(|(n, s)| (n.clone(), s.clone())));
+                        Some(reach)
+                    }
+                    false => None,
+                };
+                if let Some(reach) = reach.as_ref() {
+                    shapes.sizes = reach;
                 }
-                let worked = done;
+                let worked = expand(&worked, &shapes, registry, scope, imports, 0)
+                    .and_then(|value| value.scalar());
                 flat.binding = Some(worked.unwrap_or(value));
             }
             // On an array the start has already been handed out

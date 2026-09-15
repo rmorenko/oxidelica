@@ -2092,3 +2092,33 @@ fn a_handed_value_naming_a_member_of_a_sibling_is_measured() {
     assert!(!says("a.u[1]", "a.inner1.y[2]"), "{written}");
     assert!(!says("a.u[2]", "a.inner1.y[1]"), "{written}");
 }
+
+#[test]
+fn a_reduction_in_a_modifier_reads_the_length_from_the_class_that_wrote_it() {
+    // `Machine m(final powerStator = activePower(vs, is))` is how every
+    // quasi-static machine of the library states its power, and `vs` is
+    // declared eleven lines below the record whose field names it. The
+    // value is worked out where the component stands, and at that
+    // moment the class's own table has not measured `vs` yet. The
+    // lengths the writing class knows were put in view only after the
+    // first reading refused - and a reduction over an unmeasured name
+    // does not refuse: `sum` of a name whose length is not in view
+    // comes back as the name itself, which reads as success. So the
+    // second reading was never made, the modifier arrived as the bare
+    // array, and one equation per element was written where one
+    // equation was owed.
+    let m = parse_model(
+        "model Sub Real p; Real y; equation y = p; end Sub; \
+         model M Sub s(p = sum(vs)); Real vs[2]; Real x; \
+         equation vs[1] = time; vs[2] = 1; der(x) = -x + s.y; end M;",
+    )
+    .unwrap();
+    let for_p: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| matches!(&e.lhs, Expr::Ref(name) if name == "s.p"))
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(for_p.len(), 1, "{for_p:?}");
+    assert!(for_p[0].contains("vs[1]") && for_p[0].contains("vs[2]"), "{for_p:?}");
+}
