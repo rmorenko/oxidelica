@@ -9272,3 +9272,46 @@ residual's number sends the reader counting through eighteen unknowns;
 naming the equation says outright what was divided by. Two shifts read
 that block as "a page of arithmetic, no zero in sight", and the fixed
 refusal answered it in one run.
+
+### Quenching every zero-parameter term costs two models and wins none
+
+The narrow rule reaches only a product whose other factor is a
+derivative. The obvious widening is to drop that condition: a term
+multiplied by a parameter worth exactly zero is no term at all,
+derivative or not. It was built behind `OXIDELICA_NO_ZERO_TERM`, one
+line of the quench, and measured on one binary over the corpus twice
+without the carved-out giants.
+
+The small model it was built on states the air-gap shape in six lines -
+two fluxes, a mutual inductance matrix whose off-diagonal is zero, one
+current driven - and refuses as a singular Jacobian without the
+widening and runs with it. The corpus says the widening is not worth
+having: flatten 819 both ways, run 481 down to 479. Lost
+`Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.Components.PolyphaseInductance`,
+which stops converging in fifty Newton iterations, and
+`Modelica.Thermal.FluidHeatFlow.Examples.WaterPump`, whose pump port
+block goes singular. Won nothing: `IMC_DOL` leaves its infinity at
+time zero and arrives at a singular Jacobian one storey up, which is a
+move and not a win, and the other six of the seven do not move at all.
+
+That is worth recording rather than repeating. Quenching a term
+removes an equation's grip on an unknown just as it removes an
+infinity, and where the matching was using that grip the block is left
+underdetermined in a way Newton discovers rather than the compiler.
+The narrow rule is narrow for a reason: under a derivative the term
+being zero is the whole of what the coefficient says, and elsewhere it
+is not. The change was reverted; what stands is the measurement.
+
+The air-gap seven therefore stay parked, and the map of them is this.
+The divisor is not written by the flattener - it is built by the
+matching, which is free to hand the air-gap equation to
+`aimc.airGap.i_sr[2]` and so divides by `L[1,2]`, and `solve_cost`
+ranks that choice without ever asking the parameter table what the
+slope is worth. That is the same blindness the DC three had one storey
+down. The honest fix is therefore not another quench but a rank that
+reads the parameter table: a slope known to be exactly zero is the
+dearest possible choice, not the cheapest, and the matching should
+take another pairing where one exists. That is a change to
+`solve_cost` and its shape, it decides which states survive reduction,
+and so it is measured by the list of victims and both run lists - not
+by a count.
