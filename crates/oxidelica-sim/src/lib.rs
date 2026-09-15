@@ -155,6 +155,9 @@ enum AlgStage {
         inner: Vec<(usize, Code)>,
         /// Residuals matched to the torn unknowns.
         residuals: Vec<(Code, Code)>,
+        /// Each residual as the flat model spells it, so a refusal
+        /// about one names the equation rather than its number.
+        residual_sources: Vec<String>,
     },
 }
 

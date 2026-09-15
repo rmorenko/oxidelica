@@ -2056,3 +2056,23 @@ fn a_declaration_repeated_without_a_binding_is_one_element() {
     let w = last[1];
     assert!((w - 2.0).abs() < 1e-9, "w={w}, expected 2");
 }
+
+#[test]
+fn a_derivative_scaled_by_a_zero_parameter_is_an_algebraic_relation() {
+    // An inductor with `L = 0` is a library saying the branch is
+    // shorted: `L * der(i) = v` means `v = 0`, and a run that divided
+    // by the coefficient instead would meet a singularity at the
+    // first step. The current is then what the resistor allows.
+    let result = run("model Z parameter Real L = 0.0; parameter Real R = 5.0; \
+         parameter Real e = 10.0; Real i(start = 0.0); Real v; \
+         equation L*der(i) = v; e = R*i + v; \
+         annotation(experiment(StopTime=0.1, Interval=0.01)); end Z;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        let column = result.columns.iter().position(|c| c == name).unwrap();
+        last[column]
+    };
+    let (i, v) = (at("i"), at("v"));
+    assert!(v.abs() < 1e-9, "voltage over a shorted branch: {v}");
+    assert!((i - 2.0).abs() < 1e-9, "current: {i}, expected 2");
+}

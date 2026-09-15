@@ -373,14 +373,17 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
     // taken a step, and cannot, because the equation it was handed
     // cannot be evaluated where the block begins. Saying "diverged"
     // sent the reader to the solver for a fault that is upstream of
-    // it, so the refusal names the residual and its value instead.
+    // it, so the refusal names the equation it could not evaluate and
+    // its value instead. The equation, not the residual's number: a
+    // number sends the reader counting through a block of eighteen
+    // unknowns, and the text says outright what was divided by.
     assert_eq!(
         refused(
             "model D Real x; Real s(start = 0, fixed = true); \
              equation 1 / x = 0; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end D;"
         ),
-        "residual 0 of algebraic loop [\"x\"] is inf at t = 0, before any \
+        "`1 / x = 0` of algebraic loop [\"x\"] is inf at t = 0, before any \
          Newton step: the equations cannot be evaluated at the values the \
          block starts from"
     );
@@ -413,7 +416,7 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
              equation u = y / (y - x); y = x; u * x = 1; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end N;"
         ),
-        "residual 0 of algebraic loop [\"u\", \"x\"] is NaN at t = 0, before any \
+        "`u = y / (y - x)` of algebraic loop [\"u\", \"x\"] is NaN at t = 0, before any \
          Newton step: the equations cannot be evaluated at the values the \
          block starts from"
     );

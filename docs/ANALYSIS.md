@@ -9231,3 +9231,44 @@ Probed at the point the residual is first evaluated, the eleven
 So the machine ten is not one cause, and a fix aimed at the DC three
 would leave seven standing. Recorded here because the census counts
 them as one row and the probe is what tells them apart.
+
+### A coefficient of exactly zero is a relation, not a division
+
+The DC three were taken. An inductance of exactly zero is the library
+saying a branch is shorted: `L*der(i) = v` with `L = 0` means `v = 0`,
+and solving it for `der(i)` divides by nothing and hands the solver an
+infinity before it has taken a step. The rule is narrow on purpose: a
+product whose other factor is a derivative, where the coefficient is a
+_parameter_ worth exactly zero, goes to zero. A variable that happens
+to be zero at this instant does not count, because it does not stay
+zero over the step.
+
+Measured on one binary, the corpus twice, `OXIDELICA_NO_ZERO_DER=1`
+against the default: flatten 819 both ways, run 479 to 481. The run
+list names what moved. Won: `DCEE_Start`, `DCSE_Start`,
+`DCSE_SinglePhase` - the three the probe predicted, so the diagnosis
+and the outcome agree. Lost: `BevelGear1D`, which now refuses as
+structurally singular, no equation determining
+`der(inertia2.rotorWith3DEffects.w_a[2])`. That is the expected shape
+of the cost: a quenched term was the only thing defining a state, and
+the definition going away takes the state out of index reduction's
+reach. Three for one, and the three were a wrong number where the one
+is an honest refusal.
+
+### The aimc seven divide by a zero too, and the probe had to be fixed
+
+The note above said no zero parameter was in sight for the air-gap
+seven. That reading was wrong, and it was wrong because the refusal
+named `residual 11` rather than the equation. Named, the equation
+divides by `aimc.airGap.L[1,2]` - the off-diagonal of the mutual
+inductance matrix, bound to a literal `0`. Same layer as the DC three,
+one storey up: there the zero coefficient multiplied a derivative and
+could be quenched, here it is a divisor that index reduction has
+already solved through, so the quench does not reach it and the seven
+still stand.
+
+The lasting half of this is the instrument. A refusal naming a
+residual's number sends the reader counting through eighteen unknowns;
+naming the equation says outright what was divided by. Two shifts read
+that block as "a page of arithmetic, no zero in sight", and the fixed
+refusal answered it in one run.

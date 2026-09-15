@@ -1693,6 +1693,39 @@ fn choose_the_victim(
     Ok(victim)
 }
 
+/// Whether a derivative multiplied by a zero parameter is quenched.
+///
+/// On by default; `OXIDELICA_NO_ZERO_DER=1` keeps the old division.
+fn quench_zero_derivatives() -> bool {
+    std::env::var_os("OXIDELICA_NO_ZERO_DER").is_none()
+}
+
+/// Is this expression a parameter, or a product of them, worth exactly
+/// zero? Only a parameter counts: a variable that happens to be zero
+/// now is not zero over the step.
+fn zero_parameter(expr: &Expr, params: &HashMap<String, f64>) -> bool {
+    match expr {
+        Expr::Number(n) => *n == 0.0,
+        Expr::Ref(name) => params.get(name.as_str()) == Some(&0.0),
+        Expr::Neg(inner) => zero_parameter(inner, params),
+        Expr::Bin(BinOp::Mul, a, b) => zero_parameter(a, params) || zero_parameter(b, params),
+        _ => false,
+    }
+}
+
+/// Replace `p * der(x)` by zero wherever `p` is a parameter worth
+/// exactly zero, leaving everything else as it stands.
+fn quench_zero_der(expr: &Expr, params: &HashMap<String, f64>) -> Expr {
+    if let Expr::Bin(BinOp::Mul, a, b) = expr {
+        let quenched = (zero_parameter(a, params) && b.contains_der())
+            || (zero_parameter(b, params) && a.contains_der());
+        if quenched {
+            return Expr::Number(0.0);
+        }
+    }
+    expr.map_children(&mut |child| quench_zero_der(child, params))
+}
+
 /// The equations of a model, sorted: what each state's derivative is,
 /// and everything else.
 ///
@@ -3176,6 +3209,23 @@ pub(crate) fn compile_at(
         .filter(|c| c.variability == Variability::Continuous && !discretes.contains(&c.name))
         .map(|c| c.name.as_str())
         .collect();
+    // A coefficient a parameter set to exactly zero: `L * der(i) = v`
+    // with `L = 0` is the library saying the branch is shorted, and
+    // dividing by it would hand the solver an infinity instead. The
+    // term goes to zero, which leaves the algebraic relation `0 = v`
+    // the model meant.
+    let equations = if quench_zero_derivatives() {
+        equations
+            .iter()
+            .map(|item| EquationItem {
+                lhs: quench_zero_der(&item.lhs, &params),
+                rhs: quench_zero_der(&item.rhs, &params),
+                origin: item.origin.clone(),
+            })
+            .collect::<Vec<_>>()
+    } else {
+        equations
+    };
     let (mut state_rhs, algebraic_eqs, implicit) = split_equations(&equations, &continuous)?;
 
     // 3. What is left to solve for, and whether every name in the
@@ -3616,6 +3666,10 @@ pub(crate) fn compile_at(
                     .iter()
                     .map(|(lhs, rhs)| Ok((table.compile(lhs)?, table.compile(rhs)?)))
                     .collect::<Result<Vec<_>, SimError>>()?,
+                residual_sources: residuals
+                    .iter()
+                    .map(|(lhs, rhs)| format!("{} = {}", lhs.describe(), rhs.describe()))
+                    .collect(),
             }),
         })
         .collect::<Result<Vec<_>, SimError>>()?;

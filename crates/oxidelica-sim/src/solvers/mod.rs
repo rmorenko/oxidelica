@@ -531,6 +531,7 @@ impl CompiledModel {
             torn: block,
             inner,
             residuals,
+            residual_sources,
             ..
         } = stage
         else {
@@ -590,8 +591,11 @@ impl CompiledModel {
                     } else {
                         format!("; the block's own values are not numbers: {bad_names:?}")
                     };
+                    let which = residual_sources
+                        .get(i)
+                        .map_or_else(|| format!("residual {i}"), |source| format!("`{source}`"));
                     return err(format!(
-                        "residual {i} of algebraic loop {:?} is {bad} at t = {t}, \
+                        "{which} of algebraic loop {:?} is {bad} at t = {t}, \
                          before any Newton step: the equations cannot be evaluated \
                          at the values the block starts from{entered}",
                         block_names()
