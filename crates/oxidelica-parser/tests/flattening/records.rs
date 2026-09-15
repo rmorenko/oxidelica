@@ -1135,3 +1135,30 @@ fn a_record_constant_a_base_declared_is_found_through_the_extends() {
     assert!(said.contains("7"), "{said}");
     assert!(!said.contains("Ref(\"P.d\")"), "{said}");
 }
+
+#[test]
+fn a_body_handed_an_array_of_records_spreads_an_inner_call_over_it() {
+    // `activePower(v, i)` of the quasi-static library takes `Complex
+    // v[:]` and hands each element to `real`, a function written for
+    // one record. Inside a body the caller's table of records is not
+    // in view, so `v[k]` read as the argument of `real` was taken for
+    // a plain number and the call was left to be inlined whole - the
+    // body came back naming `vs[1]`, the record itself, which nothing
+    // outside declares as a number. The value went missing where a
+    // refusal was not even owed: the model refused a storey lower for
+    // an unknown variable.
+    let m = parse_model(&format!(
+        "{OPERATOR_RECORD}\
+         function re1 input C c; output Real r; algorithm r := c.re; end re1; \
+         function total input C v[:]; output Real p; \
+           algorithm p := sum(re1({{v[k] - v[k] for k in 1:size(v, 1)}})); end total; \
+         model M C vs[2]; Real p = total(vs); \
+         equation vs[1].re = time; vs[1].im = 0; vs[2].re = 1; vs[2].im = 0; end M;"
+    ))
+    .unwrap();
+    let said = format!("{:?}", m.equations);
+    // The fields are what the sum is over, and the record's own name
+    // never stands where a number belongs.
+    assert!(said.contains("vs[1].re"), "{said}");
+    assert!(!said.contains("Ref(\"vs[1]\")"), "{said}");
+}

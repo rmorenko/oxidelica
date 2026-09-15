@@ -271,6 +271,23 @@ failure and not a zero. And before a number is believed to have fallen
 to nothing, the same command is run on unchanged code to see it print
 the number it is supposed to have removed.
 
+There is a fourth way of the same breed, and it costs a whole
+measurement rather than a number: an argument that is empty. A census
+was run with a variable that had never been set, the command took it
+for no argument at all, and what came back was a report about nothing
+wearing the shape of a report about everything. The three above are
+about a number that is wrong; this one is about a measurement that was
+never made. So an argument is checked to be non-empty before the pipe
+is believed, the same way a script is checked to exist.
+
+And a key that can be forgotten belongs in the default. `--without
+scripts/heavy_models.txt` was left off a corpus pass and eleven minutes
+went on three giants that were carved out precisely so nobody would
+wait for them. The instrument was right and the hand was wrong, which
+is the definition of a trap rather than of a mistake: the main pass
+should exclude the carved-out set of its own accord, with the key kept
+for the run that wants them back.
+
 ### A chain is taken whole or not at all
 
 A probe sometimes shows that one barrier stands on another, and that

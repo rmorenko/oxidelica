@@ -1046,6 +1046,11 @@ pub(super) fn flatten_equations(
         all
     };
     let records_here = &records_all;
+    // In view while the bodies these equations call are worked out: a
+    // function handed one of these records reads its argument under
+    // the caller's own spelling, and only this table says that the
+    // spelling names a record.
+    let _records = statements::Records::in_view(records_here);
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
         let expr = substitute_class_constants(expr, registry, scope, imports, shadow);

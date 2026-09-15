@@ -200,7 +200,37 @@ pub(super) fn record_class_of(
 ) -> Option<String> {
     let recur = |e: &Expr| record_class_of(e, shapes, registry, scope, imports);
     match expr {
-        Expr::Ref(name) => shapes.records.get(name).cloned(),
+        Expr::Ref(name) => shapes.records.get(name).cloned().or_else(|| {
+            // A name that has already been flattened carries its
+            // subscripts: the caller's `vs[1]` is what a body reads
+            // where it wrote `v[k]`, and the table files the
+            // declaration under `vs`, written once however many of it
+            // there are. So the subscripts come off from the right and
+            // the first name the table knows is the one - the same
+            // reading `whole_record` does on the other side of the
+            // call. Without it the element of an array of records read
+            // as a plain number, its own operator was never reached,
+            // and a subtraction of two phasors came back as arithmetic
+            // on two names nothing declares.
+            // Only where the subscript is the last thing on the name:
+            // `vs[1]` is one of an array of records, and `vs[1].re` is
+            // a field of one - a number, whatever its record is. Read
+            // the second as a record too and its fields are written
+            // out a second time, which is how `vs[1].re.re` came to be
+            // asked for.
+            if !name.ends_with(']') {
+                return None;
+            }
+            let mut shortened = name.clone();
+            while let Some(open) = shortened.rfind('[') {
+                let close = shortened[open..].find(']')?;
+                shortened = format!("{}{}", &shortened[..open], &shortened[open + close + 1..]);
+                if let Some(of) = shapes.records.get(&shortened) {
+                    return Some(of.clone());
+                }
+            }
+            None
+        }),
         // One of an array of records is a record: `v[2]` of a
         // `Complex[3]` is a `Complex`, and it arrives here as a
         // subscript on the array whose type the table does hold.

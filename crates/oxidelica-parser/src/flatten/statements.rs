@@ -375,12 +375,18 @@ fn one_assignment(
     let value = substitute_refs(&value, bindings);
     // Through the array layer, so `c := a .* b` binds a whole
     // array and a scalar stays a scalar.
+    //
+    // With the caller's records in view: the bindings are substituted
+    // in above, so what the array layer reads here is the caller's own
+    // spelling - `vs[1]` where the body wrote `v[k]` - and whether
+    // that is a record is a thing only the caller's table knows.
     let no_loop_vars = HashMap::new();
+    let in_view = records_in_view();
     let shapes = Shapes {
         sizes,
         loop_vars: &no_loop_vars,
         consts,
-        records: no_records(),
+        records: &in_view,
     };
     let value = expand(&value, &shapes, registry, scope, imports, depth + 1)?.into_expr();
     // Expansion turns `p[i - 1]` into the element's own name,
@@ -743,6 +749,57 @@ thread_local! {
     /// a loop head runs through a dozen signatures that have no
     /// business carrying a dictionary of text.
     static TEXTS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}
+
+thread_local! {
+    /// The record instances the class being instantiated has in view.
+    ///
+    /// A body is worked out with an empty table of records, and that
+    /// is right for the body's own names: what the caller declared
+    /// means nothing inside a function. It is wrong for what the
+    /// caller handed over. `activePower` takes `Complex v[:]` and
+    /// hands each element to `real`, a function written for one
+    /// record; with no table to ask, `v[k]` - which by then is the
+    /// caller's own `vs[1]` - read as a plain number, the call was
+    /// inlined whole rather than spread over the elements, and the
+    /// body came back naming a record where a number belonged. The
+    /// model then refused a storey lower for an unknown variable,
+    /// which is a value gone missing rather than a refusal owed.
+    ///
+    /// So the caller's table travels with the fold, the way the
+    /// caller's strings already do: the road from the class to a body
+    /// runs through a dozen signatures with no business carrying one.
+    /// Only names the caller declared are in it, so a body's own `v`
+    /// is not found here and is read exactly as before.
+    static RECORDS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
+}
+
+/// The records in view, for a body that may be handed one.
+///
+/// `OXIDELICA_NO_CALLER_RECORDS=1` empties the table, so that one
+/// binary can be measured with the caller's records in view and
+/// without them.
+pub(super) fn records_in_view() -> HashMap<String, String> {
+    if std::env::var_os("OXIDELICA_NO_CALLER_RECORDS").is_some() {
+        return HashMap::new();
+    }
+    RECORDS.with(|held| held.borrow().clone())
+}
+
+/// Let the records a class has in view be seen while its bodies are
+/// worked out, and put back whatever was in view before.
+pub(super) struct Records(HashMap<String, String>);
+
+impl Records {
+    pub(super) fn in_view(records: &HashMap<String, String>) -> Records {
+        Records(RECORDS.with(|held| held.replace(records.clone())))
+    }
+}
+
+impl Drop for Records {
+    fn drop(&mut self) {
+        RECORDS.with(|held| *held.borrow_mut() = std::mem::take(&mut self.0));
+    }
 }
 
 /// Let the strings a class settled be seen while its bodies are

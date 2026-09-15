@@ -1122,6 +1122,10 @@ pub(super) fn instantiate_one(
             // two names: a declaration's value is worked out here and
             // the operands are components of the class holding it.
             let records_so_far = &acc.records;
+            // In view while the bodies this value calls are worked
+            // out: the argument a body reads carries the caller's own
+            // spelling, and only this table says it names a record.
+            let _records = statements::Records::in_view(records_so_far);
             let resolve_value = |e: &Expr| -> Result<Expr, String> {
                 let e = substitute_class_constants(e, registry, scope, imports, &[]);
                 // A value may be worked out of a `String` this class

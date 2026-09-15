@@ -1217,11 +1217,15 @@ fn worked_body(
         }
     }
     let no_loop_vars = HashMap::new();
+    // The body's own names are not records, and the caller's may be:
+    // an argument substituted in carries the caller's spelling, so
+    // the table that answers for it is the caller's.
+    let in_view = super::statements::records_in_view();
     let local_shapes = Shapes {
         sizes: &sizes,
         loop_vars: &no_loop_vars,
         consts,
-        records: no_records(),
+        records: &in_view,
     };
     let mut handed: HashMap<String, Expr> = bindings.clone();
     for component in &class.components {

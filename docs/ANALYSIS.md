@@ -9041,3 +9041,73 @@ none lost. The winners are not the machines the probe started from -
 init wall and onto an algebraic loop that is NaN before Newton takes a
 step - but the drives and the thyristor bridges behind the same wall,
 which had nothing else in their way.
+
+### Which machines actually moved
+
+A correction to the paragraph above, and the chronicle is corrected by
+adding rather than by rewriting. The fresh census says the family that
+left the initialisation wall is the `Electrical` induction machines -
+`IMC_DOL`, `IMC_Inverter`, `IMC_Steinmetz`, `IMC_Transformer`,
+`IMC_YD`, `IMC_YDarc` and `IMS_Start` - together with the DC machines.
+The two models the probe itself was written from did not move:
+`SMPM_Inverter` still stands at the same wall with the same numbers,
+and so does `SMEE_DOL`. Their fluxes are worked out through a block,
+and reachability was narrowed to explicit assignments to buy `FreeBody`
+back, so the narrowing traded away exactly the model that prompted it.
+The gain of seven is real; what is not true is that the probe's own
+models were cured, and a later shift standing at that wall should not
+count them as done.
+
+## A record handed to a function loses its name on the way in
+
+`Modelica.Electrical.QuasiStatic.Polyphase.Functions.activePower` takes
+`Complex v[:]` and hands each element to `real`, a function written for
+one record. Every quasi-static machine in the library states its stator
+power that way, and every one of them refused with `unknown variable
+imcQS.vs[1]` - a name the flat model does not declare, because there is
+no number called `vs[1]`; there are `vs[1].re` and `vs[1].im`.
+
+The cause is that a function body is worked out with an empty table of
+records. That is right for the body's own names - what the caller
+declared means nothing inside a function - and wrong for what the
+caller handed over. Once the arguments are substituted in, the body
+reads `vs[1]` where it wrote `v[k]`, and whether that spelling names a
+record is a thing only the caller's table knows. With nothing to ask,
+the element read as a plain number, the inner call was inlined whole
+instead of being spread over the elements, and the body came back
+naming the record itself. A value went missing where not even a refusal
+was owed, and the model died a storey lower.
+
+The chain, walked with an eight-line reproduction rather than with the
+corpus:
+
+1. the body's own shapes carry no records, so the caller's table is put
+   in view the way the caller's strings already are;
+2. `record_class_of` reads a name against the table exactly as written,
+   and a flattened name carries its subscripts - `vs[1]` where the
+   table files the declaration under `vs`. The subscripts now come off
+   from the right, the same reading `whole_record` does on the other
+   side of the call, and only where the subscript is the last thing on
+   the name: `vs[1].re` is a field of one and a number whatever its
+   record is;
+3. a declaration's value is worked out at its own site, which had the
+   table to hand but did not put it in view for the bodies it calls.
+
+With those three, a call to `activePower` written as a declaration's
+value comes out as arithmetic on the fields, and the eight-line model
+runs. Measured on the corpus, one binary, `OXIDELICA_NO_CALLER_RECORDS`
+either way: 819 flatten and 479 run both ways, and the two lists of
+models that ran are identical line for line. So the chain has a fourth
+link and it has not been taken. The same call written where a record's
+field value goes - `powerBalance(final powerStator = activePower(vs,
+is))`, which is how every machine in the library writes it - is worked
+out on a road of its own, and putting the table in view there writes
+the fields out twice: the refusal becomes `unknown variable
+vs[1].re.re`. The message moved, which says the road was found; where
+the doubling is has not been settled, and the guess worth testing first
+is that the value passes through `records_written_out` once with the
+table in view and once again further down.
+
+What was gained is a fault named and three of its four links removed at
+no cost; what was not gained is a model, and the honest reading of a
+change that moves no number is that the wall is still standing.
