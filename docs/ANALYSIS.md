@@ -8803,3 +8803,103 @@ not what it failed to place. It now also prints one `assigned <unknown>
 can be read by - it is what shows that `airGap` holds 36 unknowns
 whatever the phase count while `strayLoad` grows by six a phase, and
 that is how the elimination above was done.
+
+## The second excess is the shaft, and it is not in `m`
+
+The shrunk machine's excess is `m - 2`, measured above. The full
+`SMPM_Braking` is two too many rather than one, and the debt of the
+previous shift was to say where the difference of one lives. Measured,
+from one binary, by putting back one at a time what the shrinking threw
+away:
+
+```text
+inertiaLoad on the shaft            558 for 556   excess 2
+speedSensor on the shaft            555 for 553   excess 2
+a Fixed on the shaft                555 for 553   excess 2
+two inertias in a chain on it       563 for 561   excess 2
+currentQuasiRMSSensor               607 for 606   excess 1
+voltageQuasiRMSSensor               607 for 606   excess 1
+terminalBox and a second load       625 for 624   excess 1
+the diode bridge and its resistor   692 for 691   excess 1
+grounding resistor                  561 for 560   excess 1
+```
+
+So the second equation is bought by joining anything at all to
+`smpm.flange`, and by nothing else. It is one, whatever hangs there:
+a `Fixed`, a sensor, an inertia, or two inertias in a chain all cost
+exactly the same one. And it is constant in the phase count - swept at
+three, five and seven the excess with a shaft connection is `m - 1`
+against `m - 2` without, the same single equation at every point. Two
+families, then, and the shift's other rule says not to mix them: the
+per-phase one is the stator's, and this one is the shaft's.
+
+### Which equation it is, and why the obvious repair is not one
+
+The assignment probe names it outright. Without a shaft connection the
+machine's own binding takes the flange angle:
+
+```text
+assigned smpm.flange.phi      <- smpm.phiMechanical = smpm.flange.phi - smpm.internalSupport.phi
+assigned smpm.internalSupport.phi <- smpm.internalSupport.phi = smpm.airGap.support.phi
+```
+
+With one, the connection takes the angle and the binding is pushed down
+onto the support, which leaves the support's own connection equation
+with nothing to do:
+
+```text
+assigned smpm.flange.phi          <- smpm.flange.phi = fx.flange.phi
+assigned smpm.internalSupport.phi <- smpm.phiMechanical = smpm.flange.phi - smpm.internalSupport.phi
+nothing is left for                  smpm.internalSupport.phi = smpm.airGap.support.phi
+```
+
+`phiMechanical` is an output with a binding, so it is a definition and
+not an equation to be solved - and the matching treats it as one more
+equation naming two connector angles. That reading is confirmed from
+the other end: replacing `tauShaft = -flange.tau` with a constant in a
+scratch copy of the library takes the machine from 552 for 551 to 553
+for 551, one further out, because the reading of `flange.tau` is what
+tells the seam rule the port is spoken for. Both bindings are being
+counted by rules that were written for equations.
+
+A repair was built and measured and is not in the tree. A port joined
+from both sides of its own class is cut into two connection sets, keyed
+by the side each member was joined from, and each half is summed on its
+own; merging the halves back into one set is the obvious architectural
+fix. Behind `OXIDELICA_NO_SEAM_MERGE`, one binary, it moves nothing at
+all: 552/551, 755/751 and 955/949 at three, five and seven phases with
+the merge on and off alike. What it does is trade one equation for
+another - the flow sum loses a term and a potential equality gains a
+member - and the net is zero at every point measured. A change that
+measures zero on six points is not a fix, so it was reverted rather
+than kept for looking right.
+
+The smallest model that holds the shape is twelve lines and needs no
+library at all:
+
+```modelica
+model HK
+  connector P
+    Real e;
+    flow Real f;
+  end P;
+  model Inner
+    P port;
+    P a;
+  equation
+    connect(a, port);
+    a.e = 1;
+  end Inner;
+  Inner q;
+  P outerPin;
+equation
+  connect(q.port, outerPin);
+  outerPin.e = 2;
+end HK;
+```
+
+Seven equations for six unknowns, and the same model with the outer
+connection removed is five for four. One inner member, one outer
+connection, one surplus equation - the machine's shaft in miniature,
+and the place to work next. Parked here rather than repaired, because
+the repair that suggests itself was measured and cost nothing.
