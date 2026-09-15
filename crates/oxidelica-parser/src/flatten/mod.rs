@@ -1741,6 +1741,28 @@ fn settle_member_slices(model: &mut Model, shapes: &[(String, Vec<i64>)]) {
                 }
             }
         }
+        // An operator under a reduction is applied element by
+        // element, so what stands under it is as much a member slice
+        // as a name standing alone: `sum(vs .* is)` is the machine's
+        // stator power over its phases. Both sides are written out
+        // and paired, which is what lets the reduction above find an
+        // array to fold rather than a product it cannot open.
+        if under_reduction {
+            if let Expr::Elementwise(op, l, r) | Expr::Bin(op, l, r) = expr {
+                if let (Expr::Array(left), Expr::Array(right)) =
+                    (answer(l, known, true), answer(r, known, true))
+                {
+                    if left.len() == right.len() {
+                        return Expr::Array(
+                            left.into_iter()
+                                .zip(right)
+                                .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                                .collect(),
+                        );
+                    }
+                }
+            }
+        }
         let recur = |e: &Expr| answer(e, known, false);
         // The operators that take an array and come to one number.
         // Nothing else may hold an array by the time flattening is

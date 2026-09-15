@@ -267,6 +267,28 @@ pub(super) fn shaped_by_a_builtin(
     }
 }
 
+/// Whether a name whose array has not been built yet stands anywhere
+/// under a reduction.
+///
+/// A member read off an array of components - `rs.resistor.LossPower`
+/// on an `extends`, or a machine's `vs` read off its plug - is met
+/// here before the array it belongs to exists, so nothing knows it is
+/// one and it measures as a scalar. A reduction over such a name must
+/// be left standing until the shapes are in hand. It is looked for
+/// under whatever the reduction was given rather than only as the
+/// whole of it, because `sum(vs .* is)` is exactly as early as
+/// `sum(vs)` and reducing it now silently drops the reduction.
+pub(super) fn unmeasured_name_under(expr: &Expr, shapes: &Shapes) -> bool {
+    match expr {
+        Expr::Ref(named) => named.contains('.') && !shapes.sizes.contains_key(named),
+        Expr::Bin(_, l, r) | Expr::Elementwise(_, l, r) => {
+            unmeasured_name_under(l, shapes) || unmeasured_name_under(r, shapes)
+        }
+        Expr::Neg(inner) => unmeasured_name_under(inner, shapes),
+        _ => false,
+    }
+}
+
 /// One value read off a whole array: what `sum`, `product`, `min`,
 /// `max` and `vector` come to.
 ///
@@ -348,13 +370,25 @@ pub(super) fn folded_over_an_array(
             // scalar. Summing it now would come to the name itself.
             // Left standing, it is written out and summed once every
             // shape is in hand.
-            if let Expr::Ref(named) = &args[0] {
-                if named.contains('.') && !shapes.sizes.contains_key(named) {
-                    return Ok(Value::Scalar(Expr::Call(
-                        "sum".to_string(),
-                        vec![args[0].clone()],
-                    )));
-                }
+            // The name need not be the whole of what is summed. A
+            // machine writes `sum(vs .* is)` about two arrays read
+            // off its plugs, and the same lateness applies to each of
+            // them: measured from the outside they are scalars, so
+            // the product came to one term and the reduction reduced
+            // nothing, leaving the bare product where a sum was
+            // written. The pass that writes whole-array equations out
+            // element by element then found two whole arrays standing
+            // in it and wrote the equation once per phase - seven
+            // equations at seven phases, six of them false, and the
+            // stator power of one phase presented as the power of
+            // all. Asking about every name under the reduction rather
+            // than only the one standing alone keeps the sum whole
+            // until the shapes are in hand.
+            if unmeasured_name_under(&args[0], shapes) {
+                return Ok(Value::Scalar(Expr::Call(
+                    "sum".to_string(),
+                    vec![args[0].clone()],
+                )));
             }
             let mut terms = Vec::new();
             recur(&args[0])?.flatten_into(&mut terms);
@@ -374,13 +408,11 @@ pub(super) fn folded_over_an_array(
         ("min", 1) | ("max", 1) => {
             // The same name that a sum cannot read yet, for the same
             // reason: the array it belongs to is not built.
-            if let Expr::Ref(named) = &args[0] {
-                if named.contains('.') && !shapes.sizes.contains_key(named) {
-                    return Ok(Value::Scalar(Expr::Call(
-                        name.to_string(),
-                        vec![args[0].clone()],
-                    )));
-                }
+            if unmeasured_name_under(&args[0], shapes) {
+                return Ok(Value::Scalar(Expr::Call(
+                    name.to_string(),
+                    vec![args[0].clone()],
+                )));
             }
             let mut terms = Vec::new();
             recur(&args[0])?.flatten_into(&mut terms);

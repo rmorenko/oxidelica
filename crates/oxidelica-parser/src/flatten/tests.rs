@@ -802,3 +802,67 @@ fn a_state_below_a_subscript_is_still_a_record_where_the_equation_is_written() {
         "the state below a subscript was not read as a record"
     );
 }
+
+/// A reduction over an elementwise product keeps the reduction.
+///
+/// A machine writes `powerStator = sum(vs .* is)` about two arrays it
+/// reads off its own plugs. Both are met before the plug array exists,
+/// so each measures as a scalar; the product then came to a single
+/// term, the reduction reduced nothing and vanished, and what was left
+/// was the bare `vs .* is`. The pass that writes whole-array equations
+/// out element by element found two whole arrays in it and wrote the
+/// equation once per phase - seven equations at seven phases, six of
+/// them false, and the balance check counting all seven. That is the
+/// machines' surplus of `m - 1`, and worse than the refusal it caused:
+/// where a model did balance, the stator power of one phase came out
+/// presented as the power of all of them.
+///
+/// The guard is tested here rather than through a flattened model on
+/// purpose. What makes the names late is the depth of the machine's
+/// inheritance, and a model small enough to write out is a model whose
+/// shapes are all in hand by the time the reduction is met - the
+/// lateness cannot be reached at that size. The corpus is the witness
+/// that the whole path is fixed; this is the witness for the rule.
+#[test]
+fn a_reduction_over_an_elementwise_product_keeps_the_reduction() {
+    use crate::ast::{BinOp, Expr};
+    use crate::flatten::builtins::unmeasured_name_under;
+    use crate::flatten::{no_records, Shapes};
+    use std::collections::HashMap;
+    let sizes: HashMap<String, Vec<i64>> = [("m.known".to_string(), vec![3])].into_iter().collect();
+    let empty = HashMap::new();
+    let consts = HashMap::new();
+    let shapes = Shapes {
+        sizes: &sizes,
+        loop_vars: &empty,
+        consts: &consts,
+        records: no_records(),
+    };
+    let named = |name: &str| Expr::Ref(name.to_string());
+    // A name whose array is not built yet, standing alone, was always
+    // held back.
+    assert!(unmeasured_name_under(&named("m.vs"), &shapes));
+    // The same name under an elementwise product is exactly as late,
+    // and this is what was missed.
+    assert!(unmeasured_name_under(
+        &Expr::Elementwise(BinOp::Mul, Box::new(named("m.vs")), Box::new(named("m.is"))),
+        &shapes
+    ));
+    // A plain operator between the two is late for the same reason.
+    assert!(unmeasured_name_under(
+        &Expr::Bin(BinOp::Add, Box::new(named("m.vs")), Box::new(named("m.is"))),
+        &shapes
+    ));
+    // A name that was measured is not late, whatever it stands under,
+    // and holding a reduction back over one would leave a `sum` nobody
+    // opens.
+    assert!(!unmeasured_name_under(&named("m.known"), &shapes));
+    assert!(!unmeasured_name_under(
+        &Expr::Elementwise(
+            BinOp::Mul,
+            Box::new(named("m.known")),
+            Box::new(named("m.known"))
+        ),
+        &shapes
+    ));
+}

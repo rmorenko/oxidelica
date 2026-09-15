@@ -8903,3 +8903,88 @@ connection removed is five for four. One inner member, one outer
 connection, one surplus equation - the machine's shaft in miniature,
 and the place to work next. Parked here rather than repaired, because
 the repair that suggests itself was measured and cost nothing.
+
+## The stator's surplus was a reduction that reduced nothing
+
+The per-phase half of the machines' imbalance is named, and it was not
+a connection at all. The bare `SM_PermanentMagnet` with not one
+`connect` in the model is already `m - 2` equations over, swept at
+three, five and seven phases from one binary:
+
+```text
+bare machine, no connections   m=3: 489 for 488   m=5: 651 for 648   m=7: 813 for 808
+```
+
+So the slope lives inside the machine and nothing outside it is
+implicated - the two `Star`s, the shared ground and the load were all
+put back one at a time and moved the slope not at all. What the shrink
+found instead is one line of `FundamentalWave.BaseClasses.Machine`:
+
+```modelica
+final powerStator=Modelica.Electrical.Polyphase.Functions.activePower(vs, is),
+```
+
+`activePower` inlines to `sum(v .* i)`, and the compiler asked about it
+gave seven equations where the model wrote one:
+
+```text
+equation: smpm.powerBalance.powerStator = smpm.vs[1] * smpm.is[1]
+equation: smpm.powerBalance.powerStator = smpm.vs[2] * smpm.is[2]
+...
+equation: smpm.powerBalance.powerStator = smpm.vs[7] * smpm.is[7]
+```
+
+Six of those are false, all seven were counted, and the surplus is
+`m - 1` exactly. Worse than the refusal: where such a model did
+balance, the stator power of one phase came out presented as the power
+of all of them. This is the fourth appearance of the rule that a wrong
+number is the worst thing this compiler can do, and the first where
+the wrong number was an equation count.
+
+### Why it happened, and why no small model shows it
+
+`vs` and `is` are read off the machine's plugs, so both are met before
+the plug array is built and both measure as scalars. The guard that
+holds a reduction back until the shapes are in hand asked only whether
+the argument was _itself_ such a name. Handed `vs .* is` it said no,
+the product came to a single term, the fold folded one term, and the
+`sum` vanished leaving the bare product. The pass that writes
+whole-array equations out element by element then found two whole
+arrays standing in the equation and wrote it once per phase.
+
+The probe that settled it prints what the guard is handed:
+
+```text
+sum arg Elementwise(Mul, Ref("smpm.vs"), Ref("smpm.is")) unmeasured=true    the machine
+sum arg Elementwise(Mul, Ref("mach.vs"), Ref("mach.is")) unmeasured=false   a small model
+```
+
+That difference is the whole of it, and it is why eleven synthetic
+models written against this failed to reproduce it: what makes the
+names late is the depth of the machine's inheritance, and a model
+small enough to write out is one whose shapes are all in hand by the
+time the reduction is met. This is the blind spot the notes already
+name - a path that only switches on at complexity - seen from the
+inside for the first time. The test is therefore written against the
+rule rather than through a flattened model, and says so.
+
+### What it measured
+
+Two corpus runs from one binary, the change behind
+`OXIDELICA_NO_LATE_REDUCTION`:
+
+```text
+                     old rule    with the fix
+flatten / run        822 / 472   822 / 472
+list of models       identical line for line
+unbalanced rows         57          36
+init-not-square rows    15          26
+```
+
+No model was lost and none was won, which is the second kind of change
+the notes describe: a wall fell and the next one stands behind it. The
+census is the witness that it fell - twenty-one rows left the
+`unbalanced` wall, and eleven arrived at `initialization is not
+square` with the rest scattering into `structurally singular`. The
+machines now die at their initialisation rather than at their equation
+count, and that is where the next shift on this line starts.
