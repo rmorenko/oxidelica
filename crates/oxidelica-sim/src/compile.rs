@@ -730,6 +730,9 @@ fn unbalanced_because(algebraic_eqs: &[(Expr, Expr)], unknowns: &[String]) -> St
         for name in &named {
             eprintln!("balance: {kind} {name}");
         }
+        for line in assignment_lines(algebraic_eqs, unknowns, &matched_eq) {
+            eprintln!("balance: {line}");
+        }
     }
     // A handful of names is a barrier one can go and look at; the whole
     // list is the noise this refusal used to print.
@@ -743,6 +746,35 @@ fn unbalanced_because(algebraic_eqs: &[(Expr, Expr)], unknowns: &[String]) -> St
         algebraic_eqs.len(),
         unknowns.len(),
     )
+}
+
+/// What the matching placed, one line per unknown it reached.
+///
+/// The list of what a matching could _not_ reach has been measured and
+/// says nothing on either side of an imbalance: its length has no
+/// relation to the excess, because what a matching leaves behind when
+/// it runs out is not what it failed to place. What it did place is the
+/// other half of the same answer, and it is the half that can be held
+/// against the components a model is assembled from - which unknown of
+/// `airGap` got which equation, and how that changes with a parameter.
+pub(crate) fn assignment_lines(
+    algebraic_eqs: &[(Expr, Expr)],
+    unknowns: &[String],
+    matched_eq: &[Option<usize>],
+) -> Vec<String> {
+    matched_eq
+        .iter()
+        .enumerate()
+        .filter_map(|(v, eq)| {
+            let (lhs, rhs) = &algebraic_eqs[(*eq)?];
+            Some(format!(
+                "assigned {} <- {} = {}",
+                unknowns[v],
+                lhs.describe(),
+                rhs.describe()
+            ))
+        })
+        .collect()
 }
 
 /// Whether the matching may prefer an unknown it can solve for without

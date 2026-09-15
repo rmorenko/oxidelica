@@ -8719,3 +8719,87 @@ probe worth building is one that prints which equations a matching
 _did_ place against the machine's own components, since the list of
 what it could not reach has now been shown to say nothing on either
 side.
+
+## The excess is exactly two fewer than the phase count
+
+The earlier reading said the sign of the imbalance flips with the phase
+count: the shrunk machine at `m = 3` was one equation too many and at
+`m = 5` four equations short. Swept properly it does neither. The
+shrunk machine gives, from one binary and one file per point:
+
+```text
+m = 3   552 equations for 551 unknowns   excess  1
+m = 4   675 for 673                      excess  2
+m = 5   752 for 749                      excess  3
+m = 6   852 for 848                      excess  4
+m = 7   952 for 947                      excess  5
+```
+
+The excess is `m - 2`, exactly, with no kink at the even counts and no
+sign change anywhere. There is no nonlinearity and no parity to explain
+and no second cause: one equation too many per phase, less two.
+
+The earlier numbers were an artefact of the measurement, and the fault
+is worth naming because it is easy to repeat. The shrunk model declares
+its own `constant Integer m` and passes it to the star and to the load,
+but the machine's `m` lives in `FundamentalWave.BaseClasses.Machine` and
+was never modified. So the sweep changed the phase count of everything
+around the machine while the machine itself stayed at three, and the
+mismatch between a five-phase load and a three-phase machine is what
+produced the four-equation shortage that read as a sign flip. The probe
+said so plainly and was not asked: at every `m` the unmatched list named
+`singlePhaseElectroMagneticConverter[1..3]` and no more, while
+`load.resistor[1..m]` grew as it should. A component that does not grow
+with the parameter being swept is a parameter that was not passed.
+
+With `smpm(m = m, ...)` added the converter array grows to `m` and the
+law is the clean one above.
+
+### Which layer carries the extra equation, by elimination
+
+Each of these was built as a small model of its own and swept over the
+same phase counts, from the same binary:
+
+- the real `PolyphaseElectroMagneticConverter`, driven from a polyphase
+  source into a reluctance: balanced at every `m`, refusing later for a
+  singular structure rather than a count;
+- the real `SymmetricPolyphaseWinding`, the same way: balanced at every
+  `m`, and balanced again with `useHeatPort = true` and its conditional
+  `heatPortWinding[m]` connected, which was the next suspect;
+- a polyphase source, resistor and two stars: runs at every `m`;
+- the machine's own `Losses.InductionMachines.StrayLoad` with its flange
+  and support: runs at every `m`;
+- a component of one's own whose polyphase plugs are joined straight to
+  an inner component's, which is the shape `plug_sp`/`plug_sn` have:
+  runs at every `m`.
+
+So the per-phase excess is not in the converter, not in the winding, not
+in the polyphase basics, not in the loss components, and not in the bare
+plug-to-plug boundary. It is in what
+`FundamentalWave.BaseClasses.Machine` assembles from them, and the
+assignment probe locates it no further than that: swept across `m`, the
+unknowns reached under `airGap` stay at 36, under `friction` at 9 and
+under `powerBalance` at 11, while `stator`, `strayLoad`,
+`thermalAmbient` and `permanentMagnet` grow, which is what they should
+do. The thermal pair was swept on its own and is short by one at every
+`m` - a constant, not a term in `m`, so not this family.
+
+Parked, and the parking is the finding: the sign never flips, so the
+shortage family and the excess family are not one fault seen from two
+ends, and the note above saying they probably were is withdrawn. What
+remains to find is a single equation written once per phase where one
+should be written per machine, inside the base class's own `equation`
+section or its `connect`s, and five green small models now say where it
+is not.
+
+### The probe now says what was placed, not only what was missed
+
+`OXIDELICA_BALANCE_PROBE=1` printed the unknowns or equations a matching
+could not reach, and that half has been measured and found to say
+nothing: on both sides of an imbalance the list's length has no relation
+to the excess, because what a matching leaves behind when it runs out is
+not what it failed to place. It now also prints one `assigned <unknown>
+<- <equation>` line per unknown it did reach, which is the half a model
+can be read by - it is what shows that `airGap` holds 36 unknowns
+whatever the phase count while `strayLoad` grows by six a phase, and
+that is how the elimination above was done.

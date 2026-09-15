@@ -617,3 +617,28 @@ fn a_definition_met_many_times_is_referenced_and_not_copied() {
          occurrence against {many} for twelve"
     );
 }
+
+/// The probe names what a matching placed, and names nothing it did not.
+///
+/// The half of the probe that lists what a matching could not reach was
+/// measured and found to say nothing about an imbalance, on either
+/// side. This half is the one a model is read by, so it owes an exact
+/// line per unknown reached: the unknown as the flat model spells it,
+/// and the whole equation rather than a phrase standing in for it.
+#[test]
+fn the_probe_names_each_placed_unknown_with_its_equation() {
+    let eqs = vec![
+        (Expr::Ref("x".into()), Expr::Number(1.0)),
+        (Expr::Ref("y".into()), Expr::Ref("x".into())),
+    ];
+    let unknowns = vec!["x".to_string(), "y".to_string(), "z".to_string()];
+    // `z` is reached by nothing, and so must not be named here at all.
+    let matched = vec![Some(0), Some(1), None];
+    assert_eq!(
+        assignment_lines(&eqs, &unknowns, &matched),
+        vec![
+            "assigned x <- x = 1".to_string(),
+            "assigned y <- y = x".to_string(),
+        ]
+    );
+}
