@@ -9120,7 +9120,7 @@ worth writing down so the next reader does not test it again. Traced
 with a print at every place a record is written out, `imcQS.vs[1]` is
 written out six times and `imcQS.vs` once, and that once is the whole
 fault: inside the body of `activePower` the argument `vs` is read as
-*one* record rather than as three, comes back as `vs.re` and `vs.im`,
+_one_ record rather than as three, comes back as `vs.re` and `vs.im`,
 and those two are written out a second time further down - which is
 where `vs[1].re.re` is born.
 
@@ -9146,7 +9146,7 @@ equations road, which runs after every declaration is measured, does
 have the length - `equations road: sizes [("imcQS.vs", [3])]` - and
 that is the road on which the three-element reading already works.
 
-So the fourth link is not a missing table but a missing *order*: a
+So the fourth link is not a missing table but a missing _order_: a
 record's field value that calls a function over an array declared
 later has to be put off until the class is measured, the way the
 record-valued variables themselves are put off into `record_values`
