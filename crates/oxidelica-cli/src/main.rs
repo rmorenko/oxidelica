@@ -32,6 +32,7 @@ Usage:
                             [--slow N]  the N dearest models, by half
                             [--without <file>] every model but those named
                             [--only-from <file>] only the models named
+                            [--with-heavy] the carved-out giants too
 
 The standard library is looked for as `lib` next to the model, next to
 the working directory or next to the binary, and among the libraries
@@ -505,6 +506,32 @@ fn name_of_repository(url: &str) -> String {
 /// tells a step forward from a step sideways; `--refused` names each
 /// model that did not, with what stopped it, which is what tells how
 /// many barriers stand behind one another.
+/// The models carved out of the main check into a scheduled run of
+/// their own, where the list lives.
+const HEAVY_MODELS: &str = "scripts/heavy_models.txt";
+
+/// The models one file names, or a refusal.
+///
+/// A file that is not there is a failure and not an empty set. Read as
+/// empty, `--without` would quietly measure everything and
+/// `--only-from` would measure nothing and hold its floors against it,
+/// which is the shape of the zero this project has already been bitten
+/// by.
+fn named_in_file(path: &str) -> Result<Option<HashSet<String>>, String> {
+    let text = std::fs::read_to_string(path)
+        .map_err(|why| format!("cannot read the list of models `{path}`: {why}"))?;
+    let names: HashSet<String> = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .map(str::to_string)
+        .collect();
+    if names.is_empty() {
+        return Err(format!("the list of models `{path}` names none"));
+    }
+    Ok(Some(names))
+}
+
 fn library_check(args: &[String]) -> Result<(), String> {
     let list = args.iter().any(|arg| arg == "--list");
     // One model rather than the library. Asking what became of a
@@ -534,26 +561,29 @@ fn library_check(args: &[String]) -> Result<(), String> {
         else {
             return Ok(None);
         };
-        // A file that is not there is a failure and not an empty set.
-        // Read as empty, `--without` would quietly measure everything
-        // and `--only-from` would measure nothing and hold its floors
-        // against it, which is the shape of the zero this project has
-        // already been bitten by.
-        let text = std::fs::read_to_string(path)
-            .map_err(|why| format!("cannot read the list of models `{path}`: {why}"))?;
-        let names: HashSet<String> = text
-            .lines()
-            .map(str::trim)
-            .filter(|line| !line.is_empty() && !line.starts_with('#'))
-            .map(str::to_string)
-            .collect();
-        if names.is_empty() {
-            return Err(format!("the list of models `{path}` names none"));
-        }
-        Ok(Some(names))
+        named_in_file(path)
     };
     let without = named_in("--without")?;
     let only_from = named_in("--only-from")?;
+    // A key that can be forgotten belongs in the default. The carved
+    // out set was carved out precisely so that nobody waits eleven
+    // minutes on three giants, and a bare `library check` waited for
+    // them anyway because the scripts passed `--without` and the hand
+    // at the terminal did not. So the main pass excludes that set of
+    // its own accord, where the file is visible from the working
+    // directory; `--with-heavy` asks for them back, and `--only-from`
+    // is untouched, since a run whose whole point is the giants may
+    // not have them taken away.
+    let with_heavy = args.iter().any(|arg| arg == "--with-heavy");
+    let without = match (
+        &without,
+        &only_from,
+        with_heavy,
+        std::path::Path::new(HEAVY_MODELS).is_file(),
+    ) {
+        (None, None, false, true) => named_in_file(HEAVY_MODELS)?,
+        _ => without,
+    };
     // The dearest models by name, both halves apart. A time per model
     // says the compiler got slower; it does not say where, and a
     // hunt for the where used to mean two binaries and two runs of

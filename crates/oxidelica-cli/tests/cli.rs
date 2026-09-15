@@ -490,6 +490,54 @@ fn a_named_set_of_models_is_taken_out_of_the_check_or_made_the_whole_of_it() {
 }
 
 #[test]
+fn the_carved_out_set_is_left_out_without_being_asked_for_and_asked_back_by_name() {
+    // A key that can be forgotten belongs in the default: eleven
+    // minutes went on three giants because the scripts passed
+    // `--without` and the hand at the terminal did not. So a bare
+    // check leaves out what `scripts/heavy_models.txt` names when that
+    // file is visible from where the check is run, and `--with-heavy`
+    // asks for them back.
+    let library = TempDir::new("carved by default");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Cheap Real x(start = 1); equation der(x) = -x; end Cheap; \
+         model Dear Real y(start = 1); equation der(y) = -y; end Dear; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let scripts = library.0.join("scripts");
+    std::fs::create_dir_all(&scripts).unwrap();
+    std::fs::write(scripts.join("heavy_models.txt"), "Lib.Examples.Dear\n").unwrap();
+
+    let bare = bin()
+        .current_dir(&library.0)
+        .args(["library", "check", "--list", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(bare.status.success(), "{}", stderr(&bare));
+    let text = stdout(&bare);
+    assert!(text.contains("Lib.Examples.Cheap"), "{text}");
+    assert!(!text.contains("Lib.Examples.Dear"), "{text}");
+
+    let asked_back = bin()
+        .current_dir(&library.0)
+        .args([
+            "library",
+            "check",
+            "--list",
+            "--with-heavy",
+            library.0.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(asked_back.status.success(), "{}", stderr(&asked_back));
+    let text = stdout(&asked_back);
+    assert!(text.contains("Lib.Examples.Cheap"), "{text}");
+    assert!(text.contains("Lib.Examples.Dear"), "{text}");
+}
+
+#[test]
 fn a_list_of_models_that_cannot_be_read_is_a_refusal_and_not_an_empty_set() {
     // Read as empty, `--without` measures the giant it was meant to
     // carve out and `--only-from` measures nothing while holding its

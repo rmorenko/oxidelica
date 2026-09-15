@@ -9111,3 +9111,53 @@ table in view and once again further down.
 What was gained is a fault named and three of its four links removed at
 no cost; what was not gained is a model, and the honest reading of a
 change that moves no number is that the wall is still standing.
+
+### The fourth link: a balance stated before the voltages it balances
+
+The guess the chronicle left - that the value passes through
+`records_written_out` twice - is wrong, and what is there instead is
+worth writing down so the next reader does not test it again. Traced
+with a print at every place a record is written out, `imcQS.vs[1]` is
+written out six times and `imcQS.vs` once, and that once is the whole
+fault: inside the body of `activePower` the argument `vs` is read as
+*one* record rather than as three, comes back as `vs.re` and `vs.im`,
+and those two are written out a second time further down - which is
+where `vs[1].re.re` is born.
+
+The reason the body reads it as one record is that the caller's table
+says `imcQS.vs` names a `Complex` and nothing in view says there are
+three of them. The table of records travels into a body; the table of
+lengths does not. Putting the lengths beside the records was built and
+measured, with the table filtered to the names the record table knows
+so that a body's own name still wins, and it does not cure the model.
+The reason is the order the class is written in:
+
+```modelica
+replaceable output ... powerBalance(
+  final powerStator = ... activePower(vs, is), ...);
+output SI.ComplexVoltage vs[m] = plug_sp.pin.v - plug_sn.pin.v;
+```
+
+`powerBalance` is declared eleven lines before `vs`. The value of its
+field is worked out where the declaration stands, and at that moment
+`vs` has not been measured: it is in neither the class's own table nor
+the model-wide `acc.sizes`, because the walk has not reached it. The
+equations road, which runs after every declaration is measured, does
+have the length - `equations road: sizes [("imcQS.vs", [3])]` - and
+that is the road on which the three-element reading already works.
+
+So the fourth link is not a missing table but a missing *order*: a
+record's field value that calls a function over an array declared
+later has to be put off until the class is measured, the way the
+record-valued variables themselves are put off into `record_values`
+and settled by `flatten_equations`. That is a change to when a value
+is worked out rather than to what is in view while it is, which is why
+the three links before it cost nothing and this one is a stage of its
+own. The twelve models of the `vs[1]` family stand on it.
+
+What was measured and rolled back: the lengths travelling with the
+records, on all three roads, and the caller's table put in view on the
+record-field-value road. Neither moves the model, and both were taken
+out rather than left standing behind a switch, because a change that
+cures nothing is not a link of this chain - the link is the deferral,
+and it has not been built.
