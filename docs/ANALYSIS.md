@@ -8988,3 +8988,56 @@ census is the witness that it fell - twenty-one rows left the
 square` with the rest scattering into `structurally singular`. The
 machines now die at their initialisation rather than at their equation
 count, and that is where the next shift on this line starts.
+
+## An initial equation that names a current speaks about a flux
+
+Eleven machines stood at `initialization is not square`, and the
+numbers said the problem was over-determined rather than under: seven
+equations and seven fixed starts for seven unknowns, ten and twelve for
+twelve. A section that pins nothing would have been short of equations;
+these had too many.
+
+The probe on `SMPM_Inverter` showed why in one line. Its section reads
+`smpm.is[1] = 0` and `smpm.is[2] = 0`, and the states are
+`smpm.airGap.psi_ms[1]`, `psi_mr[1]`, `psi_mr[2]` and the rest - fluxes,
+not currents. The rule deciding which states the section spoke about
+compared the _spelling_ of the names it mentioned against the list of
+states, found no match, and concluded the section mentioned nothing at
+all. Every state was then pinned at its declared start, and two
+equations on top of seven pinned states is a problem with nine
+statements about seven unknowns.
+
+The same fault under a different coat as the ones already recorded here:
+a test on the spelling of a name standing in for a fact the structure
+does record. What the structure records is the evaluation plan - `is[1]`
+is computed from the fluxes, and the reachability that answers which
+states each algebraic variable is computed from was already written, for
+the Jacobian's colouring. The initialisation asks the same question from
+the other end.
+
+Two things had to be got right beyond sharing that walk.
+
+**Which state an equation claims is a matching, not a union.** `is[1] =
+0` and `is[2] = 0` reach the same five flux states between them, and
+taking the union unpins all five on the strength of two equations. One
+equation determines one state, so the augmenting-path matcher already in
+the file pairs them and the rest stand where they were declared to.
+
+**Reachability through a simultaneous block is too coarse to claim
+on.** The block's reachability is deliberately generous - every input of
+the block reaches every unknown of it - because a missing entry would
+cost the Jacobian a term while an extra one costs only an evaluation.
+Generous is the safe direction for colouring and the wrong one here: a
+state claimed on the strength of that generosity is unpinned without
+anything determining it. Measured, that is exactly what happened -
+`FreeBody` lost its initialisation to a singular Jacobian, the only
+model the first version cost. Following explicit assignments alone
+recovered it and kept seven of the eight wins.
+
+The corpus, one binary, `OXIDELICA_NO_INIT_REACH` either way: 472 to 479
+run, 441 to 448 runnable, and the flatten half untouched. Seven gained,
+none lost. The winners are not the machines the probe started from -
+`SMPM_Inverter`, `IMC_DOL` and `SMEE_DOL` moved one storey up, off the
+init wall and onto an algebraic loop that is NaN before Newton takes a
+step - but the drives and the thyristor bridges behind the same wall,
+which had nothing else in their way.

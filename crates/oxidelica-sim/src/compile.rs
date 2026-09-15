@@ -37,45 +37,37 @@ pub(crate) fn substitute_derivatives(
 /// the fewest groups is graph colouring, so this takes the greedy
 /// answer, which for the banded Jacobians of a discretized field is
 /// already the optimum: three groups for a tridiagonal one.
-pub(crate) fn jacobian_structure(
+/// Which states each algebraic variable is computed from, in
+/// evaluation order.
+///
+/// `None` for an entry means "not worked out": such a variable is taken
+/// to depend on every state, because a missing entry would quietly cost
+/// the Jacobian a term while an extra one only costs an evaluation.
+///
+/// This is shared with the initialisation, which asks the same question
+/// from the other end - an initial equation naming `y` says something
+/// about whichever states `y` is computed from, and reading only the
+/// name would have it say nothing at all.
+pub(crate) fn states_behind_algebraics<S: std::borrow::Borrow<PlanStage>>(
     states: &[String],
     algebraics: &[String],
-    derivatives: &[Expr],
-    stages: &[PlanStage],
-) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    stages: &[S],
+) -> Vec<Option<Vec<bool>>> {
     let index_of_state: HashMap<&str, usize> = states.iter().map(|s| s.as_str()).zip(0..).collect();
     let index_of_algebraic: HashMap<&str, usize> =
         algebraics.iter().map(|a| a.as_str()).zip(0..).collect();
-
-    // What each algebraic variable depends on, in evaluation order.
-    // `None` means "not worked out": such a variable is taken to depend
-    // on every state, because a missing entry would quietly cost the
-    // Jacobian a term while an extra one only costs an evaluation.
     let mut through_algebraic: Vec<Option<Vec<bool>>> = vec![None; algebraics.len()];
-    let depends_on = |expr: &Expr, out: &mut Vec<bool>, through: &[Option<Vec<bool>>]| {
-        let mut refs = Vec::new();
-        expr.collect_refs(&mut refs);
-        for name in refs {
-            if let Some(&state) = index_of_state.get(name) {
-                out[state] = true;
-            } else if let Some(&algebraic) = index_of_algebraic.get(name) {
-                match through.get(algebraic) {
-                    Some(Some(inherited)) => {
-                        for (state, &touched) in inherited.iter().enumerate() {
-                            out[state] |= touched;
-                        }
-                    }
-                    _ => out.iter_mut().for_each(|touched| *touched = true),
-                }
-            }
-        }
-    };
-
     for stage in stages {
-        match stage {
+        match stage.borrow() {
             PlanStage::Explicit { var, expr } => {
                 let mut row = vec![false; states.len()];
-                depends_on(expr, &mut row, &through_algebraic);
+                reached_by(
+                    expr,
+                    &mut row,
+                    &through_algebraic,
+                    &index_of_state,
+                    &index_of_algebraic,
+                );
                 through_algebraic[*var] = Some(row);
             }
             PlanStage::Implicit {
@@ -87,11 +79,29 @@ pub(crate) fn jacobian_structure(
                 // Everything the block reads reaches everything it solves.
                 let mut row = vec![false; states.len()];
                 for (_, expr) in inner {
-                    depends_on(expr, &mut row, &through_algebraic);
+                    reached_by(
+                        expr,
+                        &mut row,
+                        &through_algebraic,
+                        &index_of_state,
+                        &index_of_algebraic,
+                    );
                 }
                 for (lhs, rhs) in residuals {
-                    depends_on(lhs, &mut row, &through_algebraic);
-                    depends_on(rhs, &mut row, &through_algebraic);
+                    reached_by(
+                        lhs,
+                        &mut row,
+                        &through_algebraic,
+                        &index_of_state,
+                        &index_of_algebraic,
+                    );
+                    reached_by(
+                        rhs,
+                        &mut row,
+                        &through_algebraic,
+                        &index_of_state,
+                        &index_of_algebraic,
+                    );
                 }
                 for &var in vars {
                     through_algebraic[var] = Some(row.clone());
@@ -99,12 +109,59 @@ pub(crate) fn jacobian_structure(
             }
         }
     }
+    through_algebraic
+}
+
+/// The states one expression reaches, directly or through the algebraic
+/// variables it names.
+fn reached_by(
+    expr: &Expr,
+    out: &mut [bool],
+    through: &[Option<Vec<bool>>],
+    index_of_state: &HashMap<&str, usize>,
+    index_of_algebraic: &HashMap<&str, usize>,
+) {
+    let mut refs = Vec::new();
+    expr.collect_refs(&mut refs);
+    for name in refs {
+        if let Some(&state) = index_of_state.get(name) {
+            out[state] = true;
+        } else if let Some(&algebraic) = index_of_algebraic.get(name) {
+            match through.get(algebraic) {
+                Some(Some(inherited)) => {
+                    for (state, &touched) in inherited.iter().enumerate() {
+                        out[state] |= touched;
+                    }
+                }
+                _ => out.iter_mut().for_each(|touched| *touched = true),
+            }
+        }
+    }
+}
+
+pub(crate) fn jacobian_structure(
+    states: &[String],
+    algebraics: &[String],
+    derivatives: &[Expr],
+    stages: &[PlanStage],
+) -> (Vec<Vec<usize>>, Vec<Vec<usize>>) {
+    let index_of_state: HashMap<&str, usize> = states.iter().map(|s| s.as_str()).zip(0..).collect();
+    let index_of_algebraic: HashMap<&str, usize> =
+        algebraics.iter().map(|a| a.as_str()).zip(0..).collect();
+
+    let through_algebraic = states_behind_algebraics(states, algebraics, stages);
 
     // Rows of the Jacobian: the states each derivative depends on.
     let mut rows_of_column: Vec<Vec<usize>> = vec![Vec::new(); states.len()];
     for (row, expr) in derivatives.iter().enumerate() {
         let mut touched = vec![false; states.len()];
-        depends_on(expr, &mut touched, &through_algebraic);
+        reached_by(
+            expr,
+            &mut touched,
+            &through_algebraic,
+            &index_of_state,
+            &index_of_algebraic,
+        );
         for (column, &yes) in touched.iter().enumerate() {
             if yes {
                 rows_of_column[column].push(row);
@@ -928,6 +985,16 @@ fn try_match(
 /// On by default; `OXIDELICA_NO_IMPLICIT_DIFF=1` gives the old walk.
 fn implicit_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_IMPLICIT_DIFF").is_none()
+}
+
+/// Whether an initial equation reaches the states behind the algebraic
+/// names it mentions.
+///
+/// Behind a switch so that one binary can produce both numbers: two
+/// counts are comparable only when the same build made them. On by
+/// default; `OXIDELICA_NO_INIT_REACH=1` reads only the spelling.
+fn reach_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_INIT_REACH").is_none()
 }
 
 /// Match every equation to an unknown, reducing the index where that
@@ -3791,6 +3858,7 @@ pub(crate) fn compile_at(
             &derivatives,
             &table,
             &unsettled,
+            &stages,
         )?;
         compiled.check_block_regularity()?;
     }
@@ -3989,6 +4057,7 @@ impl CompiledModel {
         derivative_exprs: &[Expr],
         table: &SlotTable,
         unsettled: &[(String, Slot)],
+        plan: &[PlanStage],
     ) -> Result<(), SimError> {
         if initial_equations.is_empty() {
             return Ok(());
@@ -4023,15 +4092,104 @@ impl CompiledModel {
         let mut filled = if initial_equations.len() + declared == n {
             fixed.to_vec()
         } else {
-            let mut mentioned: Vec<&str> = Vec::new();
-            for equation in initial_equations {
-                equation.lhs.collect_refs(&mut mentioned);
-                equation.rhs.collect_refs(&mut mentioned);
+            // An initial equation says something about a state whether
+            // it names the state or names something computed from it.
+            // `is[1] = 0` on a machine's terminal current is a
+            // statement about the flux states behind it, and reading
+            // only the spelling of the name had the section look as if
+            // it mentioned nothing - so every state was pinned and a
+            // square problem was refused as a lopsided one.
+            //
+            // Which state each equation claims is a matching and not a
+            // union: `is[1] = 0` and `is[2] = 0` reach the same five
+            // flux states between them, and taking the union would
+            // unpin all five on the strength of two equations. One
+            // equation determines one state, so the section claims as
+            // many states as the matching can pair, and the rest stand
+            // where they were declared to.
+            let mut claimed = vec![false; self.states.len()];
+            if reach_enabled() {
+                // Only what an explicit assignment computes is followed.
+                // A variable a simultaneous block solves for is taken
+                // as reaching nothing, because the block's reachability
+                // is deliberately coarse - every input of the block
+                // reaches every unknown of it - and claiming a state on
+                // the strength of that coarseness unpins one the
+                // equation does not determine, which is how `FreeBody`
+                // lost its initialisation to a singular Jacobian.
+                let explicit_only: Vec<&PlanStage> = plan
+                    .iter()
+                    .filter(|stage| matches!(stage, PlanStage::Explicit { .. }))
+                    .collect();
+                let through =
+                    states_behind_algebraics(&self.states, &self.algebraics, &explicit_only);
+                let through: Vec<Option<Vec<bool>>> = through
+                    .into_iter()
+                    .map(|row| Some(row.unwrap_or_else(|| vec![false; self.states.len()])))
+                    .collect();
+                let index_of_state: HashMap<&str, usize> =
+                    self.states.iter().map(|s| s.as_str()).zip(0..).collect();
+                let index_of_algebraic: HashMap<&str, usize> = self
+                    .algebraics
+                    .iter()
+                    .map(|a| a.as_str())
+                    .zip(0..)
+                    .collect();
+                // A state the model declared `fixed = true` is already
+                // spoken for, so it is not a candidate: the declaration
+                // is the initial condition and an equation that also
+                // reaches it has to find another.
+                let eq_vars: Vec<Vec<usize>> = initial_equations
+                    .iter()
+                    .map(|equation| {
+                        let mut touched = vec![false; self.states.len()];
+                        reached_by(
+                            &equation.lhs,
+                            &mut touched,
+                            &through,
+                            &index_of_state,
+                            &index_of_algebraic,
+                        );
+                        reached_by(
+                            &equation.rhs,
+                            &mut touched,
+                            &through,
+                            &index_of_state,
+                            &index_of_algebraic,
+                        );
+                        touched
+                            .iter()
+                            .enumerate()
+                            .filter(|&(index, &yes)| {
+                                yes && !fixed.get(index).copied().unwrap_or(false)
+                            })
+                            .map(|(index, _)| index)
+                            .collect()
+                    })
+                    .collect();
+                let mut matched_eq: Vec<Option<usize>> = vec![None; self.states.len()];
+                for eq in 0..eq_vars.len() {
+                    let mut visited = vec![false; self.states.len()];
+                    try_match(eq, &eq_vars, &mut matched_eq, &mut visited);
+                }
+                for (state, taken) in matched_eq.iter().enumerate() {
+                    claimed[state] = taken.is_some();
+                }
+            } else {
+                let mut mentioned: Vec<&str> = Vec::new();
+                for equation in initial_equations {
+                    equation.lhs.collect_refs(&mut mentioned);
+                    equation.rhs.collect_refs(&mut mentioned);
+                }
+                for (index, state) in self.states.iter().enumerate() {
+                    claimed[index] = mentioned.iter().any(|name| name == state);
+                }
             }
             self.states
                 .iter()
+                .enumerate()
                 .zip(fixed)
-                .map(|(state, &declared)| declared || !mentioned.iter().any(|name| name == state))
+                .map(|((index, _), &declared)| declared || !claimed[index])
                 .collect()
         };
         // A parameter left to the initialisation is never pinned: its

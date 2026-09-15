@@ -844,3 +844,42 @@ fn a_parameter_nothing_settles_is_still_refused() {
             .contains("has no value")
     );
 }
+
+/// An initial equation naming an algebraic variable says something
+/// about the states behind it.
+///
+/// `y = 0` where `y = x` is a statement about `x`, and reading only
+/// the spelling of the name had the section look as though it
+/// mentioned no state at all: every state was then pinned at its
+/// declared start, and a square problem was refused as a lopsided
+/// one. That is the shape eleven machines of the standard library
+/// stood at, where the section says `is[1] = 0` about terminal
+/// currents and the states are the fluxes behind them.
+///
+/// Which state an equation claims is a matching rather than a union:
+/// two equations reaching the same five states claim two of them, not
+/// five. `z` here checks the other half - a state no equation reaches
+/// keeps its declared start.
+#[test]
+fn an_initial_equation_reaches_the_states_behind_an_algebraic_name() {
+    let model = parse_model(
+        "model M Real x(start = 3); Real z(start = 5); Real y; \
+         equation y = x; der(x) = -x; der(z) = -z; \
+         initial equation y = 0; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let start = |name: &str| {
+        compiled
+            .states
+            .iter()
+            .position(|state| state == name)
+            .map(|index| compiled.initial[index])
+            .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states))
+    };
+    // The equation determines `x`, so it starts where the equation
+    // says and not where it was declared to.
+    assert!((start("x") - 0.0).abs() < 1e-9, "x = {}", start("x"));
+    // And nothing was said about `z`, which stands at its start.
+    assert!((start("z") - 5.0).abs() < 1e-9, "z = {}", start("z"));
+}
