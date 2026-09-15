@@ -2120,5 +2120,8 @@ fn a_reduction_in_a_modifier_reads_the_length_from_the_class_that_wrote_it() {
         .map(|e| format!("{:?}", e.rhs))
         .collect();
     assert_eq!(for_p.len(), 1, "{for_p:?}");
-    assert!(for_p[0].contains("vs[1]") && for_p[0].contains("vs[2]"), "{for_p:?}");
+    assert!(
+        for_p[0].contains("vs[1]") && for_p[0].contains("vs[2]"),
+        "{for_p:?}"
+    );
 }
