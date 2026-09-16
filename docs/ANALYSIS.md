@@ -9406,3 +9406,78 @@ census line should say `parameter has no value (service class)`
 separately from the rest the way the numerical queue was split out.
 Fifteen models are refusing correctly and no change should try to win
 them.
+
+## A record handed to a declaration of its base
+
+`ShowImpedance` says `parameter ...ExampleData cellData(Qnom = 3600)`
+in plain sight and was refused for `impedance.cellData.Qnom` having no
+value. The layer is `record_value_per_field` in `components.rs`: a
+whole-record value is taken apart by the class that _wrote_ it and
+matched against the fields of the class that _receives_ it, by count
+and then by position. Those are the same class most of the time and
+were not here - `Impedance` declares its parameter as the base
+`CellData` and the example hands it an `ExampleData`, which extends the
+base and so holds more fields. The counts disagreed, the reading came
+to `None`, and the whole hand-over was dropped without a word.
+
+Position was the wrong instrument for the question. Where the value is
+simply the name of a record, there is nothing to count: the field the
+target calls `Qnom` takes the value at `cellData.Qnom`, whatever else
+either record holds. The fix hands the fields on by name wherever the
+counting came to nothing, which is the same breed of fault the notes
+already record from the other side - a test on shape standing in for a
+fact about names.
+
+It is a chain and was walked before it was measured. `ShowImpedance`
+does not run on this change alone: behind the modifier stands a
+flexible `:` size measured from a declaration written _below_ the one
+that needs it (declaration order decides, and reordering the two lines
+of the example by hand takes the model past it), and behind that
+`R0 = Ri - sum(rcData.R)`, a parameter over an array of records. Those
+two are the next links and are not taken here.
+
+What the change does win is elsewhere and was found by the switch
+rather than expected. Measured on one binary over the corpus twice,
+the heavy set out, `OXIDELICA_NO_RECORD_BY_NAME` the only difference:
+flatten 819 to 821 and the runnable half 723 to 725, with the run
+counts 481 and 450 unmoved and the run list identical line for line.
+
+The flatten diff is worth reading rather than summing, because the +2
+is a +3 and a -1. Three battery examples arrive - `CCCV_Cell`,
+`CCCV_CellRC`, `CCCVcharging` - and `ShowImpedance` leaves: it used to
+flatten and refuse at the run for the missing `Qnom`, and now that the
+value arrives it gets as far as the flexible `:` of `OCV_SOC`, which
+is a flattener wall. A model moving from the run half's queue to the
+flattener's is the compiler seeing further, not less; the count says
+otherwise and the diff says which.
+
+The three `NewFittings` models - `CurvedBend`, `EdgedBend`,
+`ThickEdgedOrifice` - travel the same way without changing halves:
+refused for `fitting1.geometry.d_hyd` having no value with the rule
+off, reaching `cannot evaluate parameters` with it on, one storey up
+in the same family.
+
+## The parameter-without-value queue, measured rather than guessed
+
+The census row was read as 114 models for several shifts and is an
+accounting error twice over. The 114 was two wordings added together
+at 819/367 - `parameter X has no value` at 62 and `cannot evaluate
+parameters` at 52 - and at 819/481 the same two come to 25 and 40, so
+65 rows over 65 distinct models. Rows and models are one to one here;
+the row was never counting more models than it named.
+
+The split that matters is not the wording but whose fault the refusal
+is. Twenty of the sixty-five are service or base classes -
+`...Utilities.*`, `...BaseClasses.*`, `...Interfaces.*`,
+`...Components.*`, `...OpAmpCircuits.*` - written to be finished by
+whoever instantiates them, their parameters unbound on purpose, and a
+compiler that refuses them is right. The work queue does not own them
+and never did. `refusals.sh` now prints the two apart and names the
+queue half model by model, so the row cannot be read as a hundred
+models of work again.
+
+Of the five in the `has no value` half that are models of their own,
+four are addressed above: `ShowImpedance` and the three `NewFittings`.
+The fifth is `EngineV6`, whose `cylinder1.cylinderInclination.R_rel.T[1,1]`
+is a different layer - an orientation record built by a function - and
+is the named next address in this family.

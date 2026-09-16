@@ -1162,3 +1162,45 @@ fn a_body_handed_an_array_of_records_spreads_an_inner_call_over_it() {
     assert!(said.contains("vs[1].re"), "{said}");
     assert!(!said.contains("Ref(\"vs[1]\")"), "{said}");
 }
+
+#[test]
+fn a_record_handed_to_a_declaration_of_its_base_reaches_the_fields_by_name() {
+    // `Impedance impedance(cellData = cellData)` declares its parameter
+    // as the base record and is handed a derived one, which holds more
+    // fields than the base declares. The hand-over used to be matched
+    // by position and by count - the value taken apart by the class
+    // that wrote it, the names taken from the class receiving it - so
+    // the two did not fit and the whole thing was dropped without a
+    // word. What `ShowImpedance` then said was that `Qnom` had no
+    // value, though the model sets `Qnom = 3600` in plain sight.
+    //
+    // Names carry the meaning here: the field the target calls `Qnom`
+    // takes the value at `cellData.Qnom`, whatever else either record
+    // holds.
+    let m = parse_model(
+        "record Bas Real Qnom; end Bas; \
+         record Der extends Bas; Real Ri = 0.5; end Der; \
+         model M parameter Der cellData(Qnom = 3600, Ri = 0.01); \
+           parameter Bas c2 = cellData; \
+           Real y; equation y = c2.Qnom * time; end M;",
+    )
+    .unwrap();
+    let worth = |name: &str| {
+        m.components
+            .iter()
+            .find(|c| c.name == name)
+            .and_then(|c| c.binding.clone())
+    };
+    // The number, not merely that the model flattened: 3600 is what
+    // the writer said and 3600 is what has to arrive.
+    assert_eq!(worth("cellData.Qnom"), Some(Expr::Number(3600.0)));
+    assert_eq!(
+        worth("c2.Qnom"),
+        Some(Expr::Ref("cellData.Qnom".to_string())),
+        "{:?}",
+        m.components
+            .iter()
+            .map(|c| (c.name.clone(), c.binding.clone()))
+            .collect::<Vec<_>>()
+    );
+}

@@ -124,4 +124,36 @@ fi
 if [ "$half" = built ] || [ "$half" = both ]; then
     echo "=== flattened, would not run ==="
     echo "$report" | sed -n 's/^  built    [^	]*	//p' | kinds
+    # The parameter-without-value family, split the way the numerical
+    # queue was split out. A service class - a `Utilities`, a
+    # `BaseClasses`, an `Interfaces`, a `Components` - is written to be
+    # finished by whoever instantiates it: its parameters are unbound
+    # on purpose and a compiler that refuses it is right. Counted in
+    # with the rest, they read as a queue of work that does not exist,
+    # and the row has been read that way for several shifts.
+    #
+    # Both wordings are gathered, because the counter splits this
+    # family by its spelling: `parameter X has no value` and `cannot
+    # evaluate parameters` are one illness at two depths.
+    echo "=== a parameter without a value, by whose fault ==="
+    echo "$report" |
+        awk -F'	' '
+            $1 ~ /^  built/ &&
+            ($2 ~ /parameter .* has no value/ || $2 ~ /cannot evaluate parameters/) {
+                split($1, a, " ")
+                where = (a[2] ~ /\.(Utilities|BaseClasses|Interfaces|Components|ExampleUtilities|OpAmpCircuits)\./) \
+                    ? "service class (refusing rightly)" : "a model of its own (the queue)"
+                print where
+            }' |
+        sort | uniq -c | sort -rn
+    echo "=== and the queue by name ==="
+    echo "$report" |
+        awk -F'	' '
+            $1 ~ /^  built/ &&
+            ($2 ~ /parameter .* has no value/ || $2 ~ /cannot evaluate parameters/) {
+                split($1, a, " ")
+                if (a[2] !~ /\.(Utilities|BaseClasses|Interfaces|Components|ExampleUtilities|OpAmpCircuits)\./) {
+                    print "  " a[2] "	" substr($2, 1, 70)
+                }
+            }' | sort
 fi

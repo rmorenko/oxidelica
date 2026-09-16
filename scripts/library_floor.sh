@@ -79,9 +79,9 @@
 # schedule, so nothing is hidden by the carving - and the floors below
 # came down by exactly what moved:
 #
-#   flatten 822 = 819 here + 3 in the scheduled run
+#   flatten 824 = 821 here + 3 in the scheduled run
 #   run     481 = 481 here + 0 in the scheduled run
-#   runnable flatten 724 = 723 here + 1 in the scheduled run
+#   runnable flatten 726 = 725 here + 1 in the scheduled run
 #   runnable run     450 = 450 here + 0 in the scheduled run
 #
 # The run halves did not move because none of the three runs yet: what
@@ -93,9 +93,9 @@
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=819
+FLATTEN_FLOOR=821
 RUN_FLOOR=481
-RUNNABLE_FLATTEN_FLOOR=723
+RUNNABLE_FLATTEN_FLOOR=725
 RUNNABLE_RUN_FLOOR=450
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one

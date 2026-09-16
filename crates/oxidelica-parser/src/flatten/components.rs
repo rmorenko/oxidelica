@@ -1043,6 +1043,41 @@ fn record_value_per_field(
         Some(_) => None,
     }
     .unwrap_or_default();
+    // A value taken apart by count is taken apart by the class that
+    // wrote it, and matched against the fields of the class that
+    // receives it. Those are the same class most of the time and not
+    // always: `Impedance impedance(cellData = cellData)` declares its
+    // parameter as the base record and is handed a derived one, which
+    // holds more fields than the base declares. Counted, the two do
+    // not fit and the whole hand-over is dropped, which is how
+    // `ShowImpedance` came to have a `Qnom` that nothing gives a value
+    // to although the model says `Qnom = 3600` in plain sight.
+    //
+    // Where the value is simply the name of a record, there is no
+    // counting to be done at all: the field the target calls `Qnom`
+    // takes the value at `cellData.Qnom`, whatever else either record
+    // holds. Names carry the meaning here and positions are a guess at
+    // it, so this is tried wherever the count came to nothing rather
+    // than only where it disagreed.
+    if per_element.is_empty() {
+        if let Expr::Ref(path) = &expr {
+            if !path.contains('[') {
+                let by_name: Vec<(String, Expr)> = held
+                    .iter()
+                    .filter(|field| !field.is_final)
+                    .map(|field| {
+                        (
+                            field.name.clone(),
+                            Expr::Ref(format!("{path}.{}", field.name)),
+                        )
+                    })
+                    .collect();
+                if !by_name.is_empty() {
+                    return vec![by_name; element_names.len()];
+                }
+            }
+        }
+    }
     per_element
         .into_iter()
         .map(|given| {
