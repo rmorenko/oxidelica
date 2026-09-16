@@ -9809,3 +9809,45 @@ next thing to ask about for this family.
 The test holds a number rather than a flattening: three phasors
 conjugated element by element give one, two and three back, where a
 call spread wrongly gives the first phasor three times.
+
+## A check that travelled out of a body and left its names behind
+
+`V_flow_nominal2[1]` was the second family of the run register, ten
+models of `ModelicaTest.Fluid.TestComponents.Machines`, and the name
+belongs to nobody the flat model declares: it is a local of
+`Modelica.Fluid.Machines.BaseClasses.PumpCharacteristics.quadraticFlow`,
+which squares three nominal flow rates and fits a quadratic through
+them with `Modelica.Math.Matrices.solve`.
+
+The layer is the checks an inlined body sets aside. An `assert` in a
+function body holds every time the function is called, and a call
+inlined into an equation answers with an expression, which has nowhere
+to put a check - so `inlining.rs` leaves the check in a pile the class
+being instantiated takes up afterwards. `Matrices.solve` asserts that
+the system it was handed was not singular, and that check is written
+over the matrix argument, which here is `[ones(3), v, v2]` with `v2`
+the caller's local. The outputs of a body are substituted into the
+caller's names on the way out; the checks were not. So the check
+reached the run naming a local of a body nobody kept, and the run
+refused the model for a variable it had never heard of.
+
+Two piles carry checks and both needed the same treatment: the list
+handed to `worked_body`, and the thread-local `SET_ASIDE` that a call
+nested inside this body writes to directly. The mark is taken before
+the locals are worked out rather than before the body runs, because a
+local's own value may make a check - which is exactly this case: the
+`solve` is in a declaration, not in a statement.
+
+The small model is twelve lines and shows it in one second; a
+synthetic `solve` with the matrix written out element by element does
+_not_ show it, because the local is then substituted before the call
+is reached. The reproduction needs the local to reach the body whole.
+
+Measured on the corpus, one binary, `OXIDELICA_NO_CHECK_NAMES` either
+way, the heavy models carved out: flatten 827 both ways, run 484 both
+ways, and both lists diffed before against after come out identical.
+The ten models are one wall further along - `TestWaterPumpDefault` now
+refuses with an algebraic loop that diverges, and one of the ten with
+a `der(pump.medium.h)` that is not a state. So this is a kind removed
+rather than a model won, and the row it emptied is replaced by walls
+that already had rows of their own.

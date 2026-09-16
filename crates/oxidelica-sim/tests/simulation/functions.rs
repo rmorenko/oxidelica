@@ -1433,3 +1433,40 @@ fn a_computed_array_of_records_spreads_a_call_written_for_one() {
         assert!((last[at(&format!("r[{k}]"))] - k as f64).abs() < 1e-12);
     }
 }
+
+#[test]
+fn a_check_a_body_makes_carries_the_names_of_the_body_that_made_it() {
+    // The pump characteristics of the standard library fit a quadratic
+    // through three operating points: a local of the fitting function
+    // squares the flow rates, and the fit is a `solve` over a matrix
+    // one of whose columns is that local. `solve` asserts that the
+    // system it was handed was not singular, and that check travels
+    // out of the call while the names it is written in do not - so
+    // the run met `V_flow_nominal2[1]`, a local of a body nobody kept,
+    // and refused ten models of the library over it.
+    //
+    // The outputs of a body are substituted on the way out; the checks
+    // it made are written in the same names and take the same
+    // treatment.
+    let result = run(
+        "model M function dgesv_vec input Real a[:, size(a, 1)]; input Real b[size(a, 1)]; \
+         output Real x[size(a, 1)]; output Integer info; \
+         external \"FORTRAN 77\" dgesv(a, b, x, info); end dgesv_vec; \
+         function solve input Real a[:, size(a, 1)]; input Real b[size(a, 1)]; \
+         output Real x[size(a, 1)]; protected Integer info; \
+         algorithm (x, info) := dgesv_vec(a, b); \
+         assert(info == 0, \"the system is singular\"); end solve; \
+         function fit input Real v[3]; output Real y; \
+         protected Real v2[3] = {v[1]^2, v[2]^2, v[3]^2}; \
+         Real c[3] = solve([ones(3), v, v2], {1, 4, 9}); \
+         algorithm y := c[3]; end fit; \
+         Real y; \
+         equation y = fit({1, 2, 3}); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // The points (1, 1), (2, 4) and (3, 9) lie on `x^2` exactly, so
+    // the quadratic coefficient is one and the other two are nothing.
+    assert!((last[column("y")] - 1.0).abs() < 1e-9, "{:?}", last);
+}

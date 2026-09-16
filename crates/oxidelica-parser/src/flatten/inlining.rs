@@ -1227,6 +1227,11 @@ fn worked_body(
         consts,
         records: &in_view,
     };
+    // Every check from here on - the ones a local's value makes while
+    // it is worked out, and the ones the body makes when it runs - is
+    // written in this body's names.
+    let before_the_body = checks.len();
+    let aside_before_the_body = algorithms::checks_mark();
     let mut handed: HashMap<String, Expr> = bindings.clone();
     for component in &class.components {
         if component.causality == Causality::None {
@@ -1314,6 +1319,12 @@ fn worked_body(
     let mut assigned = Vec::new();
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
+    // What the body asserts is written in the body's own names, and a
+    // check travels out of the call while the names do not: a local
+    // of the caller's body is nowhere in the flat model, so a check
+    // carrying one reaches the run as a name nothing answers for.
+    // The outputs are substituted on the way out; the checks are
+    // taken from here on and given the same treatment.
     if statements::execute(
         function_body(registry, class, 0),
         &mut bindings,
@@ -1333,6 +1344,15 @@ fn worked_body(
             class.name
         ));
     }
+    for (condition, _) in checks.iter_mut().skip(before_the_body) {
+        *condition = substitute_refs(condition, &bindings);
+    }
+    // A call inside this body left its own checks in the pile every
+    // inlining shares, rather than in the list handed here. Those
+    // carry this body's names just the same.
+    algorithms::checks_rewritten(aside_before_the_body, &mut |check| {
+        substitute_refs(check, &bindings)
+    });
     outputs
         .iter()
         .map(|output| {

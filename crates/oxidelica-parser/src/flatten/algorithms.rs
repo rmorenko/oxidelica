@@ -64,6 +64,20 @@ pub(super) fn checks_taken(mark: usize) -> Vec<(Expr, String)> {
     SET_ASIDE.with(|aside| aside.borrow_mut().split_off(mark))
 }
 
+/// Rewrite every check set aside since `mark`.
+///
+/// A check made inside a body is written in that body's names, and the
+/// names stay behind while the check travels out. The body that made
+/// it is the last place that knows what they stood for, so it says so
+/// here before the check goes any further.
+pub(super) fn checks_rewritten(mark: usize, how: &mut dyn FnMut(&Expr) -> Expr) {
+    SET_ASIDE.with(|aside| {
+        for (check, _) in aside.borrow_mut().iter_mut().skip(mark) {
+            *check = how(check);
+        }
+    });
+}
+
 /// How far one call may be inlined inside another before the answer is
 /// that it did not come to an end here.
 pub(super) const MAX_NESTED_CALLS: usize = 64;
