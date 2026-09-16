@@ -9541,3 +9541,76 @@ with `cannot evaluate parameters` under the switch and refuses with
 same model. Eleven of the sixteen rows in the call half of the queue
 are that kind, and the kind is now absent from the register while the
 models behind it stand at whatever was next.
+
+## A gas constant lost to a namesake
+
+The largest cluster of the has-no-value family was nineteen fluid
+models refusing over the fields of an ideal gas's `data` record -
+`data.R_s` alone in six of them, the whole list `H0` through `blow` in
+the rest. The values are written out as constants in
+`Modelica.Media.IdealGases.Common.SingleGasesData`, so the reading for
+several shifts was that a record with ready values was not carrying
+them to its fields, and the mechanism was unknown.
+
+It was not the record. Every NASA ideal gas states its gas constant as
+`R_s = R_NASA_2002/Air.MM`, naming the record constant beside it, and
+`Modelica.Media.Air` is a package of that same name one branch over.
+The head resolved - to the package - the package had no `MM`, and the
+lookup answered nothing rather than asking whether the scope held a
+record constant of the name. One namesake, and the gas constant of
+every ideal gas in the standard library was unreadable. The rule the
+notes already state from the other end applies here too: a name that
+resolves to something with nothing to say is not a resolution, and a
+class that answers nothing has to send the question on rather than end
+it.
+
+Probing found it where three replicas failed to. Seven hand-written
+models of the shape all passed, because none of them had a namesake to
+trip over, and the twelve-line replica that did reproduce was reached
+by shrinking the real model rather than by growing a synthetic one -
+the fault was two layers below where the refusal pointed. One of the
+replicas was passing for a worse reason still: a package with two
+models in it, where `simulate` ran the other one, and the reading
+"this shape works" was drawn from a model that never touched the
+shape. A measurement of the wrong model looks exactly like a
+measurement of the right one.
+
+A second fault was found on the way and measured rather than kept. A
+short class definition may carry redeclarations - a vessel writes
+`replaceable model FlowModel = Flow(redeclare package Medium =
+Medium)` and then declares `FlowModel flowModel`, so the alias is the
+only place the medium is named - and the parser reads the modifier
+list and keeps only half of it, dropping the redeclaration at the
+door. Carrying it through is right by the specification and cost
+forty-one models: 821 flatten to 780, on a corpus run against an
+unmodified binary for the baseline. So it is reverted and written down
+here instead. A redeclaration that was being dropped is a definition
+that was not being made, and supplying one changes what index
+reduction can reach through, which is the shape these notes already
+name: such a change is not wrong for costing models, but forty-one is
+not a small number and nobody has yet walked the victims. That is the
+next shift's work, not this one's.
+
+The namesake fix alone is a correctness fix with a flat count.
+Measured on one binary run twice over the corpus, 821 flatten and 481
+run either way, and identical to an unmodified binary's own run as
+well - all three lists the same line for line: no model is won and
+none is lost. What moved is the wall and the clock. The
+junction test that stood at `cannot evaluate parameters` now stands at
+an unknown variable `source2.medium.data.Tlimit` - one storey up, the
+gas data read and the next wall behind it - and flattening that one
+model fell from forty-six seconds to nineteen, and the whole corpus
+from 3112 seconds to 2199, because the road that used to fail also
+used to settle twelve hundred gas records in order to say so. A
+correctness fix that takes a third off the flattening time is still
+recorded as a fix rather than as a win, but the time per model is one
+of the numbers the floors hold, and it moved the right way.
+
+And the measurement itself carries a lesson worth more than the fix.
+The first pass reported both halves at 780, which read as "the change
+costs nothing"; the true baseline was 821, and what the switch turned
+off was one of the two changes in the tree. A switch covers the change
+it was written for and says nothing about the one beside it, so two
+changes measured through one switch are not measured at all. The
+baseline belongs to an unmodified binary, and the corpus says so in
+eleven minutes.

@@ -54,7 +54,19 @@ pub(super) fn class_constant_at(
     let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
     gather_package_constants(registry, class, 0, &mut constants);
     if !constants.iter().any(|(n, _)| n == member) {
-        return None;
+        // The class the head resolved to has no such member, and a
+        // record constant of the scope may still be called that. The
+        // NASA gas data writes `R_s = R_NASA_2002/Air.MM` beside a
+        // record constant named `Air`, and `Modelica.Media.Air` is a
+        // package of the same name one branch over - so the head
+        // resolved, answered nothing, and the gas constant of every
+        // ideal gas was lost to a namesake. A class that resolves is
+        // asked first, as it always was; only its silence sends the
+        // question on.
+        return match own_siblings_off() {
+            true => None,
+            false => record_constant_field(registry, class_path, member, scope, imports, depth),
+        };
     }
     // A constant may be built on one of another package - the standard
     // library's `eps` is the machine's - and on the operators a library
@@ -1407,6 +1419,84 @@ thread_local! {
         RefCell::new(HashMap::new());
 }
 
+/// What a package's own constants say a bare name is worth.
+///
+/// The body of [`enclosing_constant_at`], asked of one package rather
+/// than of the chain above a scope. A record constant of a package
+/// reads its fields under that package, and a field written on a
+/// sibling - `R_s = R_NASA_2002/Air.MM` - names something the walk
+/// outwards never reaches, because that walk starts one level up.
+fn constant_of_package(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<f64> {
+    // A constant of a package may be written on another of the same
+    // package, and that one on a third; the settling below asks this
+    // road again for each, so the chain is what the counter bounds.
+    // Without it a field written on a sibling asks for the sibling,
+    // which asks for the field, and the walk goes down until the
+    // stack does.
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    let owner = registry
+        .get(scope)
+        .filter(|owner| owner.kind == ClassKind::Package)?;
+    let mut constants = Vec::new();
+    gather_package_constants(registry, owner, 0, &mut constants);
+    let held = constants
+        .iter()
+        .find(|(known, _)| known == name)
+        .and_then(|(_, held)| held.clone())?;
+    let held = &held;
+    // Only the siblings the binding actually names are settled, not
+    // the package whole. `R_s = R_NASA_2002/Air.MM` wants two of
+    // them; `SingleGasesData` holds twelve hundred gas records, and
+    // settling those cost thirty-four thousand askings to learn one
+    // gas constant.
+    let mut wanted: Vec<String> = Vec::new();
+    held.for_each(&mut |inner| {
+        if let Expr::Ref(named) = inner {
+            let head = named.split('.').next().unwrap_or(named);
+            if !wanted.iter().any(|known| known == head) {
+                wanted.push(head.to_string());
+            }
+        }
+    });
+    let constants: Vec<(String, Option<Expr>)> = constants
+        .into_iter()
+        .filter(|(known, _)| known == name || wanted.iter().any(|head| head == known))
+        .collect();
+    let known = gathering_settled(registry, owner, &constants, depth);
+    if let Some(number) = const_eval(held, &known) {
+        return Some(number);
+    }
+    // A sibling named with a dot - `Air.MM`, a field of a record
+    // constant of this same package - is written relative to the
+    // package and resolves nowhere else. Substituting under the
+    // package is what gives it a head, and it is the road every
+    // other reader of this file takes.
+    let settled = substitute_at(
+        held,
+        registry,
+        &owner.name,
+        &owner.imports,
+        &[],
+        depth + 1,
+        true,
+    );
+    const_eval(&settled, &known)
+}
+
+/// Whether a package's own constants are to be left out of the walk
+/// for a bare name. `OXIDELICA_NO_OWN_SIBLINGS` is kept so that one
+/// binary can be measured against itself over the whole library.
+fn own_siblings_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_OWN_SIBLINGS").is_some()
+}
+
 /// See [`enclosing_constant`]; this is the walk itself.
 fn enclosing_constant_at(
     registry: &HashMap<&str, &ClassDef>,
@@ -1414,6 +1504,21 @@ fn enclosing_constant_at(
     scope: &str,
     depth: usize,
 ) -> Option<f64> {
+    // The scope itself first, where it is a package. A record constant
+    // of a package has its fields read under that package - `R_s =
+    // R_NASA_2002/Air.MM` is written in `SingleGasesData` and names a
+    // constant of it with no path at all - and a walk that begins one
+    // level up never looks at the package the name was written in. The
+    // gas constant of every NASA ideal gas is written that way, which
+    // is what left nineteen fluid models asking for a `data.R_s`
+    // nothing gives a value to. Only where the package has something
+    // to say: the walk outwards is what answers otherwise, and it is
+    // left exactly as it was.
+    if !own_siblings_off() {
+        if let Some(value) = constant_of_package(registry, name, scope, depth) {
+            return Some(value);
+        }
+    }
     let mut prefix = scope;
     while let Some((head, _)) = prefix.rsplit_once('.') {
         if let Some(owner) = registry

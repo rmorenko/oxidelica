@@ -866,3 +866,38 @@ fn a_reduction_over_an_elementwise_product_keeps_the_reduction() {
         &shapes
     ));
 }
+
+#[test]
+fn a_record_constant_is_read_past_a_package_of_the_same_name() {
+    // `R_s = R_NASA_2002/Air.MM` is how every NASA ideal gas states
+    // its gas constant, written beside a record constant called
+    // `Air` - and `Modelica.Media.Air` is a package of that name one
+    // branch over. The head resolved to the package, the package had
+    // no `MM`, and the answer was nothing rather than the sibling's
+    // field: the gas constant of every ideal gas was lost to a
+    // namesake, and with it the density of nineteen fluid models.
+    // The number is what is checked, not that anything flattened:
+    // 8.314510 / 0.0289651159 is 287.05 J/(kg.K), the gas constant of
+    // dry air.
+    let m = parse_model(
+        "package Air constant Real unrelated = 1; end Air; \
+         record DataRecord Real MM; Real R_s; end DataRecord; \
+         package GasData \
+           constant Real R_NASA = 8.314510; \
+           constant DataRecord Air(MM = 0.0289651159, R_s = R_NASA/Air.MM); \
+         end GasData; \
+         model M parameter Real r = GasData.Air.R_s; Real x; equation der(x) = r; end M;",
+    )
+    .unwrap();
+    let read = m
+        .components
+        .iter()
+        .find(|c| c.name == "r")
+        .and_then(|c| c.binding.clone())
+        .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()))
+        .expect("the gas constant is a number");
+    assert!(
+        (read - 287.0525368759184).abs() < 1e-9,
+        "gas constant came out {read}"
+    );
+}
