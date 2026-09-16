@@ -9614,3 +9614,53 @@ it was written for and says nothing about the one beside it, so two
 changes measured through one switch are not measured at all. The
 baseline belongs to an unmodified binary, and the corpus says so in
 eleven minutes.
+
+## The gas data chain, second and third links
+
+The namesake fix took the gas cluster one storey up and left it at
+`unknown variable source2.medium.data.Tlimit`, and the probe walked
+the rest of the chain in a single small model. Seven lines of live
+library - a `DryAirNasa` medium and a `BaseProperties` under it -
+refuse exactly as the nineteen do, in two seconds rather than in the
+five minutes a corpus pass costs.
+
+Two links stood behind that refusal, and only the first has been
+taken. Every NASA ideal gas is written `extends SingleGasNasa(data =
+Common.SingleGasesData.N2)`: the record constant is given the _name_
+of another record constant rather than a constructor call. The reader
+of a record's fields knew two shapes - a modifier list on the
+declaration, and a constructor the binding comes to - and a bare name
+was neither, so the whole coefficient table of every gas read as a
+variable nothing declares. Following the name is the same question one
+level along, and it is now asked. A second fault sat in the same
+function and was found by the same probe: the binding was looked for
+under the record's _whole written path_ where the gathering knows it
+by its own name, so the road could only ever have answered for a
+record with no path at all.
+
+With that, `M.data.Tlimit` and `M.data.R_s` read through a package
+alias for every single gas and for `DryAirNasa` - 1000 K and 287.05
+J/(kg.K), the numbers the test holds.
+
+The second link is not taken and is written down here for the next
+shift. Inside a medium's own functions the record is named bare -
+`data.Tlimit` in the body of `specificEnthalpy`, and `data` handed
+whole to `h_T` - and a bare name that stands for a record is folded by
+nothing: it is neither a number nor a list, so every road in the
+substitution passes it by, and it reaches the flat model with the
+instance path on its front as `medium.data`, which nothing declares.
+The field lookup itself answers correctly when asked; what is missing
+is the step that gives the bare name its path before prefixing. The
+minting road is the shape to copy - `mint_asked_as_constant` does
+exactly this for a scalar of the medium on the mark - and the record
+twin of it is the work. Writing the path out raw was tried first and
+is wrong: the name is prefixed all the same unless it goes through the
+minted ledger that `flat_name` consults.
+
+Measured through a switch on one binary, the corpus twice: 821 flatten
+and 481 run either way, 725 and 450 of the runnable, and the flattened
+list and the run list identical line for line. No model is won and none
+is lost - this is the second link of a chain and not its end, so the
+number that moves is the one the last link will move. What it buys is
+that the field lookup is now right for a shape it was silently wrong
+for, and the remaining wall is named above rather than guessed at.

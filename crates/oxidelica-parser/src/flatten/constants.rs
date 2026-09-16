@@ -225,7 +225,7 @@ fn record_constant_field(
     // road already reads those modifiers when it gathers a package's
     // constants, so the same gathering answers here, and the field is
     // taken from the constructor the binding comes to.
-    if let Some(number) = record_binding_field(registry, owner, path, field, depth) {
+    if let Some(number) = record_binding_field(registry, owner, &component.name, field, depth) {
         return Some(number);
     }
     // A field the value did not mention may carry a default on the
@@ -253,7 +253,7 @@ fn record_constant_field(
 fn record_binding_field(
     registry: &HashMap<&str, &ClassDef>,
     owner: &ClassDef,
-    path: &str,
+    name: &str,
     field: &str,
     depth: usize,
 ) -> Option<f64> {
@@ -264,8 +264,26 @@ fn record_binding_field(
     gather_package_constants(registry, owner, 0, &mut constants);
     let binding = constants
         .iter()
-        .find(|(name, _)| name == path)
+        .find(|(known, _)| known == name)
         .and_then(|(_, held)| held.clone())?;
+    // A record constant may be given the value of another record
+    // constant outright: every NASA ideal gas writes `data =
+    // Common.SingleGasesData.N2`, a name and not a constructor. The
+    // field wanted is then that other record's field, and asking for
+    // it by its whole name is the same question one level along. Taken
+    // before the settling below, because settling a record-valued name
+    // has nothing to fold and answers with the name it started from.
+    if let Expr::Ref(named) = &binding {
+        if let Some(number) = class_constant_at(
+            registry,
+            &format!("{named}.{field}"),
+            &owner.name,
+            &owner.imports,
+            depth + 1,
+        ) {
+            return Some(number);
+        }
+    }
     let settled = substitute_at(
         &binding,
         registry,

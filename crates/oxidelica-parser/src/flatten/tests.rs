@@ -901,3 +901,35 @@ fn a_record_constant_is_read_past_a_package_of_the_same_name() {
         "gas constant came out {read}"
     );
 }
+
+#[test]
+fn a_record_constant_bound_to_another_record_constant_carries_its_fields() {
+    // Every NASA ideal gas is written `extends SingleGasNasa(data =
+    // Common.SingleGasesData.N2)`: the record constant is given the
+    // name of another record constant rather than a constructor. The
+    // field wanted is then that other record's field, and settling a
+    // name that stands for a record folds nothing - so the whole of a
+    // gas's coefficient table read as a variable nothing declares, and
+    // the models that read it were refused over `data.Tlimit`.
+    //
+    // The number is what is checked, not that anything flattened: the
+    // temperature limit between the two NASA coefficient sets is 1000 K.
+    let m = parse_model(
+        "record DataRecord Real MM; Real Tlimit; end DataRecord; \
+         package GasData constant DataRecord N2(MM = 0.0280134, Tlimit = 1000); end GasData; \
+         package Gas constant DataRecord data = GasData.N2; end Gas; \
+         model M parameter Real t = Gas.data.Tlimit; Real x; equation der(x) = t; end M;",
+    )
+    .unwrap();
+    let read = m
+        .components
+        .iter()
+        .find(|c| c.name == "t")
+        .and_then(|c| c.binding.clone())
+        .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()))
+        .expect("the temperature limit is a number");
+    assert!(
+        (read - 1000.0).abs() < 1e-9,
+        "temperature limit came out {read}"
+    );
+}
