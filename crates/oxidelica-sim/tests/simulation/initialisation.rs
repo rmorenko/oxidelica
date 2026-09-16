@@ -883,3 +883,33 @@ fn an_initial_equation_reaches_the_states_behind_an_algebraic_name() {
     // And nothing was said about `z`, which stands at its start.
     assert!((start("z") - 5.0).abs() < 1e-9, "z = {}", start("z"));
 }
+
+/// A `fixed = true` written on a variable index reduction demotes is
+/// still an initial condition.
+///
+/// `a` here is declared with the acceleration of the mass and then
+/// demoted, so the condition names an algebraic of the reduced model:
+/// it is carried by neither the states' `fixed` flags nor the
+/// `initial equation` section, and the count of conditions came out
+/// one short. What that looked like from outside was a square problem
+/// refused as a lopsided one, or - where the filling in happened to
+/// balance - a start pinned at its declared guess and the declared
+/// condition contradicted.
+///
+/// The number is what the test holds: `a = -3` with `a = -x` puts the
+/// start of `x` at 3, and the 99 it was declared with is only a guess.
+#[test]
+fn a_fixed_start_on_a_demoted_variable_is_an_initial_condition() {
+    let result = run(
+        "model T Real x(start = 99); Real v; Real a(start = -3, fixed = true); \
+         equation der(x) = v; der(v) = a; a = -x; \
+         initial equation v = 0; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end T;",
+    );
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    assert!(
+        (result.rows[0][x] - 3.0).abs() < 1e-9,
+        "x(0) = {}",
+        result.rows[0][x]
+    );
+}

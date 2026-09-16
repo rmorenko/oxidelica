@@ -9851,3 +9851,43 @@ refuses with an algebraic loop that diverges, and one of the ten with
 a `der(pump.medium.h)` that is not a state. So this is a kind removed
 rather than a model won, and the row it emptied is replaced by walls
 that already had rows of their own.
+
+## A `fixed = true` on a variable index reduction demoted
+
+`initialization is not square` was the top row of the run register at
+34 models, and the probe says it is one layer rather than one
+wording. Every one of the 34 misses the same way: the conditions and
+the pinned starts come to _more_ than the unknowns, from `+1` on
+`Blocks.Examples.PID_Controller` to `+12` on `IMS_Start`. A row that
+misses in one direction only is a row with one cause behind it.
+
+The cause is a condition being dropped and then made up for. A model
+writes `inertia1.a(fixed = true, start = 0)` on an acceleration, and
+index reduction demotes `a` to an algebraic of the reduced model.
+After that the declaration is carried by nothing: the `fixed` flags
+handed to the initialisation are read off the _states_, and the
+`initial equation` section never mentioned it. The count of
+conditions came out one short, so the filling in below pinned a state
+the section does determine, and the problem was then over-determined
+by exactly the conditions that had gone missing.
+
+It belongs in the system as an equation, not as a pinned state: it is
+a condition on a variable the plan computes, and it is satisfied by
+moving the states until the computed value agrees with the declared
+one. The residual it contributes is exactly that difference, and the
+compiler already had the list - `fixed_starts`, which
+`check_block_regularity` reads to complain when the constraints
+disagree with a declared value. That complaint was the same fault
+seen from the other side: where the filling in happened to balance,
+the model was not refused as lopsided but solved with the declared
+condition ignored and then found to contradict it.
+
+Measured on the corpus, one binary, `OXIDELICA_NO_DEMOTED_FIXED`
+either way, the heavy models carved out: flatten 827 both ways, run
+484 against 492. Eight models won and none lost - `PID_Controller`,
+four of `Magnetic.FundamentalWave`, and three of
+`Magnetic.QuasiStatic.FundamentalWave`, which is the six that were
+parked as a family. The other 26 of the row stand one wall further
+along: `SMEE_DOL` now counts 7 conditions against 4 pinned starts for
+a system it still does not balance, which is a second question about
+how many conditions a machine's section really writes.

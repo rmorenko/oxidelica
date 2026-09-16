@@ -4169,6 +4169,27 @@ impl CompiledModel {
         // square problem read as a lopsided one.
         let states = self.states.len();
         let n = states + unsettled.len();
+        // A `fixed = true` written on a variable index reduction later
+        // demoted is an initial condition like any other, and it was
+        // being dropped: the declaration names an algebraic of the
+        // reduced model, so neither the states' `fixed` flags nor the
+        // `initial equation` section carries it. What the count saw was
+        // a section one condition short, so the filling in below pinned
+        // a state the section does determine to make up the difference,
+        // and the problem came out over-determined - `inertia1.a` of
+        // the PID example, and the machine examples that anchor a
+        // terminal current the same way.
+        //
+        // It enters as an equation rather than as a pinned state
+        // because that is what it is: a condition on a variable the
+        // plan computes, satisfied by moving the states until the
+        // computed value agrees with the declared one.
+        let demoted_fixed: Vec<(usize, f64)> = self
+            .fixed_starts
+            .iter()
+            .map(|(_, index, value)| (*index, *value))
+            .collect();
+        let conditions = initial_equations.len() + demoted_fixed.len();
         // A state no initial equation says anything about is not an
         // unknown of the initialisation: nothing in the section can
         // move it, so it stands at the start value it was given. An
@@ -4190,7 +4211,7 @@ impl CompiledModel {
         // it did not mention would answer it with an arithmetic
         // complaint instead.
         let declared = fixed.iter().filter(|f| **f).count();
-        let mut filled = if initial_equations.len() + declared == n {
+        let mut filled = if conditions + declared == n {
             fixed.to_vec()
         } else {
             // An initial equation says something about a state whether
@@ -4298,11 +4319,11 @@ impl CompiledModel {
         // declaration is not where its value comes from.
         filled.resize(n, false);
         let pinned = filled.iter().filter(|f| **f).count();
-        if initial_equations.len() + pinned != n {
+        if conditions + pinned != n {
             return err(format!(
-                "initialization is not square: {} initial equation(s) and {pinned} fixed start(s) \
-                 for {n} unknown(s) ({states} state(s) and {} parameter(s) left to it)",
-                initial_equations.len(),
+                "initialization is not square: {conditions} initial equation(s) and {pinned} \
+                 fixed start(s) for {n} unknown(s) ({states} state(s) and {} parameter(s) left \
+                 to it)",
                 unsettled.len()
             ));
         }
@@ -4346,6 +4367,11 @@ impl CompiledModel {
             let mut out = Vec::with_capacity(n);
             for (lhs, rhs) in &substituted {
                 out.push(lhs.run(values, 0.0) - rhs.run(values, 0.0));
+            }
+            // The declared value of a demoted variable against what the
+            // plan just computed for it at this point.
+            for (index, expected) in &demoted_fixed {
+                out.push(values[self.algebraic_slots[*index]] - expected);
             }
             for (index, pinned) in fixed.iter().enumerate() {
                 if *pinned {
