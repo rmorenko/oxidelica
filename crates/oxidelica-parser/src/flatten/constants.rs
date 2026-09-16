@@ -542,7 +542,7 @@ fn class_constant_binding_at(
 /// unanswered the name travels into the flat model with the instance
 /// path stuck on the front - `world.Modelica.Mechanics.MultiBody
 /// .Types.Defaults.FrameColor` - which nothing declares.
-fn class_constant_array_at(
+pub(super) fn class_constant_array_at(
     registry: &HashMap<&str, &ClassDef>,
     name: &str,
     scope: &str,

@@ -903,6 +903,46 @@ fn a_record_constant_is_read_past_a_package_of_the_same_name() {
 }
 
 #[test]
+fn a_record_constant_named_bare_is_folded_by_its_own_package() {
+    // Inside a medium's own functions the gas data is named bare -
+    // `data.Tlimit` in the body of `specificEnthalpy`, and `data`
+    // handed whole to `h_T`. A bare name standing for a record is
+    // neither a number nor a list, so every road in the substitution
+    // passed it by and it reached the flat model with the instance
+    // path on its front as `medium.data`, which nothing declares.
+    // Asked by its whole path the same record answers, so the package
+    // that declares the name is found first and the dotted road taken
+    // from there.
+    //
+    // The number is what is checked: the temperature limit between the
+    // two NASA coefficient sets is 1000 K.
+    let m = parse_model(
+        "record DataRecord Real MM; Real Tlimit; end DataRecord; \
+         package GasData constant DataRecord N2(MM = 0.0280134, Tlimit = 1000); end GasData; \
+         package Common \
+           function of_record input DataRecord d; output Real y; algorithm y := d.Tlimit; \
+             end of_record; \
+         end Common; \
+         partial package SingleGas constant DataRecord data; \
+           model Base Real t; equation t = Common.of_record(data); end Base; \
+         end SingleGas; \
+         package Nitrogen extends SingleGas(data = GasData.N2); end Nitrogen; \
+         model M Nitrogen.Base b; Real x; equation der(x) = b.t; end M;",
+    )
+    .unwrap();
+    let read = m
+        .equations
+        .iter()
+        .find(|e| format!("{:?}", e.lhs) == format!("Ref({:?})", "b.t"))
+        .and_then(|e| super::const_eval(&e.rhs, &std::collections::HashMap::new()))
+        .expect("the temperature limit is a number");
+    assert!(
+        (read - 1000.0).abs() < 1e-9,
+        "temperature limit came out {read}"
+    );
+}
+
+#[test]
 fn a_record_constant_bound_to_another_record_constant_carries_its_fields() {
     // Every NASA ideal gas is written `extends SingleGasNasa(data =
     // Common.SingleGasesData.N2)`: the record constant is given the

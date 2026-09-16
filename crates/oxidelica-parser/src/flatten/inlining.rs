@@ -1627,6 +1627,37 @@ fn bind_the_arguments(
                     }
                 }
             }
+            // A bare name standing for a record constant, resolved to
+            // the record it names before anything is bound. Inside a
+            // medium's own functions the gas data is written `data`
+            // and handed whole to `h_T`: nothing folds a name that
+            // means a record, so what would be bound is `data.Tlimit`
+            // and its like, which reach the flat model with the
+            // instance path on the front as `medium.data.Tlimit` and
+            // are declared nowhere. Found where it is declared and
+            // handed over in place of the name, the body reads
+            // numbers instead of a path.
+            let resolved = match arg {
+                // The name as written, and the tail of a name the
+                // instance prefix has already been put on. The same
+                // call is reached both ways - once from the body the
+                // medium wrote and once from the equation flattening
+                // built out of it - and by the second time `data` has
+                // become `medium.data`. A tail is only taken where
+                // what stands in front of it is not a class, so this
+                // does not shorten a name that resolves on its own.
+                Expr::Ref(named) => match named.rsplit_once('.') {
+                    None => bare_record_constant(registry, named),
+                    Some((head, tail)) => {
+                        match lookup(registry, head, &class.name, &class.imports).is_none() {
+                            true => bare_record_constant(registry, tail),
+                            false => None,
+                        }
+                    }
+                },
+                _ => None,
+            };
+            let arg = resolved.as_ref().unwrap_or(arg);
             // A record input arrives as its fields, and the body reads
             // them by name: `c1.re` has to be bound, not `c1`.
             //
@@ -1714,6 +1745,58 @@ fn bind_the_arguments(
     }
 
     Ok(())
+}
+
+/// A bare name standing for a record constant, as the record it names.
+///
+/// Inside a medium's own functions the gas data is written `data`,
+/// declared `constant DataRecord data` in the interface and given a
+/// value by whichever medium extended it. A name that means a record
+/// is neither a number nor a list, so the constant substitution passes
+/// it by and it travels into the flat model with the instance path on
+/// its front. Asked by its whole path the same record answers with the
+/// constructor its binding comes to, so the package that declares the
+/// name is found first and the dotted road taken from there.
+fn bare_record_constant(registry: &HashMap<&str, &ClassDef>, named: &str) -> Option<Expr> {
+    // The medium the call was made through is where the value stands:
+    // the interface declares the name and leaves it empty. No mark, no
+    // medium to ask - and that read excludes every model with no
+    // medium in it, which is most of them.
+    let under = asked_as_mark();
+    if under.is_empty() {
+        return None;
+    }
+    let medium = registry.get(under.as_str())?;
+    let held = with_inherited_components(medium, registry)
+        .into_iter()
+        .find(|c| c.name == named && c.variability == Variability::Constant)?;
+    let built = constants::class_constant_array_at(
+        registry,
+        &format!("{}.{}", medium.name, held.name),
+        &medium.name,
+        &medium.imports,
+        0,
+    )?;
+    // What comes back is the constructor the binding names, whose
+    // arguments are written by name and in whatever order the library
+    // wrote them. The caller binds a record's fields by position, so
+    // the constructor is read into the order the record declares -
+    // and a field the constructor leaves out is one this cannot
+    // answer for, which is a refusal rather than a guess.
+    let Expr::Call(record, args) = &built else {
+        return None;
+    };
+    let of = lookup(registry, record, &medium.name, &medium.imports)?;
+    let declared = record_fields_of(registry, of, 0);
+    let mut fields = Vec::new();
+    for field in &declared {
+        let value = args.iter().find_map(|arg| match arg {
+            Expr::NamedArg(given, value) if given == field => Some((**value).clone()),
+            _ => None,
+        })?;
+        fields.push(value);
+    }
+    Some(Expr::Array(fields))
 }
 
 /// The fields of a record-typed argument that are single numbers.

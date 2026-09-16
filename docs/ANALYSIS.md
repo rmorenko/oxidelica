@@ -9664,3 +9664,41 @@ is lost - this is the second link of a chain and not its end, so the
 number that moves is the one the last link will move. What it buys is
 that the field lookup is now right for a shape it was silently wrong
 for, and the remaining wall is named above rather than guessed at.
+
+## The gas data chain, the third link
+
+The third link is taken, and it was not where the map said. The map
+had the fold going into the constant substitution, beside the minting
+road: give the bare name its path, let `flat_name` leave a minted name
+alone, and the chain ends. Built there, it read `821 flatten` down to
+`803` and the flattening time from 2109 to 3705 seconds, because a
+fold at that depth fires for every bare name a library writes and not
+only for a record of the medium. Eighteen models were lost to it,
+`ModelicaTest.Fluid` and `ModelicaTest.Media` almost entirely, and
+narrowing the gate - a mark, then a mark that is the declaring
+package - moved none of them back. That is the sign that the layer
+was wrong rather than the condition.
+
+The place is where an argument is bound to a record input. A record
+handed over by name is already taken apart there, field by field, so
+that the body reads `data.Tlimit` off the caller's own name; the only
+thing missing was that the caller's name here is a constant of the
+medium rather than a variable of the model. Found where it is
+declared and handed over in the record's own field order, the body
+reads numbers and no path survives into the flat model. Nothing else
+in the compiler changes, which is why the eighteen came back.
+
+One shape had to be read twice. The same call is reached from the
+body the medium wrote, where the argument is `data`, and from the
+equation flattening built out of it, where the prefix is already on
+and the argument is `medium.data`. A tail is taken only where what
+stands in front of it is not a class, so a name that resolves on its
+own is never shortened - the rule the compiler already holds about
+names shortened to their tails.
+
+Measured through a switch on one binary, the corpus twice: 821
+flatten either way, run 481 against 482, runnable 725 either way and
+450 against 451. The flattened list is identical line for line and
+the run list gains `Modelica.Media.Examples.IdealGasH2O` and loses
+nothing. Flattening came down from 2109 to 1743 seconds, which is the
+cost of the paths that used to survive.
