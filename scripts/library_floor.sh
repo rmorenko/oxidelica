@@ -79,10 +79,10 @@
 # schedule, so nothing is hidden by the carving - and the floors below
 # came down by exactly what moved:
 #
-#   flatten 824 = 821 here + 3 in the scheduled run
-#   run     482 = 482 here + 0 in the scheduled run
-#   runnable flatten 726 = 725 here + 1 in the scheduled run
-#   runnable run     451 = 451 here + 0 in the scheduled run
+#   flatten 830 = 827 here + 3 in the scheduled run
+#   run     484 = 484 here + 0 in the scheduled run
+#   runnable flatten 732 = 731 here + 1 in the scheduled run
+#   runnable run     453 = 453 here + 0 in the scheduled run
 #
 # The run halves did not move because none of the three runs yet: what
 # they cost is spent reaching a refusal. That is written down because a
@@ -93,10 +93,10 @@
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=821
-RUN_FLOOR=482
-RUNNABLE_FLATTEN_FLOOR=725
-RUNNABLE_RUN_FLOOR=451
+FLATTEN_FLOOR=827
+RUN_FLOOR=484
+RUNNABLE_FLATTEN_FLOOR=731
+RUNNABLE_RUN_FLOOR=453
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

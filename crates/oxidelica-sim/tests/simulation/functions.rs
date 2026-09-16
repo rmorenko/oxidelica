@@ -1401,3 +1401,35 @@ fn a_mediums_record_constant_is_read_through_the_extends_that_gave_it() {
         result.rows[0][y]
     );
 }
+
+#[test]
+fn a_computed_array_of_records_spreads_a_call_written_for_one() {
+    // The shape a quasi-static machine states its stator power in:
+    // `activePower(vs, is)` sums `real(v[k] * conj(i[k]))` over the
+    // phases, and `conj` is a function written for one record handed
+    // an array of them. An element of the array that a model declared
+    // arrives as a name - `vs[1]` - and was recognised by that; one
+    // that was computed has no name left, only the fields it came out
+    // as. Read by the name alone, three phasors were taken for the
+    // fields of one record and the call was refused, or worse, spread
+    // over the elements so that every equation of the power balance
+    // named an array the flat model never declared.
+    let result = run("package P record C Real re; Real im; end C; \
+         function conj input C c; output C y; \
+         algorithm y.re := c.re; y.im := -c.im; end conj; \
+         function re input C c; output Real y; algorithm y := c.re; end re; \
+         end P; \
+         model M P.C vs[3]; Real r[3]; \
+         equation \
+         for k in 1:3 loop vs[k].re = 1.0 * k; vs[k].im = 0; end for; \
+         r = P.re({P.conj(vs[k]) for k in 1:3}); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // One, two and three, each element its own: a call spread wrongly
+    // gives every element the first phasor, and one not spread at all
+    // refuses the model.
+    for k in 1..=3 {
+        assert!((last[at(&format!("r[{k}]"))] - k as f64).abs() < 1e-12);
+    }
+}

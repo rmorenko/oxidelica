@@ -9767,3 +9767,45 @@ Worth noting against the temptation to call this a walk problem
 generally: the same record travels perfectly well when it is written
 out in full. `Functions.h_T(SingleGases.N2.data, 300 + time)` runs and
 answers. It is the partial application that has nowhere to put it.
+
+### `vs[1]`: a record computed rather than named
+
+The `vs[1]` of this register is not the `vs[1]` of the machines a week
+ago. That one was a modifier arriving as a bare array and spread over
+the elements, so the power balance got one equation per phase where it
+was owed one; the fix was to read the writer's lengths with this
+class's own, and it left the machines refusing at a wall with the same
+name on it. This one is a layer below, in how a call written for one
+record is spread over an array of them, and the earlier rule does not
+reach it. Same name in the refusal, different breed - which is the
+scar about a kind being a row and not a family, seen once more through
+the name rather than through the wording.
+
+`Modelica.Electrical.QuasiStatic.Polyphase.Functions.activePower` sums
+`real(v[k] * conj(i[k]))` over the phases, and `conj` is written for
+one `Complex` and handed an array of them. The language vectorizes
+that, one call per element, and `spread_of_records` in `arrays.rs` is
+what counts the elements. It recognised an element by its name: `vs[1]`
+of a declared array is a name the table of records knows. A record
+that was _computed_ has no name left - `{conj(vs[k]) for k in 1:3}` is
+three records each already written out as its two fields - and read by
+the name alone the three were taken for the fields of one and refused
+for being three where two were wanted. Where the value did reach the
+modifier, it was spread over the elements instead, and every equation
+of the power balance named `vs[1]`, which the flat model does not
+declare.
+
+What says a value is one record there is its depth and its width: an
+array of exactly as many plain values as the input's record declares
+fields. Measured on the corpus, one binary, `OXIDELICA_NO_WRITTEN_RECORDS`
+either way, the heavy models carved out as usual: flatten 821 to 827,
+run 482 to 484, runnable 725 to 731 and 451 to 453. Both lists diffed
+before against after, and there are no victims at all - the change
+only adds. What it adds to the run is `TestSensors` of the polyphase
+sensors and `IMC_Inverter`; the other six reach flattening and stop at
+initialization that is not square, which is a wall of its own and the
+next thing to ask about for this family.
+
+The test holds a number rather than a flattening: three phasors
+conjugated element by element give one, two and three back, where a
+call spread wrongly gives the first phasor three times.

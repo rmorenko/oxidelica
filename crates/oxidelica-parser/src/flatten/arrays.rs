@@ -1693,9 +1693,10 @@ pub(super) fn spread_of_records(
         // an array of names is an array of records and an array of
         // values is the fields of one.
         if items.is_empty()
-            || !items
-                .iter()
-                .all(|item| whole_record(item, shapes, registry).is_some())
+            || !items.iter().all(|item| {
+                whole_record(item, shapes, registry).is_some()
+                    || written_out_record(item, registry, class, input)
+            })
         {
             continue;
         }
@@ -1705,6 +1706,35 @@ pub(super) fn spread_of_records(
         spread = Some(items.len());
     }
     spread
+}
+
+/// Whether a value is one record of an array already written out as
+/// its fields.
+///
+/// The rule above reads an element of an array of records by its
+/// name - `vs[1]` - which is how a variable of the model arrives.
+/// A value that was computed rather than named has no name left:
+/// `{conj(vs[k]) for k in 1:3}` is three records each of them already
+/// its fields, and read by the name test alone the three were taken
+/// for the fields of one and refused for being three where two were
+/// wanted. What says a value is one record here is its depth and its
+/// width: an array of exactly as many plain values as the input's
+/// record declares fields.
+fn written_out_record(
+    value: &Value,
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    input: &Component,
+) -> bool {
+    let Some(fields) = record_fields::record_input_fields(registry, class, input) else {
+        return false;
+    };
+    let Value::Array(items) = value else {
+        return false;
+    };
+    items.len() == fields.len()
+        && !items.is_empty()
+        && items.iter().all(|item| matches!(item, Value::Scalar(_)))
 }
 
 /// How many elements a call spreads over where every input the
