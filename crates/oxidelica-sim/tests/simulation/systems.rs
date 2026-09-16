@@ -154,6 +154,42 @@ fn a_product_equation_is_matched_where_it_multiplies() {
 }
 
 #[test]
+fn a_slope_worth_exactly_zero_is_not_the_cheap_pairing() {
+    // The air gap's shape, in eleven lines. A mutual inductance matrix
+    // whose off-diagonal a library sets to zero says the two windings
+    // do not couple, so `psi2 = L12*i1 + L11*i2` determines `i2` and
+    // says nothing whatever about `i1`. The matching ranked a slope
+    // naming no other unknown as the cheapest pairing without asking
+    // what that slope is worth, so this equation was handed `i1`, and
+    // what solving it for `i1` needs is a division by `L12`.
+    //
+    // Judged with the parameter table in view the slope is the number
+    // zero, which is the equation declining to mention the name at
+    // all - the dearest pairing there is, and the matching then falls
+    // on the one that exists. The check is the answer and not the
+    // running: `i1 = sin(time)` is given, so `psi1 = L11*i1` exactly.
+    let result = run("model Z parameter Real L11 = 2; parameter Real L12 = 0; \
+         Real psi1(start = 1); Real psi2(start = 0); Real i1; Real i2; Real u; \
+         equation psi1 = L11 * i1 + L12 * i2; psi2 = L12 * i1 + L11 * i2; \
+         der(psi1) = u - i1; der(psi2) = -i2; i1 = sin(time); \
+         annotation(experiment(StopTime=0.1, Interval=0.05)); end Z;");
+    let value = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    let t = 0.1_f64;
+    assert!((value("i1") - t.sin()).abs() < 1e-9, "i1 = {}", value("i1"));
+    // The windings do not couple, so the second flux stays where the
+    // second current is: at nothing.
+    assert!((value("i2")).abs() < 1e-9, "i2 = {}", value("i2"));
+    assert!(
+        (value("psi1") - 2.0 * t.sin()).abs() < 1e-7,
+        "psi1 = {}",
+        value("psi1")
+    );
+}
+
+#[test]
 fn a_torn_block_does_not_divide_by_its_own_unknown() {
     // The heated resistor's shape, and the reason a whole family of
     // library models would not start. The loop is `v = R*i` with `R`

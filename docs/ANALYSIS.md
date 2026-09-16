@@ -9315,3 +9315,94 @@ take another pairing where one exists. That is a change to
 `solve_cost` and its shape, it decides which states survive reduction,
 and so it is measured by the list of victims and both run lists - not
 by a count.
+
+### The rank that reads the parameter table, and the layer behind it
+
+The rank above was built and measured. `solve_cost` now has a third
+answer: `ZeroSlope`, for a slope whose every name the parameter table
+values and which folds to exactly zero. That is not a cheap pairing,
+it is the equation declining to mention the name at all, and it ranks
+dearer than anything else so the matching falls on a pairing that
+exists. Behind `OXIDELICA_ZERO_RANK`'s negative, `OXIDELICA_NO_ZERO_RANK=1`.
+
+The eleven-line model of the air gap's shape is the witness, and it is
+a witness about an answer rather than about running. Two windings with
+a mutual inductance matrix whose off-diagonal is zero, one current
+given: `psi2 = L12*i1 + L11*i2` determines `i2` and says nothing about
+`i1`, so handed `i1` it divides by nothing. With the rank out the
+model dies of a singular Jacobian; with it in, `psi1 = L11*sin(t)`
+exactly. The test asserts the numbers.
+
+What the rank does not do is win the air-gap seven, and the reason is
+worth writing down because it cost most of a shift. The divisor in
+`IMC_DOL` is not built by the matching at all. Index reduction builds
+it, in the candidate-definition loop, where `solve_linear_for` is
+called with an _empty_ parameter table - so the same blindness sits
+one storey above the rank, in a place the rank cannot reach.
+
+Handing that call the real table is four characters of change and it
+was built, measured and thrown away. It works, in the sense that
+`IMC_DOL` leaves its infinity at time zero and arrives at a singular
+Jacobian one storey up - the same move the quench made in the shift
+before, and a move is not a win. What it also does is make
+`RollingWheelSetPulling` take longer than twenty minutes where it
+takes fifty-two seconds, measured on one binary with the two halves
+behind separate switches: rank only, 52 seconds; candidate judging on,
+still running after twenty. A definition refused is a definition index
+reduction must find another way around, and in a model with that many
+constraints the other ways multiply.
+
+So the rank ships and the candidate half does not. The map for
+whoever takes this next: the target is `compile.rs`'s candidate loop,
+the fix is not "pass the table" but "pass the table without making
+reduction search", and the instrument is `--only
+RollingWheelSetPulling` timed against fifty-two seconds, which answers
+in a minute what the corpus answers in half an hour.
+
+Measured on one binary over the corpus twice, with the heavy set out:
+flatten 819 and run 481 both ways, and both lists identical line for
+line - the two controls of the shift before, `PolyphaseInductance` and
+`WaterPump`, among them. So the rank costs nothing and wins nothing on
+this corpus, and what it buys is the class of wrong number the small
+model shows: where a zero-slope pairing was taken and another existed,
+the other is taken now. A correctness fix with a flat count is still a
+fix; it is recorded as one rather than as a win.
+
+## The parameter-without-value family, split
+
+The census entry is read as a queue of a hundred models, and the queue
+is mostly an accounting error. Probed on the corpus at 819/481, the
+kind `parameter X has no value` counts 25 refusals over 19 models, and
+the split by what the model _is_:
+
+- **15 of 19 are service or base classes** - `...Utilities.*`,
+  `...BaseClasses.*`, `...Interfaces.*`, `...Components.*`. A
+  `DcdcInverter`, a `TankController`, a `GasForce2`: these are written
+  to be finished by whoever instantiates them, their parameters are
+  unbound _on purpose_, and a compiler that refuses them is right. The
+  work queue does not own them.
+- **4 are examples**, and only those are candidates for a fix:
+  `Modelica.Blocks.Examples.Filter`, the two
+  `OpAmpCircuits.Der`/`Derivative`, and
+  `Modelica.Electrical.Batteries.Examples.ShowImpedance`.
+
+And one of the four is ours outright, which the probe would not have
+found by counting. `ShowImpedance` declares
+`Utilities.Impedance impedance(cellData=cellData)` beside
+`parameter ...ExampleData cellData(Qnom=3600, Ri=0.01)`, and `why`
+answers that `impedance.cellData.Qnom` is bound to nothing. The value
+is written in the model text. What does not happen is a whole-record
+binding carrying its own modifiers through the component it is handed
+to: `cellData=cellData` names a record that has `Qnom`, and the name
+arrives without it. That is a compiler oversight and the one address
+in this family worth a change.
+
+`Modelica.Blocks.Examples.Filter` is a different kind wearing the same
+words - `den1[1]` is assigned in one branch of an `if` only - and
+belongs with the branch-assignment family rather than here.
+
+So the honest size of this queue is four, not a hundred, and the
+census line should say `parameter has no value (service class)`
+separately from the rest the way the numerical queue was split out.
+Fifteen models are refusing correctly and no change should try to win
+them.

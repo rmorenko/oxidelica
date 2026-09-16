@@ -864,13 +864,34 @@ enum SolveShape {
     /// `None` where the equation could not be differentiated, which is
     /// as dear as it gets.
     Slope(Option<Vec<String>>),
+    /// The slope is known, names nothing that can move, and the
+    /// parameters it names make it exactly zero: this equation does
+    /// not determine this name at all. The names it mentions are kept
+    /// so the old rank can still be read off with the switch out.
+    ZeroSlope(Vec<String>),
+}
+
+/// Whether a slope worth exactly zero is ranked as the dearest
+/// pairing rather than the cheapest.
+///
+/// Behind a switch so that one binary can produce both numbers: two
+/// counts are comparable only when the same build made them.
+/// On by default; `OXIDELICA_NO_ZERO_RANK=1` gives the old rank.
+///
+/// Read once and kept. The rank is asked for every name of every
+/// equation at every reduction, which is millions of askings over one
+/// library, and an environment lookup allocates and takes a lock each
+/// time. A test that cannot change its answer is asked once.
+fn zero_rank_enabled() -> bool {
+    static ANSWER: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ANSWER.get_or_init(|| std::env::var_os("OXIDELICA_NO_ZERO_RANK").is_none())
 }
 
 /// The half of the rank that does not move: worked once per equation
 /// and name, under the same bracket as `solved_for` - inside one
 /// reduction the equation list is only appended to, so the pair at an
 /// index is the pair that was there before.
-fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str) -> SolveShape {
+fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>) -> SolveShape {
     let mentions = |expr: &Expr| {
         let mut refs = Vec::new();
         expr.collect_refs(&mut refs);
@@ -895,6 +916,18 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str) -> SolveShape {
     let mut named: Vec<String> = refs.into_iter().map(str::to_string).collect();
     named.sort_unstable();
     named.dedup();
+    // A slope every one of whose names is a parameter is a number, and
+    // a number that is zero says the equation does not hold this name
+    // at all. Pairing it here is what hands Newton a singular row.
+    let mut folded = slope.clone();
+    for named_ref in &named {
+        if let Some(value) = params.get(named_ref.as_str()) {
+            folded = substitute(&folded, named_ref, *value);
+        }
+    }
+    if matches!(simplify(&folded), Expr::Number(n) if n == 0.0) {
+        return SolveShape::ZeroSlope(named);
+    }
     SolveShape::Slope(Some(named))
 }
 
@@ -923,6 +956,13 @@ fn solve_cost(shape: &SolveShape, others: &[String]) -> u8 {
             true => 2,
             false => 1,
         },
+        SolveShape::ZeroSlope(refs) => match zero_rank_enabled() {
+            true => 3,
+            false => match refs.iter().any(|r| others.iter().any(|o| o == r)) {
+                true => 2,
+                false => 1,
+            },
+        },
     }
 }
 
@@ -935,6 +975,7 @@ fn order_by_solve_cost(
     algebraic_eqs: &[(Expr, Expr)],
     unknowns: &[String],
     shapes: &mut HashMap<(usize, String), SolveShape>,
+    params: &HashMap<String, f64>,
 ) {
     for (eq, vars) in eq_vars.iter_mut().enumerate() {
         if vars.len() < 2 {
@@ -946,7 +987,7 @@ fn order_by_solve_cost(
         for (&v, name) in vars.iter().zip(&names) {
             let shape = shapes
                 .entry((eq, name.clone()))
-                .or_insert_with(|| solve_shape(lhs, rhs, name));
+                .or_insert_with(|| solve_shape(lhs, rhs, name, params));
             let others: Vec<String> = names.iter().filter(|n| *n != name).cloned().collect();
             ranked.push((solve_cost(shape, &others), v));
         }
@@ -1089,7 +1130,13 @@ fn reduce_index(
         // and makes the run divide by another unknown of the block.
         let mut eq_vars = eq_vars;
         if match_order_enabled() {
-            order_by_solve_cost(&mut eq_vars, &algebraic_eqs, &unknowns, &mut solve_shapes);
+            order_by_solve_cost(
+                &mut eq_vars,
+                &algebraic_eqs,
+                &unknowns,
+                &mut solve_shapes,
+                params,
+            );
         }
         let eq_vars = eq_vars;
 

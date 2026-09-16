@@ -14,10 +14,10 @@ under a chapter works as specified for the subset this project covers.
 | 6   | Type relationships            | Minimal |
 | 7   | Inheritance, redeclaration    | Full    |
 | 8   | Equations                     | Mostly  |
-| 9   | Connectors and connections    | Partial |
+| 9   | Connectors and connections    | Mostly  |
 | 10  | Arrays                        | Mostly  |
 | 11  | Statements and algorithms     | Partial |
-| 12  | Functions                     | Partial |
+| 12  | Functions                     | Mostly  |
 | 13  | Packages                      | Full    |
 | 14  | Overloaded operators          | Full    |
 | 15  | Stream connectors             | Full    |
@@ -329,13 +329,22 @@ that rule beside it. Differentiation reaches for
 the rule instead of taking the body apart, which is what lets a body
 the differentiator cannot read — one with `abs` in it — still carry a
 model that needs its constraint differentiated or its Jacobian built.
-The options the specification allows beside it (an order, a
-`noDerivative`, a `zeroDerivative`) change which arguments the named
-function takes and what it answers, so an annotation carrying one is
-read past and not kept: the call stands with no derivative rule of its
-own rather than a wrong one, and a derivative asked of it is refused by
-name. Reading one wrong would give a wrong derivative and nothing
-downstream could catch it. `annotation(inverse(x = f_inv(y)))` is read
+Of the options the specification allows beside it, `zeroDerivative` is
+read: `derivative(zeroDerivative = delta) = f_der` says the rule holds
+wherever `delta` does not change with time, which is how the fluid
+library writes its smoothing functions, and the inputs it names are
+carried so the rule is taken only where they stand still. That is what
+lets a body with an `abs` in it carry a model needing its Jacobian
+built. The other two - an order, and `noDerivative` - change which
+arguments the named function takes and what it answers, so an
+annotation carrying either is read past and not kept: the call stands
+with no derivative rule of its own rather than a wrong one, and a
+derivative asked of it is refused by name. Reading one wrong would give
+a wrong derivative and nothing downstream could catch it.
+`InlineAfterIndexReduction` is not read either - inlining here happens
+before reduction or not at all, so honouring it would want a second
+inlining pass that does not exist.
+`annotation(inverse(x = f_inv(y)))` is read
 and checked — the function has to exist, the input has to be one this
 one takes, the arguments have to be things it has to hand — and then
 set aside: the nonlinear corrector already solves `f(x) = u` for `x`,
@@ -484,9 +493,17 @@ not understand must not stop it.
 
 Everything the chapter calls an error is one. `mustBeConnected` refuses
 a port nothing connects to and `mayOnlyConnectOnce` a port named twice,
-each with the message its declaration wrote; `Evaluate = true` refuses
-a parameter whose value the compiler cannot settle, since asking to be
-evaluated and not being is not a thing to pass over. `experiment` says
+each with the message its declaration wrote. `Evaluate = true` is a
+proposal and not a demand - the chapter's word is `proposes`, beside
+`Inline` and `smoothOrder` - so a parameter whose value the compiler
+can settle takes the proposal and is evaluated, and one it cannot is
+carried into the run with a note saying which binding defeated it,
+which declines the offer. An offer declined is no broken law, where
+refusing the model would be a wall built out of an annotation.
+`fixed` may be any Boolean expression, as the language allows and as
+the fluid valves use - `Av(fixed = CvData == CvTypes.Av)` - and the
+expression is carried to where the enumeration is known rather than
+being dropped or read as `false`. `experiment` says
 where a run begins, how long it is and how often it writes - a
 `StartTime` other than zero is the time the run starts at, which is
 how the flux tubes sweep a coil from `-4` millimetres with `time`
@@ -557,8 +574,13 @@ conversions and `spatialDistribution` among them - take their arguments
 by name as well as by position, and a name none of them declares, or one
 given twice, is refused by that name. `Connections.root`, `potentialRoot`, `branch`,
 `isRoot` and `rooted` decide the roots of an overconstrained graph and
-refuse one with no root or with two, but no equality constraints are
-generated or dropped, since overdetermined types are not supported.
+refuse one with no root or with two. `rooted(a)` answers by depth in
+the spanning tree - whether `a` is the end of its branch nearer the
+root - and not by whether `a` is itself a root, which are different
+answers wherever a branch is longer than one edge. A connection that
+closes a loop owes the record's `equalityConstraint(r1, r2)` and gets
+it, so an overdetermined connector is balanced by the residue its own
+function writes rather than by the equality a tree connection takes.
 `delay(u, T)` keeps what `u` was at each output point and reads
 between them in a straight line, so the shift is as exact as
 `Interval` is fine and the step is never longer than the delay; `T`
