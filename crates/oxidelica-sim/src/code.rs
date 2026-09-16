@@ -108,6 +108,27 @@ pub(crate) fn truth(yes: bool) -> f64 {
     }
 }
 
+/// The numbers an argument holds, however its writing grouped them.
+///
+/// A body written here takes numbers and not shapes: a matrix reaches
+/// it as an array of rows, each row an array again, and what the body
+/// wants is the leaves in the order they were written. Both sides of
+/// the run - the one that compiles a call and the one that evaluates
+/// it before the run begins - need the same reach, and having had two
+/// answers to it is what left `dgesv` reported as a name nothing
+/// works out whenever its matrix was written out in full.
+pub(crate) fn leaves(expr: &Expr) -> Vec<&Expr> {
+    fn walk<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
+        match expr {
+            Expr::Array(items) => items.iter().for_each(|item| walk(item, out)),
+            one => out.push(one),
+        }
+    }
+    let mut out = Vec::new();
+    walk(expr, &mut out);
+    out
+}
+
 /// Booleans are represented as 1.0 / 0.0 (proper typing is an M1+ task).
 pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
     use oxidelica_parser::BinOp::*;
@@ -201,17 +222,18 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
             if let (Expr::Call(called, args), [which]) = (base.as_ref(), subscripts.as_slice()) {
                 if oxidelica_parser::outside::written_here(called) {
                     // However the declaration grouped them, what the
-                    // body takes is the numbers: an array argument is
-                    // as many of them as it holds.
+                    // body takes is the numbers. A matrix arrives as
+                    // an array of its rows, so taking an argument
+                    // apart one level deep hands a solver its rows
+                    // instead of its numbers and the name is then
+                    // reported as one nothing works out. The compiled
+                    // side of the run has taken them apart to the leaf
+                    // all along; this is the same reach on the side
+                    // that evaluates.
                     let mut given = Vec::new();
                     for arg in args {
-                        match arg {
-                            Expr::Array(items) => {
-                                for item in items {
-                                    given.push(eval(item, ctx)?);
-                                }
-                            }
-                            one => given.push(eval(one, ctx)?),
+                        for leaf in leaves(arg) {
+                            given.push(eval(leaf, ctx)?);
                         }
                     }
                     let place = eval(which, ctx)? as usize;
@@ -762,16 +784,9 @@ impl SlotTable {
             // A matrix arrives as an array of its rows, and what the
             // body takes is the numbers themselves, in the order they
             // were written.
-            fn leaves<'a>(expr: &'a Expr, out: &mut Vec<&'a Expr>) {
-                match expr {
-                    Expr::Array(items) => items.iter().for_each(|item| leaves(item, out)),
-                    one => out.push(one),
-                }
-            }
             let (mut given, mut handed) = (Vec::new(), Vec::new());
             for arg in args {
-                let mut here = Vec::new();
-                leaves(arg, &mut here);
+                let here = leaves(arg);
                 handed.push(here.len());
                 for one in here {
                     given.push(self.compile(one)?);

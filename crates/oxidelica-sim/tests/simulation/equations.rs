@@ -1536,6 +1536,34 @@ fn a_system_of_equations_is_solved_by_a_body_written_here() {
     assert!(refusal.contains("written here"), "{refusal}");
 }
 
+/// A parameter whose value is a solve is worked out before the run.
+///
+/// The pump characteristics of the standard library fit a quadratic
+/// through three operating points, and every parameter downstream of
+/// the fit is bound to a solve of a three by three matrix written out
+/// in full. The side of the run that settles parameters took an
+/// argument apart one level deep, so what reached the body was three
+/// rows rather than nine numbers; the shape did not fit, the body
+/// answered nothing, and the name came back as one nothing works out.
+#[test]
+fn a_parameter_bound_to_a_solve_of_a_written_out_matrix_is_worked_out() {
+    let result = run(
+        "model M function solve input Real a[:, size(a, 1)]; input Real b[size(a, 1)]; \
+         output Real x[size(a, 1)]; output Integer info; \
+         external \"FORTRAN 77\" dgesv(a, b, x, info); end solve; \
+         parameter Real c[3] = solve([1, 0, 0; 1, 0.25, 0.0625; 1, 0.5, 0.25], {100, 60, 0}); \
+         Real y; \
+         equation y = c[2]; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // The quadratic through (0, 100), (0.25, 60) and (0.5, 0) has the
+    // coefficients 100, -120 and -160, and the slope at the origin is
+    // the second of them.
+    assert!((last[column("y")] + 120.0).abs() < 1e-9, "{:?}", last);
+}
+
 /// A logical operator on things only the array pass can settle.
 ///
 /// `anyTrue` is written as `size(b, 1) > 0 and max(b)`, and both sides

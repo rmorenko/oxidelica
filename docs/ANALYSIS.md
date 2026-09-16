@@ -9492,3 +9492,52 @@ value is a call the compiler will not evaluate, not a parameter nobody
 bound. That is a different illness wearing the same row, and the top of
 the run half meanwhile is the algebraic loops at 29 and the square
 initialization at 28.
+
+## A matrix argument taken apart one level deep
+
+The queue's top read as one kind - a parameter whose value is a call
+the compiler will not work out - and the kind proved to be three
+mechanisms rather than one. Counted over the whole of the census at
+821/481, `cannot evaluate parameters` divides sixteen rows that end in
+`nothing works out` from twenty-eight that end in `nothing gives a
+value to`, and only the first sixteen are about a call at all. Of those
+sixteen, eleven name `dgesv`: ten as `dgesv, max, min` and one alone.
+The remaining five are five different names apiece - the water of
+IF97 twice, a colour map, a quadrature and a Dissipation correlation.
+
+The pump cluster was the address, and what stood there was not the
+function interpreter the shape suggested. Every body along the way had
+already been unfolded by the time the run asked: `quadraticFlow` fits a
+quadratic through three operating points, its `Modelica.Math.Matrices.solve`
+had reached the flat model as a bare `dgesv` over a matrix written out
+in full, and `dgesv` has had a body written in Rust here for as long as
+`outside.rs` has existed. Nothing needed building.
+
+What refused was the taking apart of the argument. A body written here
+takes numbers, and a matrix reaches it as an array of rows, each row an
+array again. The side of the run that compiles a call had walked to the
+leaf all along; the side that settles parameters before the run matched
+`Expr::Array` once and evaluated its items, so what was offered to the
+solver was three rows where nine numbers were wanted. The shape did not
+fit, `answer` returned nothing, and the name came back as one nothing
+works out - a refusal whose wording pointed at the body rather than at
+the caller, which is why the cluster read for several shifts as needing
+an interpreter.
+
+Two answers to one question is what made this possible, so the walk is
+now one function both sides call. The two lesser forms are not the same
+illness: `h_start` over an ideal gas is eighteen rows of `nothing gives
+a value to` and belongs to the has-no-value family, and `dp_small`
+carries one genuine call refusal over a Dissipation correlation.
+
+The change costs nothing and wins nothing, which is the expected shape
+for a wall that is not the last one in a model's way. Both halves are
+unmoved at 821/481 and 725/450 from one binary run twice over the same
+corpus, and the two lists of which models flatten and which run are
+identical line for line, so there is no scattered loss hiding under an
+unmoved total either. What moved is the wall: `PumpingSystem` refused
+with `cannot evaluate parameters` under the switch and refuses with
+`cannot differentiate this expression` without it, one storey up in the
+same model. Eleven of the sixteen rows in the call half of the queue
+are that kind, and the kind is now absent from the register while the
+models behind it stand at whatever was next.
