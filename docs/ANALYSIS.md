@@ -9891,3 +9891,54 @@ parked as a family. The other 26 of the row stand one wall further
 along: `SMEE_DOL` now counts 7 conditions against 4 pinned starts for
 a system it still does not balance, which is a second question about
 how many conditions a machine's section really writes.
+
+## The NaN at the start of a loop is a row, not a family
+
+The run register's top row names twenty-seven models whose algebraic
+loop cannot be evaluated where it starts. Probed at three
+representatives, the row is at least three layers, and the reading
+that "the initial guess is not seeded from start attributes" is true
+of one of them and false of the others.
+
+`SaturatedInductor` starts its block from four clean zeros and
+`R_m = 1/G_m` is minus infinity there. The retry from off the zero
+already in the solver does fire - measured, all four magnitudes - and
+what stands behind is `singular Jacobian` at three of them and
+`underdetermined algebraic loop` at the fourth. So the wall that
+counts for this model is not the NaN at all; the NaN is a doorway with
+another wall a step past it.
+
+`TestWaterPumpDCMotorHeatTransfer` is the opposite. Its block starts
+from the real start attributes - `pump.medium.p = 100000`,
+`pump.medium.h = 84011.8`, `pump.rho = 1` - and the NaN arrives from
+_outside_ the block: twenty-six inner values are already not numbers
+when the residual is first asked for, headed by `Valve.m_flow`. The
+seeding hypothesis says nothing about this model.
+
+`HeatingNPN_NORGate` is a third: the unknowns of its loop are
+`der(T1.vbc)` and `der(T2.vbe)`, derivatives rather than variables,
+and no magnitude of retry moves it.
+
+Which gives the general shape again, from a new side: the counter
+splits a family by its wording, and here it has _joined_ three
+families under one wording. Probing put them in different layers in
+minutes; the row would have been worked as one family for a shift.
+
+### And one real defect found on the way
+
+Chasing the pump's NaN to its source led out of the solver entirely.
+`Valve.m_flow` is computed through `Modelica.Fluid.Utilities.regRoot2`,
+whose body is written `y := smooth(2, if x >= x_small then ...)`, and
+the run answered `unknown function 'smooth'`.
+
+`smooth` and `noEvent` are hints about continuity and event
+generation, and the value is the argument. Flattening strips them from
+the model's own equations. A function body is not flattened: it is
+carried whole and walked at the run, where the hint is still written
+where its author put it - and the run's evaluator had no rule for it.
+The refusal named the wrong thing entirely, telling a reader that the
+standard library used a function this compiler had never heard of.
+
+The test for it has to defeat inlining: a body simple enough to be
+substituted whole never reaches the walk, and the walk is where the
+fault was. A `while` loop in the body is enough.

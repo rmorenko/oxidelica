@@ -406,6 +406,27 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                 // of time. This is how the hysteresis models give a
                 // state something to start from.
                 "initial" | "terminal" => 0.0,
+                // A hint about events, met inside a body the run
+                // walks. The model's own equations lose these while
+                // flattening, and a function body does not: it is
+                // carried whole and asked for at the run, where the
+                // hint is still written where the author put it. The
+                // value is the argument either way, and refusing the
+                // name told a reader the library used a function this
+                // compiler had never heard of - which is the worst
+                // kind of refusal, one that names the wrong thing.
+                "noEvent" => {
+                    arity(1)?;
+                    vals[0]
+                }
+                "smooth" | "homotopy" => {
+                    arity(2)?;
+                    if operator_name(name) == "smooth" {
+                        vals[1]
+                    } else {
+                        vals[0]
+                    }
+                }
                 // The ordinal of an enumeration value, which is what an
                 // enumeration is carried as.
                 "Integer" => {

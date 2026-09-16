@@ -1470,3 +1470,34 @@ fn a_check_a_body_makes_carries_the_names_of_the_body_that_made_it() {
     // the quadratic coefficient is one and the other two are nothing.
     assert!((last[column("y")] - 1.0).abs() < 1e-9, "{:?}", last);
 }
+
+#[test]
+fn a_hint_about_events_inside_a_walked_body_answers_with_its_value() {
+    // `smooth` and `noEvent` say something about continuity and about
+    // when events may be raised, and nothing about the number. The
+    // model's own equations lose them while flattening; a function
+    // body is carried whole and asked for at the run, so the run is
+    // where the library's `regRoot2` - written `y := smooth(2, if x >=
+    // x_small then ... )` - hands one over. Answered with "unknown
+    // function `smooth`", which names the wrong thing entirely: the
+    // library used an operator of the language, not a function this
+    // compiler had never met.
+    //
+    // The body is made too hard to inline on purpose. A body simple
+    // enough to be substituted whole never reaches the walk, and the
+    // walk is where the fault was.
+    let result = run(
+        "model M function g input Real x; output Real y; protected Real t; \
+         algorithm t := x; while t > 10 loop t := t - 1; end while; \
+         y := smooth(2, if t >= 1 then t else t * t) + noEvent(t); \
+         end g; \
+         Real b; \
+         equation b = g(3.0 + time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // At the stop time `t` is four, so the branch taken is `t` and
+    // the whole is eight.
+    assert!((last[column("b")] - 8.0).abs() < 1e-12, "{:?}", last);
+}
