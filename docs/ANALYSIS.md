@@ -9702,3 +9702,68 @@ flatten either way, run 481 against 482, runnable 725 either way and
 the run list gains `Modelica.Media.Examples.IdealGasH2O` and loses
 nothing. Flattening came down from 2109 to 1743 seconds, which is the
 cost of the paths that used to survive.
+
+## The top of the run register is three families, not one
+
+The census counts 50 refusals across the two rows that say a variable
+is unknown - 33 `unknown variable X in equation` and 17 bare. Read as
+one number that is the largest row of the run half, and work aimed at
+it would look like the obvious next thing. Grouped by the name that
+goes missing and by the package that holds the model, the 50 come
+apart into three families with nothing in common but the wording of
+the refusal:
+
+| name                 | models | where                                               |
+| -------------------- | ------ | --------------------------------------------------- |
+| `data`               | 14     | `Media`, `ModelicaTest.Fluid`, `ModelicaTest.Media` |
+| `V_flow_nominal2[1]` | 10     | `ModelicaTest.Fluid.TestComponents.Machines`        |
+| `vs[1]` and its like | 11     | `Magnetic.QuasiStatic.FundamentalWave`              |
+
+Each was probed to a representative and each stands on a different
+layer, so none of the three is reached by work on either of the
+others. The count of kinds was a lower bound on the number of
+families once again, and by a factor of three.
+
+### `data`: a chain three links deep, the last of them architectural
+
+The `data` family is the one the previous shift's fold did not
+finish. `Modelica.Media.IdealGases.Common.SingleGasNasa.T_h` writes
+
+```modelica
+T := Modelica.Math.Nonlinear.solveOneNonlinearEquation(
+  function f_nonlinear(data = data, h = h), 200, 6000);
+```
+
+and the chain was walked to its end with a twelve-line model that
+refuses in half a second, `Medium.T_h(h)` over `SingleGases.N2`:
+
+1. `specialized()` in `arrays.rs`, which turns a handed-over function
+   into a copy with numeric inputs, appends each filled-in argument to
+   the outer call exactly as written. `data` is a bare name of the
+   medium's own constant, so it leaves the medium's scope and reaches
+   the flat model as `data`, declared nowhere. That is the refusal the
+   14 models carry.
+2. Folded to the record it names, the argument then goes through an
+   input of the copy - and an input is one number where a record is as
+   many as it declares fields. The refusal becomes `an array of shape
+[7] is used where a scalar is expected`.
+3. Written into the body instead of through an input, the value
+   reaches the walk, and there the third link stands: `DataRecord`
+   holds a `String name` and four arrays, and `records_as_arrays` in
+   `carried.rs` takes only a record whose fields are every one a plain
+   number. The refusal becomes `"N2" is a String, and a String has no
+value a step can carry`.
+
+The third link is not a local fix. A record of mixed fields is a shape
+the walk has no way to hold, and giving it one is a change to what a
+carried body is - which is why the chain is parked here as a map
+rather than taken. Qualifying the name instead of folding it was tried
+and measured on the same model: `Modelica.Media.IdealGases.SingleGases.N2.data`
+is then unknown in its turn, because the flat model declares no such
+component either, so that road leads back to the same wall by a longer
+way.
+
+Worth noting against the temptation to call this a walk problem
+generally: the same record travels perfectly well when it is written
+out in full. `Functions.h_T(SingleGases.N2.data, 300 + time)` runs and
+answers. It is the partial application that has nowhere to put it.
