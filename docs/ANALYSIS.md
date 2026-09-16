@@ -9481,3 +9481,14 @@ four are addressed above: `ShowImpedance` and the three `NewFittings`.
 The fifth is `EngineV6`, whose `cylinder1.cylinderInclination.R_rel.T[1,1]`
 is a different layer - an orientation record built by a function - and
 is the named next address in this family.
+
+The census at 821/481 confirms both numbers from a third run and prints
+the split: 45 rows in the queue against 20 refusing rightly. The queue
+is almost entirely one shape rather than forty-five - `pump.delta_head_init`
+carries nine of it on its own, `h_start` over an ideal gas's `alow`
+coefficients another five, `dp_small` over the Dissipation correlations
+four more - so the next address in this family is a parameter whose
+value is a call the compiler will not evaluate, not a parameter nobody
+bound. That is a different illness wearing the same row, and the top of
+the run half meanwhile is the algebraic loops at 29 and the square
+initialization at 28.
