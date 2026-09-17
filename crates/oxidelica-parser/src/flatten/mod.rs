@@ -496,6 +496,33 @@ fn build_the_model(
     registry: &HashMap<&str, &ClassDef>,
     top_class: &ClassDef,
 ) -> Result<Flat, String> {
+    // A helper class checked on its own has nothing above it to hold
+    // the shared instances its parts reach up to, and every `outer`
+    // in it would go unanswered. The language says to declare the
+    // missing `inner` at the top of the model with its own defaults
+    // and say so (MLS 5.4), which is what every other tool does.
+    let minted = mint_the_missing_inners(registry, top_class);
+    let top_owned;
+    let top_class = match minted.is_empty() {
+        true => top_class,
+        false => {
+            let mut grown = top_class.clone();
+            for (name, class) in &minted {
+                eprintln!(
+                    "note: `outer {class} {name}` in `{}` has no `inner` declaration above it; \
+                     one is declared at the top of the model with the class's own defaults",
+                    top_class.name
+                );
+                let mut held = machines::blank_component();
+                held.name = name.clone();
+                held.type_name = class.clone();
+                held.scope = Scope::Inner;
+                grown.components.push(held);
+            }
+            top_owned = grown;
+            &top_owned
+        }
+    };
     let mut acc = Flat::default();
     let env = Env {
         outer_sizes: &HashMap::new(),
@@ -531,6 +558,29 @@ fn build_the_model(
     }
 
     Ok(acc)
+}
+
+/// The `inner` declarations a top class is missing, name and class.
+///
+/// Empty for a model that holds everything its parts reach up to,
+/// which is nearly every model of a library; the walk only happens
+/// where an `outer` went unanswered, so the usual case pays one
+/// traversal and mints nothing.
+fn mint_the_missing_inners(
+    registry: &HashMap<&str, &ClassDef>,
+    top_class: &ClassDef,
+) -> Vec<(String, String)> {
+    let mut missing = Vec::new();
+    let mut seen = HashSet::new();
+    outers_with_no_inner(
+        registry,
+        top_class,
+        &HashMap::new(),
+        &mut missing,
+        &mut seen,
+        0,
+    );
+    missing
 }
 
 /// Whether a connector is a port of the model being flattened, rather

@@ -631,3 +631,25 @@ fn a_block_that_starts_where_it_cannot_be_evaluated_is_tried_from_elsewhere() {
     assert!((at("R_m") - 3.0).abs() < 1e-9, "R_m = {}", at("R_m"));
     assert!((at("G_m") - 1.0 / 3.0).abs() < 1e-9, "G_m = {}", at("G_m"));
 }
+
+#[test]
+fn an_outer_with_no_inner_above_it_gets_one_at_the_top() {
+    // A helper of a library is written to sit inside a model that
+    // holds the shared instance, and says `outer System system` or
+    // `outer World world` on that understanding. Checked on its own -
+    // which is what a library check does to every class it finds -
+    // it has nothing above it at all, and the declaration answers to
+    // nobody. The language says to declare the missing `inner` at the
+    // top with the class's own defaults and say so (MLS 5.4); read as
+    // an error instead, thirteen `Utilities` and `BaseClasses` models
+    // of the standard library were refused outright.
+    let result = run("package P \
+           model Seed parameter Real id = 3; end Seed; \
+           model Helper outer Seed s; Real y; equation y = s.id; end Helper; \
+           model Top Helper h; annotation(experiment(StopTime = 1)); end Top; \
+         end P;");
+    let at = |name: &str| result.rows[0][result.columns.iter().position(|c| c == name).unwrap()];
+    // The minted instance carries the defaults its class declares, and
+    // the helper reads them through the `outer` name.
+    assert_eq!(at("h.y"), 3.0, "the default of the minted `inner Seed`");
+}

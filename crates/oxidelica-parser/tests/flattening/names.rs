@@ -131,11 +131,22 @@ fn outer_components_reach_the_inner_instance() {
 }
 
 #[test]
-fn outer_without_inner_is_refused() {
-    let error = with_lib("model Top Lib.Falling ball; end Top;").unwrap_err();
-    assert!(error.contains("no `inner` declaration"), "{error}");
+fn outer_without_inner_gets_one_at_the_top() {
+    // An `outer` with nothing above it to answer for it is not an
+    // error: the language says to declare the missing `inner` at the
+    // top of the model with its class's own defaults (MLS 5.4), which
+    // is how a library's helper classes are meant to be checked on
+    // their own. Read as an error instead, thirteen `Utilities` and
+    // `BaseClasses` models of the standard library were refused.
+    let m = with_lib("model Top Lib.Falling ball; end Top;").unwrap();
+    // The minted instance stands under the name the `outer` wrote,
+    // carrying its class's defaults, and the component reads through
+    // it rather than owning a variable of its own.
+    assert!(m.components.iter().any(|c| c.name.starts_with("world.")));
+    assert!(!m.components.iter().any(|c| c.name == "ball.world.g"));
 
-    // An `outer` of a type the `inner` instance is not.
+    // What is still an error: an `outer` of a type the `inner`
+    // instance is not. There the declaration is answered, and wrongly.
     let error = with_lib("model Top inner Lib.Gain world; Lib.Falling ball; end Top;").unwrap_err();
     assert!(
         error.contains("does not match the `inner` instance"),

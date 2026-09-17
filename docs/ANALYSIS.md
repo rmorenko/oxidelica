@@ -10203,3 +10203,64 @@ Behind all three stands a fourth wall that is not of this family:
 `CCCV_CellRC` now reaches an initialisation that is not square, five
 initial equations against three unknowns. That is a different layer
 and is parked, named, rather than guessed at.
+
+## `inner`/`outer`: the top of the model, not the order of the walk
+
+Thirteen models of the flatten register stood under one sentence -
+`outer X has no inner declaration above it` - and the register's own
+rule says a heading is not a family. Probed, this one was: every
+thirteen have the same form, and the form is not the one recorded
+against them.
+
+The entry for F8 called it an order of instantiation: the `inner` is
+there, and the walk looks for it before the tree above has been built.
+It is not that. The thirteen are `Utilities` and `BaseClasses`
+helpers - `Noise.Utilities.ImpureRandom`, `Loops.Utilities.Cylinder`,
+`HeatExchanger.BaseClasses.BasicHX`, `StateGraph.Examples.Utilities.
+TankController` - written to sit inside a model that holds the shared
+instance and saying `outer GlobalSeed globalSeed` or `outer System
+system` on that understanding. A library check makes each of them the
+top of a model of its own. There is nothing above them at all, so the
+`inner` does not exist to be found late; it does not exist.
+
+Which is a case the language has an answer for. MLS 5.4 says that an
+`outer` with no `inner` above it has one declared at the top of the
+model with its class's own defaults, and a diagnostic given. That is
+not a guess dressed as a rule: it is what the specification prescribes
+and what every other tool does, and it is why the standard library's
+helper classes are written the way they are.
+
+Minted, the thirteen become nine that flatten and one that runs -
+`TankController` - measured off one binary with the behaviour behind
+`OXIDELICA_NO_MINTED_INNERS`: 828/505 against 837/506, with the two
+lists diffed and no victim anywhere. The four that did not move are
+still refused, one wall further along, which is the register's usual
+shape: the entry empties and what stood behind it is a different
+layer.
+
+The general form is worth keeping apart from the fix. A refusal that
+names a missing declaration has two readings - it exists and was
+looked for wrongly, or it does not exist and something must supply
+it - and those are different defects at different prices. The probe
+that tells them apart is five lines: a component with an `outer` and
+nothing above it. Three weeks of a wrong entry in this document would
+have been one second of that model.
+
+### The stack of records, scouted rather than taken
+
+`CCCV_Stack` and `CCCV_StackRC` refuse by saying that `cellData` has
+six elements but its value has 774, and the two numbers say what the
+fault is without a probe. The declaration is `CellData cellData[Ns,
+Np]` with `Ns = 3` and `Np = 2`, so the target is six records. The
+binding is a comprehension whose every entry is a whole record -
+`{{... then cellDataDegraded else cellDataOriginal for kp in 1:Np}
+for ks in 1:Ns}` - and 774 is 6 times 129, the scalar field count of
+one `CellData` with its nested `rcData`. So the target is counted in
+records and the value in scalars, and the comparison is between two
+different units.
+
+That is the same layer as the whole-binding work of the Batteries
+chain, one storey up: there a record was handed down whole to a
+scalar declaration, here six of them are handed to an array of six.
+It is scouted and not taken - there is no shrunk model yet, and the
+rule is that no code goes in without one.

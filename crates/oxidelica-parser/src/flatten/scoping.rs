@@ -422,3 +422,62 @@ pub(super) fn connect_side_name(expr: &Expr) -> Option<String> {
         _ => None,
     }
 }
+
+/// The `outer` declarations under a class that no `inner` above them
+/// answers, each with the class it was written against.
+///
+/// A helper of a library - `Utilities.ImpureRandom`, `BaseClasses.
+/// TankWithTopPorts` - is written to sit inside a model that holds the
+/// shared instance, and carries `outer GlobalSeed globalSeed` or
+/// `outer System system` on that understanding. Checked on its own it
+/// has nothing above it at all, and the declaration answers to
+/// nobody. The language says what to do (MLS 5.4): the missing
+/// `inner` is declared at the top of the model, with its class's own
+/// defaults, and a diagnostic is given.
+///
+/// The walk goes down through the components because the class that
+/// writes the `outer` is usually not the class being checked: it is a
+/// part three levels inside it.
+pub(super) fn outers_with_no_inner(
+    registry: &HashMap<&str, &ClassDef>,
+    class: &ClassDef,
+    inners: &HashMap<String, InnerInstance>,
+    out: &mut Vec<(String, String)>,
+    seen: &mut HashSet<String>,
+    depth: usize,
+) {
+    if depth > MAX_DEPTH || !seen.insert(class.name.clone()) {
+        return;
+    }
+    let scope = class.name.as_str();
+    // An `inner` written anywhere on the way down answers the
+    // `outer`s below it, so a class that declares one takes its own
+    // name out of the reckoning for the subtree beneath it.
+    let mut visible = inners.clone();
+    collect_inners(registry, class, "", &mut visible, 0);
+    for extend in &class.extends {
+        if let Some(base) = lookup(registry, &extend.base, scope, &class.imports) {
+            outers_with_no_inner(registry, base, &visible, out, seen, depth + 1);
+        }
+    }
+    for component in &class.components {
+        if component.scope == Scope::Outer {
+            if visible.contains_key(&component.name)
+                || out.iter().any(|(name, _)| name == &component.name)
+            {
+                continue;
+            }
+            // The class is named as the flat model will name it, so
+            // that the minted declaration resolves from the top rather
+            // than from wherever it was written.
+            if let Some(declared) = lookup(registry, &component.type_name, scope, &class.imports) {
+                out.push((component.name.clone(), declared.name.clone()));
+            }
+            continue;
+        }
+        if let Some(of) = lookup(registry, &component.type_name, scope, &class.imports) {
+            outers_with_no_inner(registry, of, &visible, out, seen, depth + 1);
+        }
+    }
+    seen.remove(&class.name);
+}
