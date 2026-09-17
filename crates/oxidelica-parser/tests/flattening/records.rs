@@ -1276,3 +1276,50 @@ fn a_records_dimension_is_read_through_a_binding_that_hands_it_whole() {
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn two_records_differing_in_a_later_field_are_two_shapes() {
+    // A medium builds its state one way or another depending on how
+    // many mass fractions it was handed, and the two records differ
+    // only in the length of `X` - a field that is not the first. The
+    // branch shapes were read off the first element alone, so the two
+    // records read as alike, were paired element by element, and the
+    // model was refused for `arrays of 1 and 2 elements do not fit
+    // together` - two arrays it never wrote.
+    //
+    // The number is the claim: the condition is false, so the second
+    // branch stands and `X[2]` is `1 - 0.01`.
+    let m = parse_model(
+        "package P constant Integer nX = 2; \
+           record R Real p; Real X[nX]; end R; \
+           function g input Real X[:]; output R st; \
+             algorithm st := if size(X, 1) == nX then R(p = 1, X = X) \
+               else R(p = 1, X = cat(1, X, {1 - sum(X)})); end g; end P; \
+         model M P.R st = P.g({0.01}); end M;",
+    )
+    .unwrap();
+    let solved = |name: &str| {
+        m.equations
+            .iter()
+            .find(|e| format!("{:?}", e.lhs) == format!("{:?}", Expr::Ref(name.to_string())))
+            .map(|e| format!("{:?}", e.rhs))
+    };
+    let all = || {
+        m.equations
+            .iter()
+            .map(|e| (format!("{:?}", e.lhs), format!("{:?}", e.rhs)))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        solved("st.X[1]"),
+        Some("Number(0.01)".to_string()),
+        "{:?}",
+        all()
+    );
+    assert_eq!(
+        solved("st.X[2]"),
+        Some("Bin(Sub, Number(1.0), Number(0.01))".to_string()),
+        "{:?}",
+        all()
+    );
+}

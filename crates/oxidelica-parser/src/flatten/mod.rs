@@ -2427,6 +2427,31 @@ impl Value {
             }
         }
     }
+
+    /// Whether two values are of the same structure, every branch of it.
+    ///
+    /// [`Value::shape`] reads the depth off the first element, which is
+    /// right for an array - whose elements are alike by construction -
+    /// and wrong for a record, whose fields are carried in the same
+    /// `Array` and are not alike at all. A medium builds its state one
+    /// way or another depending on how many mass fractions it was
+    /// handed, and the two records differ only in the length of a field
+    /// that is not the first: judged by the first field alone they read
+    /// as the same shape, go on to be paired element by element, and
+    /// refuse there with a message about two arrays the model never
+    /// wrote. Comparing the whole structure is what tells the two apart.
+    fn same_structure(&self, other: &Value) -> bool {
+        if std::env::var_os("OXIDELICA_SHALLOW_BRANCH_SHAPE").is_some() {
+            return self.shape() == other.shape();
+        }
+        match (self, other) {
+            (Value::Scalar(_), Value::Scalar(_)) => true,
+            (Value::Array(a), Value::Array(b)) => {
+                a.len() == b.len() && a.iter().zip(b).all(|(x, y)| x.same_structure(y))
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Everything the array layer needs to know about the class it is

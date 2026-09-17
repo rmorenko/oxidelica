@@ -404,7 +404,7 @@ pub(super) fn expand(
                     // builds a table one way or another way depending on
                     // whether there is anything in it - and a structure
                     // has to be settled here.
-                    if taken.shape() == left.shape() {
+                    if taken.same_structure(&left) {
                         return zip_values(&taken, &left, &|a, b| {
                             Expr::If(
                                 Box::new(condition.clone()),

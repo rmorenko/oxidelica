@@ -10664,3 +10664,96 @@ place somewhere between the call and the body - `X` against `Xi`,
 which differ by exactly one. That is the layer to take, and it is not
 the scalar-where-array reading the row's text advertises. Parked
 here with the reproduction rather than half-taken.
+
+## Two records are one shape if only their first field is read
+
+The medium off-by-one scouted above is not the `X` against `Xi`
+off-by-one it looked like, and this is the neighbouring wall rather
+than the old `nXi` one. The old family stood at a _dimension_ measured
+under the wrong scope; this one stands at a _branch_ whose two sides
+are records, and nothing about it is medium-specific.
+
+The reproduction is fifteen lines with no medium in it at all:
+
+```modelica
+package P
+  constant Integer nX = 2;
+  record R Real p; Real X[nX]; end R;
+  function g
+    input Real X[:];
+    output R st;
+  algorithm
+    st := if size(X,1) == nX then R(p=1, X=X)
+          else R(p=1, X=cat(1, X, {1 - sum(X)}));
+  end g;
+end P;
+model M P.R st = P.g({0.01}); end M;
+```
+
+It refused with `arrays of 1 and 2 elements do not fit together:
+Number(0.01) against Number(0.01)` - two arrays the model never wrote,
+naming the same number on both sides, which is why three readings took
+it for a mass-fraction count.
+
+`Value::shape` reads the depth off the _first_ element. That is right
+for an array, whose elements are alike by construction, and wrong for
+a record, whose fields travel in the same `Value::Array` and are not
+alike at all. Both branches here are `[p, X]`: two fields, first a
+scalar - so both shapes come to `[2]`, the branches are judged the
+same, and the `if` goes to `zip_values` to be paired element by
+element instead of being settled by its condition. The pairing then
+meets `X` of one place against `X` of two and refuses about them.
+
+The fix is to compare the whole structure rather than the first
+element's, `Value::same_structure` in `flatten/mod.rs`, behind
+`OXIDELICA_SHALLOW_BRANCH_SHAPE` for the measurement. The record
+branches then differ, the condition is settled - `size({0.01},1)` is
+1, `nX` is 2 - and the second branch stands whole.
+
+Measured, both halves from one binary, `--without scripts/heavy_models.txt`:
+`/tmp/l172_off.txt` 841 flatten / 510 run, `/tmp/l172_on.txt` 842 / 510.
+The diff of both lists is a single line and it is a gain, with no
+victim anywhere:
+
+```text
+> flat Modelica.Media.Examples.MoistAir
+```
+
+One model won and the refusal's family moved: the same `do not fit
+together` wording covered thirteen models in `/tmp/raw171.txt` (lines
+79-130), twelve of them media. The rest still refuse - `MoistAir`
+went one storey up to `an array reached the evaluator`, which is the
+next wall and a different one - so this is a kind thinned rather than
+a family cleared, and the run count is unmoved at 510 exactly as the
+census rule predicts.
+
+### The run half's `unknown variable`, scouted
+
+The register's second run-half family, 18 `unknown variable X in
+equation` plus 5 `unknown variable X` (`/tmp/raw171.txt` lines
+396-558), is a row and not a family. `--only` against the root `.msl`
+puts its members in three unrelated layers:
+
+- **`data` (14)**, on `ModelicaTest.Fluid.TestComponents.Fittings.
+TestJunctionIdeal` and its kin: a package's constant record standing
+  in a call the compiler left standing - `solveOneNonlinearEquation$...
+(200, 6000, data, ...)`. The name arrives in the flat model with no
+  prefix at all, which is exactly the invariant AGENTS.md states about
+  what survives flattening: a call left standing is named as the flat
+  model names it. Nothing declares `data`, so the run cannot find it.
+  Its sibling `data.R_s` on `ModelicaTest.Media.TestOnly.DryAirNasa`
+  is the same thing a field deep.
+- **`ph_explicit` (3)**, on the `TwoPhaseWater` models: a medium's
+  `constant Boolean`, named by no equation at all - it reaches the run
+  through a `stateSelect` attribute, which is where `Modelica.Media.
+Water` writes it (`package.mo` lines 144-188).
+- **`liq` (2)**, on `TestSpecificEnthalpy` and `TestSpecificEntropy`:
+  a field of the `SaturationProperties` record (`Media/package.mo`
+  line 7681), so a record's own field lost between the body that
+  writes it and the run.
+
+Three layers, one wording. Working the row's count as one wall would
+have aimed fourteen models' worth of effort at a constant-record
+question that only fourteen of the twenty-three have. The `data`
+half is the one worth taking and it is the largest; parked with the
+names here rather than half-taken at the end of a shift.
