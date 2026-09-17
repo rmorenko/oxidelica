@@ -3344,3 +3344,44 @@ fn a_when_check_names_a_variable_of_its_component_once() {
     assert!(said.contains("stop1.s"), "{said}");
     assert!(!said.contains("stop1.stop1.s"), "{said}");
 }
+
+#[test]
+fn a_length_a_package_states_is_a_length_the_answer_has() {
+    // A body left standing for the run to walk answers with as many
+    // numbers as it declares, and a length written as a name rather
+    // than a digit is a length all the same: a random generator
+    // declares `output Integer state[nState]` against the `constant
+    // Integer nState = 2` of the package it sits in.
+    //
+    // Read as a length that cannot be seen, the call answered as the
+    // one number a walk always gives, and an equation handing it to
+    // two names was refused for a shape that did not match - which is
+    // the wall the whole family of noise blocks stood at. The seed
+    // here is worked out during the run, so nothing folds the call
+    // away and the standing answer is what the equation is given.
+    let source = &format!(
+        "{GENERATOR} package Own \
+           function spin input Integer seed; output Integer state[Gen.nState]; \
+             protected Real r; Integer step; algorithm state := {{seed, 3}}; \
+             step := seed; while step > 0 loop (r, state) := Gen.random(state); \
+             step := step - 1; end while; end spin; \
+         end Own; \
+         model M Integer n; Integer v[2]; Real y; \
+         equation n = integer(time) + 1; v = Own.spin(n); \
+         y = v[1] * time; end M;"
+    );
+    // Both readings refuse, and which refusal comes back is the
+    // whole of the difference: read as one number, the equation
+    // handing the answer to two names is refused for shapes that do
+    // not match, and the run's own limit further on is never reached.
+    // Measured red against the old reading before this was written.
+    let said = parse_model(source).unwrap_err().to_string();
+    assert!(
+        !said.contains("an equation between shapes"),
+        "the answer holds the two the package states: {said}"
+    );
+    assert!(
+        said.contains("lays the answers end to end"),
+        "the shapes agree, and what is left is the run's own limit: {said}"
+    );
+}

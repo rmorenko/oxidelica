@@ -704,6 +704,20 @@ fn standing_call(
     let answer = inherited.iter().find(|c| c.causality == Causality::Output);
     let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
         [Expr::Number(length)] => Some(*length as i64),
+        // A length written as a name rather than a digit is a length
+        // all the same: a random generator declares `output Integer
+        // state[nState]` against the `constant Integer nState = 2` of
+        // the package it sits in. Read as a shape that cannot be seen,
+        // the call answered as one number where the model asked for
+        // two, and `state[1:2] := initialState(...)` was refused for
+        // being given one value for a run of two elements. The
+        // constant belongs to the function's own scope, so it is
+        // looked up there and nowhere else - a length guessed from a
+        // name the function does not own would be a shape said
+        // wrongly, which is a shape said wrongly everywhere below.
+        [only] if !matches!(only, Expr::Number(_)) => {
+            constants::declared_length(only, class, registry)
+        }
         // A record answers with its members, in the order it declared
         // them: the walk is handed it written that way.
         [] => lookup(registry, &answer.type_name, &class.name, imports)

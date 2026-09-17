@@ -890,6 +890,29 @@ pub(super) fn substitute_scalar_class_constants(
 }
 
 /// Replace every reference to a class constant with its value.
+/// How long a dimension a class declares comes to, where the length is
+/// written as a name rather than a digit.
+///
+/// A random generator declares `output Integer state[nState]` against
+/// the `constant Integer nState = 2` of the package it sits in, and a
+/// length read as one that cannot be seen is a shape said wrongly
+/// everywhere below. The constant belongs to the declaring class's own
+/// scope, so it is looked up there and nowhere else: a length taken
+/// from a name the class does not own would be a guess.
+///
+/// `None` where the dimension is not one the compiler can settle, or
+/// where what it settles to is not a length.
+pub(super) fn declared_length(
+    dimension: &Expr,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<i64> {
+    let settled = substitute_class_constants(dimension, registry, &class.name, &class.imports, &[]);
+    super::names::const_eval(&settled, &HashMap::new())
+        .filter(|length| *length >= 1.0 && length.fract() == 0.0)
+        .map(|length| length as i64)
+}
+
 pub(super) fn substitute_class_constants(
     expr: &Expr,
     registry: &HashMap<&str, &ClassDef>,

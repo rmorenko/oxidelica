@@ -108,6 +108,20 @@ reads dimensions. When a test on the spelling of a name stands in for
 a fact the structure does not record, the fix is to make the structure
 record it.
 
+When two readings of a value are both true, ask where the value came
+from. Three times in a month the same breed wore a different coat, and
+each time it read as a fresh puzzle: a record's constants counted two
+ways, both right, because a constructor writes none and a name written
+out whole writes them all; a record table narrowed by whether its key
+held `].`, which is a test of who wrote the entry dressed as a test of
+what the name is; a table answering two different questions at two
+different times. The question in all three is not which reading is
+right - both are - but which writer produced the value, and a reading
+that cannot see the writer cannot choose. Picking one of the two cost
+nine models in a shift. Where the structure does not record the
+origin, make it record the origin rather than finding a cleverer test
+on the spelling.
+
 Two numbers are comparable only if the same binary produced them. A
 lookup was recorded as firing nowhere, then as costing thirteen
 models: the difference was two builds mistaken for one. Put the change

@@ -10397,3 +10397,69 @@ outside the family, and the fifth link is where the models actually
 stand. Taken again, it should be taken from link five backwards: build
 the value correctly and see which of the length guards are then needed
 at all.
+
+## Two readings both true: ask where the value came from
+
+Three times in a month the same breed of fault, and each time it read
+as a fresh puzzle. A record's constants counted two ways, both right:
+a constructor writes no constant, a name written out whole writes them
+all, so the value has two lengths and which one arrived says _how the
+value was built_ rather than what it means. Before that, a record
+table narrowed by whether its key held `].` - a test of who wrote the
+entry, dressed as a test of what the name is. Before that again, a
+table answering two different questions at two different times.
+
+The rule the three share: when two readings of a value are both true,
+the question is not "which is right" but "where did this value come
+from". Picking one of the two costs models - nine of them, one shift -
+because the answer depends on the writer and the reading cannot see
+the writer. Where the structure does not record the origin, the fix is
+to make it record the origin, not to find a cleverer test on the
+spelling.
+
+This entry exists to be recognised the fourth time rather than solved
+again.
+
+## A length a package states is a length, not one that cannot be seen
+
+The whole family of noise blocks - twelve models, the top row of the
+flat half's census - stood at `` `state` is given a run of 2
+element(s) and 1 value(s) ``. The cause is one line and two storeys
+below the message.
+
+`Modelica.Math.Random.Utilities.initialStateWithXorshift64star` fills
+a longer state by writing `state[1:2] := aux`, where `aux` is the
+answer of `Xorshift64star.initialState`. That function declares
+`output Integer state[nState]` against the `constant Integer nState =
+2` of the package it sits in. `standing_call` in `arrays.rs` read a
+length only where the dimension was a literal number, so a dimension
+written as a name answered as the one number a walk always gives - and
+a run of two elements was handed one value.
+
+The probe said it in one line, where three shifts of reading would
+not have:
+
+```text
+PROBE standing: ...Xorshift64star.initialState dims=[Ref("nState")]
+```
+
+The constant is looked up in the function's own scope and nowhere
+else. A length taken from a name the class does not own would be a
+shape said wrongly, and a shape said wrongly here is a shape said
+wrongly everywhere below.
+
+### The second link, walked and reverted
+
+Behind it stands `walkable` in `carried.rs`, which refuses a body
+answering with several things when one of them is an array of unknown
+length. Given the same reading of `nState`, that refusal lifts too,
+and the noise blocks then _flatten and run_ - with `state` frozen at
+zero and the noise a constant `0.5`. The refusal was not a gap; it was
+guarding a real limit of the run, which lays several answers end to
+end and has no way to carry the state back out. A wrong number given
+quietly is the worst thing this compiler can do, so the second link
+was reverted and only the first stands.
+
+That is where the next attempt starts: not at the length, which is
+now read, but at the run carrying an array answer back from a body
+walked at run time.
