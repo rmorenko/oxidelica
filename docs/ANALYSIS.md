@@ -10463,3 +10463,91 @@ was reverted and only the first stands.
 That is where the next attempt starts: not at the length, which is
 now read, but at the run carrying an array answer back from a body
 walked at run time.
+
+## The table that was there and could not be seen
+
+`ModelicaTest.Tables.CombiTable1Ds.Test21` was read as a modifier that
+would not travel: `t_new(table=...)` arrives through `extends TestDer`,
+and what came out was `the flexible size ':' of 't_new.columns' needs a
+value to read its length from`. The inheritance had nothing to do with
+it, and the instrument that said so cost a second: `Test20`, which
+differs from `Test21` in one word of its file name, ran. So did
+`Test23`. Every one of them takes its modifier down the same two
+`extends`; only the one naming `test_v7.mat` refused.
+
+What differs between those files is the version of MATLAB that wrote
+them. Version 7 writes the same level 5 elements as version 6, each one
+deflated and wrapped in an element of type 15, the format's
+`miCOMPRESSED`. The reader walked the top level looking for type 14 and
+stepped over everything else, so a file with one compressed element in
+it read as a file with no matrix at all - and the refusal that reached
+the surface was about a length, three layers above the place where the
+numbers were not found.
+
+Unpacking is done in front of the walk, so that the walk goes on being
+about the level 5 format rather than about how a version stored it: the
+header is kept, each compressed element is inflated in place, and what
+comes out is a file of the same format nothing downstream has to know
+about. A version 6 file pays nothing, because the pass returns `None`
+where no element is compressed.
+
+Measured twice from one binary, `--without scripts/heavy_models.txt`,
+with the reading held back by an environment switch for the first pass:
+
+```text
+/tmp/l170_off.txt  837 flatten, 506 run   (732 / 474 runnable)
+/tmp/l170_on.txt   841 flatten, 510 run   (736 / 478 runnable)
+```
+
+The diff of both lists names the four and no victims:
+`ModelicaTest.Tables.CombiTable1Ds.Test21`,
+`ModelicaTest.Tables.CombiTable1Dv.Test21`,
+`ModelicaTest.Tables.CombiTimeTable.Test57`, and
+`Modelica.Utilities.Examples.ReadRealMatrixFromFile` - the last of
+which was never counted as a table model at all and had been reading
+its matrix from a compressed file all along.
+
+Three of the seven models that name `test_v7.mat` stand at other walls
+and are a separate question: the two `CombiTable2D` tests want
+`ModelicaStandardTables_CombiTable2D_getValue`, which is an external
+function and not a table format, and `CombiTimeTable.Test81` asks for a
+table inside a MATLAB struct, which is a class the reader refuses by
+name. Both are honest refusals rather than a silence, which is the
+difference this change was about.
+
+## A neighbour's length, and the order it was declared in
+
+The second family of table refusals looks like the first and is not it.
+`ModelicaTest.Tables.CombiTimeTable.Test68` writes
+`startTime_0(table=startTime.table)` - one component handed the array
+parameter of another - and refuses with `the flexible size ':' of
+'startTime_0.table' needs a value to read its length from, and
+Ref("startTime.table") is not one`. The row held five models before
+this shift's change to the MATLAB reader and five after, which is the
+register saying plainly that the two families share a wall and not a
+cause.
+
+Shrunk to twelve lines, the cause is the order the two were written in:
+
+```modelica
+model Fwd
+  Modelica.Blocks.Sources.CombiTimeTable later(table=[0,1;1,2;2,3]);
+  Modelica.Blocks.Sources.CombiTimeTable earlier(table=later.table);
+end Fwd;
+```
+
+flattens, and the same two declarations the other way round do not.
+`instantiate_components` measures a class's components in the order
+they are declared and puts each shape into `sizes_here` as it goes, so
+a component asking for a neighbour's length finds it only where the
+neighbour was written first. Every one of the five models in the row
+writes `startTime_0` above `startTime`, which is the only reason they
+are the family they are.
+
+What this wants is a second pass over the components that could not be
+measured the first time round, once the ones that could be have put
+their shapes in - the same fixpoint the constants layer already runs,
+at the shape layer. That is more than the end of a shift, and it is
+written down here rather than half-built: the reproduction above is
+twelve lines and takes a second, so whoever takes it starts from a
+failing model rather than from the corpus.

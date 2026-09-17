@@ -4063,6 +4063,9 @@ dependencies = [
 [[package]]
 name = "oxidelica-parser"
 version = "0.1.0"
+dependencies = [
+ "flate2",
+]
 
 [[package]]
 name = "oxidelica-sim"

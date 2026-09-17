@@ -1858,6 +1858,63 @@ fn a_matlab_array_written_narrow_is_still_doubles() {
     assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
 }
 
+/// A level 5 file whose elements are deflated is read all the same.
+#[test]
+fn a_compressed_level_five_matlab_file_is_read() {
+    // Version 7 of MATLAB writes the elements of a level 5 file each
+    // wrapped in a deflated element of its own - type 15. A reader
+    // that walks past what it does not recognise finds no matrix at
+    // all in such a file, and says so as a table with no length to be
+    // read from, which is what every `test_v7.mat` model in the
+    // library stood at.
+    use std::io::Write;
+    let dir = std::env::temp_dir().join("oxidelica_mat5_compressed");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("packed.mat");
+    // The same two-by-two matrix as the plain level 5 test writes,
+    // element and all, so that the only difference between the two
+    // files is that this one is deflated.
+    let mut element = Vec::new();
+    let mut body = Vec::new();
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&0u32.to_le_bytes());
+    body.extend_from_slice(&5u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(&2u32.to_le_bytes());
+    body.extend_from_slice(&1u32.to_le_bytes());
+    body.extend_from_slice(&4u32.to_le_bytes());
+    body.extend_from_slice(b"tab1");
+    body.extend_from_slice(&[0; 4]);
+    body.extend_from_slice(&9u32.to_le_bytes());
+    body.extend_from_slice(&32u32.to_le_bytes());
+    for number in [1.0f64, 3.0, 2.0, 4.0] {
+        body.extend_from_slice(&number.to_le_bytes());
+    }
+    element.extend_from_slice(&14u32.to_le_bytes());
+    element.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    element.extend_from_slice(&body);
+    let mut packer = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+    packer.write_all(&element).unwrap();
+    let packed = packer.finish().unwrap();
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"MATLAB 5.0 MAT-file, written by a test");
+    bytes.resize(124, b' ');
+    bytes.extend_from_slice(&[0x00, 0x01]);
+    bytes.extend_from_slice(b"IM");
+    bytes.extend_from_slice(&15u32.to_le_bytes());
+    bytes.extend_from_slice(&(packed.len() as u32).to_le_bytes());
+    bytes.extend_from_slice(&packed);
+    bytes.resize(bytes.len().div_ceil(8) * 8, 0);
+    std::fs::write(&file, &bytes).unwrap();
+    let rows = read_table_file(&file.display().to_string(), "tab1")
+        .expect("a deflated level 5 file is a MATLAB file");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(rows, vec![vec![1.0, 2.0], vec![3.0, 4.0]]);
+}
+
 /// What the MATLAB reader refuses, and by what name.
 #[test]
 fn a_matlab_file_says_what_it_cannot_give() {

@@ -272,6 +272,71 @@ fn in_matlab5(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, S
              little-endian, and nothing here swaps the bytes back"
         ));
     }
+    // MATLAB version 7 writes the same elements as version 6, each one
+    // deflated and wrapped in an element of its own - type 15, the
+    // format's `miCOMPRESSED`. A reader that skips what it does not
+    // recognise sees a file with no matrix in it at all, which is what
+    // left every `test_v7.mat` model refused at a flexible size with
+    // nowhere to read a length from. Unpacked here, in front of the
+    // walk, so that the walk goes on being about the level 5 format
+    // and not about how a particular version stored it.
+    if let Some(plain) = uncompressed(bytes) {
+        return in_matlab5_walk(&plain, wanted, path);
+    }
+    in_matlab5_walk(bytes, wanted, path)
+}
+
+/// A level 5 file with its deflated elements unpacked, where it has
+/// any.
+///
+/// The header is kept as it stands and every element after it is
+/// copied through: a compressed one is inflated and what comes out is
+/// a run of ordinary elements, so the result is a file of the same
+/// format that nothing downstream has to know about. `None` where no
+/// element is compressed, so that a version 6 file pays nothing.
+fn uncompressed(bytes: &[u8]) -> Option<Vec<u8>> {
+    let word = |at: usize| -> Option<u32> {
+        let held = bytes.get(at..at + 4)?;
+        Some(u32::from_le_bytes([held[0], held[1], held[2], held[3]]))
+    };
+    let mut out = bytes.get(..128)?.to_vec();
+    let mut at = 128;
+    let mut found = false;
+    while let Some(kind) = word(at) {
+        let (kind, length, body) = match kind >> 16 {
+            0 => (kind & 0xffff, word(at + 4)? as usize, at + 8),
+            short => (kind & 0xffff, short as usize, at + 4),
+        };
+        let past = match body == at + 4 {
+            true => body + 4,
+            false => body + length.div_ceil(8) * 8,
+        };
+        // 15 is `miCOMPRESSED`: a zlib stream whose contents are the
+        // elements the writer would otherwise have written plainly.
+        match kind == 15 {
+            true => {
+                use std::io::Read;
+                let held = bytes.get(body..body + length)?;
+                let mut plain = Vec::new();
+                flate2::read::ZlibDecoder::new(held)
+                    .read_to_end(&mut plain)
+                    .ok()?;
+                out.extend_from_slice(&plain);
+                found = true;
+            }
+            false => out.extend_from_slice(bytes.get(at..past.min(bytes.len()))?),
+        }
+        at = past;
+        if past <= 128 {
+            return None;
+        }
+    }
+    found.then_some(out)
+}
+
+/// The walk over a level 5 file's elements, with nothing compressed
+/// left in it.
+fn in_matlab5_walk(bytes: &[u8], wanted: &str, path: &str) -> Result<Vec<Vec<f64>>, String> {
     let word = |at: usize| -> Option<u32> {
         let held = bytes.get(at..at + 4)?;
         Some(u32::from_le_bytes([held[0], held[1], held[2], held[3]]))
