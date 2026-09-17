@@ -10262,5 +10262,62 @@ different units.
 That is the same layer as the whole-binding work of the Batteries
 chain, one storey up: there a record was handed down whole to a
 scalar declaration, here six of them are handed to an array of six.
-It is scouted and not taken - there is no shrunk model yet, and the
-rule is that no code goes in without one.
+
+That reading was right about the arithmetic and wrong about the cause,
+which is worth recording because the arithmetic was so persuasive. The
+units are not records against scalars: 774 is 6 times 129, and one
+`CellData` holds 128 numbers the count allows plus the one inherited
+`constant String CellType` it does not. A record named whole and
+written out brings every field its class declares; the count of how
+many numbers one record holds leaves the constants out, on the grounds
+that a constant belongs to the class rather than to any value of it.
+Both statements are true, and only one of them can be the length.
+
+Seven synthetic models were written before that showed - records in
+records, comprehensions, redeclarations, unsized table fields - and
+every one of them passed, because each tested the layer that had been
+imagined. What found it was the real model with its components thrown
+out one at a time until twelve lines still refused, and then a single
+substitution: replacing the library's `CellData` with a local record
+of the same shape made the refusal vanish, and putting back the one
+thing the local copy lacked - a base holding a constant - brought it
+straight back.
+
+### Where the fix does not go
+
+The obvious place is the writing out: drop the constants there and the
+two counts agree. Measured, that costs nine Spice3 models, because a
+function input written for a record wants every field the record has
+and `mosCalcNoBypassCode` then gets none. The counting site is the
+local one: allow both lengths, since which arrived says how the value
+was built, and answer separately the question of whether a value may
+set a field. 837/506 before and after, no victim in either list.
+
+Behind it stood a second wall in the same two models, and it is a
+rule true of one kind of thing applied to another. A declared bus
+member nothing connects to is worth zero - 9.1.3, a potential variable
+with no connections - and the loop that supplies those zeroes did not
+ask what the member was. A stack's bus states `parameter Integer Ns`
+and hangs a cell bus off it; zeroed, it lost the count the model wrote
+and the model was refused for a count below the minimum its own
+declaration states. A parameter is not a potential variable and has a
+value already.
+
+The chain ends at a third wall of another family: both models now
+reach `ModelicaStandardTables_CombiTable1D_getValue`, a table function
+written outside Modelica, which is the same barrier `ShowImpedance`
+and the OCV tables stand at. That is why the counts do not move.
+
+### The rcData sub-family, scouted
+
+`BatteryDischargeCharge` and `CCCVcharging` flatten and refuse at the
+run with `cannot evaluate parameters`, and what nothing gives a value
+to is `battery2.cellData.rcData.C`, `.R`, `.T_ref` and `.alpha`. The
+probe says those names are declared nowhere in the flat model, which
+is exactly right: `rcData` is `RCData rcData[nRC]`, an array of
+records, and `CellRCStack` reads it without a subscript -
+`final R = Ns*cellData.rcData.R/Np` over `resistor[cellData.nRC]`,
+one element apiece. So a name for the whole array's field survives
+into the run, where every name must be one the flat model declares.
+This is the array-of-records reading of the same whole-binding layer,
+and it is scouted rather than taken: there is no shrunk model yet.
