@@ -679,9 +679,15 @@ fn flatten_when_clauses(
                     }
                     // A check made when the event fires: the names it
                     // was written with are this class's, so it is
-                    // resolved here like any other expression.
+                    // resolved here like any other expression - once.
+                    // Resolving puts this class's prefix on, and
+                    // expanding what came back put it on a second
+                    // time: a state of `stop1` reached the run as
+                    // `stop1.stop1.s`, a name the flat model never
+                    // declared, and every `when` check naming a
+                    // variable of its own component died that way.
                     WhenAction::Assert(condition, message) => actions.push(WhenAction::Assert(
-                        expand_here(&resolve_here(condition)?, &HashMap::new())?.scalar()?,
+                        resolve_here(condition)?,
                         message.clone(),
                     )),
                     // `if c then x = a; else x = b; end if;` at an

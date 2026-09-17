@@ -931,6 +931,18 @@ impl SlotTable {
                 Box::new(self.compile(&args[1])?),
             ));
         }
+        // Whether the run has begun, and whether it is over. The
+        // event machinery answers these by a slot it fills itself,
+        // and the rewrite that names that slot reaches the equations
+        // of the model. An expression built after that rewrite - the
+        // sensitivity of a constraint, differentiated here - still
+        // carries the call as the model wrote it, and the slot it
+        // wants is already in the table.
+        if let ("initial" | "terminal", true) = (operator_name(name), args.is_empty()) {
+            if let Some(slot) = self.index.get(&format!("${}", operator_name(name))) {
+                return Ok(Code::Slot(*slot));
+            }
+        }
         if name == "der" {
             return err("der() outside a state equation is not supported".to_string());
         }

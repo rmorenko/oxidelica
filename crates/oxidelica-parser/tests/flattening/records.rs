@@ -1204,3 +1204,37 @@ fn a_record_handed_to_a_declaration_of_its_base_reaches_the_fields_by_name() {
             .collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn a_records_dimension_is_read_through_a_binding_that_hands_it_whole() {
+    // `cell(cellData = cellData)` hands a record down whole, and the
+    // receiving record's own array is as long as one of its fields
+    // says: `parameter Elem a[n]`. The fields of the receiving record
+    // were settled from that record's defaults alone, so `n` came out
+    // as the declaration's 1 rather than the 2 the site handed in, and
+    // the array was built one element long. What reached the run then
+    // was `cell.cellData.a.R` - a name with no subscript, which is
+    // what a slice of an array that was never built comes to.
+    //
+    // The length is the claim here, not that the model flattened: two
+    // elements are what the site asked for and two have to arrive.
+    let m = parse_model(
+        "record Elem Real R = 1; end Elem; \
+         record CellData parameter Integer n = 1; \
+           parameter Elem a[n] = {Elem(R = 0)}; end CellData; \
+         model Stack parameter CellData cellData; \
+           Real got[cellData.n] = cellData.a.R; end Stack; \
+         model M parameter CellData cellData(n = 2, a = {Elem(R = 1), Elem(R = 2)}); \
+           Stack cell(cellData = cellData); end M;",
+    )
+    .unwrap();
+    let named = |name: &str| m.components.iter().any(|c| c.name == name);
+    assert!(
+        named("cell.got[2]"),
+        "{:?}",
+        m.components
+            .iter()
+            .map(|c| c.name.clone())
+            .collect::<Vec<_>>()
+    );
+}

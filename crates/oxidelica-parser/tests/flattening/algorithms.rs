@@ -3324,3 +3324,23 @@ fn an_assert_in_a_for_loop_resolves_its_element() {
         "the assert should read the element `X[1]`, got {shown}"
     );
 }
+
+#[test]
+fn a_when_check_names_a_variable_of_its_component_once() {
+    // A check inside a `when`, naming a variable of the component that
+    // holds it - how `MassWithStopAndFriction` guards its hard stop.
+    // The condition was resolved, which puts the component's prefix on
+    // its names, and then expanded again, which put the prefix on a
+    // second time. What reached the run was `stop1.stop1.s`, a name
+    // the flat model never declares.
+    let m = oxidelica_parser::parse_model(
+        "model M model Inner Real s(start = 0, fixed = true); \
+           equation der(s) = 1; \
+           when time > 0.5 then assert(s > -1, \"past the stop\"); end when; \
+         end Inner; Inner stop1; end M;",
+    )
+    .expect("a check inside a `when`");
+    let said = format!("{:?}", m.when_clauses);
+    assert!(said.contains("stop1.s"), "{said}");
+    assert!(!said.contains("stop1.stop1.s"), "{said}");
+}

@@ -10025,10 +10025,12 @@ stand on one cause a layer below the text.
 
 ## Five hundred, and the shape of the two accelerations
 
-504 of the library's 912 runnable examples run, and of all 1043
-examples half. The pace is worth recording as a pace rather than a
-total: a hundred models a day three weeks ago, one or two a day for a
-month after that, and six to twelve a day again now. The second
+473 of the 911 runnable examples in the measured corpus run - more
+than half - and 504 of all 1040 (three giants are measured on their
+own schedule and are not in these counts). The pace is worth
+recording as a pace rather than a total: a hundred models a day three
+weeks ago, one or two a day for a month after that, and six to twelve
+a day again now. The second
 acceleration is not the work getting easier. It is three instruments
 arriving - a census precise enough to name families, a measurement
 cheap enough to make twice, and the habit of sorting a row by the
@@ -10130,7 +10132,7 @@ least one more link and its map is not finished; the link taken is
 kept rather than reverted, as a chain half-walked is the one thing
 these notes say not to undo.
 
-### The doubled prefix, probed and not solved
+### The doubled prefix, found by shrinking the real model
 
 `stop1.stop1.s` in Translational's `Friction`, and
 `massWithStopAndFriction.massWithStopAndFriction.s` in `HeatLosses`:
@@ -10150,3 +10152,54 @@ named rather than with a guess about the cause. The next probe should
 shrink the real model rather than grow another synthetic one, which
 is what these notes already say and what six passing models have now
 said again.
+
+And that is what found it, in one pass. The real model cut down is
+twelve lines: a component holding a state, and a check inside a `when`
+naming that state. The condition was resolved - which puts the
+component's prefix on its names - and then expanded again, which put
+the prefix on a second time. Neither `initial()` nor the message built
+with `String(s)` had anything to do with it, though both were in the
+six synthetic models and in every earlier guess; any `when` check
+naming a variable of its own component died the same way.
+
+Worth recording as a method rather than as a fix: six synthetic models
+written from the outside all ran, and one real model cut in half four
+times gave the cause in a minute. The synthetic model tests the layer
+you already imagined.
+
+### The Batteries chain, walked to its end
+
+The link left standing last shift had two more behind it, and both
+were found by shrinking the real model rather than by writing a
+seventh synthetic one - which is what the previous note said the next
+probe should do.
+
+The first: a record handed down whole, `cell(cellData = cellData)`,
+had its fields settled from the receiving record's own defaults
+alone. `nRC` came out as the declaration's 1 rather than the 2 the
+site wrote, the array below it was built one element long, and what
+reached the run was `cell.cellData.rcData.R` - a name with no
+subscript, which is how a slice of an array that was never built
+looks from the outside. The refusal named an unevaluable value, and
+the truth was an unbuilt name: a value that cannot be worked out is
+carried into the run, and a name that was never built has nowhere to
+be carried to.
+
+The second: the record the site redeclared through an `extends` -
+`extends BaseCell(redeclare CellData cellData)` - was read through
+the interface's own declaration, which holds none of the derived
+record's fields at all. Both halves of the answer are the same rule
+from two ends: what a field of a record is worth is decided by what
+the site wrote, not by what the declaration it was written on says.
+
+The third link is in the run rather than in flattening. `initial()`
+is rewritten to the slot the event machinery fills, and an expression
+built after that rewrite - the sensitivity of a constraint, produced
+by differentiating here - still carries the call as the model wrote
+it. The slot is already in the table by then, so the compiler reads
+it rather than refusing a name it does supply.
+
+Behind all three stands a fourth wall that is not of this family:
+`CCCV_CellRC` now reaches an initialisation that is not square, five
+initial equations against three unknowns. That is a different layer
+and is parked, named, rather than guessed at.

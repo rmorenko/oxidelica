@@ -117,6 +117,7 @@ pub(super) fn instantiate(
         &outers,
         &inherited,
         &local_texts,
+        &redeclares,
     );
 
     let (sizes, sizes_here) = measure_shapes(registry, class, prefix, env, acc, &local_consts);
@@ -787,6 +788,9 @@ pub(super) fn substitute_texts(expr: &Expr, texts: &HashMap<String, String>) -> 
 fn fields_of_a_record(
     component: &Component,
     from_extends: Option<&Expr>,
+    whole: Option<&Expr>,
+    redeclares: &[Redeclare],
+    extended: &[Extend],
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     imports: &[(String, String)],
@@ -796,10 +800,23 @@ fn fields_of_a_record(
     local_consts: &mut HashMap<String, f64>,
     acc: &mut Flat,
 ) -> bool {
-    if !component.dimensions.is_empty() || from_extends.is_some() {
+    if !component.dimensions.is_empty() || (from_extends.is_some() && whole.is_none()) {
         return false;
     }
-    let Some(record) = lookup(registry, &component.type_name, scope, imports) else {
+    // A record the site redeclared is the site's record, not the
+    // interface's: `extends BaseCell(redeclare CellData cellData)`
+    // means the fields of `CellData`, and read through the base's own
+    // declaration there are none of them at all.
+    let declared = redeclares
+        .iter()
+        .find(|r| !r.class_level && r.name == component.name)
+        .map_or(component.type_name.as_str(), |r| r.type_name.as_str());
+    let declared = extended
+        .iter()
+        .flat_map(|extend| extend.redeclares.iter())
+        .find(|r| !r.class_level && r.name == component.name)
+        .map_or(declared, |r| r.type_name.as_str());
+    let Some(record) = lookup(registry, declared, scope, imports) else {
         return false;
     };
     if record.kind != ClassKind::Record {
@@ -831,11 +848,30 @@ fn fields_of_a_record(
             .iter()
             .find(|(name, _)| name == &field.name)
             .map(|(_, value)| value.clone())
-            .or_else(|| field.binding.clone())
-            .or_else(|| field.start.clone());
-        let Some(written) = written else { continue };
-        let written = substitute_class_constants(&written, registry, scope, imports, &[]);
-        let written = prefix_expr(&written, prefix, outers);
+            .map(|value| (value, false))
+            // A record given a value as a whole - `cell(cellData =
+            // cellData)` - says what every one of its fields is
+            // worth, and says it louder than the record's own
+            // defaults: the site wrote the value. Read field by
+            // field off the name the value is, since that record's
+            // own fields have already been settled under it.
+            .or_else(|| whole_field(whole, &field.name).map(|value| (value, true)))
+            .or_else(|| field.binding.clone().map(|value| (value, false)))
+            .or_else(|| field.start.clone().map(|value| (value, false)));
+        let Some((written, from_site)) = written else {
+            continue;
+        };
+        // A value handed in by the site is written in the site's
+        // terms and is already a path of the flat model: prefixing it
+        // again would turn the record it names into the very record
+        // being settled, which is a name bound to itself.
+        let written = match from_site {
+            true => written,
+            false => {
+                let written = substitute_class_constants(&written, registry, scope, imports, &[]);
+                prefix_expr(&written, prefix, outers)
+            }
+        };
         let Some(value) = const_eval(&written, env) else {
             continue;
         };
@@ -847,6 +883,21 @@ fn fields_of_a_record(
         moved = true;
     }
     moved
+}
+
+/// The name a field of a record bound whole is written on.
+///
+/// A record handed another record outright - `cell(cellData =
+/// cellData)` - gives each of its fields the value of the same field
+/// of that one, and only where the value is a plain name: anything
+/// else is a constructor or arithmetic, whose fields are read
+/// elsewhere, and guessing at them here would put a wrong number
+/// where a refusal is owed.
+fn whole_field(whole: Option<&Expr>, field: &str) -> Option<Expr> {
+    match whole? {
+        Expr::Ref(named) => Some(Expr::Ref(format!("{named}.{field}"))),
+        _ => None,
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -861,6 +912,7 @@ fn settle_parameters(
     outers: &HashMap<String, String>,
     inherited: &[(Component, Option<Expr>)],
     local_texts: &HashMap<String, String>,
+    redeclares: &[Redeclare],
 ) -> HashMap<String, f64> {
     let scope = class.name.as_str();
     // Parameter values of this class, resolved to numbers where
@@ -933,6 +985,12 @@ fn settle_parameters(
             if fields_of_a_record(
                 component,
                 from_extends,
+                env_overrides
+                    .iter()
+                    .find(|(n, _)| n == &component.name)
+                    .map(|(_, e)| e),
+                redeclares,
+                &class.extends,
                 registry,
                 scope,
                 imports,
