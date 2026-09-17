@@ -574,7 +574,7 @@ fn run(
             }
             Statement::Assert(condition, message) => {
                 if number_of(condition, frame, programs, time, depth)? == 0.0 {
-                    return err(message.clone());
+                    return err(oxidelica_parser::message_text(message));
                 }
             }
             // A call on its own: nothing takes its outputs, so it is

@@ -12,7 +12,7 @@ impl Parser {
     /// solver has no channel for one - so such a check is read and
     /// dropped, which is what `None` says. Holding it as an error
     /// would stop runs the language says should continue.
-    pub(super) fn assert_arguments(&mut self) -> Result<Option<(Expr, String)>, ParseError> {
+    pub(super) fn assert_arguments(&mut self) -> Result<Option<(Expr, Expr)>, ParseError> {
         self.expect(&Token::LParen, "parenthesis after assert")?;
         let condition = self.expr()?;
         self.expect(&Token::Comma, "comma before the assert message")?;
@@ -20,7 +20,6 @@ impl Parser {
         if matches!(written, Expr::Number(_) | Expr::Bool(_)) {
             return Err(self.err("assert expects a string message".to_string()));
         }
-        let message = message_text(&written);
         let mut warning = false;
         if self.peek() == &Token::Comma {
             self.bump();
@@ -36,7 +35,7 @@ impl Parser {
             warning = level.ends_with(".warning") || level == "warning";
         }
         self.expect(&Token::RParen, "closing parenthesis of assert")?;
-        Ok((!warning).then_some((condition, message)))
+        Ok((!warning).then_some((condition, written)))
     }
 
     /// An algorithm section: assignments, `if` and `for` statements, up
@@ -292,7 +291,7 @@ impl Parser {
 /// something only the run knows - has no text to give here. The
 /// message is diagnostic, so such a piece stands as `?` and the
 /// literal parts, which are what say what went wrong, are kept.
-pub(super) fn message_text(expr: &Expr) -> String {
+pub fn message_text(expr: &Expr) -> String {
     match expr {
         Expr::Str(text) => text.clone(),
         Expr::Bin(BinOp::Add, a, b) => message_text(a) + &message_text(b),

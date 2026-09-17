@@ -9942,3 +9942,43 @@ standard library used a function this compiler had never heard of.
 The test for it has to defeat inlining: a body simple enough to be
 substituted whole never reaches the walk, and the walk is where the
 fault was. A `while` loop in the body is enough.
+
+### The refusal that named nothing, one layer further down
+
+The `smooth` repair moved three models out of the NaN row -
+`TestWaterPumpDCMotorHeatTransfer`, `TestWaterPumpRecirculation` and
+`TestValvesCompressibleReverse`, named by diffing the row model by
+model rather than subtracting its count. Two of the three landed on
+something new: `assertion failed at t = 0.000000: ?`.
+
+A refusal spelled `?` names nothing, which is the one thing a refusal
+may not do. The census had twelve models standing on that exact line,
+and the wall behind it turned out to be one family with one cause.
+
+The mechanism is where the text was read. An `assert` message was read
+for its text at parse time, and Modelica builds a message by joining
+pieces with `+`. A piece that is not a literal has no text there, and
+stood as `?`. The standard library's boundary check is written
+`assert(X_boundary[i] >= 0.0, message)` inside a function whose
+`message` is an _input_: nothing about it can be known where the body
+is written, because the text arrives with the call.
+
+So the message is held as it was written and read for its text where
+the body is walked with its arguments substituted. What the twelve
+models were trying to say all along then comes out:
+
+```text
+The boundary mass fractions in medium "?" in model "Boundary_pT"
+do not sum up to 1. Instead, sum(X_boundary) = ?:
+```
+
+Which is a real defect in the compiler, now stated in its own words
+instead of as a question mark - and the remaining `?` marks in it are
+the same fault one layer up, in `Streams.error`, where a message is
+built from a `String(x)` the walk never evaluates. That layer is
+parked rather than guessed at.
+
+The change costs nothing and buys no model: both corpus halves from
+one binary give 827 / 492 / 731 / 461, and the two run lists are
+identical line for line. It is a wall named, not a wall removed - the
+twelve still do not run, and now they say why.

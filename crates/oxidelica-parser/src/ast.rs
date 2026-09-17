@@ -275,7 +275,14 @@ pub enum Statement {
     When(Vec<StatementBranch>),
     /// `assert(condition, "message");` — a check written where the
     /// statements are rather than among the equations.
-    Assert(Expr, String),
+    ///
+    /// The message is held as it was written rather than as the text
+    /// of it. A body is walked with its arguments in hand, and a
+    /// message built from one of them - `assert(p >= p_sat, message)`
+    /// with `message` an input - has no text at all until then. Read
+    /// for its text at parse time, such a message is a `?`, which is a
+    /// refusal that names nothing.
+    Assert(Expr, Expr),
     /// `f(x);` — a call standing on its own. Nothing receives its
     /// outputs, so what is left of it is the checks its body makes.
     Call(String, Vec<Expr>),

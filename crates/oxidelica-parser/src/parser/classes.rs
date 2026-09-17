@@ -418,7 +418,9 @@ impl Parser {
                         self.annotation_body(&mut Annotated::default())?;
                     }
                     self.expect(&Token::Semi, "semicolon after assert")?;
-                    asserts.extend(held);
+                    asserts.extend(held.map(|(condition, message)| {
+                        (condition, statements::message_text(&message))
+                    }));
                 }
                 // `initialState(s);` and
                 // `transition(from, to, condition, ...);` draw a state

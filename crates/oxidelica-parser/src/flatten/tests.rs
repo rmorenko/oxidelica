@@ -693,7 +693,10 @@ fn whether_a_name_is_read_later_sees_every_kind_of_statement() {
     )]));
 
     // A check and a call read their arguments; leaving reads nothing.
-    assert!(reads(vec![Statement::Assert(named(), "m".into())]));
+    assert!(reads(vec![Statement::Assert(
+        named(),
+        Expr::Str("m".into())
+    )]));
     assert!(reads(vec![Statement::Call("f".into(), vec![named()])]));
     assert!(!reads(vec![Statement::Break, Statement::Return]));
 

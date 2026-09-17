@@ -279,7 +279,7 @@ mod classes;
 mod declarations;
 mod equations;
 mod expressions;
-mod statements;
+pub mod statements;
 
 impl Parser {
     pub(super) fn peek(&self) -> &Token {

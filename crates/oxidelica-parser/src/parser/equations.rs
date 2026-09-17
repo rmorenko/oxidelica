@@ -154,9 +154,10 @@ impl Parser {
                     let held = self.assert_arguments()?;
                     self.expect(&Token::Semi, "semicolon after assert")?;
                     match held {
-                        Some((condition, message)) => {
-                            body.push(ForBody::Assert(condition, message))
-                        }
+                        Some((condition, message)) => body.push(ForBody::Assert(
+                            condition,
+                            super::statements::message_text(&message),
+                        )),
                         None => dropped += 1,
                     }
                 }
@@ -264,7 +265,9 @@ impl Parser {
                 Token::Ident(name) if name == "assert" && self.peek_at(1) == &Token::LParen => {
                     self.bump();
                     match self.assert_arguments()? {
-                        Some(held) => asserts.push(held),
+                        Some((condition, message)) => {
+                            asserts.push((condition, super::statements::message_text(&message)))
+                        }
                         None => dropped += 1,
                     }
                     self.expect(&Token::Semi, "semicolon after assert")?;
@@ -432,7 +435,10 @@ impl Parser {
             {
                 self.bump();
                 if let Some((condition, message)) = self.assert_arguments()? {
-                    actions.push(WhenAction::Assert(condition, message));
+                    actions.push(WhenAction::Assert(
+                        condition,
+                        super::statements::message_text(&message),
+                    ));
                 }
                 self.expect(&Token::Semi, "semicolon after assert")?;
                 continue;

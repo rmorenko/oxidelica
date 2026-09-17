@@ -207,7 +207,17 @@ pub(super) fn execute(
                 };
                 let condition = expand(&condition, &shapes, registry, scope, imports, depth + 1)?
                     .into_expr();
-                asserts.push((substitute_refs(&condition, bindings), message.clone()));
+                // The message is read for its text here and not at
+                // parse time. `assert(p >= p_sat, message)` names an
+                // input of the body, and only here, with the
+                // arguments substituted, is there any text to read:
+                // asked earlier, the message is a `?` and the refusal
+                // names nothing.
+                let message = substitute_refs(message, bindings);
+                asserts.push((
+                    substitute_refs(&condition, bindings),
+                    crate::parser::statements::message_text(&message),
+                ));
             }
             // A call on its own: nothing takes its outputs, so what it
             // was written for is the checks its body makes, and those

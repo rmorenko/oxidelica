@@ -409,6 +409,24 @@ fn asserts_stop_the_run_with_their_message() {
     assert!(error.contains("the input left its window"), "{error}");
     assert!(error.contains("assertion failed at t = 0.73"), "{error}");
 
+    // A check inside a function body, whose message is an input of
+    // that body. There is no text to read where the body is written -
+    // the message arrives with the call - so a message read for its
+    // text too early stands as `?`, and the refusal names nothing.
+    let model = parse_model(
+        "model C \
+         function checked \
+           input Real p; input Real q; input String message; output Real d; \
+         algorithm \
+           d := p - q; assert(p >= q, message); \
+         end checked; \
+         Real x = checked(time, 1.0, \"pressure fell below saturation\"); \
+         annotation(experiment(StopTime = 2.0, Interval = 0.1)); end C;",
+    )
+    .unwrap();
+    let error = compile(&model).unwrap().simulate().unwrap_err().to_string();
+    assert!(error.contains("pressure fell below saturation"), "{error}");
+
     // `block` is a class kind now.
     let block = run("block G Real y; equation y = 2 * time; \
          annotation(experiment(StopTime = 1.0, Interval = 0.5)); end G;");

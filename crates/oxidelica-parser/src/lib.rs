@@ -24,6 +24,7 @@ pub use library::{
     download_root, downloaded_libraries, library_directories, library_directory, library_files,
     library_files_in, library_sources, LIBRARY_VARIABLE, MODELICA_PATH,
 };
+pub use parser::statements::message_text;
 pub use parser::{
     parse_file, parse_model, parse_model_reading, parse_model_with_libraries, ParseError,
 };
