@@ -952,14 +952,24 @@ fn record_value_per_field(
     // the values their constructor had already worked out. The same
     // gatherer the rest of the flattener reads a record with, so the
     // two cannot disagree about what a record is.
-    let held: Vec<Component> = record_fields::record_components(registry, of, 0)
-        .into_iter()
-        // Not the class's own constants: those are the same for every
-        // value of the record and are not pieces a value is made of.
-        .filter(|field| field.variability != Variability::Constant)
+    // The class's own constants are among them here, and dropped
+    // again below. A value has two right lengths: a constructor writes
+    // no constant, and a record named whole and written out writes
+    // every one - `cellData` of a battery brings the `constant String
+    // CellType` its base declares. Counted one way only, the other
+    // fitted nothing, and a matrix of six battery cells arrived as 774
+    // things to be given to six names.
+    let held: Vec<Component> = record_fields::record_components(registry, of, 0);
+    let a_constant: Vec<bool> = held
+        .iter()
+        .map(|field| field.variability == Variability::Constant)
         .collect();
     let fields: Vec<String> = held.iter().map(|field| field.name.clone()).collect();
-    let settable: Vec<bool> = held.iter().map(|field| !field.is_final).collect();
+    let settable: Vec<bool> = held
+        .iter()
+        .zip(&a_constant)
+        .map(|(field, constant)| !field.is_final && !constant)
+        .collect();
     if fields.is_empty() || !settable.iter().any(|may| *may) {
         return Vec::new();
     }
@@ -996,13 +1006,32 @@ fn record_value_per_field(
     // One record is its fields, and a field may be an array of
     // its own, so what is counted here is fields rather than
     // numbers.
+    let without_constants = a_constant.iter().filter(|constant| !**constant).count();
     let one = |item: &Value| -> Option<Vec<Expr>> {
-        match item {
-            Value::Array(given) if given.len() == fields.len() => {
-                Some(given.iter().cloned().map(Value::into_expr).collect())
-            }
-            _ => None,
+        let Value::Array(given) = item else {
+            return None;
+        };
+        let mut given = given.iter().cloned().map(Value::into_expr);
+        if given.len() == fields.len() {
+            return Some(given.collect());
         }
+        // A constructor's value says nothing about the constants, so
+        // what it holds lines up with the fields that are not ones.
+        // The places a constant sits are filled with what the class
+        // declared it as, which is the only thing it can be - and not
+        // with its bare name, which names nothing where this lands.
+        if given.len() == without_constants {
+            return Some(
+                held.iter()
+                    .zip(&a_constant)
+                    .map(|(field, constant)| match constant {
+                        true => field.binding.clone().unwrap_or(Expr::Number(0.0)),
+                        false => given.next().expect("counted just now"),
+                    })
+                    .collect(),
+            );
+        }
+        None
     };
     // An array of records comes apart twice over: once into its
     // elements and once into each element's fields. The
@@ -1033,14 +1062,23 @@ fn record_value_per_field(
     let mut leaves = Vec::new();
     worked.flatten_into(&mut leaves);
     let of_one = numbers_of_one(registry, of, 0);
-    let per_element = match of_one {
+    // The other right length: `numbers_of_one` counts what a
+    // constructor writes, and a record named whole and written out
+    // brings the class's own constants too. Both are allowed, and
+    // `one` above knows which of the two it was handed.
+    let constants = a_constant.iter().filter(|constant| **constant).count();
+    let per_element = match of_one.map(|each| each + constants) {
         // A record whose shape holds a length the compiler
         // cannot see says nothing either way, and the reading
         // that was here before has its say.
         None | Some(0) => one_apiece().or_else(over_all),
         Some(each) if leaves.len() == each * element_names.len() => one_apiece(),
         Some(each) if leaves.len() == each => over_all(),
-        Some(_) => None,
+        Some(_) => match of_one {
+            Some(each) if leaves.len() == each * element_names.len() => one_apiece(),
+            Some(each) if leaves.len() == each => over_all(),
+            _ => None,
+        },
     }
     .unwrap_or_default();
     // A value taken apart by count is taken apart by the class that
@@ -1064,7 +1102,9 @@ fn record_value_per_field(
             if !path.contains('[') {
                 let by_name: Vec<(String, Expr)> = held
                     .iter()
-                    .filter(|field| !field.is_final)
+                    .zip(&settable)
+                    .filter(|(_, may)| **may)
+                    .map(|(field, _)| field)
                     .map(|field| {
                         (
                             field.name.clone(),

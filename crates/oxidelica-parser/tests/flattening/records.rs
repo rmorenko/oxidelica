@@ -388,6 +388,44 @@ fn a_record_written_out_holds_what_its_bases_declared_too() {
 }
 
 #[test]
+fn a_constant_field_is_not_one_a_value_of_the_record_carries() {
+    // The same constant read from the other end. A battery stack
+    // declares `CellData cellData[Ns, Np]` and binds it to a
+    // comprehension whose every element is a whole record; written
+    // out, each record carried the inherited `constant String
+    // CellType` as a field of its own, so six cells arrived as seven
+    // hundred and seventy-four things to be given to six names, and
+    // the whole stack was refused.
+    let m = parse_model(
+        "package P partial record Kind constant String name = \"cell\"; end Kind; \
+         record S extends Kind; Real r; Real c; end S; \
+         model M parameter S one(r = 1, c = 2); parameter S other(r = 3, c = 4); \
+         parameter S cells[3] = {if k == 1 then one else other for k in 1:3}; \
+         Real y; equation y = cells[3].r; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("an array of records bound to a comprehension of whole records");
+    // The third cell is the other one, field by field, and nothing
+    // was left counting a constant among them.
+    let value = |name: &str| -> Option<String> {
+        m.components
+            .iter()
+            .find(|c| c.name == name)
+            .map(|c| format!("{:?}", c.binding))
+    };
+    assert!(
+        value("cells[3].r").is_some_and(|said| said.contains("other.r")),
+        "{:?}",
+        value("cells[3].r")
+    );
+    assert!(
+        value("cells[1].r").is_some_and(|said| said.contains("one.r")),
+        "{:?}",
+        value("cells[1].r")
+    );
+}
+
+#[test]
 fn a_record_valued_variable_says_its_value_field_by_field() {
     // `output SI.ComplexVoltage vs[m] = plug_sp.pin.v - plug_sn.pin.v`
     // is how the quasi-static machines read a stator voltage: a whole

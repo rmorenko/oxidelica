@@ -129,6 +129,37 @@ fn expandable_connector_error_paths() {
 }
 
 #[test]
+fn a_parameter_a_bus_declares_keeps_the_value_it_was_given() {
+    // A declared member of a bus that nothing connects to is worth
+    // zero, which is what 9.1.3 says about a potential variable. A
+    // parameter is not one of those: a battery stack's bus states
+    // `parameter Integer Ns` and hangs a cell bus off it, and zeroed
+    // here it lost the count the model wrote and was refused for
+    // sitting below the minimum its own declaration states.
+    let m = parse_model(
+        "expandable connector Bus parameter Integer n(min = 1) = 1; Real s[n]; end Bus; \
+         model U parameter Integer n(min = 1) = 1; Bus bus(n = n); \
+         equation for i in 1:n loop bus.s[i] = i; end for; end U; \
+         model M U u(n = 3); Real y; equation y = u.bus.s[3]; end M;",
+    )
+    .expect("a bus that states how big it is");
+    let count = m
+        .components
+        .iter()
+        .find(|c| c.name == "u.bus.n")
+        .expect("the bus keeps its count");
+    assert_eq!(format!("{:?}", count.binding), "Some(Ref(\"u.n\"))");
+    // And nothing wrote a second, contradicting equation setting it
+    // to the zero an unconnected potential variable is owed - which
+    // is what put it below the minimum its declaration states.
+    let zeroed = m
+        .equations
+        .iter()
+        .any(|e| matches!(&e.lhs, Expr::Ref(name) if name == "u.bus.n"));
+    assert!(!zeroed, "{:?}", m.equations);
+}
+
+#[test]
 fn streams_are_read_under_a_subscript_and_through_a_base_class() {
     const PORT: &str = "connector Port Real p; flow Real m; stream Real h; end Port;\
                         connector Port_a extends Port; end Port_a;";

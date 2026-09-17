@@ -242,6 +242,20 @@ pub(super) fn expand_buses(
         let class = registry[class_name.as_str()];
         for member in &class.components {
             let path = format!("{bus}.{}", member.name);
+            // Only what a connection could have carried. A bus may
+            // state how big it is - a battery stack's bus declares
+            // `parameter Integer Ns` and its cells hang off that - and
+            // a parameter is not a potential variable the connection
+            // semantics say anything about: it has a value already.
+            // Given a zero here it lost the one the model wrote, and
+            // the stack was refused for a count below the minimum its
+            // own declaration states.
+            if matches!(
+                member.variability,
+                Variability::Parameter | Variability::Constant
+            ) {
+                continue;
+            }
             let stated = acc
                 .equations
                 .iter()
