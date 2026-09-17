@@ -10551,3 +10551,116 @@ at the shape layer. That is more than the end of a shift, and it is
 written down here rather than half-built: the reproduction above is
 twelve lines and takes a second, so whoever takes it starts from a
 failing model rather than from the corpus.
+
+## An empty array cannot say how wide it is
+
+Seven models refused with `the flexible size ':' of 't_new.columns'
+needs a value to read its length from, and Range(Number(2.0), None,
+Call("size", [Ref("table"), Number(2.0)])) is not one`
+(`/tmp/raw171.txt`, lines 179-198). The names were
+`CombiTable1Ds.Test35`, `CombiTable1Dv.Test25_usertab`,
+`CombiTable1Dv.Test35`, `CombiTimeTable.Test66_usertab`, `Test80`,
+`Test81` and `Test89`.
+
+The mechanism took five lines, and none of them is a table:
+
+```modelica
+model H
+  parameter Real tab[:, 2] = fill(0.0, 0, 2);
+  parameter Integer cols[:] = 2:size(tab, 2);
+  Real y = cols[1];
+end H;
+```
+
+`Value::shape` reads the inner axes off the first element, so a value
+with no elements loses every axis but the outer one: `fill(0.0, 0, 2)`
+measures as `[0]` rather than `[0, 2]`, `size(tab, 2)` finds no second
+axis, and the `:` next door loses its length with it. Every table
+block in the standard library declares its table exactly that way,
+which is why a fault in the array layer wore a table's clothes.
+
+The declaration is the other witness and it is not empty: `Real
+tab[:, 2]` states the two outright, and `shapes.sizes` already holds
+it. So where the measurement is short of the axis asked about, the
+declaration answers - for the name itself only, never for a member
+walked off an array, whose dimensions belong to the array and not to
+the member.
+
+That was built, measured, and reverted, and the reversion is the
+finding. The numbers first: 841 flatten and 510 run before, 841 and
+510 after, and the diff of both lists is empty (`/tmp/l171_off.txt`,
+`/tmp/l171_on.txt`, one binary, the fix behind
+`OXIDELICA_NO_DECLARED_SIZE`). All seven models moved one storey up
+and none of them reached the ground: five now ask for
+`ModelicaStandardTables_CombiTimeTable_getValue` or
+`_CombiTable1D_getValue`, and the two `usertab` models for their own
+`getUsertab` - external C either way, which is a wall this compiler
+does not have a door in. `Test87` and `Test88` were never in this
+family: they refuse on `t_new.table`, a length taken from a
+neighbour, which is the parked fixpoint above.
+
+Then `a_table_file_that_will_not_read_leaves_the_measurement_alone`
+went red, and it is right to. A table block whose file cannot be read
+declares `table[:, :]` - both axes flexible in the standard library's
+own blocks, not the `[:, 2]` of the reproduction - and a declaration
+that states a width when the file is missing answers `2` where a
+refusal naming the file is owed. A wrong number where a refusal
+belongs is the worst thing this compiler does, and the guard that was
+already there caught it in seconds.
+
+So the map, for whoever takes it. The cause is certain: `Value::shape`
+loses every axis but the outer one when there are no elements, and one
+`is_none` in `size` is where it surfaces. What is not settled is who
+may answer instead. The declaration may not, because it is silent in
+exactly the case that matters and confident in exactly the case that
+must refuse. What is wanted is a shape that carries its zero - `[0,
+2]` rather than `[0]` - which means `Value` recording the axes of an
+empty array rather than deducing them from a first element that does
+not exist. That is a change to the representation and not to one
+reading of it, and it is written down here rather than half-built.
+
+And the prize is a kind removed rather than a model won: all seven
+stand at external C either way. Worth doing for the refusal's sake -
+it named an array the model never wrote, and sent three shifts to the
+table reader for a fault in the array layer - but not worth a wrong
+number bought on the way.
+
+## `an array of shape [2] where a scalar is expected` is a row, not a family
+
+The row counts seven (`/tmp/census171.txt`, line 207) and stands level
+with the top of the flat half, so it was scouted. The names, from
+`/tmp/raw171.txt` lines 80-172, fall into four unrelated layers:
+
+- `Modelica.Fluid.Examples.ControlledTankSystem.ControlledTanks` and
+  `Modelica.StateGraph.Examples.ControlledTanks`, both on
+  `start.pre_reset[1]` - a StateGraph array of resets read as one;
+- `Modelica.Media.Examples.ReferenceAir.MoistAir1` and
+  `ModelicaTest.Media.TestsWithFluid.MediaTestModels.Air.MoistAir`, on
+  `specificEnthalpy_pTX` - a medium's mass fractions;
+- `Modelica.Fluid.Examples.DrumBoiler.BaseClasses.EquilibriumDrumBoiler`
+  on `Medium.dewEnthalpy(sat.psat)`;
+- `Modelica.Math.Random.Examples.GenerateRandomNumbers` on
+  `Xorshift64star.initialState`, which is the parked noise chain;
+- `ModelicaTest.Math.TestNonlinear` on `solveOneNonlinearEquation`.
+
+Two more rows carry the same words with a different shape
+(`[1]`, `[3]`, `[6]`, `[100]`), and adding them by wording rather than
+by layer would have made a family of nineteen that does not exist.
+
+The medium half shrinks to three lines and does not stay in this row
+when it does, which is itself the finding:
+
+```modelica
+model M
+  package Medium = Modelica.Media.Air.MoistAir;
+  Real h = Medium.specificEnthalpy_pTX(101325, 293.15, {0.01});
+end M;
+```
+
+refuses with `arrays of 1 and 2 elements do not fit together`, and
+with `{0.01, 0.99}` it says `arrays of 2 and 3`. The count is off by
+one at each try, so a mass-fraction argument is being widened by a
+place somewhere between the call and the body - `X` against `Xi`,
+which differ by exactly one. That is the layer to take, and it is not
+the scalar-where-array reading the row's text advertises. Parked
+here with the reproduction rather than half-taken.
