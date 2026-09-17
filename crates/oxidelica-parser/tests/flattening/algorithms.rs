@@ -2871,6 +2871,34 @@ fn a_string_a_body_writes_in_one_branch_starts_empty() {
     assert_eq!(format!("{:?}", out.rhs), "Time");
 }
 
+/// A check written inside an `if` of a body holds only where that
+/// branch is taken. `Streams.error` is `assert(false, text)`, so a
+/// check carried out of the branch bare is false outright and fires at
+/// the first step of every run - which is how the boundary check of
+/// the Fluid library refused twelve models at t = 0 for a branch none
+/// of them takes.
+#[test]
+fn a_check_inside_a_branch_of_a_body_carries_its_condition() {
+    let m = parse_model(
+        "function shout input String message; \
+         algorithm assert(false, message); end shout; \
+         function check input Real x; output Real y; \
+         algorithm y := x; if x > 1 then shout(\"over one\"); end if; end check; \
+         model M Real out; equation out = check(time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a body that shouts on a condition it cannot decide");
+    assert_eq!(m.asserts.len(), 1);
+    let (condition, message) = &m.asserts[0];
+    assert_eq!(message, "over one");
+    // Not `false` standing on its own: the branch's condition is in
+    // front of it, so the check holds wherever the branch is not taken.
+    assert!(
+        format!("{condition:?}").starts_with("Or(Not("),
+        "{condition:?}"
+    );
+}
+
 /// A working array filled and used inside one branch and never looked
 /// at again needs no merged value: `o` of the steam tables holds the
 /// powers of a pressure while the branch builds a temperature from

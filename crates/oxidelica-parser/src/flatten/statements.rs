@@ -964,6 +964,17 @@ fn one_if_statement(
     let mut outcomes: Vec<(Option<Expr>, HashMap<String, Expr>)> = Vec::new();
     for branch in branches {
         let mut local = before.clone();
+        // What a branch checks holds only while that branch is the one
+        // taken. `Modelica.Utilities.Streams.error(text)` is
+        // `assert(false, text)` in the standard library, so a branch
+        // that shouts on a condition the compiler cannot decide hands
+        // out a check that is false outright: carried out of the `if`
+        // bare, it fires at the first step of every run whatever the
+        // condition says. The boundary check of the Fluid library is
+        // written that way, and twelve models refused at t = 0 for a
+        // branch none of them takes.
+        let mark = asserts.len();
+        let aside = algorithms::checks_mark();
         execute(
             &branch.body,
             &mut local,
@@ -997,6 +1008,16 @@ fn one_if_statement(
                 expand(&c, &shapes, registry, scope, imports, depth + 1)?.scalar()
             })
             .transpose()?;
+        // The `else` branch holds where no condition before it did, and
+        // that is not one expression here; a check it made is left as it
+        // was rather than guarded by a guess.
+        if let Some(condition) = &condition {
+            let otherwise = Expr::Not(Box::new(condition.clone()));
+            for (check, _) in asserts.iter_mut().skip(mark) {
+                *check = Expr::Or(Box::new(otherwise.clone()), Box::new(check.clone()));
+            }
+            algorithms::checks_guarded(aside, condition, true);
+        }
         outcomes.push((condition, local));
     }
     // Every variable any branch wrote gets one merged value.

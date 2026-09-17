@@ -9982,3 +9982,43 @@ The change costs nothing and buys no model: both corpus halves from
 one binary give 827 / 492 / 731 / 461, and the two run lists are
 identical line for line. It is a wall named, not a wall removed - the
 twelve still do not run, and now they say why.
+
+### The wall behind the name: a check that escaped its branch
+
+Naming the refusal was what made the next question askable, and the
+answer was not in the message at all. `Modelica.Utilities.Streams.error`
+is written in the standard library as `assert(false, string)` - the
+whole of its body. A model reaches it through a branch:
+
+```modelica
+if nX > 0 and abs(sum(X_boundary) - 1.0) > 1e-10 then
+   Streams.error("... do not sum up to 1 ...");
+end if;
+```
+
+Where an `if` in a body cannot be decided by the compiler, flattening
+works out both branches and merges what they assign. What they
+_check_ was not merged: a check made inside a branch was carried out
+of the `if` bare, and a check that reads `false` outright fires at the
+first step of every run whatever the condition says. The composition
+was right all along - `sum(X_boundary)` is 1 in every one of those
+models - and the compiler refused them for a branch none of them
+takes.
+
+The rule was already written for the expression side, in `arrays`,
+where a call inside a branch has its checks guarded by the branch's
+condition. The statement side did not have it. The repair is the same
+one: a check a branch makes becomes `not condition or check`, so it
+holds wherever the branch is not taken. An `else` branch is left
+alone - what it holds under is "no condition before it", which is not
+one expression here, and a guard written as a guess is worse than
+none.
+
+Measured from one binary, both corpus halves with the giants carved
+out: 827 / 492 / 731 / 461 before, 827 / 504 / 731 / 473 after. Twelve
+models gained and none lost - the eleven of the boundary check, and
+`ModelicaTest.Utilities.TestWriteFile`, which stood on the same
+mechanism through a different shout about a file it could not remove.
+That last one is the census's own lesson paid forward: the row of
+twelve read as one family was two by its texts, and both turned out to
+stand on one cause a layer below the text.
