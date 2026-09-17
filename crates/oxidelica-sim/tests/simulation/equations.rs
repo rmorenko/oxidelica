@@ -857,6 +857,26 @@ fn a_record_carries_its_own_operators_through_a_run() {
 }
 
 #[test]
+fn a_field_of_an_array_of_records_is_summed_before_the_run() {
+    // `sum(rcData.R)` over an array of records is a parameter's whole
+    // value, and the reduction is left standing where the array it
+    // reads has not been measured yet. A dot in the name was taken for
+    // that, so the sum waited for a shape already in hand and reached
+    // the run as a name nothing gives a value to. What the model is
+    // worth, not merely that it flattens: the two resistances add to
+    // three.
+    let result = run("model M record I parameter Real R; end I; \
+         parameter I items[2] = {I(R = 1.0), I(R = 2.0)}; \
+         parameter Real total = sum(items.R); \
+         Real x(start = 0, fixed = true); \
+         equation der(x) = total; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let index = result.columns.iter().position(|c| c == "x").unwrap();
+    let x = result.rows.last().unwrap()[index];
+    assert!((x - 3.0).abs() < 1e-9, "x(1) = {x}, expected 3");
+}
+
+#[test]
 fn a_stream_junction_weighs_only_what_flows_into_it() {
     // The mix at a node is each port's stream value weighted by what it
     // pushes in - `max(-m, 0)` - so a port pushing nothing has no say.

@@ -280,6 +280,17 @@ about a number that is wrong; this one is about a measurement that was
 never made. So an argument is checked to be non-empty before the pipe
 is believed, the same way a script is checked to exist.
 
+And there is a fifth, which no check on the pipe can catch, because it
+happens after the pipe has done its work: a number recalled instead of
+read. A report said a row held sixty-five models; the instrument had
+printed something else, and the figure came from memory of an earlier
+pass. The conclusion drawn from it happened to survive, which is the
+trap - a retelling that lands near the truth reads exactly like a
+measurement. So a number in a report is only what the instrument
+printed, and it is quoted beside the file it was printed into, so that
+a reader can go and look. A number without that file beside it is a
+guess however confident the hand that wrote it.
+
 And a key that can be forgotten belongs in the default. `--without
 scripts/heavy_models.txt` was left off a corpus pass and eleven minutes
 went on three giants that were carved out precisely so nobody would

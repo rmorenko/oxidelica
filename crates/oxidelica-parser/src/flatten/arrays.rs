@@ -1923,7 +1923,7 @@ pub(super) fn elements_of(name: &str, sizes: &[i64]) -> Value {
 /// where some prefix of the name is an array this table has measured.
 /// The longest prefix wins: `a.b.c` with both `a` and `a.b` measured is
 /// the member `c` of the array `a.b`.
-fn member_of_array<'a>(
+pub(super) fn member_of_array<'a>(
     name: &'a str,
     sizes: &HashMap<String, Vec<i64>>,
 ) -> Option<(&'a str, &'a str)> {

@@ -278,9 +278,23 @@ pub(super) fn shaped_by_a_builtin(
 /// under whatever the reduction was given rather than only as the
 /// whole of it, because `sum(vs .* is)` is exactly as early as
 /// `sum(vs)` and reducing it now silently drops the reduction.
+///
+/// A dot in a name is not on its own evidence that the array is
+/// missing, and reading it as such is what left `sum(rcData.R)`
+/// standing for ever: `rcData` is a measured array of records, so
+/// `rcData.R` is a member of one and the walk writes it out the
+/// moment it is asked to. Waiting for a shape that is already here
+/// means waiting for nothing, and what the run is handed is a name no
+/// parameter can be worked out from. So the question is whether some
+/// prefix of the name has been measured, which is the same question
+/// the walk itself asks a line later.
 pub(super) fn unmeasured_name_under(expr: &Expr, shapes: &Shapes) -> bool {
     match expr {
-        Expr::Ref(named) => named.contains('.') && !shapes.sizes.contains_key(named),
+        Expr::Ref(named) => {
+            named.contains('.')
+                && !shapes.sizes.contains_key(named)
+                && super::arrays::member_of_array(named, shapes.sizes).is_none()
+        }
         Expr::Bin(_, l, r) | Expr::Elementwise(_, l, r) => {
             unmeasured_name_under(l, shapes) || unmeasured_name_under(r, shapes)
         }

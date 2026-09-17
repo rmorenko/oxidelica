@@ -10022,3 +10022,131 @@ mechanism through a different shout about a file it could not remove.
 That last one is the census's own lesson paid forward: the row of
 twelve read as one family was two by its texts, and both turned out to
 stand on one cause a layer below the text.
+
+## Five hundred, and the shape of the two accelerations
+
+504 of the library's 912 runnable examples run, and of all 1043
+examples half. The pace is worth recording as a pace rather than a
+total: a hundred models a day three weeks ago, one or two a day for a
+month after that, and six to twelve a day again now. The second
+acceleration is not the work getting easier. It is three instruments
+arriving - a census precise enough to name families, a measurement
+cheap enough to make twice, and the habit of sorting a row by the
+layer it refuses from rather than by the words it refuses with.
+
+## `cannot evaluate parameters`: one row, six forms, two layers
+
+Twenty models stood at this row. The row is a work queue by the
+instrument's own reckoning, and the question worth asking of it was
+not what the twenty have in common but what separates them from the
+many models whose parameters are equally unworkable and which run
+anyway, carrying the value into the run instead.
+
+The compiler answers that itself, in the `because` clause it prints.
+Counted over the raw census, the twenty divide in two:
+
+```text
+ 7  nothing works out `<call>`
+12  nothing gives a value to `<names>`
+```
+
+Those are two layers and not two wordings. A call nothing works out -
+`waterBaseProp_ph`, `dp_curvedOverall_DP`, `quadratureLobatto`,
+`ColorMaps.jet` - is a body the compiler declines to evaluate before
+the run, and the model dies because a parameter's value needs a number
+now. A name nothing gives a value to is something else entirely: the
+value is workable, and the name in it is one the flat model never
+built.
+
+The second layer splits again by probe, not by text:
+
+- a field of an array of records, read as a slice: `cellData.rcData.R`
+  in Batteries (2 models);
+- a doubled prefix: `pump.pump.V_flow_op` where the declaration is
+  `pump.V_flow_op` (2 models, and the same breed as the `stop1.stop1.s`
+  pair standing in the `unknown variable` row);
+- a record of a medium handed down whole - `data.H0` and forty more
+  fields - where the flat model has no such component (2);
+- MultiBody's analytic joints, `jointUSR.e2_ia` and its rod (3);
+- a pipe's `dxs`, which the `why` probe shows is not refused at all in
+  its sibling models but carried into the run (1).
+
+That last one is the answer to the question the row was asked. What
+separates a model that carries an unworkable parameter into the run
+from one that refuses is not the shape of the binding. It is whether
+the name in the binding exists in the flat model at all. A value the
+compiler cannot work out is carried; a value naming something that
+was never built cannot be, because there is nothing for the run to
+read. So the row is not one barrier with twenty models behind it but
+two layers, and the second is five different ways of failing to build
+a name.
+
+### A field of an array of records, read as a slice
+
+The smallest of the five, and the one with a twelve-line
+reproduction:
+
+```modelica
+model M
+  record I parameter Real R; end I;
+  parameter I items[2] = {I(R = 1.0), I(R = 2.0)};
+  parameter Real total = sum(items.R);
+```
+
+`total` refused with "nothing gives a value to `items.R`". Three
+neighbouring spellings run: `items[1].R + items[2].R`, and
+`parameter Real rs[2] = items.R` followed by `sum(rs)`. So the fault
+is neither the record array nor the slice nor the sum, but the three
+together in a scalar parameter's binding.
+
+The cause is a test of a name's spelling standing in for a fact about
+the world - the breed these notes have now met four times. A reduction
+over a name whose array has not been built yet must be left standing
+until the shapes arrive, and the test for "has not been built yet" was
+`named.contains('.') && !sizes.contains_key(named)`. But a member of
+an array is never in `sizes` under its own full name: `plug.pin.v` is
+measured by finding the longest measured prefix, which is exactly what
+`member_of_array` does one line later in the walk. So every member of
+every measured array read that way was judged unmeasured, the sum
+waited for a shape already in hand, and what reached the run was the
+bare name.
+
+The repair asks the same question the walk asks: is some prefix of
+this name a measured array. Where the reduction is genuinely early -
+`rs.resistor.LossPower` before `rs` exists - no prefix is measured
+and the sum is still left standing, which is the case the test was
+written for.
+
+Measured from one binary, both halves, giants carved out:
+827 / 504 / 731 / 473 both with the repair and without it, and the two
+run lists identical line for line. Zero models, and the zero was
+expected before it was measured: this is a link removed from the
+middle of a mapped chain, which moves no number by construction. The
+Batteries models die one step further along, at
+`battery.cellData.rcData.R` in an array component's modifier, which a
+small model does not reproduce - `Res rs[n](R = cellData.rcData.R)`
+through a nested record runs correctly today. So the chain has at
+least one more link and its map is not finished; the link taken is
+kept rather than reverted, as a chain half-walked is the one thing
+these notes say not to undo.
+
+### The doubled prefix, probed and not solved
+
+`stop1.stop1.s` in Translational's `Friction`, and
+`massWithStopAndFriction.massWithStopAndFriction.s` in `HeatLosses`:
+one fault, two models, and the layer is `code.rs` refusing a name the
+flat model never declared. The `why` probe confirms it: `stop1.s`
+exists and carries every equation it should, while `stop1.stop1.s`
+is declared nowhere.
+
+Six small models were written against the shapes the source suggested
+and all six ran correctly: a class extending one declared inside
+itself, the same with `encapsulated partial`, the same reaching a
+grandparent through an `import`, `reinit` in a `when`, `reinit` in a
+`when` under such an `extends`, and a `fixed` modifier written at the
+use site onto an inherited state. So the doubling is not in any of
+those on its own, and the reconnaissance stops here with the layer
+named rather than with a guess about the cause. The next probe should
+shrink the real model rather than grow another synthetic one, which
+is what these notes already say and what six passing models have now
+said again.
