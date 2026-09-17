@@ -10321,3 +10321,79 @@ one element apiece. So a name for the whole array's field survives
 into the run, where every name must be one the flat model declares.
 This is the array-of-records reading of the same whole-binding layer,
 and it is scouted rather than taken: there is no shrunk model yet.
+
+### The rcData chain, walked to its end and parked
+
+The scouting note above is superseded: the chain was walked, four of
+its five links were built and measured, and the whole of it was
+reverted. What follows is the map, so that the next attempt starts
+from the fifth link rather than from the first.
+
+The shrunk model is thirty lines and shows the whole fault. A record
+written as a base and a list of modifiers, a second record extending
+it, an interface record redeclared on a stack, and a field of the
+array read as a slice:
+
+```modelica
+record Elem Real R = 1; end Elem;
+record BaseData parameter Real Ri = 1; end BaseData;
+record CellData extends BaseData; parameter Integer n = 1;
+  parameter Elem a[n] = {Elem(R = 0)}; end CellData;
+record ExampleData extends CellData(n = 2,
+  a = {Elem(R = 3), Elem(R = 4)}); end ExampleData;
+partial model BaseStack replaceable parameter BaseData cellData; end BaseStack;
+model Stack extends BaseStack(redeclare CellData cellData);
+  Leaf leaf[cellData.n](final R = 2 * cellData.a.R); end Stack;
+model M parameter ExampleData cellData; Stack battery(cellData = cellData); end M;
+```
+
+Two things had to be in the model before it would fail, and both were
+learned by bisecting rather than by reading. One storey is not
+enough - the same record read directly flattens correctly - because
+the fault needs the record to be instantiated a _second_ time under
+the site's path, which is what the redeclare causes. And the slice is
+not the fault but its symptom: what goes wrong is the length.
+
+The links, in the order the probes found them:
+
+1. `fields_of_a_record` in `instantiate.rs` reads an inherited field's
+   binding from the base's declaration and never looks at what the
+   record's own `extends` wrote about it. `n` settles at 1.
+2. `settle_parameters_early` writes the base's default over a value
+   already settled under the same path, on the second visit.
+3. `settle_parameters` does the same thing at the end of its round.
+4. `instantiate_one` in `components.rs` does it a third time.
+5. The value itself. With the length right, `a` is measured two long
+   and its value is still the base's one-element `{Elem(R = 0)}`,
+   which comes apart into four numbers where two records were wanted:
+   `rcData has 2 element(s) but its value has 4`. This link was
+   probed and named but not built.
+
+Links 1 to 4 were built behind one switch and the corpus run twice
+from one binary, giants carved out. The numbers, from
+`/tmp/corpus168_off.txt` and `/tmp/corpus168_on.txt`:
+
+```text
+off:  1040 examples, 837 flatten, 506 run;  911 runnable, 732 flatten, 474 run
+on:   1040 examples, 833 flatten, 506 run;  911 runnable, 728 flatten, 474 run
+```
+
+Four models lost to flattening, none gained, and the run lists
+identical line for line. Three of the four are the Batteries models
+the work was aimed at - `BatteryDischargeCharge`, `CCCV_CellRC`,
+`CCCVcharging` - which travelled from the run wall to link five's
+flatten wall, which is the chain behaving as mapped. The fourth is
+`Modelica.Electrical.Polyphase.Examples.PolyphaseRectifier`, which has
+nothing to do with batteries: it flattened before and now refuses with
+`dimension of diode1 is not a compile-time constant`. Held back from
+overwriting, one of the three guards keeps a length that class needed
+to have replaced. Which guard, and why that model wants the later
+value, is not known.
+
+So the chain was reverted whole rather than left in. It is not that
+the links are wrong - a default overwriting a settled value is a fault
+by any reading - but that four links bought nothing, cost a model
+outside the family, and the fifth link is where the models actually
+stand. Taken again, it should be taken from link five backwards: build
+the value correctly and see which of the length guards are then needed
+at all.

@@ -1021,15 +1021,21 @@ fn record_value_per_field(
         // declared it as, which is the only thing it can be - and not
         // with its bare name, which names nothing where this lands.
         if given.len() == without_constants {
-            return Some(
-                held.iter()
-                    .zip(&a_constant)
-                    .map(|(field, constant)| match constant {
-                        true => field.binding.clone().unwrap_or(Expr::Number(0.0)),
-                        false => given.next().expect("counted just now"),
-                    })
-                    .collect(),
-            );
+            // A constant with nothing to be is not a zero. Filling its
+            // place with one put a number the record never stated into
+            // every field that follows it - and a wrong number given
+            // quietly is the worst thing this compiler can do, where
+            // the same case declined here is a refusal naming the
+            // field. Nothing in the library reaches this with an
+            // unbound constant; a model that does is owed the refusal.
+            return held
+                .iter()
+                .zip(&a_constant)
+                .map(|(field, constant)| match constant {
+                    true => field.binding.clone(),
+                    false => given.next(),
+                })
+                .collect();
         }
         None
     };

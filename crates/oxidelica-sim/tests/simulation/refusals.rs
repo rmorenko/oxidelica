@@ -82,3 +82,26 @@ fn a_parameter_waiting_on_a_call_says_which_call() {
     );
     assert!(why.contains("wait on each other"), "{why}");
 }
+
+#[test]
+fn a_constant_a_constructor_says_nothing_about_is_refused_not_zeroed() {
+    // A constructor writes no constant, so its values line up with the
+    // fields that are not ones and each constant's place is filled
+    // from what the record declared it as. A constant with no
+    // declaration to fill from was filled with zero - a number the
+    // record never states, handed over quietly where a refusal naming
+    // the field is owed, and a wrong number given quietly is the worst
+    // thing this compiler can do.
+    //
+    // Declined where it is noticed, the field reaches the layer that
+    // knows how to say what is missing, and the refusal names it.
+    let refusal = compile_err(
+        "model M record Inner constant Real K; parameter Real R = 1; end Inner; \
+         parameter Inner d = Inner(R = 5); Real y; \
+         equation y = d.R * time; end M;",
+    );
+    assert!(
+        refusal.contains("d.K"),
+        "the refusal names the field nothing gives a value to: {refusal}"
+    );
+}
