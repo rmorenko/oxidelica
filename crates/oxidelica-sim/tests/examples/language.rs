@@ -195,3 +195,48 @@ fn random_draw_draws_the_stream_the_algorithm_defines() {
         assert!(row[r] >= 0.0 && row[r] <= 1.0, "{}", row[r]);
     }
 }
+
+#[test]
+fn a_record_handed_to_a_standing_call_reaches_the_run_by_its_own_fields() {
+    // A function is handed over with a record filled in, and the
+    // receiving function is specialized rather than inlined. What the
+    // caller has is a record of the flat model, `d.a` and `d.b`; what
+    // the callee wrote is the bare name `data`. Bound field by field
+    // alone, the bare name travelled into the flat model as the
+    // callee's own spelling, which no component of the flat model is
+    // called, and the run refused a name nobody wrote.
+    //
+    // The answer is `f(1) + f(2)` with `f(u) = 2u + 3`, which is 12.
+    let source = r#"
+package P
+  record Coeff Real a; Real b; end Coeff;
+  partial function ScalarFunction input Real u; output Real y;
+    end ScalarFunction;
+  function solve input ScalarFunction f; input Real lo; input Real hi;
+    output Real r; algorithm r := f(lo) + f(hi); end solve;
+  function T_h input Real h; input Coeff data; output Real T;
+    protected function f_nonlinear extends ScalarFunction;
+      input Coeff data; input Real h;
+      algorithm y := data.a * u + data.b - h; end f_nonlinear;
+    algorithm T := solve(function f_nonlinear(data = data, h = h), 1.0, 2.0);
+    end T_h;
+end P;
+
+model M
+  parameter P.Coeff d(a = 2.0, b = 3.0);
+  Real x;
+equation
+  x = P.T_h(0.0, d);
+end M;
+"#;
+    let result = compile(&parse_model(source).unwrap())
+        .unwrap()
+        .simulate()
+        .unwrap();
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    assert!(
+        (result.rows[0][x] - 12.0).abs() < 1e-12,
+        "{}",
+        result.rows[0][x]
+    );
+}

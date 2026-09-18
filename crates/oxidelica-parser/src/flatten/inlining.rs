@@ -1712,6 +1712,34 @@ fn bind_the_arguments(
                         by_element(&here, value, &mut Vec::new(), bindings);
                         bindings.insert(here, value.clone());
                     }
+                    // And the bare name, to the whole list. A body may
+                    // hand the record on to a call that is being left
+                    // standing, and there the name is read as one
+                    // thing rather than field by field: left unbound
+                    // it travels into the flat model as the callee's
+                    // own spelling, `data`, which no component of the
+                    // flat model is called.
+                    // A record of one field is written out as a list
+                    // of one, and a list of one is what a scalar reads
+                    // as itself everywhere else in the walk. Bound
+                    // whole, that name is a list where the body wanted
+                    // a number, and the model is refused for an array
+                    // used where a scalar was expected. Its fields are
+                    // bound above either way, which is what a body
+                    // reading `state.p` needs.
+                    // Only where the body hands a function over. That
+                    // is the one road on which a record travels whole:
+                    // a call the compiler specializes rather than
+                    // inlines keeps the argument as it was written, and
+                    // the bare name has to mean the caller's record
+                    // there. Everywhere else a body reads a record
+                    // field by field, and a name bound to the whole
+                    // list is a list where a number was wanted - a
+                    // one-field state written `{1}` was refused for
+                    // exactly that.
+                    if class.algorithm.iter().any(hands_a_function_over) {
+                        bindings.insert(input.name.clone(), arg.clone());
+                    }
                     position += 1;
                     continue;
                 }
@@ -1920,4 +1948,45 @@ pub(super) fn with_inherited_components(
     registry: &HashMap<&str, &ClassDef>,
 ) -> Vec<Component> {
     function_components(registry, class, 0)
+}
+
+/// Whether a statement hands a function over as an argument.
+///
+/// The compiler specializes the receiver of such a call rather than
+/// inlining it, and a specialized call keeps its arguments as they
+/// were written - so a record handed on there has to mean the
+/// caller's record under its own bare name.
+fn hands_a_function_over(statement: &Statement) -> bool {
+    fn in_expr(expr: &Expr) -> bool {
+        if let Expr::Call(head, _) = expr {
+            if head == PARTIAL_CALL {
+                return true;
+            }
+        }
+        let mut found = false;
+        expr.map_children(&mut |child| {
+            found |= in_expr(child);
+            child.clone()
+        });
+        found
+    }
+    let inner = |body: &[Statement]| body.iter().any(hands_a_function_over);
+    let branches = |branches: &[StatementBranch]| {
+        branches
+            .iter()
+            .any(|branch| branch.condition.as_ref().is_some_and(in_expr) || inner(&branch.body))
+    };
+    match statement {
+        Statement::Assign(_, subscripts, value) => subscripts.iter().any(in_expr) || in_expr(value),
+        Statement::TupleAssign(_, value) => in_expr(value),
+        Statement::Assert(condition, _) => in_expr(condition),
+        Statement::Call(_, args) => args.iter().any(in_expr),
+        Statement::If(held) | Statement::When(held) => branches(held),
+        Statement::For(_, range, body) => range.as_ref().is_some_and(in_expr) || inner(body),
+        Statement::While(condition, body) => in_expr(condition) || inner(body),
+        // Nothing here holds an expression a function could be handed
+        // over in. Named rather than swept up, so a statement added to
+        // the language has to be decided about here.
+        Statement::Break | Statement::Return => false,
+    }
 }

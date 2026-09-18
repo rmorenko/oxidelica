@@ -82,7 +82,7 @@ fn record_answer(expr: &Expr, ctx: &EvalCtx) -> Result<Option<Vec<f64>>, SimErro
     }
     let (mut given, mut lengths) = (Vec::new(), Vec::new());
     for arg in args {
-        match record_answer(arg, ctx)? {
+        match several_numbers(arg, ctx)? {
             Some(fields) => {
                 lengths.push(vec![fields.len()]);
                 given.extend(fields);
@@ -98,6 +98,24 @@ fn record_answer(expr: &Expr, ctx: &EvalCtx) -> Result<Option<Vec<f64>>, SimErro
     // one: spreading it into a one-element array would tell the callee
     // it was handed a vector where a number was meant.
     Ok((answer.len() > 1).then_some(answer))
+}
+
+/// The several numbers an argument stands for, whether it is a call
+/// answering with a record or a list written out where the argument
+/// stands.
+///
+/// A package's record constant reaches a standing call as its
+/// constructor's fields - `{2, 3}` where the model wrote `data` - and
+/// read as one number the callee's `data.a` names nothing at all.
+fn several_numbers(expr: &Expr, ctx: &EvalCtx) -> Result<Option<Vec<f64>>, SimError> {
+    if let Expr::Array(items) = expr {
+        let mut given = Vec::new();
+        for item in items {
+            given.push(eval(item, ctx)?);
+        }
+        return Ok(Some(given));
+    }
+    record_answer(expr, ctx)
 }
 
 pub(crate) fn truth(yes: bool) -> f64 {
@@ -336,21 +354,13 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
             ))
         }
         Expr::Call(name, args) => {
-            let vals: Result<Vec<f64>, SimError> = args.iter().map(|a| eval(a, ctx)).collect();
-            let vals = vals?;
-            let arity = |n: usize| -> Result<(), SimError> {
-                if vals.len() == n {
-                    Ok(())
-                } else {
-                    err(format!(
-                        "{name}: expects {n} argument(s), got {}",
-                        vals.len()
-                    ))
-                }
-            };
             // A body the run walks answers before any built-in rule is
             // looked for: it is the model's own function, and its name
             // is its own.
+            // Asked before the arguments are worked out, because one of
+            // them may be a list the walk takes whole: evaluated first,
+            // it refuses as an array reaching the evaluator one step
+            // short of the walk that was going to carry it.
             if let Some(programs) = ctx.programs {
                 if programs.contains_key(name.as_str()) {
                     // Inside a walked body one call hands another
@@ -366,7 +376,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     // it stands for before it is worked out.
                     let (mut given, mut lengths) = (Vec::new(), Vec::new());
                     for arg in args {
-                        match record_answer(arg, ctx)? {
+                        match several_numbers(arg, ctx)? {
                             Some(fields) => {
                                 lengths.push(vec![fields.len()]);
                                 given.extend(fields);
@@ -395,6 +405,18 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
                     });
                 }
             }
+            let vals: Result<Vec<f64>, SimError> = args.iter().map(|a| eval(a, ctx)).collect();
+            let vals = vals?;
+            let arity = |n: usize| -> Result<(), SimError> {
+                if vals.len() == n {
+                    Ok(())
+                } else {
+                    err(format!(
+                        "{name}: expects {n} argument(s), got {}",
+                        vals.len()
+                    ))
+                }
+            };
             match operator_name(name) {
                 "der" => return err("der() outside a state equation is not supported in M0"),
                 // Whether the run has begun. Asked here rather than of

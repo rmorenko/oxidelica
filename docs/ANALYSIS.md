@@ -10919,3 +10919,91 @@ The chain as built is kept as a patch rather than in the tree
 (`/tmp/chain174.patch`, 260 lines): links 3, 4 and 5 are independent of
 how the record travels and will be wanted by whatever road replaces
 links 1 and 2.
+
+### The road through the flat model's own names, walked to its end
+
+Two shifts parked the `data` family, and both parked on the same
+road: writing a package's record constant out as a value that travels
+in an argument list. The map left behind named the road not taken -
+the record reaching the run as a declaration of the flat model,
+`data.a` and `data.b`, which is what every other record in a flat
+model is - and said outright that no part of it had been tried. This
+is that road, walked to its end.
+
+The base was re-read first, and re-reading it was worth the twenty
+seconds. The map of the shift before quoted `Inverse_sh_TX` at "about
+two seconds" and its gate at 23.8s, with nothing said about the gap.
+On unchanged code, from the binary the gates then used
+(`/tmp/gate175a.txt`):
+
+```text
+off: real 0m22.855s, and the model does not flatten at all
+     ("an equation between shapes [] and [4]")
+```
+
+So the 23.8s was never a cost the chain imposed: it is what this model
+costs on clean code, and the "two seconds" was a number recalled
+rather than read. The notes already warn about that exact failure, and
+it had happened again.
+
+The probe then walked the chain with the twelve-line model, and what it
+found was not about records travelling as values at all. Written out
+by hand, the two readings side by side:
+
+```text
+scalar caller: x = P.solve$P_T_h_f_nonlinear(1, 2, d, 0)
+record caller: x = P.solve$P_T_h_f_nonlinear(1, 2, data, 0)
+```
+
+`d` is the caller's name and `data` is the callee's. A record handed
+to a function arrives at `bind_the_arguments` already written out as
+its fields, so the branch that takes an `Expr::Array` binds `data.a`
+and `data.b` and leaves by `continue` - and the bare name is never
+bound to anything. Everywhere a body reads the record field by field
+that is exactly right and costs nothing. On the one road where a body
+hands a function over, the receiving function is specialized rather
+than inlined, its arguments keep the spelling they were written with,
+and the unbound bare name travels into the flat model as the callee's
+own word for it, which no component of the flat model is called.
+
+Three links, each shown by the small model in under a second:
+
+1. **The bare name is bound too**, to the whole list, so the standing
+   call names the caller's record rather than the callee's.
+2. **The specialized copy declares the record field by field.** Bound
+   whole, the copy had one input where the call now had several
+   numbers, and the model was refused for an equation between shapes
+   `[]` and `[2]`.
+3. **The call the body writes names those fields.** The copy declares
+   `f.data.a` and `f.data.b`, so passing `f.data` on was a name the
+   run had no value for.
+
+With the three, the small model gives `x = 12` against `5 + 7` by
+hand, and the test that asks for that number was seen red without them
+(a refusal naming `data` as an unknown variable of an
+equation) before it was seen green.
+
+The corpus cost one model, and the one was the finding. Two readings
+from one binary behind `OXIDELICA_RECORD_WHOLE`
+(`/tmp/corpus175_off.txt`, `/tmp/corpus175_on.txt`): flatten 842 to
+841, run 512 to 512, and the diff of both lists named the victim
+outright - `ModelicaTest.Media.TestAllProperties.IncompleteMedia.
+ReferenceAir_dT`, refused for `an array value cannot be used where a
+scalar is expected: Array([Number(1.0)])`. A record of one field is
+written out as a list of one, and bound to its bare name it is a list
+where the body wanted a number. Binding only where the body actually
+hands a function over - the one road the bare name is needed on - gave
+the model back to its own older refusal, the unknown function
+`density_ps`, which is the wall it stood at before.
+
+The final pass, the switch taken out (`/tmp/corpus175_final.txt`):
+842 flatten, 512 run, 737 and 480 runnable - the floors exactly, no
+model lost and none won. So this is a wall removed rather than a
+model gained, which is the distinction the notes ask to be made
+explicitly: `data` no longer reaches a standing call under the
+callee's spelling, and the `data` family's models still stand at
+whatever was behind that. The gate model `Inverse_sh_TX` cost 22.9s
+with the road on against 22.9s with it off, against a kill threshold
+named before the measurement at four minutes - which is the other
+half of the finding, since the road these shifts parked cost
+twenty-five minutes on that same model.

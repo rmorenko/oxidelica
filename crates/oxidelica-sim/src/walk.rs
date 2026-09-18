@@ -349,10 +349,25 @@ fn to_scalar(
             Box::new(recur(then)?),
             Box::new(recur(otherwise)?),
         ),
+        // A call inside a walked body is handed what the frame holds,
+        // not what the body wrote. A record the frame carries as
+        // `f.data[1]`, `f.data[2]` is named `f.data` where it is
+        // passed on, and a bare name is something the evaluation has
+        // no value for; written out as its elements it travels whole.
         Expr::Call(name, args) => Expr::Call(
             name.clone(),
             args.iter()
-                .map(recur)
+                .map(|arg| match arg {
+                    Expr::Ref(held) if frame.lengths.contains_key(held) => {
+                        let length = frame.lengths[held];
+                        Ok(Expr::Array(
+                            (1..=length)
+                                .map(|index| Expr::Ref(format!("{held}[{index}]")))
+                                .collect(),
+                        ))
+                    }
+                    _ => recur(arg),
+                })
                 .collect::<Result<Vec<_>, SimError>>()?,
         ),
         // What is already a scalar, or what a walked body cannot hold

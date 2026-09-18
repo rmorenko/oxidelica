@@ -2176,6 +2176,12 @@ fn specialized(
     let mut copy = class.clone();
     let mut extra: Vec<Component> = Vec::new();
     let mut appended: Vec<Expr> = Vec::new();
+    // Which of the filled-in inputs were taken apart into their
+    // fields, so the call the body writes names exactly what the copy
+    // declares. Deciding that twice, once here and once where the
+    // call is rewritten, is how a record whose value was not written
+    // out came to be named as fields the copy never declared.
+    let mut split: HashMap<String, Vec<String>> = HashMap::new();
     for held in bound {
         let Some(value) = said(&held.name) else {
             continue;
@@ -2183,6 +2189,26 @@ fn specialized(
         let mut carried = (*held).clone();
         carried.name = format!("{replaced}.{}", held.name);
         carried.binding = None;
+        // A record filled in at the hand-over arrives written out as
+        // its fields, and a copy that declares it as one record has
+        // one name where the call has several numbers. Each field is
+        // declared and handed over on its own, so the copy's inputs
+        // and the call's arguments count the same.
+        if let Expr::Array(items) = &value {
+            let fields = super::record_fields::scalar_record_fields(registry, target, held);
+            if fields.len() == items.len() && !fields.is_empty() {
+                split.insert(held.name.clone(), fields.clone());
+                for (field, item) in fields.iter().zip(items) {
+                    let mut one = (*held).clone();
+                    one.name = format!("{replaced}.{}.{field}", held.name);
+                    one.type_name = "Real".to_string();
+                    one.binding = None;
+                    extra.push(one);
+                    appended.push(item.clone());
+                }
+                continue;
+            }
+        }
         extra.push(carried);
         appended.push(value);
     }
@@ -2195,6 +2221,19 @@ fn specialized(
             all.push(Expr::Ref(free.name.clone()));
         }
         for held in bound {
+            // A record handed over field by field is named field by
+            // field where the body passes it on: the copy declares
+            // `f.data.a` and `f.data.b`, and `f.data` is a name
+            // nothing gives a value to.
+            if let Some(fields) = split.get(&held.name) {
+                all.push(Expr::Array(
+                    fields
+                        .iter()
+                        .map(|field| Expr::Ref(format!("{replaced}.{}.{field}", held.name)))
+                        .collect(),
+                ));
+                continue;
+            }
             all.push(match said(&held.name) {
                 Some(_) => Expr::Ref(format!("{replaced}.{}", held.name)),
                 None => held
