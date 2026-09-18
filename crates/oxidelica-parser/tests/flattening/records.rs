@@ -1323,3 +1323,41 @@ fn two_records_differing_in_a_later_field_are_two_shapes() {
         all()
     );
 }
+
+/// A record constant handed on by name from inside a body, rather
+/// than in order, is taken apart into its fields the same way.
+///
+/// `Functions.h_T(data = data, T = u)` is how every ideal gas in the
+/// standard library reads its NASA coefficients, and the named road
+/// bound the bare name alone. The body then read `data.alow[2]` with
+/// nothing under it, and the flat model was refused for a variable no
+/// model ever wrote. The two roads differ in how the input is found,
+/// not in what an argument means.
+///
+/// The field read is an array one, which is where the difference
+/// shows: a scalar field of a constant record folds on the constants
+/// road whichever way it was handed over, and only a subscripted one
+/// waits for the binding.
+#[test]
+fn a_record_constant_given_by_name_arrives_as_its_fields() {
+    let m = parse_model(
+        "package Base record Gas Real R_s; Real a[3]; end Gas; \
+         constant Gas data; \
+         function heat input Gas data; input Real T; output Real y; \
+         algorithm y := data.R_s * T + data.a[2]; end heat; \
+         function wrap input Real T; output Real y; \
+         algorithm y := heat(data = data, T = T); end wrap; end Base; \
+         package Air extends Base(data = Base.Gas(R_s = 287.0, \
+         a = {1, 2, 3})); end Air; \
+         model Y Real Tm = 300 + time; Real y; equation \
+         y = Air.wrap(Tm); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end Y;",
+    )
+    .expect("a record constant handed on by name");
+    // The second element of the gas's list, which is only reachable if
+    // the named road bound the fields: left to the bare name alone the
+    // body reads `data.a[2]`, and nothing declares that.
+    let written = format!("{:?}", m.equations);
+    assert!(!written.contains("data.a"), "{written}");
+    assert!(written.contains("Number(2.0)"), "{written}");
+}

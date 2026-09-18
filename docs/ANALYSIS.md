@@ -11011,7 +11011,7 @@ twenty-five minutes on that same model.
 ### What the census says the `data` family now is
 
 The census after the road above (`/tmp/census175.txt`, raw in
-`~/.jcode/scratch/refusals-raw.txt`) counts the family at 15 models
+`~/.jcode/scratch/refusals-raw.txt:556`) counts the family at 14 models
 refusing as an unknown variable `data` plus one on `data.R_s` - the
 same wording as before, and the number is honest rather than
 disappointing, because the compiler's own probe says these are a
@@ -11034,3 +11034,45 @@ declared as a component of the flat model, the way `minted_constants`
 already declares a medium's scalar constant that could not be folded.
 That is the next link, and the mechanism for it is in the tree
 already, which is what the two parked attempts did not have.
+
+### The named road, and what it was worth
+
+The probe went looking for the package constant declared as a
+component of the flat model, and found the bottom a link short of it.
+`ModelicaTest.Media.TestOnly.DryAirNasa` refused on `data.R_s`, and
+the smallest model that refuses the same way is five lines: a gas
+package whose function reads a field of a record it was handed. What
+`bind_the_arguments` does with an argument depends on how the input
+was found rather than on what the argument means - a record given in
+order was resolved to the constant it names and bound field by field,
+and a record given by name was bound whole, as the bare name alone.
+`Functions.h_T(data = data, T = u)` is the standard library's own
+spelling, so the whole of the ideal-gas chain travelled the second
+road. The two branches now share `record_argument` and
+`bind_record_argument`; the difference between them was never
+intended, it was what a `match` on the argument's shape happened to
+leave out.
+
+Measured twice from one binary, `OXIDELICA_NO_NAMED_RECORDS=1` for the
+old road: 842 flatten and 512 run either way
+(`/tmp/p176/corpus.off.txt`, `/tmp/p176/corpus.on.txt`, both reading
+`of the 842 that flatten, 512 run`), and the run lists identical model
+for model. What moved is the register: the row for an unknown
+variable `data.R_s` in an equation (1) is gone, and `structurally singular model:
+cannot differentiate this expre` went 9 to 10. One model, one storey
+up - a kind removed rather than a model won, which is the commoner of
+the two outcomes and worth recording as what it is.
+
+Where the small model would not serve, and why it took three tries: a
+scalar field of a constant record folds on the constants road whichever
+way it was handed over, so a synthetic model reading `data.R_s` runs
+on both sides of the switch and witnesses nothing. Only a subscripted
+field waits for the binding. That is the test, and it was seen red
+with the switch on before it was seen green with it off.
+
+The family is where it was: 14 models on the bare `data`, which is the
+constant of the gas package with no component behind it at all, and
+that is still the next link - the road this shift took was the one
+below it. The probe for it is `/tmp/p176/X.mo`, five lines that refuse
+for an unknown variable `data` in an equation, exactly as the fourteen
+do.

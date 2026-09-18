@@ -1605,17 +1605,38 @@ fn bind_the_arguments(
     let mut position = 0;
     for (index, arg) in args.iter().enumerate() {
         if let Expr::NamedArg(name, value) = arg {
-            if !inputs.iter().any(|input| &input.name == name) {
+            let Some(input) = inputs.iter().find(|input| &input.name == name) else {
                 return Err(format!(
                     "function `{}` has no input named `{name}`",
                     class.name
                 ));
-            }
-            if bindings.insert(name.clone(), (**value).clone()).is_some() {
+            };
+            // A record handed over by name gets what a record handed
+            // over in order already got. `Functions.h_T(data = data,
+            // T = u)` is how every ideal gas reads its NASA
+            // coefficients, and the named road bound the bare name
+            // alone: the body then read `data.R_s` with nothing under
+            // it, and the flat model was refused for a variable no
+            // model ever wrote. The two roads differ in how the input
+            // was found, not in what an argument means, so the same
+            // resolution and the same field binding are done here.
+            if bindings.contains_key(name) {
                 return Err(format!(
                     "argument `{name}` of function `{}` is given twice",
                     class.name
                 ));
+            }
+            let (value, whole) = match named_records_off() {
+                true => ((**value).clone(), true),
+                false => {
+                    let resolved = record_argument(class, registry, value);
+                    let value = resolved.unwrap_or_else(|| (**value).clone());
+                    let whole = bind_record_argument(class, input, &value, registry, bindings)?;
+                    (value, whole)
+                }
+            };
+            if whole {
+                bindings.insert(name.clone(), value);
             }
             named_seen = true;
         } else {
@@ -1657,142 +1678,135 @@ fn bind_the_arguments(
             // are declared nowhere. Found where it is declared and
             // handed over in place of the name, the body reads
             // numbers instead of a path.
-            let resolved = match arg {
-                // The name as written, and the tail of a name the
-                // instance prefix has already been put on. The same
-                // call is reached both ways - once from the body the
-                // medium wrote and once from the equation flattening
-                // built out of it - and by the second time `data` has
-                // become `medium.data`. A tail is only taken where
-                // what stands in front of it is not a class, so this
-                // does not shorten a name that resolves on its own.
-                Expr::Ref(named) => match named.rsplit_once('.') {
-                    None => bare_record_constant(registry, named),
-                    Some((head, tail)) => {
-                        match lookup(registry, head, &class.name, &class.imports).is_none() {
-                            true => bare_record_constant(registry, tail),
-                            false => None,
-                        }
-                    }
-                },
-                _ => None,
-            };
+            let resolved = record_argument(class, registry, arg);
             let arg = resolved.as_ref().unwrap_or(arg);
-            // A record input arrives as its fields, and the body reads
-            // them by name: `c1.re` has to be bound, not `c1`.
-            //
-            // An input declared an array of records is not that: the
-            // quasi-RMS of a polyphase system takes `Complex u[:]`, and
-            // what arrives is three phasors, not the two fields of one.
-            // Taken for fields, three phasors were refused for being
-            // three where two were wanted; left whole, the body reads
-            // `u[k].re` off them, which is what it was written to do.
-            if let Some(fields) = record_fields::record_input_fields(registry, class, input)
-                .filter(|_| input.dimensions.is_empty())
-            {
-                if let Expr::Array(items) = arg {
-                    if items.len() != fields.len() {
-                        return Err(format!(
-                            "function `{}` wants {} field(s) for `{}`, got {}{}",
-                            class.name,
-                            fields.len(),
-                            input.name,
-                            items.len(),
-                            statements::where_the_names_landed()
-                        ));
-                    }
-                    for (field, value) in fields.iter().zip(items) {
-                        let here = format!("{}.{field}", input.name);
-                        // A field that is itself an array is bound
-                        // element by element as well: the body of an
-                        // orientation function reads `R.T[1, 1]`, and
-                        // the list bound to `R.T` whole is not
-                        // something a name with a subscript can be read
-                        // off.
-                        by_element(&here, value, &mut Vec::new(), bindings);
-                        bindings.insert(here, value.clone());
-                    }
-                    // And the bare name, to the whole list. A body may
-                    // hand the record on to a call that is being left
-                    // standing, and there the name is read as one
-                    // thing rather than field by field: left unbound
-                    // it travels into the flat model as the callee's
-                    // own spelling, `data`, which no component of the
-                    // flat model is called.
-                    // A record of one field is written out as a list
-                    // of one, and a list of one is what a scalar reads
-                    // as itself everywhere else in the walk. Bound
-                    // whole, that name is a list where the body wanted
-                    // a number, and the model is refused for an array
-                    // used where a scalar was expected. Its fields are
-                    // bound above either way, which is what a body
-                    // reading `state.p` needs.
-                    // Only where the body hands a function over. That
-                    // is the one road on which a record travels whole:
-                    // a call the compiler specializes rather than
-                    // inlines keeps the argument as it was written, and
-                    // the bare name has to mean the caller's record
-                    // there. Everywhere else a body reads a record
-                    // field by field, and a name bound to the whole
-                    // list is a list where a number was wanted - a
-                    // one-field state written `{1}` was refused for
-                    // exactly that.
-                    if class.algorithm.iter().any(hands_a_function_over) {
-                        bindings.insert(input.name.clone(), arg.clone());
-                    }
-                    position += 1;
-                    continue;
-                }
-                // A record handed over by name rather than written out
-                // is the commoner way of it: the caller has the record
-                // as a variable and passes it whole. Flattening has
-                // already taken that variable apart, so its fields are
-                // there to be named one by one - and binding the name
-                // alone would leave the body reading `p.V` with
-                // nothing bound to it, which is a value gone missing
-                // rather than a refusal.
-                //
-                // The name itself is bound too, below: a body may hand
-                // the record on to another function whole, and that
-                // call wants the record and not its fields.
-                //
-                // Only the fields that are single numbers. A field
-                // with dimensions of its own - an orientation carries
-                // a three by three - has a shape the caller knows and
-                // this does not, and binding a bare name to it loses
-                // the shape and refuses the model further along.
-                if let Expr::Ref(given) = arg {
-                    for field in record_fields::scalar_record_fields(registry, class, input) {
-                        bindings.insert(
-                            format!("{}.{field}", input.name),
-                            Expr::Ref(format!("{given}.{field}")),
-                        );
-                    }
-                    // A field with dimensions of its own - an
-                    // orientation carries a three by three - is bound
-                    // element by element as well as whole: a body
-                    // reading `R.T[1, 1]` has to find the caller's own
-                    // `R1.T[1, 1]` under it, and a name alone is not
-                    // something a subscript can be read off here.
-                    for (field, shape) in
-                        record_fields::shaped_record_fields(registry, class, input)
-                    {
-                        let here = format!("{}.{field}", input.name);
-                        let there = format!("{given}.{field}");
-                        for indices in index_tuples(&shape) {
-                            let source = Expr::Ref(element_name(&there, &indices));
-                            bindings.insert(element_name(&here, &indices), source);
-                        }
-                        bindings.insert(here, spread_out(&there, &shape, &mut Vec::new()));
-                    }
-                }
+            if bind_record_argument(class, input, arg, registry, bindings)? {
+                bindings.insert(input.name.clone(), arg.clone());
             }
-            bindings.insert(input.name.clone(), arg.clone());
             position += 1;
         }
     }
 
     Ok(())
+}
+
+/// Whether a record handed over by name is to be left whole, as it was
+/// before this road: the switch that lets one binary give both numbers,
+/// since two numbers are comparable only if the same binary produced
+/// them.
+fn named_records_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_NAMED_RECORDS").is_some()
+}
+
+/// An argument that names a record constant, as the record it names.
+///
+/// The name as written, and the tail of a name the instance prefix has
+/// already been put on. The same call is reached both ways - once from
+/// the body the medium wrote and once from the equation flattening
+/// built out of it - and by the second time `data` has become
+/// `medium.data`. A tail is only taken where what stands in front of
+/// it is not a class, so this does not shorten a name that resolves on
+/// its own.
+fn record_argument(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    arg: &Expr,
+) -> Option<Expr> {
+    let Expr::Ref(named) = arg else {
+        return None;
+    };
+    match named.rsplit_once('.') {
+        None => bare_record_constant(registry, named),
+        Some((head, tail)) => match lookup(registry, head, &class.name, &class.imports).is_none() {
+            true => bare_record_constant(registry, tail),
+            false => None,
+        },
+    }
+}
+
+/// Bind what a record argument stands for, field by field, and say
+/// whether the bare name is still to be bound to the whole of it.
+///
+/// A record input arrives as its fields, and the body reads them by
+/// name: `c1.re` has to be bound, not `c1`.
+///
+/// An input declared an array of records is not that: the quasi-RMS of
+/// a polyphase system takes `Complex u[:]`, and what arrives is three
+/// phasors, not the two fields of one. Taken for fields, three phasors
+/// were refused for being three where two were wanted; left whole, the
+/// body reads `u[k].re` off them, which is what it was written to do.
+fn bind_record_argument(
+    class: &ClassDef,
+    input: &Component,
+    arg: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    bindings: &mut HashMap<String, Expr>,
+) -> Result<bool, String> {
+    let Some(fields) = record_fields::record_input_fields(registry, class, input)
+        .filter(|_| input.dimensions.is_empty())
+    else {
+        return Ok(true);
+    };
+    if let Expr::Array(items) = arg {
+        if items.len() != fields.len() {
+            return Err(format!(
+                "function `{}` wants {} field(s) for `{}`, got {}{}",
+                class.name,
+                fields.len(),
+                input.name,
+                items.len(),
+                statements::where_the_names_landed()
+            ));
+        }
+        for (field, value) in fields.iter().zip(items) {
+            let here = format!("{}.{field}", input.name);
+            // A field that is itself an array is bound element by
+            // element as well: the body of an orientation function
+            // reads `R.T[1, 1]`, and the list bound to `R.T` whole is
+            // not something a name with a subscript can be read off.
+            by_element(&here, value, &mut Vec::new(), bindings);
+            bindings.insert(here, value.clone());
+        }
+        // And the bare name, to the whole list - only where the body
+        // hands a function over. That is the one road on which a
+        // record travels whole: a call the compiler specializes rather
+        // than inlines keeps the argument as it was written, and the
+        // bare name has to mean the caller's record there. Everywhere
+        // else a body reads a record field by field, and a name bound
+        // to the whole list is a list where a number was wanted - a
+        // one-field state written `{1}` was refused for exactly that.
+        return Ok(class.algorithm.iter().any(hands_a_function_over));
+    }
+    // A record handed over by name rather than written out is the
+    // commoner way of it: the caller has the record as a variable and
+    // passes it whole. Flattening has already taken that variable
+    // apart, so its fields are there to be named one by one - and
+    // binding the name alone would leave the body reading `p.V` with
+    // nothing bound to it, which is a value gone missing rather than a
+    // refusal.
+    //
+    // Only the fields that are single numbers. A field with dimensions
+    // of its own - an orientation carries a three by three - has a
+    // shape the caller knows and this does not, and binding a bare
+    // name to it loses the shape and refuses the model further along.
+    if let Expr::Ref(given) = arg {
+        for field in record_fields::scalar_record_fields(registry, class, input) {
+            bindings.insert(
+                format!("{}.{field}", input.name),
+                Expr::Ref(format!("{given}.{field}")),
+            );
+        }
+        for (field, shape) in record_fields::shaped_record_fields(registry, class, input) {
+            let here = format!("{}.{field}", input.name);
+            let there = format!("{given}.{field}");
+            for indices in index_tuples(&shape) {
+                let source = Expr::Ref(element_name(&there, &indices));
+                bindings.insert(element_name(&here, &indices), source);
+            }
+            bindings.insert(here, spread_out(&there, &shape, &mut Vec::new()));
+        }
+    }
+    Ok(true)
 }
 
 /// A bare name standing for a record constant, as the record it names.
