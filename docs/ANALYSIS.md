@@ -11007,3 +11007,30 @@ with the road on against 22.9s with it off, against a kill threshold
 named before the measurement at four minutes - which is the other
 half of the finding, since the road these shifts parked cost
 twenty-five minutes on that same model.
+
+### What the census says the `data` family now is
+
+The census after the road above (`/tmp/census175.txt`, raw in
+`~/.jcode/scratch/refusals-raw.txt`) counts the family at 15 models
+refusing as an unknown variable `data` plus one on `data.R_s` - the
+same wording as before, and the number is honest rather than
+disappointing, because the compiler's own probe says these are a
+different shape of the same wall:
+
+```text
+in Modelica.Media.Examples.SolveOneNonlinearEquation.Inverse_sh_T:
+  declared: nowhere - no component of the flat model is called that
+  equation: Th = ...T_h_f_nonlinear(200, 6000, data, h1)
+```
+
+In the small model the caller had the record as a component - `d.a`
+and `d.b` were there to be named, and what was missing was only the
+binding of the bare name to them. Here there is no caller component at
+all: `data` is a constant of the gas package, and nothing in the flat
+model declares it under any name. So the road taken removes the wall
+for a record a model holds, and the standard library's own case wants
+the second half of the same invariant - the package's constant
+declared as a component of the flat model, the way `minted_constants`
+already declares a medium's scalar constant that could not be folded.
+That is the next link, and the mechanism for it is in the tree
+already, which is what the two parked attempts did not have.
