@@ -10757,3 +10757,108 @@ have aimed fourteen models' worth of effort at a constant-record
 question that only fourteen of the twenty-three have. The `data`
 half is the one worth taking and it is the largest; parked with the
 names here rather than half-taken at the end of a shift.
+
+### The `data` family taken: a chain of five links
+
+The `data` half scouted above was not one wall but five, each behind
+the last, all on the same journey: a package's constant record
+reaching a call the compiler left standing. The chain was walked to
+its end with a twelve-line model before anything was measured, which
+is what the notes prescribe for a chain; the corpus was spent once,
+at the close.
+
+The model that showed every link, in under a second each time:
+
+```modelica
+package P
+  record Coeff Real a; Real b; end Coeff;
+  constant Coeff data(a = 2.0, b = 3.0);
+  partial function ScalarFunction input Real u; output Real y;
+    end ScalarFunction;
+  function solve input ScalarFunction f; input Real lo; input Real hi;
+    output Real r; algorithm r := f(lo) + f(hi); end solve;
+  function T_h input Real h; output Real T;
+    protected function f_nonlinear extends ScalarFunction;
+      input Coeff data; input Real h;
+      algorithm y := data.a * u + data.b - h; end f_nonlinear;
+    algorithm T := solve(function f_nonlinear(data = data, h = h), 1.0, 2.0);
+    end T_h;
+  model M Real x; equation x = T_h(0.0); end M;
+end P;
+```
+
+The links, in the order they were met:
+
+1. **The name was never written out.** `enclosing_constant` answers a
+   bare name that is a number and `enclosing_constant_array` one that
+   is a list. A record is neither, so both said nothing and `data`
+   travelled into the flat model naked -
+   `solve$..._f_nonlinear(1, 2, data, 1)` - where nothing declares it.
+   `enclosing_record_constant_value` writes it out as the constructor
+   its modifiers make, taken from the package's gathering rather than
+   from the declaration: an ideal gas declares `constant DataRecord
+data` blank and each gas fills it through its `extends`.
+2. **The written-out record was spread over the call.** A specialized
+   copy is named after what went into it and is not in the registry,
+   so every lookup in `expand_call` answered nothing and the call fell
+   through to the vectorizing tail. Handed `{2, 3}`, the one call
+   became one call per field. The store of specializations already had
+   two readers where the registry says nothing; `expand_call` is now
+   the third.
+3. **The walk's frame held the record and the nested call did not ask
+   for it.** `to_scalar` passed a call's arguments down as written, so
+   `f.data` - which the frame holds as `f.data[1]`, `f.data[2]` - went
+   over as a bare name the evaluation could not look up.
+4. **A list argument to a walked call was read as one number.**
+   `record_answer` recognised a call answering with several numbers
+   and nothing else, so a record written out as `{2, 3}` was taken for
+   a scalar. `several_numbers` reads the written-out list too.
+5. **The arguments were worked out before the walked-call branch was
+   reached.** `eval` evaluated every argument to a number first and
+   only then asked whether the name was a body the run carries, so the
+   list refused as `an array reached the evaluator` one step short of
+   the walk that was going to take it whole. The question is asked
+   first now.
+
+One guard went on afterwards and it was a red test that asked for it:
+the road is off while a parameter is being settled. A parameter's
+value is read field by field by a reader that already exists, and
+written out as a constructor instead, a medium's reference enthalpy
+came apart into an `s.p` nothing gives a value to. This road is for
+the name that survives to the run, where no field reader stands.
+
+**And then the chain was measured, and it is parked.** All five links
+work - every small model above runs, and the whole suite is green at
+222 - but the first link is too dear and costs a model, which the
+corpus said and no small model could:
+
+- The flatten pass did not finish. Unchanged code walks the corpus in
+  540s of flatten (`/tmp/base173.txt`, 842 flatten / 510 run); with
+  the chain, the pass sat at 936 of 1040 models for forty-eight
+  minutes and was killed. The culprit is one model:
+  `Modelica.Media.Examples.SolveOneNonlinearEquation.Inverse_sh_TX`,
+  over six minutes on its own against about two seconds before.
+- `ModelicaTest.Media.TestOnly.DryAirNasa` stops flattening. Under the
+  switch it flattens and refuses at `unknown variable data.R_s`; with
+  the road on it refuses at flatten instead, for a
+  `Functions.thermalConductivity` it cannot resolve. One model given
+  back for a family not yet won.
+
+The cause is the shape of link 1 rather than the idea of it. Writing
+a record constant out as a constructor puts a whole basket of fields
+where a bare name stood, and a medium's field is written as a
+property of a state - the dearest road this compiler has. Asked of
+every bare name everywhere, that is the cost. Settling the calls in
+the constructor was tried and made no difference to either number,
+which says the cost is in the substitution the constructor triggers
+downstream and not in the folding.
+
+What a next shift would take instead, in the order it should be
+tried: write the record out only where the name is about to travel
+into a call that is being left standing, rather than for every bare
+name the substitution meets. The site that knows this is
+`specialized` in `flatten/arrays.rs`, which already has the argument
+list in its hands and knows the call will survive. Links 2 through 5
+are independent of that choice and stand as written above - each was
+seen to be a real wall with a model that reproduced it in under a
+second, and each will be met again by whatever road replaces link 1.
