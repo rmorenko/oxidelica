@@ -165,6 +165,46 @@ counted twice. Each of those is a flattening question rather than a
 chapter 4 one, and until they are settled a count built on them would
 refuse correct models.
 
+**Scoping and flattening** (ch. 5) is the largest working part of this
+compiler and the one this map has said least about. A name is looked up
+where it was written and resolved under the name it was asked by: a
+constant of a package reached from inside it, a function reached through
+the component that holds it, a member of an array of records reached by
+subscript, a declaration a base wrote reached through the `extends` that
+took it. `inner`/`outer` pairs are matched up the tree of instances, and
+a modifier written on an outer declaration reaches the inner one it
+names. What is still partial is the shape of the pass rather than any
+rule of it: instantiation, the settling of constants and the working out
+of shapes happen in an order fixed by the code, so a length known to a
+later pass cannot be asked for by an earlier one. Most refusals that
+remain in this chapter are of that kind - the value is knowable and is
+not knowable _there_ - and each is recorded in the analysis with the
+place it is asked from.
+
+**Type relationships** (ch. 6) are the thinnest layer here, and
+deliberately so. Subtyping is approximated by the `extends` chain:
+a class is accepted where its base is wanted, a `redeclare` is checked
+against the `constrainedby` it was declared under, and nothing else is
+compared. Structural subtyping - a class standing for another because
+its members happen to match - is not implemented, and neither is the
+distinction between a type and the class that names it. For the
+standard library this has cost nothing measurable, which is why it
+stays where it is; it would be felt first by code that redeclares
+across unrelated hierarchies.
+
+**Statements and algorithms** (ch. 11) are complete in their forms and
+partial in one direction only. `if`, `for`, `while`, `when`, `break`,
+`return`, `assert` and `terminate` are all worked, in functions and in
+algorithm sections alike, and an algorithm section settles the
+variables it assigns the way an equation section settles the ones it
+names. Eighty-four tests hold that behaviour. What is missing is the
+other direction: an algorithm is a list of assignments carried out in
+order, and where the specification allows a tool to treat a tick as
+something to be solved rather than executed - an implicit method on a
+clocked partition being the case that arises - this compiler refuses by
+name instead. That refusal is the wall ch. 11 stands behind, and it is
+named where it is met rather than left for the run to discover.
+
 **Packages** (ch. 13) hold classes and constants and nothing else - a
 parameter or a variable in one is refused, since a package has no
 instance to own a value. The imports are all four forms (`import A.B;`,
@@ -394,7 +434,10 @@ startInterval)`, or one of those carrying a solver method. Which
 equations belong to a clock is inferred and spreads from a sampled
 value to whatever reads it; `sample`, `hold`, `previous`, `interval`
 and `firstTick` say what they say, and what cannot be on a clock must
-ask for the held value by name.
+ask for the held value by name. Where the inference cannot decide -
+two clocks reaching one variable, a factor with nothing to settle it -
+it refuses and names what it could not decide, rather than picking one
+and carrying on.
 
 A derived clock is kept as its root plus two exact fractions — the rate
 and the shift — so `subSample`, `superSample`, `shiftSample` and
