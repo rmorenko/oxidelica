@@ -10862,3 +10862,60 @@ list in its hands and knows the call will survive. Links 2 through 5
 are independent of that choice and stand as written above - each was
 seen to be a real wall with a model that reproduced it in under a
 second, and each will be met again by whatever road replaces link 1.
+
+### The narrow road through `specialized`, measured and parked
+
+The shift before parked the chain because link 1 - writing a package's
+record constant out wherever a bare name was met - cost minutes a
+model. The road named as the replacement was to write the record out
+only at `specialized` in `flatten/arrays.rs`, where the argument list
+is in hand and the call is known to survive. That road was built, the
+whole chain with it, and it is parked too, for a different reason than
+the first: the cost is not in link 1 at all.
+
+All five links work. The twelve-line model of the section above runs
+and gives the right number - `x = 12` against `5 + 7` by hand - and the
+suite is green at 221 simulation tests. The links, built where the map
+said: `enclosing_record_constant_value` asked from `specialized` alone;
+`expand_call` reading the store of specializations; `to_scalar` handing
+a nested call the frame's element names rather than the body's bare
+one; `several_numbers` beside `record_answer`, so a written-out list is
+read as the several numbers it is; and `eval` asking whether the name
+is a body the run walks before working its arguments out.
+
+The measurement, both readings from one binary behind
+`OXIDELICA_RECORD_CONSTANTS`, on
+`Modelica.Media.Examples.SolveOneNonlinearEquation.Inverse_sh_TX`
+against the root `.msl`:
+
+```text
+road off: 23.8s   (real 0m23.863s)
+road on:  killed at 25 minutes
+```
+
+And then the switch was moved down one link, which is what the two
+builds could not have told apart. With the record-writing off and only
+`expand_call`'s reading of the specialization store on, the same model
+was killed at eleven minutes. Narrowing that reading further - to a
+call that actually carries a written-out array, which is the only case
+it was built for - the model was killed again at fifteen. So the dear
+thing is link 2: letting a specialized copy stand as a call the run
+walks, rather than letting the vectorizing tail take it. That tail is
+what was keeping `Inverse_sh_TX` at two seconds, and standing the call
+up puts the whole of Brent's method in front of the run instead.
+
+What this says for a next shift, and it is a different question than
+the one this chain was walking: the `data` family cannot be won by
+making the specialized call stand, because standing it up is what
+costs. Either the vectorizing tail has to learn to carry a record
+argument whole while still folding what it folds now, or the record
+has to reach the run as a declaration of the flat model rather than as
+a value in an argument list - a component the flattener writes out,
+`data.a` and `data.b`, which is what every other record in a flat
+model is. The second is the shape the invariant in AGENTS.md
+suggests, and no part of it was tried here.
+
+The chain as built is kept as a patch rather than in the tree
+(`/tmp/chain174.patch`, 260 lines): links 3, 4 and 5 are independent of
+how the record travels and will be wanted by whatever road replaces
+links 1 and 2.
