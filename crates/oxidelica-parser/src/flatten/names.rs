@@ -5,6 +5,16 @@ use super::*;
 use std::cell::RefCell;
 use std::collections::HashSet;
 
+/// Whether a package's constant table may be read by a subscript that
+/// is not settled until the run.
+///
+/// Off by this switch the old demand for a constant subscript stands,
+/// so that one binary gives both numbers: two numbers are comparable
+/// only if the same binary produced them.
+pub(super) fn package_tables_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_PACKAGE_TABLES").is_none()
+}
+
 /// What the specification calls the arguments of the operators that
 /// take named ones, in the order they are declared.
 ///
@@ -651,6 +661,41 @@ pub(super) fn resolve(
                 }
             };
             let subscript_env = subscript_env.as_ref().unwrap_or(consts);
+            // A table written in a package and read by a subscript the
+            // run settles - the logic gates ask `Tables.AndTable[
+            // auxiliary[i], x[i + 1]]` of a signal - is the same
+            // reading as a table written in the model, which the array
+            // layer answers by asking every place in turn. What made
+            // the two different was only where the list was written:
+            // a name here comes to a value and a dotted name did not,
+            // so the dotted one met a demand for a constant subscript
+            // that the written-out one never saw. Handing the list
+            // over puts both on the one path.
+            if package_tables_open() {
+                if let (Expr::Ref(dotted), true) = (&base, name.contains('.')) {
+                    let unsettled = subscripts.iter().any(|subscript| {
+                        recur(subscript)
+                            .ok()
+                            .and_then(|resolved| const_eval(&resolved, subscript_env))
+                            .is_none()
+                    });
+                    if unsettled {
+                        if let Some(list @ (Expr::Array(_) | Expr::MatrixRows(_))) =
+                            super::constants::class_constant_array_at(
+                                registry, dotted, scope, imports, 0,
+                            )
+                        {
+                            return Ok(Expr::Index(
+                                Box::new(list),
+                                subscripts
+                                    .iter()
+                                    .map(&recur)
+                                    .collect::<Result<Vec<_>, String>>()?,
+                            ));
+                        }
+                    }
+                }
+            }
             let mut indices = Vec::new();
             for subscript in subscripts {
                 let resolved = recur(subscript)?;

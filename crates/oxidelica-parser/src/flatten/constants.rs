@@ -591,7 +591,14 @@ pub(super) fn class_constant_array_at(
     let a_record = matches!(&binding, Expr::Call(built, _)
         if lookup(registry, built, &class.name, &class.imports)
             .is_some_and(|of| of.kind == ClassKind::Record));
-    if matches!(binding, Expr::Array(_)) || a_record {
+    // A table written with the matrix brackets - the logic tables of
+    // the digital library are `[L, L]` of them - is a list as much as
+    // one written with braces, and the difference is only which
+    // bracket the author reached for. Reading it as "not a list" is
+    // what left `Tables.AndTable` a bare name with an instance path
+    // stuck on the front.
+    let a_matrix = matches!(binding, Expr::MatrixRows(_)) && super::names::package_tables_open();
+    if matches!(binding, Expr::Array(_)) || a_record || a_matrix {
         return Some(binding);
     }
     // A binding that says how to build the array rather than writing

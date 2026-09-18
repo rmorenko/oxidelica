@@ -11323,3 +11323,58 @@ question about how conditional components and connection equations are
 counted together, and it is left where it is rather than taken in the
 same shift as a refusal about declarations - named here so the next
 shift does not rediscover it as two.
+
+## The subscript register is three layers, not one
+
+Forty models refused around the words "the compiler cannot see this
+subscript", which reads as one wall and is three.
+
+The first is a table written in a package and read by a subscript the
+run settles: the digital gates ask `Tables.AndTable[auxiliary[i],
+x[i + 1]]` of signals. A table written inside the model was already
+answered - the array layer asks every place in turn and builds a chain
+of `if index == k then a[k]` - and the package one was not, because the
+constant lookup took a list written with the matrix brackets for
+something other than a list and handed back nothing. The name then
+travelled with an instance path stuck on the front,
+`Nor1.Modelica.Electrical.Digital.Tables.OrTable`, which is the
+aggregate fault this document already names from three other ends. The
+door is that the brackets an author reached for are not a fact about
+the value, and reading `[1,2; 3,4]` as a list closes it: twenty
+subscript refusals across `Modelica.Electrical.Digital` are gone, and
+the family now stands one storey up, at `connect` over a bus element
+and at a `break` whose condition the compiler cannot decide.
+
+The second is `the subscript of X must be a whole number the compiler
+can see`, seven models, the FFT buffers and the vector tests. That is a
+statement layer and not this one - an assignment's target rather than
+an expression's base - and it is untouched by the above.
+
+The third is `a slicing subscript must be constant at compile time`,
+six models around `R134a`: a subscript that is a vector of places
+rather than one, where the nested-`if` answer does not apply because
+what is asked for is several elements at once. A third layer again.
+
+So the register's forty was a lower bound on families, exactly as the
+counting note says, and the probe put them in three. Only the first was
+a door.
+
+## What a second base says about a name it shares
+
+A name two bases both declare is now refused when they bind it to two
+different values. What neither base's _modifications_ say was measured
+this shift and is recorded here unbuilt.
+
+`A` declaring `Real w(start = 1)` and `B` declaring `Real w(start = 2)`,
+with `D` extending both, comes out with `start = 1`; swap the order of
+the two `extends` clauses and it comes out with `start = 2`. The same
+for `fixed`, which is a number in the answer rather than a hint at one.
+So the winner is whichever clause was written first, and nobody says a
+word about the loser.
+
+That is the same silence the binding case was refused for, one attribute
+down. It is not built because the fluid libraries legitimately write
+`start` on one base and leave it off the other, and a refusal at any
+disagreement would take them out: the only honest refusal here is over
+two attributes both _written_ and _different_, which is a narrower test
+than the one the binding case needed and wants its own measurement.

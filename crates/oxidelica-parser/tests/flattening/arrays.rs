@@ -2125,3 +2125,33 @@ fn a_reduction_in_a_modifier_reads_the_length_from_the_class_that_wrote_it() {
         "{for_p:?}"
     );
 }
+
+#[test]
+fn a_package_table_written_with_matrix_brackets_is_read_by_a_running_subscript() {
+    // The digital logic gates read `Tables.AndTable[auxiliary[i],
+    // x[i + 1]]` - a table written in a package with the matrix
+    // brackets, indexed by signals nothing settles before the run.
+    // Read as "not a list" the table travelled as a bare name and
+    // the subscript was demanded constant, which no signal is.
+    let m = parse_model(
+        "package P package T constant Integer Tab[2,2] = [1,2; 3,4]; end T; \
+         model M Integer a(start = 1, fixed = true); Integer y; \
+         equation y = P.T.Tab[a, a]; \
+         when time > 0.5 then a = 2; end when; end M; end P;",
+    )
+    .unwrap();
+    let for_y: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| matches!(&e.lhs, Expr::Ref(name) if name == "y"))
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(for_y.len(), 1, "{for_y:?}");
+    // Every place is asked for, and the corners of the table are the
+    // numbers that were written rather than a name nothing declares.
+    assert!(
+        for_y[0].contains("1.0") && for_y[0].contains("4.0"),
+        "{for_y:?}"
+    );
+    assert!(!for_y[0].contains("Tab"), "{for_y:?}");
+}
