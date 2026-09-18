@@ -2095,6 +2095,35 @@ fn empty_range_subscript(subscripts: &[Expr], shapes: &Shapes) -> bool {
     })
 }
 
+/// Whether a record handed over under its bare name is to be left
+/// unread. `OXIDELICA_NO_BARE_RECORDS` is kept so that one binary can
+/// be measured against itself over the whole library.
+fn bare_records_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_BARE_RECORDS").is_some()
+}
+
+/// The fields of a record handed over to a specialized copy, each as
+/// one number the copy can declare an input for.
+///
+/// A field with dimensions is one name per element - `alow[1]` and its
+/// six neighbours - because the copy takes numbers and a list bound to
+/// one name is a list where a number was wanted. The NASA gas record
+/// is nine tenths arrays, so a splitting that could only do scalars
+/// gave up on every ideal gas in the library.
+fn handed_record_fields(
+    registry: &HashMap<&str, &ClassDef>,
+    target: &ClassDef,
+    held: &Component,
+) -> Vec<String> {
+    let Some(of) = lookup(registry, &held.type_name, &target.name, &target.imports) else {
+        return Vec::new();
+    };
+    if of.kind != ClassKind::Record {
+        return Vec::new();
+    }
+    super::record_fields::handed_record_fields(registry, of)
+}
+
 /// A copy of a function that was handed another function, with the
 /// function input gone.
 ///
@@ -2186,6 +2215,53 @@ fn specialized(
         let Some(value) = said(&held.name) else {
             continue;
         };
+        // A record may be handed over under its bare name -
+        // `function f(data = data)`, where `data` is a constant of the
+        // package the call was written in. Nothing before this asked
+        // what such a name stands for, so the copy declared one input
+        // and the call handed it one name that no flat model
+        // declares: `unknown variable `data``. A record is carried
+        // here as its fields and always has been; the only thing
+        // missing was saying which fields a bare name means. The
+        // value stays whatever it was for anything that is not a
+        // record, so this adds a reading rather than changing one.
+        let value = match (&value, bare_records_off()) {
+            (Expr::Ref(named), false) => {
+                let fields = handed_record_fields(registry, target, held);
+                match fields.is_empty() {
+                    true => value.clone(),
+                    // Each field is read where the call was written:
+                    // a package's record constant has its value from
+                    // whatever the package it was gathered under says,
+                    // and a bare field name means nothing further on.
+                    false => Expr::Array(
+                        fields
+                            .iter()
+                            .map(|field| {
+                                let whole = format!("{named}.{field}");
+                                // A field that is an element of an
+                                // array is read off the array: the
+                                // scalar road splits a name on its
+                                // last dot, and `data.alow[1]` has
+                                // its subscript on the far side of
+                                // that dot, so it asked for a member
+                                // called `alow[1]` and heard nothing.
+                                super::constants::constant_element(&whole, registry, scope, imports)
+                                    .unwrap_or_else(|| {
+                                        super::constants::substitute_scalar_class_constants(
+                                            &Expr::Ref(whole),
+                                            registry,
+                                            scope,
+                                            imports,
+                                        )
+                                    })
+                            })
+                            .collect(),
+                    ),
+                }
+            }
+            _ => value,
+        };
         let mut carried = (*held).clone();
         carried.name = format!("{replaced}.{}", held.name);
         carried.binding = None;
@@ -2195,7 +2271,7 @@ fn specialized(
         // declared and handed over on its own, so the copy's inputs
         // and the call's arguments count the same.
         if let Expr::Array(items) = &value {
-            let fields = super::record_fields::scalar_record_fields(registry, target, held);
+            let fields = handed_record_fields(registry, target, held);
             if fields.len() == items.len() && !fields.is_empty() {
                 split.insert(held.name.clone(), fields.clone());
                 for (field, item) in fields.iter().zip(items) {

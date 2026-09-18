@@ -1501,3 +1501,42 @@ fn a_hint_about_events_inside_a_walked_body_answers_with_its_value() {
     // the whole is eight.
     assert!((last[column("b")] - 8.0).abs() < 1e-12, "{:?}", last);
 }
+
+/// A body carried out to the walk reads its package's constants and
+/// puts a named argument in the seat the callee declares.
+///
+/// Two readings the inlining road had and the walk did not. A body
+/// too large to inline names its package's constants without a path -
+/// `reference_p` of a medium is written beside the functions reading
+/// it - and that name reached the run with nothing giving it a value.
+/// And the walk binds what it is handed by position, the name a call
+/// wrote being nothing to a frame that is a list of inputs: so
+/// `scaled(T = m, k = 2.0)` put each number in the other's seat,
+/// which is a wrong answer rather than a refusal, and worse for it.
+///
+/// Both bodies hold a `while` whose trip count the run decides, which
+/// is what keeps them off the inliner and on the walk where the two
+/// readings live. The answer is checked rather than the flattening:
+/// `2 * 300 - 1000` is minus four hundred, and the seats swapped give
+/// six hundred less than nothing like it.
+#[test]
+fn a_walked_body_reads_its_package_and_its_named_arguments() {
+    let answered = run("package Base constant Real ref_p = 1000.0; \
+         function scaled input Real k; input Real T; output Real h; \
+         protected Real n; \
+         algorithm n := T; while n > T loop n := n - 1; end while; \
+         h := k * n - ref_p; end scaled; \
+         function solve input Real T; output Real y; \
+         protected Real m; \
+         algorithm m := T; while m > T loop m := m - 1; end while; \
+         y := scaled(T = m, k = 2.0); end solve; \
+         end Base; \
+         model M Real y; equation y = Base.solve(300.0); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let y = answered
+        .columns
+        .iter()
+        .position(|c| c == "y")
+        .expect("the model's one variable");
+    assert_eq!(answered.rows.last().unwrap()[y], -400.0);
+}

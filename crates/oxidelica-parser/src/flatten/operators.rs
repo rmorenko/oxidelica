@@ -268,20 +268,6 @@ pub(super) fn element_record_of(expr: &Expr, shapes: &Shapes) -> Option<String> 
     shapes.records.get(name).cloned()
 }
 
-/// The fields of a record class, in the order they were declared.
-///
-/// Only what the class wrote for itself. A record that takes its
-/// fields from a base - `redeclare record extends ThermodynamicState`,
-/// which is how a medium says its state is the one it inherits - has
-/// none of its own, and [`record_fields_of`] is what answers for it.
-pub(super) fn record_fields(class: &ClassDef) -> Vec<String> {
-    class
-        .components
-        .iter()
-        .map(|component| component.name.clone())
-        .collect()
-}
-
 /// The same, with the fields of every base first.
 ///
 /// `redeclare record extends ThermodynamicState` writes no fields and

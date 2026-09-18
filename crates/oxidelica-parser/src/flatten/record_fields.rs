@@ -92,8 +92,60 @@ pub(super) fn scalar_record_fields(
     record_components(registry, of, 0)
         .into_iter()
         .filter(|field| field.dimensions.is_empty())
+        // A field that is text is not one of these. The walk carries
+        // numbers, and a medium's record holds its own `name` beside
+        // its gas constants - handed over as a number it becomes a
+        // name nothing gives a value to, which is how the whole
+        // `data` family died one step after the record was read.
+        .filter(|field| {
+            !matches!(
+                started_by(&field.type_name, registry, of, 0),
+                Some(Started::Text)
+            )
+        })
         .map(|field| field.name)
         .collect()
+}
+
+/// A record's fields as the flat names a walk can carry: one per
+/// number, arrays written out element by element, text left out.
+///
+/// The one list two roads must agree on. A specialized copy declares
+/// an input per name here and the call appends a value per name here,
+/// and a body carried out to the walk renames its record fields by
+/// position in this same list - so a disagreement between the two is
+/// a number read out of the wrong seat, which is worse than a
+/// refusal. The NASA gas record is the reason arrays are in it: seven
+/// low coefficients and seven high ones, against four scalars.
+pub(super) fn handed_record_fields(
+    registry: &HashMap<&str, &ClassDef>,
+    of: &ClassDef,
+) -> Vec<String> {
+    let mut out = Vec::new();
+    for field in record_components(registry, of, 0) {
+        if matches!(
+            started_by(&field.type_name, registry, of, 0),
+            Some(Started::Text)
+        ) {
+            continue;
+        }
+        if field.dimensions.is_empty() {
+            out.push(field.name.clone());
+            continue;
+        }
+        let shape: Option<Vec<i64>> = field
+            .dimensions
+            .iter()
+            .map(|d| const_eval(d, &HashMap::new()).map(|n| n as i64))
+            .collect();
+        let Some(shape) = shape else {
+            return Vec::new();
+        };
+        for indices in super::names::index_tuples(&shape) {
+            out.push(super::names::element_name(&field.name, &indices));
+        }
+    }
+    out
 }
 
 /// The fields of a record-typed argument of a function, when it is one.

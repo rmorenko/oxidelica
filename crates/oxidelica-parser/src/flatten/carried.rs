@@ -142,12 +142,22 @@ pub(super) fn programs_used(
             }
         }
         let renamed = records_as_arrays(&mut carried, registry);
+        // What the body's own frame gives a value to: an input, an
+        // output, a local. Those are names the walk supplies, and a
+        // package constant of the same spelling must not be folded
+        // over them.
+        let held: Vec<String> = carried
+            .components
+            .iter()
+            .map(|component| component.name.clone())
+            .collect();
         carried.algorithm = qualified_calls(
             &class.algorithm,
             registry,
             &class.name,
             &class.imports,
             &renamed,
+            &held,
         );
         out.push(carried);
         let mut calls = Vec::new();
@@ -190,11 +200,16 @@ fn records_as_arrays(
         else {
             continue;
         };
-        let members = record_fields(of);
-        let plain = of.components.iter().all(|member| {
-            member.dimensions.is_empty()
-                && reduces_to_primitive(registry, &member.type_name, &of.name, &of.imports)
-        });
+        // The same list the hand-over road writes: arrays element by
+        // element, text left out. A record holding an array used to be
+        // passed over here altogether, and its every field reached the
+        // run as a name nothing declared - which is how the NASA gas
+        // data, seven coefficients at a time, stopped at `data.Tlimit`.
+        let members = record_fields::handed_record_fields(registry, of);
+        let plain = of
+            .components
+            .iter()
+            .all(|member| reduces_to_primitive(registry, &member.type_name, &of.name, &of.imports));
         if !plain || members.is_empty() {
             continue;
         }
@@ -218,8 +233,9 @@ fn qualified_calls(
     scope: &str,
     imports: &[(String, String)],
     renamed: &HashMap<String, Expr>,
+    held: &[String],
 ) -> Vec<Statement> {
-    let inner = |body: &[Statement]| qualified_calls(body, registry, scope, imports, renamed);
+    let inner = |body: &[Statement]| qualified_calls(body, registry, scope, imports, renamed, held);
     // A body that is walked rather than inlined still reads the
     // constants of the package it belongs to - the air model's
     // `airBaseProp_pT` writes `aux.R_s := Constants.R_s`, a field of a
@@ -232,8 +248,19 @@ fn qualified_calls(
     // an array or a record is left for the walk, which carries its own
     // machinery for those - a list dropped over the top of it indexes
     // past the end and panics.
+    // And a constant of the package the body is written in is named
+    // with no path at all: a medium writes `constant AbsolutePressure
+    // reference_p = 101325` beside the functions that read it, and a
+    // body carried out to the walk rather than inlined took that name
+    // to the run with nothing giving it a value. The dotted road above
+    // never saw it, because the name has no dot. The body's own
+    // components are held back: a local called the same as a
+    // package's constant is the local.
+    let shadow: Vec<&str> = held.iter().map(String::as_str).collect();
     let expr = |e: &Expr| {
         let e = substitute_scalar_class_constants(e, registry, scope, imports);
+        let e = substitute_class_constants(&e, registry, scope, imports, &shadow);
+        let e = subscripts_spelled_out(&e, renamed);
         substitute_refs(&qualified_in(&e, registry, scope, imports), renamed)
     };
     // A member of a record is written as an element of an array, and a
@@ -280,6 +307,110 @@ fn qualified_calls(
         .collect()
 }
 
+/// A call's arguments in the order the callee declares its inputs.
+///
+/// What comes back has no `NamedArg` left in it where every name was
+/// one the callee declares; where a name is not one of them, or an
+/// input is left without a value and has nothing to fall back on, the
+/// arguments are handed back untouched and whatever reads them next
+/// says what is wrong with them. Guessing an order here would be a
+/// wrong number where a refusal is owed.
+fn in_declared_order(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    args: Vec<Expr>,
+) -> Vec<Expr> {
+    if !args.iter().any(|arg| matches!(arg, Expr::NamedArg(..))) {
+        return args;
+    }
+    let held = with_inherited_components(class, registry);
+    let inputs: Vec<&Component> = held
+        .iter()
+        .filter(|component| component.causality == Causality::Input)
+        .collect();
+    let at = args
+        .iter()
+        .position(|arg| matches!(arg, Expr::NamedArg(..)))
+        .expect("just checked there is one");
+    // Nothing positional may follow a named argument; where one does,
+    // the call is a mistake about the function and is left as it was.
+    if args[at..]
+        .iter()
+        .any(|arg| !matches!(arg, Expr::NamedArg(..)))
+    {
+        return args;
+    }
+    let mut out: Vec<Option<Expr>> = inputs.iter().map(|_| None).collect();
+    if out.len() < at {
+        return args;
+    }
+    for (seat, arg) in args[..at].iter().enumerate() {
+        out[seat] = Some(arg.clone());
+    }
+    for arg in &args[at..] {
+        let Expr::NamedArg(name, value) = arg else {
+            unreachable!("the loop above checked every one of these");
+        };
+        let Some(seat) = inputs.iter().position(|input| &input.name == name) else {
+            return args;
+        };
+        if out[seat].is_some() {
+            return args;
+        }
+        out[seat] = Some((**value).clone());
+    }
+    // A seat left empty is an input the call did not fill: allowed
+    // where the declaration gives it a value of its own, and the
+    // trailing empties simply end the list. A gap before something
+    // that was filled cannot be closed without moving an argument
+    // into a seat nobody named.
+    let last = out.iter().rposition(Option::is_some);
+    let Some(last) = last else {
+        return args;
+    };
+    let mut ordered = Vec::with_capacity(last + 1);
+    for (seat, held) in out.into_iter().take(last + 1).enumerate() {
+        match held {
+            Some(value) => ordered.push(value),
+            None => match inputs[seat]
+                .binding
+                .clone()
+                .or_else(|| inputs[seat].start.clone())
+            {
+                Some(value) => ordered.push(value),
+                None => return args.clone(),
+            },
+        }
+    }
+    ordered
+}
+
+/// A subscripted record field written the way the renaming names it.
+///
+/// A body reads `data.alow[1]` as a subscript of the name
+/// `data.alow`, and the renaming speaks for the flat spelling
+/// `data.alow[1]` - one name, no subscript. The name alone is nothing
+/// the map knows, so the field went to the run unrenamed. Only where
+/// the subscripts are numbers and the flat name is one the map
+/// speaks for: anything else is left exactly as it was.
+fn subscripts_spelled_out(expr: &Expr, renamed: &HashMap<String, Expr>) -> Expr {
+    if let Expr::Index(base, subscripts) = expr {
+        if let Expr::Ref(name) = base.as_ref() {
+            let indices: Option<Vec<i64>> = subscripts
+                .iter()
+                .map(|s| const_eval(s, &HashMap::new()).map(|n| n as i64))
+                .collect();
+            if let Some(indices) = indices {
+                let flat = element_name(name, &indices);
+                if let Some(instead) = renamed.get(&flat) {
+                    return instead.clone();
+                }
+            }
+        }
+    }
+    expr.map_children(&mut |child| subscripts_spelled_out(child, renamed))
+}
+
 /// The branches of an `if` or a `when`, rebuilt through the same two
 /// rewrites.
 fn rebranch(
@@ -307,11 +438,26 @@ fn qualified_in(
     let recur = |inner: &Expr| qualified_in(inner, registry, scope, imports);
     match expr {
         Expr::Call(name, args) => {
-            let named = lookup(registry, name, scope, imports)
-                .filter(|class| class.kind == ClassKind::Function)
+            let of = lookup(registry, name, scope, imports)
+                .filter(|class| class.kind == ClassKind::Function);
+            let named = of
                 .map(|class| class.name.clone())
                 .unwrap_or_else(|| name.clone());
-            Expr::Call(named, args.iter().map(recur).collect())
+            let args: Vec<Expr> = args.iter().map(recur).collect();
+            // A named argument is put in the seat the callee declares
+            // it in. The walk binds what it is handed by position -
+            // the frame is a list of inputs, and the name a call wrote
+            // is nothing to it - so `h_T(data = data, T = u)`, which
+            // is how every ideal gas reads its NASA coefficients, gave
+            // the walk `data` where `T` was declared and left `data`
+            // itself standing as a name the run never heard of. The
+            // inlining road already does this reordering; a body
+            // carried out to the walk never had it.
+            let args = match of {
+                Some(class) => in_declared_order(class, registry, args),
+                None => args,
+            };
+            Expr::Call(named, args)
         }
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),

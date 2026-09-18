@@ -804,6 +804,141 @@ fn enclosing_as_declared(
 /// and a medium's `final ph_explicit = true` reached every `if` that
 /// asks it as a number. The declaration still says which it was, so
 /// the substitution asks before it writes the value down.
+/// One element of a constant array, named the way the flat model
+/// names one: `Air.data.alow[1]`.
+///
+/// The scalar road splits a name on its last dot and asks the class
+/// for a member of that name, and a subscript sits on the far side of
+/// that dot - so `alow[1]` was asked for as a member and nothing
+/// answered. Here the subscripts are taken off first, the array asked
+/// for whole, and the element read out of what came back.
+pub(super) fn constant_element(
+    name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<Expr> {
+    let (base, rest) = name.split_once('[')?;
+    let subscripts: Vec<usize> = rest
+        .strip_suffix(']')?
+        .split(',')
+        .map(|index| index.trim().parse::<usize>().ok())
+        .collect::<Option<Vec<usize>>>()?;
+    let mut held = class_constant_array_at(registry, base, scope, imports, 0)
+        .or_else(|| record_constant_array_field(registry, base, scope, imports))?;
+    for index in subscripts {
+        let Expr::Array(items) = held else {
+            return None;
+        };
+        held = items.get(index.checked_sub(1)?)?.clone();
+    }
+    // A negative number is a negation of one, and reading only the
+    // bare literal folded every other coefficient of a NASA gas: the
+    // even ones are negative, and they went to the run as names.
+    match const_eval(&held, &HashMap::new()) {
+        Some(number) => Some(Expr::Number(number)),
+        None => matches!(held, Expr::Bool(_) | Expr::Str(_)).then_some(held),
+    }
+}
+
+/// An array field of a record constant, as the value it was given.
+///
+/// The twin of [`record_constant_field`] for the fields that are not
+/// single numbers: a NASA gas record is seven low coefficients, seven
+/// high ones and four constants beside them, and a road that could
+/// only read the scalars read a quarter of the record.
+fn record_constant_array_field(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<Expr> {
+    let (path, field) = name.rsplit_once('.')?;
+    let (owner, component) = match path.rsplit_once('.') {
+        Some((owner_path, component_name)) => {
+            let owner = lookup(registry, owner_path, scope, imports)?;
+            let held = declared_record(registry, owner, component_name, false)?;
+            (owner, held)
+        }
+        None => enclosing_record_constant(registry, path, scope)?,
+    };
+    let written = component
+        .modifiers
+        .iter()
+        .find(|(known, _)| known == field)
+        .map(|(_, value)| value.clone())
+        // What the record was given as a whole, rather than field by
+        // field: `extends Base(data = Gas(alow = {...}))` is how every
+        // ideal gas of the library says which coefficients it has, and
+        // that value belongs to the gathering rather than to the
+        // declaration, which is the interface's and says nothing.
+        .or_else(|| record_binding_array(registry, owner, &component.name, field))
+        .or_else(|| {
+            let record = lookup(registry, &component.type_name, &owner.name, &owner.imports)?;
+            record
+                .components
+                .iter()
+                .find(|held| held.name == field)?
+                .binding
+                .clone()
+        })?;
+    let settled = substitute_at(
+        &written,
+        registry,
+        &owner.name,
+        &owner.imports,
+        &[],
+        1,
+        true,
+    );
+    matches!(settled, Expr::Array(_)).then_some(settled)
+}
+
+/// An array field of a record constant whose value was written as a
+/// whole - the array twin of [`record_binding_field`], and the same
+/// two readings: a name standing for another record constant, or a
+/// constructor with the field among its named arguments.
+fn record_binding_array(
+    registry: &HashMap<&str, &ClassDef>,
+    owner: &ClassDef,
+    name: &str,
+    field: &str,
+) -> Option<Expr> {
+    let mut constants: Vec<(String, Option<Expr>)> = Vec::new();
+    gather_package_constants(registry, owner, 0, &mut constants);
+    let binding = constants
+        .iter()
+        .find(|(known, _)| known == name)
+        .and_then(|(_, held)| held.clone())?;
+    if let Expr::Ref(named) = &binding {
+        if let Some(held) = class_constant_array_at(
+            registry,
+            &format!("{named}.{field}"),
+            &owner.name,
+            &owner.imports,
+            1,
+        ) {
+            return Some(held);
+        }
+    }
+    let settled = substitute_at(
+        &binding,
+        registry,
+        &owner.name,
+        &owner.imports,
+        &[],
+        1,
+        true,
+    );
+    let Expr::Call(_, args) = &settled else {
+        return None;
+    };
+    args.iter().find_map(|arg| match arg {
+        Expr::NamedArg(known, value) if known == field => Some(value.as_ref().clone()),
+        _ => None,
+    })
+}
+
 pub(super) fn class_constant_is_boolean(
     registry: &HashMap<&str, &ClassDef>,
     name: &str,

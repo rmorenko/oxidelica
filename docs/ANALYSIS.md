@@ -11076,3 +11076,61 @@ that is still the next link - the road this shift took was the one
 below it. The probe for it is `/tmp/p176/X.mo`, five lines that refuse
 for an unknown variable `data` in an equation, exactly as the fourteen
 do.
+
+## Shift 177: the `data` chain walked to its end
+
+Three shifts parked this family and each parked with a map. The map
+was right about the wall and wrong about its depth: what looked like
+one link - a record constant handed over under its bare name - was
+eight, each one behind the last, and every one of them invisible until
+the one before it fell. This is the shape the notes describe as a
+chain, and the rule they give is the one that worked: walk it to the
+end with the probe first, keeping each removal local, and only then
+take it as one series.
+
+The links, in the order they were met, each with the small model that
+showed it:
+
+1. **A record handed over under its bare name is not read at all.**
+   `function f_nonlinear(data = data)` appends the name `data` to a
+   specialized copy that declares fields, so the flat model was
+   refused for a variable no model wrote. The splitting existed and
+   fired only for a value already written out as an `Expr::Array`.
+   (`A1.mo`, 30 lines, no standard library.)
+2. **The fields are read where the call was written.** Split, they
+   became `data.R_s` and the like, which mean nothing further along.
+3. **A field that is text is not a number.** A medium's record carries
+   its own `name` beside its gas constants; handed over as a number it
+   becomes a name nothing declares. `Inverse_sh_T` died on `data.name`
+   at exactly this link.
+4. **A carried body does not read its package's bare constants.** A
+   body too large to inline is walked, and it names `reference_p` with
+   no path; the dotted road never saw it because the name has no dot.
+   (`C3.mo` - and `C1.mo` beside it, the same body small enough to
+   inline, which runs. The pair is what located the layer.)
+5. **The walk binds by position and a named argument does not know
+   it.** `Functions.h_T(data = data, T = u)` handed the walk `data`
+   where `T` was declared. This one is worse than a refusal: `F2.mo`
+   answered **300000** before the fix and **200.1** after, and 200.1
+   is the number worked out by hand. A wrong number had been sitting
+   in the walk for every carried body that used a keyword.
+6. **A record with an array field was passed over whole.** The NASA
+   gas record is fourteen coefficients against four scalars, and a
+   splitting that could only do scalars gave up on all of it.
+7. **A subscripted field is one flat name, not a subscript of one.**
+   The renaming speaks for `data.alow[1]`; the body writes an index of
+   `data.alow`, which the map has never heard of.
+8. **A negative number is not a literal.** Only the odd coefficients
+   folded: `Expr::Neg(Number)` is not `Expr::Number`, and every even
+   NASA coefficient is negative. This is why the refusal named
+   `data.alow[2]` and never `alow[1]`.
+
+`Inverse_sh_T` now flattens and runs to the standard library's own
+`solveOneNonlinearEquation`, where it meets the parked `String(x)`
+wall - a different family, and the honest end of this one.
+
+The fourteen small models are kept in `~/p177`; each gives a number
+checked by hand rather than merely flattening, which is what the notes
+ask for and what caught link 5. Link 5 is also the answer to why three
+shifts found nothing: every earlier synthetic model passed scalars
+positionally, and nothing about a scalar passed positionally is wrong.

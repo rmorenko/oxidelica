@@ -1361,3 +1361,44 @@ fn a_record_constant_given_by_name_arrives_as_its_fields() {
     assert!(!written.contains("data.a"), "{written}");
     assert!(written.contains("Number(2.0)"), "{written}");
 }
+
+/// A record constant handed over to a function that another function
+/// was given reaches the body as its fields.
+///
+/// `solveOneNonlinearEquation(function f_nonlinear(data = data), ...)`
+/// is how every ideal gas of the standard library inverts a property,
+/// and the record travelled there under its bare name: the copy the
+/// compiler specializes declared one input and the call handed it a
+/// name no flat model declares. Fourteen media models were refused
+/// for `unknown variable `data`` on the strength of it.
+///
+/// The field checked is an array one and a negative element at that,
+/// which is where the two halves of the reading meet: a coefficient
+/// that is a negation rather than a literal folded nowhere, and the
+/// even coefficients of every NASA gas are negative.
+#[test]
+fn a_record_handed_over_with_a_function_arrives_as_its_fields() {
+    let m = parse_model(
+        "package Base record Gas String name; Real R_s; Real a[3]; end Gas; \
+         constant Gas data; \
+         partial function scalarFn input Real u; output Real y; end scalarFn; \
+         function inner_h input Gas data; input Real T; output Real h; \
+         algorithm h := data.a[2] * T + data.R_s; end inner_h; \
+         function f_nonlinear extends scalarFn; input Gas data; \
+         algorithm y := inner_h(data = data, T = u); end f_nonlinear; \
+         function apply input scalarFn f; input Real u; output Real y; \
+         algorithm y := f(u); end apply; \
+         function solve input Real T; output Real y; \
+         algorithm y := apply(function f_nonlinear(data = data), T); end solve; \
+         end Base; \
+         package Air extends Base(data = Base.Gas(name = \"air\", R_s = 287.0, \
+         a = {1, -2, 3})); end Air; \
+         model Y Real Tm = 300 + time; Real y; equation \
+         y = Air.solve(Tm); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end Y;",
+    )
+    .expect("a record handed over beside a function");
+    let written = format!("{:?}", m.equations);
+    assert!(!written.contains("data"), "{written}");
+    assert!(written.contains("-2.0"), "{written}");
+}
