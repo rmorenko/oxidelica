@@ -550,6 +550,28 @@ fn a_constant_whose_value_a_body_must_be_walked_for() {
 }
 
 #[test]
+fn a_body_called_only_inside_a_run_time_branch_travels_with_the_model() {
+    // An `if` whose condition the run decides is not among the
+    // equations of the flat model: its branches are held apart, one
+    // list each, because which one holds is not known until the run
+    // picks it. The bodies a model has to walk were gathered from the
+    // equations alone, so a function called only from inside such a
+    // branch travelled with nothing, and the run refused a name whose
+    // text the compiler was carrying. Seven models of the standard
+    // library stopped there, all on `Fluid.Utilities.regSquare2`,
+    // which a vessel calls inside `if regularFlow[i]`.
+    let result = run("function halve input Real x; output Real y; \
+         algorithm y := x; while y > 1 loop y := y / 2; end while; end halve; \
+         model M Real x = 1 + time; Boolean big; Real y; equation \
+         big = x > 0; \
+         if big then y = halve(x); else y = 0; end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // Two halved once is one.
+    assert!((result.rows.last().unwrap()[at("y")] - 1.0).abs() < 1e-12);
+}
+
+#[test]
 fn a_walked_body_may_shout_and_read_a_constant() {
     // Two things the standard library's own numerical bodies do, and
     // both used to kill the model rather than the body. A body with a

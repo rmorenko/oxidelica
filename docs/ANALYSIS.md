@@ -11134,3 +11134,42 @@ checked by hand rather than merely flattening, which is what the notes
 ask for and what caught link 5. Link 5 is also the answer to why three
 shifts found nothing: every earlier synthetic model passed scalars
 positionally, and nothing about a scalar passed positionally is wrong.
+
+## A body called only inside a branch the run decides
+
+The census after the `data` line closed put seven models on one row of
+the run half: `unknown function Modelica.Fluid.Utilities.regSquare2`,
+a name whose text the compiler was carrying at that very moment
+(`~/p178/census.txt`, run half).
+
+The probe took under a minute once the ladder was climbed in order. A
+small model calling `regSquare2` from an equation runs and gives 0.25
+by hand; from an array; from under a `smooth`. All green. What is
+different about a vessel is where the call sits: `Vessels.mo:360`
+writes the port pressure inside `if regularFlow[i] then`, and
+`regularFlow` is a variable, so the branch is one the run picks.
+
+Such an `if` is not among the flat model's equations. It is held apart
+in `Model::conditional`, one list per branch, precisely because which
+branch holds is unknown until the run. And `programs_used`, which
+gathers the bodies a model must carry into the run, walked the
+equations, the initial equations, the asserts and the `when` clauses -
+not the conditional. A function reached only from inside such a branch
+travelled with nothing, and the run met a name it had no body for.
+
+The smallest model that shows it is twelve lines, and it was seen red:
+a `while` body called under `if big then`, where `big` is a Boolean
+equation. Reproduced in one second what the corpus says in eleven
+minutes.
+
+Measured twice from one binary, without the carved-out giants
+(`~/p178/corpus.on.txt:176`, `corpus.off.txt:176`): 842 flatten and
+512 run become 842 and 513. The flatten list is identical line for
+line; the run list gains
+`ModelicaTest.Fluid.TestComponents.Vessels.TestVolume` and loses
+nothing. The other six of the row are the expected shape - a barrier
+removed uncovers the next one, and `ThreeTanks` now stops on an
+algebraic loop rather than on a name.
+
+So one model on the count, and a row of seven emptied: the two are
+separate claims, as the notes require, and this change is both.

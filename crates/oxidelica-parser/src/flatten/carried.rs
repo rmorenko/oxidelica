@@ -32,6 +32,32 @@ pub(super) fn programs_used(
     for (condition, _) in &model.asserts {
         look(condition);
     }
+    // And the equations of an `if` whose condition the run decides.
+    // Those do not sit among the equations above - they are held
+    // apart, one list per branch, because which branch holds is not
+    // known until the run picks it - and a body called only from
+    // inside such a branch travelled with nothing at all. What the
+    // model heard was that the compiler does not know a function
+    // whose text it is carrying: a vessel writes its port pressure
+    // through `Utilities.regSquare2` inside `if regularFlow[i]`, and
+    // seven models of the standard library stopped there.
+    //
+    // Every branch, not the one that will be taken: which that is the
+    // run works out, and the walk must have the body of whichever it
+    // lands on.
+    if std::env::var_os("OXIDELICA_NO_BRANCH_BODIES").is_none() {
+        for conditional in &model.conditional {
+            for condition in &conditional.conditions {
+                look(condition);
+            }
+            for branch in &conditional.branches {
+                for equation in branch {
+                    look(&equation.lhs);
+                    look(&equation.rhs);
+                }
+            }
+        }
+    }
     for clause in &model.when_clauses {
         for branch in &clause.branches {
             look(&branch.condition);
