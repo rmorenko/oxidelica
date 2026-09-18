@@ -2123,6 +2123,30 @@ fn a_declaration_repeated_without_a_binding_is_one_element() {
     assert!((w - 2.0).abs() < 1e-9, "w={w}, expected 2");
 }
 
+/// And the two declarations need not stand one above the other: two
+/// bases of one class may each declare the name, in words that differ.
+/// `PartialTwoPortTransport` declares the mass flow with a state
+/// selection written on it, `PartialLumpedFlow` declares it plainly,
+/// and every fitting of the fluid library extends both. Written out
+/// twice the flat model carries two unknowns where the equations
+/// settle one, and the sensors and orifices of the library were
+/// refused as unbalanced with the second copy named.
+#[test]
+fn a_declaration_from_two_bases_is_one_element() {
+    let result = run("model A Real w(start = 0.0); end A; \
+         model B Real w; end B; \
+         model D extends A; extends B; Real y; \
+         equation w = 2.0 * time; y = 3.0 * w; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end D;");
+    let at = |name: &str| {
+        let column = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[column]
+    };
+    let (w, y) = (at("w"), at("y"));
+    assert!((w - 2.0).abs() < 1e-9, "w={w}, expected 2");
+    assert!((y - 6.0).abs() < 1e-9, "y={y}, expected 6");
+}
+
 #[test]
 fn a_derivative_scaled_by_a_zero_parameter_is_an_algebraic_relation() {
     // An inductor with `L = 0` is a library saying the branch is

@@ -1188,6 +1188,27 @@ pub(super) fn instantiate_one(
             let mut flat = component.clone();
             flat.name = flat_name.to_string();
             flat.dimensions = Vec::new();
+            // Two bases of one class may each declare the same name,
+            // and the flat model has one place for it. `m_flow` is
+            // declared by `PartialTwoPortTransport` and again by
+            // `PartialLumpedFlow`, and every fitting of the fluid
+            // library extends both: written out twice, the model
+            // carries two unknowns where its equations settle one, and
+            // the count comes out one short - which is what the refusal
+            // `nothing determines simpleGenericOrifice.m_flow` was
+            // saying all along, naming the second copy.
+            //
+            // The rule next door, which asks whether a base repeats a
+            // declaration word for word, cannot see this pair: they
+            // differ, one writing a `start` the other leaves off. What
+            // settles the question is not the wording but the flat
+            // name, and the flat name exists only here. The first
+            // declaration stands; the repetition falls away with the
+            // declaration equation it would have brought.
+            if !twice_declared_is_kept() && acc.declared.contains(flat_name) {
+                return Ok(());
+            }
+            acc.declared.insert(flat_name.to_string());
             let made_a_parameter =
                 inside_a_parameter && flat.variability == Variability::Continuous;
             if made_a_parameter {
@@ -1584,4 +1605,11 @@ fn resolve_call_names(
         }
         _ => mapped,
     }
+}
+
+/// Whether a name declared twice over is written out twice, as it was
+/// before. `OXIDELICA_KEEP_TWICE_DECLARED` is kept so that one binary
+/// can be measured against itself over the whole library.
+fn twice_declared_is_kept() -> bool {
+    std::env::var_os("OXIDELICA_KEEP_TWICE_DECLARED").is_some()
 }

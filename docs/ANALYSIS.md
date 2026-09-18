@@ -11223,3 +11223,46 @@ separate claims the notes ask for. Behind the wall stands another for
 most of the family: the media tests that anchor a temperature reach
 their initialisation and meet a solver there instead, which is the
 expected shape of a barrier removed rather than a disappointment.
+
+## A name declared by two bases at once
+
+The `unbalanced` row of the run census counted 48 models
+(`/tmp/census180.txt:275` and following), and the machine-shaped part
+of it had been probed before. The rest had not, and the register's
+wording splits it: five models were refused with `nothing determines
+simpleGenericOrifice.m_flow`, three more named an orifice or an
+expansion by another name, and the fluid sensors and fittings between
+them make a family the count never showed as one.
+
+The probe found the same shape in all of them. `oxidelica why
+ModelicaTest.Fluid.TestComponents.Sensors.TestPressure
+simpleGenericOrifice.m_flow` prints the declaration twice over, and
+the two are not the same declaration: `PartialTwoPortTransport`
+declares the mass flow with a state selection written on it and
+`PartialLumpedFlow` declares it plainly, and every fitting of the
+library extends both. The flat model has one place for a name, so the
+second declaration was a second unknown standing against the same
+equations - the count one short, and the refusal naming the copy.
+
+The rule that was already there could not see it. It asks whether a
+base repeats a declaration word for word, which these two do not, and
+it asks it of the class text, where the flat name does not exist yet.
+What settles the question is the flat name: a primitive whose name has
+already been written out is a repetition whatever words brought it.
+
+The smallest model is nine lines and was seen red behind the switch:
+two bases declaring `w`, one with a `start` and one without, a class
+extending both, and `w = 2*time` with `y = 3*w`. The test holds the
+numbers, 2 and 6, rather than the fact that it ran.
+
+Measured twice from one binary, without the carved-out giants
+(`/tmp/p180-off.txt:1043`, `/tmp/p180-on.txt:1043`): 842 flatten and
+515 run become 842 and 516; the runnable pair 737/483 becomes 737/484.
+The flatten list is identical line for line and the run list loses
+nothing; the one gained is
+`ModelicaTest.Fluid.TestComponents.Fittings.TestSimpleGenericOrifice`.
+
+One on the count, and a family of eight taken off the wall it stood
+at: the sensors and the remaining fittings reach their solver instead,
+which is the expected shape of a barrier removed rather than a
+disappointment.

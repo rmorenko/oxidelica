@@ -2216,6 +2216,11 @@ struct Flat {
     /// diamond names one of them by two paths, and the specification
     /// says such an element is included once.
     extended: HashSet<(String, String)>,
+    /// Every flat name a primitive declaration has already been
+    /// written out under. Two bases of one class may declare the same
+    /// name in words that differ, and the flat model has one place for
+    /// it; this is what says the second is a repetition.
+    declared: HashSet<String>,
     /// Every instance known to be a record, by its flat path, and
     /// what record it is. A modifier is written in the terms of the
     /// class that supplied it, so what one class knows has to still
