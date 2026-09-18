@@ -11173,3 +11173,53 @@ algebraic loop rather than on a name.
 
 So one model on the count, and a row of seven emptied: the two are
 separate claims, as the notes require, and this change is both.
+
+## A steady start written about a variable the plan computes
+
+The census after the `regSquare2` line closed put seventeen models of
+the run half on one wording: `volume.medium.T` is not a state of the
+model, and its relatives naming `pump.medium.h`,
+`pipe.mediums[1].h` and `aimc.airGap.V_msr.re`
+(`/tmp/p179-census.txt:271` and following, read by name from
+`/tmp/p179-raw.txt`). The counter split the family across several rows
+because it quotes whichever name came first; added up, seventeen.
+
+`oxidelica why` on one of them answered the question in a second. The
+medium declares `T` with no binding, an equation writes
+`h = cp_const*(T - 298.15)` and the volume around it holds `h`, so
+`T` is an algebraic variable of the plan rather than a state - and the
+model's `initial equation der(volume.medium.T) = 0` names it.
+`substitute_derivatives` knew only the states, so it refused.
+
+The compiler had what it needed in hand. Everything that differentiates
+a definition already exists for index reduction, and the plan's own
+explicit stages are the definitions. So the initialisation asks for
+them: `der` of a name the plan assigns explicitly becomes the chain
+rule applied to its definition, and `der(h) = cp*der(T)` with the
+states' derivatives already known.
+
+Nothing is guessed. A name a simultaneous block solves for has no
+definition to read and is refused exactly as before - `b + sin(b) = a`
+determines `b` and no rearrangement gets it alone on a side - and so is
+a definition this module cannot differentiate, and so is a derivative
+that would have to be minted, since the initialisation has no equation
+to bring for one. That is the test that stands where the old refusal
+case stood.
+
+The smallest model is seven lines and was seen red behind the switch:
+`der(u) = -u; h = 2*u; w = h - 3` with `initial equation der(w) = 0`,
+which puts `u` at zero and `w` at -3. The number is what the test
+holds, not the fact of running.
+
+Measured twice from one binary, without the carved-out giants
+(`/tmp/p179-on.txt:176`, `/tmp/p179-off.txt:176`): 842 flatten and 513
+run become 842 and 515; the runnable pair 737/481 becomes 737/483. The
+flatten list is identical line for line and the run list loses nothing.
+The two gained are `Modelica.Blocks.Examples.InverseModel` and
+`ModelicaTest.Media.TestsWithFluid.MediaTestModels.Water.ConstantPropertyLiquidWater`.
+
+So two on the count and a row of seventeen emptied, and those are the
+separate claims the notes ask for. Behind the wall stands another for
+most of the family: the media tests that anchor a temperature reach
+their initialisation and meet a solver there instead, which is the
+expected shape of a barrier removed rather than a disappointment.

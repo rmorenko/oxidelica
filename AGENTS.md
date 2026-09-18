@@ -24,6 +24,26 @@ that is not wound is not a ratchet. There are five floors and the
 runnable pair is easy to forget - take all five from one run of the
 script rather than from what the commit messages said.
 
+And the floor is raised whenever a measurement comes out above it, not
+only when the shift's own change is what raised it. The ratchet as
+first written guarded against a fall and said nothing about a base
+that had risen on its own, so the floors sat at 510 while the corpus
+had long counted 512 and the build machine 514: every shift measured
+before and after its own edit, saw the same two numbers, and never
+looked at what the floor stood on. A ratchet that has fallen behind
+reality does not measure, it merely exists - a regression of four
+models would have passed without a word. Where the two machines
+disagree, name the difference model by model and set the floor from
+the lower of them.
+
+Something long is started so that it outlives the shell and not the
+shift. A census died with its shell and cost four minutes; a measure
+that outlived its shift burned two cores for five hours. The two
+requirements do not argue: `nohup ... </dev/null &` with the job
+disowned for the start, and a sweep for orphans at the end. Not
+`setsid`, which macOS does not have at all - a start written with it
+dies immediately and reads exactly like a run that finished.
+
 A change that gives a name a definition changes which states index
 reduction keeps, and that is what to measure - not the number of
 models. Three shifts running, a rule true in itself cost models with

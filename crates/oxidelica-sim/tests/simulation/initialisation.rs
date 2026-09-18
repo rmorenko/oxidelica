@@ -106,9 +106,14 @@ fn initialization_reports_what_it_cannot_solve() {
          initial equation b = 2 * a; end M;"
     )
     .contains("singular"));
-    // `der` of something that is not a state.
+    // `der` of something that is neither a state nor a name with a
+    // definition to differentiate. `b + sin(b) = a` determines `b`
+    // and no rearrangement gets it alone on a side, so the chain rule
+    // has nothing to read and the refusal is owed. Where a definition
+    // does exist - `b = a` - the derivative is worked out instead,
+    // which is what the media models of the library rest on.
     assert!(error(
-        "model M Real a(start = 1); Real b; equation der(a) = -a; b = a; \
+        "model M Real a(start = 1); Real b; equation der(a) = -a; b + sin(b) = a; \
          initial equation der(b) = 0; end M;"
     )
     .contains("is not a state"));
@@ -911,5 +916,31 @@ fn a_fixed_start_on_a_demoted_variable_is_an_initial_condition() {
         (result.rows[0][x] - 3.0).abs() < 1e-9,
         "x(0) = {}",
         result.rows[0][x]
+    );
+}
+
+/// `der` of a variable the plan computes is a statement the chain rule
+/// can read, and it used to be refused outright.
+///
+/// A medium writes its temperature from an enthalpy the volume around
+/// it holds, so `der(medium.T) = 0` names something that is not a
+/// state - and the compiler had the definition in hand while answering
+/// that it did not know the name. Seventeen models of the library
+/// stood at that wall, media and pumps and pipes.
+///
+/// The number is what the test holds rather than the fact of running:
+/// `T = 2*u - 3` with `der(T) = 0` puts `u` at zero, so `T` starts at
+/// -3 whatever `u` was declared with.
+#[test]
+fn a_steady_start_may_name_a_variable_the_plan_computes() {
+    let result = run("model T Real u(start = 1); Real h; Real w; \
+         equation der(u) = -u; h = 2 * u; w = h - 3; \
+         initial equation der(w) = 0; \
+         annotation(experiment(StopTime=0.1, Interval=0.05)); end T;");
+    let w = result.columns.iter().position(|c| c == "w").unwrap();
+    assert!(
+        (result.rows[0][w] + 3.0).abs() < 1e-9,
+        "w(0) = {}",
+        result.rows[0][w]
     );
 }

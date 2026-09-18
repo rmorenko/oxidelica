@@ -4,24 +4,37 @@
 
 use crate::*;
 
-/// Replace every `der(x)` with the right-hand side of that state.
-pub(crate) fn substitute_derivatives(
+/// Replace every `der(x)` with the right-hand side of that state, and
+/// every `der(y)` of a name that is not a state with the derivative
+/// worked out for it.
+///
+/// A variable the plan computes has no `der` of its own, but where its
+/// definition is known the chain rule gives one, and `also` carries
+/// those. Nothing is guessed: a name absent from both lists is still
+/// refused.
+pub(crate) fn substitute_derivatives_with(
     expr: &Expr,
     states: &[String],
     derivatives: &[Expr],
+    also: &HashMap<String, Expr>,
 ) -> Result<Expr, SimError> {
     // The one case this is about: `der(x)` becomes whatever stands for
     // the derivative of `x`, and everything else is the same
     // expression with its children substituted.
     if let Some(state) = expr.as_der_of() {
-        let Some(index) = states.iter().position(|s| s == state) else {
-            return err(format!(
-                "der({state}): `{state}` is not a state of the model"
-            ));
-        };
-        return Ok(derivatives[index].clone());
+        if let Some(index) = states.iter().position(|s| s == state) {
+            return Ok(derivatives[index].clone());
+        }
+        if let Some(worked_out) = also.get(state) {
+            return Ok(worked_out.clone());
+        }
+        return err(format!(
+            "der({state}): `{state}` is not a state of the model"
+        ));
     }
-    expr.try_map_children(&mut |child| substitute_derivatives(child, states, derivatives))
+    expr.try_map_children(&mut |child| {
+        substitute_derivatives_with(child, states, derivatives, also)
+    })
 }
 
 /// Which states each state's right-hand side depends on, and a grouping
@@ -4143,6 +4156,69 @@ impl CompiledModel {
         Ok(())
     }
 
+    /// The derivative of every algebraic variable the plan assigns
+    /// explicitly, worked out from its definition by the chain rule.
+    ///
+    /// `h = cp*(T - 298.15)` makes `der(h)` a statement about `der(T)`,
+    /// and the states' own derivatives are already in hand, so a whole
+    /// family of media models that anchor a temperature or an enthalpy
+    /// at a steady start can be read rather than refused.
+    ///
+    /// Only explicit stages are read. What a simultaneous block solves
+    /// for has no definition to differentiate, and a coarse answer here
+    /// is a wrong number rather than a refusal.
+    ///
+    /// `OXIDELICA_NO_INIT_ALG_DER=1` turns it off, so that one binary
+    /// can measure the corpus both ways.
+    fn algebraic_definition_derivatives(
+        &self,
+        derivative_exprs: &[Expr],
+        plan: &[PlanStage],
+    ) -> HashMap<String, Expr> {
+        let mut worked_out = HashMap::new();
+        if std::env::var_os("OXIDELICA_NO_INIT_ALG_DER").is_some() {
+            return worked_out;
+        }
+        let state_rhs: HashMap<String, Expr> = self
+            .states
+            .iter()
+            .cloned()
+            .zip(derivative_exprs.iter().cloned())
+            .collect();
+        let params: HashMap<String, f64> = self.parameters.iter().cloned().collect();
+        let dummies = HashMap::new();
+        let implicit_defs = HashMap::new();
+        let mut alg_defs: HashMap<String, Expr> = HashMap::new();
+        for stage in plan {
+            if let PlanStage::Explicit { var, expr } = stage {
+                alg_defs.insert(self.algebraics[*var].clone(), expr.clone());
+            }
+        }
+        for (name, definition) in &alg_defs {
+            let target = DiffTarget::Time {
+                state_rhs: &state_rhs,
+                params: &params,
+                dummies: &dummies,
+                alg_defs: &alg_defs,
+                implicit_defs: &implicit_defs,
+                holding: &[],
+            };
+            // A definition this module cannot differentiate leaves the
+            // name out, and the name is then refused exactly as it was
+            // before - a refusal, never a guess. A minted `der(x)` is
+            // no answer here either: the initialisation has no equation
+            // to bring for it.
+            if let Ok(derivative) = differentiate(definition, &target) {
+                if take_needed_derivatives().is_empty() {
+                    worked_out.insert(name.clone(), simplify(&derivative));
+                }
+            }
+            let _ = take_needed_derivatives();
+            let _ = take_minted_derivatives();
+        }
+        worked_out
+    }
+
     /// Solve the initialization problem: the state vector a run starts
     /// from is the one satisfying the `initial equation` section
     /// together with every state declared `fixed = true`.
@@ -4331,11 +4407,29 @@ impl CompiledModel {
 
         // `der(x)` in an initial equation is the right-hand side the
         // model gives that state, so a steady start reads `der(x) = 0`.
+        //
+        // And `x` need not be a state. A medium writes `T` from `h`
+        // and the volume around it holds `h`, so `der(medium.T) = 0`
+        // is a statement about a variable the plan computes rather
+        // than one the solver carries - which this refused outright
+        // for seventeen models of the library, having in hand the
+        // definition it needed to differentiate.
+        let algebraic_derivatives = self.algebraic_definition_derivatives(derivative_exprs, plan);
         let substituted: Vec<(Code, Code)> = initial_equations
             .iter()
             .map(|equation| {
-                let lhs = substitute_derivatives(&equation.lhs, &self.states, derivative_exprs)?;
-                let rhs = substitute_derivatives(&equation.rhs, &self.states, derivative_exprs)?;
+                let lhs = substitute_derivatives_with(
+                    &equation.lhs,
+                    &self.states,
+                    derivative_exprs,
+                    &algebraic_derivatives,
+                )?;
+                let rhs = substitute_derivatives_with(
+                    &equation.rhs,
+                    &self.states,
+                    derivative_exprs,
+                    &algebraic_derivatives,
+                )?;
                 Ok((table.compile(&lhs)?, table.compile(&rhs)?))
             })
             .collect::<Result<Vec<_>, SimError>>()?;
