@@ -2147,6 +2147,54 @@ fn a_declaration_from_two_bases_is_one_element() {
     assert!((y - 6.0).abs() < 1e-9, "y={y}, expected 6");
 }
 
+/// Two bases declaring one name is a repetition only where they say
+/// the same about its value. Where they bind different values there
+/// is nothing to choose between them, and taking the first would give
+/// `w = 2` for a model that also says `w = 3` - a wrong number worn
+/// as a right one. The refusal names both.
+#[test]
+fn a_name_two_bases_bind_differently_is_refused() {
+    let message = parse_model(
+        "model A Real w = 2.0; end A; \
+         model B Real w = 3.0; end B; \
+         model D extends A; extends B; Real y; \
+         equation y = w; \
+         annotation(experiment(StopTime=1.0, Interval=0.5)); end D;",
+    )
+    .expect_err("two bases binding different values")
+    .message;
+    assert!(
+        message.contains("declared twice over with different values"),
+        "message={message}"
+    );
+    assert!(
+        message.contains('2') && message.contains('3'),
+        "message={message}"
+    );
+}
+
+/// And a binding on the second base alone is a difference too: silent
+/// against spoken. Dropped, its declaration equation went with it and
+/// the model was refused as unbalanced about some other name, which
+/// says nothing about where the value went.
+#[test]
+fn a_name_bound_by_the_second_base_alone_is_refused() {
+    let message = parse_model(
+        "model A Real w; end A; \
+         model B Real w = 3.0; end B; \
+         model D extends A; extends B; Real y; \
+         equation y = w; \
+         annotation(experiment(StopTime=1.0, Interval=0.5)); end D;",
+    )
+    .expect_err("two bases binding different values")
+    .message;
+    assert!(
+        message.contains("declared twice over with different values"),
+        "message={message}"
+    );
+    assert!(message.contains("no value"), "message={message}");
+}
+
 #[test]
 fn a_derivative_scaled_by_a_zero_parameter_is_an_algebraic_relation() {
     // An inductor with `L = 0` is a library saying the branch is

@@ -11266,3 +11266,60 @@ One on the count, and a family of eight taken off the wall it stood
 at: the sensors and the remaining fittings reach their solver instead,
 which is the expected shape of a barrier removed rather than a
 disappointment.
+
+## A name two bases bind differently
+
+The rule of the shift before took a name two bases both declare as the
+one element the flat model has a place for, and dropped the second
+declaration outright. For the mass flow of the fluid library that is
+right - neither base binds it - but a dropped declaration takes its
+declaration equation with it, and the rule said nothing about a
+declaration that brought a value.
+
+Two twelve-line models settle what happened. `model A Real w = 2.0`
+and `model B Real w = 3.0`, extended together, printed `w = 2` and
+`y = 2` without a word: the first base won a contest nobody was told
+about, which is a wrong number presented as a right one. And where
+only the second base binds - `A Real w; B Real w = 3.0` - the binding
+vanished with the declaration and the model was refused as unbalanced
+about `y`, a name that had nothing to do with it.
+
+What settles a repetition is not the name alone but what the two
+declarations say about the value. Both silent is the fluid library's
+case, and the second falls away as before. Both binding the same value
+is a repetition too, compared by value rather than by spelling, since
+`2` and `2.0` are one number and a refusal about the spelling would be
+a test on the text standing in for a test on the value. Where they
+differ there is nothing to choose between them, and the compiler
+refuses, naming both bindings.
+
+Measured over the library without the carved-out giants, the refusal
+fires nowhere: the standard library has no pair of bases that bind one
+name to two values, so the flatten and run lists are identical line for
+line with the switch `OXIDELICA_TAKE_FIRST_OF_TWO` on and off. What the
+change buys is not models but the absence of a silent wrong number.
+
+## The unbalanced remainder is one family, not two
+
+The run census at 37 unbalanced models (`/tmp/census181.txt:271` and
+following, down from 48 in `/tmp/census180.txt`) shows two addresses
+that read as separate barriers: six `AST_BatchPlant` models refused
+about `tank.portsData_height[1] = tank.portsData_height2[1]`, and four
+`StateGraph` composite steps about `initStep.inPort[1].occupied =
+inPort.occupied`. Probed, they are one family.
+
+`oxidelica why ... inPort.occupied` prints the shape whole: the
+connector's member is settled once by `outPort.available = false` and
+again by the connection equation, so the model carries one equation
+more than it has unknowns and the matching hands back the connection
+as the one thing left over. The tank is the same with a conditional
+declaration in the way - `portsData_height` is a `RealInput` connected
+to an internal one that exists only `if use_portsData`, and both the
+`if not use_portsData` branch and the connection write it.
+
+So the barrier is not two addresses but one: a connection equation
+written where the connector's value is already determined. That is a
+question about how conditional components and connection equations are
+counted together, and it is left where it is rather than taken in the
+same shift as a refusal about declarations - named here so the next
+shift does not rediscover it as two.

@@ -1203,12 +1203,14 @@ pub(super) fn instantiate_one(
             // differ, one writing a `start` the other leaves off. What
             // settles the question is not the wording but the flat
             // name, and the flat name exists only here. The first
-            // declaration stands; the repetition falls away with the
-            // declaration equation it would have brought.
-            if !twice_declared_is_kept() && acc.declared.contains(flat_name) {
-                return Ok(());
-            }
-            acc.declared.insert(flat_name.to_string());
+            // declaration stands - but only once the two are known to
+            // say the same about the value, which is decided below,
+            // where this declaration's own binding has been worked
+            // out.
+            let declared_before = match twice_declared_is_kept() {
+                true => None,
+                false => acc.declared.get(flat_name).cloned(),
+            };
             let made_a_parameter =
                 inside_a_parameter && flat.variability == Variability::Continuous;
             if made_a_parameter {
@@ -1378,6 +1380,34 @@ pub(super) fn instantiate_one(
                     }
                 }
             }
+            // The second of two declarations of one name is settled
+            // here, where its own binding has been worked out. Where
+            // both say the same thing - or neither says anything, as
+            // the fluid library's mass flow does - the repetition
+            // falls away and the first declaration stands. Where they
+            // differ, neither is a repetition of the other and there
+            // is nothing to choose between them: taking the first
+            // would answer with its number and say nothing, and a
+            // wrong number presented as a right one is the worst this
+            // compiler can do.
+            if let Some(before) = declared_before {
+                if first_of_two_is_taken() || same_binding(before.as_ref(), flat.binding.as_ref()) {
+                    return Ok(());
+                }
+                let said = |binding: Option<&Expr>| match binding {
+                    Some(expr) => format!("`{}`", expr.describe()),
+                    None => "no value".to_string(),
+                };
+                return Err(format!(
+                    "`{flat_name}` is declared twice over with different values: \
+                     one declaration binds {}, the other {}; which of them the \
+                     flat model is to carry is not something the compiler can choose",
+                    said(before.as_ref()),
+                    said(flat.binding.as_ref())
+                ));
+            }
+            acc.declared
+                .insert(flat_name.to_string(), flat.binding.clone());
             // On a variable rather than a parameter, a binding is a
             // declaration equation: `Support support(tau = -flange.tau)`
             // in the standard library ties a connector to its component.
@@ -1612,4 +1642,33 @@ fn resolve_call_names(
 /// can be measured against itself over the whole library.
 fn twice_declared_is_kept() -> bool {
     std::env::var_os("OXIDELICA_KEEP_TWICE_DECLARED").is_some()
+}
+
+/// Whether the first of two declarations that disagree is taken
+/// silently, as it was before the refusal was written.
+/// `OXIDELICA_TAKE_FIRST_OF_TWO` is kept so that one binary can be
+/// measured against itself over the whole library, since a refusal
+/// that costs models has to be seen to cost them.
+fn first_of_two_is_taken() -> bool {
+    std::env::var_os("OXIDELICA_TAKE_FIRST_OF_TWO").is_some()
+}
+
+/// Whether two declarations of one name say the same about its value.
+/// Both silent is the fluid library's case and the commonest; two
+/// bindings agree when they are the same expression, and two numbers
+/// agree when they are the same number however they were spelled -
+/// `2` and `2.0` are one value, and a refusal about the spelling
+/// would be a test on the text standing in for a test on the value.
+fn same_binding(before: Option<&Expr>, now: Option<&Expr>) -> bool {
+    match (before, now) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            let empty = HashMap::new();
+            match (const_eval(a, &empty), const_eval(b, &empty)) {
+                (Some(x), Some(y)) => x == y,
+                _ => a == b,
+            }
+        }
+        _ => false,
+    }
 }

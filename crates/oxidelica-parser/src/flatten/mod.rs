@@ -2217,10 +2217,14 @@ struct Flat {
     /// says such an element is included once.
     extended: HashSet<(String, String)>,
     /// Every flat name a primitive declaration has already been
-    /// written out under. Two bases of one class may declare the same
-    /// name in words that differ, and the flat model has one place for
-    /// it; this is what says the second is a repetition.
-    declared: HashSet<String>,
+    /// written out under, and the value that declaration bound to it.
+    /// Two bases of one class may declare the same name in words that
+    /// differ, and the flat model has one place for it; this is what
+    /// says the second is a repetition. The binding is kept beside
+    /// the name because a repetition that binds a different value is
+    /// not a repetition at all: dropping it would answer with the
+    /// first base's number and say nothing.
+    declared: HashMap<String, Option<Expr>>,
     /// Every instance known to be a record, by its flat path, and
     /// what record it is. A modifier is written in the terms of the
     /// class that supplied it, so what one class knows has to still
