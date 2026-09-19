@@ -257,6 +257,8 @@ impl CompiledModel {
                     }
                 })
                 .collect(),
+            last_event_t: f64::NAN,
+            events_here: 0,
         }
     }
 
@@ -275,6 +277,42 @@ impl CompiledModel {
         state: &mut EventState,
     ) -> Result<EventOutcome, SimError> {
         let mut outcome = EventOutcome::default();
+        // An event that settles and is immediately followed by another
+        // at the same instant is the iteration one storey up, and
+        // nothing inside a single event can see it: each one comes to
+        // rest, and the run makes no progress in time while writing a
+        // row apiece. Counting them where the instant is remembered is
+        // what turns an unbounded run into a refusal that names the
+        // model and the point of time it stuck at.
+        // A chattering model rarely stands on one number exactly: it
+        // creeps forward by the smallest step the solver will take,
+        // which is progress no epsilon can be chosen against - the
+        // creep is whatever the step size happens to have fallen to.
+        // What the model asked for instead is a fixed measure: one
+        // output interval is a stretch of time the run is meant to
+        // cross in a handful of steps, so a great many events inside
+        // one is chatter whatever the spacing between them.
+        let window = self.step.max(1e-12);
+        // A fresh window when the run has left the last one behind -
+        // and the state before any event, where the instant is not a
+        // number at all, is left behind by everything.
+        if !matches!(
+            (t - state.last_event_t).partial_cmp(&window),
+            Some(std::cmp::Ordering::Less)
+        ) {
+            state.last_event_t = t;
+            state.events_here = 0;
+        }
+        state.events_here += 1;
+        let most = self.max_events_at_one_instant;
+        if state.events_here > most {
+            return crate::err(format!(
+                "`{}` handled more than {most} events between t = {} and t = {t}, \
+                 one output interval: the model's switches raise another event \
+                 however many have settled",
+                self.name, state.last_event_t
+            ));
+        }
         for &(slot, pre) in &self.pre_slots {
             values[pre] = values[slot];
         }

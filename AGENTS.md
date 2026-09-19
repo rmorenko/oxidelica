@@ -333,6 +333,36 @@ is the definition of a trap rather than of a mistake: the main pass
 should exclude the carved-out set of its own accord, with the key kept
 for the run that wants them back.
 
+And ask the instrument what it counts before reading meaning out of
+it. `read N of M models` counts the models that have _finished_, not
+the ones that have been started, so a check with one model wedged
+shows a count that climbs and then stops - which reads exactly like a
+check stuck in the half it has already left. An hour went on looking
+for a stall in flattening while the run half was the half that hung.
+A counter's wording is not its definition; the definition is in the
+line that increments it.
+
+### Every phase of a run has a size
+
+A measurement that can be taken to a hundred gigabytes by one model
+is not a measurement, it is a wager on which models happen to be in
+the corpus. And the wager is laid by the _next_ change rather than by
+the one that built the unbounded phase: a fix that lets new models
+reach a phase with no ceiling loses the whole pass and the machine
+with it, and reads as though the fix were at fault.
+
+So a phase whose work is not bounded by something the compiler
+already holds - the number of equations, the number of branches -
+gets a ceiling of its own, and the refusal at that ceiling names the
+model and where in the run it stood. The event iteration inside one
+event was bounded from the start and it was not enough: a model that
+settles every event and immediately raises another creeps forward by
+whatever the step size has fallen to, and each event there is
+perfectly well behaved. The bound that catches it counts events
+against a fixed stretch of time rather than against an instant,
+because the spacing a chattering model creeps by is not a number
+anybody can choose an epsilon against.
+
 ### A chain is taken whole or not at all
 
 A probe sometimes shows that one barrier stands on another, and that

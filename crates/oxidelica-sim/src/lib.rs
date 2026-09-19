@@ -357,6 +357,14 @@ pub struct CompiledModel {
     /// Built from every relation in the model, so switching branches of
     /// an `if` expression are located exactly, not stepped over.
     indicators: Vec<Code>,
+    /// How many events one output interval may hold, and how many rows
+    /// the run may write, before it is refused. Both are read from the
+    /// environment once, when the model is compiled, so a caller that
+    /// wants them raised says so and a run does not ask the world
+    /// afresh on every point it records.
+    pub max_events_at_one_instant: usize,
+    /// See [`CompiledModel::max_events_at_one_instant`].
+    pub max_rows: usize,
 }
 
 /// What the adaptive solver came back with: either the finished run, or
@@ -394,6 +402,13 @@ struct EventState {
     when_prev: Vec<Vec<bool>>,
     /// Next occurrence of each `sample(...)` source.
     next_sample: Vec<f64>,
+    /// The instant the last event was handled at, and how many have
+    /// been handled there. A model whose switches chase each other
+    /// across events - each one settling, and the next one following
+    /// a hair later - makes no progress in time while doing unbounded
+    /// work, which no bound inside a single event can see.
+    last_event_t: f64,
+    events_here: usize,
 }
 
 /// Rewrites the event built-ins into plain references the evaluator can
@@ -485,6 +500,35 @@ const MAX_DIFF_DEPTH: usize = 4096;
 /// point being compiled. A chain longer than this is not worth
 /// chasing: the branch falls back to the `else`.
 const MAX_DEFINITION_PASSES: usize = 16;
+
+/// How many events one instant may hold before the run is refused.
+///
+/// The bound inside a single event stops an iteration that will not
+/// settle; it says nothing about a model that settles each event and
+/// then immediately raises another a hair further on. Time then stops
+/// advancing in any way a step-size check can see, and the run works
+/// for ever while writing a row per event. The corpus met one such
+/// model and took a machine to a hundred gigabytes before a hand
+/// killed it.
+const MAX_EVENTS_AT_ONE_INSTANT: usize = 10_000;
+
+/// How many output rows a run may write.
+///
+/// A row is about a kilobyte on a model of any size, so a run that
+/// never ends eats memory at the speed it can evaluate. A model
+/// asking for more points than this is asking for something other
+/// than a simulation, and a refusal naming the model beats a machine
+/// out of memory with nothing said.
+const MAX_ROWS: usize = 2_000_000;
+
+/// The ceilings in force, which the environment may raise for a run
+/// that genuinely wants them.
+fn ceiling(variable: &str, default: usize) -> usize {
+    std::env::var(variable)
+        .ok()
+        .and_then(|given| given.parse().ok())
+        .unwrap_or(default)
+}
 
 // --- expression evaluation ---
 

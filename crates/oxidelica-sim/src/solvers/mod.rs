@@ -78,6 +78,19 @@ impl CompiledModel {
         for &slot in &self.discrete_slots {
             row.push(values[slot]);
         }
+        // A run that cannot finish writes rows at the speed it can
+        // evaluate, and nothing else in the run half has a size. The
+        // memory of the machine is not a ceiling anybody can plan
+        // against: it is reached quietly, hours in, and takes the
+        // whole measurement with it.
+        let most = self.max_rows;
+        if rows.len() >= most {
+            return crate::err(format!(
+                "`{}` wrote more than {most} output rows, the last at t = {t}: \
+                 the run is producing points faster than it advances in time",
+                self.name
+            ));
+        }
         rows.push(row);
         Ok(())
     }

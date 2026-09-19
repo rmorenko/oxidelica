@@ -90,6 +90,59 @@ fn an_event_that_never_settles_says_so() {
     assert!(why.contains('a') && why.contains('b'), "{why}");
 }
 
+/// A model that settles each event and immediately raises another a
+/// hair further on. The bound inside one event cannot see it: every
+/// event there comes to rest properly. What the run does instead is
+/// creep forward by whatever the step size has fallen to, writing a
+/// row apiece, and the only thing that ever stopped it was the memory
+/// of the machine - a hundred gigabytes of rows, hours in, and a hand
+/// on the process.
+fn a_run_that_creeps(
+    adjust: impl FnOnce(&mut oxidelica_sim::CompiledModel),
+) -> oxidelica_sim::SimError {
+    let mut compiled = compile(
+        &oxidelica_parser::parse_model(
+            "model Creep Real x(start = 0); discrete Real k(start = 0); \
+             equation der(x) = 1; \
+             when x > 1e-12 then reinit(x, 0); k = pre(k) + 1; end when; \
+             annotation(experiment(StopTime = 1)); end Creep;",
+        )
+        .unwrap(),
+    )
+    .expect("the model compiles; it is the run that cannot end");
+    adjust(&mut compiled);
+    match compiled.simulate() {
+        Ok(_) => panic!("a run that never advances was allowed to finish"),
+        Err(why) => why,
+    }
+}
+
+#[test]
+fn a_run_that_never_advances_is_refused_by_its_events() {
+    let why = a_run_that_creeps(|_| {}).to_string();
+    // Named model and named instant: a message saying only that some
+    // limit was reached leaves the reader with a corpus to search.
+    assert!(why.contains("Creep"), "{why}");
+    assert!(why.contains("events"), "{why}");
+    assert!(why.contains("t = "), "{why}");
+}
+
+#[test]
+fn a_run_that_writes_without_end_is_refused_by_its_rows() {
+    // The same run with the event ceiling lifted out of the way, so
+    // that the other ceiling is the one that answers. Both are needed:
+    // a run can write without end while advancing in time perfectly
+    // well, if what it was asked for is finer than any memory.
+    let why = a_run_that_creeps(|model| {
+        model.max_events_at_one_instant = usize::MAX;
+        model.max_rows = 500;
+    })
+    .to_string();
+    assert!(why.contains("Creep"), "{why}");
+    assert!(why.contains("500 output rows"), "{why}");
+    assert!(why.contains("t = "), "{why}");
+}
+
 #[test]
 fn the_textbook_ideal_switch_rectifies_exactly() {
     // The switch's branches constrain different unknowns: blocking
