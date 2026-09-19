@@ -362,8 +362,8 @@ pub struct CompiledModel {
     /// environment once, when the model is compiled, so a caller that
     /// wants them raised says so and a run does not ask the world
     /// afresh on every point it records.
-    pub max_events_at_one_instant: usize,
-    /// See [`CompiledModel::max_events_at_one_instant`].
+    pub max_events_one_interval: usize,
+    /// See [`CompiledModel::max_events_one_interval`].
     pub max_rows: usize,
 }
 
@@ -501,7 +501,8 @@ const MAX_DIFF_DEPTH: usize = 4096;
 /// chasing: the branch falls back to the `else`.
 const MAX_DEFINITION_PASSES: usize = 16;
 
-/// How many events one instant may hold before the run is refused.
+/// How many events one output interval may hold before the run is
+/// refused.
 ///
 /// The bound inside a single event stops an iteration that will not
 /// settle; it says nothing about a model that settles each event and
@@ -510,7 +511,7 @@ const MAX_DEFINITION_PASSES: usize = 16;
 /// for ever while writing a row per event. The corpus met one such
 /// model and took a machine to a hundred gigabytes before a hand
 /// killed it.
-const MAX_EVENTS_AT_ONE_INSTANT: usize = 10_000;
+const MAX_EVENTS_ONE_INTERVAL: usize = 10_000;
 
 /// How many output rows a run may write.
 ///

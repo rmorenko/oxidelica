@@ -304,7 +304,7 @@ impl CompiledModel {
             state.events_here = 0;
         }
         state.events_here += 1;
-        let most = self.max_events_at_one_instant;
+        let most = self.max_events_one_interval;
         if state.events_here > most {
             return crate::err(format!(
                 "`{}` handled more than {most} events between t = {} and t = {t}, \

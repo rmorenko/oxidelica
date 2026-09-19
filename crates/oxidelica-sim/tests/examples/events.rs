@@ -134,7 +134,7 @@ fn a_run_that_writes_without_end_is_refused_by_its_rows() {
     // a run can write without end while advancing in time perfectly
     // well, if what it was asked for is finer than any memory.
     let why = a_run_that_creeps(|model| {
-        model.max_events_at_one_instant = usize::MAX;
+        model.max_events_one_interval = usize::MAX;
         model.max_rows = 500;
     })
     .to_string();

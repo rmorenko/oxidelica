@@ -3942,9 +3942,9 @@ pub(crate) fn compile_at(
         when_clauses: compiled_whens,
         walked: table.walked.clone(),
         indicators: compiled_indicators,
-        max_events_at_one_instant: ceiling(
-            "OXIDELICA_MAX_EVENTS_AT_ONE_INSTANT",
-            MAX_EVENTS_AT_ONE_INSTANT,
+        max_events_one_interval: ceiling(
+            "OXIDELICA_MAX_EVENTS_ONE_INTERVAL",
+            MAX_EVENTS_ONE_INTERVAL,
         ),
         max_rows: ceiling("OXIDELICA_MAX_ROWS", MAX_ROWS),
     };
