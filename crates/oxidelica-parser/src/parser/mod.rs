@@ -121,7 +121,31 @@ fn parse_file_within(source: &str) -> Result<(Vec<ClassDef>, Option<String>), Pa
 fn flatten_packages(mut class: ClassDef, out: &mut Vec<ClassDef>) {
     let nested = std::mem::take(&mut class.nested);
     let prefix = class.name.clone();
+    // A short connector definition written inside a package is a class
+    // in its own right, exactly as the same line written as a whole
+    // file is. Left as a local name alone, resolving it walked straight
+    // through to whatever it stands for - `connector DigitalInput =
+    // input DigitalSignal` arrives at `DigitalSignal`, which says
+    // nothing about a direction - and the `input` the definition wrote
+    // was lost. What a connection set does with a one-value connector
+    // turns on that direction: with none, neither end of the set is
+    // the source, no equation is written for the other, and the model
+    // is refused as unbalanced. That is the whole Digital library.
+    let minted: Vec<ClassDef> = class
+        .class_aliases
+        .iter()
+        .filter(|alias| alias.connector && !alias.redeclaration)
+        .map(|alias| ClassDef {
+            kind: ClassKind::Connector,
+            name: format!("{prefix}.{}", alias.name),
+            alias_causality: alias.causality,
+            alias_of: Some((alias.target.clone(), alias.modifiers.clone())),
+            imports: class.imports.clone(),
+            ..ClassDef::empty()
+        })
+        .collect();
     out.push(class);
+    out.extend(minted);
     for mut inner in nested {
         inner.name = format!("{prefix}.{}", inner.name);
         flatten_packages(inner, out);

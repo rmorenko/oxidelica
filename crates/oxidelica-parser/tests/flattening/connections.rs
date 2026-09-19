@@ -2035,3 +2035,36 @@ fn a_value_connector_named_through_an_import_alias_is_one() {
         "the connection must be made through the import alias, not refused: {refusal:?}"
     );
 }
+
+#[test]
+fn a_short_connector_inside_a_package_keeps_its_direction() {
+    // A short connector definition written inside a package is a class
+    // of its own, exactly as the same line written as a whole file is.
+    // Kept only as a local name, resolving it walked straight through
+    // to what it stands for - `connector Din = input Dsig` arrives at
+    // `Dsig`, which says nothing about a direction - and the `input`
+    // the definition wrote was lost on the way.
+    //
+    // What a connection set does with a one-value connector turns on
+    // exactly that direction: with none, neither end of the set is the
+    // source, no equation is written for the other end, and the model
+    // is refused as unbalanced. The same three lines written at the
+    // top of a file worked, which is the tell.
+    //
+    // This is what the whole `Electrical.Digital` family stood at,
+    // twenty-three models in one row of the register.
+    let source = "package Q type Logic = enumeration(U, X);\
+         connector Dsig = Logic; connector Din = input Dsig;\
+         connector Dsnk = output Dsig; end Q;\
+         model Snk Q.Din x; Q.Dsnk y; equation y = x; end Snk;\
+         model Top Snk k; end Top;";
+    let m = parse_model(source).expect("a one-value connector keeps the direction it was given");
+    let written = m
+        .equations
+        .iter()
+        .any(|e| format!("{:?}", e.lhs) == "Ref(\"k.x\")");
+    assert!(
+        written,
+        "an input joined to nothing takes its start, so the set must know which end is the source"
+    );
+}
