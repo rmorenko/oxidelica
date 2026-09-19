@@ -11508,12 +11508,83 @@ compared against a threshold is a Boolean whose definition reads
 `$delay0`. Seven lines reproduce it, `b = delay(u, 0.1) > 0.5`, and
 what comes back is ``unknown variable `$delay0` `` - the compiler's own
 name, which is the tell that nothing in the model is at fault.
-Nine models of `Modelica.Electrical.Digital` stood there, the whole
-``unknown variable `$delay0` `` row of the census at 444958e.
+Ten models of `Modelica.Electrical.Digital` stood there, the whole
+``unknown variable `$delay0` `` row of the census at 444958e - the
+row reads `10` on line 551 of `refusals_raw_444958e.txt`, and the
+names on lines 250 to 267 are `Examples.Counter`, `Examples.Counter3`,
+`Examples.FlipFlop`, `Examples.FullAdder`, `Examples.Multiplexer`,
+`Examples.Utilities.Counter`, `Examples.Utilities.Counter3`,
+`Examples.Utilities.DFF`, `Examples.Utilities.JKFF` and
+`Examples.Utilities.RSFF`. Two pairs of namesakes sit in that list,
+`Counter` and `Counter3` under both `Examples` and
+`Examples.Utilities`, which is how the count was first read as nine.
 
-The row is now empty and the run count did not move: all nine travel
+The row is now empty and the run count did not move: all ten travel
 one storey up, to `the event at t = 0 does not come to rest after N
 round(s)` - `DFF` at ten rounds, `Counter` at eighty. That is a
 different layer, the event iteration rather than the slot table, and
 it is where the Digital family now waits. A kind removed is worth
 recording as a kind removed; the models behind it had a second wall.
+
+## A switch resting on its threshold was lost for the rest of the run
+
+`AD_DA_conversion` was the one model in the library to meet the event
+ceiling - ten thousand events inside a window of 10^-8 seconds, at
+`refusals_raw_444958e.txt` line 218 - and the working guess was that
+the chatter was ours rather than the model's. It is, and the small
+model that shows it is four lines:
+
+```modelica
+model S Real x(start = 0, fixed = true); Boolean on;
+equation on = x > 0.5; der(x) = if on then -1 else 1; end S;
+```
+
+A sliding mode: whichever side of the threshold `x` stands on it is
+driven back, so the event settles exactly on `0.5` and the next step
+carries the state off it. The indicator therefore reads zero where the
+step begins and has turned where it ends, and `dopri.rs` dropped that
+crossing outright whenever the instant was one an event had just been
+handled at. That instant is every step of a sliding mode, so the
+switch kept the value it had and kept it for good: measured on the
+binary at 50d9238, `x` walked out to `2` at the stop time with `on`
+reading false the whole way, while its own equation says `on = x >
+0.5`. A wrong number presented as a right one, which is the worst
+thing this compiler can do, and the guard was there to stop the run
+standing still rather than to hide a switch.
+
+Standing still and dropping the crossing are not the same choice.
+The event is now raised at the far end of the step rather than at the
+instant: the run advances by a whole step, which is all the guard was
+protecting, and the switch is tested where it has actually turned. The
+sliding model then refuses, naming the chatter and the window, which
+is the honest answer - a sliding mode has no solution in this
+formulation and the ceiling built for `AD_DA_conversion` is what says
+so.
+
+Measured with `scripts/library_floor.sh .msl` on one binary either
+side: 868 flatten and 519 run, runnable 753 and 487 - the floors to
+the digit, unmoved. A wrong answer removed for nothing.
+
+### What the same loop layer would not give
+
+The top of the run census is the algebraic-loop layer, 71 models by
+the count of the five rows at `refusals_raw_444958e.txt` (30 NaN
+before any Newton step, 14, 10, 9, 8). Its smallest member,
+`Modelica.Magnetic.FluxTubes.Examples.BasicExamples.SaturatedInductor`,
+reduces to a loop of four unknowns around `R_m = 1/G_m`, and a
+twelve-line model reproduces the refusal in a second.
+
+The suspicion was the singularity test: a magnetic permeance near
+1e-9 and the reluctance that is its reciprocal near 1e9 put a column
+of 1e18 beside one of 1e-18 in a Jacobian whose rows are scaled and
+whose columns are not, and the small column then reads as the
+finite-difference noise the test exists to catch. Scaling each column
+by the step its own unknown takes was built behind
+`OXIDELICA_NO_COLUMN_SCALING` and measured on one binary: the small
+model travels from `underdetermined` to `did not converge`, and the
+corpus falls to 516 run against a floor of 519 - three models paid for
+a barrier that did not move, because the MSL model's own refusal is
+raised before Newton takes a step and no scaling of the Jacobian can
+reach it. Reverted. The test that caught the first version of it is
+worth recording too: without a guard for the one-unknown block,
+`1 / x = 0` came back with a number instead of a refusal.

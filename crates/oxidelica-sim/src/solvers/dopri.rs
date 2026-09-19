@@ -303,10 +303,33 @@ impl CompiledModel {
                         // Unless this is the instant an event was just
                         // handled at: the reading there is zero because
                         // the crossing is behind, not ahead, and taking
-                        // it would leave the run standing still.
-                        if t != handled_at {
-                            event_theta = Some(event_theta.map_or(HAIR, |c: f64| c.min(HAIR)));
-                        }
+                        // it at the instant itself would leave the run
+                        // standing still.
+                        //
+                        // Standing still is what had to be avoided, and
+                        // dropping the crossing is not the only way to
+                        // avoid it - it is the way that loses the
+                        // crossing for good. A relation resting exactly
+                        // on its threshold and leaving it over the step
+                        // is the shape a sliding mode makes: the event
+                        // settles on the threshold, the step carries
+                        // the state off it, and the reading at the far
+                        // end has turned. Skipped, the switch keeps the
+                        // value it had, and it keeps it for the whole
+                        // rest of the run: `der(x) = if x > 0.5 then -1
+                        // else 1` walks x out to 2 with its own
+                        // condition reading false the entire way. That
+                        // is not a slow answer, it is a wrong one, and
+                        // a wrong number is the worst thing this
+                        // compiler can do.
+                        //
+                        // So the event is raised at the far end of the
+                        // step rather than at the instant. The run
+                        // advances by a whole step, which is what the
+                        // guard was protecting, and the switch is
+                        // tested where it has actually turned.
+                        let theta = if t == handled_at { 1.0 } else { HAIR };
+                        event_theta = Some(event_theta.map_or(theta, |c: f64| c.min(theta)));
                         continue;
                     }
                     let (mut lo, mut hi) = (0.0f64, 1.0f64);

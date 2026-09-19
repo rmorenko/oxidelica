@@ -568,3 +568,26 @@ fn a_signal_connection_defines_the_input_rather_than_the_output() {
         joined.rhs
     );
 }
+
+#[test]
+fn a_switch_resting_on_its_threshold_is_not_lost_for_the_rest_of_the_run() {
+    // A sliding mode: the state is driven towards the threshold from
+    // whichever side it stands on, so the event settles exactly on it
+    // and the next step carries the state off. The indicator therefore
+    // reads zero where the step begins and has turned where it ends,
+    // and that crossing used to be dropped outright at the instant an
+    // event had just been handled - which was true of every step here,
+    // so the switch kept its value for the whole rest of the run and
+    // `x` walked out to 2 with `on` reading false all the way. The
+    // condition is a wrong number rather than a slow one, and a run
+    // that reports it is worse than a run that refuses.
+    let refusal = run_err(
+        "model S Real x(start = 0, fixed = true); Boolean on; \
+         equation on = x > 0.5; der(x) = if on then -1 else 1; \
+         annotation(experiment(StopTime = 2, Interval = 0.001)); end S;",
+    );
+    assert!(
+        refusal.contains("handled more than"),
+        "a sliding mode has to be refused rather than answered: {refusal}"
+    );
+}
