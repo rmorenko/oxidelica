@@ -108,7 +108,17 @@ pub(super) fn names_a_connector(
             .any(|alias| alias.name == member && alias.connector)
     };
     if let Some((holder, member)) = name.rsplit_once('.') {
-        return plain_lookup(registry, holder, scope).is_some_and(|owner| told(owner, member));
+        // The holder is a name like any other, and a name may be what
+        // an `import` renamed: `import D = Modelica.Electrical.Digital`
+        // makes `D.Interfaces.DigitalInput` the same declaration as the
+        // path written out. `plain_lookup` walks the enclosing packages
+        // and knows nothing of the imports, so the holder came back
+        // unfound, the connector was not recognised as one, and every
+        // `connect` naming it was refused with "both sides must be
+        // connector instances".
+        return lookup(registry, holder, scope, imports)
+            .or_else(|| plain_lookup(registry, holder, scope))
+            .is_some_and(|owner| told(owner, member));
     }
     if let Some((_, target)) = imports.iter().find(|(local, _)| local == name) {
         if let Some((holder, member)) = target.rsplit_once('.') {

@@ -2007,3 +2007,31 @@ fn a_top_port_the_model_speaks_for_keeps_its_own_equation() {
         "a port the model speaks for is not given a second value"
     );
 }
+
+#[test]
+fn a_value_connector_named_through_an_import_alias_is_one() {
+    // A connector that is one value rather than a set of members is
+    // recognised by its name: resolving the type leaves the primitive
+    // behind, and a primitive says nothing about being connectable.
+    // The name was asked of the class holding it, and the holder was
+    // looked up by the walk out of the enclosing packages alone -
+    // which knows nothing of the imports. So `import D = Q` followed
+    // by `D.Din s` named a holder nothing found, the declaration was
+    // not a connector, and the `connect` was refused as naming
+    // something that is not one. Written out in full the same pair
+    // worked, which is the whole tell.
+    //
+    // This is what the `Electrical.Digital` family stood at: its
+    // models are written with `import D = Modelica.Electrical.Digital`
+    // throughout.
+    let source = "package Q package Interfaces type Logic = enumeration(U, X);\
+         connector Dsig = Logic; connector Din = input Dsig;\
+         connector Dsink = output Dsig; end Interfaces; end Q;\
+         model Top import D = Q; D.Interfaces.Din s; D.Interfaces.Dsink q;\
+         equation s = D.Interfaces.Logic.X; connect(s, q); end Top;";
+    let refusal = parse_model(source).err();
+    assert!(
+        refusal.is_none(),
+        "the connection must be made through the import alias, not refused: {refusal:?}"
+    );
+}

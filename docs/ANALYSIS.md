@@ -11324,6 +11324,79 @@ counted together, and it is left where it is rather than taken in the
 same shift as a refusal about declarations - named here so the next
 shift does not rediscover it as two.
 
+## A connector is recognised by its name, and a name may be imported
+
+The `Electrical.Digital` family stood twenty models deep at
+
+```text
+connect(s, Nor1.x[2]): both sides must be connector instances
+```
+
+which reads as a question about subscripts and about arrays of
+connectors, and is neither. Probed, `connect(s, q)` of two plain
+scalar ports of that library was refused in exactly the same words -
+the array was innocent, and the subscript with it.
+
+What the layer actually is: a connector written as one value rather
+than as a set of members - `connector DigitalInput = input
+DigitalSignal` - cannot be recognised by its type, because resolving
+the type leaves the primitive behind and a primitive says nothing
+about being connectable. So it is recognised by its _name_, in
+`names_a_connector` (`crates/oxidelica-parser/src/flatten/lookup.rs`),
+which splits a dotted name and asks the holder whether it wrote a
+short `connector` definition of that name. The holder was looked up
+with `plain_lookup`, the walk out of the enclosing packages, which
+knows nothing of the imports. Every model of `Electrical.Digital` is
+written with `import D = Modelica.Electrical.Digital` throughout, so
+the holder came back unfound, the declaration was not a connector, it
+never entered the table of connector instances, and the `connect` was
+refused as naming something that is not one.
+
+The tell was there to be read before any of this: the same two
+declarations written out in full worked, and written through the
+import did not. A name that means the same thing gave two answers
+depending on who spelled it.
+
+Measured over one binary behind `OXIDELICA_NO_IMPORT_HOLDER`, with
+`--without scripts/heavy_models.txt`: flatten 842 to 854
+(`/tmp/before183.txt` and `/tmp/after183.txt`, line "classes:"),
+runnable flatten 737 to 742, run 516 either way. The diff of the two
+`flat` lists names twelve arrivals and no victims - eleven
+`Electrical.Digital` models and `Analog.Examples.AD_DA_conversion`,
+which is written the same way.
+
+The run count did not move, and that is the honest half of the report:
+the family stands one storey up now. `Utilities.RS` flattens and meets
+`delay(..., 0)`; `BUF3S` meets an array of shape [4] where a scalar is
+expected; `DFFREG` meets a `break` whose condition the compiler cannot
+decide. Those are three different walls in three different layers, not
+a chain, which is why they were not taken in one series. The census
+after the change will show them as three rows rather than one, and the
+row this change emptied - twenty-odd `both sides must be connector
+instances` in `/tmp/on183.txt` - is a kind removed rather than models
+won.
+
+Two things the probe ruled out, so the next shift does not walk them
+again. The family is _not_ the parked one of map 181 (a connection
+equation written where the connector's value is already determined -
+six `AST_BatchPlant` tanks and four `StateGraph` steps): that is a
+counting question about conditional components, and this was a lookup
+that could not see an import. And the `delay(..., 0)` that `RS` meets
+is an artefact of probing a helper directly - `RS` defaults
+`delayTime` to zero and its real callers give it a value.
+
+The five refusals still reading "the subscript of `X` must be a whole
+number the compiler can see" beyond the two FFT ones, named because a
+count without names is a family nobody can plan against
+(`~/.jcode/scratch/refusals-raw.txt`, lines 19, 20, 90, 91, 142, 146,
+147): `Blocks.Examples.Rectifier12pulseFFT`,
+`Blocks.Examples.Rectifier6pulseFFT`,
+`Math.FastFourierTransform.Examples.RealFFT1` and `RealFFT2`,
+`ModelicaTest.Math.TestMatrices2b`, `TestPolynomials` and
+`TestVectors`. Seven, not five: the count of the row is seven and the
+two FFT examples are inside it, which is the rows-that-mean-the-same
+trap read from the other side.
+
 ## The subscript register is three layers, not one
 
 Forty models refused around the words "the compiler cannot see this
