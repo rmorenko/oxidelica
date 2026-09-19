@@ -3565,6 +3565,25 @@ pub(crate) fn compile_at(
                         .and_then(|expr| eval(expr, &ctx).ok())
                 })
                 .or_else(|| read_starts.get(name.as_str()).copied())
+                // What a declaration says about magnitude when it says
+                // nothing about where to begin. A specific enthalpy is
+                // `nominal = 1e6` and a pressure `nominal = 1e5`, both
+                // written on the type rather than on the declaration,
+                // and a Newton block that begins such an unknown at
+                // zero begins it at a state the medium functions have
+                // no answer for - zero pascal is not a pressure any
+                // water table covers. A nominal is not where the
+                // variable is, but it is the right order of magnitude,
+                // which is all a first guess is asked for.
+                .or_else(|| {
+                    model
+                        .components
+                        .iter()
+                        .find(|c| &c.name == name)
+                        .and_then(|c| c.nominal.as_ref())
+                        .and_then(|expr| eval(expr, &ctx).ok())
+                        .filter(|value| value.is_finite())
+                })
                 .unwrap_or(0.0)
         })
         .collect();

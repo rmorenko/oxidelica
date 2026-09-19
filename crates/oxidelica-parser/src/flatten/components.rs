@@ -1298,6 +1298,10 @@ pub(super) fn instantiate_one(
             let bound = |expr: &Expr| resolve_value(expr).unwrap_or_else(|_| expr.clone());
             flat.min = flat.min.as_ref().map(bound);
             flat.max = flat.max.as_ref().map(bound);
+            // A nominal is read the same way as a bound: it is a
+            // magnitude rather than an equation, and what cannot be
+            // settled here is left as it was written.
+            flat.nominal = flat.nominal.as_ref().map(bound);
             // A parent modifier `name = expr` overrides the binding, and
             // a nested one - `phi(start = 1)` - the attribute.
             let modifier = |target: &str| {

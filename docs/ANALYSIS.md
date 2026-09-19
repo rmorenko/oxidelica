@@ -11670,3 +11670,33 @@ read two ways because the reading cannot see which writer produced
 it. The work is to make `fixed_starts` say whether the demoted
 variable is an alias of something already pinned, and that is a change
 to what the structure records rather than a test on the spelling.
+
+## The nominal attribute, and what it can and cannot buy
+
+The 26 models refused with `the equations cannot be evaluated at the
+values the block starts from` were counted by what their unknowns had.
+Measured over `/tmp/p179-raw.txt` with `oxidelica why` on each
+unknown, 71 of 99 non-derivative unknowns had no `start` at all, and
+the rest fell into two families. The machines - `smpm.airGap.gamma`,
+`i_sr`, `i_rr`, `spacePhasorS.i` - declare types with no `nominal`
+whatever (`type Reluctance = Real(final quantity=..., final unit=...)`
+and its five neighbours), so nothing can be read for them. The fluids
+are the opposite: `Media` writes `nominal` on the type for nearly
+every quantity it defines - `type SpecificEnthalpy =
+SI.SpecificEnthalpy(nominal = 1e6)`, `AbsolutePressure(nominal =
+1e5)`, `Density`, `Temperature` - and none of those declarations carry
+a `start`. So the ceiling of a nominal-reading change was the nine
+Fluid models of the row, and it was known before a line was written.
+
+Read and seeded, the corpus moved by one: 868 flatten and 520 run
+against 868 and 519, from one binary with the seed behind
+`OXIDELICA_NO_NOMINAL_SEED` (`/tmp/n190-on.txt`,
+`/tmp/n190-off.txt`). The diff of run lists names the one gained,
+`ModelicaTest.Fluid.TestComponents.Valves.TestValvesCompressibleReverse`,
+and no victims. The census moved by two rows and nothing else: `at t =
+0.000000: Error in region computation of IF97 steam tables` fell from
+2 to absent, and one `algebraic loop diverged` on
+`simpleGenericOrifice.V_flow` appeared. That is the shape the notes
+predict - a wall removed uncovers the next one - and it says the
+remaining eight Fluid models of the row are held by something past the
+first guess rather than by where they begin.

@@ -944,3 +944,31 @@ fn a_steady_start_may_name_a_variable_the_plan_computes() {
         result.rows[0][w]
     );
 }
+
+/// What a declaration says about magnitude when it says nothing about
+/// where to begin. The standard library writes `nominal` on the type
+/// far more often than on the declaration - `type SpecificEnthalpy =
+/// SI.SpecificEnthalpy(nominal = 1e6)`, `type AbsolutePressure =
+/// Pressure(nominal = 1e5)` - and a Newton block that began such an
+/// unknown at zero began it where the medium functions have no answer.
+///
+/// The model here is one equation with two solutions, `p = 1e5 +
+/// 1e4*log(p/1e5)`: which of them Newton walks to is decided entirely
+/// by where it starts. Read from the type, `p` begins at 1e5 and lands
+/// on the large root; begun at zero it lands on the small one. So the
+/// test checks a number rather than the fact of running, and it checks
+/// the road from a type's attribute rather than from the writer's own
+/// hand: nothing in the model spells `nominal` on `p` itself.
+#[test]
+fn a_nominal_on_the_type_is_where_an_unknown_begins() {
+    let result = run("model N type P = Real(nominal = 1e5); P p; \
+         Real s(start = 0, fixed = true); \
+         equation p = 1e5 + (1e4 * log(p / 1e5)); der(s) = p; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end N;");
+    let p = result.columns.iter().position(|c| c == "p").unwrap();
+    assert!(
+        (result.rows[0][p] - 1e5).abs() < 1.0,
+        "p(0) = {}",
+        result.rows[0][p]
+    );
+}

@@ -62,6 +62,7 @@ impl Parser {
             let mut fixed_expr = None;
             let mut unit = None;
             let (mut min, mut max) = (None, None);
+            let mut nominal = None;
             let mut modifiers = Vec::new();
             let mut redeclares = Vec::new();
             let mut each_modifiers = Vec::new();
@@ -80,6 +81,7 @@ impl Parser {
                         match attr.as_str() {
                             "start" => start = Some(self.expr()?),
                             "min" => min = Some(self.expr()?),
+                            "nominal" => nominal = Some(self.expr()?),
                             "max" => max = Some(self.expr()?),
                             "fixed" => {
                                 // `fixed` is a Boolean attribute, and
@@ -128,7 +130,7 @@ impl Parser {
                                     )
                                 }
                             },
-                            // The remaining attributes (nominal, quantity,
+                            // The remaining attributes (quantity,
                             // stateSelect, …) describe the variable rather
                             // than the equations: parsed and dropped.
                             _ => {
@@ -204,6 +206,7 @@ impl Parser {
                 unit,
                 min,
                 max,
+                nominal,
                 binding,
                 description,
                 scope,

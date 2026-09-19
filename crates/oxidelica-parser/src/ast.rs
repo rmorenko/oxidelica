@@ -155,6 +155,12 @@ pub struct Component {
     pub min: Option<Expr>,
     /// See [`Component::min`].
     pub max: Option<Expr>,
+    /// The `nominal` attribute: the magnitude a variable is expected to
+    /// take. Written on a type far more often than on a declaration -
+    /// `type AbsolutePressure = Pressure(nominal = 1e5)` - and read here
+    /// as where an unknown without a `start` begins, so that a block
+    /// solving for a pressure does not begin at zero pascal.
+    pub nominal: Option<Expr>,
     /// Declaration binding: `parameter Real a = 1.0`.
     pub binding: Option<Expr>,
     /// Optional description string.
