@@ -11588,3 +11588,85 @@ raised before Newton takes a step and no scaling of the Jacobian can
 reach it. Reverted. The test that caught the first version of it is
 worth recording too: without a guard for the one-unknown block,
 `1 / x = 0` came back with a number instead of a refusal.
+
+## Where a torn block takes its first values from
+
+The refusal that stops thirty models is raised before Newton takes a
+step, so the question the previous shift left was the one about the
+values the block is handed rather than about the iteration. Probed
+directly - the starting vector printed at the head of
+`solve_implicit_block_from` - the answer is that nothing is broken
+there. A declared `start` reaches the torn unknown: a two-equation
+loop over `a(start = 7)` and `b(start = 5)` starts at `b=5`, and the
+same model with the attribute left off starts at zero. The seeding is
+honest, and the zeros are what the library wrote.
+
+`NonLinearInductor` shows both halves of it. Its block starts at
+`["r_mFe.mu_r=0", "r_mFe.R_m=0", "r_mFe.Phi=0", ...]` - twelve
+unknowns, every one of them zero, because not one of the twelve
+carries a `start` attribute. `mu_r` is an `SI.RelativePermeability`,
+which is `Real (final quantity=..., final unit="1")` and says nothing
+about where the variable begins; the declaration in `FixedShape` is
+the bare `SI.RelativePermeability mu_r`. So the zero is not a failure
+of the compiler to read an attribute. It is the absence of any
+attribute to read, and the value a Modelica variable takes without one
+is zero by the specification.
+
+The retry from a handful of magnitudes, built last week, is what the
+model now lives on, and the probe says which magnitude: the inductor
+is refused at 1e-6, 1e-3 and 1.0 for a singular Jacobian and solved at
+1e3 - and at the next call the same 1e3 comes back
+`underdetermined`. So the block's scale is above the ladder's top
+rung at one point of the run and the ladder is a guess at what only
+the model knows.
+
+What the library has and the compiler does not read is `nominal`,
+which is the attribute written for exactly this purpose: a magnitude
+for a variable that has no start. The parser reaches it and throws it
+away - `declarations.rs` puts it in the arm that parses the remaining
+attributes and drops them, beside `quantity` and `stateSelect`. That
+is a policy choice about initial guesses rather than a defect, and it
+is parked here rather than taken: reading `nominal` into the starting
+vector changes where every torn block in the library begins, and the
+measurement it wants is the diff of the run list rather than the
+floors.
+
+## The instrument that could not see a binding
+
+`why` read the equations of the flat model and the `when` clauses, and
+not the bindings of the declarations - so a name used only by another
+declaration's binding came back as `named by: no equation of the flat
+model`. That is the whole population of record parameters:
+`battery.resistor[1].R = (battery.Ns * battery.cellData.rcData.R) /
+battery.Np` is a binding, not an equation, and asking `why` about
+`battery.cellData.rcData.R` - the name the compiler was at that moment
+refusing to evaluate - answered that nothing in the model mentions it.
+An instrument that says a name does not exist while the refusal beside
+it quotes that name sends the reader after a flattening fault that is
+not there.
+
+The reproduction is four lines: a record with one unbound parameter, a
+second parameter bound to it, and an equation using the second. The
+fix reads the components' bindings alongside the equations and prints
+`binding: r = d.R`.
+
+## CCCV_Cell counts one state twice
+
+`initialization is not square: 4 initial equation(s) and 1 fixed
+start(s) for 3 unknown(s)`. Probed, the four are two and two: two
+written initial equations (`cell.limIntegrator.y =
+cell.limIntegrator.y_start`, `energy.y = energy.y_start`) and two
+entries of `fixed_starts`, the conditions carried by variables index
+reduction demoted - `cell.cell.SOC = 0.1` and `cccvCharger.CV = 0`.
+
+`SOC` is declared `output Real SOC(start=cellData.SOCmax) =
+limIntegrator.y`, an alias of the integrator's output. So its `fixed`
+condition and `cell.cell.limIntegrator.y`, which the probe shows
+already pinned, are one statement counted in two places: once as a
+condition and once as a pinned start. `cccvCharger.CV` is the other
+kind - a condition on a variable that is not among the three unknowns
+at all. Both are the aggregate fault the notes already name, a value
+read two ways because the reading cannot see which writer produced
+it. The work is to make `fixed_starts` say whether the demoted
+variable is an alias of something already pinned, and that is a change
+to what the structure records rather than a test on the spelling.

@@ -196,6 +196,26 @@ fn why(args: &[String]) -> Result<(), String> {
     };
 
     let mut said = 0usize;
+
+    // A name is used by a binding as much as by an equation, and a
+    // parameter of a record is used by nothing else: `resistor.R =
+    // cellData.rcData.R` is a declaration's binding, not an equation
+    // of the flat model. Read only the equations, the instrument
+    // answers "named by no equation" about a name the compiler is at
+    // that moment complaining it cannot evaluate - which reads as
+    // "this name does not exist" and sends the reader looking for a
+    // flattening fault that is not there.
+    for component in &model.components {
+        let Some(expr) = &component.binding else {
+            continue;
+        };
+        if !mentions(expr) {
+            continue;
+        }
+        said += 1;
+        println!("  binding: {} = {}", component.name, expr.describe());
+    }
+
     for (what, equations) in [
         ("equation", &model.equations),
         ("initial equation", &model.initial_equations),

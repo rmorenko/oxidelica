@@ -191,6 +191,26 @@ fn why_finds_the_when_that_settles_a_discrete_variable() {
 }
 
 #[test]
+fn why_finds_the_binding_that_uses_a_name() {
+    // A parameter of a record is read by another declaration's binding
+    // and by nothing else: no equation of the flat model names it. An
+    // instrument that reads only the equations answers "named by no
+    // equation" about the very name the compiler is refusing to
+    // evaluate, which reads as "this name does not exist".
+    let model = TempFile::new(
+        "why-binding.mo",
+        "record D parameter Real R; end D; \
+         model M parameter D d; parameter Real r = d.R; Real x; \
+         equation x = r; end M;",
+    );
+    let out = bin().args(["why", model.path(), "d.R"]).output().unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let text = stdout(&out);
+    assert!(text.contains("binding: r = d.R"), "{text}");
+    assert!(!text.contains("named by: no equation"), "{text}");
+}
+
+#[test]
 fn simulate_writes_csv_to_stdout() {
     let out = bin()
         .args([
