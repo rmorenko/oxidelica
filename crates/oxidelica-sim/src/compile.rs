@@ -3662,6 +3662,26 @@ pub(crate) fn compile_at(
     // below would have made it. Made here, the read finds it.
     let initial_slot = table.slot("$initial");
     let terminal_slot = table.slot("$terminal");
+    // The same goes for the slots the run fills before each point:
+    // `delay`, `sample` and a connector's transport are all rewritten
+    // into a name of the compiler's own, and a discrete definition may
+    // read one - a flip-flop is written as a delayed signal compared
+    // against a threshold. Made here, that read finds the slot; made
+    // after the definitions, it would not.
+    let sample_slots: Vec<Slot> = (0..samples.len())
+        .map(|index| table.slot(&format!("$sample{index}")))
+        .collect();
+    let delay_slots: Vec<Slot> = (0..delayed.len())
+        .map(|index| table.slot(&format!("$delay{index}")))
+        .collect();
+    let transport_slots: Vec<(Slot, Slot)> = (0..model.transports.len())
+        .map(|index| {
+            (
+                table.slot(&format!("$carried_at_zero{index}")),
+                table.slot(&format!("$carried_at_one{index}")),
+            )
+        })
+        .collect();
     let discrete_definitions: Vec<(Slot, Code)> = discrete_defs
         .iter()
         .map(|equation| {
@@ -3679,23 +3699,6 @@ pub(crate) fn compile_at(
             Ok((table.slot(&name), table.compile(value)?))
         })
         .collect::<Result<Vec<_>, SimError>>()?;
-    // Every variable `pre` was asked about needs the slot it is read
-    // from beside the one holding what it was when the event began:
-    // the `when` targets, and whatever else was asked for by type.
-    let sample_slots: Vec<Slot> = (0..samples.len())
-        .map(|index| table.slot(&format!("$sample{index}")))
-        .collect();
-    let delay_slots: Vec<Slot> = (0..delayed.len())
-        .map(|index| table.slot(&format!("$delay{index}")))
-        .collect();
-    let transport_slots: Vec<(Slot, Slot)> = (0..model.transports.len())
-        .map(|index| {
-            (
-                table.slot(&format!("$carried_at_zero{index}")),
-                table.slot(&format!("$carried_at_one{index}")),
-            )
-        })
-        .collect();
     for (name, value) in discretes.iter().zip(&discrete_start) {
         let slot = table.slot(name);
         table.template[slot] = *value;

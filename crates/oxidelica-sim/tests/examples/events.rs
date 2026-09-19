@@ -284,3 +284,36 @@ fn hysteresis_switches_exactly_on_its_band() {
         "the heater starts on, so the count leads the switch-ons by one"
     );
 }
+
+#[test]
+fn a_switch_defined_by_a_delayed_signal_finds_its_slot() {
+    // A flip-flop is written as a delayed signal compared against a
+    // threshold, which makes a Boolean's definition read the slot the
+    // run fills from the history it keeps. That slot has to exist
+    // before the definition is compiled, exactly as `$initial` does.
+    let result = compile(
+        &parse_model(
+            "model D Real u; Boolean b; equation u = time; \
+             b = delay(u, 0.1) > 0.5; end D;",
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .simulate()
+    .unwrap();
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let (time, u, b) = (index("time"), index("u"), index("b"));
+    for row in &result.rows {
+        // `u` is time itself, so the delayed value is `t - 0.1`, and
+        // the switch is on from six tenths of a second.
+        let expected = f64::from(row[time] - 0.1 > 0.5);
+        if (row[u] - 0.6).abs() > 1e-6 {
+            assert!(
+                (row[b] - expected).abs() < 0.5,
+                "at t = {}: switch {} wanted {expected}",
+                row[time],
+                row[b]
+            );
+        }
+    }
+}

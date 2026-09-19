@@ -11493,3 +11493,27 @@ dies one step later, at `` `nextstate[1]` is assigned in one branch
 only and has no value before the `if` `` - the merge in
 `statements.rs` refusing to give an array-writing target a start.
 Eight Digital models stand there. Parked with the layer named.
+
+## A slot the run fills has to exist before a switch names it
+
+`$initial` was given its slot ahead of the discrete definitions
+because a discrete variable may be defined in terms of it, and
+compiling that definition reads the slot before the line that would
+have made it. The same is true of three more names the compiler mints
+for itself - `$delay`, `$sample`, and a connector's transport - and
+those were still being made after the definitions.
+
+A flip-flop is exactly the shape that trips it: a delayed signal
+compared against a threshold is a Boolean whose definition reads
+`$delay0`. Seven lines reproduce it, `b = delay(u, 0.1) > 0.5`, and
+what comes back is ``unknown variable `$delay0` `` - the compiler's own
+name, which is the tell that nothing in the model is at fault.
+Nine models of `Modelica.Electrical.Digital` stood there, the whole
+``unknown variable `$delay0` `` row of the census at 444958e.
+
+The row is now empty and the run count did not move: all nine travel
+one storey up, to `the event at t = 0 does not come to rest after N
+round(s)` - `DFF` at ten rounds, `Counter` at eighty. That is a
+different layer, the event iteration rather than the slot table, and
+it is where the Digital family now waits. A kind removed is worth
+recording as a kind removed; the models behind it had a second wall.
