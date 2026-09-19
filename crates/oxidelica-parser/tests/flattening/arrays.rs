@@ -2155,3 +2155,56 @@ fn a_package_table_written_with_matrix_brackets_is_read_by_a_running_subscript()
     );
     assert!(!for_y[0].contains("Tab"), "{for_y:?}");
 }
+
+#[test]
+fn a_matrix_bracket_around_a_deep_array_keeps_its_dimensions() {
+    // The digital tristate tables are written `[{{{...}}}]` - one
+    // array of three dimensions inside the matrix brackets, which is
+    // a list an author wrapped in the other bracket rather than rows
+    // and columns being joined. Read as a matrix the third dimension
+    // is lost, because a cell of a matrix is a scalar, and what the
+    // reader was told was that an array of four is used where a
+    // scalar was expected.
+    let m = parse_model(
+        "package P package T constant Integer Tab[2,2,2] = \
+         [{{{1,2},{3,4}},{{5,6},{7,8}}}]; end T; \
+         model M Integer y; equation y = P.T.Tab[2, 1, 2]; end M; end P;",
+    )
+    .unwrap();
+    let for_y: Vec<String> = m
+        .equations
+        .iter()
+        .filter(|e| matches!(&e.lhs, Expr::Ref(name) if name == "y"))
+        .map(|e| format!("{:?}", e.rhs))
+        .collect();
+    assert_eq!(for_y.len(), 1, "{for_y:?}");
+    // `Tab[2, 1, 2]` is the second of `{5, 6}`, which is six.
+    assert!(for_y[0].contains("6.0"), "{for_y:?}");
+}
+
+#[test]
+fn a_running_subscript_into_an_integer_target_is_not_made_real_by_the_fallthrough() {
+    // Reading an array by a subscript the run settles builds a chain
+    // of `if index == k then a[k]`, and the chain ends in the
+    // compiler's own `NaN` - the value of an index outside the array,
+    // which is no value at all. Read as a Real that `NaN` made the
+    // whole chain Real, and an Integer target was then told it was
+    // being handed a Real: a refusal about a number nobody wrote.
+    // The digital inertial delay assigns `lh := delayTable[y_old, x]`
+    // exactly this way.
+    let m = parse_model(
+        "package P package T constant Integer D[2,2] = [1,2; 3,4]; end T; \
+         model M Real u; Integer a; Integer lh; \
+         protected constant Integer Tab[2,2] = P.T.D; \
+         algorithm when time > 0.5 then lh := Tab[a, a]; end when; \
+         equation u = time; a = 1 + integer(u); end M; end P;",
+    )
+    .unwrap();
+    // The assignment survived rather than being refused, and the
+    // places of the table are in it.
+    assert!(
+        format!("{:?}", m.when_clauses).contains("lh"),
+        "{:?}",
+        m.when_clauses
+    );
+}

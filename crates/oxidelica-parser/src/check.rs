@@ -308,6 +308,14 @@ impl TypeLayer {
 
     fn infer(&self, expr: &Expr) -> Result<Ty, String> {
         match expr {
+            // The compiler writes `NaN` itself, at the end of the
+            // chain of `if`s that reads an array by a subscript the
+            // run settles: it is the value of an index outside the
+            // array, which is no value at all. Read as a Real it
+            // makes the whole chain Real, and an Integer target is
+            // then told it is being given a Real - a refusal about a
+            // number nobody wrote. What has no value has no type.
+            Expr::Number(n) if n.is_nan() && crate::flatten::deep_matrix_open() => Ok(Ty::Unknown),
             Expr::Number(n) => Ok(if n.fract() == 0.0 { Ty::Int } else { Ty::Real }),
             Expr::Bool(_) => Ok(Ty::Bool),
             Expr::Ref(name) => Ok(self.vars.get(name).copied().unwrap_or(Ty::Unknown)),

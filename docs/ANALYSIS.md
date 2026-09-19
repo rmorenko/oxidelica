@@ -11451,3 +11451,45 @@ down. It is not built because the fluid libraries legitimately write
 disagreement would take them out: the only honest refusal here is over
 two attributes both _written_ and _different_, which is a narrower test
 than the one the binding case needed and wants its own measurement.
+
+## What a bracket around a deep array lost, and what the fall-through typed
+
+The tristate half of `Modelica.Electrical.Digital` stood at `an array
+of shape [4] is used where a scalar is expected`, four models -
+`BUF3S`, `INV3S`, `MUX2x1`, `WiredX`. The probe put it in the array
+layer and not in the subscript one: `Buf3sTable[S, R, R]` is written
+`[{{{...}}}]`, one array of three dimensions inside the matrix
+brackets, and the matrix reading joins rows side by side into cells
+that are scalars. The third dimension has nowhere to go, so what came
+back for `Table[strength, enable, input]` was a row of four.
+
+Which bracket an author reached for is not a fact about the value -
+the same door the last shift opened from the other side. A matrix
+bracket holding a single part, and that part already an array of three
+dimensions or more, is a list somebody wrapped: it is handed over
+whole.
+
+Behind it stood a second wall in a different layer, and the two are
+one chain rather than two findings. Reading an array by a subscript
+the run settles builds `if index == k then a[k]`, and the chain ends
+in the compiler's own `NaN` - the value of an index outside the array.
+The type layer read that `NaN` as a Real, because it is a number whose
+fractional part is not zero, so the whole chain came out Real and the
+Integer target of `lh := delayTable[y_old, x]` was told it was being
+handed a Real. A refusal about a number nobody wrote. What has no
+value has no type, so the fall-through answers `Unknown` and the chain
+keeps the type of the places that were actually written.
+
+The chain ends there, in a different family: all four models now
+flatten and refuse as unbalanced, with nothing determining the
+connectors of the component under test - `bUF3S.enable`, `bUF3S.x`,
+`bUF3S.y`. That is the connector-side wall the map already carries and
+not this layer, so the chain was walked to its end and stopped at the
+boundary.
+
+The `break` wall of `DFFREG` was probed the same way and is not a
+door: with every `break` taken out of the source by hand the model
+dies one step later, at `` `nextstate[1]` is assigned in one branch
+only and has no value before the `if` `` - the merge in
+`statements.rs` refusing to give an array-writing target a start.
+Eight Digital models stand there. Parked with the layer named.

@@ -65,6 +65,7 @@ pub use lookup::{counts as name_counts, hold_back_components_here, ComponentMemb
 /// layer, with the class's names, shapes and loop variables in view.
 type ExpandHere<'a> = dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, String> + 'a;
 
+pub(crate) use arrays::deep_matrix_open;
 pub(crate) use names::const_eval;
 pub use table_files::table_in_file as read_table_file;
 

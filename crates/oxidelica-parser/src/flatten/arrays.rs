@@ -203,6 +203,35 @@ pub(super) fn expand(
             // column, which is what makes `[v; 0]` a vector one longer
             // rather than two rows of different widths.
             Expr::MatrixRows(rows) => {
+                // A matrix bracket holding one part, and that part an
+                // array of three dimensions or more, is not a matrix
+                // being built: it is a list an author wrapped in the
+                // other bracket. The digital tristate tables are
+                // written that way - `Buf3sTable[S, R, R]` is
+                // `[{{{...}}}]`, ten by four by four - and reading it
+                // as rows and columns loses the third dimension, since
+                // a cell of a matrix is a scalar. The value inside is
+                // already the shape declared, so it is handed over
+                // whole rather than taken apart and put back flat.
+                if let [row] = &rows[..] {
+                    if let [only] = &row[..] {
+                        let value = recur(only)?;
+                        if deep_matrix_open() && value.shape().len() >= 3 {
+                            return Ok(value);
+                        }
+                        // One part and nothing to join it to: the
+                        // block it makes is the matrix, which is what
+                        // the general path below would build for it.
+                        return Ok(Value::Array(
+                            as_block(value)?
+                                .into_iter()
+                                .map(|row| {
+                                    Value::Array(row.into_iter().map(Value::Scalar).collect())
+                                })
+                                .collect(),
+                        ));
+                    }
+                }
                 let mut out_rows: Vec<Vec<Expr>> = Vec::new();
                 for row in rows {
                     let mut blocks: Vec<Vec<Vec<Expr>>> = Vec::new();
@@ -553,6 +582,15 @@ pub(super) fn expand(
         EXPANDED.with(|held| held.borrow_mut().insert(key, answer.clone()));
     }
     answer
+}
+
+/// Whether a matrix bracket holding a single array of three dimensions
+/// or more is read as that array rather than as rows and columns.
+///
+/// Off by this switch the old reading stands, so that one binary gives
+/// both numbers.
+pub(crate) fn deep_matrix_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_DEEP_MATRIX").is_none()
 }
 
 /// One part of a `[ ]` as the matrix it stands for: a scalar is one by
