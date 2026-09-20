@@ -12259,3 +12259,119 @@ thing worth looking at before the ceiling is the label equations
 themselves: a shape that is the same in every model of a library, that
 nothing in the run needs, and that costs more than everything else
 those models contain put together.
+
+## Why eight initialisations come out singular
+
+The eight models behind `the initialization problem is singular: the
+Newton step does not solve` were named last shift. This is what stands
+behind the names, probed one family at a time with the Newton's
+starting point and Jacobian printed out.
+
+They are not one cause. They are two, and the split is exactly where
+the sizes of the unknowns are.
+
+### The instrument was lying: a step that is not small
+
+`DemonstrateLightning` leaves `signalSource.T10` free. The first
+suspicion - that a `fixed = false` parameter never received the
+`start` MSL gives it, or lost it passing through an `if` - is wrong,
+and cheaply so. A ladder of three two-line models, `start` a literal,
+then an expression over another parameter, then an `if` expression,
+all run; and made to pick between roots by a negative start, all three
+pick the root the start is nearest. The starts arrive. Printed at the
+model itself, they arrive there too: `T10 = 3.659917e-7`,
+`tau1 = 3.5e-4`, `tau2 = 1e-5`, every one the value its declaration
+asks for, in both branches of the `if` the flattener had to choose
+between.
+
+What was wrong was the derivative, not the point it was taken at. The
+Jacobian's finite-difference step was `1e-7 * (1 + |y|)`, which is a
+formula for quantities of order one and floors at `1e-7` outright.
+`T10` starts at `3.7e-7`: the step is a twenty-seven percent shift of
+the unknown, and under the fifth power of the Heidler peak condition
+what comes back is a chord across half an arc rather than a tangent.
+
+The measurement that settles it is not whether a model runs but the
+Jacobian itself, on a probe whose columns have an exact ratio. Two
+unknowns, `(a/b)^5 = 32` beside `a + b = 3s`, swept over the scale
+`s`. At `s = 1`, the ratio of the columns is `-0.818`, which is the
+truth. At `s = 1e-7`, the same model, the same equations, the ratio
+is `-25`. The instrument stops being an instrument somewhere around a
+microsecond, which is precisely where the electrical library's time
+constants live.
+
+Made relative to the unknown, the instrument tells the truth at every
+scale: the same probe gives `-0.818` at `1e-7` as it does at one.
+Swept over the Heidler peak condition, the old formula stops
+converging below `1e-8` while the relative one returns 2.359701, the
+number the model gives at every scale from `1e-3` down.
+
+And the change was reverted, because the corpus priced it: 520 models
+ran before and 517 after, with nothing gained. The three that left
+are named - `SMPM_VoltageSource`, `IMC_YD`, `SMEE_Generator`, all
+magnetic machines - and what they say about the step is the finding
+rather than the loss. Every one of their initialisation unknowns
+starts at exactly zero, where the two formulas give the same step;
+they were running on the absolute floor carrying them away from zero
+in the first place. A step relative to an unknown that is zero is
+zero, so the Jacobian goes blank, and blank is refused the same way a
+lying one is.
+
+So the two halves of the library want opposite things from one
+constant. The electrical library's time constants need a step below
+`1e-7` or the derivative is a chord; the magnetic machines need a
+step above their own zero or there is no derivative at all. A middle
+was tried and measured - the step scaled by the larger of the value
+and its `start` - and it recovers nothing, because those starts are
+zero too. Flooring the scale at one recovers all three machines and
+is, at small scale, exactly the old formula again, so it gives the
+lightning back.
+
+What that says is that the step does not want a better constant, it
+wants a scale per unknown, which is what `nominal` is for and what
+this Newton does not read. That is the shape of the fix, and it is
+larger than a constant.
+
+### The other three are a state the plan also computes
+
+The prediction that came with the suspicion was that this cause must
+not explain the tanks and the air, whose free names are internal
+energies and therefore large. It does not, and the probe says why in
+one line: their Jacobian columns are not inaccurate, they are exactly
+zero.
+
+`EmptyTanks` leaves `tank1.U` free, `DryAir1` leaves `volume.U`,
+and both carry the same pair of equations:
+
+```text
+volume.U = volume.m * volume.medium.u
+der(volume.U) = volume.port.H_flow
+```
+
+`U` is a state, and `U = m*u` is an equation the algebraic plan
+computes it from. `eval_point` places the states into their slots and
+then runs the plan, and the plan writes over the slot `U` sits in. So
+perturbing `U` to take a finite difference changes nothing that any
+residual can see: the perturbation is erased before the residuals are
+evaluated, the column comes back zero, and the matrix is singular for
+a reason that is entirely internal to the compiler. The tank's rows
+are worse still - the residual itself prints as `NaN` before any of
+this.
+
+The amplifier is the same shape wearing electrical clothes:
+`opAmp.v_in` is a state, because `i_c3 = Cin*der(v_in)` differentiates
+it, and it is also written outright by `v_in = Rdm*i_r2`. Three of
+the four families are this one cause, and it is a fluid one only by
+accident of which libraries write energy balances.
+
+This is not the step, and it is not the model. It is a state whose
+slot the plan owns, and it wants its own fix.
+
+### The families, and where each is
+
+| model | free name | cause |
+| ----- | --------- | ----- |
+| `DemonstrateLightning` | `signalSource.T10` | step not small next to a microsecond; measured, reverted, parked |
+| `EmptyTanks` | `tank1.U` | state the plan overwrites; residual is `NaN` |
+| `ReferenceAir.DryAir1` | `volume.U` | state the plan overwrites; column exactly zero |
+| `AmplifierWithOpAmpDetailed` | `opAmp.v_in` | state the plan overwrites; `v_in = Rdm*i_r2` beside `i_c3 = Cin*der(v_in)` |
