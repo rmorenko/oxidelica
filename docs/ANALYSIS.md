@@ -11686,13 +11686,37 @@ name read.
 
 Measured from one binary, the fix behind `OXIDELICA_COUNT_EVERY_CONDITION`:
 the `initialization is not square` row went 24 to 19
-(`/tmp/m191/before.txt:252`, `/tmp/m191/after.txt:252`). The five that
-left are `CCCV_Cell`, `CCCV_CellRC`, and the induction machines
-`IMC_DOL`, `IMS_Start` and their kin; six synchronous machines arrived
-in their place, having come up one storey from
-`airGap.RotationMatrix[1,1] ... is NaN at t = 0`, which is the family
-the register was already counting. The set of refused models is
-identical line for line, 520 either way
+(`/tmp/m191/before.txt:252`, `/tmp/m191/after.txt:252`). That is not a
+net five leaving: the row is 24 - 15 + 10, and the names come from
+diffing the two raw lists rather than from the count.
+
+Fifteen left: `CCCV_Cell` and `CCCV_CellRC`; the `Machines` induction
+machines `IMC_DOL`, `IMC_Inverter`, `IMC_Steinmetz`, `IMC_Transformer`,
+`IMC_YD`, `IMC_YDarc` and `IMS_Start`, with
+`Transformers.IMC_Transformer` beside them; `FundamentalWave`'s
+`IMC_DOL` and `IMS_Start`; and the three `WaterIF97` media tests
+`WaterIF97OnePhase_ph`, `WaterIF97_pT` and `WaterIF97_ph`.
+
+Ten arrived, all synchronous machines: `Machines`' `SMEE_Rectifier`,
+`SMPM_Braking`, `SMPM_Inverter`, `SMPM_VoltageSource`, `SMR_DOL` and
+`SMR_Inverter`; `FundamentalWave`'s `SMEE_Rectifier`, `SMPM_Inverter`
+and `SMR_Inverter`; and `QuasiStatic`'s `SMPM_Mains`. They came up one
+storey from `airGap.RotationMatrix[1,1] ... is NaN at t = 0`, which is
+the family the register was already counting.
+
+The three `WaterIF97` tests went somewhere else again, and that is the
+part a retelling lost: all three now stop at a wall that did not exist
+for them before, `der(volume.medium.h)` or `der(volume.medium.T)`
+reporting that the differentiated variable `is not a state of the
+model` (`/tmp/m191/raw_after.txt`). The register shows the three
+arriving across two rows rather than one: `der(volume.medium.T)` goes
+from 5 to 6 and `der(volume.medium.h)` from absent to 2
+(`/tmp/m191/before.txt:261`, `/tmp/m191/after.txt:261,285`). Counting
+either row alone would have found one model where three moved, which
+is the row-is-not-a-family blind spot seen from inside a single
+change.
+
+The set of refused models is identical line for line, 520 either way
 (`/tmp/m191/raw_before.txt`, `/tmp/m191/raw_after.txt`), and the floors
 did not move: 868 flatten and 520 run, runnable 753 and 488
 (`/tmp/m191/floor_after.txt`). So this is a wall removed and not a
