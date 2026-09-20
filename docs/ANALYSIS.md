@@ -11896,3 +11896,79 @@ The two that remain are not the same wall wearing the same words:
 `CompareLineTrunks` has 60 conditions for 57 unknowns and no fixed
 starts at all, which is a section that over-determines its own model
 rather than a count that lost a claim.
+
+## The air-gap family is one layer, and the layer is index reduction
+
+Twenty-seven models of the register mention `airGap`, spread over
+seventeen rows. Added by family the way the notes require, and with
+`cannot differentiate` beside them for scale (numbers from
+`grep -E "^\s+[0-9]+\s+.*airGap" /tmp/m193/after.txt | awk`):
+
+```text
+airGap ................ 27 models
+cannot differentiate ... 16 models
+```
+
+The seventeen rows read as five different walls - a flux against an
+inductance, a rotation matrix, a singular Jacobian, a current through
+that matrix, a derivative of something that is not a state. Probed
+with `library check .msl --only <Class>`, four of the five are one
+wall: the same algebraic loop about `*.airGap.gamma`, and which
+equation the register quotes is merely which one the block reached
+first. The fifth, `IMC_Initialize`, is a different question and was
+not probed further.
+
+The mechanism, found by shrinking rather than by reading the register.
+`AirGapS` writes its inductance as a matrix:
+
+```modelica
+parameter SI.Inductance L[2, 2] = {{Lm,0},{0,Lm}};
+```
+
+so `L[1,2]` is an outright zero, and `psi_ms[1] = L[1,1]*i_ms[1] +
+L[1,2]*i_ms[2]` does not mention `i_ms[2]` at all. Index reduction
+divides through by that coefficient anyway, and the definition it
+builds carries `/ (-aimc.airGap.L[1,2])`. What the run then says is
+
+```text
+... is inf at t = 0, before any Newton step: the equations cannot be
+evaluated at the values the block starts from
+```
+
+which names the solver, the one place nothing is wrong. `oxidelica why
+IMC_DOL 'aimc.airGap.L[1,2]'` answers `bound to: 0`, so the compiler
+knows the value; the layer that divides simply did not ask.
+
+The layer is named precisely. `solve_linear_known` already refuses a
+slope that is zero once the parameters are folded in, and the plan's
+layer passes the table. Index reduction, in `compile.rs`, calls
+`solve_linear_for` instead - the same solver with an empty table - in
+two places: where it gathers candidate definitions, and where it asks
+whether an equation can be rearranged at all. A probe printing the
+table's size at the refusing call site prints `n=0` for every air-gap
+slope.
+
+Handing the parameters to both calls does move the wall. `IMC_DOL`
+goes from `inf ... before any Newton step` to `singular Jacobian in
+algebraic loop [...]` - one storey up, the shape the notes predict.
+But it is not shippable as it stands, and the reason is the rule about
+phases with no ceiling. Measured from one binary over `.msl` with the
+change behind `OXIDELICA_NO_REDUCTION_PARAMS`, the run without it
+finished its read half in 826s (`/tmp/m194/before.list`, line
+`read 1040 of 1040 models, 826s so far`); the run with it stood at
+`read 832 of 1040 models, 392s so far` (`/tmp/m194/after2.list`) and
+did not move for over fifty minutes while its processor time kept
+climbing. Timed one at a time, `IMC_DOL` costs 0.50s with the change
+against 0.38s without, and `SMEE_DOL` 0.42s either way - so the cost
+is not spread, it sits in whatever model the pass never got past.
+
+Two things follow for whoever takes this next. The fix is right in
+kind and wrong in price: folding the whole parameter table into every
+slope of every reduction is the dear-test-first fault these notes
+already name twice, and what it wants is the cheap question asked
+first - is any name of this slope a parameter the table calls zero -
+before anything is substituted. And the small model is a genuine gap:
+thirteen shapes were tried, and while a probe shows the reduction
+layer taking the two readings apart on a four-equation model, none of
+them differs in outcome. The fault needs a chain deeper than a small
+model carries, so the corpus is the only witness this one has.
