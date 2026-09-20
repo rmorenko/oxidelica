@@ -1051,6 +1051,15 @@ fn reach_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_INIT_REACH").is_none()
 }
 
+/// Whether a written initial condition the coarse walk lost may be
+/// paired with a state the same coarseness left unclaimed.
+///
+/// Behind a switch so that one binary can produce both numbers:
+/// `OXIDELICA_NO_PAIR_LOST=1` leaves the loss where it was.
+fn pair_lost_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_PAIR_LOST").is_none()
+}
+
 /// Match every equation to an unknown, reducing the index where that
 /// cannot be done.
 ///
@@ -4170,6 +4179,7 @@ impl CompiledModel {
         demoted: &[(usize, f64)],
         fixed: &[bool],
         plan: &[PlanStage],
+        unsettled: &[(String, Slot)],
     ) -> Option<InitialConditionMatch> {
         if !reach_enabled() {
             return None;
@@ -4245,6 +4255,87 @@ impl CompiledModel {
         for condition in 0..cond_vars.len() {
             let mut visited = vec![false; self.states.len()];
             try_match(condition, &cond_vars, &mut state_taken, &mut visited);
+        }
+        // The walk does not go through a simultaneous block, so a
+        // condition written about what such a block solves for reaches
+        // no state and claims none - while the states it does settle
+        // are claimed by nobody and are pinned at their declarations a
+        // moment later. Both halves of the same loss, and counting the
+        // condition while pinning the state counts one statement twice:
+        // that is what refused the machines, whose stator current is
+        // anchored through the air gap's block.
+        //
+        // What the coarseness lost can be given back only where both
+        // halves show it: a condition that claimed nothing is paired
+        // with a state that was claimed by nothing. Neither half alone
+        // licenses the pairing - a condition about a parameter claims
+        // no state and means to, and a state nothing says anything
+        // about stands where it was declared - so it is the two
+        // together that make it a loss rather than an answer.
+        if pair_lost_enabled() {
+            let mut orphan_states: Vec<usize> = state_taken
+                .iter()
+                .enumerate()
+                .filter(|(_, taken)| taken.is_none())
+                .map(|(state, _)| state)
+                .collect();
+            orphan_states.retain(|state| !fixed.get(*state).copied().unwrap_or(false));
+            let mut orphans = orphan_states.into_iter();
+            for condition in 0..initial_equations.len() {
+                if state_taken.contains(&Some(condition)) {
+                    continue;
+                }
+                if !cond_vars[condition].is_empty() {
+                    continue;
+                }
+                // A condition that names a parameter the
+                // initialisation solves for reaches no state and means
+                // to: `m_nom = 2*Av` determines `Av` and nothing else,
+                // and handing it a state would leave that state's own
+                // start unpinned for nothing.
+                let mut named = Vec::new();
+                initial_equations[condition].lhs.collect_refs(&mut named);
+                initial_equations[condition].rhs.collect_refs(&mut named);
+                if named
+                    .iter()
+                    .any(|name| unsettled.iter().any(|(had, _)| had == name))
+                {
+                    continue;
+                }
+                let Some(state) = orphans.next() else { break };
+                state_taken[state] = Some(condition);
+            }
+        }
+        if std::env::var_os("OXIDELICA_INIT_PROBE").is_some() {
+            for (condition, reached) in cond_vars.iter().enumerate() {
+                let what = if condition < initial_equations.len() {
+                    format!(
+                        "written {} = {}",
+                        initial_equations[condition].lhs.describe(),
+                        initial_equations[condition].rhs.describe()
+                    )
+                } else {
+                    let index = demoted[condition - initial_equations.len()].0;
+                    format!(
+                        "demoted {}",
+                        self.algebraics.get(index).map_or("?", String::as_str)
+                    )
+                };
+                let names: Vec<&str> = reached
+                    .iter()
+                    .map(|state| self.states[*state].as_str())
+                    .collect();
+                let took = state_taken
+                    .iter()
+                    .position(|taken| *taken == Some(condition))
+                    .map_or("nothing".to_string(), |state| self.states[state].clone());
+                eprintln!("init: {what} reaches {names:?}, took {took}");
+            }
+            for (state, taken) in state_taken.iter().enumerate() {
+                if taken.is_none() {
+                    eprintln!("init: state {} claimed by nothing", self.states[state]);
+                }
+            }
         }
         let demoted_claims = (0..demoted.len())
             .map(|offset| {
@@ -4422,7 +4513,7 @@ impl CompiledModel {
             .map(|(_, index, value)| (*index, *value))
             .collect();
         let condition_match =
-            self.match_initial_conditions(initial_equations, &demoted_all, fixed, plan);
+            self.match_initial_conditions(initial_equations, &demoted_all, fixed, plan, unsettled);
         let demoted_fixed: Vec<(usize, f64)> = match &condition_match {
             Some(matched) => demoted_all
                 .iter()

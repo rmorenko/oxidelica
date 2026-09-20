@@ -11844,3 +11844,55 @@ and no victims. The census moved by two rows and nothing else: `at t =
 predict - a wall removed uncovers the next one - and it says the
 remaining eight Fluid models of the row are held by something past the
 first guess rather than by where they begin.
+
+## One statement counted twice, at the edge of a coarse walk
+
+The machines' `initialization is not square` was not a pair of
+two-component quantities and not a defect of index reduction. The
+reduction was measured on `SMPM_Braking` and it did see the rotation
+`psi_ms = R*psi_mr`: its first reduction demoted `psi_ms[2]` on the
+strength of that very equation. What refused the model was the count.
+
+`OXIDELICA_INIT_PROBE=1` prints what each initial condition reaches
+and what it claimed. Before the change, on `SMPM_Braking`:
+
+```text
+init: written smpm.is[1] = 0 reaches [], took nothing
+init: written smpm.is[2] = 0 reaches [], took nothing
+init: written smpm.i_0_s = 0 reaches ["smpm.lszero.i"], took smpm.lszero.i
+init: demoted smpm.wMechanical reaches ["smpm.inertiaRotor.w"], took smpm.inertiaRotor.w
+init: state smpm.airGap.psi_ms[1] claimed by nothing
+init: state smpm.airGap.psi_mr[1] claimed by nothing
+```
+
+The reachability walk does not go through a simultaneous block, on
+purpose - its coarseness would unpin states an equation does not
+determine. So `is[1] = 0`, whose stator current the air gap's block
+solves, reaches nothing and claims nothing. But it was still counted
+as a condition, and the state it settles, claimed by nobody, was then
+pinned at its declaration. One statement on both sides of the
+arithmetic: four conditions for five unknowns, three of which were
+pinned.
+
+The two halves are the same loss seen from its two ends, and that is
+what licenses giving it back: a written condition that claimed nothing
+is paired with a state that was claimed by nothing. Neither half alone
+would do - a condition naming a parameter the initialisation solves
+for claims no state and means to, which is what a test caught and what
+narrowed the rule.
+
+Measured from one binary over `.msl`, the change behind
+`OXIDELICA_NO_PAIR_LOST` (`/tmp/m193/before.txt`,
+`/tmp/m193/after.txt`): 753 flatten and 488 run on both sides, and the
+two run lists are identical name for name. What moved is the barrier:
+the `not square` rows counted 19 models before and 2 after. Seventeen
+models one storey up, none lost - the shape the notes predict for a
+wall removed. The control the plan named, `FW.SMEE_Rectifier`, whose
+list of demoted starts is empty, moved with them and now stops at a
+singular Jacobian, so the fix explains it rather than leaving it to
+another family.
+
+The two that remain are not the same wall wearing the same words:
+`CompareLineTrunks` has 60 conditions for 57 unknowns and no fixed
+starts at all, which is a section that over-determines its own model
+rather than a count that lost a claim.

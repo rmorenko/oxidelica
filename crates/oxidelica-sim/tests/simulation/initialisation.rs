@@ -1046,3 +1046,41 @@ fn a_fixed_start_reaching_no_unknown_is_no_condition() {
         result.rows[0][index("x")]
     );
 }
+
+/// A condition written about what a simultaneous block solves for is a
+/// condition, and the state behind it is not also pinned.
+///
+/// The reachability walk deliberately does not go through such a
+/// block, so `u = 0.3` reaches no state and claims none - and the
+/// state it does settle is then claimed by nobody and pinned at its
+/// declaration a moment later. Counting the condition while pinning
+/// the state counts one statement twice, and the model was refused as
+/// not square: two written equations and four pinned starts for four
+/// unknowns. That is the machines' refusal in twelve lines.
+///
+/// And the test checks a number rather than that the model ran: `a`
+/// must begin where the section puts it and not at the 0.1 its
+/// declaration guesses.
+#[test]
+fn a_condition_on_a_blocks_unknown_does_not_also_pin_the_state() {
+    let result = run(
+        "model M Real a(start = 0.1); Real b(start = 0.2); Real d(start = 0.3); \
+         Real c(start = 0.5, fixed = true); Real u; Real v; \
+         equation der(a) = -a + v; der(b) = -b + u; der(d) = -d; der(c) = -c; \
+         u + 2*v = a + b; u*3 - v = a - b; \
+         initial equation u = 0.3; v = 0.4; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let u0 = result.rows[0][index("u")];
+    let v0 = result.rows[0][index("v")];
+    assert!((u0 - 0.3).abs() < 1e-9, "u(0) = {u0}");
+    assert!((v0 - 0.4).abs() < 1e-9, "v(0) = {v0}");
+    // The two conditions settle `a` and `b` through the block, so
+    // neither stands at the start its declaration guessed.
+    let a0 = result.rows[0][index("a")];
+    assert!((a0 - 0.1).abs() > 1e-6, "a(0) = {a0}, still the guess");
+    // `d`, which no condition says anything about, does.
+    let d0 = result.rows[0][index("d")];
+    assert!((d0 - 0.3).abs() < 1e-9, "d(0) = {d0}");
+}
