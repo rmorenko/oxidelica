@@ -12014,3 +12014,115 @@ gone; `singular Jacobian in algebraic loop ["aimc.airGap.gamma", ...]`
 arrives with 7 and its `aims` twin with 1. Eight models one storey up,
 no model lost, and the wall they now stand at is an honest statement
 about the model rather than an infinity charged to the solver.
+
+### The accounting of that change, by name
+
+The paragraph above said eight models moved a storey. The register says
+eleven, and the difference is not a rounding: the two censuses were
+compared line by line (`/tmp/m195/before.list`, `/tmp/m195/after.list`)
+and every row that changed is named here, because a count of arrivals
+that is smaller than the count of departures means some arrival was not
+looked for.
+
+Departures, ten machines: the four rows quoting
+`der(aimc.airGap.psi_ms[1])` and its `aimcE`, `aims`, `aimsE`
+namesakes carry 5 + 1 + 1 + 1 = 8 (before.list:1743, 1847, 1849, 1851),
+and `aimc.airGap.i_ss[1] = ...` carries 2, first on
+`Electrical.Machines.Examples.InductionMachines.IMC_Inverter`
+(before.list:1773). Eleventh is `Mechanics.MultiBody.Examples.Loops.Fourbar2`,
+which stood at `structurally singular model: equation Ref("j2.frame_a.R.T[3,...`
+(before.list:2091).
+
+Arrivals, the same eleven: `singular Jacobian in algebraic loop
+["aimc.airGap.gamma", ...]` with 7 (after.list:1741), its `aims` twin
+with 1 (after.list:2021), a row that did not exist before -
+`singular Jacobian in algebraic loop ["idealCloser.idealClosingSwitch[1].s", ...]`
+with 2, first on
+`Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL`
+(after.list:1809) - and Fourbar2's new wall (after.list:1885). Seven and
+one and two and one is eleven. The `idealCloser` row is distinct from the
+`idealCloserM` row of 1, which both censuses carry unchanged.
+
+What the two new walls say, asked with `--only` from the root of `.msl`:
+
+IMC_Inverter and IMC_DOL both land on a singular Jacobian over a loop of
+thirty-odd names, headed in the first case by `aimc.airGap.gamma` and in
+the second by the three switch states `idealCloser.idealClosingSwitch[i].s`.
+The heads differ, the family does not: both are the machine loop, and the
+switch names sort to the front in the model that has a closer in it.
+
+Fourbar2's wall is the interesting one, and it is not the dishonest sort
+the change removed from the machines. It reads
+
+```text
+`universalSpherical.f_b_a[1] = ...` of algebraic loop [...] is NaN at
+t = 0, before any Newton step: the equations cannot be evaluated at
+the values the block starts from; the block's own values are not
+numbers: ["b2.v_0[2] = NaN", ...]
+```
+
+- a refusal that names the equation, the loop, the instant, and the
+  hundred values that are already NaN when the block is entered. That is a
+  statement about the model's start values rather than an infinity charged
+  to the solver, so the model went from a structural refusal to a numerical
+  one and the new one says more than the old. It is a candidate for the
+  queue on its own terms: something upstream is producing NaN before the
+  loop is ever solved.
+
+## The row of ten that named nobody
+
+`structurally singular model: cannot differentiate this expression` was
+the top of the run half's register at 10 models, first on
+`Modelica.Fluid.Examples.NonCircularPipes` (`/tmp/m195/after.list:1737`).
+It was one row because the refusal said nothing: the catch-all at the
+end of the differentiator returned a fixed sentence, so every model that
+reached it sorted under the same words whatever it had actually met.
+
+Asked the gate's question first - one family or several - with the
+corpus register printed per model (`/tmp/m196/refused.txt`, `library
+check .msl --refused --without scripts/heavy_models.txt`). The subject
+is wider than the row: summed over every line mentioning "cannot
+differentiate", the register carries 10 + 4 + 1 + 1 = 16, the other
+three rows being the two that name a function by name and the one that
+names a non-constant exponent.
+
+The ten are not one family, and the register with the refusals named
+says how they split. Measured from the two censuses over `.msl` with
+`--without scripts/heavy_models.txt`, both reading 1040 models, both
+flattening 868 and running 520 (`/tmp/m196/refused.txt`,
+`/tmp/m196/after_refused.txt`):
+
+```text
+before                                    after
+10  cannot differentiate this expression   6  cannot differentiate a subscript that survived flattening
+                                           4  cannot differentiate a call of several arguments
+ 4  cannot differentiate function `abs`    4  cannot differentiate function `abs`
+```
+
+The same sixteen models, model for model, and no count outside the row
+moved. The six are one shape, and it is a shape these notes already have
+a name for: a subscript over a call into a water medium -
+`annulus_pipe.mediums[1].d`, `reservoir.medium.h`, `state.T`,
+`volume1_2.medium.d`, `mixingVolume2.medium.d`, `junctionVolume.medium.d`,
+each `...IF97_Utilities.waterBaseProp_ph(...)[5]`. That is not a missing
+derivative rule; the arrays were meant to have come apart long before the
+differentiator saw them.
+
+The other four are rules that could be written, and they are two calls
+and not one: `.atan2` in
+`MultiBody.Examples.Constraints.PrismaticConstraint`, and `min(...)` in
+`ModelicaTest.Media.TestOnly.DryAirNasa` and the two
+`Tables.CombiTable2D{s,v}.Test33`. Reading the equations by eye before
+the refusal was fixed had put the last three under a different shape
+entirely - the quoted equation was `Ref = Ref` and the call was buried
+inside it. The refusal that names the expression it refused got it right
+where reading the equation did not, which is the whole of the case for
+naming it.
+
+So the refusal now names two things: which construction was met, which
+is the family, and the expression as it was written, which is what finds
+the model. It says `cannot differentiate a call of several arguments`
+and quotes the call, where it used to say `cannot differentiate this
+expression` and quote nothing. The kinds are matched by name and not swept up, so a
+variant added to `Expr` has to be decided about rather than quietly
+joining the refusal - the same rule the run's `shape_of` already keeps.

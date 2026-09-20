@@ -59,6 +59,23 @@ fn differentiation_says_what_it_cannot_reach_through() {
         .contains("unbalanced model"));
 }
 
+/// And it names *which* expression, and of what kind.
+///
+/// A refusal that says only "this expression" is one line of the
+/// register for every model that meets it, whatever the cause - ten of
+/// them shared a line before this - so the kind is what splits the
+/// families and the spelling is what finds the model.
+#[test]
+fn differentiation_names_the_expression_it_refused() {
+    let why = refused("model M Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - 9.81; x * x + atan2(y, x) = 1; end M;");
+    assert!(why.contains("a call of several arguments"), "{why}");
+    assert!(why.contains("atan2(y, x)"), "{why}");
+    assert!(
+        !why.contains("cannot differentiate this expression"),
+        "{why}"
+    );
+}
+
 /// A parameter waiting on a call says which call, not which cycle.
 ///
 /// A parameter written as a function of literals waits on nobody: it

@@ -846,8 +846,79 @@ pub(crate) fn differentiate_at(
             }
             return Ok(seeded(rule, &given));
         }
-        _ => return Err("cannot differentiate this expression".to_string()),
+        // Everything the rules above do not reach. A refusal names
+        // what it refused, and here that is two things rather than
+        // one: which construction was met, because that is what says
+        // whether the work is a missing rule or a shape that has no
+        // derivative at all, and the expression as it was written, so
+        // that the model it came from can be found. The catch-all this
+        // replaces said neither, which is why ten different models
+        // shared one line of the register.
+        //
+        // Matched by name and not swept up, so a variant added to
+        // `Expr` has to be decided about here rather than quietly
+        // joining the refusal.
+        Expr::Str(_)
+        | Expr::Rel(..)
+        | Expr::And(..)
+        | Expr::Or(..)
+        | Expr::Not(_)
+        | Expr::Call(..)
+        | Expr::Index(..)
+        | Expr::Member(..)
+        | Expr::Array(_)
+        | Expr::Elementwise(..)
+        | Expr::Range(..)
+        | Expr::Comprehension(..)
+        | Expr::ColonSubscript
+        | Expr::EndSubscript
+        | Expr::MatrixRows(_)
+        | Expr::NamedArg(..)
+        | Expr::Tuple(_) => {
+            return Err(format!(
+                "cannot differentiate {}: `{}`",
+                undifferentiable_kind(expr),
+                expr.describe()
+            ));
+        }
     })
+}
+
+/// Which construction the differentiator met and had no rule for.
+///
+/// Not the expression itself, which the refusal quotes beside this:
+/// this is the family, and it is what says whether the missing work is
+/// a rule to write or a shape that should never have survived
+/// flattening. A subscript that reached here is the second sort - the
+/// arrays were meant to be taken apart long before - while a call of
+/// several arguments is the first.
+fn undifferentiable_kind(expr: &Expr) -> &'static str {
+    match expr {
+        Expr::Str(_) => "a string",
+        Expr::Rel(..) => "a comparison",
+        Expr::And(..) | Expr::Or(..) | Expr::Not(_) => "a Boolean operation",
+        Expr::Call(..) => "a call of several arguments",
+        Expr::Index(..) => "a subscript that survived flattening",
+        Expr::Member(..) => "a field of a record",
+        Expr::Array(_) | Expr::MatrixRows(_) => "an array written out",
+        Expr::Elementwise(..) => "an elementwise operation",
+        Expr::Range(..) => "a range",
+        Expr::Comprehension(..) => "a comprehension",
+        Expr::ColonSubscript | Expr::EndSubscript => "a subscript with no value",
+        Expr::NamedArg(..) => "a named argument",
+        Expr::Tuple(_) => "a tuple",
+        // The differentiator has rules for these, so reaching here
+        // with one means the fault is elsewhere; they are named rather
+        // than swept up for the same reason as above.
+        Expr::Number(_)
+        | Expr::Bool(_)
+        | Expr::Ref(_)
+        | Expr::Time
+        | Expr::Neg(_)
+        | Expr::Bin(..)
+        | Expr::If(..)
+        | Expr::WithDerivative(..) => "an expression",
+    }
 }
 
 /// Whether nothing in an expression changes as time passes.
