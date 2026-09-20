@@ -428,13 +428,21 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
     // which is exactly zero at the start. The residual does not move
     // when x does, so there is no direction to step in - and that is a
     // different complaint from walking off to infinity.
+    //
+    // Named for what it is. A column of the Jacobian that is exactly
+    // zero is not a matrix that came out ill conditioned; it is the
+    // block saying it does not mention that unknown at all, and no
+    // arithmetic on the matrix will find a step for it. "Singular
+    // Jacobian" sent the reader to the solver, which is the one place
+    // nothing was wrong, where the fault is the pairing upstream.
     assert_eq!(
         refused(
             "model S Real x; Real y; Real s(start = 0, fixed = true); \
              equation y = sin(time); x * x * y = 1; der(s) = x; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end S;"
         ),
-        "singular Jacobian in algebraic loop [\"x\"]"
+        "the equations of algebraic loop [\"x\"] do not mention [\"x\"] at t = 0: \
+         nothing in the block changes when it does, so no step determines it"
     );
 
     // A block whose divisor is one of its own unknowns is not given

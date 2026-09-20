@@ -12503,3 +12503,79 @@ anything production takes, since `1e-7 * (1 + |y|)` is at least
 `1e-7` and twice that for an unknown of order one - so "does not run
 at 1e-7" is a statement about a step the compiler never chooses.
 Asked of the shipping binary with no switch at all, IMC_YD runs.
+
+## The row that was two thirds a dead column
+
+The tank family came off the top of the map, so the census was taken
+fresh (`/tmp/m200/census.txt`, 868 flatten and 526 run). The top of
+the run half is algebraic loops with about a hundred models under
+them: 34 `singular Jacobian`, 30 `residual ... of algebraic loop`,
+10 diverged, 10 that did not converge in fifty Newton iterations, 8
+underdetermined. The top single row, 34, was the one probed.
+
+A kind is not a family, so the probe was aimed at the three smallest
+members - blocks of one unknown, where the Jacobian is a single
+number and there is nothing to read wrong. All three printed the same
+thing: a finite non-zero residual and a Jacobian of exactly zero.
+
+```text
+GearType2          v=[0.0]  f=[21.8]     jac=[[0.0]]
+TestSuddenExpansion v=[0.0] f=[-10000.0] jac=[[0.0]]
+Oscillator         v=[0.0]  f=[-1e-7]    jac=[[0.0]]
+```
+
+Scanned over sixteen decades of step, the Oscillator's residual does
+not move by one part in anything: the difference is `0e0` from `1e-8`
+to `1e6`. That is not a matrix that came out ill conditioned, it is
+the block declining to mention its unknown at all.
+
+Two different sources, one column. `T1.irc * T1.p1.m_collectorResist
+= T1.C.v - T1.Cinternal` has a collector resistance the Spice3 model
+card declares as `RC = 0.0` and no example overrides, so the
+coefficient is a parameter that is literally zero.
+`bearingFriction.sa` is dropped by the branch of the friction `if`
+that holds while the bearing is locked - the same shape as the
+`semiLinear` coefficient already recorded above, one storey further
+along, where the branch is chosen by a discrete mode rather than by a
+sign. A parameter that is zero and a branch that does not mention it
+arrive at the same place: the matching pairs the unknown with an
+equation that says nothing about it, and Newton is handed a column
+of zeros.
+
+**What the change was: a refusal renamed, and nothing else.** Where a
+column is exactly zero the refusal now names the unknown and says the
+equations do not mention it; where no column is zero it says
+`singular Jacobian` exactly as before. Measured with the register
+before and after (`/tmp/m200/census.txt`, `/tmp/m200/census2.txt`),
+the row of 34 came apart into 22 and 12 - two thirds of it was a dead
+column wearing the words of an ill conditioned matrix - and the
+counts did not move: 868/526, 753/494 on both sides. This is a wall
+named rather than a wall removed, and the two are separate claims.
+
+Which makes the 22 the family to work, and it is a family rather than
+a row: the probe put every one of them in the same layer. What stands
+behind them is the pairing, and the question is whether `solve_shape`
+should refuse a name whose coefficient is zero _by branch_ the way it
+already refuses one whose slope folds to a literal zero.
+
+### The external functions, counted honestly before being left
+
+The top of the flatten half is 11 models refused for a function
+written in C that this compiler has none of its own for. Twenty-four
+such functions are already carried, the whole `CombiTable1D/2D/
+TimeTable` family among them, and the 11 that remain want only five:
+`impureRandom` (a documented xorshift, written out in the MSL
+itself), `writeRealMatrix` (MAT5 is already read here, with code and
+tests - what is missing is writing), and `countLines`,
+`getNumberOfFiles`, `getEnvironmentVariable`, a few lines each.
+
+The honest count is 3 + 8, not 11. Only three are examples of the
+standard library - `Blocks.Examples.Noise.ImpureGenerator`,
+`Noise.Utilities.ImpureRandom`,
+`Utilities.Examples.WriteRealMatrixToFile` - and the floors count
+those. The other eight are `ModelicaTest`: `Tables.Test25_usertab`,
+`Test18_usertab` twice, `Utilities.TestInternal`, `TestReadFile`,
+`TestStreams`, `Math.TestColorMapToSvg`,
+`Math.Random.TestRandomIntegers`. So the ceiling of that work is
+three models, against about a hundred standing behind the loops, and
+it is left where it is with its five names written down.

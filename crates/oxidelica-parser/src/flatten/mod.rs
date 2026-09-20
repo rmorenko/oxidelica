@@ -103,6 +103,17 @@ const MAX_DEPTH: usize = 32;
 /// world's frame - rather than for their mechanism, and a ceiling
 /// tight against them would be a ceiling set by a drawing.
 ///
+/// That maximum was taken over the corpus as the main check measures
+/// it, and the main check leaves the three giants of
+/// `scripts/heavy_models.txt` out - so the sample it came from was one
+/// with its tail cut off, and a calibration that says nothing about
+/// the largest models of the library is a calibration that is silent
+/// about its own edge. The three were measured separately with the
+/// same counter, 2026-09-20: `Spice3BenchmarkFourBitBinaryAdder`
+/// 742,801 nodes, its `.FOURBIT` 741,752 and its `.TWOBIT` 370,730.
+/// They are dear to run rather than large to flatten - a third of
+/// Fourbar2 apiece - so the tail does not press this ceiling either.
+///
 /// `OXIDELICA_MAX_NODES` overrides it, which is how the test reaches
 /// the refusal without building a model of millions of nodes.
 const MAX_NODES: usize = 8_000_000;

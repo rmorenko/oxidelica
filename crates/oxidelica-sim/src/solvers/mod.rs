@@ -692,8 +692,47 @@ impl CompiledModel {
                 }
             }
             let Some(dv) = solve_linear(&mut jac, &f) else {
+                // A column that is exactly zero is not a matrix that
+                // happened to come out ill conditioned: it is the
+                // block saying that nothing in it moves when that
+                // unknown moves, so no arithmetic on the matrix can
+                // find a step for it. Reported as a singular Jacobian
+                // the refusal names the solver, and the solver is the
+                // one place nothing is wrong - the fault is upstream,
+                // where the unknown was paired with an equation whose
+                // coefficient on it is zero at these values. Say
+                // which unknown, and say that the equations do not
+                // mention it.
+                //
+                // Measured on the library, /tmp/m200/census2.txt: the
+                // thirty-four models that said `singular Jacobian`
+                // came apart into twenty-two that say this and twelve
+                // that still say the other, so two thirds of the row
+                // were a dead column wearing the words of an ill
+                // conditioned matrix. No model moved - a refusal
+                // renamed is a wall named, not a wall removed - and
+                // 868/526 stood before and after. The smallest of the
+                // twenty-two are one unknown apiece and show the two
+                // ways in: `T1.irc` of the Spice3 `Oscillator`, whose
+                // `irc * m_collectorResist = ...` has a collector
+                // resistance the model card leaves at zero, and
+                // `bearingFriction.sa` of `GearType2`, which every
+                // branch of the friction `if` drops where the bearing
+                // is locked. A parameter that is zero and a branch
+                // that does not mention it come to the same column.
+                let dead: Vec<&str> = (0..n)
+                    .filter(|&j| jac.iter().all(|row| row[j] == 0.0))
+                    .map(|j| block_names()[j])
+                    .collect();
+                if dead.is_empty() {
+                    return err(format!(
+                        "singular Jacobian in algebraic loop {:?}",
+                        block_names()
+                    ));
+                }
                 return err(format!(
-                    "singular Jacobian in algebraic loop {:?}",
+                    "the equations of algebraic loop {:?} do not mention {dead:?} at t = {t}: \
+                     nothing in the block changes when it does, so no step determines it",
                     block_names()
                 ));
             };
