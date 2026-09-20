@@ -12389,12 +12389,12 @@ slot the plan owns, and it wants its own fix.
 
 ### The families, and where each is
 
-| model                        | free name          | cause                                                                  |
-| ---------------------------- | ------------------ | ---------------------------------------------------------------------- |
-| `DemonstrateLightning`       | `signalSource.T10` | step not small next to a microsecond; measured, reverted, parked       |
-| `EmptyTanks`                 | `tank1.U`          | `u := U/m` divides by an empty tank's zero mass; cured, the model runs |
-| `ReferenceAir.DryAir1`       | `volume.U`         | not this cause: refuses identically with the cure switched off         |
-| `AmplifierWithOpAmpDetailed` | `opAmp.v_in`       | not this cause: refuses identically with the cure switched off         |
+| model                        | free name          | cause                                                                   |
+| ---------------------------- | ------------------ | ----------------------------------------------------------------------- |
+| `DemonstrateLightning`       | `signalSource.T10` | step not small next to a microsecond; three shapes measured, all parked |
+| `EmptyTanks`                 | `tank1.U`          | `u := U/m` divides by an empty tank's zero mass; cured, the model runs  |
+| `ReferenceAir.DryAir1`       | `volume.U`         | not this cause: refuses identically with the cure switched off          |
+| `AmplifierWithOpAmpDetailed` | `opAmp.v_in`       | not this cause: refuses identically with the cure switched off          |
 
 ### The cure, and what it cost
 
@@ -12437,3 +12437,69 @@ sibling, but `PointGravity` and `SpringWithMass` are mechanical and
 had nothing to do with any energy balance. A cause named by its
 mechanism reaches models no census of symptoms would have grouped
 with it, and misses models a census of symptoms did group.
+
+## The Newton difference step: the third variant, measured and parked
+
+Two shapes of the step had been measured before: relative to the
+unknown, which kills the machines because every one of their unknowns
+starts at a true zero, and a floor of one, which is the old formula
+wherever the scale is small and so does nothing for the lightning. A
+third was left unmeasured and looked like it answered both: a step of
+the unknown's own scale, `1e-7 * max(|y|, |start|)`, falling back to
+an absolute `1e-7` only where that maximum is exactly zero. On paper
+the lightning gets a step of `3.7e-14` against its `3.7e-7`, and the
+machines, whose maximum is zero, get the old absolute step to the
+digit.
+
+Measured behind `OXIDELICA_SCALED_STEP` in both places a difference
+is taken - the run's Jacobian and the initialisation's - it fails on
+both sides:
+
+```text
+DemonstrateLightning   off: refuses on signalSource.T10
+                       on:  refuses on signalSource.T
+machines (3 named)     off: 3 flatten, 3 run
+                       on:  3 flatten, 0 run
+```
+
+The lightning does not arrive. What changes is only which name the
+refusal prints, `T10` becoming `T`, which is the signature of a
+different column going free rather than of a model that got closer to
+running. And the machines leave, all three, despite the argument that
+for them the formula is unchanged - so the argument was wrong
+somewhere, and the place it is wrong is `|start|`: a machine's
+unknowns are not all at a true zero after all, and those with a start
+get a step scaled to it, which is not the old one. Reverted.
+
+### And the measurement that was supposed to come first
+
+The maliava asked for a cheaper check before any of this: run the
+three machines at two absolute step sizes and compare the final
+numbers rather than the fact of running, because holding a model in
+the floor on a derivative one has called a lie is not a win. Behind
+`OXIDELICA_JACOBIAN_STEP`, at `1e-7` and `1e-6`, comparing the last
+row column by column and ignoring columns below `1e-6` in magnitude:
+
+```text
+SMPM_VoltageSource   worst relative difference 2.3e-4 (der(smpm.airGap.V_msr.re))
+SMEE_Generator       worst relative difference 0 exactly
+IMC_YD               does not finish at 1e-7 at all
+```
+
+Two of the three are solid: their numbers do not depend on the step,
+so what they run is an answer and not noise, and the maliava's
+criterion of keeping them stands for those two. The third is neither
+solid nor noise - it converges at one step and not at the other,
+which is the edge rather than a wrong number, and it sits in the
+floor on a coin toss. Recording it as "the machines do not leave" was
+the thing to avoid.
+
+Two cautions about that measurement, both of which narrow it. The
+switch sat in the run's Jacobian rather than in the initialisation's,
+so what was compared is wider than the initialisation question that
+prompted it, and IMC_YD's failure at `1e-7` is a runtime algebraic
+loop rather than an initialisation. And a flat `1e-7` is smaller than
+anything production takes, since `1e-7 * (1 + |y|)` is at least
+`1e-7` and twice that for an unknown of order one - so "does not run
+at 1e-7" is a statement about a step the compiler never chooses.
+Asked of the shipping binary with no switch at all, IMC_YD runs.
