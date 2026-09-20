@@ -11972,3 +11972,45 @@ thirteen shapes were tried, and while a probe shows the reduction
 layer taking the two readings apart on a four-equation model, none of
 them differs in outcome. The fault needs a chain deeper than a small
 model carries, so the corpus is the only witness this one has.
+
+## The phase without a ceiling, named
+
+The model is `Modelica.Mechanics.MultiBody.Examples.Elementary.RollingWheel`,
+with `RollingWheelSetDriving` and `RollingWheelSetPulling` beside it,
+and it was named by a probe rather than by a tail. The corpus counter
+says how many models have _finished_, so the three that never finish
+leave no mark on it; printing `start` and `done` around each model and
+subtracting the two lists names them in one pass. The tail of the log
+names Fluid, as it did on shift 119 and shift 128, and it is a lie both
+times - notes and counters reach the disk out of order.
+
+The phase is index reduction, and it was named by sampling the wedged
+process: 6745 of 7477 samples stood in
+`reduce_index -> solve_linear_known -> substitute`. `RollingWheel`
+with the change switched off takes 9s to flatten and 17s to run; with
+it on the reduction did not come out after twenty minutes.
+
+The cause is not the change. The change merely handed the layer slopes
+big enough to show a fault already there: the slope was folded one
+parameter at a time, and each `substitute` rebuilds the whole tree, so
+the work is the size of the slope times the number of names in it.
+A wheel rolling on a surface differentiates into an expression with
+thousands of references, and the square of that is the phase with no
+ceiling. Two changes together answer it - the cheap question first,
+which is whether the slope names anything the table knows at all, and
+one walk for the whole table where there were as many walks as names.
+
+Measured from one binary over `.msl` with the fold behind
+`OXIDELICA_NO_REDUCTION_PARAMS` (`/tmp/m195/before.list`,
+`/tmp/m195/after.list`): both halves read 1040 models, both flatten 868
+and run 520, and the diff of the two run lists is empty. The time per
+model is 2193ms flattening and 1840ms running without the change,
+against 2262ms and 1847ms with it.
+
+What moved is the register, by name. Four rows quoting
+`der(aimc.airGap.psi_ms[1])` and its `aimcE`, `aims`, `aimsE`
+namesakes, together with a fifth quoting `aimc.airGap.i_ss[1]`, are
+gone; `singular Jacobian in algebraic loop ["aimc.airGap.gamma", ...]`
+arrives with 7 and its `aims` twin with 1. Eight models one storey up,
+no model lost, and the wall they now stand at is an honest statement
+about the model rather than an infinity charged to the solver.

@@ -642,3 +642,49 @@ fn the_probe_names_each_placed_unknown_with_its_equation() {
         ]
     );
 }
+
+#[test]
+fn a_slope_is_folded_in_one_walk_rather_than_one_per_name() {
+    // Index reduction hands slopes far larger than anything a model
+    // writes by hand: a wheel rolling on a surface differentiates into
+    // an expression with thousands of names in it. Folded one name at
+    // a time, each substitution rebuilds the whole tree, so the work
+    // is the size of the slope times the number of names it mentions -
+    // and `RollingWheel` never came out of the reduction at all.
+    //
+    // The check is a clock rather than a shape, because the answer was
+    // always right and only the price was wrong. The bound is wide
+    // enough that a slow machine does not fire it and narrow enough
+    // that the quadratic walk does: measured, the one walk takes
+    // milliseconds and the walk per name takes tens of seconds.
+    // The slope is built rather than parsed: a sum of two thousand
+    // names is deeper than the parser follows, and a balanced tree is
+    // the same expression without the depth.
+    let names: Vec<String> = (0..16384).map(|i| format!("p{i}")).collect();
+    fn balanced(names: &[String]) -> Expr {
+        match names {
+            [one] => Expr::Ref(one.clone()),
+            _ => {
+                let (left, right) = names.split_at(names.len() / 2);
+                Expr::Bin(
+                    oxidelica_parser::BinOp::Add,
+                    Box::new(balanced(left)),
+                    Box::new(balanced(right)),
+                )
+            }
+        }
+    }
+    let rhs = Expr::Bin(
+        oxidelica_parser::BinOp::Mul,
+        Box::new(Expr::Ref("a".to_string())),
+        Box::new(balanced(&names)),
+    );
+    let known: HashMap<String, f64> = names.iter().map(|n| (n.clone(), 1.0)).collect();
+    let started = std::time::Instant::now();
+    assert!(solve_linear_known(&Expr::Ref("q".to_string()), &rhs, "a", &known).is_some());
+    assert!(
+        started.elapsed().as_secs() < 5,
+        "folding the slope took {:?}",
+        started.elapsed()
+    );
+}

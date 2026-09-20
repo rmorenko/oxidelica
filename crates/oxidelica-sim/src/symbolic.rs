@@ -129,6 +129,23 @@ pub(crate) fn substitute(expr: &Expr, var: &str, value: f64) -> Expr {
     }
 }
 
+/// Replace every reference the table names, in one walk.
+///
+/// The same work as calling `substitute` once per name, at the price
+/// of one traversal rather than one per name. The difference is not a
+/// constant: a slope carrying a thousand references was walked a
+/// thousand times over, which is quadratic in a tree that index
+/// reduction is perfectly capable of growing to that size.
+fn substitute_all(expr: &Expr, table: &HashMap<&str, f64>) -> Expr {
+    match expr {
+        Expr::Ref(name) => match table.get(name.as_str()) {
+            Some(value) => Expr::Number(*value),
+            None => expr.clone(),
+        },
+        _ => expr.map_children(&mut |child| substitute_all(child, table)),
+    }
+}
+
 /// Solve `lhs = rhs` symbolically for `var` when the equation is linear
 /// in it: with residual `r = a*var + b`, the solution is `-b/a`, where
 /// `a` is the (var-free) derivative and `b` is `r` at `var = 0`.
@@ -182,14 +199,22 @@ pub(crate) fn solve_linear_known(
     // carries thousands of parameters and a slope mentions two, so the
     // cheap direction is to ask the slope what it needs; the other way
     // round pays the whole table on every equation.
-    let judged = {
-        let mut folded = slope.clone();
-        for name in &refs {
-            if let Some(value) = known.get(*name) {
-                folded = substitute(&folded, name, *value);
-            }
-        }
-        simplify(&folded)
+    //
+    // And the cheap question comes before any substitution at all: a
+    // slope naming nothing the table knows is folded into itself, and
+    // the walk that discovers this costs one lookup per name against a
+    // whole rebuild of the tree. Index reduction hands slopes with
+    // thousands of references here, and the two faults compounded -
+    // one walk per name over a tree that size is quadratic, and the
+    // reduction on `RollingWheel` never came out of it.
+    let wanted: HashMap<&str, f64> = refs
+        .iter()
+        .filter_map(|name| known.get(*name).map(|value| (*name, *value)))
+        .collect();
+    let judged = if wanted.is_empty() {
+        slope.clone()
+    } else {
+        simplify(&substitute_all(&slope, &wanted))
     };
     if matches!(judged, Expr::Number(x) if x == 0.0) {
         return None;

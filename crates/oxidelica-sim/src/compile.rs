@@ -1041,6 +1041,28 @@ fn implicit_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_IMPLICIT_DIFF").is_none()
 }
 
+/// The reduction's door to the linear solver, with the parameters in
+/// view unless the switch takes them away.
+///
+/// A slope written `L[1,2]` is a number the moment the parameter table
+/// is consulted, and `AirGapS` writes that entry as an outright zero:
+/// judged without the table the equation looks as though it mentions
+/// its unknown, the reduction divides through, and the run reports an
+/// infinite residual against the solver rather than a refusal against
+/// the model. The switch is here so that one binary can be measured
+/// both ways.
+fn reduction_solve(
+    lhs: &Expr,
+    rhs: &Expr,
+    var: &str,
+    params: &HashMap<String, f64>,
+) -> Option<Expr> {
+    if std::env::var_os("OXIDELICA_NO_REDUCTION_PARAMS").is_some() {
+        return solve_linear_for(lhs, rhs, var);
+    }
+    solve_linear_known(lhs, rhs, var, params)
+}
+
 /// Whether an initial equation reaches the states behind the algebraic
 /// names it mentions.
 ///
@@ -1216,7 +1238,7 @@ fn reduce_index(
                         // plain name is written as one, and
                         // everything after this reads the shape
                         // rather than the wrapping.
-                        solve_linear_for(l, r, name).map(|solved| simplify(&solved))
+                        reduction_solve(l, r, name, params).map(|solved| simplify(&solved))
                     });
                 if let Some(solved) = answer {
                     candidates.push((name.to_string(), solved.clone()));
@@ -1310,7 +1332,7 @@ fn reduce_index(
                     })
                     .collect();
                 if let [only] = unsettled[..] {
-                    if solve_linear_for(l, r, only).is_none() {
+                    if reduction_solve(l, r, only, params).is_none() {
                         found
                             .entry(only.to_string())
                             .or_insert_with(|| (l.clone(), r.clone()));

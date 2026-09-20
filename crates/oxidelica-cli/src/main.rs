@@ -809,8 +809,9 @@ fn library_check(args: &[String]) -> Result<(), String> {
                     .spawn_scoped(threads, move || {
                         let mut mine = Vec::new();
                         for (at, name) in models.iter().enumerate().skip(hand).step_by(hands) {
-                            if std::env::var("OXIDELICA_TRACE").is_ok() {
-                                eprintln!("{name}");
+                            let traced = std::env::var("OXIDELICA_TRACE").is_ok();
+                            if traced {
+                                eprintln!("start {name}");
                             }
                             // A model that panics is one line of the
                             // register, not the death of a forty
@@ -849,6 +850,9 @@ fn library_check(args: &[String]) -> Result<(), String> {
                                 }),
                             ));
                             let now = done.fetch_add(1, Ordering::Relaxed) + 1;
+                            if traced {
+                                eprintln!("done  {name}");
+                            }
                             if quiet {
                                 continue;
                             }
