@@ -12369,9 +12369,9 @@ slot the plan owns, and it wants its own fix.
 
 ### The families, and where each is
 
-| model | free name | cause |
-| ----- | --------- | ----- |
-| `DemonstrateLightning` | `signalSource.T10` | step not small next to a microsecond; measured, reverted, parked |
-| `EmptyTanks` | `tank1.U` | state the plan overwrites; residual is `NaN` |
-| `ReferenceAir.DryAir1` | `volume.U` | state the plan overwrites; column exactly zero |
-| `AmplifierWithOpAmpDetailed` | `opAmp.v_in` | state the plan overwrites; `v_in = Rdm*i_r2` beside `i_c3 = Cin*der(v_in)` |
+| model                        | free name          | cause                                                                      |
+| ---------------------------- | ------------------ | -------------------------------------------------------------------------- |
+| `DemonstrateLightning`       | `signalSource.T10` | step not small next to a microsecond; measured, reverted, parked           |
+| `EmptyTanks`                 | `tank1.U`          | state the plan overwrites; residual is `NaN`                               |
+| `ReferenceAir.DryAir1`       | `volume.U`         | state the plan overwrites; column exactly zero                             |
+| `AmplifierWithOpAmpDetailed` | `opAmp.v_in`       | state the plan overwrites; `v_in = Rdm*i_r2` beside `i_c3 = Cin*der(v_in)` |
