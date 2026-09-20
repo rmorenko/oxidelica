@@ -11782,8 +11782,38 @@ row where no demoted condition is involved at all.
 The next question is therefore about the pinned side rather than the
 condition side - why `airGap.psi_ms[1]` and its kin are still counted
 as pinned unknowns when the written section and the machine's own
-structure speak about them. That is one layer, not ten, and the probe
-that would answer it is `oxidelica why` on a single `psi_mr[1]`.
+structure speak about them. `oxidelica why` on a single flux answers
+it in one command, and the answer is that they are not five
+independent unknowns:
+
+```text
+smpm.airGap.psi_mr[1] = L[1,1]*i_mr[1] + L[1,2]*i_mr[2]
+smpm.airGap.psi_ms[1] = R[1,1]*psi_mr[1] + R[1,2]*psi_mr[2]
+smpm.airGap.psi_ms[2] = R[2,1]*psi_mr[1] + R[2,2]*psi_mr[2]
+```
+
+`psi_ms` is the rotation of `psi_mr`, written out as an equation of
+the air gap. So a machine carrying both as states carries the same two
+degrees of freedom twice over, and the initialisation counts a pinned
+start for each copy. That is the aggregate fault these notes already
+name, seen once more: a value read two ways, and the reading cannot
+see that one of the two is a definition of the other. Whether the cure
+belongs in index reduction, which should not have kept both, or in the
+count, which should not pin a state a definition reaches, is the
+question the next shift takes - and the surplus of two in
+`SMPM_Braking` is exactly the size of one such duplicated pair, which
+is what the arity hypothesis was mistaking for two components.
+
+The batteries that left the same row have their own fork named, and it
+is not this one. `CCCV_Cell` now stops at `singular Jacobian in
+algebraic loop ["cell.p.v", "cell.heatFlowSensor.port_a.Q_flow",
+"cell.cell.currentSensor.p.v", "cell.cell.ocv.p.i"]`, and the probe on
+`cell.p.v` shows a variable bound to nothing, standing in three
+equations that all relate it to another potential -
+`cell.v = cell.p.v - cell.n.v`, and two connections equating it to a
+sensor's pin. A loop of pure potentials with a heat flow in it, which
+is a different layer again from the initialisation count and is
+recorded here as a fork rather than taken.
 
 ## The nominal attribute, and what it can and cannot buy
 
