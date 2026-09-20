@@ -59,10 +59,12 @@ fn a_plain_start_is_a_guess_but_fixed_is_an_initial_condition() {
 #[test]
 fn the_initialisation_problem_is_solved_or_named() {
     // An initial equation that pins nothing.
+    // `0 = 0` is satisfied wherever `x` stands, so the refusal owed
+    // is the one about a family rather than the one about a step.
     assert!(refused(
         "model M Real x(start = 0); equation der(x) = 1; initial equation 0 = 0; end M;"
     )
-    .contains("initialization problem is singular"));
+    .contains("satisfied but not determined"));
     // One that cannot be solved from where it starts.
     let model = parse_model(
         "model M Real x(start = 1); equation der(x) = 1; initial equation x * x = -1; end M;",
@@ -105,7 +107,7 @@ fn initialization_reports_what_it_cannot_solve() {
         "model M Real a(start = 1); Real b; equation der(a) = -a; b = 2 * a; \
          initial equation b = 2 * a; end M;"
     )
-    .contains("singular"));
+    .contains("satisfied but not determined"));
     // `der` of something that is neither a state nor a name with a
     // definition to differentiate. `b + sin(b) = a` determines `b`
     // and no rearrangement gets it alone on a side, so the chain rule
@@ -1083,4 +1085,82 @@ fn a_condition_on_a_blocks_unknown_does_not_also_pin_the_state() {
     // `d`, which no condition says anything about, does.
     let d0 = result.rows[0][index("d")];
     assert!((d0 - 0.3).abs() < 1e-9, "d(0) = {d0}");
+}
+
+/// A singular initialisation names the unknowns its equations leave
+/// free, and names all of them.
+///
+/// Eight models of the standard library stood behind a refusal that
+/// said the equations "do not pin the states down" and named no state
+/// at all - the same shape as the differentiator's, and the same cure.
+/// The honest name is the Jacobian's null direction: `x + y = 3`
+/// beside `2*x + 2*y = 7` leaves the pair free together, and no step
+/// solves.
+///
+/// The obvious cheaper answer, the column Gaussian elimination stops
+/// on, is not a fact about the model: columns are walked in the order
+/// the unknowns sit in the vector, so it would name whichever of `x`
+/// and `y` was declared first and would change its mind when the
+/// declarations were swapped. That is checked here by swapping them.
+#[test]
+fn a_singular_initialisation_names_every_unknown_it_leaves_free() {
+    let model = |declarations: &str| {
+        format!(
+            "model M {declarations} \
+             equation der(x) = -x + y; der(y) = -y + x; der(z) = -z; \
+             initial equation x + y = 3; 2*x + 2*y = 7; der(z) = 0; end M;"
+        )
+    };
+    let message = refused(&model(
+        "Real x(start = 1); Real y(start = 2); Real z(start = 0.5);",
+    ));
+    assert!(
+        message.contains("the Newton step does not solve"),
+        "{message}"
+    );
+    // The names are read out of the brackets rather than looked for
+    // in the sentence, which says "initialization" and would answer
+    // yes to a search for `z` whatever the model did.
+    let names = |text: &str| {
+        let inside = text.split('[').nth(1).unwrap().split(']').next().unwrap();
+        let mut parts: Vec<&str> = inside.split(", ").collect();
+        parts.sort_unstable();
+        parts.join(",")
+    };
+    // `z`, which its own condition settles, is not among the free.
+    assert_eq!(names(&message), "x,y", "{message}");
+    // And the answer does not depend on the order of the declarations.
+    let swapped = refused(&model(
+        "Real z(start = 0.5); Real y(start = 2); Real x(start = 1);",
+    ));
+    assert_eq!(names(&message), names(&swapped), "{message} / {swapped}");
+}
+
+/// The other singular site: the equations are satisfied where the
+/// guess stands, and still leave a family around it.
+///
+/// `der(x) = 0` and `der(y) = 0` over a pair that only sees its own
+/// difference is solved by every point on `x = y`, and the guess is
+/// one of them. The two sites said the same sentence before, which
+/// hid the difference between "no step solves" and "solved, but the
+/// answer was a guess".
+#[test]
+fn a_determined_looking_initialisation_that_is_only_satisfied_says_so() {
+    let message = refused(
+        "model M Real x(start = 1); Real y(start = 1); \
+         equation der(x) = -x + y; der(y) = -y + x; \
+         initial equation der(x) = 0; der(y) = 0; end M;",
+    );
+    assert!(
+        message.contains("satisfied but not determined"),
+        "{message}"
+    );
+    let inside = message
+        .split('[')
+        .nth(1)
+        .unwrap()
+        .split(']')
+        .next()
+        .unwrap();
+    assert_eq!(inside, "x, y", "{message}");
 }

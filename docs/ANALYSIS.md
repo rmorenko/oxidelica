@@ -12164,3 +12164,51 @@ For scale: `MultiBody.Examples.Elementary.RollingWheel` now flattens in
 (`library check .msl --only`, one model each). Neither is near a wall;
 the wall is what a model that never finishes needs, and nothing measures
 it today.
+
+## The eight singular initialisations, and which site raised them
+
+The run census's top row was `the initialization problem is singular:
+its equations do not pin the states down`, eight models, and the
+sentence named no state. Two places raised it and they are different
+positions - one where Newton has satisfied the equations and the
+Jacobian is still singular, one where no step solves at all - so the
+first question was which. All eight came from the second
+(`compile.rs:4759`); the first fired for no model of the library.
+
+The names the refusal now carries, one probe each, by group:
+
+```text
+AmplifierWithOpAmpDetailed               opAmp.v_in
+DemonstrateLightning                     lightning1.signalSource.T10
+Lines.LightningLosslessTransmissionLine  lightningImpulseCurrent.signalSource.eta
+Lines.LightningSegmentedTransmissionLine lightningImpulseCurrent.signalSource.eta
+Fluid.Examples.Tanks.EmptyTanks          tank1.U
+ModelicaTest...Vessels.TestSimpleTank    tank.U
+Media.Examples.ReferenceAir.DryAir1      volume.U
+Media.Examples.ReferenceAir.DryAir2      volume.U
+```
+
+So the row is not one family but four: an operational amplifier's
+input voltage, the impulse source's shape parameters, and two
+independent arrivals at a vessel's internal energy. The three twin
+pairs agree with each other, which is the check that the name is a
+fact about the model rather than an artefact of the instrument - and
+that check was worth making, because the cheap answer would have been
+an artefact.
+
+The cheap answer is the column Gaussian elimination stops on.
+`solve_linear` pivots by row within a column and walks the columns in
+the order the unknowns sit in the vector, so a degeneracy spanning
+three states is blamed on whichever of them was declared first, and
+swapping two declarations moves the blame while the model stays the
+same. What is reported instead is the Jacobian's null direction, which
+is the family of starting points the equations do not choose between;
+every unknown with a component in it is unpinned. Measured on a
+twelve-line model, the set is the same with the declarations in either
+order and only the listing order differs.
+
+Three of the four groups point at a quantity a component computes
+rather than at a state the model declared - `U` is a vessel's internal
+energy, `eta` a shape parameter of the impulse. Where those come from
+is the work behind this row; the refusal now says which name to ask
+`why` about, which it did not before.

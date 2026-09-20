@@ -4477,6 +4477,48 @@ impl CompiledModel {
         worked_out
     }
 
+    /// The unknowns of the initialisation that its equations leave
+    /// free, named as the flat model names them.
+    ///
+    /// The null direction of the Jacobian is the family of starting
+    /// points the equations do not choose between, and an unknown with
+    /// a component in it is one the equations do not pin down. The
+    /// column elimination happens to stop on is not that fact: it
+    /// depends on the order the unknowns sit in the vector, so it
+    /// would blame a three-state degeneracy on whichever state was
+    /// declared first.
+    ///
+    /// Components are weighed against the largest, so that an unknown
+    /// whose coefficient is finite-difference noise beside a genuinely
+    /// free one is not named alongside it.
+    fn unpinned_names(&self, jac: &mut [Vec<f64>], unsettled: &[(String, Slot)]) -> Vec<String> {
+        let name = |index: usize| -> String {
+            match self.states.get(index) {
+                Some(state) => state.clone(),
+                None => unsettled
+                    .get(index - self.states.len())
+                    .map(|(had, _)| had.clone())
+                    .unwrap_or_else(|| format!("unknown #{index}")),
+            }
+        };
+        let Some(direction) = crate::linear::null_direction(jac) else {
+            // Elimination found no free column: the matrix came apart
+            // for a reason this cannot name, and saying nothing is
+            // better than naming the wrong thing.
+            return vec!["the unknowns it solves for".to_string()];
+        };
+        let largest = direction.iter().fold(0.0_f64, |m, c| m.max(c.abs()));
+        if largest == 0.0 {
+            return vec!["the unknowns it solves for".to_string()];
+        }
+        direction
+            .iter()
+            .enumerate()
+            .filter(|(_, component)| component.abs() > 1e-6 * largest)
+            .map(|(index, _)| name(index))
+            .collect()
+    }
+
     /// Solve the initialization problem: the state vector a run starts
     /// from is the one satisfying the `initial equation` section
     /// together with every state declared `fixed = true`.
@@ -4736,10 +4778,12 @@ impl CompiledModel {
                 // starting points and this one is just the guess.
                 let probe = vec![1.0; n];
                 if solve_linear(&mut jac.clone(), &probe).is_none() {
-                    return err(
-                        "the initialization problem is singular: its equations do not pin the states down"
-                            .to_string(),
-                    );
+                    return err(format!(
+                        "the initialization problem is satisfied but not determined: the \
+                         equations leave a family of starting points, free along [{}], and \
+                         this one is only the guess",
+                        self.unpinned_names(&mut jac.clone(), unsettled).join(", "),
+                    ));
                 }
                 // The states go back as the point the run begins from;
                 // a parameter solved for is a parameter from here on,
@@ -4755,11 +4799,12 @@ impl CompiledModel {
                 self.initial = y;
                 return Ok(());
             }
-            let Some(step) = solve_linear(&mut jac, &f) else {
-                return err(
-                    "the initialization problem is singular: its equations do not pin the states down"
-                        .to_string(),
-                );
+            let Some(step) = solve_linear(&mut jac.clone(), &f) else {
+                return err(format!(
+                    "the initialization problem is singular: the Newton step does not solve, \
+                     because its equations do not pin down [{}]",
+                    self.unpinned_names(&mut jac, unsettled).join(", "),
+                ));
             };
             for j in 0..n {
                 y[j] -= step[j];

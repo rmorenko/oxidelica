@@ -187,6 +187,56 @@ pub(crate) fn smallest_pivot(a: &mut [Vec<f64>]) -> f64 {
     smallest
 }
 
+/// A direction the matrix sends to zero, or `None` if there is none.
+///
+/// This is what a singular initialisation problem owes its reader.
+/// The column elimination stops on is not a fact about the model: the
+/// columns are walked in the order the unknowns happen to sit in the
+/// vector, so a degeneracy spanning three states is blamed on
+/// whichever of them was declared first, and reordering the
+/// declarations moves the blame. The null direction is the whole
+/// family, and every unknown with a component in it is unpinned.
+///
+/// Elimination runs as in `solve_linear`. Where a column has no pivot
+/// left, that unknown is free: it is set to one and the leading
+/// triangular block is solved backwards for the rest. Rows below the
+/// failing column have zeros in every earlier column by elimination
+/// and a zero in this one by assumption, so they are satisfied too.
+pub(crate) fn null_direction(a: &mut [Vec<f64>]) -> Option<Vec<f64>> {
+    let n = a.len();
+    for col in 0..n {
+        let pivot_row = (col..n).max_by(|&r1, &r2| {
+            a[r1][col]
+                .abs()
+                .partial_cmp(&a[r2][col].abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+        if a[pivot_row][col].abs() < 1e-14 {
+            // This unknown is free. Back-substitute the triangular
+            // block above it for what the other unknowns must be.
+            let mut z = vec![0.0; n];
+            z[col] = 1.0;
+            for row in (0..col).rev() {
+                let mut sum = a[row][col];
+                for k in (row + 1)..col {
+                    sum += a[row][k] * z[k];
+                }
+                z[row] = -sum / a[row][row];
+            }
+            return Some(z);
+        }
+        a.swap(col, pivot_row);
+        for row in (col + 1)..n {
+            let factor = a[row][col] / a[col][col];
+            let (upper, lower) = a.split_at_mut(row);
+            for (k, value) in lower[0].iter_mut().enumerate().take(n).skip(col) {
+                *value -= factor * upper[col][k];
+            }
+        }
+    }
+    None
+}
+
 pub(crate) fn solve_linear(a: &mut [Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
     let n = b.len();
     let mut x = b.to_vec();
