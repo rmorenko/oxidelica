@@ -972,3 +972,51 @@ fn a_nominal_on_the_type_is_where_an_unknown_begins() {
         result.rows[0][p]
     );
 }
+
+/// An alias declared `fixed = true` is one condition, not two.
+///
+/// `y(fixed = true) = x` says exactly what the section's `x = 0.3`
+/// says, because index reduction demoted `y` to a variable the plan
+/// computes from `x`. Counted as a condition of its own, it made a
+/// square problem read as having two conditions for one unknown, and
+/// the model was refused as not square. And the test checks a number:
+/// the run must begin where the equation and the alias agree, at 0.3,
+/// and not at the 0.1 the declaration guesses.
+#[test]
+fn an_alias_declared_fixed_is_not_a_second_condition() {
+    let result = run("model M Real x(start = 0.1); \
+         output Real y(start = 0.3, fixed = true) = x; \
+         equation der(x) = -x; \
+         initial equation x = 0.3; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!(
+        (result.rows[0][index("x")] - 0.3).abs() < 1e-9,
+        "x(0) = {}",
+        result.rows[0][index("x")]
+    );
+    assert!((result.rows[0][index("y")] - 0.3).abs() < 1e-9);
+}
+
+/// A `fixed = true` on a variable the initialisation cannot move is no
+/// condition at all.
+///
+/// `w = 2 + time` is computed from the clock and from nothing the
+/// section can shift, so declaring `w` fixed constrains none of the
+/// unknowns. Counted anyway, it made a one-unknown problem look as
+/// though two conditions stood over it.
+#[test]
+fn a_fixed_start_reaching_no_unknown_is_no_condition() {
+    let result = run(
+        "model M Real x(start = 0.1); Real w(start = 2.0, fixed = true); \
+         equation der(x) = -x; w = 2.0 + time; \
+         initial equation x = 0.3; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    assert!(
+        (result.rows[0][index("x")] - 0.3).abs() < 1e-9,
+        "x(0) = {}",
+        result.rows[0][index("x")]
+    );
+}

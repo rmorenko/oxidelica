@@ -11671,6 +11671,35 @@ it. The work is to make `fixed_starts` say whether the demoted
 variable is an alias of something already pinned, and that is a change
 to what the structure records rather than a test on the spelling.
 
+### What the matching answered, and what it did not
+
+Both kinds turned out to be one question rather than two, and the
+question is not what a condition is spelled but what it determines.
+The written `initial equation` section was already matched against the
+states through the plan; the demoted `fixed` declarations were counted
+beside that matching without taking part in it. Put into the same
+matching - each demoted variable reaching whatever states its own
+definition reaches - an alias finds no state of its own, because the
+one behind it is already claimed by the equation that settles it, and
+`cccvCharger.CV` finds none because it reaches none. Neither needs a
+name read.
+
+Measured from one binary, the fix behind `OXIDELICA_COUNT_EVERY_CONDITION`:
+the `initialization is not square` row went 24 to 19
+(`/tmp/m191/before.txt:252`, `/tmp/m191/after.txt:252`). The five that
+left are `CCCV_Cell`, `CCCV_CellRC`, and the induction machines
+`IMC_DOL`, `IMS_Start` and their kin; six synchronous machines arrived
+in their place, having come up one storey from
+`airGap.RotationMatrix[1,1] ... is NaN at t = 0`, which is the family
+the register was already counting. The set of refused models is
+identical line for line, 520 either way
+(`/tmp/m191/raw_before.txt`, `/tmp/m191/raw_after.txt`), and the floors
+did not move: 868 flatten and 520 run, runnable 753 and 488
+(`/tmp/m191/floor_after.txt`). So this is a wall removed and not a
+model won - behind the double count of the batteries stands whatever
+their initialisation actually cannot solve, and behind the synchronous
+machines stands the NaN in the air gap.
+
 ## The nominal attribute, and what it can and cannot buy
 
 The 26 models refused with `the equations cannot be evaluated at the

@@ -4141,7 +4141,125 @@ pub(crate) fn collect_relations(expr: &Expr, out: &mut Vec<Expr>) {
     }
 }
 
+/// What [`CompiledModel::match_initial_conditions`] found: which
+/// condition each state is determined by, and whether each demoted
+/// `fixed` declaration determined one at all.
+struct InitialConditionMatch {
+    /// Per state, the index of the condition that claimed it.
+    state_taken: Vec<Option<usize>>,
+    /// Per demoted condition, the state it claimed, if any.
+    demoted_claims: Vec<Option<usize>>,
+}
+
 impl CompiledModel {
+    /// Which unknown each initial condition determines.
+    ///
+    /// The conditions are the written `initial equation` section
+    /// followed by the `fixed = true` declarations index reduction
+    /// demoted, and they are matched against the states as one bipartite
+    /// problem. A condition that finds no state of its own determines
+    /// nothing: an alias speaks for a state some other condition has
+    /// already claimed, and a demoted variable the initialisation cannot
+    /// move reaches no state at all.
+    ///
+    /// `None` when the reachability walk is switched off, in which case
+    /// the caller falls back to reading the spelling of the names.
+    fn match_initial_conditions(
+        &self,
+        initial_equations: &[EquationItem],
+        demoted: &[(usize, f64)],
+        fixed: &[bool],
+        plan: &[PlanStage],
+    ) -> Option<InitialConditionMatch> {
+        if !reach_enabled() {
+            return None;
+        }
+        // Only what an explicit assignment computes is followed. A
+        // variable a simultaneous block solves for is taken as reaching
+        // nothing, because the block's reachability is deliberately
+        // coarse - every input of the block reaches every unknown of
+        // it - and claiming a state on the strength of that coarseness
+        // unpins one the equation does not determine, which is how
+        // `FreeBody` lost its initialisation to a singular Jacobian.
+        let explicit_only: Vec<&PlanStage> = plan
+            .iter()
+            .filter(|stage| matches!(stage, PlanStage::Explicit { .. }))
+            .collect();
+        let through = states_behind_algebraics(&self.states, &self.algebraics, &explicit_only);
+        let through: Vec<Option<Vec<bool>>> = through
+            .into_iter()
+            .map(|row| Some(row.unwrap_or_else(|| vec![false; self.states.len()])))
+            .collect();
+        let index_of_state: HashMap<&str, usize> =
+            self.states.iter().map(|s| s.as_str()).zip(0..).collect();
+        let index_of_algebraic: HashMap<&str, usize> = self
+            .algebraics
+            .iter()
+            .map(|a| a.as_str())
+            .zip(0..)
+            .collect();
+        let candidates = |touched: &[bool]| -> Vec<usize> {
+            touched
+                .iter()
+                .enumerate()
+                .filter(|&(index, &yes)| yes && !fixed.get(index).copied().unwrap_or(false))
+                .map(|(index, _)| index)
+                .collect()
+        };
+        // A state the model declared `fixed = true` is already spoken
+        // for, so it is not a candidate: the declaration is the initial
+        // condition and a condition that also reaches it has to find
+        // another.
+        let mut cond_vars: Vec<Vec<usize>> = initial_equations
+            .iter()
+            .map(|equation| {
+                let mut touched = vec![false; self.states.len()];
+                reached_by(
+                    &equation.lhs,
+                    &mut touched,
+                    &through,
+                    &index_of_state,
+                    &index_of_algebraic,
+                );
+                reached_by(
+                    &equation.rhs,
+                    &mut touched,
+                    &through,
+                    &index_of_state,
+                    &index_of_algebraic,
+                );
+                candidates(&touched)
+            })
+            .collect();
+        // What a demoted variable reaches is what its own definition
+        // reaches: the plan computes it, and the states behind that
+        // computation are the ones moving it can settle.
+        for (index, _) in demoted {
+            let touched = through
+                .get(*index)
+                .and_then(|row| row.clone())
+                .unwrap_or_else(|| vec![false; self.states.len()]);
+            cond_vars.push(candidates(&touched));
+        }
+        let mut state_taken: Vec<Option<usize>> = vec![None; self.states.len()];
+        for condition in 0..cond_vars.len() {
+            let mut visited = vec![false; self.states.len()];
+            try_match(condition, &cond_vars, &mut state_taken, &mut visited);
+        }
+        let demoted_claims = (0..demoted.len())
+            .map(|offset| {
+                let condition = initial_equations.len() + offset;
+                state_taken
+                    .iter()
+                    .position(|taken| *taken == Some(condition))
+            })
+            .collect();
+        Some(InitialConditionMatch {
+            state_taken,
+            demoted_claims,
+        })
+    }
+
     /// Evaluate the plan once at the initial point, verifying that every
     /// implicit block is regular there. Catches models that are
     /// structurally fine but numerically underdetermined.
@@ -4287,11 +4405,33 @@ impl CompiledModel {
         // because that is what it is: a condition on a variable the
         // plan computes, satisfied by moving the states until the
         // computed value agrees with the declared one.
-        let demoted_fixed: Vec<(usize, f64)> = self
+        //
+        // A condition only counts where it has an unknown of its own to
+        // determine. An `output Real SOC(fixed = true) = limIntegrator.y`
+        // is an alias: the state behind it is the one the written
+        // `initial equation` already settles, so counting the alias as a
+        // second condition counts one statement twice. And a `fixed`
+        // variable standing outside the states entirely - `cccvCharger.CV`,
+        // computed from nothing the initialisation moves - determines none
+        // of the unknowns at all. Which of the two it is, is a question
+        // about what the condition reaches, and the matching below answers
+        // it from the plan rather than from the spelling of a name.
+        let demoted_all: Vec<(usize, f64)> = self
             .fixed_starts
             .iter()
             .map(|(_, index, value)| (*index, *value))
             .collect();
+        let condition_match =
+            self.match_initial_conditions(initial_equations, &demoted_all, fixed, plan);
+        let demoted_fixed: Vec<(usize, f64)> = match &condition_match {
+            Some(matched) => demoted_all
+                .iter()
+                .zip(&matched.demoted_claims)
+                .filter(|(_, claim)| claim.is_some())
+                .map(|(entry, _)| *entry)
+                .collect(),
+            None => demoted_all,
+        };
         let conditions = initial_equations.len() + demoted_fixed.len();
         // A state no initial equation says anything about is not an
         // unknown of the initialisation: nothing in the section can
@@ -4333,71 +4473,8 @@ impl CompiledModel {
             // many states as the matching can pair, and the rest stand
             // where they were declared to.
             let mut claimed = vec![false; self.states.len()];
-            if reach_enabled() {
-                // Only what an explicit assignment computes is followed.
-                // A variable a simultaneous block solves for is taken
-                // as reaching nothing, because the block's reachability
-                // is deliberately coarse - every input of the block
-                // reaches every unknown of it - and claiming a state on
-                // the strength of that coarseness unpins one the
-                // equation does not determine, which is how `FreeBody`
-                // lost its initialisation to a singular Jacobian.
-                let explicit_only: Vec<&PlanStage> = plan
-                    .iter()
-                    .filter(|stage| matches!(stage, PlanStage::Explicit { .. }))
-                    .collect();
-                let through =
-                    states_behind_algebraics(&self.states, &self.algebraics, &explicit_only);
-                let through: Vec<Option<Vec<bool>>> = through
-                    .into_iter()
-                    .map(|row| Some(row.unwrap_or_else(|| vec![false; self.states.len()])))
-                    .collect();
-                let index_of_state: HashMap<&str, usize> =
-                    self.states.iter().map(|s| s.as_str()).zip(0..).collect();
-                let index_of_algebraic: HashMap<&str, usize> = self
-                    .algebraics
-                    .iter()
-                    .map(|a| a.as_str())
-                    .zip(0..)
-                    .collect();
-                // A state the model declared `fixed = true` is already
-                // spoken for, so it is not a candidate: the declaration
-                // is the initial condition and an equation that also
-                // reaches it has to find another.
-                let eq_vars: Vec<Vec<usize>> = initial_equations
-                    .iter()
-                    .map(|equation| {
-                        let mut touched = vec![false; self.states.len()];
-                        reached_by(
-                            &equation.lhs,
-                            &mut touched,
-                            &through,
-                            &index_of_state,
-                            &index_of_algebraic,
-                        );
-                        reached_by(
-                            &equation.rhs,
-                            &mut touched,
-                            &through,
-                            &index_of_state,
-                            &index_of_algebraic,
-                        );
-                        touched
-                            .iter()
-                            .enumerate()
-                            .filter(|&(index, &yes)| {
-                                yes && !fixed.get(index).copied().unwrap_or(false)
-                            })
-                            .map(|(index, _)| index)
-                            .collect()
-                    })
-                    .collect();
-                let mut matched_eq: Vec<Option<usize>> = vec![None; self.states.len()];
-                for eq in 0..eq_vars.len() {
-                    let mut visited = vec![false; self.states.len()];
-                    try_match(eq, &eq_vars, &mut matched_eq, &mut visited);
-                }
-                for (state, taken) in matched_eq.iter().enumerate() {
+            if let Some(matched) = &condition_match {
+                for (state, taken) in matched.state_taken.iter().enumerate() {
                     claimed[state] = taken.is_some();
                 }
             } else {
