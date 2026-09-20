@@ -119,6 +119,32 @@ fn initialization_reports_what_it_cannot_solve() {
     .contains("is not a state"));
 }
 
+/// The refusal names the statements it counted, not only how many.
+#[test]
+fn a_lopsided_initialization_names_the_conditions_and_the_pinned_states() {
+    // Two states, one written condition and both states left pinned:
+    // three statements for two unknowns. A count alone leaves a reader
+    // to guess which of the three is the extra one, and on a machine
+    // of the library the guess is over a dozen names. So the refusal
+    // prints the parts of its own arithmetic - how many equations were
+    // written, which demoted starts were counted beside them, and
+    // which states stayed pinned.
+    let model = parse_model(
+        "model M Real a(start = 1, fixed = true); Real b(start = 2, fixed = true); \
+         equation der(a) = -a; der(b) = a - b; \
+         initial equation b = 3 * a; end M;",
+    )
+    .unwrap();
+    let error = compile(&model).unwrap_err().to_string();
+    assert!(error.contains("not square"), "{error}");
+    assert!(error.contains("1 written equation(s)"), "{error}");
+    assert!(
+        error.contains("the pinned states are [a, b]")
+            || error.contains("pinned states are [b, a]"),
+        "{error}"
+    );
+}
+
 #[test]
 fn a_start_written_through_a_type_alias_is_kept() {
     // `Units.AngularVelocity w(start = w0)` parses its parenthesis

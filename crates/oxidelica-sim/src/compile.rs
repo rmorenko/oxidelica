@@ -4500,11 +4500,36 @@ impl CompiledModel {
         filled.resize(n, false);
         let pinned = filled.iter().filter(|f| **f).count();
         if conditions + pinned != n {
+            // A count without names says a problem is lopsided and
+            // leaves the reader to guess which statement is the extra
+            // one. Every term of the arithmetic has names behind it -
+            // the written section, the demoted declarations counted
+            // beside it, the states that stayed pinned - so the
+            // refusal prints them, and a reader can see at a glance
+            // whether the two surplus conditions are the two
+            // components of one two-component quantity.
+            let demoted_names: Vec<&str> = self
+                .fixed_starts
+                .iter()
+                .filter(|(_, index, _)| demoted_fixed.iter().any(|(taken, _)| taken == index))
+                .map(|(name, _, _)| name.as_str())
+                .collect();
+            let pinned_names: Vec<&str> = self
+                .states
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| filled.get(*index).copied().unwrap_or(false))
+                .map(|(_, state)| state.as_str())
+                .collect();
             return err(format!(
                 "initialization is not square: {conditions} initial equation(s) and {pinned} \
                  fixed start(s) for {n} unknown(s) ({states} state(s) and {} parameter(s) left \
-                 to it)",
-                unsettled.len()
+                 to it); the conditions are {} written equation(s) and the demoted start(s) [{}], \
+                 the pinned states are [{}]",
+                unsettled.len(),
+                initial_equations.len(),
+                demoted_names.join(", "),
+                pinned_names.join(", "),
             ));
         }
         let fixed = &filled[..];

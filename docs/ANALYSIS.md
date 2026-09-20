@@ -11724,6 +11724,67 @@ model won - behind the double count of the batteries stands whatever
 their initialisation actually cannot solve, and behind the synchronous
 machines stands the NaN in the air gap.
 
+### What now stands at `not square`, named rather than counted
+
+The count said the row held nineteen and said nothing about which
+statement in each was the extra one, so the refusal was taught to
+print the parts of its own arithmetic: how many equations the model
+wrote, which demoted starts were counted beside them, and which states
+stayed pinned. That is one command per model now instead of a guess.
+
+The hypothesis offered for the surplus was that it is a
+two-component quantity counted twice - a `SpacePhasor` array of two or
+a `re`/`im` pair - which would make every surplus even and a multiple
+of two. It is dead, and the first model killed it. `SMPM_Braking`:
+
+```text
+4 initial equation(s) and 3 fixed start(s) for 5 unknown(s);
+the conditions are 3 written equation(s) and the demoted start(s)
+[smpm.wMechanical], the pinned states are
+[smpm.airGap.psi_ms[1], smpm.airGap.psi_mr[1], smpm.airGap.psi_mr[2]]
+```
+
+The surplus of two is not two components of one object. It is one
+scalar mechanical speed counted as a condition while three separate
+flux states stay pinned, and `psi_ms[1]` and `psi_mr[1]` are not two
+halves of anything - they are the stator's and the rotor's.
+
+Measured on all ten arrivals from one binary, the shape that does
+repeat is a different one and it is a shape about the writer, not
+about the arity. Two writers supply conditions here: the model's own
+`initial equation` section, and the `fixed = true` declarations index
+reduction demoted. Across the ten, the demoted list is almost entirely
+three names - `wMechanical`, `ir[2]` and, once, `gamma`/`gammar`:
+
+```text
+Machines.SMPM_Braking        3 written + [wMechanical]
+Machines.SMR_DOL             2 written + [wMechanical, ir[2]]
+Machines.SMPM_Inverter       2 written + [wMechanical, ir[2]]
+Machines.SMR_Inverter        2 written + [wMechanical, ir[2]]
+Machines.SMPM_VoltageSource  5 written + [wMechanical]
+Machines.SMEE_Rectifier      7 written + [ir[2]]
+FW.SMPM_Inverter             4 written + [smpmM.wMechanical, smpmE.wMechanical, smpmE.ir[2]]
+FW.SMR_Inverter              4 written + [smrM.wMechanical, smrE.wMechanical, smrE.ir[2]]
+FW.SMEE_Rectifier            7 written + []
+QS.SMPM_Mains                3 written + [smpmQS.wMechanical, smpm.wMechanical, smpmQS.gamma, smpmQS.gammar]
+```
+
+So the family is one and its name is the rotor: the machines pin flux
+states of the air gap that the demoted `wMechanical` and `ir[2]` do
+not reach, while contributing conditions of their own. The `FW`
+entries are the same machine twice over in one model - an `M` and an
+`E` copy compared against each other - which is why their surplus is
+double, and not because a quantity has two components. `FW.SMEE_Rectifier`
+settles it outright: its demoted list is empty and it is still
+lopsided by one, with eight pinned states, so there is a case in this
+row where no demoted condition is involved at all.
+
+The next question is therefore about the pinned side rather than the
+condition side - why `airGap.psi_ms[1]` and its kin are still counted
+as pinned unknowns when the written section and the machine's own
+structure speak about them. That is one layer, not ten, and the probe
+that would answer it is `oxidelica why` on a single `psi_mr[1]`.
+
 ## The nominal attribute, and what it can and cannot buy
 
 The 26 models refused with `the equations cannot be evaluated at the
