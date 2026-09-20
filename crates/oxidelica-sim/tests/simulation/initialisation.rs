@@ -1164,3 +1164,52 @@ fn a_determined_looking_initialisation_that_is_only_satisfied_says_so() {
         .unwrap();
     assert_eq!(inside, "x, y", "{message}");
 }
+
+/// An initialisation whose first point is one arithmetic cannot
+/// answer is moved off it rather than refused.
+///
+/// `U = m*u` is solved by the plan for `u`, which divides by `m`; a
+/// state standing at the zero its declaration left it makes that a
+/// division by zero at the very first point, everything below comes
+/// out NaN, and the column of the Jacobian reads as exactly zero. The
+/// refusal that followed named `U` as a thing the equations do not pin
+/// down, which is false - they pin it down at every point but the one
+/// Newton was handed. This is the shape of the tank models: an energy
+/// written as mass times specific energy, started empty.
+///
+/// The check is on the numbers rather than on the fact of running:
+/// `level = 0.5` puts `m` at 500 and `T = 310` puts `u` at
+/// `4184*(310 - 298.15)`, so `U` is the product of the two.
+#[test]
+fn an_initialisation_starting_on_a_division_by_zero_is_moved_off_it() {
+    let result = run("model M parameter Real cv = 4184; \
+         Real m; Real U; Real u; Real T; Real level; \
+         initial equation T = 310; level = 0.5; \
+         equation U = m*u; u = cv*(T - 298.15); m = 1000*level; \
+         der(m) = 1 - level; der(U) = (1 - level)*u; end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    let u = 4184.0 * (310.0 - 298.15);
+    assert!((first[index("m")] - 500.0).abs() < 1e-6, "{first:?}");
+    assert!((first[index("u")] - u).abs() < 1e-6, "{first:?}");
+    assert!((first[index("U")] - 500.0 * u).abs() < 1e-3, "{first:?}");
+}
+
+/// And a pole the model genuinely sits on is not papered over.
+///
+/// `u = 1/m` with `m` held at zero by its own initial condition is a
+/// point arithmetic cannot answer and no magnitude rescues: the
+/// retry may start Newton away from the zero, but the condition
+/// pulls it back, and the run then stops where the model is actually
+/// singular rather than reporting numbers from the point the retry
+/// happened to try. The retry moves the guess; it does not move the
+/// answer.
+#[test]
+fn a_pole_the_conditions_hold_the_model_on_is_not_papered_over() {
+    let message = run_err(
+        "model M Real m; Real u; Real x; \
+         initial equation m = 0; \
+         equation u = 1/m; der(m) = 0; der(x) = u; end M;",
+    );
+    assert!(message.contains("singularity"), "{message}");
+}

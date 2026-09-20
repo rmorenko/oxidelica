@@ -12349,14 +12349,34 @@ der(volume.U) = volume.port.H_flow
 ```
 
 `U` is a state, and `U = m*u` is an equation the algebraic plan
-computes it from. `eval_point` places the states into their slots and
-then runs the plan, and the plan writes over the slot `U` sits in. So
-perturbing `U` to take a finite difference changes nothing that any
-residual can see: the perturbation is erased before the residuals are
-evaluated, the column comes back zero, and the matrix is singular for
-a reason that is entirely internal to the compiler. The tank's rows
-are worse still - the residual itself prints as `NaN` before any of
-this.
+computes something from. Which something was guessed wrong here and
+is worth correcting where it was written: the guess was that the plan
+recomputes `U` and writes over the slot the state sits in, so that a
+perturbation is erased before any residual sees it. A probe printing
+every state whose slot holds something other than what was placed in
+it fired not once on `EmptyTanks`. The plan never touches a state's
+slot, and it cannot: a state is not among the unknowns the plan is
+built over.
+
+What the plan does with `U = m*u` is solve it for `u`, which is the
+one unknown in it, and the assignment it writes is `u := U/m`. `m` is
+the other state, an empty tank starts it at the zero its declaration
+left it, and so the very first evaluation of the initialisation
+divides by zero. Everything below comes out `NaN`, the difference
+quotient of a `NaN` against a `NaN` is a `NaN`, and the column is
+recorded as exactly zero. The Jacobian probe says both halves in one
+breath, which is what settled it:
+
+```text
+jac: column tank1.U (y = 0) has magnitude 0
+jac: row written #0 residual NaN magnitude 0
+```
+
+The zero of the column is the consequence, and the `NaN` of the
+residual is the cause. A column that reads zero has three possible
+causes - a slot overwritten, a slot never read, a name that cancels -
+and none of them is this one. The order matters: had the residual
+been read first, the slot theory would never have been written down.
 
 The amplifier is the same shape wearing electrical clothes:
 `opAmp.v_in` is a state, because `i_c3 = Cin*der(v_in)` differentiates
@@ -12369,9 +12389,51 @@ slot the plan owns, and it wants its own fix.
 
 ### The families, and where each is
 
-| model                        | free name          | cause                                                                      |
-| ---------------------------- | ------------------ | -------------------------------------------------------------------------- |
-| `DemonstrateLightning`       | `signalSource.T10` | step not small next to a microsecond; measured, reverted, parked           |
-| `EmptyTanks`                 | `tank1.U`          | state the plan overwrites; residual is `NaN`                               |
-| `ReferenceAir.DryAir1`       | `volume.U`         | state the plan overwrites; column exactly zero                             |
-| `AmplifierWithOpAmpDetailed` | `opAmp.v_in`       | state the plan overwrites; `v_in = Rdm*i_r2` beside `i_c3 = Cin*der(v_in)` |
+| model                        | free name          | cause                                                                  |
+| ---------------------------- | ------------------ | ---------------------------------------------------------------------- |
+| `DemonstrateLightning`       | `signalSource.T10` | step not small next to a microsecond; measured, reverted, parked       |
+| `EmptyTanks`                 | `tank1.U`          | `u := U/m` divides by an empty tank's zero mass; cured, the model runs |
+| `ReferenceAir.DryAir1`       | `volume.U`         | not this cause: refuses identically with the cure switched off         |
+| `AmplifierWithOpAmpDetailed` | `opAmp.v_in`       | not this cause: refuses identically with the cure switched off         |
+
+### The cure, and what it cost
+
+The same fault as a torn block that starts on a reciprocal's pole,
+which the run already knows how to treat: it retries such a block
+from off the zero rather than giving up on it, because the point the
+iteration was handed is the only thing wrong with it. The
+initialisation now does the same. If its residual at the guess is not
+made of numbers, and some unknown stands at exactly zero, the zeros
+are moved to `1e-6`, `1e-3`, `1`, `1e3` in turn and the first point
+whose residual is a number is where Newton starts. An initialisation
+whose residual is already a number never reaches this.
+
+Which magnitude serves is the model's own scale and this layer does
+not know it, which is the same argument the block retry makes and the
+reason several are tried rather than one chosen.
+
+Measured as a pair from one binary, the change behind
+`OXIDELICA_NO_INIT_ZERO_STEP`: 520 models run against 526, and the
+six are named, with nothing leaving and the flatten list identical.
+
+```text
+Modelica.Fluid.Examples.Tanks.EmptyTanks
+Modelica.Fluid.Examples.Tanks.ThreeTanks
+Modelica.Mechanics.MultiBody.Examples.Elementary.PointGravity
+Modelica.Mechanics.MultiBody.Examples.Elementary.SpringWithMass
+ModelicaTest.Fluid.TestComponents.Valves.TestDelayedValve
+ModelicaTest.Fluid.TestComponents.Vessels.TestSimpleTank
+```
+
+Only one of the four families named above is among them, and that is
+worth saying plainly because the table promised three. `EmptyTanks`
+runs. `DryAir1` and `AmplifierWithOpAmpDetailed` refuse with the same
+sentence about `volume.U` and `opAmp.v_in` with the switch either
+way - the cure does not reach them, so they were never one family
+with the tank, and the guess that made them one was the slot theory
+this section began by correcting. The five that came in beside the
+tank were not predicted by the table at all: `ThreeTanks` is its
+sibling, but `PointGravity` and `SpringWithMass` are mechanical and
+had nothing to do with any energy balance. A cause named by its
+mechanism reaches models no census of symptoms would have grouped
+with it, and misses models a census of symptoms did group.

@@ -4759,6 +4759,51 @@ impl CompiledModel {
             Ok(out)
         };
 
+        // The plan is free to solve `U = m*u` for `u`, and where `m`
+        // is a state standing at the zero its declaration left it,
+        // that assignment is a division by zero at the very first
+        // point the initialisation is evaluated. Everything below it
+        // comes out NaN, the difference quotient of a NaN is a NaN
+        // over a column that reads as exactly zero, and the refusal
+        // that follows names `U` as a thing the equations do not pin
+        // down - which is false. They pin it down perfectly well; the
+        // point handed to Newton was the one place arithmetic could
+        // not answer.
+        //
+        // The same fault and the same cure as a torn block that
+        // starts on a reciprocal's pole: the run retries such a block
+        // from off the zero rather than giving up on it, and which
+        // magnitude serves is the model's own scale, which this layer
+        // does not know. So several are tried and the first that
+        // gives a residual made of numbers is where Newton starts.
+        // An initialisation whose residual is already a number never
+        // reaches this: the guess it was handed is the first attempt.
+        let starts_badly = |y: &[f64],
+                            values: &mut Vec<f64>,
+                            derivatives: &mut Vec<f64>,
+                            alg_guess: &mut Vec<f64>|
+         -> bool {
+            match residual(y, values, derivatives, alg_guess) {
+                Ok(f) => f.iter().any(|r| !r.is_finite()),
+                Err(_) => true,
+            }
+        };
+        if std::env::var_os("OXIDELICA_NO_INIT_ZERO_STEP").is_none()
+            && y.contains(&0.0)
+            && starts_badly(&y, &mut values, &mut derivatives, &mut alg_guess)
+        {
+            for magnitude in [1e-6, 1e-3, 1.0, 1e3] {
+                let moved: Vec<f64> = y
+                    .iter()
+                    .map(|value| if *value == 0.0 { magnitude } else { *value })
+                    .collect();
+                if !starts_badly(&moved, &mut values, &mut derivatives, &mut alg_guess) {
+                    y = moved;
+                    break;
+                }
+            }
+        }
+
         for _ in 0..50 {
             let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
             let solved = f.iter().all(|r| r.abs() < 1e-10);
