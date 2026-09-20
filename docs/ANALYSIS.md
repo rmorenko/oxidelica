@@ -12126,3 +12126,41 @@ and quotes the call, where it used to say `cannot differentiate this
 expression` and quote nothing. The kinds are matched by name and not swept up, so a
 variant added to `Expr` has to be decided about rather than quietly
 joining the refusal - the same rule the run's `shape_of` already keeps.
+
+## What a ceiling over flattening would cost, measured but not built
+
+The run half has two working ceilings - `MAX_EVENTS_ONE_INTERVAL` and
+`MAX_ROWS` - and both fire while the run is going on. Flattening has
+`MAX_DEPTH` and `MAX_WHILE_ROUNDS`, which guard recursion and a loop
+rather than volume, and `FLATTEN_MS_CEILING`, which is checked against
+the totals of a finished pass (`scripts/library_floor.sh:179`) and so
+is behind a door that a wedged model never opens. `RollingWheel` cost
+half a shift and a burned corpus through that gap.
+
+There is already a ceiling of the right shape in the compiler, and it
+is worth naming because it makes the work small rather than novel:
+`max_constraint_nodes` counts the nodes of a differentiated equation,
+refuses past a fixed number, and names the equation and the reduction
+it stood at (`crates/oxidelica-sim/src/compile.rs:662, 1398`). It even
+carries the thread-local lowering a test needs, since the environment
+belongs to the binary and the tests share one.
+
+What it should count is nodes, not time and not substitutions. Time is
+not reproducible across the two machines these notes already keep apart,
+and a count of substitutions says nothing about the size of what each
+one carried - which is exactly the fault that made the slope phase
+unbounded. Nodes are what the compiler already holds and what grew: the
+growth probe beside that ceiling prints an expression going 14k, 90k,
+5M, 111M characters.
+
+Where it belongs: the flat model's equation list as instantiation adds
+to it, so the count is over what has been built rather than over one
+expression. The cost of getting there is that the accumulator threads
+through the whole of `flatten`, which is why this is a measurement and
+not a change.
+
+For scale: `MultiBody.Examples.Elementary.RollingWheel` now flattens in
+8.6s and runs in 16.3s, and `Pendulum` beside it flattens in 4.2s
+(`library check .msl --only`, one model each). Neither is near a wall;
+the wall is what a model that never finishes needs, and nothing measures
+it today.
