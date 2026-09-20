@@ -24,6 +24,11 @@ pub(super) fn instantiate(
         ));
     }
 
+    // Along the way, not at the end: a model that runs away never
+    // reaches the end. Every instantiation is a look, and the cursor
+    // means each equation is weighed once however many looks there are.
+    super::hold_the_size(acc, &class.name)?;
+
     let scope = class.name.as_str();
     // A function called in an equation makes its checks every step of
     // the run, and those checks belong to the model. The pass that

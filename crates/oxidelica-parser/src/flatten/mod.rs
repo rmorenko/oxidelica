@@ -86,6 +86,27 @@ use strings::*;
 /// Maximum instantiation depth (guards against recursive classes).
 const MAX_DEPTH: usize = 32;
 
+/// How many nodes of equations one flat model may come to.
+///
+/// The other ceilings of this pass watch recursion and a loop;
+/// nothing watched volume, and a phase whose work is not bounded by
+/// something the compiler already holds is a wager on which models
+/// happen to be in the corpus. Nodes are what it holds, and what
+/// actually grows.
+///
+/// The number is four times the corpus maximum, measured rather than
+/// chosen: `MultiBody.Examples.Loops.Fourbar2` comes to 2,196,724 and
+/// is the largest of 1043 models, so nothing that reads today comes
+/// near this. It is deliberately not set close to that maximum,
+/// because the measurement showed the models above a million are
+/// there for an annotation - the label drawn on an axis of the
+/// world's frame - rather than for their mechanism, and a ceiling
+/// tight against them would be a ceiling set by a drawing.
+///
+/// `OXIDELICA_MAX_NODES` overrides it, which is how the test reaches
+/// the refusal without building a model of millions of nodes.
+const MAX_NODES: usize = 8_000_000;
+
 /// What tooling needs to know about a class to draw it: its connector
 /// ports and its parameters, inherited members included.
 #[derive(Debug, Clone, Default)]
@@ -443,6 +464,44 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     model.functions = carried::programs_used(&model, &registry)?;
     report_the_size(&model);
     Ok(model)
+}
+
+/// Hold the equations gathered so far against [`MAX_NODES`], counting
+/// only what is new since the last look.
+///
+/// Called along the way rather than at the end, because the end is a
+/// door a wedged model never opens: a ceiling checked over a finished
+/// pass stops nothing that runs away. The cursor is what makes "along
+/// the way" affordable - an equation is measured once, when it first
+/// appears, so the whole of flattening costs the number of nodes it
+/// produced, however often the check is made.
+///
+/// The refusal names the model and the count that broke the ceiling,
+/// because a model that grew past a bound and a model that was stopped
+/// for some other reason look the same from outside otherwise.
+fn hold_the_size(acc: &mut Flat, class: &str) -> Result<(), String> {
+    let ceiling = match std::env::var("OXIDELICA_MAX_NODES") {
+        Ok(asked) => asked.parse().unwrap_or(MAX_NODES),
+        Err(_) => MAX_NODES,
+    };
+    for equation in &acc.equations[acc.counted_up_to..] {
+        let mut here = 0usize;
+        equation.lhs.for_each(&mut |_| here += 1);
+        equation.rhs.for_each(&mut |_| here += 1);
+        acc.nodes_so_far += here;
+    }
+    acc.counted_up_to = acc.equations.len();
+    if acc.nodes_so_far > ceiling {
+        return Err(format!(
+            "flattening `{class}` grew past {ceiling} nodes of equations \
+             ({} so far, over {} equations); the model is either far larger \
+             than any of the standard library or something is expanding \
+             without end",
+            acc.nodes_so_far,
+            acc.equations.len(),
+        ));
+    }
+    Ok(())
 }
 
 /// How big the flat model came out, behind `OXIDELICA_SIZE_PROBE=1`.
@@ -2199,6 +2258,13 @@ struct Flat {
     outside: Vec<String>,
     transports: Vec<SpatialTransport>,
     equations: Vec<EquationItem>,
+    /// How many nodes of the equations gathered so far have already
+    /// been counted against the ceiling, and the running total. The
+    /// cursor is what keeps the count cheap: each equation is measured
+    /// once, when it is new, so the whole of flattening pays for the
+    /// nodes it produced and not for the nodes it is holding.
+    counted_up_to: usize,
+    nodes_so_far: usize,
     when_clauses: Vec<WhenClause>,
     /// Equations of the `initial equation` sections, prefixed.
     initial_equations: Vec<EquationItem>,

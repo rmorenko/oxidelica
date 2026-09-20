@@ -1104,3 +1104,54 @@ fn a_model_that_panics_is_a_line_of_the_register() {
         "the rest of the library was lost with it: {said}"
     );
 }
+
+/// Flattening holds what it gathers against a ceiling on nodes, and
+/// says so in terms a reader can act on.
+///
+/// The pass guards recursion and a loop and guarded nothing at all
+/// over volume, which makes every measurement over it a wager on
+/// which models happen to be in the corpus: one model expanding
+/// without end takes the machine, and the next change that lets new
+/// models reach that phase is what lays the wager rather than the one
+/// that built it.
+///
+/// The ceiling is four times the corpus maximum, so nothing that
+/// reads today comes near it; the test reaches the refusal by lowering
+/// it instead, which is also the check that it is measured along the
+/// way rather than at the end. A ceiling looked at only when
+/// flattening finishes is a door the wedged model never opens, and a
+/// model far under the real ceiling would still pass such a check.
+/// The refusal must name the class and the count, because otherwise a
+/// model stopped for size and a model stopped for anything else read
+/// alike.
+#[test]
+fn flattening_stops_a_model_that_grows_past_its_ceiling() {
+    let file = TempFile::new(
+        "big.mo",
+        "model Inner Real a; Real b; Real c; equation \
+         a = 1 + 2 + 3 + 4 + 5 + 6 + 7 + 8 + 9 + 10; \
+         b = a + a + a + a + a + a + a + a + a + a; \
+         c = b + b + b + b + b + b + b + b + b + b; end Inner; \
+         model M Inner one; Inner two; Inner three; end M;",
+    );
+    // Under a ceiling it cannot reach, the model flattens and runs.
+    let roomy = bin()
+        .env("OXIDELICA_MAX_NODES", "100000")
+        .arg("simulate")
+        .arg(file.path())
+        .output()
+        .unwrap();
+    assert!(roomy.status.success(), "{}", stderr(&roomy));
+
+    // Under one it passes, it is refused - and the refusal says which
+    // class was being built and how many nodes had been gathered.
+    let tight = bin()
+        .env("OXIDELICA_MAX_NODES", "10")
+        .arg("simulate")
+        .arg(file.path())
+        .output()
+        .unwrap();
+    let text = stdout(&tight) + &stderr(&tight);
+    assert!(text.contains("grew past 10 nodes"), "{text}");
+    assert!(text.contains("nodes of equations"), "{text}");
+}
