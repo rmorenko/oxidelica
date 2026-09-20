@@ -441,7 +441,63 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // nothing could inline. The bodies behind them travel with the
     // model, so the run can walk them for itself.
     model.functions = carried::programs_used(&model, &registry)?;
+    report_the_size(&model);
     Ok(model)
+}
+
+/// How big the flat model came out, behind `OXIDELICA_SIZE_PROBE=1`.
+///
+/// Flattening has no ceiling over volume. `MAX_DEPTH` and
+/// `MAX_WHILE_ROUNDS` guard recursion and a loop, and the time ceiling
+/// is checked against the totals of a finished pass - which is a door
+/// a wedged model never opens. What a ceiling would count is nodes,
+/// because nodes are what the compiler already holds and what actually
+/// grew, where time is not reproducible across two machines and a
+/// count of substitutions says nothing about the size of each.
+///
+/// This is the measurement the number would be chosen from, and only
+/// that: it prints, it does not refuse. The equation list only ever
+/// grows during flattening, so its final size is also its peak, and
+/// counting once at the end says the same thing as an accumulator
+/// threaded through twenty-one places that push to it.
+fn report_the_size(model: &Model) {
+    if std::env::var_os("OXIDELICA_SIZE_PROBE").is_none() {
+        return;
+    }
+    let count = |expr: &Expr| {
+        let mut nodes = 0usize;
+        expr.for_each(&mut |_| nodes += 1);
+        nodes
+    };
+    let mut in_equations = 0usize;
+    let mut largest = (0usize, String::new());
+    for equation in model.equations.iter().chain(&model.initial_equations) {
+        let here = count(&equation.lhs) + count(&equation.rhs);
+        in_equations += here;
+        if here > largest.0 {
+            largest = (here, format!("{:?} = {:?}", equation.lhs, equation.rhs));
+        }
+    }
+    let mut in_bindings = 0usize;
+    for component in &model.components {
+        if let Some(binding) = component.binding.as_ref() {
+            in_bindings += count(binding);
+        }
+    }
+    // The two halves apart, because a ceiling over the wrong one is no
+    // ceiling at all - and the largest single equation beside them,
+    // since a model may be big by having many or by having one giant.
+    eprintln!(
+        "size-probe: {}\tnodes {}\tequations {} in {}\tbindings {}\tcomponents {}\tlargest {} [{}]",
+        model.name,
+        in_equations + in_bindings,
+        in_equations,
+        model.equations.len() + model.initial_equations.len(),
+        in_bindings,
+        model.components.len(),
+        largest.0,
+        largest.1.chars().take(120).collect::<String>(),
+    );
 }
 
 /// What the language asks of a class however it is used, checked over

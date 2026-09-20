@@ -12212,3 +12212,50 @@ rather than at a state the model declared - `U` is a vessel's internal
 energy, `eta` a shape parameter of the impulse. Where those come from
 is the work behind this row; the refusal now says which name to ask
 `why` about, which it did not before.
+
+## How big a flat model gets, measured
+
+`OXIDELICA_SIZE_PROBE=1` prints the size of every flat model as
+flattening finishes it: nodes in the equations, nodes in the bindings,
+the counts of each, and the largest single equation. It prints and
+does not refuse - the ceiling the previous section argued for needs a
+number from an instrument rather than from a head, and this is that
+instrument. The equation list only grows during flattening, so its
+final size is its peak, and counting once at the end says what an
+accumulator threaded through twenty-one push sites would.
+
+Over the corpus, the 868 models that flatten, heavy ones left out
+(`/tmp/m197/size2.txt`):
+
+```text
+p50    805 nodes
+p90 13,074
+p99 1,132,197
+max 2,196,724   MultiBody.Examples.Loops.Fourbar2
+```
+
+The distribution is not a slope, it is two populations. Forty-two
+models sit above a million nodes and the rest below a hundred
+thousand, and there is nothing in between worth the name. That gap is
+the finding, and what is in it is sharper still: all forty-two of the
+models above a million, and no others, carry one and the same
+equation, of 80,652 nodes, for `world.x_label.R_rel[2,1]` - the
+orientation of the label drawn on an axis of the world's coordinate
+frame. Every MultiBody model instantiates `world`, and `world` draws
+its axes.
+
+So the count says a MultiBody model is a million nodes, and the reason
+is not the mechanism it models. `Pendulum` carries 1,093,532 nodes
+over 934 equations, and `ModelicaTest.Rotational.TestMove` - no
+multibody mechanism in it at all - carries 1,093,585 over 954, the two
+within a twentieth of a percent of each other because both are almost
+entirely the same world's labels. The physics of a four-bar linkage is
+the difference between them and the maximum.
+
+Two things follow. A ceiling chosen off the raw maximum would be set
+by an annotation rather than by a model, and 42 models would sit just
+under it for a reason none of their authors would recognise. And the
+thing worth looking at before the ceiling is the label equations
+themselves: a shape that is the same in every model of a library, that
+nothing in the run needs, and that costs more than everything else
+those models contain put together.
