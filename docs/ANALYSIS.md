@@ -13187,9 +13187,113 @@ Three models arrive, by name from `/tmp/m206/corpus_after.txt` against
 `/tmp/m204/raw_after.txt`: `SolveOneNonlinearEquation.Inverse_sh_T`,
 `Dissipation.TestCases.PressureLoss.Orifice` and
 `NewFittings.Orifices.ThickEdgedOrifice`. The corpus goes 868 / 528 to
-868 / 531 and runnable 753 / 496 to 753 / 499. `BranchingPipes15-17`
-pass this wall and stop at the next one, which is the usual shape: a
-wall removed uncovers whatever stood behind it.
+868 / 531 and runnable 753 / 496 to 753 / 499.
+
+`BranchingPipes15-17` do not pass this wall. That sentence stood here
+for a shift as a guess, referred to a file of run names which by its
+nature could hold no refusal, and the guess was wrong. Measured
+instead with `--only` on one of them
+(`/tmp/m207/bp15_fable.txt`), the refusal is the same bracket wall,
+word for word. What changed is what stands inside it:
+
+```text
+Inverse_sh_T, before:      fa = -7.07e15      fb = -5.73e21
+BranchingPipes15, now:     fa = +113558.53    fb = +7431546.69
+```
+
+The rubbish is gone - these are honest magnitudes of an enthalpy, so
+the seat the fix filled was filled here too. The bracket `[200, 6000]`
+still holds no root, and now for a reason that is about the physics
+rather than about the compiler: both ends are positive, so the
+temperature the model asks for lies below 200 K, outside the bracket
+the standard library wrote. Why the model asks for that is the open
+question - either the pressure or the enthalpy arriving from up the
+chain is not what it should be, or the model honestly starts in a
+state the MSL bracket does not cover. The three models are one storey
+up in the same room, not out of it.
+
+## The census after the seat was filled, read against the one before (shift 141)
+
+`scripts/refusals.sh .msl both` into `/tmp/m207/census.txt`, held line
+for line against `/tmp/m205/census_both.txt`. The header goes
+868 / 528 to 868 / 531 and runnable 753 / 496 to 753 / 499.
+
+The flatten half is **identical line for line** - the whole 73-row
+block diffs to nothing. Everything that moved moved in the run half,
+and the diff there is five lines:
+
+```text
+  `X` of algebraic loop           22 -> 20
+  unknown variable `X`             6 ->  7
+  u_min and u_max ... bracket      4 ->  3
+  cannot evaluate parameters [pipeAV_B.T_start = ...solveOneNonlinear...]  1 -> 0
+```
+
+Read by name from `/tmp/m207/raw_before.txt` against
+`/tmp/m207/raw_after.txt`, which do contain refusals, unlike the file
+the previous shift cited:
+
+- the three arrivals are `Inverse_sh_T`, `PressureLoss.Orifice`,
+  `NewFittings.Orifices.ThickEdgedOrifice`, and there are no losses.
+  512 statuses before, 509 after, the difference being exactly those
+  three leaving the refused list;
+- the `u_min` row did **not** empty. One of its four was
+  `Inverse_sh_T` and it left; the remaining three are
+  `BranchingPipes15/16/17`, at the same wall with different numbers,
+  as recorded above. So this is a second missing input by another
+  road only in the sense that it is the same road with the mud
+  cleared: the arithmetic is now sound and the bracket is genuinely
+  wrong for the state;
+- `unknown variable` grew by one, and it is
+  `DynamicPipeEnergyConservationCheck2`, unable to find `IN_con.a`,
+  joining `NewFittings.GenericResistances.VolumeFlowRate`
+  which already stood there. That is a model travelling from
+  somewhere else to this row, which is the usual shape of a row
+  growing after a wall falls.
+
+Worth stating because it is the negative result: the row that grew is
+one model, not seven. A wall that let three models through moved
+almost nothing else, and the flatten half did not stir at all. The
+change was narrow, and the census is what says so.
+
+## Eight registers behind a `break` a model's algorithm cannot decide (shift 141, parked)
+
+The top row of the flatten half that is one family is eight models,
+all of `Electrical.Digital.Examples`, counted from
+`/tmp/m207/raw_after.txt`: `DFFREG`, `DFFREGL`, `DFFREGSRH`,
+`DFFREGSRL`, `DLATREG`, `DLATREGL`, `DLATREGSRH`, `DLATREGSRL`. All
+eight refuse with "a branch holding `break` or `return` needs a
+condition the compiler can decide", and it is one register component
+behind all of them.
+
+The shape, from `.msl/Modelica/Electrical/Digital.mo:4449` onward: a
+`for i in 1:n loop` whose body is an `if` on `reset_flag`, itself read
+from `ResetMap[reset]` where `reset` is a simulated digital signal.
+Inside the branch sits `break`. Nothing before the run can say which
+branch is taken, so `one_if_statement`
+(`crates/oxidelica-parser/src/flatten/statements.rs:916`) takes the
+`has_flow_control` road, which demands a decidable condition, and
+refuses.
+
+What makes this dear rather than cheap is where the `break` lives.
+The compiler already has an escape hatch for exactly this refusal:
+leave the call standing and let the run walk the body, which
+`inlining.rs:72` and `equations.rs:920` both do when
+`UNDECIDABLE_LEAVING` comes back from a _function_. Here the
+algorithm section belongs to a **model** - `model DFFR`, with
+`algorithm` at the top level of the component - and a model's
+algorithm has no call to leave standing. There is nothing to hand to
+the run.
+
+So the fix is not a door opened in the existing hatch. Either the
+`break` is turned into predication - every statement after it in the
+loop body guarded by a flag the run computes, which is a real
+transformation of the section and changes what the merge at the end of
+`one_if_statement` must do - or a model's algorithm section grows the
+ability to stand for the run the way a function body can. Both are
+architectural, and neither is a shift's work with the numbers moved at
+the end of it. Parked with the map, and the eight names are the
+measure of whether it was worth taking.
 
 ## What guards a division by a vector's own length (shift 140, parked)
 
@@ -13203,3 +13307,16 @@ library's guard is real and it works here:
 a zero-length vector. So the NaN is not a division by zero at this
 line, and the guard is not what failed. The quaternion derivative is
 where to look next, not the line force.
+
+Measured again this shift (`/tmp/m207/threesprings_full.txt`), the
+`der(body1.Q[3]) = NaN` wording is gone. What comes back now is
+"`spring2.lineForce.e_rel_0[1] = spring2.lineForce.r_rel_0[1] /
+spring2.lineForce.s` of algebraic loop", over a loop of thirty-three
+naming the three springs' `e_rel_0`, `r_rel_0`, `length` and `s`
+together with `body1.a_0`. The quaternion is not in the refusal at
+all. So the sentence above pointed at `der(Q)` and the instrument now
+points elsewhere: the same division, but named as a loop the solver
+cannot enter rather than as a value that came out NaN. Still parked,
+and the address has changed - this is one of the `of algebraic loop`
+row, not a NaN of its own, so it belongs with that queue and not with
+the guard.
