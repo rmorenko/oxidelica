@@ -14068,9 +14068,11 @@ the residual is 6.659e4 with the line search down to
 the same number the actual branch gave last shift. `SeriesPipes1`
 does the same: step 11 at |f| = 6.3928e4, `lambda=7.62939453125e-6`,
 `stuck=2` (probe_lambda0.txt:66-67), and its residual vector shows
-what is wrong - five of six entries sit at -6.42 while one sits at
-6.39e4, so a single equation carries the whole residual and the
-others are already satisfied.
+what is wrong - of six entries, four sit at -6.42, one is exactly
+0.0 and one sits at 6.39e4 (probe_lambda0.txt:68), so a single
+equation carries the whole residual and the rest are satisfied or
+nearly so. The earlier reading of "five of six at -6.42" was a number
+recalled rather than read off the line.
 
 That answers the architectural question without building anything. A
 continuation from λ = 0 needs the λ = 0 problem to be solvable, and
@@ -14095,10 +14097,11 @@ family.
 Three rows are alive - not in the parked list and not mapped:
 
 **The index reduction refusals, 69 models, and they are three
-subfamilies.** Counted as one row they are the largest thing in the
-run half after the algebraic loops, and the counter shows them as
-forty-odd rows of one because each quotes its own equation. Split by
-mechanism (`/tmp/m217/sub_*.txt`):
+subfamilies and a remainder of three.** Counted as one row they are
+the largest thing in the run half after the algebraic loops, and the
+counter shows them as forty-odd rows of one because each quotes its
+own equation. Split by mechanism (`/tmp/m217/sub_*.txt`, counted with
+`wc -l`):
 
 - `equation X constrains no state, so index reduction ...` - 34
   models, by chapter 13 Electrical, 12 Magnetic, 8 Mechanics, 1
@@ -14115,27 +14118,58 @@ mechanism (`/tmp/m217/sub_*.txt`):
   the sixteen are the subscript that survived flattening, which is a
   named refusal of its own.
 
-**`der(X): X is not a state of the model`, 20 models.** Thirteen of
-them are `ModelicaTest.Media.TestsWithFluid` and
-`ModelicaTest.Fluid`, which makes this a media family rather than a
-scattering: `DryAirNasa`, `SimpleAir`, `LinearColdWater`,
-`WaterIF97_pT`, `WaterIF97_ph`, `WaterIF97OnePhase_ph`, the four
-`TestWaterPump*`, the two `SeriesPipes1{2,3}`. The variable named is
+The three subfamilies come to 67 and the row is 69, so they do not
+tile it. Subtracting the union of the three lists from the row
+(`comm -23`) names the remainder outright: `IMC_Conveyor`,
+`RevoluteConstraint` and `UniversalConstraint`. All three carry a
+fourth wording - `the equation determining X does not depend on it,
+differentiating ...` - which is a subfamily of its own at three, not
+a stray of any of the other three. `IMC_Conveyor` cannot determine
+`aimc.inertiaRotor.a` from `mass.a - der(der(idealGearR2T.flangeT.s))
+= 0`; the two `Constraints` models both stop on
+`springOfConstraint.lineForce.frame_a.R.T[3,1]` against
+`world.frame_b.R.T[3,1] = fixedRotation.frame_a.R.T[3,1]`
+(`/tmp/m217/raw.txt`).
+
+The subtraction the other way round (`comm -13`) finds one name in a
+subfamily that is not in the row at all:
+`ModelicaTest.Fluid.TestUtilities.TestRegSquare2Derivatives`, which
+stands in `sub_cannotdiff.txt` but not in `row_structsing.txt`. Its
+refusal is the bare `cannot differentiate function `abs``, with no
+`structurally singular model:` in front of it - a row-namesake rather
+than a member, and exactly the trap this document has already
+recorded from the other side. So the row is 69 = 34 + 17 + 15 members
+of the quoted subfamilies plus the three of the fourth, with the
+sixteenth `cannotdiff` name belonging to a different row.
+
+**`der(X): X is not a state of the model`, 20 models.** Seventeen of
+them are `ModelicaTest.Media` and `ModelicaTest.Fluid` - nine Fluid
+and eight Media, counted with `grep -c` over
+`/tmp/m217/row_notstate.txt` - which makes this a media family rather
+than a scattering, and a far tighter one than a first reading of the
+list claimed. The three that are not: `FilterWithDifferentiation` and
+the two `IMC_Initialize`. Named in the media seventeen: `DryAirNasa`,
+`SimpleAir`, `LinearColdWater`, `WaterIF97_pT`, `WaterIF97_ph`,
+`WaterIF97OnePhase_ph`, the three `TestWaterPump*`
+(`CheckValve`, `PowerCharacteristic`, `Storage` - `Default` is not in
+this row, it stands on the IF97 region wall of the λ=0 probe), and the
+two `SeriesPipes1{2,3}`. The variable named is
 always a medium's `h` or `T` - `der(volume.medium.T)` six times,
 `der(pump.medium.h)` three, `der(pipe.mediums[N].h)` twice.
 
 **`initial value of X is fixed at N but the constraints require M`,
-16 models.** Eight are Digital (`Adder4`, `FullAdder`, `HalfAdder`,
-`VectorDelay`, `WiredX` and the two utility adders), which is the
-parked Digital family arriving at a different wall; the other eight
-are not parked and are singles across chapters:
+16 models.** Seven are Digital (`Adder4`, `FullAdder`, `HalfAdder`,
+`VectorDelay`, `WiredX` and the two utility adders - seven names, and
+`grep -c Digital` over `/tmp/m217/row_initval.txt` says seven), which
+is the parked Digital family arriving at a different wall; the other
+nine are not parked and are singles across chapters:
 `MixingUnitWithContinuousControl`, `ArmatureStroke`,
 `SMPM_CurrentSource`, `IMC_Characteristics`, `InitSpringConstant`,
-`HeatLosses`, `SimpleLiquidWater`, `IdealGasN2`.
+`HeatLosses`, `SimpleLiquidWater`, `TestCylinder`, `IdealGasN2`.
 
 The top three live rows, then, are index reduction at 69, the medium
 derivative at 20, and the fixed start against its constraint at 16.
 Of the three, the medium derivative is the most concentrated: one
-mechanism, one chapter, thirteen of twenty names in two packages -
+mechanism, one chapter, seventeen of twenty names in two packages -
 and it is the same Fluid corner the homotopy line was walking, met
 from the structural side rather than the numerical one.
