@@ -661,3 +661,33 @@ fn an_outer_with_no_inner_above_it_gets_one_at_the_top() {
     // the helper reads them through the `outer` name.
     assert_eq!(at("h.y"), 3.0, "the default of the minted `inner Seed`");
 }
+
+#[test]
+fn a_residual_at_the_rounding_floor_of_its_own_equation_is_solved() {
+    // An equation whose two sides are near a thousand million agree
+    // to every digit double precision holds when their difference is
+    // around 1e-7: that is where the rounding of 1e9 lands, and no
+    // iteration can go under it. Judged against the unknown alone -
+    // a volt - the test demanded 1e-10 and was never going to be
+    // met, so Newton stepped by nothing and spent its whole budget
+    // reproducing one residual before refusing to converge.
+    //
+    // This is the shape of the Zener diode in
+    // `Modelica.Electrical.Analog.Examples.OvervoltageProtection`,
+    // reduced to a single equation: an exponential in millivolts
+    // against a current of a thousand million.
+    let result = run("model Z Real v(start = 0); Real i; \
+         equation i = 0.7*exp(-(v + 5.1)/(0.74*0.04)); \
+           i = (v + 5.7)*1e9 + 0*time; \
+         annotation(experiment(StopTime = 0.001, Interval = 0.001)); end Z;");
+    let v = result.columns.iter().position(|c| c == "v").unwrap();
+    // The solution is where the exponential meets the line, a little
+    // above -5.7 volts; what the test is about is that the block was
+    // solved at all, so the value is checked for being the root
+    // rather than for a digit that the arithmetic sets.
+    let value = result.rows[0][v];
+    assert!(
+        (value + 5.64).abs() < 0.01,
+        "the loop was solved at v = {value}"
+    );
+}

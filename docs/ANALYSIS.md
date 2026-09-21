@@ -12662,3 +12662,102 @@ inside the tables, the residual is a number, and what stands behind it
 is the loop's own convergence - a different wall, and the next one to
 work. This is a wall passed rather than a family finished, and the two
 counts say so from either side.
+
+## The wall behind `did not converge`, and what was under it
+
+The prior shift's claim about `TestDensity` is confirmed, with a file
+beside it. `library check .msl --only
+ModelicaTest.Fluid.TestComponents.Sensors.TestDensity`, printed into
+`/tmp/m202/testdensity_fable.txt`:
+
+```text
+of the 1 that flatten, 0 run:
+      1  algebraic loop did not converge in 50 Newton iterations: ["s…
+         first on ModelicaTest.Fluid.TestComponents.Sensors.TestDensity
+```
+
+Both the wording and the storey agree with what was claimed. That
+model costs 13.6 seconds of one corpus pass on its own, fifty Newton
+steps over a loop of orifice pressures - a sub-family that is dear in
+minutes as well as in models.
+
+### The family, laid out by what its loops are made of
+
+Ten models, from `/tmp/m202/raw.txt`, split on the first match and
+summing to ten:
+
+| mechanism        | count | what the loop holds                                          |
+| ---------------- | ----- | ------------------------------------------------------------ |
+| ideal switches   | 6     | `idealDiode[i].s`, `idealThyristor[i].s`: a rectifier bridge |
+| machine air gaps | 3     | `airGap.V_mss.re/.im` beside a converter current             |
+| fluid orifices   | 1     | `TestDensity`: `simpleGenericOrifice.V_flow` and a density   |
+
+The IF97 models that travelled a storey the previous shift did not
+land here as a sub-family of their own: only `TestDensity` did, and it
+is the one fluid member. The rest are elsewhere in the register.
+
+### What the smallest member was actually doing
+
+`Modelica.Electrical.Analog.Examples.OvervoltageProtection` is one
+unknown, `zDiode.v`, and it refuses in a millisecond - the probe the
+whole family is worth reasoning from. A trail printed at every Newton
+step (`/tmp/m202/trail.txt`) says the loop was not diverging and was
+not singular. It had _converged_:
+
+```text
+newton 13 t=0.0003 |f|=1.31e2   v=[-5.6453809968429995]
+newton 14 t=0.0003 |f|=3.33e-5  v=[-5.645380947133184]
+newton 15 t=0.0003 |f|=2.682209014892578e-7 v=[-5.645380947133196]
+newton 16 t=0.0003 |f|=2.682209014892578e-7 v=[-5.645380947133196]
+...
+newton 49 t=0.0003 |f|=2.682209014892578e-7 v=[-5.645380947133196]
+```
+
+Thirty-five iterations reproducing one residual to the last digit,
+then a refusal. The Zener diode's equation puts an exponential in
+millivolts against a current through a parallel resistance of 1e8,
+so both sides of the equation sit near a thousand million. Two such
+sides agreeing to every digit double precision holds differ by around
+1e-7, because that is where the rounding of 1e9 lands. The
+convergence test asked for `1e-10 * (1 + |v|)`, and `v` is a volt: it
+demanded 1e-10 of an equation whose arithmetic cannot resolve below
+3e-7. Newton then stepped by nothing and got its own residual back,
+which is exactly the trail above.
+
+So the residual was judged against the _unknown_ and never against the
+_equation_, and a solved block was called a failure. The rule taken:
+an equation is also solved when its difference falls below the
+rounding noise of the two sides it was subtracted from, `1e-12 *
+(|lhs| + |rhs|)`. That is not a looser tolerance in the units of the
+unknown - it is a floor no iteration can go under, whatever it does.
+The two halves of each residual are kept for it, because a difference
+alone no longer remembers the numbers it came from.
+
+The small model is a single equation of that shape and refused before
+the change: `i = 0.7*exp(-(v + 5.1)/(0.74*0.04))` against `i = (v +
+5.7)*1e9`.
+
+### What it was worth: a wall named, not a wall removed
+
+One corpus pass, `/tmp/m202/corpus.txt`: 868 flatten and 528 run,
+runnable 753 and 496 - the same five numbers as before, and the run
+list diffed against the 528-line baseline in
+`/tmp/m202/ran_before.txt` is identical line for line. No model won,
+none lost.
+
+What moved is the storey. `OvervoltageProtection` left the converge
+row and appears in the `do not mention` row instead
+(`/tmp/m202/overvoltage_after.txt`):
+
+```text
+the equations of algebraic loop ["zDiode.v"] do not mention
+["zDiode.v"] at t = 0.0008: nothing in the block changes when it does
+```
+
+Which is the second wall in that model's way, and a real one: at
+0.0008 seconds the diode is on the flat of its linear continuation
+and the Jacobian's only column goes to zero there. The converge
+family stands at ten either way - one member left and `TestDensity`
+arrived - so the row's count is the same and its membership is not.
+This is a wall passed and the family not finished, and the two counts
+say so from both sides.

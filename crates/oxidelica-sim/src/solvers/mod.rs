@@ -556,7 +556,11 @@ impl CompiledModel {
             None => block.iter().map(|&i| alg_guess[i]).collect(),
         };
 
-        let residual = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
+        // Both halves of each equation are kept, not only their
+        // difference: how large a residual has to be before it means
+        // anything is a question about the numbers it was subtracted
+        // from, and the difference alone no longer remembers them.
+        let residual_parts = |values: &mut [f64], v: &[f64]| -> Vec<(f64, f64)> {
             for (j, &index) in block.iter().enumerate() {
                 values[self.algebraic_slots[index]] = v[j];
             }
@@ -566,7 +570,13 @@ impl CompiledModel {
             }
             residuals
                 .iter()
-                .map(|(lhs, rhs)| lhs.run(values, t) - rhs.run(values, t))
+                .map(|(lhs, rhs)| (lhs.run(values, t), rhs.run(values, t)))
+                .collect()
+        };
+        let residual = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
+            residual_parts(values, v)
+                .into_iter()
+                .map(|(lhs, rhs)| lhs - rhs)
                 .collect()
         };
         let block_names =
@@ -575,7 +585,8 @@ impl CompiledModel {
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
         for iteration in 0..50 {
-            let f = residual(values, &v);
+            let parts = residual_parts(values, &v);
+            let f: Vec<f64> = parts.iter().map(|(lhs, rhs)| lhs - rhs).collect();
             // A residual that is not a number is not a step away from
             // the solution: the block never had a finite one to step
             // from. Reported as divergence it names a thing that did
@@ -615,10 +626,25 @@ impl CompiledModel {
                     ));
                 }
             }
-            let converged = f
-                .iter()
-                .zip(&v)
-                .all(|(fi, vi)| fi.abs() <= 1e-10 * (1.0 + vi.abs()));
+            // An equation is solved when its two sides agree, and
+            // what "agree" means is set by how large those sides are.
+            // Judged against the unknown alone, a diode's exponential
+            // is asked to cancel a current of a thousand million
+            // against a volt: the two sides agree to every digit
+            // double precision holds, their difference sits at 3e-7
+            // because that is where the rounding of 1e9 lands, and
+            // the test demands 1e-10. Newton then steps by nothing,
+            // gets the same residual back, and spends its remaining
+            // thirty-five iterations reproducing it - the trail in
+            // /tmp/m202/trail.txt shows all thirty-five identical.
+            // The second half of the test asks the question the
+            // first cannot: a difference below the rounding noise of
+            // the numbers it came from is not a distance from the
+            // solution, it is the floor of the arithmetic, and no
+            // iteration can go under it.
+            let converged = f.iter().zip(&v).zip(&parts).all(|((fi, vi), (lhs, rhs))| {
+                fi.abs() <= 1e-10 * (1.0 + vi.abs()) || fi.abs() <= 1e-12 * (lhs.abs() + rhs.abs())
+            });
             if converged {
                 for (j, &index) in block.iter().enumerate() {
                     alg_guess[index] = v[j];
