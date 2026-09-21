@@ -14082,3 +14082,60 @@ solution of either problem, and `TestWaterPumpDefault`'s own wall
 turns out to be the medium's region table rather than the solver.
 The two-step scheme of maláva 217 point 2 is therefore not priced:
 it would buy one model of three, and that one lands on IF97.
+
+## What is alive under the parked rows
+
+A fresh census was taken with `scripts/refusals.sh .msl` - the counts
+in `/tmp/m217/census.txt`, the raw report copied to `/tmp/m217/raw.txt`
+so the names could be read from the same pass. The run half was
+recounted from that file by name rather than by row, because the
+counter splits a family along its wording and the wording is not the
+family.
+
+Three rows are alive - not in the parked list and not mapped:
+
+**The index reduction refusals, 69 models, and they are three
+subfamilies.** Counted as one row they are the largest thing in the
+run half after the algebraic loops, and the counter shows them as
+forty-odd rows of one because each quotes its own equation. Split by
+mechanism (`/tmp/m217/sub_*.txt`):
+
+- `equation X constrains no state, so index reduction ...` - 34
+  models, by chapter 13 Electrical, 12 Magnetic, 8 Mechanics, 1
+  Fluid. The equations quoted are nearly all of one shape: a current
+  pinned to zero (`n.i = 0`, `p1.i = 0`, `plug_nv.pin[1].i = 0`,
+  eleven such) or a rotation matrix entry against a constant
+  (`rod4.frame_a.R.T[3,3]`). Names include the four
+  `OpAmps.OpAmpCircuits`, `SMEE_Generator` twice over in two
+  chapters, `Engine1a` and `Engine1b`, `PlanarFourbar` and both
+  `SpringDamperNoRelativeStates`.
+- `no equation determines X, whose derivative ...` - 17 models.
+- `cannot differentiate ...` - 16 models, and this one is Fluid's:
+  7 ModelicaTest.Fluid, 2 Tables, 2 Fluid, the rest singles. Six of
+  the sixteen are the subscript that survived flattening, which is a
+  named refusal of its own.
+
+**`der(X): X is not a state of the model`, 20 models.** Thirteen of
+them are `ModelicaTest.Media.TestsWithFluid` and
+`ModelicaTest.Fluid`, which makes this a media family rather than a
+scattering: `DryAirNasa`, `SimpleAir`, `LinearColdWater`,
+`WaterIF97_pT`, `WaterIF97_ph`, `WaterIF97OnePhase_ph`, the four
+`TestWaterPump*`, the two `SeriesPipes1{2,3}`. The variable named is
+always a medium's `h` or `T` - `der(volume.medium.T)` six times,
+`der(pump.medium.h)` three, `der(pipe.mediums[N].h)` twice.
+
+**`initial value of X is fixed at N but the constraints require M`,
+16 models.** Eight are Digital (`Adder4`, `FullAdder`, `HalfAdder`,
+`VectorDelay`, `WiredX` and the two utility adders), which is the
+parked Digital family arriving at a different wall; the other eight
+are not parked and are singles across chapters:
+`MixingUnitWithContinuousControl`, `ArmatureStroke`,
+`SMPM_CurrentSource`, `IMC_Characteristics`, `InitSpringConstant`,
+`HeatLosses`, `SimpleLiquidWater`, `IdealGasN2`.
+
+The top three live rows, then, are index reduction at 69, the medium
+derivative at 20, and the fixed start against its constraint at 16.
+Of the three, the medium derivative is the most concentrated: one
+mechanism, one chapter, thirteen of twenty names in two packages -
+and it is the same Fluid corner the homotopy line was walking, met
+from the structural side rather than the numerical one.
