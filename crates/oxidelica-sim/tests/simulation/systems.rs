@@ -951,3 +951,31 @@ fn a_model_that_refuses_in_prose_is_quoted_whole_with_its_numbers() {
          walked: u is 0, which is below one"
     );
 }
+
+#[test]
+fn index_reduction_differentiates_atan2_by_both_of_its_arguments() {
+    // A constraint written with `atan2` had no derivative rule and the
+    // model was refused as structurally singular. The rule is the one
+    // in every table - `(x*dy - y*dx) / (x^2 + y^2)` - and the point
+    // of the test is the number rather than the flattening.
+    //
+    // `atan2(x, 2) = time / 2` with `der(x) = v` makes the velocity
+    // come out of the differentiated constraint alone: the second
+    // argument is a number, so `2*v / (x^2 + 4) = 1/2`, which is
+    // `v = (x^2 + 4) / 4`. The path is `x = 2*tan(time/2)`, so at one
+    // second the velocity is a quarter of `4*tan(0.5)^2 + 4`. Taken
+    // by the first argument only - dropping the `x*dy` half, or
+    // differentiating as though the call were `atan(x/2)` with a
+    // constant denominator - the number comes out elsewhere.
+    let result = run("model B Real x(start = 0); Real v; \
+         equation der(x) = v; atan2(x, 2) = time / 2; \
+         annotation(experiment(StopTime = 1.0, Interval = 0.5)); end B;");
+    let index = result.columns.iter().position(|c| c == "v").unwrap();
+    let v = result.rows.last().unwrap()[index];
+    let x = 2.0 * (0.5f64).tan();
+    let expected = (x * x + 4.0) / 4.0;
+    assert!(
+        (v - expected).abs() < 1e-5,
+        "atan2 pins v to {expected}, not {v}"
+    );
+}

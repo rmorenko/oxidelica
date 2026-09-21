@@ -125,8 +125,22 @@ fn differentiates_every_elementary_function() {
         value_of(&d("if b > 0 then a * 2 else a"), &[("a", 1.0), ("b", 1.0)]),
         2.0
     );
+    // `atan2(y, x)` takes both arguments into its rule: by the first
+    // it comes to `x / (x^2 + y^2)`, which at `a = 3`, `b = 2` is two
+    // thirteenths, and by the second to `-y / (x^2 + y^2)`, which is
+    // minus three of them. A rule built from `atan(a/b)` would agree
+    // on the first and disagree on the second.
+    assert!((value_of(&d("atan2(a, b)"), &[("a", 3.0), ("b", 2.0)]) - 2.0 / 13.0).abs() < 1e-12);
+    assert!(
+        (value_of(
+            &differentiate(&expr_of("atan2(a, b)"), &DiffTarget::Variable("b")).unwrap(),
+            &[("a", 3.0), ("b", 2.0)]
+        ) + 3.0 / 13.0)
+            .abs()
+            < 1e-12
+    );
     // Refusals: unknown function, non-constant exponent, time target.
-    assert!(differentiate(&expr_of("atan2(a, b)"), &DiffTarget::Variable("a")).is_err());
+    assert!(differentiate(&expr_of("asin(a)"), &DiffTarget::Variable("a")).is_err());
     assert!(differentiate(&expr_of("a ^ b"), &DiffTarget::Variable("a")).is_err());
     assert_eq!(
         value_of(

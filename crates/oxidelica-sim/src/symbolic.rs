@@ -942,6 +942,36 @@ pub(crate) fn differentiate_at(
                 Box::new(d(b)?),
             )
         }
+        // `atan2(y, x)` is the angle of a point, and its derivative is
+        // the one in every table: `(x*dy - y*dx) / (x^2 + y^2)`. Unlike
+        // `atan`, whose rule is written out among the one-argument
+        // functions above, this one needs both arguments at once - the
+        // denominator is the squared radius rather than anything the
+        // chain rule would build from a single input, and a rule taken
+        // from `atan(y/x)` would be right only where `x` never moves.
+        //
+        // It says nothing about the origin, where the angle is not
+        // defined at all and the denominator is nothing; that is the
+        // same standing `atan2` itself has there.
+        //
+        // The name is matched the way the one-argument table matches
+        // its own: bare, or with the package path resolved away to
+        // nothing in front of it. A name with a path still on it is
+        // somebody's own `atan2` and gets no rule of ours.
+        Expr::Call(name, args)
+            if matches!(name.as_str(), "atan2" | ".atan2") && args.len() == 2 =>
+        {
+            let (y, x) = (&args[0], &args[1]);
+            bin(
+                Div,
+                bin(Sub, bin(Mul, x.clone(), d(y)?), bin(Mul, y.clone(), d(x)?)),
+                bin(
+                    Add,
+                    bin(Mul, x.clone(), x.clone()),
+                    bin(Mul, y.clone(), y.clone()),
+                ),
+            )
+        }
         Expr::If(cond, then_branch, else_branch) => Expr::If(
             cond.clone(),
             Box::new(d(then_branch)?),

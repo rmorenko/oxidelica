@@ -52,7 +52,7 @@ fn differentiation_says_what_it_cannot_reach_through() {
     // An index reduction differentiates the constraint, and what
     // it cannot differentiate it says so about: the pendulum below
     // is held by a length no derivative of ours can take apart.
-    assert!(refused("model M Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - 9.81; x * x + atan2(y, x) = 1; end M;")
+    assert!(refused("model M Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - 9.81; x * x + div(y, x) = 1; end M;")
         .contains("differentiate"));
     // A model with more equations than unknowns says so by count.
     assert!(refused("model M Real x(start = 1); Real a; Real b; equation a = b; b = a; x * a = 1; der(x) = -x; end M;")
@@ -67,9 +67,9 @@ fn differentiation_says_what_it_cannot_reach_through() {
 /// families and the spelling is what finds the model.
 #[test]
 fn differentiation_names_the_expression_it_refused() {
-    let why = refused("model M Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - 9.81; x * x + atan2(y, x) = 1; end M;");
+    let why = refused("model M Real x(start = 1); Real y(start = 0); Real vx(start = 0); Real vy(start = 0); Real lam; equation der(x) = vx; der(y) = vy; der(vx) = lam * x; der(vy) = lam * y - 9.81; x * x + div(y, x) = 1; end M;");
     assert!(why.contains("a call of several arguments"), "{why}");
-    assert!(why.contains("atan2(y, x)"), "{why}");
+    assert!(why.contains("div(y, x)"), "{why}");
     assert!(
         !why.contains("cannot differentiate this expression"),
         "{why}"

@@ -14756,3 +14756,49 @@ still on `cannot differentiate a call of`. The printing is
 The probe stays in the tree behind its flag, with a test that was
 watched going red without the fifth arm. The floors did not move and
 were not meant to: the probe changes no choice.
+
+## The last two rows of the derivative table, and where their models went (shift 224)
+
+`min`, `max` and `atan2` were the three calls chapter 221 left in the
+`cannot differentiate` register, and both rules are now written out.
+Neither bought a model, and both moved a family - which is what the
+register is for and what the count of models cannot show.
+
+The numbers are from three corpus passes of the same shape, all from
+`library check .msl --list`, one binary each: `/tmp/list_before.txt`
+at `e1b723c`, `/tmp/list_after.txt` with the min/max rule, and
+`/tmp/list_atan2.txt` with both. All three print `867 flatten and 536
+run` over 1039 example models, and the lists of names are identical
+line for line - `diff` over the flat and ran lists of all three is
+empty. So nothing was paid for either rule, either: a rule that adds
+a definition takes states out of the running, and here it took none
+anybody was using.
+
+Where the families went, row by row, read off the census tail of the
+same three files:
+
+| row                                              | before | min/max | + atan2 |
+| ------------------------------------------------ | ------ | ------- | ------- |
+| cannot differentiate a call of several arguments | 4      | 1       | 0       |
+| no equation determines `trapezoid...`            | 1      | 3       | 3       |
+| cannot differentiate a non-constant exponent     | 1      | 2       | 2       |
+| the equation determining `springOfConstraint...` | 2      | 2       | 3       |
+
+Four models, four destinations, and every one of them a wall already
+on the map. The two `CombiTable2D...Test33` models wrapped their
+abscissa through `min` and now stand at the trapezoid source, which is
+the `when`-phase row parked by the constitution. `DryAirNasa` wanted
+`min` in a viscosity correlation and now stands at
+`Bin(Pow, Number(9.01e-5), Bin(Div, Number(2.0), Number(3.0)))` - a
+non-constant exponent that is two constants divided, which is a
+finding of its own and not worked on here. And `PrismaticConstraint`,
+predicted by chapter 222 to move rather than run, moved exactly where
+it was predicted to: `the equation determining
+springOfConstraint.lineForce.frame_a.R.T[3,1]` from `symbolic.rs:728`,
+where `RevoluteConstraint` and `UniversalConstraint` already stood.
+The Constraints trio is now one wall rather than two, which is worth
+having on its own: whatever unblocks that wall unblocks all three.
+
+What is left of the ten of chapter 221 is six subscripts, four `abs`
+and two non-constant exponents - and the second of the exponents
+arrived here, from `min`.
