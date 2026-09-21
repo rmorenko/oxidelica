@@ -13320,3 +13320,140 @@ cannot enter rather than as a value that came out NaN. Still parked,
 and the address has changed - this is one of the `of algebraic loop`
 row, not a NaN of its own, so it belongs with that queue and not with
 the guard.
+
+## The twenty of `of algebraic loop`, and the one that asked for water (shift 142)
+
+The row read by name off `/tmp/m207/raw_after.txt`, twenty models
+counted by the `built` column so that the instrument's own summary line at 537 -
+a count and a text, not a model - does not join them:
+
+```text
+ 7  machines        airGap.RotationMatrix[1,1] = cos(gamma)
+ 4  FluxTubes       R_m = 1 / G_m
+ 4  MultiBody       403, 411, 412, 413
+ 1  orifice         473, dp_fg through an if
+ 4  parked          HeatingNPN, HeatingPNP, ThreeSprings, Fourbar2
+--
+20
+```
+
+The seven machines are covered by the map at `The air-gap family is
+one layer`; sixteen are live, and the four FluxTubes were the narrowest.
+
+What was behind them is not a loop at all. `R_m = 1/G_m` came out
+`-inf` because `G_m` was a permeance built from a relative
+permeability of one, where the electric sheet the model names states
+twelve hundred. The material arrives as `material =
+Material.SoftMagnetic.ElectricSheet.M350_50A()`, a constructor call
+with no arguments on a record that states its coefficients on its
+`extends`, and two layers each dropped half of that:
+
+- `record_components` copied the base's fields and not what the
+  `extends` said about them, so the field list carried the base's
+  placeholder `mu_i = 1` rather than the sheet's 1210;
+- the arity check in `expand_call` counted a call with no arguments
+  against the field list and refused it as a call short of its arity.
+  The refusal is swallowed where a parameter binding is worked out, so
+  the value was dropped without a word and the declared type's own
+  defaults stood in its place.
+
+Either alone leaves the wrong number, which is why the test
+(`an_empty_constructor_takes_what_the_extends_said`) was watched to go
+red with each half removed in turn.
+
+This is the breed the notes already name twice - a wrong number given
+quietly, and a reading that cannot see which writer produced the
+value. It was not confined to magnetism. Every medium of
+`Thermal.FluidHeatFlow` is written this way, and before the change the
+whole library computed water as a fluid of density one and heat
+capacity one.
+
+The measurement, and it is a loss on the count. The census
+(`/tmp/m208/census_after.txt` against `/tmp/m207/census.txt`) moved
+one row: `the equations of algebraic loop [...] do not mention` 23 to 24. The one model is
+`Modelica.Thermal.FluidHeatFlow.Examples.WaterPump`
+(`/tmp/m208/raw_after.txt:289`), and it is a model that was running on
+the wrong number: it asks for `Media.Water()` and had been given ones.
+With water's figures it stands at the same parked `do not mention`
+wall as `PumpAndValve` and `ParallelPumpDropOut`, its two siblings.
+Its siblings that still run - `SimpleCooling` and the rest - name
+`Media.Medium()` outright, whose properties really are one, so they
+were never wrong and did not move.
+
+The four FluxTubes did not move either: with the sheet's coefficients
+reaching them the loop is still refused, which is a second wall behind
+the first. So this change is one that empties a cause rather than one
+that adds a model, and it bought a correct number across two libraries
+at the price of one model that had been right by accident.
+
+Floors from `/tmp/m208/floor.txt`: 2671 / 868 / 530 / 753 / 498, the
+two run floors down by exactly the one model, with the arithmetic
+written beside them in `scripts/library_floor.sh`.
+
+### How far the wrong number actually reached, measured rather than assumed
+
+The reading this change first invited was that every model of
+`FluidHeatFlow` had been computing water as a fluid of density one, so
+that the one model lost was bought with nine corrected. Ten models of
+the library run (`/tmp/m206/ran_after.txt`): `IndirectCooling`,
+`OneMass`, `ParallelCooling`, `PumpDropOut`, `SimpleCooling`,
+`TestOpenTank`, `TwoMass`, `TwoTanks`, `Utilities.DoubleRamp` and
+`WaterPump`.
+
+Put to the instrument, that reading is wrong, and the way it is wrong
+is the interesting half. Nine of the ten name `Media.Medium()` - the
+base record itself, whose properties really are one apiece, because it
+is a placeholder a user is meant to replace. Only `WaterPump` writes
+`Media.Water()`. The properties of all nine were probed either side of
+one binary (`/tmp/m208/nine_before.txt` against
+`/tmp/m208/nine_after.txt`, thirty-six readings each) and the two files
+are identical: not one number of the nine moved.
+
+So the honest account of this change in `FluidHeatFlow` is one model,
+not ten. The wrong number was real and the bug was real - `Water()`
+came back as ones - but it reached exactly the one model that asked
+for water, and the model that asked for water was the model that
+stopped running. The nine were never wrong to correct.
+
+This is worth writing down because the generous reading was the
+plausible one: the mechanism is general, the library is written in the
+idiom throughout, and "every model of FluidHeatFlow" follows from both
+without a measurement. The measurement took one binary and two
+minutes. A reading that makes a change look better is the one to
+instrument first.
+
+Where the wrong number did reach breadth is magnetism, which is where
+it was found: every `Material.SoftMagnetic` record states its
+coefficients on an `extends` and every user of one calls it with empty
+parentheses.
+
+### The floor counts models that returned, not models that were right
+
+`WaterPump` is the second recorded case of a model sitting in the run
+floor on an answer nobody had checked. The floor asks whether a model
+returned without an error - `Answer::Ran` is an `Ok(())` - and that is
+a different question from whether what it computed was the model the
+library wrote. `WaterPump` asked for water and was handed a fluid of
+density one, and the count was as pleased with that as with anything.
+
+The first case is the magnetic machines of shift 132, and it is worth
+stating in its own terms rather than stretched to fit this one. There
+the question was the Jacobian's difference step, and the measurement
+(quoted above) came back mixed: two of three machines gave numbers
+that did not depend on the step at all, so they were answers and not
+noise, and only `IMC_YD` sat in the floor on a coin toss - converging
+at one step and not at another. So the precedent is one model of
+uncertain footing rather than three wrong ones.
+
+Two cases, then, and they differ in kind: one model computing a
+definite wrong number, and one converging on the edge. What they share
+is the property of the instrument, and that is the part worth keeping:
+a count of models that returned cannot tell a right answer from a
+wrong one, so a change that corrects a number and costs a model reads
+on every instrument this project has as a regression. The floors
+catching the fall is the instrument working; the arithmetic written
+beside the number, naming the model and why, is the only thing that
+stops the fall being misread a week later. That is the second time
+that comment has been what carried the meaning, after the carving-out
+of the heavy models, and it is why this note records a case with only
+a single model behind it.

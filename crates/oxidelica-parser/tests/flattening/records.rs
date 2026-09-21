@@ -1402,3 +1402,46 @@ fn a_record_handed_over_with_a_function_arrives_as_its_fields() {
     assert!(!written.contains("data"), "{written}");
     assert!(written.contains("-2.0"), "{written}");
 }
+
+/// A constructor call that gives nothing means the record as it was
+/// declared, and an `extends` is part of that declaration.
+#[test]
+fn an_empty_constructor_takes_what_the_extends_said() {
+    // `M350_50A()` is a magnetic material that states its coefficients
+    // on the `extends` of the base that declares them. Two layers had
+    // to be right for it to arrive: the field list has to carry what
+    // the `extends` said rather than the base's own placeholder, and
+    // the call giving no arguments at all has to be read as "every
+    // field as declared" rather than refused as a call short of its
+    // arity. With either missing the value is dropped quietly and the
+    // base's placeholder stands in its place - an initial permeability
+    // of one where the sheet states twelve hundred, which divides a
+    // reluctance by a permeance three orders too small.
+    let m = parse_model(
+        "package P record B parameter Real mu_i = 1; parameter Real n = 1; end B; \
+         record D extends B(mu_i = 1210, n = 14); end D; \
+         model M parameter B m = P.D(); Real y; \
+         equation y = m.mu_i + m.n * time; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;",
+    )
+    .expect("a material record built by an empty constructor");
+    let written = format!("{:?}", m.components);
+    assert!(
+        written.contains("1210") && written.contains("14"),
+        "the coefficients the extends stated reach the declaration: {written}"
+    );
+
+    // What the arity check is still for: a call that gives some of the
+    // fields and not all of them is a mistake, and saying nothing
+    // about it would put one field's value into another's place. Asked
+    // from a function body, where the refusal is not swallowed the way
+    // a parameter binding swallows one.
+    let short = parse_model(
+        "package P record B Real a; Real b; Real c; end B; \
+         function make output Real y; protected B s; \
+         algorithm s := B(1, 2); y := s.a; end make; \
+         model M Real y; equation y = P.make() + time; end M; end P;",
+    )
+    .expect_err("a call short of the fields");
+    assert!(short.message.contains("is built from"), "{}", short.message);
+}

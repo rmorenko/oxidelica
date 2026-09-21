@@ -1066,7 +1066,19 @@ pub(super) fn expand_call(
                     // built from exactly its fields.
                     let named = args.iter().any(|a| matches!(a, Expr::NamedArg(..)));
                     let fields = record_fields_of(registry, class, 0);
-                    if !named && fields.len() != args.len() {
+                    // `M350_50A()` gives nothing and means every field
+                    // as the record declares it, which is exactly what
+                    // writing the record out already does for a field
+                    // a call left out. Counted against the field list
+                    // it is a call short of its arity, and the refusal
+                    // that raised was swallowed further out: the value
+                    // was dropped and the declared type's own defaults
+                    // stood in its place. For a material record that
+                    // is the base's placeholder permeability of one
+                    // where the sheet states twelve hundred - a wrong
+                    // number given quietly, which is the worst thing
+                    // this compiler can do.
+                    if !named && !args.is_empty() && fields.len() != args.len() {
                         return Err(format!(
                             "`{}` is built from {} field(s), {} given",
                             class.name,

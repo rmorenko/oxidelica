@@ -30,7 +30,35 @@ pub(super) fn record_components(
             false => lookup(registry, &extend.base, &class.name, &class.imports),
         };
         if let Some(base) = base {
-            out.extend(record_components(registry, base, depth + 1));
+            let inherited = record_components(registry, base, depth + 1);
+            // What the `extends` said about the base's fields is part
+            // of what this record declares them as: `record M350_50A
+            // extends BaseData(mu_i = 1210, n = 14)` is a record whose
+            // `mu_i` is 1210, and reading the base's declaration alone
+            // gives the 1 the base wrote as its own default. Every
+            // reader of a record's fields goes through here, so the
+            // value a constructor call `M350_50A()` leaves to the
+            // declaration was the base's default and not the
+            // material's - a permeability of one where the sheet
+            // states twelve hundred, which divides a reluctance by a
+            // permeance that is too small by three orders and hands
+            // the solver an infinity.
+            //
+            // Only a modifier naming a field outright is one of these.
+            // `mu_i.start = 3` and `friction.a = 1` say something
+            // about a part of a field rather than about the value it
+            // takes, and the layers that read those read them
+            // elsewhere.
+            out.extend(inherited.into_iter().map(|mut field| {
+                if let Some((_, value)) = extend
+                    .modifiers
+                    .iter()
+                    .find(|(name, _)| name == &field.name)
+                {
+                    field.binding = Some(value.clone());
+                }
+                field
+            }));
         }
     }
     for component in &class.components {

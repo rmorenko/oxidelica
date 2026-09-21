@@ -94,9 +94,22 @@ set -euo pipefail
 
 FILES_FLOOR=2671
 FLATTEN_FLOOR=868
-RUN_FLOOR=531
+# The two run floors came down by one, and the one is named: giving a
+# record constructor called with no arguments the values its `extends`
+# stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
+# of the run list. It asked for water and had been given the base
+# record's placeholder of one for every property - a heat capacity of
+# one where water's is 4177 - and it ran on that wrong number. With
+# water's own figures it reaches the parked `do not mention` wall that
+# its siblings stand at, which is where a model asking for water
+# belongs. A number that fell for a good reason and a number that fell
+# from a regression look identical a week later, so:
+#
+#   run          530 = 531 before, less WaterPump
+#   runnable run 498 = 499 before, less WaterPump
+RUN_FLOOR=530
 RUNNABLE_FLATTEN_FLOOR=753
-RUNNABLE_RUN_FLOOR=499
+RUNNABLE_RUN_FLOOR=498
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
