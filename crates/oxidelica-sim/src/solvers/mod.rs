@@ -514,6 +514,16 @@ impl CompiledModel {
         // roots and must be refused - would come back with whichever
         // root the retry happened to land on. What is retried is the
         // block that was never evaluated at all.
+        //
+        // Following the flux tubes past the first wall, the same cure
+        // was tried on a Jacobian whose column is dead at the zero the
+        // block was handed - and it is not safe, which the tests said
+        // at once. `der(x)^2 = 4` has a dead column at zero for the
+        // same arithmetic reason, and retried from elsewhere it comes
+        // back with whichever of its two roots the retry landed on: a
+        // wrong number presented as a right one, in place of the
+        // refusal that was owed. A dead column is a statement about
+        // the block, not about the point, and it stays refused.
         let unevaluated = matches!(&first, Err(e) if e.0.contains("before any Newton step"));
         if !unevaluated || std::env::var_os("OXIDELICA_NO_ZERO_STEP").is_some() {
             return first;
@@ -747,6 +757,20 @@ impl CompiledModel {
                     // every such block is called underdetermined
                     // while being plainly invertible.
                     if std::env::var_os("OXIDELICA_NO_ROW_SCALING").is_none() {
+                        // Columns as well as rows, and for the same
+                        // reason read along the other axis: a row's
+                        // scale is the unit its equation is written
+                        // in, and a column's is the unit its unknown
+                        // is measured in. Neither is a fact about
+                        // whether the block determines a solution, so
+                        // a test that notices either is asking about
+                        // the units. The flux tubes are where the
+                        // column half bites - a reluctance near 1e6
+                        // beside a flux near 1e-5 - and unscaled the
+                        // flux's column read as dead.
+                        if std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_none() {
+                            crate::linear::equilibrate_columns(&mut jac);
+                        }
                         equilibrate_rows(&mut jac);
                     }
                     let probe = vec![1.0; n];

@@ -107,9 +107,29 @@ FLATTEN_FLOOR=868
 #
 #   run          530 = 531 before, less WaterPump
 #   runnable run 498 = 499 before, less WaterPump
-RUN_FLOOR=530
+# Judging a torn block's divisor by what it comes to at the starts,
+# rather than by whether it mentions a name that starts at zero, moved
+# the run pair by three and by two. Named both ways, from
+# /tmp/m209/ran_before.txt against /tmp/m209/ran_after.txt:
+#
+#   arrived  SaturatedInductor, ComparisonQuasiStatic,
+#            NonLinearInductor, Analog.Examples.Utilities.Transistor
+#   left     QuadraticCoreAirgap, which now stands at
+#            `underdetermined algebraic loop ["leakage.Phi", ...]`
+#
+# The departure is the plan's doing and not the Jacobian's: with
+# OXIDELICA_NO_ROW_SCALING it refuses the same way, and with
+# OXIDELICA_DIVISOR_BY_MENTION it runs. A block that grew smaller can
+# come out nearer to square than the check likes, which is the price of
+# four, and it is written here so that a number that fell for a good
+# reason does not read as a regression a week later.
+#
+#   run          533 = 530 before, plus four, less QuadraticCoreAirgap
+#   runnable run 500 = 498 before, plus the two of those four that are
+#                runnable examples
+RUN_FLOOR=533
 RUNNABLE_FLATTEN_FLOOR=753
-RUNNABLE_RUN_FLOOR=498
+RUNNABLE_RUN_FLOOR=500
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

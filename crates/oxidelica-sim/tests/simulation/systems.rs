@@ -240,6 +240,80 @@ fn a_torn_block_does_not_divide_by_its_own_unknown() {
 }
 
 #[test]
+fn a_divisor_that_reads_one_at_the_start_stays_an_explicit_assignment() {
+    // The flux tubes' shape, and the third reading of the same rule.
+    // `mu_r = 1 + (mu_i - 1 + c_a*B_N)/(1 + c_b*B_N + B_N^2)` divides
+    // by a sum that *mentions* `B_N`, which is a block unknown with
+    // no start and therefore one that reads zero - and the sum itself
+    // reads exactly one there, so the assignment is perfectly safe.
+    // Refused on the mention alone, `mu_r` went into the tearing set,
+    // Newton started it at zero, `G_m = mu_0*mu_r*A/l` came out zero
+    // and `R_m = 1/G_m` came out infinite before the first step.
+    //
+    // The answer is checked and not the running: every equation of
+    // the chain has to hold at the values reported, and `mu_r` has to
+    // be the saturation curve's value rather than whatever a start
+    // happened to leave behind.
+    let result = run(
+        "model FluxShape Real Phi(start = 1e-6); Real B; Real B_N; Real mu_r; Real G_m; \
+         Real R_m; Real V_m; Real y(start = 0); \
+         parameter Real A = 1e-4; parameter Real l = 0.1; \
+         parameter Real mu_i = 1210; parameter Real c_a = 3.5; \
+         parameter Real c_b = 6.0; parameter Real B_max = 1.6; \
+         equation B = Phi/A; B_N = abs(B/B_max); \
+         mu_r = 1 + (mu_i - 1 + c_a*B_N)/(1 + c_b*B_N + B_N^2); \
+         G_m = 1.25663706212e-6*mu_r*A/l; R_m = 1/G_m; V_m = Phi*R_m; \
+         V_m = 10 + 5*sin(6.2831853*time); der(y) = Phi; \
+         annotation(experiment(StopTime=0.2, Interval=0.1)); end FluxShape;",
+    );
+    let value = |name: &str, row: usize| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows[row][index]
+    };
+    for row in [0, 1, 2] {
+        let (phi, b, b_n, mu_r, g_m, r_m, v_m) = (
+            value("Phi", row),
+            value("B", row),
+            value("B_N", row),
+            value("mu_r", row),
+            value("G_m", row),
+            value("R_m", row),
+            value("V_m", row),
+        );
+        assert!((b - phi / 1e-4).abs() < 1e-6 * b.abs().max(1.0), "B = {b}");
+        assert!((b_n - (b / 1.6).abs()).abs() < 1e-9, "B_N = {b_n}");
+        let curve = 1.0 + (1209.0 + 3.5 * b_n) / (1.0 + 6.0 * b_n + b_n * b_n);
+        assert!(
+            (mu_r - curve).abs() < 1e-6 * curve,
+            "mu_r = {mu_r}, curve = {curve}"
+        );
+        assert!(mu_r > 0.0, "mu_r = {mu_r} is not a permeability");
+        assert!(
+            (g_m - 1.25663706212e-6 * mu_r * 1e-4 / 0.1).abs() < 1e-15,
+            "G_m = {g_m}"
+        );
+        assert!(
+            (r_m - 1.0 / g_m).abs() < 1e-6 * r_m.abs(),
+            "R_m = {r_m}, 1/G_m = {}",
+            1.0 / g_m
+        );
+        assert!(
+            (v_m - phi * r_m).abs() < 1e-6 * v_m.abs().max(1.0),
+            "V_m = {v_m}, Phi*R_m = {}",
+            phi * r_m
+        );
+    }
+    // And the permeability is a permeability throughout: on the old
+    // reading `mu_r` was torn and started at zero, which made `G_m`
+    // zero and `R_m` infinite before any of this could be asked.
+    assert!(
+        value("mu_r", 0) > 1.0 && value("mu_r", 0) < 1210.0,
+        "mu_r at t = 0 is {}",
+        value("mu_r", 0)
+    );
+}
+
+#[test]
 fn a_guarded_division_stays_an_explicit_assignment() {
     // The other half of the rule above, and the half that is worth
     // six models. The standard library writes its static inductance

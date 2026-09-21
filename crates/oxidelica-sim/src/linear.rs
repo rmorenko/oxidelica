@@ -148,6 +148,33 @@ pub(crate) fn equilibrate_rows(a: &mut [Vec<f64>]) {
     }
 }
 
+/// Divide each column through by its own largest entry.
+///
+/// The same argument as the rows, one axis over, and the flux tubes
+/// are where it bites. A magnetic block holds a reluctance near 1e6
+/// beside a flux near 1e-5, so every entry of the reluctance's column
+/// dwarfs every entry of the flux's, and a pivot judged against the
+/// whole matrix's largest entry calls the flux's column dead. The
+/// block is plainly invertible - scaling a column is a change of the
+/// unit an unknown is measured in, which no honest test may notice -
+/// and read unscaled it was refused as underdetermined.
+pub(crate) fn equilibrate_columns(a: &mut [Vec<f64>]) {
+    let n = a.len();
+    if n < 2 {
+        return;
+    }
+    for col in 0..n {
+        let largest = a.iter().fold(0.0f64, |m, row| m.max(row[col].abs()));
+        // An all-zero column has no scale, and it is exactly the
+        // column the caller must go on calling dead.
+        if largest > 0.0 {
+            for row in a.iter_mut() {
+                row[col] /= largest;
+            }
+        }
+    }
+}
+
 /// The smallest pivot Gaussian elimination with partial pivoting meets
 /// on this matrix.
 ///

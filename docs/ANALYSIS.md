@@ -13481,3 +13481,77 @@ This is the note about a name shortened to its tail, seen from a third
 side: there the guess was that a name's last part identifies its
 owner, here that a name's first part identifies its users. A name is
 not a measurement in either direction.
+
+## A divisor that mentions a zero is not a divisor that is zero
+
+The flux tubes' second wall, and the chain behind it was four links
+long rather than one. `SaturatedInductor` refused with `r_mFe.R_m =
+1 / r_mFe.G_m ... is -inf at t = 0, before any Newton step`, and the
+first reading - that the block started its unknowns at zero and a
+zero `mu_r` made `G_m` vanish - was right about the symptom and wrong
+about where it entered.
+
+The rule the plan held was that an inner assignment dividing by a
+block unknown whose start is zero must not be explicit, because it
+would divide by zero before Newton moved anything. True, and applied
+by asking whether the divisor _mentions_ such a name. The standard
+library writes
+
+```modelica
+mu_r = 1 + (mu_i - 1 + c_a*B_N)/(1 + c_b*B_N + B_N^n)
+```
+
+and that divisor mentions `B_N`, which starts at nothing - and comes
+to exactly one there. The assignment was perfectly safe and was
+refused anyway, which put `mu_r` into the tearing set, where Newton
+started it at zero, `G_m = mu_0*mu_r*A/l` came out zero and `R_m =
+1/G_m` came out infinite. The rule meant to prevent a division by
+zero created one.
+
+So the test is now what the divisor _comes to_ at the values the
+block is handed, and the table it is read against is the second half
+of the finding. A torn unknown holds its start. A name the plan
+assigns explicitly holds whatever its body works out to, because the
+inner assignments run in dependency order before Newton touches
+anything - so `mu_r` is 1210 by the time `H = B/(mu_0*mu_r)` divides
+by it, and calling it zero refused that assignment too. A body that
+will not fold to a number leaves its name out of the table entirely,
+which the divisor test reads as "nothing is claimed".
+
+### The chain, walked to its end
+
+Four links, and two of the four are the finding rather than the fix.
+
+1. The divisor judged by mention. Removed: judged by value.
+2. The table of values reading an assigned name at its start rather
+   than at what its body computes. Removed: two rounds of folding,
+   with what will not fold put at zero between them, because a name
+   in a cycle is torn somewhere and read at a start regardless.
+3. Widening the retry-from-elsewhere to a dead Jacobian column.
+   **Reverted, and the revert is the finding.** `V_m = Phi*R_m`
+   differentiates to `Phi` on `R_m`, which is nothing where the flux
+   starts at nothing, so the column reads dead at the one point
+   nobody chose - and the retry seemed the obvious cure. It is not:
+   `der(x)^2 = 4` has a dead column at zero for the same arithmetic
+   reason, and retried from elsewhere it returns whichever of its two
+   roots the retry landed on, which is a wrong number presented as a
+   right one in place of the refusal that was owed. The test said so
+   within a second of the change. A dead column is a statement about
+   the block, not about the point.
+4. The uniqueness check reading the spread between columns. The
+   Jacobian's rows were already equilibrated, on the argument that a
+   row's scale is the unit its equation is written in and not a fact
+   about whether the block determines a solution. The same argument
+   holds one axis over and was not applied: a column's scale is the
+   unit its unknown is measured in. A magnetic block holds a
+   reluctance near 1e6 beside a flux near 1e-5, so the flux's column
+   read as dead against the whole matrix's largest entry and the
+   block was called underdetermined while being plainly invertible.
+   Columns are now equilibrated with the rows.
+
+Link 3 is worth keeping in view for its shape. It measured as
+progress on the model in hand - `SaturatedInductor` passed with it -
+and the model passes without it too, because link 4 was the real
+wall. A link that appears to work and is not needed is the most
+expensive kind, since nothing but the test suite distinguishes it
+from one that is.

@@ -215,6 +215,81 @@ pub fn compile(model: &Model) -> Result<CompiledModel, SimError> {
     compile_at(model, None)
 }
 
+/// What the block's names hold when its first residual is evaluated.
+///
+/// The names already settled hold what they settled on; a torn unknown
+/// that starts at zero holds zero; and a name the plan assigns from a
+/// body holds whatever that body works out to at those values. The
+/// last of the three is the point: the inner assignments of a torn
+/// block run in dependency order before Newton moves anything, so an
+/// assignment that divides by an earlier one divides by its computed
+/// value and not by a start nobody ever reads.
+///
+/// Worked to a fixpoint, and a body that will not fold to a number
+/// leaves its name out of the table entirely - which `divides_by_any`
+/// reads as "nothing is claimed", the answer a guess would spoil.
+fn values_at_starts(
+    known: &HashMap<String, f64>,
+    bodies: &HashMap<&str, &Expr>,
+    zero_start: &[&str],
+) -> HashMap<String, f64> {
+    let mut table = known.clone();
+    for name in zero_start {
+        // A torn unknown is reached at its start. One the plan
+        // assigns has a body, and the body is the better answer.
+        if !bodies.contains_key(name) {
+            table.insert((*name).to_string(), 0.0);
+        }
+    }
+    // Two rounds, and the second is what the flux tubes needed. The
+    // first folds every body whose inputs are already numbers. What
+    // it cannot fold is what stands in a cycle - and a cycle has to
+    // be torn somewhere, so one of its names is read at its start of
+    // zero whatever else happens. Putting the unfolded ones at zero
+    // and folding again is therefore the reading of the run, not a
+    // guess about it; and where it is wrong it is wrong toward zero,
+    // which makes the divisor test stricter rather than looser.
+    for round in 0..2 {
+        fold_bodies(&mut table, bodies);
+        if round == 0 {
+            for name in zero_start {
+                table.entry((*name).to_string()).or_insert(0.0);
+            }
+        }
+    }
+    table
+}
+
+/// Fold every body whose names are all numbers, to a fixpoint.
+fn fold_bodies(table: &mut HashMap<String, f64>, bodies: &HashMap<&str, &Expr>) {
+    loop {
+        let mut grew = false;
+        for (name, body) in bodies {
+            if table.contains_key(*name) {
+                continue;
+            }
+            let mut refs = Vec::new();
+            body.collect_refs(&mut refs);
+            if refs.iter().any(|r| !table.contains_key(*r)) {
+                continue;
+            }
+            let mut folded = (*body).clone();
+            for r in refs {
+                if let Some(value) = table.get(r) {
+                    folded = crate::symbolic::substitute(&folded, r, *value);
+                }
+            }
+            if let Expr::Number(value) = crate::symbolic::simplify(&folded) {
+                table.insert((*name).to_string(), value);
+                grew = true;
+            }
+        }
+        if !grew {
+            break;
+        }
+    }
+}
+
 /// The order a run evaluates the algebraic layer in.
 ///
 /// An equation that can be solved for its own unknown on its own is an
@@ -454,9 +529,34 @@ fn build_plan(
             if std::env::var_os("OXIDELICA_NO_BLOCK_DIVISOR").is_some() {
                 solvable
             } else {
+                // What the block's names hold when the first residual
+                // is evaluated. A torn unknown holds its start, which
+                // is what put it in `block_names`; but an unknown the
+                // plan assigns explicitly holds whatever its body came
+                // to, because the inner assignments run in dependency
+                // order before Newton touches anything. Reading those
+                // as zero too is what cost the flux tubes: `mu_r` is
+                // assigned from a fraction whose divisor reads one at
+                // the start, so `mu_r` is 1210 by the time `H` and
+                // `G_m` divide by it, and calling it zero refused two
+                // perfectly safe assignments and pushed them into the
+                // Newton system.
+                let bodies: HashMap<&str, &Expr> = solvable
+                    .iter()
+                    .map(|(&eq, expr)| (unknowns[matched_var[eq]].as_str(), expr))
+                    .collect();
+                let empty: HashMap<String, f64> = HashMap::new();
+                let at_starts = if std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_some() {
+                    empty
+                } else {
+                    values_at_starts(known, &bodies, &block_names)
+                };
                 solvable
+                    .clone()
                     .into_iter()
-                    .filter(|(_, expr)| !crate::symbolic::divides_by_any(expr, &block_names))
+                    .filter(|(_, expr)| {
+                        !crate::symbolic::divides_by_any(expr, &block_names, &at_starts)
+                    })
                     .collect()
             };
 

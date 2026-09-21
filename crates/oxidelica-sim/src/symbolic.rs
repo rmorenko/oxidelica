@@ -394,40 +394,82 @@ fn branch_is_zero(slope: &Expr) -> bool {
 /// Only the divisor is walked, and only for the names handed in: a
 /// parameter in a denominator is a number the plan can trust, and a
 /// name settled before the block runs is evaluated before it.
-pub(crate) fn divides_by_any(expr: &Expr, names: &[&str]) -> bool {
+///
+/// And a divisor that *mentions* such a name is not therefore zero.
+/// `mu_r = 1 + (mu_i - 1 + c_a*B_N)/(1 + c_b*B_N + B_N^n)` divides by
+/// a sum that reads exactly one where `B_N` starts at nothing, so the
+/// assignment is perfectly safe - and refused on the mention alone it
+/// pushed `mu_r` into the tearing set, where Newton started it at zero
+/// and `G_m = mu_0*mu_r*A/l` came out zero, and `R_m = 1/G_m` came out
+/// infinite before the first step. The test that matters is what the
+/// divisor *comes to* at the starts, so the zero-start names are put
+/// at zero and whatever else is settled at its value: a divisor that
+/// folds to a number other than zero divides by nothing that vanishes.
+/// A divisor that will not fold at all keeps the old answer, because
+/// what cannot be worked out cannot be trusted.
+pub(crate) fn divides_by_any(expr: &Expr, names: &[&str], settled: &HashMap<String, f64>) -> bool {
     // The names a conditional tests on the way down, so that a
     // division below it can tell whether its own divisor was the
     // thing asked about.
-    fn walk(expr: &Expr, names: &[&str], guarded: &[&str]) -> bool {
+    fn walk(expr: &Expr, names: &[&str], guarded: &[&str], settled: &HashMap<String, f64>) -> bool {
         match expr {
             Expr::If(condition, then, otherwise) => {
                 let mut tested = Vec::new();
                 condition.collect_refs(&mut tested);
                 let mut deeper: Vec<&str> = guarded.to_vec();
                 deeper.extend(tested.iter().copied());
-                walk(condition, names, guarded)
-                    || walk(then, names, &deeper)
-                    || walk(otherwise, names, &deeper)
+                walk(condition, names, guarded, settled)
+                    || walk(then, names, &deeper, settled)
+                    || walk(otherwise, names, &deeper, settled)
             }
             Expr::Bin(oxidelica_parser::BinOp::Div, dividend, divisor) => {
                 let mut refs = Vec::new();
                 divisor.collect_refs(&mut refs);
                 let unguarded = refs
                     .iter()
-                    .any(|name| names.contains(name) && !guarded.contains(name));
-                unguarded || walk(dividend, names, guarded) || walk(divisor, names, guarded)
+                    .any(|name| names.contains(name) && !guarded.contains(name))
+                    && !divisor_is_nonzero_at_starts(divisor, names, settled);
+                unguarded
+                    || walk(dividend, names, guarded, settled)
+                    || walk(divisor, names, guarded, settled)
             }
             other => {
                 let mut found = false;
                 other.map_children(&mut |child| {
-                    found |= walk(child, names, guarded);
+                    found |= walk(child, names, guarded, settled);
                     child.clone()
                 });
                 found
             }
         }
     }
-    walk(expr, names, &[])
+    walk(expr, names, &[], settled)
+}
+
+/// Whether a divisor works out to something other than zero at the
+/// values the block starts from: the zero-start unknowns at zero, and
+/// everything already settled at what it settled on.
+fn divisor_is_nonzero_at_starts(
+    divisor: &Expr,
+    names: &[&str],
+    settled: &HashMap<String, f64>,
+) -> bool {
+    let mut refs = Vec::new();
+    divisor.collect_refs(&mut refs);
+    let mut table: HashMap<&str, f64> = HashMap::new();
+    for name in refs {
+        if let Some(value) = settled.get(name) {
+            table.insert(name, *value);
+        } else if names.contains(&name) {
+            table.insert(name, 0.0);
+        } else {
+            // A name that is neither settled nor known to start at
+            // zero: the divisor cannot be worked out, so nothing is
+            // claimed about it.
+            return false;
+        }
+    }
+    matches!(simplify(&substitute_all(divisor, &table)), Expr::Number(value) if value != 0.0)
 }
 
 pub(crate) fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
