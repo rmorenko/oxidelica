@@ -715,6 +715,17 @@ impl SlotTable {
         slot
     }
 
+    /// The slot a name already has, or nothing.
+    ///
+    /// Asking for a slot mints one, which is right where a name is
+    /// about to be written to and wrong where a name is merely being
+    /// read about: a refusal wanting to report what a residual reads
+    /// would otherwise grow the value array by every name it looked
+    /// at, and report a settled zero for names that have none.
+    pub(crate) fn existing_slot(&self, name: &str) -> Option<Slot> {
+        self.index.get(name).copied()
+    }
+
     /// Give a name a slot holding a value that never changes.
     pub(crate) fn constant(&mut self, name: &str, value: f64) -> Slot {
         let slot = self.slot(name);

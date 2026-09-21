@@ -569,6 +569,7 @@ impl CompiledModel {
             residuals,
             residual_sources,
             inner_sources,
+            residual_reads,
             ..
         } = stage
         else {
@@ -688,7 +689,30 @@ impl CompiledModel {
                         }
                     }
                     let entered = if bad_names.is_empty() {
-                        String::new()
+                        // Nothing of the block's own is at fault, and
+                        // a block with no inner assignments has
+                        // nothing of its own at all. Then the fault
+                        // came in from outside, through one of the
+                        // names the residual reads, and every one of
+                        // those was settled before the block was
+                        // reached. Naming them is the difference
+                        // between a refusal that points at a page of
+                        // arithmetic and one that points at a value.
+                        let read: Vec<String> = residual_reads
+                            .get(i)
+                            .map(|names| {
+                                names
+                                    .iter()
+                                    .filter(|(_, slot)| !values[*slot].is_finite())
+                                    .map(|(name, slot)| format!("{name} = {}", values[*slot]))
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        if read.is_empty() {
+                            String::new()
+                        } else {
+                            format!("; it reads values that are not numbers: {read:?}")
+                        }
                     } else {
                         format!("; the block's own values are not numbers: {bad_names:?}")
                     };

@@ -577,6 +577,29 @@ fn a_block_does_not_divide_by_a_state_that_starts_at_zero() {
 }
 
 #[test]
+fn a_block_says_which_value_it_reads_is_not_a_number() {
+    // A block whose unknowns are all torn has no inner assignment to
+    // blame, and the refusal then said only that the residual could
+    // not be evaluated - which sends the reader through a page of
+    // arithmetic looking for the one term that is not a number. The
+    // sharp-edged orifice's whole complaint is that page. But a
+    // residual built from finite values cannot come out NaN, so
+    // something it reads is one, and everything it reads was settled
+    // before the block was reached. Named, the refusal points at a
+    // value instead of at an expression.
+    assert_eq!(
+        refused(
+            "model R Real q; Real x; Real s(start = 0, fixed = true); \
+             equation q = sqrt(-1 - time); x * x + q = 4; der(s) = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end R;"
+        ),
+        "`(x * x) + q = 4` of algebraic loop [\"x\"] is NaN at t = 0, before any \
+         Newton step: the equations cannot be evaluated at the values the block \
+         starts from; it reads values that are not numbers: [\"q = NaN\"]"
+    );
+}
+
+#[test]
 fn a_zero_length_array_field_of_a_connector_writes_no_equation() {
     // A connector carries `Xi[nXi]`, and a single-substance medium has
     // `nXi = 0`, so a fluid port has no `Xi` to equate. The potential

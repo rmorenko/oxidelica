@@ -7560,6 +7560,40 @@ which is the parked `do not mention` family of row 24. That is the
 shape these notes predict: an entry emptied uncovers whatever stood
 behind it, and the run count moves only where the last wall fell.
 
+## The orifice's NaN is born inside the arithmetic, not read in
+
+`ModelicaTest.Fluid.TestComponents.Fittings.TestSharpEdgedOrifice`
+refuses on `orifice2.dp_fg`, a page of arithmetic with a regularised
+switch in it, and the refusal named nothing: the block is one unknown
+(`orifice2.m_flow`) with no inner assignments, so there was no value of
+the block's own to blame.
+
+The refusal now reports the other half - the names a residual reads,
+which were all settled before the block was reached - and for the
+orifice that list is **empty** (`/tmp/m210/orif.txt`). Every name the
+expression reads holds a finite number, and the expression still comes
+out NaN. So the fault is in the arithmetic itself, not in a value
+handed to it.
+
+What was ruled out, each in a model of a dozen lines:
+
+- The fractional powers. `0.00007337^(2/3)` and `((1.2593*288.15)/
+154.58)^(-0.14874)` both come out finite (`/tmp/m210/pow.mo`).
+- `Modelica.Fluid.Utilities.regSquare2` at the orifice's own shape of
+  argument - zero abscissa, `k` of order `1e9`, both settings of
+  `use_yd0` - returns zero, not NaN (`/tmp/m210/reg3.mo`,
+  `/tmp/m210/reg4.mo`).
+
+The Newton trail confirms it never gets a finite residual at any
+starting point tried: `f=[NaN]` at `v=[0.0]`, `[1e-6]` and `[0.001]`
+alike. So the NaN does not depend on where `m_flow` begins.
+
+What is left unprobed is the medium's `state_a.T`, which is computed
+through `solveOneNonlinearEquation` over a Nasa polynomial, and the
+call cannot be reproduced outside the model - it is protected inside
+its package and the flat model names it by a mangled spelling. That is
+the next link and it is parked here rather than guessed at.
+
 ## The residual nothing could evaluate, mapped
 
 The census taken after the divisor rule put the residual wording at

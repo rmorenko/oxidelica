@@ -3922,6 +3922,33 @@ pub(crate) fn compile_at(
                     .map(|(lhs, rhs)| format!("{} = {}", lhs.describe(), rhs.describe()))
                     .collect(),
                 inner_sources: inner.iter().map(|(_, expr)| expr.describe()).collect(),
+                residual_reads: residuals
+                    .iter()
+                    .map(|(lhs, rhs)| {
+                        // The unknowns of the block hold whatever
+                        // Newton has put in them, so they say nothing
+                        // about where a fault came from; everything
+                        // else in the residual was settled before the
+                        // block was reached, and one of those is
+                        // where a non-number entered.
+                        let own: std::collections::HashSet<&str> =
+                            vars.iter().map(|&var| ordered_algs[var].as_str()).collect();
+                        let mut names = Vec::new();
+                        lhs.collect_refs(&mut names);
+                        rhs.collect_refs(&mut names);
+                        names.sort_unstable();
+                        names.dedup();
+                        names
+                            .into_iter()
+                            .filter(|name| !own.contains(name))
+                            .filter_map(|name| {
+                                table
+                                    .existing_slot(name)
+                                    .map(|slot| (name.to_string(), slot))
+                            })
+                            .collect()
+                    })
+                    .collect(),
             }),
         })
         .collect::<Result<Vec<_>, SimError>>()?;

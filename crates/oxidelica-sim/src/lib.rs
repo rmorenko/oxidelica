@@ -163,6 +163,16 @@ enum AlgStage {
         /// number was written by one of these, and naming the unknown
         /// alone leaves the reader to guess which.
         inner_sources: Vec<String>,
+        /// The names each residual reads that are not unknowns of the
+        /// block, against the slots they are read from.
+        ///
+        /// A block with no inner assignments has nothing of its own to
+        /// blame when its residual is not a number, and the refusal
+        /// then says only that the residual could not be evaluated -
+        /// which is the sharp-edged orifice's whole complaint about a
+        /// page of arithmetic. What it reads is the other place the
+        /// fault can have entered.
+        residual_reads: Vec<Vec<(String, Slot)>>,
     },
 }
 
