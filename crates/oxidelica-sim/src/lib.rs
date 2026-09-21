@@ -496,7 +496,23 @@ enum DiffTarget<'a> {
         holding: &'a [&'a str],
     },
     /// Differentiate with respect to one variable, all else constant.
-    Variable(&'a str),
+    ///
+    /// The parameters travel with the target here as they do with the
+    /// time one, and for the same reason: a branch guarded by
+    /// `x <= -x_small` proves the sign of `x` inside it only if
+    /// `x_small` can be shown to be positive, and what shows it is its
+    /// number. Without the table the proof is unavailable and `abs`
+    /// under a settled sign is refused on this path while the very
+    /// same expression is differentiated on the other - which is what
+    /// left two of the four `regRoot2` models standing after the
+    /// reading that only the time target needed the fact.
+    Variable {
+        /// The name being differentiated by. Everything else, this
+        /// table included, is constant.
+        name: &'a str,
+        /// Known parameters and their values.
+        params: &'a HashMap<String, f64>,
+    },
 }
 
 /// How deep an expression may be while differentiating: a guard on

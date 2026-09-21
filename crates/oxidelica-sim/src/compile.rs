@@ -1051,7 +1051,7 @@ fn solve_shape(lhs: &Expr, rhs: &Expr, name: &str, params: &HashMap<String, f64>
         Box::new(lhs.clone()),
         Box::new(rhs.clone()),
     );
-    let Ok(slope) = differentiate(&residual, &DiffTarget::Variable(name)) else {
+    let Ok(slope) = differentiate(&residual, &DiffTarget::Variable { name, params }) else {
         return SolveShape::Slope(None);
     };
     let slope = simplify(&slope);
@@ -1866,23 +1866,29 @@ fn choose_the_victim(
         spent.dedup();
     }
     let sensitivity = |name: &str| -> f64 {
-        differentiate(residual, &DiffTarget::Variable(name))
+        differentiate(
+            residual,
+            &DiffTarget::Variable {
+                name,
+                params: start_env,
+            },
+        )
+        .ok()
+        .map(|d| simplify(&d))
+        .and_then(|d| {
+            eval(
+                &d,
+                &EvalCtx {
+                    vars: start_env,
+                    time: at_time,
+                    programs: None,
+                    depth: 0,
+                },
+            )
             .ok()
-            .map(|d| simplify(&d))
-            .and_then(|d| {
-                eval(
-                    &d,
-                    &EvalCtx {
-                        vars: start_env,
-                        time: at_time,
-                        programs: None,
-                        depth: 0,
-                    },
-                )
-                .ok()
-            })
-            .map(f64::abs)
-            .unwrap_or(0.0)
+        })
+        .map(f64::abs)
+        .unwrap_or(0.0)
     };
     // Companions of earlier victims first, by sensitivity; anything
     // else only when no companion is constrained here at all.
@@ -3875,7 +3881,7 @@ pub(crate) fn compile_at(
         .max()
         .filter(|band| 4 * (band + 1) < states.len());
 
-    let mut parameters: Vec<(String, f64)> = params.into_iter().collect();
+    let mut parameters: Vec<(String, f64)> = params.iter().map(|(k, v)| (k.clone(), *v)).collect();
     parameters.sort_by(|a, b| a.0.cmp(&b.0));
 
     // Everything a run reads gets a place in one array, and every
@@ -4082,8 +4088,14 @@ pub(crate) fn compile_at(
     let mut selection_monitor: Vec<(Code, Vec<Code>)> = Vec::new();
     for (residual, victim, candidates) in &selection_records {
         let sensitivity_of = |name: &str| -> Result<Code, SimError> {
-            let derivative =
-                differentiate(residual, &DiffTarget::Variable(name)).map_err(SimError)?;
+            let derivative = differentiate(
+                residual,
+                &DiffTarget::Variable {
+                    name,
+                    params: &params,
+                },
+            )
+            .map_err(SimError)?;
             table.compile(&simplify(&derivative))
         };
         let own = sensitivity_of(victim)?;

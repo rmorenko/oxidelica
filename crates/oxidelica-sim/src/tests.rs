@@ -20,6 +20,18 @@ fn expr_of(source_expr: &str) -> Expr {
         .unwrap()
 }
 
+/// The variable target for a test: a name and no parameters. A test
+/// writes its own numbers into the expression rather than into a
+/// parameter table, so the table is empty, and an empty one is what
+/// says the proofs below rest on the literals in plain sight.
+fn by_name(name: &str) -> DiffTarget<'_> {
+    static NONE: std::sync::LazyLock<HashMap<String, f64>> = std::sync::LazyLock::new(HashMap::new);
+    DiffTarget::Variable {
+        name,
+        params: &NONE,
+    }
+}
+
 /// Evaluate an expression with the given variable bindings.
 fn value_of(expr: &Expr, bindings: &[(&str, f64)]) -> f64 {
     let vars: HashMap<String, f64> = bindings
@@ -92,7 +104,7 @@ fn differentiates_every_elementary_function() {
         "sin", "cos", "tan", "exp", "log", "sqrt", "atan", "sinh", "cosh", "tanh",
     ] {
         let expr = expr_of(&format!("{name}(a)"));
-        let derivative = simplify(&differentiate(&expr, &DiffTarget::Variable("a")).unwrap());
+        let derivative = simplify(&differentiate(&expr, &by_name("a")).unwrap());
         let (point, step) = (0.7f64, 1e-6);
         let numeric = (value_of(&expr_of(&format!("{name}(a)")), &[("a", point + step)])
             - value_of(&expr_of(&format!("{name}(a)")), &[("a", point - step)]))
@@ -104,9 +116,7 @@ fn differentiates_every_elementary_function() {
         );
     }
     // Products, quotients, powers and if-expressions.
-    let d = |source: &str| {
-        simplify(&differentiate(&expr_of(source), &DiffTarget::Variable("a")).unwrap())
-    };
+    let d = |source: &str| simplify(&differentiate(&expr_of(source), &by_name("a")).unwrap());
     // `mod` and `rem` are a straight line with a staircase taken off
     // it: between the steps the derivative is the argument's own, and
     // a table asked to repeat wraps its abscissa exactly this way.
@@ -133,7 +143,7 @@ fn differentiates_every_elementary_function() {
     assert!((value_of(&d("atan2(a, b)"), &[("a", 3.0), ("b", 2.0)]) - 2.0 / 13.0).abs() < 1e-12);
     assert!(
         (value_of(
-            &differentiate(&expr_of("atan2(a, b)"), &DiffTarget::Variable("b")).unwrap(),
+            &differentiate(&expr_of("atan2(a, b)"), &by_name("b")).unwrap(),
             &[("a", 3.0), ("b", 2.0)]
         ) + 3.0 / 13.0)
             .abs()
@@ -147,7 +157,7 @@ fn differentiates_every_elementary_function() {
     // `-0.14874 * 2^(-1.14874)`. The first shape is the one
     // `DryAirNasa` writes and the second stands beside it in the same
     // equation. A live exponent is still refused.
-    assert!(differentiate(&expr_of("asin(a)"), &DiffTarget::Variable("a")).is_err());
+    assert!(differentiate(&expr_of("asin(a)"), &by_name("a")).is_err());
     assert!(
         (value_of(&d("a ^ (2.0 / 3.0)"), &[("a", 8.0)]) - 1.0 / 3.0).abs() < 1e-12,
         "{}",
@@ -157,10 +167,10 @@ fn differentiates_every_elementary_function() {
         (value_of(&d("a ^ (-0.14874)"), &[("a", 2.0)]) - (-0.14874 * 2.0f64.powf(-1.14874))).abs()
             < 1e-12
     );
-    assert!(differentiate(&expr_of("a ^ b"), &DiffTarget::Variable("a")).is_err());
+    assert!(differentiate(&expr_of("a ^ b"), &by_name("a")).is_err());
     assert_eq!(
         value_of(
-            &differentiate(&expr_of("time"), &DiffTarget::Variable("a")).unwrap(),
+            &differentiate(&expr_of("time"), &by_name("a")).unwrap(),
             &[]
         ),
         0.0
@@ -189,10 +199,10 @@ fn a_call_carrying_its_own_rule_is_worked_on_through_the_value() {
     let call = node(expr_of("a"));
 
     // Differentiating by `a` seeds the rule with `da/da`, which is one.
-    let by_a = simplify(&differentiate(&call, &DiffTarget::Variable("a")).unwrap());
+    let by_a = simplify(&differentiate(&call, &by_name("a")).unwrap());
     assert_eq!(value_of(&by_a, &[("a", 3.0)]), 6.0);
     // By anything else the seed is zero, and the rule multiplies out.
-    let by_b = simplify(&differentiate(&call, &DiffTarget::Variable("b")).unwrap());
+    let by_b = simplify(&differentiate(&call, &by_name("b")).unwrap());
     assert_eq!(value_of(&by_b, &[("a", 3.0), ("b", 1.0)]), 0.0);
 
     // Folding reaches inside without losing the rule, and so does
@@ -204,7 +214,7 @@ fn a_call_carrying_its_own_rule_is_worked_on_through_the_value() {
     assert_eq!(value_of(&pinned, &[]), 25.0);
     assert_eq!(
         value_of(
-            &simplify(&differentiate(&pinned, &DiffTarget::Variable("a")).unwrap()),
+            &simplify(&differentiate(&pinned, &by_name("a")).unwrap()),
             &[]
         ),
         0.0
@@ -214,7 +224,7 @@ fn a_call_carrying_its_own_rule_is_worked_on_through_the_value() {
     // seeded: the two functions' parameter names mean nothing to each
     // other, and `seed0` in one is not `seed0` in the other.
     let nested = node(call.clone());
-    let outer = simplify(&differentiate(&nested, &DiffTarget::Variable("a")).unwrap());
+    let outer = simplify(&differentiate(&nested, &by_name("a")).unwrap());
     // At a = 2 the inner rule gives 2a = 4, and the outer one takes
     // that as its seed: 2a * 4 = 16.
     assert_eq!(value_of(&outer, &[("a", 2.0)]), 16.0);

@@ -174,7 +174,16 @@ pub(crate) fn solve_linear_known(
         Box::new(lhs.clone()),
         Box::new(rhs.clone()),
     );
-    let slope = simplify(&differentiate(&residual, &DiffTarget::Variable(var)).ok()?);
+    let slope = simplify(
+        &differentiate(
+            &residual,
+            &DiffTarget::Variable {
+                name: var,
+                params: known,
+            },
+        )
+        .ok()?,
+    );
     let mut refs = Vec::new();
     slope.collect_refs(&mut refs);
     if refs.contains(&var) {
@@ -634,7 +643,7 @@ pub(crate) fn differentiate_at(
         Expr::Number(_) | Expr::Bool(_) => Expr::Number(0.0),
         Expr::Time => match target {
             DiffTarget::Time { .. } => Expr::Number(1.0),
-            DiffTarget::Variable(_) => Expr::Number(0.0),
+            DiffTarget::Variable { .. } => Expr::Number(0.0),
         },
         Expr::Ref(name) => match target {
             DiffTarget::Time {
@@ -720,7 +729,7 @@ pub(crate) fn differentiate_at(
                     let residual = Expr::Bin(Sub, Box::new(l.clone()), Box::new(r.clone()));
                     let slope = simplify(&differentiate_at(
                         &residual,
-                        &DiffTarget::Variable(name),
+                        &DiffTarget::Variable { name, params },
                         depth + 1,
                     )?);
                     if matches!(slope, Expr::Number(s) if s == 0.0) {
@@ -762,7 +771,7 @@ pub(crate) fn differentiate_at(
                     ));
                 }
             }
-            DiffTarget::Variable(var) => {
+            DiffTarget::Variable { name: var, .. } => {
                 if name == var {
                     Expr::Number(1.0)
                 } else {
@@ -985,11 +994,32 @@ pub(crate) fn differentiate_at(
                 ),
             )
         }
-        Expr::If(cond, then_branch, else_branch) => Expr::If(
-            cond.clone(),
-            Box::new(d(then_branch)?),
-            Box::new(d(else_branch)?),
-        ),
+        Expr::If(cond, then_branch, else_branch) => {
+            // A branch is only ever reached with its condition true, so
+            // the condition is a fact about the branch rather than a
+            // guess about the world. `regRoot2` writes
+            // `if x <= -x_small then -sqrt(abs(x))`, and inside that
+            // branch `x` is at most `-x_small`, which is a number the
+            // differentiator holds among its parameters: the sign is
+            // proven and `abs(x)` in that branch *is* `-x`. The
+            // derivative is then the ordinary one and no rule for
+            // `abs` is invented.
+            //
+            // This is not `sign(x)*der(x)` under another name. That
+            // rule guesses a sign from the value and is wrong at
+            // exactly zero; this one asks the structure, and where the
+            // structure does not answer, `abs` goes on being refused.
+            // Zero is excluded by the comparison itself: a condition
+            // that only proves `x <= 0` proves nothing here, because
+            // `abs` is not differentiable at the point it admits.
+            let then_branch = resolve_abs_under(cond, then_branch, target, false);
+            let else_branch = resolve_abs_under(cond, else_branch, target, true);
+            Expr::If(
+                cond.clone(),
+                Box::new(d(&then_branch)?),
+                Box::new(d(&else_branch)?),
+            )
+        }
         // A call that said how to differentiate itself: the rule takes
         // the place of taking the body apart, with each argument's own
         // derivative put where the rule left a name for it. The chain
@@ -1075,6 +1105,97 @@ fn undifferentiable_kind(expr: &Expr) -> &'static str {
         | Expr::If(..)
         | Expr::WithDerivative(..) => "an expression",
     }
+}
+
+/// The value of an expression, if the structure already holds one:
+/// a literal, a parameter the differentiator was given a number for,
+/// or arithmetic over those. Nothing else - a state has no value here
+/// and neither has an algebraic name.
+///
+/// This is what lets a comparison be read as a fact rather than as a
+/// suspicion. `x_small` is a parameter and `0.01` is its number, so
+/// `-x_small` is `-0.01` and a branch guarded by `x <= -x_small` is a
+/// branch where `x` is strictly negative.
+///
+/// A literal is a literal whichever target is being differentiated by,
+/// and both targets carry the parameters, so the walk asks the same
+/// question of either - which is the point of having given the variable
+/// target the table: the proof about a branch must not depend on which
+/// half of the compiler happened to ask for the derivative.
+fn value_held(expr: &Expr, target: &DiffTarget) -> Option<f64> {
+    use oxidelica_parser::BinOp::*;
+    let (DiffTarget::Time { params, .. } | DiffTarget::Variable { params, .. }) = target;
+    match expr {
+        Expr::Number(n) => Some(*n),
+        Expr::Ref(name) => params.get(name).copied(),
+        Expr::Neg(inner) => value_held(inner, target).map(|v| -v),
+        Expr::Bin(op, l, r) => {
+            let (l, r) = (value_held(l, target)?, value_held(r, target)?);
+            Some(match op {
+                Add => l + r,
+                Sub => l - r,
+                Mul => l * r,
+                Div => l / r,
+                Pow => l.powf(r),
+            })
+        }
+        _ => None,
+    }
+}
+
+/// Rewrite `abs(e)` to `e` or `-e` wherever a branch's own condition
+/// proves the sign of `e` strictly, leaving every other `abs` exactly
+/// as it stood.
+///
+/// `taken_false` says which side of the `if` this is: the `else` branch
+/// is reached when the condition is false, which turns `x <= -x_small`
+/// into `x > -x_small` and proves nothing about a negative `x`. Read
+/// the other way round, the else branch of `x >= x_small` would be
+/// claimed to prove `x < x_small` - true, and useless, since it admits
+/// both signs.
+///
+/// Strictly means strictly. `x <= c` with `c` negative proves `x < 0`;
+/// `x <= 0` proves only `x <= 0`, which admits the one point where
+/// `abs` has no derivative, so it proves nothing here. That is the
+/// whole difference between this and `sign(x)*der(x)`.
+fn resolve_abs_under(cond: &Expr, branch: &Expr, target: &DiffTarget, taken_false: bool) -> Expr {
+    use oxidelica_parser::RelOp::*;
+    let Expr::Rel(op, left, right) = cond else {
+        return branch.clone();
+    };
+    if taken_false {
+        return branch.clone();
+    }
+    let Some(bound) = value_held(right, target) else {
+        return branch.clone();
+    };
+    // What the comparison proves about `left`, as a sign, or nothing.
+    let negative = match op {
+        Lt | Le if bound < 0.0 => true,
+        Gt | Ge if bound > 0.0 => false,
+        _ => return branch.clone(),
+    };
+    fn rewrite(expr: &Expr, subject: &Expr, negative: bool) -> Expr {
+        // An inner `if` is a context of its own and its condition has
+        // not been read here, so the walk stops at one: what is proven
+        // about this branch is not proven about a branch inside it.
+        if matches!(expr, Expr::If(..)) {
+            return expr.clone();
+        }
+        if let Expr::Call(name, args) = expr {
+            let bare = name.strip_prefix('.').unwrap_or(name);
+            if bare == "abs" && args.len() == 1 && &args[0] == subject {
+                let inner = args[0].clone();
+                return if negative {
+                    Expr::Neg(Box::new(inner))
+                } else {
+                    inner
+                };
+            }
+        }
+        expr.map_children(&mut |child| rewrite(child, subject, negative))
+    }
+    rewrite(branch, left, negative)
 }
 
 /// Whether nothing in an expression changes as time passes.

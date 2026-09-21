@@ -14844,3 +14844,58 @@ The live exponent is untouched: `DifferenceAmplifier` writes `a^b`
 with `b` alive, `simplify` does not fold it, and it refuses in the
 same words it always did. That is a measurement from the same binary
 as the gain rather than an intention.
+
+## A fact one half of the compiler held (shift 225)
+
+The four Fluid derivative tests refuse over `abs` inside
+`if x <= -x_small then -sqrt(abs(x))`. The question the charter insists
+on is what the _structure_ proves, since a sign guessed from a value is
+`sign(x)*der(x)`, which is wrong at exactly zero. The structure proves
+it outright: `x_small` is a parameter, `0.01` is its number, the
+differentiator already carries a table of parameters, and `x <= -0.01`
+puts `x` strictly below zero. So the condition of a branch is read as a
+fact about that branch, `abs(x)` inside it becomes `-x`, and where the
+condition proves nothing - an `else` branch, a bound that is not a
+number, a bound of zero, which admits the one point `abs` has no
+derivative at - the refusal stands exactly as before.
+
+The second half is the finding. With the rule in, a literal bound
+worked and the parameter bound still refused, which reads like a rule
+that half fired. It was not: `DiffTarget` has two shapes, `Time`
+carries the parameters and `Variable` did not, and the surviving
+refusals came from the variable one. Found by printing the target at
+the refusal rather than by reading:
+
+```text
+PROBE abs-refusal: fn=abs target-is-time=false u=Ref("x")
+```
+
+A proof that depends on which half of the compiler asked for the
+derivative is not a proof, so the parameters now travel with both
+targets. The eight call sites that needed changing were listed by the
+compiler rather than hunted for, which is what turning a tuple variant
+into a struct variant buys.
+
+The number is what the test holds, not the flattening: at `x = -1.98`,
+`y = -sqrt(1.98) = -1.407124727947029` and
+`der(y) = 0.5/sqrt(1.98) = 0.3553345272593507`, both to every digit.
+
+The change costs nothing and moves a family one storey up, which is
+the outcome only the census can show. The corpus stands at 867
+flattening and 537 running either side of it, and the `flat` and `ran`
+lists of the two passes are identical line for line
+(`/tmp/m225/a.sorted` against `/tmp/m225/b.sorted`). What moved is the
+register: the two rows naming `abs` went from 4 + 1 = 5 to 2 + 1 = 3,
+and a row of 2 appeared naming `cannot differentiate a call of several
+arguments` - the same two models, one wall further on, refused now over
+`Modelica.Fluid.Utilities.regRoot2.regRoot2_utility`, a function of six
+arguments.
+
+So of the five `abs` models, two travelled and three remain, and
+`RegRoot2ZeroDerivative` says in its own refusal why it is not among
+the travellers: the `abs` left in it sits under `if 0 >= 1`, a branch
+whose bound is a comparison of two literals that no condition about `x`
+guards, and under `abs(-(x_small * (1/0)))`, whose argument is an
+infinity. Neither is a sign a branch settled, and neither should be
+guessed. `AdvancedSolenoid` is the mechanism of chapter 221 and was
+never expected to move.

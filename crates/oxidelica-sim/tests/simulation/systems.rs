@@ -979,3 +979,43 @@ fn index_reduction_differentiates_atan2_by_both_of_its_arguments() {
         "atan2 pins v to {expected}, not {v}"
     );
 }
+
+#[test]
+fn a_branch_that_settles_a_sign_differentiates_the_abs_inside_it() {
+    // `regRoot2` writes `if x <= -x_small then -sqrt(abs(x))`, and the
+    // whole Fluid family of derivative tests was refused because `abs`
+    // has no derivative rule. It needs none inside that branch: the
+    // branch is reached only when `x <= -x_small`, and `x_small` is a
+    // parameter with a positive number, so `x` is strictly negative
+    // there and `abs(x)` is `-x`.
+    //
+    // The number is the point. At `time = 0.02` the path is
+    // `x = -1.98`, so `y = -sqrt(1.98)` and its derivative is
+    // `0.5/sqrt(1.98) = 0.35533452725935...`, both to every digit
+    // below. A rule that guessed `sign(x)*der(x)` would agree here and
+    // be wrong at zero, which is why nothing of the sort is used: the
+    // sign comes from the condition, not from the value.
+    //
+    // The parameter form is the one that matters. Written with the
+    // literal `-0.01` it passed while `-x_small` still refused, because
+    // the proof was available to one of the compiler's two
+    // differentiation targets and not to the other.
+    let result = run(
+        "model A parameter Real x_small = 0.01; Real x; Real y; Real yd; \
+         equation x = time - 2.0; \
+         y = if x >= x_small then sqrt(x) else if x <= -x_small then -sqrt(abs(x)) else 0.0; \
+         yd = der(y); \
+         annotation(experiment(StopTime = 0.02, Interval = 0.01)); end A;",
+    );
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    let x = -1.98f64;
+    assert!((at("y") - -x.abs().sqrt()).abs() < 1e-9, "y = {}", at("y"));
+    assert!(
+        (at("yd") - 0.5 / x.abs().sqrt()).abs() < 1e-6,
+        "yd = {}",
+        at("yd")
+    );
+}
