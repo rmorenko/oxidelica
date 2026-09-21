@@ -691,3 +691,49 @@ fn a_residual_at_the_rounding_floor_of_its_own_equation_is_solved() {
         "the loop was solved at v = {value}"
     );
 }
+
+/// A body the run walks cannot raise: a walk that fails answers with a
+/// number that is not one and leaves its reason behind for whoever
+/// evaluated the point. Inside an algebraic block that reader is the
+/// block itself, and it used to refuse before reading - so a model
+/// whose own `assert` had fired was reported as a set of equations
+/// that "cannot be evaluated", with the sentence the model wrote to
+/// explain itself dropped on the floor.
+///
+/// This is the shape of the whole `NaN before any Newton step` row in
+/// the fluid libraries: `solveOneNonlinearEquation` says outright that
+/// the bracket it was handed does not contain a root, and the compiler
+/// answered with the solver's name instead of the library's sentence.
+#[test]
+fn a_function_that_refused_inside_a_loop_says_why() {
+    // The loop in the body is what keeps the call standing: a body
+    // simple enough to inline is evaluated where the equation is, and
+    // its assert raises in the ordinary way. Only a call the run walks
+    // can lose its reason, which is why the model needs one.
+    let refused = compile(
+        &parse_model(
+            "model W \
+               function guard \
+                 input Real u; output Real y; \
+                 protected Real a; \
+                 algorithm \
+                   assert(u > 1.0, \"guard: u must exceed one\"); \
+                   a := u; \
+                   while a < 10.0 loop a := a + 1.0; end while; \
+                   y := u * u - 4.0; \
+               end guard; \
+               Real x; Real s(start = 0, fixed = true); \
+             equation guard(x) + x + 3.0 = 0; der(s) = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.5)); end W;",
+        )
+        .unwrap(),
+    )
+    .expect_err("the assert fires at the point the block starts from")
+    .to_string();
+    assert_eq!(
+        refused,
+        "`(W.guard(x) + x) + 3 = 0` of algebraic loop [\"x\"] is NaN at t = 0, \
+         before any Newton step, because a function it calls could not be \
+         walked: guard: u must exceed one"
+    );
+}

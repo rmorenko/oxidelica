@@ -669,6 +669,24 @@ impl CompiledModel {
                     let which = residual_sources
                         .get(i)
                         .map_or_else(|| format!("residual {i}"), |source| format!("`{source}`"));
+                    // A body the run walks cannot raise: a walk that
+                    // fails answers with a number that is not one and
+                    // leaves its reason behind. If one of those is
+                    // what made this residual NaN, the reason is the
+                    // whole answer, and the block around it is the
+                    // place the fault was noticed rather than the
+                    // place it happened. Read it out before the
+                    // refusal is written, or it is dropped when the
+                    // block returns and the reader is sent to the
+                    // solver for a fault in a function body.
+                    if let Some(why) = self.walked.complaint() {
+                        return err(format!(
+                            "{which} of algebraic loop {:?} is {bad} at t = {t}, \
+                             before any Newton step, because a function it calls \
+                             could not be walked: {why}",
+                            block_names()
+                        ));
+                    }
                     return err(format!(
                         "{which} of algebraic loop {:?} is {bad} at t = {t}, \
                          before any Newton step: the equations cannot be evaluated \
