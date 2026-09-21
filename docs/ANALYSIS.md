@@ -14040,3 +14040,45 @@ sharpening a line search. That is bigger than a shift and it is
 parked here with its address; the parked note `nominal for a Newton
 step` is a different lever on the same wall, and neither is the wall
 itself.
+
+## The simplified branch does not converge either, in two models of three
+
+Before arguing about how to build a continuation, the cheap question
+was whether the easier problem is solvable at all. The switch
+`OXIDELICA_HOMOTOPY_SIMPLIFIED` was put over
+`crates/oxidelica-parser/src/flatten/names.rs:842` for one probe - it
+takes `args[1]` instead of `args[0]`, so the whole model starts at
+λ = 0 - and the three models mapped last shift were run from the root
+of the corpus with `OXIDELICA_NEWTON_TRAIL`. The trail is in
+`/tmp/m217/probe_lambda0.txt`; the switch was reverted and never
+committed.
+
+`TestWaterPumpDefault` converges on the simplified branch and does so
+easily: the residual falls 3.16e3 → 1.88e1 → 5.69e-7 → 1.60e-11 over
+four full steps, every one of them at `lambda=1e0`
+(probe_lambda0.txt:51-53). Its refusal moves to a different wall
+entirely - `Error in region computation of IF97 steam`
+(probe_lambda0.txt:59) - which is the medium complaining about the
+state the simplified branch settles on, not a Newton failure.
+
+The other two do not converge. `DrumBoiler` still crawls: at step 13
+the residual is 6.659e4 with the line search down to
+`lambda=1.9073486328125e-6` and `stuck=2`
+(probe_lambda0.txt:11-12), which is the same shape and very nearly
+the same number the actual branch gave last shift. `SeriesPipes1`
+does the same: step 11 at |f| = 6.3928e4, `lambda=7.62939453125e-6`,
+`stuck=2` (probe_lambda0.txt:66-67), and its residual vector shows
+what is wrong - five of six entries sit at -6.42 while one sits at
+6.39e4, so a single equation carries the whole residual and the
+others are already satisfied.
+
+That answers the architectural question without building anything. A
+continuation from λ = 0 needs the λ = 0 problem to be solvable, and
+for two of these three it is not: the simplified branch fails at the
+same step, with the same line-search collapse, as the actual one. So
+the homotopy line is not the lever for this family - what stands
+behind `DrumBoiler` and `SeriesPipes1` is a start far from any
+solution of either problem, and `TestWaterPumpDefault`'s own wall
+turns out to be the medium's region table rather than the solver.
+The two-step scheme of maláva 217 point 2 is therefore not priced:
+it would buy one model of three, and that one lands on IF97.
