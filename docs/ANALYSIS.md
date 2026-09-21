@@ -13457,3 +13457,27 @@ stops the fall being misread a week later. That is the second time
 that comment has been what carried the meaning, after the carving-out
 of the heavy models, and it is why this note records a case with only
 a single model behind it.
+
+### Reach is counted from who called the broken thing, never from a package name
+
+Both readings corrected above went wrong the same way, and the way is
+worth naming on its own. The reach of this fix was first put at every
+model of `Thermal.FluidHeatFlow`, because the package holds ten
+running models and the idiom that broke is written throughout it. That
+is an inference from a name: the package is not the medium, and nine
+of the ten name a base record whose properties genuinely are one. The
+same shape produced "three magnetic machines" for a case that was one
+machine on a coin toss.
+
+The rule that follows costs almost nothing to keep. Reach is the set
+of models that actually called the broken thing, and it is read by
+comparing numbers either side of one binary rather than by reading a
+directory listing. Here that was thirty-six readings and two minutes
+(`/tmp/m208/nine_before.txt`, `/tmp/m208/nine_after.txt`), against a
+claim of nine corrected models that would otherwise have gone into a
+commit message as fact.
+
+This is the note about a name shortened to its tail, seen from a third
+side: there the guess was that a name's last part identifies its
+owner, here that a name's first part identifies its users. A name is
+not a measurement in either direction.
