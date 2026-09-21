@@ -14375,14 +14375,20 @@ reason is upstream. The same probe printed the victim of every
 reduction:
 
 ```text
-reduction 10  ... flange_b.phi = flange.phi   -> victim smee.phiMechanical
-reduction 13  ... inertiaRotor.w - constantSpeed.w -> victim smee.inertiaRotor.w
-reduction 14  ... inertiaStator.w             -> victim smee.inertiaStator.w
-reduction 15  ... der(flange_b.phi) - wMechanical -> no candidate
+victim smee.phiMechanical
+victim smee.inertiaRotor.w
+victim smee.inertiaStator.w
 ```
 
-and `smee.inertiaRotor.phi` is already a dummy from **reduction 3**
-onward, `smee.phiMechanical` from reduction 10. By the time the last
+Those are the probe's own lines, from `/tmp/reach2.txt`: bare victim
+names with no reduction number on them, the numbering below being a
+count of the lines rather than something the instrument printed.
+Counted that way `smee.inertiaRotor.phi` is the **second** victim and
+`smee.phiMechanical` the tenth. An earlier telling of this chapter
+wrote "dummy from reduction 3" in the instrument's voice, and no run
+in `/tmp` printed it; the correction is recorded here rather than
+quietly edited away, because a count dressed as a reading is the trap
+the charter names. By the time the last
 constraint arrives, every state its chain could have pinned has been
 spent as a victim of an earlier one. The refusal is not a hole in the
 walk; it is the correct report that nothing is left to demote.
@@ -14403,3 +14409,134 @@ three apiece. Its dead ends are `fixedRotation.r[1..3]`, parameters of
 a rotation. Same instrument, different wall: the machines run out of
 states to demote, the constraint models refuse over a variable whose
 own equation does not mention it.
+
+## Seventeen that no equation determines are two kinds, and neither is the machines'
+
+The seventeen models refusing with `no equation determines X, whose
+derivative the equation ... needs` were the live top of the
+`noconstrain` row after the machines and the non-examples were read.
+The expectation going in was that some share of them would turn out
+to be paying for the architecture of `choose_the_victim`, the way the
+eleven machines do. None of them is.
+
+The list is `/tmp/m217/sub_nodet.txt`, seventeen names. Grepping their
+quotes out of `/tmp/m217/raw.txt` splits them before any build:
+
+```text
+4 vin.T0        1 vin1.T0   1 vin2.T0   1 VGS.T0   1 trapezoid.T_start
+3 der(damper1.s)   1 der(mass.T)   1 der(transformer.core1.B)
+1 der(loss_m.Phi.im)   1 der(directCapacity.heatCapacitor.T)
+1 der(inertia2.rotorWith3DEffects.w_a[2])
+1 der(rotor1D.rotorWith3DEffects.w_a[1])
+```
+
+Eight names carry no derivative, nine do. That eight-nine split is the
+whole family, and a probe at `compile.rs:1635` - the one branch that
+raises these words, printing whether the name is an unknown at all and
+what the matching assigned it - confirms the split is the mechanism
+and not the spelling. Its output over all seventeen is in
+`/tmp/m220_probe.txt`:
+
+```text
+Inverter :: `vin.T0` is not an unknown at all (is_state=false, is_param=false)
+InverseCapacity :: `der(mass.T)` is unknown #17, matched_eq=Some(None)
+PendulumWithSpringDamper :: `der(damper1.s)` is unknown #1334, matched_eq=Some(None)
+```
+
+Every one of the eight prints `not an unknown at all`; every one of
+the nine prints `unknown #N, matched_eq=Some(None)`. The branch has
+two arms - `index.is_none()` and a matching that came back empty - and
+the two kinds take one arm each, cleanly, seventeen for seventeen.
+
+That is already the answer to the question the shift was set. The
+machine wall is a reach that runs out of _states to demote_ after the
+walk has succeeded. Neither arm here is a reach at all: the first
+cannot find the name among the unknowns, the second finds it and gets
+no equation from the matching. Whatever `choose_the_victim` is owed,
+these seventeen are not on its bill, and the consultation's list of
+payers does not grow from here.
+
+What the eight are is worth saying, because the name gives it away
+once looked at. `oxidelica why Inverter vin.T0` answers:
+
+```text
+declared: Real vin.T0
+  bound to: nothing
+  start: vin.TD
+when (pre(vin.counter2) <> 0) and sample(vin.TD, vin.PER): vin.T0 = time
+```
+
+A pulse source's phase, held between events and re-set by a `when`.
+It is not an unknown because nothing continuous determines it - which
+is correct - and the refusal arrives because differentiating
+`vin.p.v` walks into it. These are the same shape as the charter's own
+note that what a `when` assigns does not move: the derivative wanted
+here is zero, and the compiler asks for an equation instead of saying
+so. `trapezoid.T_start` is the eighth of the same kind. Whether the
+zero is safe to hand over is exactly the question the charter parks -
+a rule true between events and false the moment the clause fires -
+so this is written down and not attempted.
+
+The nine are a different question and a real hole: the name _is_ an
+unknown, so something is expected to determine it, and the matching
+declines to assign it an equation. `InverseCapacity` is the smallest
+of them and its three equations read whole:
+
+```text
+mass.T = mass.port.T
+mass.der_T = der(mass.T)
+mass.C * der(mass.T) = mass.port.Q_flow
+```
+
+with the adaptor closing the loop by driving `mass.der_T` from
+outside. `der(mass.T)` has two equations naming it and the matching
+gives it neither, because both were already spent elsewhere; the
+reduction then wants `der(der(mass.T))` and finds nothing to
+differentiate. The pattern is the library's FMU adaptor, and all of
+`GenerationOfFMUs`, `InverseCapacity`, the three `damper1.s` and the
+two `rotorWith3DEffects.w_a` are that adaptor shape - a derivative
+given its own algebraic name and then driven from the outside.
+
+No small model was got for this kind, and it is worth saying which
+way it failed rather than leaving the absence to be read as an
+omission. Five attempts, each writing the three equations above with
+the driving supplied by hand, refuse earlier and elsewhere: `4
+algebraic equation(s) for 5 unknown(s)`, then `6 for 5`, then `6 for
+5` again with a different equation named. The balance the adaptor
+reaches by way of a connector is not reachable by writing equations
+out, and a model that refuses at the balance check never arrives at
+the matching that this kind is about. This is the blind spot the
+charter already names from the other side: the path switches on only
+at a complexity a hand-written model does not reach. The witness for
+this kind is the corpus probe above and nothing smaller.
+
+## All six subscripts that survive flattening are one call
+
+The six models refusing `cannot differentiate a subscript that
+survived flattening` are one shape, and grep says so in a line:
+
+```text
+5 Index(Call("Modelica.Media.Water.IF97_Utilities.waterBaseProp_ph"
+1 Index(Call("Modelica.Media.Water.IF97_Utilities.waterBaseProp_pT"
+```
+
+`NonCircularPipes`, `PumpingSystem`, `WaterIF97`, `TestTemperature2`,
+`TestMixingVolumesPressureStates` and `BranchingPipes18`. What
+survives flattening is not a subscript on an array variable - which
+would have been a flattening fault - but a subscript on a _call_:
+`waterBaseProp_ph(p, h, 0, 0)[4]`, the water property routine's
+fourth output picked out of the record it returns. The equation
+under differentiation is `state.T = waterBaseProp_ph(...)[4]`, and
+`state.T` is a state, so the reduction has to differentiate the right
+hand side.
+
+It cannot, and the refusal is honest about why in a way the wording
+hides: the rule for a call's derivative is a chain rule over the
+call's own derivative function, and there is no rule at all for "the
+fourth component of what this call returned". Differentiating the
+call would give a record of derivatives whose fourth field is what is
+wanted; the layer has no way to say that, so it meets an `Index` it
+has no case for and refuses by naming the node. The name in the
+message is right and the diagnosis it suggests - a flattening leak -
+is wrong, which is why six models sat under a wording that pointed at
+the wrong layer. No code was changed.
