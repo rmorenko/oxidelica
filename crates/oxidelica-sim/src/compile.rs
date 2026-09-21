@@ -290,6 +290,18 @@ fn fold_bodies(table: &mut HashMap<String, f64>, bodies: &HashMap<&str, &Expr>) 
     }
 }
 
+/// Where the model's names begin, as the plan needs to read them.
+///
+/// Two facts about the same moment, kept together because both are
+/// asked at the one place: whether an unknown of a block begins at
+/// zero, and what each state holds when the first block is evaluated.
+struct Starts<'a> {
+    /// Whether an algebraic unknown's declared start is zero.
+    at_zero: &'a dyn Fn(&str) -> bool,
+    /// Each state against the value it begins the run at.
+    states: &'a HashMap<String, f64>,
+}
+
 /// The order a run evaluates the algebraic layer in.
 ///
 /// An equation that can be solved for its own unknown on its own is an
@@ -305,8 +317,12 @@ fn build_plan(
     eq_vars: &[Vec<usize>],
     n_alg: usize,
     known: &HashMap<String, f64>,
-    starts_at_zero: &dyn Fn(&str) -> bool,
+    starts: &Starts<'_>,
 ) -> (Vec<String>, Vec<PlanStage>) {
+    let Starts {
+        at_zero: starts_at_zero,
+        states: state_starts,
+    } = starts;
     // Kahn topological order over equations.
     let producer: Vec<usize> = {
         let mut p = vec![0; n_alg];
@@ -549,7 +565,22 @@ fn build_plan(
                 let at_starts = if std::env::var_os("OXIDELICA_DIVISOR_BY_MENTION").is_some() {
                     empty
                 } else {
-                    values_at_starts(known, &bodies, &block_names)
+                    let mut table = values_at_starts(known, &bodies, &block_names);
+                    // A state is not an unknown of the block, and the
+                    // reading above cannot see one. But a state does
+                    // hold a value when the block is first evaluated -
+                    // its start - and an inner assignment dividing by
+                    // a function of that value divides by whatever the
+                    // function comes to. Without this the table has no
+                    // entry for the name and the test says nothing,
+                    // which is how the rolling wheel came to divide by
+                    // `sin(0)`.
+                    if std::env::var_os("OXIDELICA_NO_STATE_DIVISOR").is_none() {
+                        for (name, value) in state_starts.iter() {
+                            table.entry(name.clone()).or_insert(*value);
+                        }
+                    }
+                    table
                 };
                 solvable
                     .clone()
@@ -3518,7 +3549,14 @@ pub(crate) fn compile_at(
         &eq_vars,
         n_alg,
         &params,
-        &starts_at_zero,
+        &Starts {
+            at_zero: &starts_at_zero,
+            states: &states
+                .iter()
+                .cloned()
+                .zip(initial.iter().copied())
+                .collect::<HashMap<String, f64>>(),
+        },
     );
 
     let ctx = ctx0;
@@ -3883,6 +3921,7 @@ pub(crate) fn compile_at(
                     .iter()
                     .map(|(lhs, rhs)| format!("{} = {}", lhs.describe(), rhs.describe()))
                     .collect(),
+                inner_sources: inner.iter().map(|(_, expr)| expr.describe()).collect(),
             }),
         })
         .collect::<Result<Vec<_>, SimError>>()?;

@@ -127,7 +127,19 @@ FLATTEN_FLOOR=868
 #   run          533 = 530 before, plus four, less QuadraticCoreAirgap
 #   runnable run 500 = 498 before, plus the two of those four that are
 #                runnable examples
-RUN_FLOOR=533
+# Not dividing by a state that starts at zero brought one more, and
+# the runnable pair did not move because it is not a runnable example.
+# Named from one binary, /tmp/m210/before_list.txt against
+# /tmp/m210/after_list.txt, with the fix behind
+# OXIDELICA_NO_STATE_DIVISOR so that only the rule differs:
+#
+#   arrived  MultiBody.Examples.Elementary.
+#            PointGravityWithPointMasses2.SystemWithStandardBodies
+#   left     nothing
+#
+#   run          534 = 533 before, plus one
+#   runnable run 500, unmoved
+RUN_FLOOR=534
 RUNNABLE_FLATTEN_FLOOR=753
 RUNNABLE_RUN_FLOOR=500
 # Every file of the library parses. This is a ceiling reached rather

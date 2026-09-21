@@ -7514,6 +7514,52 @@ this wall for other reasons, counted after the move rather than before
 it. MultiBody owns eight of them through `z_a`, which is a family of
 its own.
 
+## A torn block that divides by a state, which is no unknown of its own
+
+The rolling wheel's wall was `der(wheel1.rollingWheel.der_angles[2])`
+reading NaN before any Newton step, and the previous shift read the
+asymmetry as feeding: the sister `der(...der_angles[1])` stood among
+the block's unknowns and this one did not. The probe says the two are
+not the same kind of name. `[1]` is torn, a Newton unknown; `[2]` is an
+inner assignment of the same block, recovered explicitly before Newton
+moves anything. Not a gap in feeding the products of index reduction,
+but which side of the tearing each landed on.
+
+What the assignment divides by is what the refusal now prints, because
+it now prints the assignment and not only the name it wrote
+(`/tmp/m210/rw_ref.txt`):
+
+```text
+der(wheel1.rollingWheel.der_angles[2]) = (-(wheel1.body.z_a[3] - ...))
+  / .sin(wheel1.rollingWheel.angles[3])
+```
+
+`angles[3]` is a state and it starts at zero, so the divisor is `sin(0)`
+on the first evaluation. The divisor guard could not see it: it reads
+the block's own unknowns, held at their starts, and a state is neither
+an unknown of the block nor a name the table carried. Nothing was
+claimed about the divisor, so the division went ahead.
+
+Two things were needed and the second is the finding. The states' start
+values go into the table the guard folds over, which is arithmetic
+already in the compiler. But the divisor is a call, and `simplify`
+rearranges terms without knowing any arithmetic - it says nothing at all
+about `sin(0)`. Read through the simplifier the new test came back
+empty, and the run had to fold it with the evaluator instead. A test on
+an expression that can hold a call is a test that needs the evaluator,
+not the simplifier.
+
+Measured from one binary, the fix behind `OXIDELICA_NO_STATE_DIVISOR`:
+533 run against 534 (`/tmp/m210/before_list.txt` against
+`/tmp/m210/after_list.txt`), one arrival and no departure -
+`Modelica.Mechanics.MultiBody.Examples.Elementary.PointGravityWithPointMasses2.SystemWithStandardBodies`.
+The rolling wheel is not the arrival. Its own wall moved one storey, to
+`the equations of algebraic loop [...] do not mention
+["der(wheel1.rollingWheel.delta_0[3])"]` (`/tmp/m210/rw_fix2.txt`),
+which is the parked `do not mention` family of row 24. That is the
+shape these notes predict: an entry emptied uncovers whatever stood
+behind it, and the run count moves only where the last wall fell.
+
 ## The residual nothing could evaluate, mapped
 
 The census taken after the divisor rule put the residual wording at

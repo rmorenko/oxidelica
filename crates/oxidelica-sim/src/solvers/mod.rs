@@ -568,6 +568,7 @@ impl CompiledModel {
             inner,
             residuals,
             residual_sources,
+            inner_sources,
             ..
         } = stage
         else {
@@ -665,10 +666,25 @@ impl CompiledModel {
                     // unnamed, it points at the solver, which is the
                     // one place the fault is not.
                     let mut bad_names: Vec<String> = Vec::new();
-                    for (var, _) in inner {
+                    for (k, (var, _)) in inner.iter().enumerate() {
                         let value = values[self.algebraic_slots[*var]];
                         if !value.is_finite() {
-                            bad_names.push(format!("{} = {value}", self.algebraics[*var]));
+                            // The assignment, not only the name it
+                            // wrote. A torn block recovers its inner
+                            // unknowns from explicit expressions, and
+                            // the one that came out NaN is the whole
+                            // of the fault; the name alone sends the
+                            // reader looking for an equation the plan
+                            // no longer holds under that spelling.
+                            match inner_sources.get(k) {
+                                Some(source) => bad_names.push(format!(
+                                    "{} = {source} = {value}",
+                                    self.algebraics[*var]
+                                )),
+                                None => {
+                                    bad_names.push(format!("{} = {value}", self.algebraics[*var]));
+                                }
+                            }
                         }
                     }
                     let entered = if bad_names.is_empty() {

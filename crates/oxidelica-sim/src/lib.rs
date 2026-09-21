@@ -158,6 +158,11 @@ enum AlgStage {
         /// Each residual as the flat model spells it, so a refusal
         /// about one names the equation rather than its number.
         residual_sources: Vec<String>,
+        /// Each inner assignment as the flat model spells it, for the
+        /// same reason: a value inside a torn block that is not a
+        /// number was written by one of these, and naming the unknown
+        /// alone leaves the reader to guess which.
+        inner_sources: Vec<String>,
     },
 }
 
@@ -543,6 +548,25 @@ struct EvalCtx<'a> {
     /// How deep the walking has gone, so a function calling itself for
     /// ever is stopped rather than running the stack out.
     depth: usize,
+}
+
+/// What an expression comes to over a table of settled values, or
+/// nothing where it cannot be worked out.
+///
+/// The plan reads a divisor this way rather than through the
+/// simplifier, which rearranges terms and knows no arithmetic: `sin`
+/// of an angle that starts at zero is a call, and only the evaluator
+/// says it is zero.
+fn eval_at_starts(expr: &Expr, table: &HashMap<String, f64>) -> Option<f64> {
+    let ctx = EvalCtx {
+        vars: table,
+        time: 0.0,
+        programs: None,
+        depth: 0,
+    };
+    code::eval(expr, &ctx)
+        .ok()
+        .filter(|value| value.is_finite())
 }
 
 /// Where a variable sits in the value array a run carries.

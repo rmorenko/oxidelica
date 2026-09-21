@@ -541,6 +541,42 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
 }
 
 #[test]
+fn a_block_does_not_divide_by_a_state_that_starts_at_zero() {
+    // `u*sin(a) = x - 1` solved explicitly for `u` divides by
+    // `sin(a)`, and `a` starts at zero: the assignment runs before
+    // Newton has moved anything, so it divides by exactly zero on its
+    // first evaluation and the whole block comes out as a non-number.
+    // The divisor guard saw only the block's own unknowns, and a
+    // state is not one of those - it is a name that already holds a
+    // value, which is why nothing was claimed about it and the
+    // division went ahead. Read at the state's start the divisor is a
+    // number, and a zero, so the equation joins the tearing set where
+    // Newton carries it.
+    //
+    // Checked on the answer rather than on the model merely running:
+    // at `a = 0` the equation reads `0 = x - 1`, so `x` is one and
+    // `u` is `3 - 1`.
+    let result = run(
+        "model StateDiv Real a(start = 0, fixed = true); Real x; Real u; \
+         equation der(a) = 1; u * sin(a) = x - 1; u + x * x = 3; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end StateDiv;",
+    );
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let u = result.columns.iter().position(|c| c == "u").unwrap();
+    let first = &result.rows[0];
+    assert!(
+        (first[x] - 1.0).abs() < 1e-9,
+        "x starts at one, not {}",
+        first[x]
+    );
+    assert!(
+        (first[u] - 2.0).abs() < 1e-9,
+        "u starts at two, not {}",
+        first[u]
+    );
+}
+
+#[test]
 fn a_zero_length_array_field_of_a_connector_writes_no_equation() {
     // A connector carries `Xi[nXi]`, and a single-substance medium has
     // `nXi = 0`, so a fluid port has no `Xi` to equate. The potential

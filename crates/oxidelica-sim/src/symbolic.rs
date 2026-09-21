@@ -429,7 +429,23 @@ pub(crate) fn divides_by_any(expr: &Expr, names: &[&str], settled: &HashMap<Stri
                     .iter()
                     .any(|name| names.contains(name) && !guarded.contains(name))
                     && !divisor_is_nonzero_at_starts(divisor, names, settled);
+                // The other way a first evaluation divides by zero,
+                // and the one the block's own unknowns cannot show: a
+                // divisor built entirely of names that are settled
+                // already - a state at its start, a parameter - which
+                // comes to exactly zero. `sin(angles[3])` with the
+                // angle starting at zero is that divisor, and the
+                // rolling wheel's inner assignment for the second
+                // Euler rate divides by it. Nothing about the block is
+                // wrong; the plan chose to assign through a quotient
+                // that has no value at the point it is first asked
+                // for, so the equation belongs in the tearing set with
+                // the rest.
+                let settled_zero = !refs.is_empty()
+                    && refs.iter().all(|name| !guarded.contains(name))
+                    && divisor_is_zero_at_starts(divisor, settled);
                 unguarded
+                    || settled_zero
                     || walk(dividend, names, guarded, settled)
                     || walk(divisor, names, guarded, settled)
             }
@@ -470,6 +486,35 @@ fn divisor_is_nonzero_at_starts(
         }
     }
     matches!(simplify(&substitute_all(divisor, &table)), Expr::Number(value) if value != 0.0)
+}
+
+/// Whether a divisor comes to exactly zero at the values the run
+/// starts from, using only names whose starting value is already
+/// settled.
+///
+/// Stricter than its neighbour above in the one way that matters: a
+/// name that is not settled makes the answer no. Nothing is guessed
+/// at zero here, so what this reports is a division that certainly
+/// cannot be done rather than one that might not be.
+fn divisor_is_zero_at_starts(divisor: &Expr, settled: &HashMap<String, f64>) -> bool {
+    let mut refs = Vec::new();
+    divisor.collect_refs(&mut refs);
+    let mut table: HashMap<String, f64> = HashMap::new();
+    for name in refs {
+        match settled.get(name) {
+            Some(value) => {
+                table.insert(name.to_string(), *value);
+            }
+            None => return false,
+        }
+    }
+    // Worked out rather than simplified. `sin(angles[3])` at an angle
+    // of zero is zero, and the simplifier says nothing about a call -
+    // it is an arrangement of terms, not an arithmetic. Reading a
+    // divisor of a call through the simplifier alone is how this test
+    // first came back saying nothing at all about the rolling wheel,
+    // whose divisor is exactly such a call.
+    matches!(crate::eval_at_starts(divisor, &table), Some(value) if value == 0.0)
 }
 
 pub(crate) fn differentiate(expr: &Expr, target: &DiffTarget) -> Result<Expr, String> {
