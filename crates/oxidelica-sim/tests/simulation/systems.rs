@@ -367,6 +367,41 @@ fn index_reduction_reaches_states_through_algebraic_definitions() {
 }
 
 #[test]
+fn index_reduction_differentiates_min_and_max_as_the_branch_they_are() {
+    // `min(a, b)` is `if a < b then a else b`, and a constraint
+    // holding one of them against a moving right-hand side has to be
+    // differentiated through whichever side was actually selected.
+    //
+    // The number is the point rather than the flattening. With x
+    // positive, `max(2*x, 3*x)` is `3*x`, so `3*x = t + 1` pins the
+    // velocity at a third; a derivative taken from the wrong side of
+    // the branch would give a half, and one taken as though the call
+    // were flat would give a model with no solution at all. The `min`
+    // half is asked for the same third from the other position in
+    // the argument list: `min(3*x, 4*x)` is the first argument where
+    // `max(2*x, 3*x)` was the second.
+    let velocity = |body: &str, start: f64| {
+        let result = run(&format!(
+            "model B Real x(start = {start}); Real v; \
+             equation der(x) = v; {body} = time + 1; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.5)); end B;"
+        ));
+        let index = result.columns.iter().position(|c| c == "v").unwrap();
+        result.rows.last().unwrap()[index]
+    };
+    let by_max = velocity("max(2 * x, 3 * x)", 1.0 / 3.0);
+    assert!(
+        (by_max - 1.0 / 3.0).abs() < 1e-7,
+        "max selects 3*x, so v = 1/3, not {by_max}"
+    );
+    let by_min = velocity("min(3 * x, 4 * x)", 1.0 / 3.0);
+    assert!(
+        (by_min - 1.0 / 3.0).abs() < 1e-7,
+        "min selects 3*x, so v = 1/3, not {by_min}"
+    );
+}
+
+#[test]
 fn index_reduction_differentiates_through_an_unsolvable_equation() {
     // The saturating inductor's shape. The current `si` is determined
     // by `Psi = 0.1*si + 1.9*Ipar*atan(si/Ipar)` and no rearrangement

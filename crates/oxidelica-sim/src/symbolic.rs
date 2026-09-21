@@ -916,6 +916,32 @@ pub(crate) fn differentiate_at(
             let steps = call("integer", bin(Div, a.clone(), b.clone()));
             bin(Sub, d(a)?, bin(Mul, steps, d(b)?))
         }
+        // `min(a, b)` is `if a < b then a else b` written as a call,
+        // and the branch already has a rule: each side differentiated
+        // under the condition that selected it. Not a new rule, then,
+        // but the definition written out - which is why it is exact
+        // everywhere the two arguments differ, and says nothing at
+        // all about where they cross. That is the same standing the
+        // branch itself has, and the crossing is an event indicator
+        // the solver stops at rather than integrates across.
+        //
+        // Two arguments only. `min(v)` over an array picks by a
+        // search rather than by a comparison of two names, and there
+        // is no branch to write it as; asked for one, the catch-all
+        // below still refuses it by name.
+        Expr::Call(name, args) if matches!(name.as_str(), "min" | "max") && args.len() == 2 => {
+            let (a, b) = (&args[0], &args[1]);
+            let op = if name == "min" {
+                oxidelica_parser::RelOp::Lt
+            } else {
+                oxidelica_parser::RelOp::Gt
+            };
+            Expr::If(
+                Box::new(Expr::Rel(op, Box::new(a.clone()), Box::new(b.clone()))),
+                Box::new(d(a)?),
+                Box::new(d(b)?),
+            )
+        }
         Expr::If(cond, then_branch, else_branch) => Expr::If(
             cond.clone(),
             Box::new(d(then_branch)?),
