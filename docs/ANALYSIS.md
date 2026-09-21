@@ -13958,15 +13958,31 @@ This is a wall named, not a wall removed, and the numbers say so.
 Both halves from one binary, this time with the off half taken from
 the same build: 868 flatten and 536 run either way, 753 and 502 on
 the runnable pair. The run lists are identical name for name. What
-moved is the register: `BranchingPipes12` and `BranchingPipes14`
-leave the `singular Jacobian` row, which stood at 13 before
-(/tmp/m215/census.txt, the run half), for a row that names the step
-that left the domain.
+moved is the register, and the shift that made the change reported
+that movement from memory rather than from the file. Read off the
+files, it is larger than was claimed.
 
-The row they leave is worth reading for what remains in it. Of the
-thirteen, eleven are electrical machines and rectifiers -
-`SMEE_LoadDump`, `SMEE_Rectifier`, `PolyphaseRectifier`,
-`IMC_DOL_Polyphase` and their kin - and only `DynamicPipesAndFittings`
-is hydraulic. The hydraulic family has left that row almost entirely
-over three shifts, and what is left in it is the machines, which are
-a parked family of their own.
+The `singular Jacobian in algebraic loop` row stood at thirteen, and
+those thirteen are, by name (/tmp/m215/raw.txt:284, 285, 296, 307,
+363, 370, 371, 372, 374, 375, 485, 494, 496): ten electrical machines
+and rectifiers - `SMEE_LoadDump` and `SMEE_Rectifier` in two libraries
+apiece, `PolyphaseRectifier`, the quasi-static `Rectifier`,
+`IMC_DOL_Polyphase`, `SMEE_Generator_Polyphase`,
+`SMPM_Inverter_Polyphase`, `SMR_Inverter_Polyphase` - and three
+hydraulics: `BranchingPipes12`, `BranchingPipes14` and
+`DynamicPipesAndFittings`.
+
+The new row takes four names, not two (/tmp/m215/on.txt:1867, 1869,
+1871, 1873). Three of them come out of `singular`: `BranchingPipes12`,
+`BranchingPipes14` and `DynamicPipesAndFittings`, which stood in the
+off half at off.txt:1995 and is absent from the on half's row. The
+fourth, `SeriesPipes2`, comes from the other direction entirely - it
+stood in the `Newton direction` row with `from |f| = NaN` already in
+the text of its refusal (raw.txt:510), which is the same NaN reached
+one wall earlier.
+
+What remains in the `singular` row is therefore ten, all electrical
+(on.txt:1809-1812, 1997-2008), and no hydraulic model is left in it at
+all. The hydraulic family has not left that row almost entirely over
+three shifts; it has left it completely, and what stands there now is
+the machines, a parked family of their own.
