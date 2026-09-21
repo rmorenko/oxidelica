@@ -12,3 +12,7 @@ nin = "nin"
 # coefficients below their temperature limit, as `ahigh` is the ones
 # above it.
 alow = "alow"
+# `Analysator` is what the Polyphase examples of the standard library
+# call their measuring utilities, so it is a name and not a misspelling
+# of `analyser`.
+Analysator = "Analysator"

@@ -14135,7 +14135,7 @@ The subtraction the other way round (`comm -13`) finds one name in a
 subfamily that is not in the row at all:
 `ModelicaTest.Fluid.TestUtilities.TestRegSquare2Derivatives`, which
 stands in `sub_cannotdiff.txt` but not in `row_structsing.txt`. Its
-refusal is the bare `cannot differentiate function `abs``, with no
+refusal is the bare ``cannot differentiate function `abs` ``, with no
 `structurally singular model:` in front of it - a row-namesake rather
 than a member, and exactly the trap this document has already
 recorded from the other side. So the row is 69 = 34 + 17 + 15 members
