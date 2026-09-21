@@ -13050,8 +13050,21 @@ and exactly three rows changed their wording:
 +   1 Error in region computation of IFN steam tables(p = N.N, h = N.N)
 ```
 
-Four models, not three, were losing their sentence - the orifices and
-one more - and two further models were printing a question mark where
+Four models, not three, were losing their sentence, and the shift's
+report named them wrongly as "the orifices and one more". Read by name
+from the same raw listing, the four are
+`Media.Examples.SolveOneNonlinearEquation.Inverse_sh_T`
+(`/tmp/m204/raw_after.txt:453`) and
+`ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes15/16/17`
+(`:505-507`), all four refusing directly, `at t = 0: ... is a String`
+with no loop before it. The three orifices (`:470`, `:475`, `:490`)
+stand in row 22 with `of algebraic loop ... before any Newton step` in
+front, so the bracket wall holds **seven** models: three orifices plus
+these four. The count of four was right and the names were not, which
+is the second shift running that a row was named by its number instead
+of by its list.
+
+Two further models were printing a question mark where
 the run knew the number: the IF97 steam tables now say which pressure
 was too low and with what enthalpy. The `?` that survives in the
 `tsat` row is the triple-point constant, which is a parameter rather

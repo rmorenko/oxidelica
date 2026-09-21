@@ -658,10 +658,56 @@ fn a_function_may_be_handed_over_with_its_inputs_filled_in() {
     );
 }
 
+/// A receiver whose own input was left out keeps the handed-over
+/// record's fields in their seats.
+///
+/// Brent's method declares `tolerance` with a default and no medium
+/// writes it, so the call has three arguments where the copy declares
+/// four inputs before the record's fields begin. Appended straight
+/// after what the call wrote, every field landed one seat early: a
+/// molar mass read as a tolerance and each NASA coefficient as its
+/// neighbour. Nothing refused - the entropy of air came out fifteen
+/// orders too large, and the bracket reported itself as the fault.
+#[test]
+fn an_omitted_default_does_not_shift_a_handed_over_record() {
+    let result = run("package P \
+           record Gas Real lo; Real hi; end Gas; \
+           constant Gas air(lo = 2, hi = -1); \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; \
+             input Real tolerance = 1e-9; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > tolerance loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           model M \
+             function line extends Scalar; input Gas data; \
+               algorithm y := data.lo*u + data.hi; end line; \
+             Real root; \
+           equation \
+             root = solve(function line(data = air), 0, 1); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 0.5).abs() < 1e-6,
+        "the root of 2u - 1 is a half, and this said {}",
+        last[1]
+    );
+}
+
 /// What a handed-over function is refused for.
 #[test]
 fn a_handed_over_function_says_what_it_cannot_be() {
-    // A name that is not a function here.
     let why = parse_model(
         "model M function solve input Real g; output Real x; \
            algorithm x := g; end solve; \

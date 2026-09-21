@@ -2365,11 +2365,46 @@ fn specialized(
     // A name of its own, worked out from what went into it, so the
     // same pair is specialized once however many models ask for it.
     copy.name = format!("{}${}", class.name, target.name.replace('.', "_"));
+    // An input the call left out stands at its own default, and it
+    // has to be written down rather than passed over: the fields of
+    // the handed-over record are appended after every declared input,
+    // so an omitted one between them is a seat nobody filled and
+    // every coefficient after it reads the one before. Brent's method
+    // declares `tolerance` with a default and no medium writes it, so
+    // the NASA gas arrived one seat early - a molar mass read as a
+    // tolerance, and each coefficient as its neighbour. The numbers
+    // that came out were wrong rather than refused, which is the worst
+    // thing this compiler can do: an entropy fifteen orders too large,
+    // and a bracket that reported itself as the fault.
+    //
+    // The default is written where the function was declared, so a
+    // package constant standing in it - `tolerance = 100*eps` - is
+    // read from that class rather than from the model's scope, where
+    // the same spelling means nothing.
+    let omitted: Vec<Expr> = inputs
+        .iter()
+        .skip(args.len())
+        .map(|held| {
+            let written = held
+                .binding
+                .clone()
+                .or_else(|| held.start.clone())
+                .unwrap_or(Expr::Number(0.0));
+            super::constants::substitute_class_constants(
+                &written,
+                registry,
+                &class.name,
+                &class.imports,
+                &[],
+            )
+        })
+        .collect();
     let rest: Vec<Expr> = args
         .iter()
         .enumerate()
         .filter(|(which, _)| *which != at)
         .map(|(_, arg)| arg.clone())
+        .chain(omitted)
         .chain(appended)
         .collect();
     Ok((copy, rest))
