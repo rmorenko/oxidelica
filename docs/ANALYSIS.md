@@ -14173,3 +14173,102 @@ Of the three, the medium derivative is the most concentrated: one
 mechanism, one chapter, seventeen of twenty names in two packages -
 and it is the same Fluid corner the homotopy line was walking, met
 from the structural side rather than the numerical one.
+
+## What `constrains no state` means, and why eleven of the thirty-four are right (shift 218)
+
+The largest subfamily of the index reduction row is the 34 models
+whose refusal is `equation X constrains no state, so index reduction
+cannot help` (`/tmp/m217/sub_noconstrain.txt`). The refusal is raised
+from one line, `crates/oxidelica-sim/src/compile.rs:1909`, in
+`choose_the_victim`: index reduction has picked an equation to
+differentiate, walked from that equation's residual through the
+algebraic definitions to the states it reaches, and found the set
+empty. There is nothing to demote, so the reduction has nowhere to go.
+
+The reach is not naive - it follows `alg_defs`, `implicit_defs` and
+the equations the matching supplied - and it was widened twice before
+for exactly the failure of stopping too early. So the question is
+whether a constraint that reaches no state is a fault of the reach or
+a fault of the model.
+
+Shrunk from `Modelica.Mechanics.Rotational.Examples.Utilities.SpringDamperNoRelativeStates`,
+whose refusal is `equation Ref("flange_b.tau") = Number(0.0)`, the
+mechanism fits in fourteen lines and refuses identically:
+
+```modelica
+model NoConstrain5
+  Real phi_a; Real phi_b; Real tau_a; Real tau_b;
+  Real phi_rel; Real w_rel;
+equation
+  phi_rel = phi_b - phi_a;
+  w_rel = der(phi_rel);
+  tau_b = 100 * phi_rel + 5 * w_rel;
+  tau_a = -tau_b;
+  tau_a = 0;
+  tau_b = 0;
+end NoConstrain5;
+```
+
+`OXIDELICA_DEFS_PROBE=1` on it prints the whole story in one line:
+`reduction 1 on Ref("tau_b") = Number(0.0): 10 candidates, 3 settled,
+0 implicit, 0 dummies`, and then names the two candidates that would
+not settle - `phi_a` and `phi_b`, each expressible only in terms of
+the other. Neither is a state, because nothing differentiates either
+one; `phi_rel` is the only differentiated name and it sits between
+them. The constraint `tau_b = 0` reaches `phi_rel` and `w_rel` and
+stops, because `phi_rel` has no equation of its own that the walk can
+turn into a definition - it is determined by a difference of two names
+that are determined by nothing at all.
+
+And that is the finding: the model has no state to constrain because
+it has no state. Take one equation away and the compiler says so
+outright - `unbalanced model: 4 algebraic equation(s) for 5
+unknown(s); nothing determines phi_b`. What this component needs is a
+context - something bolted to its flanges - and standing alone it is
+underdetermined in the flanges and overdetermined once both torques
+are pinned.
+
+Counting the 34 by whether they are examples at all settles how much
+of the subfamily this covers. Eleven of the thirty-four sit under
+`Utilities`, `Components` or `BaseClasses`
+(`grep -cE '\.(Utilities|Components|BaseClasses)\.'`): both
+`SpringDamperNoRelativeStates`, `Nand`, `RealSwitch`, `AnalysatorAC`,
+`AnalysatorDC`, the two hysteresis transformers, `PermeanceActuator`,
+`SimpleSolenoid` and `MechanicalStructure`. Spot-checked with
+`library check --only`, they are not runnable examples:
+`OpAmpCircuits.Add` and `SimpleSolenoid` both report `runnable
+examples ...: 0`, where `Engine1a` and `SMEE_Generator` report 1. So
+for that part of the subfamily the refusal is the right answer given
+the wrong question - the check reads them because they are classes in
+a library, not because anybody would simulate them. They count in the
+`flatten` half and can never count in the `run` half.
+
+The other side of the split is the real work. The equations quoted by
+the 34 are, by shape (`sed | sort | uniq -c` over
+`/tmp/m217/raw.txt`): 31 of the 34 are pinned to zero, of which 14
+are a bare `Ref("x") = Number(0.0)` - the currents and torques of a
+free connector - and 11 more carry a `der(` inside the sum, which is
+a different animal: `Bin(Sub, Ref("der(smee.inertiaRotor.flange_b.phi)"),
+Ref("smee.wMechanical")) = Number(0.0)` is a velocity constraint
+between a shaft and a machine, and it is a constraint a reduction
+ought to be able to act on. Three do not have zero on the right at
+all, and all three are MultiBody rotation matrix entries against
+another frame's.
+
+So the subfamily is not one mechanism. It is at least three:
+
+1. eleven library components that are not examples, where the refusal
+   is correct and the model is underdetermined without a context;
+2. the `der(...)` velocity constraints of the machines - eleven
+   equations where a state plainly is involved and the walk does not
+   reach it, which is where a fix would live;
+3. three MultiBody rotation matrix constraints between frames, the
+   same shape as the fourth-wording remainder of the row.
+
+The next shift's question is (2) alone, and it is narrow: why does the
+reach from `der(smee.inertiaRotor.flange_b.phi) - smee.wMechanical =
+0` not arrive at `smee.inertiaRotor.phi`, which is a state? Nothing
+in the mapping above answers it, and the small model here cannot ask
+it, because the shape only arises where a differentiated name is
+matched by an equation in a circuit the settle fixpoint will not
+close. No code was changed for any of this.
