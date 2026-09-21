@@ -670,6 +670,53 @@ impl CompiledModel {
                         continue;
                     }
                 }
+                // The retreat is out, and what happens without this
+                // is that the walk goes on from a point whose
+                // residual is not a number: the Jacobian below is
+                // built there by finite differences, comes back with
+                // whole rows of NaN, and `solve_linear` refuses it as
+                // a singular matrix. That refusal names the one place
+                // nothing is wrong. The matrix is NaN because the
+                // point is, and the point is over the edge of a
+                // domain the block walked off.
+                //
+                // Measured on three models of the hydraulic family,
+                // each probed with `OXIDELICA_NEWTON_TRAIL` from the
+                // root of the corpus: `BranchingPipes1`
+                // (/tmp/m214/bp1b.txt) has four of nineteen Jacobian
+                // rows NaN, `BranchingPipes12` (/tmp/m215/bp12.txt)
+                // six of nineteen, `BranchingPipes14`
+                // (/tmp/m215/bp14.txt) two of six. In all three the
+                // rows that are not NaN are ordinary and independent,
+                // so the matrix was never the fault; in all three the
+                // iteration before was a step of the water
+                // formulation into pressures of 1e7 and above, where
+                // IF97 answers NaN.
+                //
+                // This is a wall named rather than a wall removed,
+                // and the shift that wrote it says so: no model runs
+                // that did not run before. What it buys is that the
+                // next reader of the row is sent to the step that
+                // left the domain instead of to the linear solver.
+                if iteration > 0 && std::env::var_os("OXIDELICA_NO_NAN_EDGE").is_none() {
+                    let lost: Vec<String> = f
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, x)| !x.is_finite())
+                        .map(|(i, x)| {
+                            residual_sources.get(i).map_or_else(
+                                || format!("residual {i} = {x}"),
+                                |source| format!("`{source}` = {x}"),
+                            )
+                        })
+                        .collect();
+                    return err(format!(
+                        "algebraic loop {:?} stepped outside the domain of its own equations at \
+                         t = {t}, on Newton iteration {iteration}, and the shortened steps back \
+                         to the last finite point are exhausted: {lost:?}",
+                        block_names()
+                    ));
+                }
             }
             // A residual that is not a number is not a step away from
             // the solution: the block never had a finite one to step
@@ -1041,12 +1088,13 @@ impl CompiledModel {
                 // `BranchingPipes2` told before the guard was written,
                 // wearing the one coat the guard did not look under.
                 //
-                // A thousandth of the Newton step is the line between
-                // the two. Ten halvings is a direction the linear model
-                // still describes somewhere near the point; past that
-                // the model has been abandoned and what is left is a
-                // crawl in a direction chosen by arithmetic that no
-                // longer applies.
+                // A ten thousandth of the Newton step is the line
+                // between the two, and the threshold is a measurement
+                // rather than a choice. A thousandth was measured and
+                // cost the three `OpAmps` models and `PumpAndValve`
+                // while winning `Rectifier12pulse`; a millionth traded
+                // those back the other way. At a ten thousandth all
+                // six run.
                 // And a step that only exists because the columns were
                 // put in their own units is exempt. Such a step is a
                 // huge one across a direction the block is nearly flat

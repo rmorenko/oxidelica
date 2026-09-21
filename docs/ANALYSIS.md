@@ -13878,10 +13878,18 @@ exemption a threshold of a thousandth costs the three `OpAmps` models
 and `PumpAndValve` and wins `Rectifier12pulse`, and a threshold of a
 millionth trades them back the other way. With it, all six run.
 
-The corpus agrees, both halves from one binary with the rule behind
-`OXIDELICA_SLIVER_STEPS`: 868 / 536 against 868 / 535, and the run
+The corpus agrees, with the rule behind `OXIDELICA_SLIVER_STEPS`:
+868 / 536 against 868 / 535, and the run
 lists diffed name for name (/tmp/m214/on2.ran against
 /tmp/m214/off.ran) show nobody left and `Rectifier12pulse` arrived.
+The two halves did not come from one binary, and the shift said they
+did: `off.ran` was taken at 18:01 from the binary of the first
+attempt, the one with the threshold at a thousandth, and the final
+binary was built at 18:06 and never ran the off half. The switch
+neutralises the difference - with `OXIDELICA_SLIVER_STEPS` set, both
+binaries take the same path - so the reading stands, but the rule
+that two numbers are comparable only when one binary produced them
+exists to stop exactly this reasoning, and it was broken.
 The floors move to 536 and 502 in the same commit.
 
 `BranchingPipes1` itself does not run. It leaves `singular Jacobian`
@@ -13895,3 +13903,70 @@ And the parked question of `dp_turbulent` is answered and dead. The
 and densities of both sides. It stands in the loop legitimately, and
 the guess that read a different valve's source by the same variable
 name was the third of its kind in a day.
+
+## What the pressure level of BranchingPipes14 is held by
+
+The question parked by the shift before was whether the degeneracy of
+`ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes14` is a free
+pressure level - a closed hydraulic circuit with nothing to say what
+the absolute pressure is - or a defect of this compiler. The
+instrument answered it and the answer was not written down, which is
+the whole of the finding: the model has a `Boundary_pT` at 5e5 and
+another at 1e5, so the level is pinned at both ends. Whatever rank
+the block is short of, it is not the one a free level would take.
+
+## A matrix that is NaN because the point is
+
+`BranchingPipes12` and `BranchingPipes14` were left standing in the
+`singular Jacobian` row when their namesake `BranchingPipes1` left it,
+and the shift before had said the heads of the loop being the same
+name for name proves nothing about the mechanism. Probed, they are
+not a third mechanism and not the crawling line search either. They
+are the layer under both.
+
+The trails, each from the root of the corpus with
+`OXIDELICA_NEWTON_TRAIL`: `BranchingPipes12` (/tmp/m215/bp12.txt)
+steps `pipe1.mediums[1].p` from 4.975e5 to 2.08e7 on its first Newton
+step, where the IF97 water formulation answers NaN, and the Jacobian
+built afterwards has six of its nineteen rows NaN - rows 1, 2, 8, 9,
+13, 14 - while the other thirteen are ordinary and independent.
+`BranchingPipes14` (/tmp/m215/bp14.txt) is the same shape with six
+unknowns instead of nineteen: rows 3 and 4 NaN out of six, after a
+crawl that reaches `stuck=2` and steps over the edge on the
+iteration that would have made three.
+
+So in both the matrix was never what was wrong, and the refusal that
+named it sent the reader to the one place nothing is wrong. What is
+wrong is that the walk goes on from a point whose residual is not a
+number. The retreat written for exactly this - halve the step back
+towards the last finite point - gives up below a millionth and then
+says nothing, and the iteration falls through to the Jacobian, which
+is built by finite differences at a NaN point and comes back with NaN
+rows.
+
+The guard added says it instead: when the residual is not a number
+and the shortened steps back are exhausted, the refusal names the
+equation that stopped being a number and the iteration it happened
+on. Behind `OXIDELICA_NO_NAN_EDGE`.
+
+The small model is `sqrt(x) + 1 = 0` from a start of 1e-14, which has
+no root and whose every step goes left past zero. Without the guard
+it refuses as `algebraic loop diverged`; with it, by name. The test
+was seen red and green both ways.
+
+This is a wall named, not a wall removed, and the numbers say so.
+Both halves from one binary, this time with the off half taken from
+the same build: 868 flatten and 536 run either way, 753 and 502 on
+the runnable pair. The run lists are identical name for name. What
+moved is the register: `BranchingPipes12` and `BranchingPipes14`
+leave the `singular Jacobian` row, which stood at 13 before
+(/tmp/m215/census.txt, the run half), for a row that names the step
+that left the domain.
+
+The row they leave is worth reading for what remains in it. Of the
+thirteen, eleven are electrical machines and rectifiers -
+`SMEE_LoadDump`, `SMEE_Rectifier`, `PolyphaseRectifier`,
+`IMC_DOL_Polyphase` and their kin - and only `DynamicPipesAndFittings`
+is hydraulic. The hydraulic family has left that row almost entirely
+over three shifts, and what is left in it is the machines, which are
+a parked family of their own.

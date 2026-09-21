@@ -895,3 +895,42 @@ fn a_fall_bought_only_by_cutting_the_step_to_a_sliver_is_not_a_step() {
     assert!(refusal.contains("only below"), "{refusal}");
     assert!(!refusal.contains("50 Newton iterations"), "{refusal}");
 }
+
+#[test]
+fn a_step_over_the_edge_of_a_domain_says_so_rather_than_naming_the_matrix() {
+    // `sqrt(x) + 1 = 0` has no root, and every Newton step from a
+    // positive start goes left, past zero, into the half line where
+    // the square root is not a number. The retreat that exists for
+    // exactly this - halve the step back towards the last finite
+    // point - runs out after twenty halvings, and the question is
+    // what is said then.
+    //
+    // What was said before was about somewhere else. The walk went
+    // on from the point whose residual is NaN, the Jacobian was
+    // built there by finite differences and came back all NaN, and
+    // the refusal named a singular matrix or a divergence. Both
+    // send the reader to the solver, which is the one place nothing
+    // is wrong: the matrix is NaN because the point is, and the
+    // point is over an edge.
+    //
+    // Three models of the corpus refuse this way for real -
+    // `BranchingPipes1`, `BranchingPipes12` and `BranchingPipes14`,
+    // whose water formulation answers NaN above 1e7 pascals - and
+    // none of them is small enough to write down here.
+    let refusal = refused(
+        "model I Real x(start = 1e-14); equation \
+         sqrt(x) + 1.0 = 0.0; \
+         annotation(experiment(StopTime=0.001, Interval=0.001)); end I;",
+    );
+    assert!(
+        refusal.contains("stepped outside the domain of its own equations"),
+        "{refusal}"
+    );
+    // And it names the equation that stopped being a number, not
+    // only the fact that one did.
+    assert!(refusal.contains("sqrt(x)"), "{refusal}");
+    // The two refusals it replaces name the solver. Neither may
+    // come back.
+    assert!(!refusal.contains("singular"), "{refusal}");
+    assert!(!refusal.contains("diverged"), "{refusal}");
+}
