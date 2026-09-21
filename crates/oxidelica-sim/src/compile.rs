@@ -1707,6 +1707,8 @@ fn reduce_index(
             &mut selection_records,
             anchored,
             state_rhs,
+            &dummies,
+            reductions,
         )?;
         let dummy = derivative_name(&victim);
         let victim_rhs = state_rhs
@@ -1774,6 +1776,8 @@ fn choose_the_victim(
     selection_records: &mut Vec<(Expr, String, Vec<String>)>,
     anchored: &dyn Fn(&str) -> bool,
     state_rhs: &HashMap<String, Expr>,
+    dummies: &HashMap<String, String>,
+    reduction: usize,
 ) -> Result<String, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
@@ -1817,6 +1821,50 @@ fn choose_the_victim(
             }
         }
     }
+    // The fifth arm the walk above does not have: a name that is a key
+    // in `dummies` is a state some earlier reduction already spent, and
+    // the walk stops there silently. Under the probe it is recorded as
+    // a credit and the walk goes on through its definition, because a
+    // spent state may lead on to a live one. Computed only under the
+    // flag, and it feeds nothing but the printing: the choice below
+    // weighs exactly what it weighed before.
+    let probing = std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some();
+    let mut spent: Vec<String> = Vec::new();
+    if probing {
+        let mut queue: Vec<String> = Vec::new();
+        let mut direct = Vec::new();
+        residual.collect_refs(&mut direct);
+        queue.extend(direct.into_iter().map(str::to_string));
+        let mut seen: Vec<String> = Vec::new();
+        while let Some(name) = queue.pop() {
+            if seen.contains(&name) {
+                continue;
+            }
+            seen.push(name.clone());
+            let follow = |expr: &Expr, queue: &mut Vec<String>| {
+                let mut more = Vec::new();
+                expr.collect_refs(&mut more);
+                queue.extend(more.into_iter().map(str::to_string));
+            };
+            if states.iter().any(|s| s == &name) {
+                continue;
+            }
+            if dummies.contains_key(&name) {
+                spent.push(name.clone());
+                if let Some(rhs) = state_rhs.get(&name) {
+                    follow(rhs, &mut queue);
+                }
+            }
+            if let Some(definition) = alg_defs.get(&name) {
+                follow(definition, &mut queue);
+            } else if let Some((l, r)) = implicit_defs.get(&name) {
+                follow(l, &mut queue);
+                follow(r, &mut queue);
+            }
+        }
+        spent.sort();
+        spent.dedup();
+    }
     let sensitivity = |name: &str| -> f64 {
         differentiate(residual, &DiffTarget::Variable(name))
             .ok()
@@ -1838,6 +1886,16 @@ fn choose_the_victim(
     };
     // Companions of earlier victims first, by sensitivity; anything
     // else only when no companion is constrained here at all.
+    let raw_reach: Vec<(String, f64)> = if probing {
+        let mut named: Vec<(String, f64)> = reachable
+            .iter()
+            .map(|name| (name.clone(), sensitivity(name)))
+            .collect();
+        named.sort_by(|a, b| a.0.cmp(&b.0));
+        named
+    } else {
+        Vec::new()
+    };
     let favoured: Vec<String> = reachable
         .iter()
         .filter(|name| companions.contains(name) && sensitivity(name) > 0.0)
@@ -1900,11 +1958,21 @@ fn choose_the_victim(
     // set the pivot weighed - alternatives of another derivative
     // level would make a healthy selection look wrong.
     let all_candidates = candidates.clone();
-    let Some(victim) = candidates.into_iter().max_by(|a, b| {
+    let chosen = candidates.into_iter().max_by(|a, b| {
         sensitivity(a)
             .partial_cmp(&sensitivity(b))
             .unwrap_or(std::cmp::Ordering::Equal)
-    }) else {
+    });
+    if probing {
+        eprintln!(
+            "victim-probe: reduction {reduction} on {lhs:?} = {rhs:?}\n\
+             victim-probe:   victim: {}\n\
+             victim-probe:   raw reach: {raw_reach:?}\n\
+             victim-probe:   spent: {spent:?}",
+            chosen.as_deref().unwrap_or("<none>")
+        );
+    }
+    let Some(victim) = chosen else {
         return err(format!(
         "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
     ));

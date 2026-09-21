@@ -1155,3 +1155,50 @@ fn flattening_stops_a_model_that_grows_past_its_ceiling() {
     assert!(text.contains("grew past 10 nodes"), "{text}");
     assert!(text.contains("nodes of equations"), "{text}");
 }
+
+/// Index reduction can be asked which state each constraint spent, and
+/// which states an earlier reduction had already spent on the way.
+///
+/// The reach that picks a victim stops without a word at a name some
+/// earlier reduction demoted, so a constraint reaching nothing prints
+/// an empty set whether it never reached a state at all or whether
+/// every state it could have reached is gone. The probe separates the
+/// two by recording the spent names as credits, and it changes no
+/// choice: the walk it adds feeds nothing but the printing.
+#[test]
+fn index_reduction_can_be_asked_what_it_spent() {
+    let file = TempFile::new(
+        "spent.mo",
+        "model M Real x(start = 1); Real vx; Real f1; Real y; Real vy; Real f2; \
+         equation der(x) = vx; der(vx) = f1 + 1; der(y) = vy; der(vy) = f2; \
+         f1 + f2 = 0; y = x * x; end M;",
+    );
+    let quiet = bin()
+        .args(["simulate", file.path(), "--stop", "0.1"])
+        .output()
+        .unwrap();
+    let quiet = stdout(&quiet) + &stderr(&quiet);
+    assert!(
+        !quiet.contains("victim-probe"),
+        "unasked-for print: {quiet}"
+    );
+
+    let loud = bin()
+        .env("OXIDELICA_VICTIM_PROBE", "1")
+        .args(["simulate", file.path(), "--stop", "0.1"])
+        .output()
+        .unwrap();
+    let loud = stdout(&loud) + &stderr(&loud);
+    // The reduction number comes from the instrument, not from counting
+    // the lines, and the victim of each is named.
+    assert!(loud.contains("victim-probe: reduction 1"), "{loud}");
+    assert!(loud.contains("victim-probe: reduction 2"), "{loud}");
+    assert!(loud.contains("victim: x"), "{loud}");
+    // The raw reach carries the sensitivity each candidate was weighed
+    // by, so a singleton reach and a reach with an alternative in it
+    // can be told apart.
+    assert!(loud.contains("(\"x\", 2.0)"), "{loud}");
+    // The second reduction reaches `x` only through a name the first
+    // one spent, and that is what the fifth arm records.
+    assert!(loud.contains("spent: [\"x\"]"), "{loud}");
+}

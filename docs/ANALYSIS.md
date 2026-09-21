@@ -14636,3 +14636,123 @@ non-constant exponent of `DifferenceAmplifier` is the dearest: `a^b`
 with `b` alive wants `a^b * (db*log(a) + b*da/a)`, which is only
 valid for `a > 0`, and a transistor's charge expression is where a
 wrong number would be worst. No code was changed this shift.
+
+## The machines do not run out of states: they were never offered a second one (shift 222)
+
+The consultation of shift 221 said the machine chain looks like a
+greedy choice that could have gone another way, and named a probe that
+would settle it before the reform was written. The probe is written,
+it lives behind `OXIDELICA_VICTIM_PROBE=1`, and it settles the
+question in the other direction: the greed is innocent.
+
+The probe adds the fifth arm the reach in `choose_the_victim` does not
+have. The walk has four: a live state, an algebraic definition, an
+implicit definition, and a silent fall-through. A name that is a key
+in `dummies` is a state an earlier reduction already spent, and the
+walk stops there without a word - so a constraint that reaches nothing
+prints an empty set whether it never reached a state at all or whether
+the states it reaches are all gone. Under the flag the spent names are
+recorded as credits and the walk continues through them. The arm feeds
+nothing but the printing; the candidate set the pivot weighs is the
+one it weighed before. Checked on three green models -
+`DoublePendulum`, `Pendulum`, `CauerLowPassAnalog` - whose report is
+identical with the flag and without it once the progress counter and
+the timings are set aside.
+
+### Box (a), the validation: eleven non-examples, eleven empty credits
+
+The eleven library components of shift 218 that are not examples are
+the already-condemned names, and prediction 5 said every one of them
+must print `spent: []`. Every one does. The list is
+`/tmp/m222/nonex.txt`, the printing `/tmp/m222/nonex_probe.txt`:
+
+```text
+Nand  RealSwitch  AnalysatorAC  AnalysatorDC
+Transformer1PhaseWithHysteresis  Transformer3PhaseYyWithHysteresis
+PermeanceActuator  SimpleSolenoid  MechanicalStructure
+SpringDamperNoRelativeStates (Rotational)  (Translational)
+```
+
+all eleven with `spent: []` on the starving residual. The instrument
+measures what it was said to measure: these models have no state and
+no credit, which is outcome 1 of the three the consultation named -
+the disease is deeper than the choice, and the refusal is right.
+
+### Box (b), the machines: prediction 1 is broken
+
+Prediction 1 said the fifteenth residual of `SMEE_Generator` would
+carry the victims of reductions 2 and 10 -
+`smee.inertiaRotor.phi` and `smee.phiMechanical` - as credits. It
+carries neither. The full printing is `/tmp/m222/smee.txt`, fifteen
+reductions numbered by the instrument itself:
+
+```text
+victim-probe: reduction 15 on
+  Bin(Sub, Ref("der(smee.inertiaRotor.flange_b.phi)"), Ref("smee.wMechanical")) = 0
+victim-probe:   victim: <none>
+victim-probe:   raw reach: []
+victim-probe:   spent: ["smee.inertiaRotor.w"]
+```
+
+One credit, and it is the victim of reduction 13, not of 2 or 10. So
+the reading of the walk that the consultation made is wrong in its
+detail: the chain from the last constraint does not run back through
+the positions at all, it stops at the velocity.
+
+Across the thirteen machine models of the row
+(`/tmp/m222/machines_probe.txt`, `grep -c` gives 4 and 9), four print
+a credit and nine print none:
+
+```text
+SMEE_Generator (Machines)     spent: ["smee.inertiaRotor.w"]
+SMEE_Generator (FundWave)     spent: ["smeeE.inertiaRotor.w"]
+SMPM_CurrentSource (QS)       spent: ["smpmQS.inertiaRotor.w"]
+SMR_CurrentSource (QS)        spent: ["smrQS.inertiaRotor.w"]
+```
+
+and the nine with nothing include `SMPM_NoLoad`, `AsymmetricalLoad`,
+`TransformerTestbench`, `IMC_DOL_CommonLeakage`, `IMC_Transformer`,
+`SMPM_FieldWeakening`, `SMPM_MTPA`, `SMPM_OpenCircuit`. So the row is
+not one family either: nine of the thirteen are in the same outcome as
+the eleven non-examples, a constraint that reaches no state and never
+could, and only four have a creditor to argue with at all.
+
+### Box (c), the main one: prediction 2 is broken, and the reform is not owed
+
+The question the reform would stand on is whether the reductions that
+spent those states had an alternative. The probe prints the raw reach
+with its sensitivities, and for `SMEE_Generator` the two reductions
+the consultation named read:
+
+```text
+reduction 2:  raw reach: [("constantSpeed.phi", 0.0), ("smee.inertiaRotor.phi", 0.0)]
+reduction 10: raw reach: [("smee.phiMechanical", 0.0)]
+reduction 13: raw reach: [("smee.inertiaRotor.w", 1.0)]
+```
+
+Reduction 10 is a singleton and reduction 13 - the one that actually
+holds the credit - is a singleton too. Neither had anything else to
+take. Reduction 2 has two names, but its alternative is
+`constantSpeed.phi`, which reduction 3 then demotes on the very next
+line, so the pair is not an alternative but an order: both go, and the
+augmenting path the reform would look for has nowhere to arrive.
+
+That is prediction 2 broken and the verdict the shift was for: **the
+greed is innocent, the wall is deeper than the choice, and the
+augmenting reform would not move the machines.** It is the answer the
+consultation itself asked to be caught on, and it is had for a probe
+of some fifty lines rather than for the two hundred and fifty of
+`OXIDELICA_VICTIM_AUGMENT`.
+
+### Box (4): the Constraints trio does not move, as predicted
+
+Prediction 4 held. With the flag and without it, `RevoluteConstraint`
+and `UniversalConstraint` refuse with the same `the equation
+determining` words from `symbolic.rs:728`, inside differentiation and
+before any victim is chosen, and `PrismaticConstraint` refuses earlier
+still on `cannot differentiate a call of`. The printing is
+`/tmp/m222/trio.txt`. The map of walls of chapter 219 stands.
+
+The probe stays in the tree behind its flag, with a test that was
+watched going red without the fifth arm. The floors did not move and
+were not meant to: the probe changes no choice.
