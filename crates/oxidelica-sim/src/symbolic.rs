@@ -823,7 +823,20 @@ pub(crate) fn differentiate_at(
             }
         }
         Expr::Bin(Pow, base, exponent) => {
-            let Expr::Number(c) = **exponent else {
+            // A constant nobody folded is still a constant. The
+            // exponent arrives here as the flat model wrote it, and a
+            // library writes `2/3` rather than the number it comes
+            // to - `Bin(Pow, Number(9.01e-5), Bin(Div, Number(2.0),
+            // Number(3.0)))` in `DryAirNasa`, all literals, and
+            // `Neg(Number(0.14874))` beside it in the same equation.
+            // Asked as a literal, both are non-constant exponents and
+            // the derivative is refused over arithmetic that could
+            // have been done at any time. So the question is put to
+            // the instrument that answers it, the same way the
+            // divisor one case up is put to it: a live exponent, the
+            // `a^b` of `DifferenceAmplifier`, does not fold and goes
+            // on being refused in the same words.
+            let Expr::Number(c) = simplify(exponent) else {
                 return Err("cannot differentiate a non-constant exponent".to_string());
             };
             bin(

@@ -14799,6 +14799,48 @@ where `RevoluteConstraint` and `UniversalConstraint` already stood.
 The Constraints trio is now one wall rather than two, which is worth
 having on its own: whatever unblocks that wall unblocks all three.
 
-What is left of the ten of chapter 221 is six subscripts, four `abs`
-and two non-constant exponents - and the second of the exponents
-arrived here, from `min`.
+What is left of the sixteen of chapter 221 is thirteen: the three
+`.atan2` and table models that left the row account for the
+difference, and chapter 221's own split accounts for the rest, so
+16 - 3 = 13 = six subscripts + five `abs` + two non-constant
+exponents. The second of the exponents arrived here, from `min`. The
+five `abs` are the number the instrument prints rather than a
+recollection - one `--only` from the root of `.msl` for each of
+chapter 221's five names, each answering `cannot differentiate
+function ``abs``` (`/tmp/m225/abs_five.txt`). The abs row of chapter
+224 was written as four; the fifth, `TestPressureLossDerivatives`,
+lives in `TestComponents.Fittings`and not in`TestUtilities`, which is
+how it went missing from a list written from memory.
+
+## A constant nobody folded (shift 225)
+
+`DryAirNasa` refused with `cannot differentiate a non-constant
+exponent` over
+`Bin(Pow, Number(9.01e-5), Bin(Div, Number(2.0), Number(3.0)))` - two
+literals divided. The rule asked whether the exponent was
+`Expr::Number` and a library writes `2/3` rather than `0.666...`, so
+arithmetic that could have been done at any time was read as a live
+exponent. One case above, the quotient rule already put its divisor to
+`simplify` instead of reading it as a literal; the exponent now asks
+the same instrument. Probed first, since the form of the fix turned on
+it:
+
+```console
+expr = Bin(Pow, Ref("a"), Bin(Div, Number(2.0), Number(3.0)))
+simplified = Bin(Pow, Ref("a"), Number(0.6666666666666666))
+d = Err("cannot differentiate a non-constant exponent")
+```
+
+`simplify` folds it and `differentiate` refuses it, so the refusal was
+never about a constant it could not see - it was about not asking.
+
+Measured over 1039 models with the giants carved out: **867 flatten /
+537 run**, against 867/536 before, and runnable 752/503 against
+752/502 (`/tmp/m225/pow_only.txt`). `DryAirNasa` does not move to the
+next wall, it runs - which is the rarer of the two outcomes and worth
+saying apart from the count.
+
+The live exponent is untouched: `DifferenceAmplifier` writes `a^b`
+with `b` alive, `simplify` does not fold it, and it refuses in the
+same words it always did. That is a measurement from the same binary
+as the gain rather than an intention.

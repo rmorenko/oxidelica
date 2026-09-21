@@ -140,7 +140,23 @@ fn differentiates_every_elementary_function() {
             < 1e-12
     );
     // Refusals: unknown function, non-constant exponent, time target.
+    // An exponent that is arithmetic over literals is a constant that
+    // nobody folded, and the number is the point rather than the
+    // absence of a refusal: `d/da a^(2/3)` at `a = 8` is
+    // `(2/3) * 8^(-1/3)` = 1/3, and `d/da a^(-0.14874)` at `a = 2` is
+    // `-0.14874 * 2^(-1.14874)`. The first shape is the one
+    // `DryAirNasa` writes and the second stands beside it in the same
+    // equation. A live exponent is still refused.
     assert!(differentiate(&expr_of("asin(a)"), &DiffTarget::Variable("a")).is_err());
+    assert!(
+        (value_of(&d("a ^ (2.0 / 3.0)"), &[("a", 8.0)]) - 1.0 / 3.0).abs() < 1e-12,
+        "{}",
+        value_of(&d("a ^ (2.0 / 3.0)"), &[("a", 8.0)])
+    );
+    assert!(
+        (value_of(&d("a ^ (-0.14874)"), &[("a", 2.0)]) - (-0.14874 * 2.0f64.powf(-1.14874))).abs()
+            < 1e-12
+    );
     assert!(differentiate(&expr_of("a ^ b"), &DiffTarget::Variable("a")).is_err());
     assert_eq!(
         value_of(

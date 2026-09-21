@@ -183,11 +183,13 @@ FLATTEN_FLOOR=867
 #   arrived  Modelica.Electrical.Machines.Examples.Transformers.Rectifier12pulse
 #   left     nothing
 #
-#   run          536 = 535 before, plus one
-#   runnable run 502 = 501 before, plus one
-RUN_FLOOR=536
+#   run          537 = 536 before, plus one: an exponent that was two
+#                 literals divided is folded before being called live,
+#                 and a dry air medium runs on the strength of it
+#   runnable run 503 = 502 before, plus the same one
+RUN_FLOOR=537
 RUNNABLE_FLATTEN_FLOOR=752
-RUNNABLE_RUN_FLOOR=502
+RUNNABLE_RUN_FLOOR=503
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
