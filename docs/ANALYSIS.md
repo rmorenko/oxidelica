@@ -14347,3 +14347,59 @@ torn block, and getting it wrong here is a wrong number in an initial
 condition rather than a refusal. That is an architectural question of
 the kind this document parks for a consultation, and it is stated here
 with its reproduction rather than attempted. No code was changed.
+
+## The machine chain does not stop at a `der(...)` name
+
+The eleven machine models at the live top of the `noconstrain` row
+were read as a reach that fails on a derivative written as a name.
+That reading is wrong, and a probe says so in one run.
+
+`SMEE_Generator` refuses at `compile.rs:1909` on the fifteenth index
+reduction, over
+
+```text
+der(smee.inertiaRotor.flange_b.phi) - smee.wMechanical = 0
+```
+
+with the reach reporting `reaches states []`. A temporary print at the
+silent arm of the walk (`compile.rs:1805`, the fourth branch that
+falls through without a word) counted the dead ends on that residual:
+**zero**. The whole run has thirty-five dead ends and every one of
+them belongs to an earlier residual - `smee.fixed.phi0` eight times,
+`constantSpeed.w_fixed`, the transformation matrices. The derivative
+name is not an unknown word to the walk; the walk reaches through it
+perfectly well.
+
+What is empty is the set of _states_ at the end of the reach, and the
+reason is upstream. The same probe printed the victim of every
+reduction:
+
+```text
+reduction 10  ... flange_b.phi = flange.phi   -> victim smee.phiMechanical
+reduction 13  ... inertiaRotor.w - constantSpeed.w -> victim smee.inertiaRotor.w
+reduction 14  ... inertiaStator.w             -> victim smee.inertiaStator.w
+reduction 15  ... der(flange_b.phi) - wMechanical -> no candidate
+```
+
+and `smee.inertiaRotor.phi` is already a dummy from **reduction 3**
+onward, `smee.phiMechanical` from reduction 10. By the time the last
+constraint arrives, every state its chain could have pinned has been
+spent as a victim of an earlier one. The refusal is not a hole in the
+walk; it is the correct report that nothing is left to demote.
+
+So the question the row poses is not "should `der(x)` reach `x`" -
+that branch would fire on no model here. It is whether reductions 3
+and 10 should have spent those states at all, which is a question
+about the order constraints are taken in and about a victim being
+chosen without knowing what later constraints will need. That is the
+architecture of `choose_the_victim` rather than a missing branch in
+it, and no code was changed.
+
+`RevoluteConstraint`, from the fourth-formulation trio, is a different
+layer and not this one: it refuses on `the equation determining` a
+spring variable, and its fifteen victims are all position components -
+`bodyOfJoint.r_0`, `constraint.frame_a.r_0`, `constraint.frame_b.r_0`,
+three apiece. Its dead ends are `fixedRotation.r[1..3]`, parameters of
+a rotation. Same instrument, different wall: the machines run out of
+states to demote, the constraint models refuse over a variable whose
+own equation does not mention it.
