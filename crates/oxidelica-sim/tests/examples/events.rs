@@ -90,6 +90,38 @@ fn an_event_that_never_settles_says_so() {
     assert!(why.contains('a') && why.contains('b'), "{why}");
 }
 
+/// The refusal names what kept moving, not every discrete name.
+///
+/// `creeps` defines itself and never comes to rest; `calm` settles on
+/// the first round and is no part of the reason. Listing both is the
+/// same fault as a refusal that quotes whichever parameter came
+/// first - the reader cannot tell the cause from the company. In one
+/// standard-library counter the list was seventy-nine names, all but
+/// a few of them innocent.
+#[test]
+fn an_event_that_never_settles_names_only_what_moved() {
+    let model = compile(
+        &oxidelica_parser::parse_model(
+            "model M Real x(start = 0, fixed = true); Integer creeps(start = 0); \
+             Integer calm(start = 0); \
+             equation der(x) = 1; creeps = if x > 0.5 then creeps + 1 else 0; \
+             calm = if x > 0.5 then 7 else 0; \
+             annotation(experiment(StopTime = 1.0, Interval = 0.1)); end M;",
+        )
+        .unwrap(),
+    );
+    let why = match model {
+        Ok(compiled) => match compiled.simulate() {
+            Ok(_) => panic!("an event that never settles was allowed to pass"),
+            Err(why) => why.to_string(),
+        },
+        Err(why) => why.to_string(),
+    };
+    assert!(why.contains("does not come to rest"), "{why}");
+    assert!(why.contains("creeps"), "{why}");
+    assert!(!why.contains("calm"), "{why}");
+}
+
 /// A model that settles each event and immediately raises another a
 /// hair further on. The bound inside one event cannot see it: every
 /// event there comes to rest properly. What the run does instead is

@@ -495,7 +495,7 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         ),
         "`1 / x = 0` of algebraic loop [\"x\"] is inf at t = 0, before any \
          Newton step: the equations cannot be evaluated at the values the \
-         block starts from"
+         block starts from; and every value the residual reads is a finite number"
     );
 
     // The other way a loop fails: `x^2 * y = 1` where y is sin(t),
@@ -536,7 +536,7 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
         ),
         "`u = y / (y - x)` of algebraic loop [\"u\", \"x\"] is NaN at t = 0, before any \
          Newton step: the equations cannot be evaluated at the values the \
-         block starts from"
+         block starts from; and every value the residual reads is a finite number"
     );
 }
 

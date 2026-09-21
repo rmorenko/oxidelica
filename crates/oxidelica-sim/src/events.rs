@@ -341,11 +341,19 @@ impl CompiledModel {
             + self.discrete_definitions.len()
             + 1;
         let mut settled = false;
+        // Which discrete-valued names moved on the last round. A name
+        // that settled early is not what stopped the event coming to
+        // rest, and listing it beside the ones that did is the same
+        // fault as a refusal that quotes whichever parameter came
+        // first: the reader cannot tell the cause from the company it
+        // keeps. One model's list went from seventy-nine names to two.
+        let mut moved: Vec<usize> = Vec::new();
         for _ in 0..rounds {
             // The algebraic part follows the discrete values, so it is
             // re-evaluated before the conditions are tested again.
             self.eval_point(t, y, values, &mut scratch, alg_guess)?;
             let mut acted = false;
+            moved.clear();
             // What a discrete-valued name is worth now. Unlike the
             // body of a `when`, which fires on an edge, these hold at
             // every moment of the event, so they are asked every round
@@ -353,12 +361,13 @@ impl CompiledModel {
             // that moves is a reason to go round again: the algebraic
             // part is solved with the switches held still, and a
             // switch that flips changes the system it was solved in.
-            for (slot, code) in &self.discrete_definitions {
+            for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
                 let new = code.run(values, t);
                 if values[*slot] != new {
                     values[*slot] = new;
                     outcome.changed = true;
                     acted = true;
+                    moved.push(at);
                 }
             }
             let now = self.when_conditions(t, values);
@@ -420,10 +429,10 @@ impl CompiledModel {
         if !settled {
             // The discrete-valued names, which is where a definition
             // that keeps moving has to be: the slots run alongside.
-            let names: Vec<&String> = self
-                .discrete_definitions
+            let names: Vec<&String> = moved
                 .iter()
-                .filter_map(|(slot, _)| {
+                .filter_map(|&which| {
+                    let (slot, _) = self.discrete_definitions.get(which)?;
                     let at = self.discrete_slots.iter().position(|held| held == slot)?;
                     self.discretes.get(at)
                 })

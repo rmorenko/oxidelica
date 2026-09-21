@@ -13635,3 +13635,56 @@ and the model passes without it too, because link 4 was the real
 wall. A link that appears to work and is not needed is the most
 expensive kind, since nothing but the test suite distinguishes it
 from one that is.
+
+## The thirteen Digital models, and what `pre` is not (shift 145)
+
+The census of 2026-09-21 (`/tmp/m211/census_fable.txt`) put thirteen
+`Electrical.Digital` models in one row, `the event at t = N does not
+come to rest`, and the row was the top of the run half with no
+parking on it. They are one family by every reading: one library, one
+kind of logic, one wall, and thirteen names from `BUF3S` to
+`Utilities.RSFF`.
+
+The refusal listed every discrete-valued name the model had, which
+for `Examples.Counter` is seventy-nine of them
+(`/tmp/m211/raw_fable.txt:249`). That is the fault of a refusal that
+quotes whichever parameter came first, worn as a list: the reader
+cannot tell the cause from the company it keeps. Naming only what
+moved on the last round is the first half of this shift's work, and
+it is what made the rest of the reading possible - `Utilities.RSFF`
+went from eight names to seven, and the smallness of that shrinkage
+is itself the finding. The names are not noise. They are genuinely
+all still turning.
+
+**`pre` iterated per round: reverted, and the revert is the
+finding.** The gates read `y = pre(auxiliary)` and write `auxiliary`,
+so with `pre` frozen for the whole event a gate cannot see what the
+gate upstream of it has just computed, and a chain of them chases
+itself for every round the iteration is given. Section 8.3.5 of the
+specification reads as though `pre(v)` is taken afresh on each round
+of the event iteration, which makes the change look like a
+correctness fix rather than a cure aimed at the family. It is not:
+two tests went red within seconds of it -
+`event_iteration_chains_the_clauses_of_one_event` and
+`pre_reaches_a_boolean_that_no_when_assigns` - and neither is
+incidental. Both encode what `pre` means to a model that settles, and
+what the change does to them is turn `pre(x)` into `x`, which is no
+longer a value from before anything.
+
+And it buys nothing even where it was aimed. With the rounds
+multiplied by twenty `Utilities.RSFF` still does not settle
+(measured, not reasoned: the refusal came back unchanged). So the
+iteration is a genuine cycle in the flattened equations, not a chain
+too long for the bound, and no amount of rounds and no reading of
+`pre` will close it. Where the cycle comes from is the next
+question - a `Nor` gate's `auxiliary` chain read through `pre` is a
+unit-delay in the model's own intent, and something about how the
+delay is realised here makes the loop simultaneous instead. That is
+the parking.
+
+**Parked: the thirteen Digital models of the `come to rest` row.**
+Not for the reason the eight `DFFREG*` models are parked - those are
+a `break` in an algorithm - but because the event iteration closes a
+loop the model meant to be broken by a delay, and finding where the
+delay was lost is a question about the flattener rather than the
+solver. The instrument for it now exists: the refusal names the ring.

@@ -709,7 +709,14 @@ impl CompiledModel {
                             })
                             .unwrap_or_default();
                         if read.is_empty() {
-                            String::new()
+                            // A silence here is indistinguishable from
+                            // a check that never ran, and the negative
+                            // finding then lives in the code rather
+                            // than in what the instrument printed. Say
+                            // the positive half: the fault is in the
+                            // arithmetic itself, not in anything
+                            // handed to it.
+                            "; and every value the residual reads is a finite number".to_string()
                         } else {
                             format!("; it reads values that are not numbers: {read:?}")
                         }
