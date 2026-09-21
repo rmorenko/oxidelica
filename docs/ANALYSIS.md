@@ -14524,10 +14524,15 @@ survived flattening` are one shape, and grep says so in a line:
 `TestMixingVolumesPressureStates` and `BranchingPipes18`. What
 survives flattening is not a subscript on an array variable - which
 would have been a flattening fault - but a subscript on a _call_:
-`waterBaseProp_ph(p, h, 0, 0)[4]`, the water property routine's
-fourth output picked out of the record it returns. The equation
-under differentiation is `state.T = waterBaseProp_ph(...)[4]`, and
-`state.T` is a state, so the reduction has to differentiate the right
+`waterBaseProp_ph(...)[9]`, an output picked out of the record the
+water property routine returns. The index is not one number across
+the family and the quotes say so: `[9]` in `NonCircularPipes`,
+`TestTemperature2`, `TestMixingVolumesPressureStates` and
+`BranchingPipes18`, `[5]` in `PumpingSystem` (which calls
+`waterBaseProp_pT`), `[4]` in `WaterIF97`. What is one across all six
+is the shape, not the field: an `Index` over a `Call`. The equation
+under differentiation is `state.X = waterBaseProp_ph(...)[k]`, and
+`state.X` is a state, so the reduction has to differentiate the right
 hand side.
 
 It cannot, and the refusal is honest about why in a way the wording
@@ -14540,3 +14545,94 @@ has no case for and refuses by naming the node. The name in the
 message is right and the diagnosis it suggests - a flattening leak -
 is wrong, which is why six models sat under a wording that pointed at
 the wrong layer. No code was changed.
+
+## The ten left in `cannot differentiate` are four rules, not one (shift 221)
+
+The row is sixteen lines in the corpus print, and six of them are the
+subscript family of the chapter above, so ten remain:
+
+```console
+$ grep -c 'built.*cannot differentiate' /tmp/m217/raw.txt
+16
+$ grep 'built.*cannot differentiate' /tmp/m217/raw.txt | grep -c 'subscript that survived'
+6
+```
+
+Grouped by what the refusal quotes - the command that grouped them,
+since a count over a list is a number like any other:
+
+```console
+$ sed -n '221p;360p;396p;467p;511p;512p;513p;518p;530p;531p' /tmp/m217/raw.txt \
+    | sed -E 's/, differentiating.*//; s/^  built +//' \
+    | sed -E "s/(several arguments: .{0,40}).*/\1.../" | sort | uniq -c | sort -rn
+```
+
+Four kinds, by name:
+
+| kind                        | n   | models                                                                                                                        |
+| --------------------------- | --- | ----------------------------------------------------------------------------------------------------------------------------- |
+| ``function `abs` ``         | 5   | AdvancedSolenoid, TestPressureLossDerivatives, TestRegRoot2Derivatives, TestRegRoot2ZeroDerivative, TestRegSquare2Derivatives |
+| a call of several arguments | 3   | CombiTable2Ds.Test33, CombiTable2Dv.Test33, DryAirNasa                                                                        |
+| a call of several arguments | 1   | PrismaticConstraint (`.atan2`)                                                                                                |
+| a non-constant exponent     | 1   | DifferenceAmplifier                                                                                                           |
+
+The two middle rows carry the same words and are not the same family,
+which is the register's known blind spot seen once more: `min`/`max`
+over regularised branches in three models, `.atan2` over a rotation
+matrix in one. Added as one row they would read as a family of four
+and send a shift after a rule that does not exist.
+
+### All four refuse at one line, and it is a catch-all that is right
+
+`OXIDELICA_WHERE=1 ... --only <Class>` from the root `.msl`, one
+representative per kind, puts every one of them in
+`crates/oxidelica-sim/src/symbolic.rs`: the single-argument call table
+ends at `other => return Err("cannot differentiate function ...")`
+(line 891), the exponent case refuses a non-numeric power (827), and
+the several-argument calls fall to the named catch-all at 947 that
+`undifferentiable_kind` labels. None of the four is a hole in a walk.
+Every one is a rule the layer does not have.
+
+### The `abs` five are not the parked rule
+
+The charter parks `der(abs(x)) = sign(x) * der(x)`: it is wrong at
+exactly zero, and zero is where physical models work. That parking
+does not cover these five, and the quotes say why. In four of the
+Fluid models the `abs` stands _inside a branch whose condition fixes
+its sign_:
+
+```text
+If(Rel(Le, Ref("x"), Neg(Ref("x_small"))),
+   Neg(Bin(Mul, ..., Call("sqrt", [Call("abs", [Ref("x")])]))), ...)
+```
+
+Under `x <= -x_small` with `x_small > 0`, `abs(x)` is `-x` and its
+derivative is `-der(x)` everywhere the branch is taken - no `sign`,
+no corner, and nothing claimed about the point the branch excludes.
+That is a different mechanism from the parked rule: it is not a rule
+for `abs` at all but a rule for `abs` under a condition that already
+decided the sign, which is the same shape as the rule the charter did
+take (whatever does not move has a derivative of zero) rather than
+the one it rejected. `TestRegRoot2ZeroDerivative` shows it twice over,
+with `abs(-x_small)` on a constant argument - that one is a number.
+
+The fifth, `AdvancedSolenoid`, is not of this shape: its refusal
+quotes the equation `g_mFeArm.V_m = g_mFeArm.port_p.V_m -
+g_mFeArm.port_n.V_m` and the `abs` is somewhere in the magnetic
+reluctance behind it, with no branch quoted around it. One of five is
+not four of five, and the family has to be split before a rule is
+written for it.
+
+### What the other three kinds want
+
+`min(a, b)` and `max(a, b)` are `if a < b then a else b` written as
+calls, and the differentiator already has a case for `If` that takes
+each branch. That is a rewrite rather than a rule, and it is exact
+away from the crossing in the same way the branch above is exact away
+from its own boundary. `.atan2(y, x)` has the textbook derivative
+`(x*dy - y*dx) / (x^2 + y^2)` and is simply a missing entry, needing
+a two-argument table where only a one-argument one exists. The
+non-constant exponent of `DifferenceAmplifier` is the dearest: `a^b`
+with `b` alive wants `a^b * (db*log(a) + b*da/a)`, which is only
+valid for `a > 0`, and a transistor's charge expression is where a
+wrong number would be worst. No code was changed this shift.
