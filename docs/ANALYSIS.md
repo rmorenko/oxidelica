@@ -12881,3 +12881,73 @@ second edge at the twelfth.
 
 This is a wall passed and the family not finished, and the count of
 models is the right number to have stayed still.
+
+## The `NaN before any Newton step` row, taken apart (shift 138)
+
+Twenty-two models in the census of shift 202
+(`/tmp/m202/census.txt:252`), sorted by the size of the loop that
+refused and by what the residual came out as (`/tmp/m204/row22_names.txt`
+and the listing beside it):
+
+```text
+ loop  value  model
+    1  NaN    ModelicaTest...Fittings.TestSharpEdgedOrifice
+    2  NaN    ModelicaTest...NewFittings.Orifices.ThickEdgedOrifice
+    3  NaN    ModelicaTest...Dissipation.TestCases.PressureLoss.Orifice
+    4  -inf   Magnetic.FluxTubes...SaturatedInductor
+    6  NaN    Electrical.Analog.Examples.HeatingNPN_NORGate
+    6  NaN    Electrical.Analog.Examples.HeatingPNP_NORGate
+    9  NaN    MultiBody.Examples.Elementary.DoublePendulum
+   12  -inf   Magnetic.QuasiStatic.FluxTubes...NonLinearInductor
+   13+ NaN    nine machine models (SMPM/SMR, loops 13 to 47)
+   22  NaN    MultiBody.Examples.Loops.Fourbar2 (parked)
+   26+ NaN    RollingWheel, RollingWheelSet{Driving,Pulling}
+   32+ -inf   SolenoidActuator.Comparison{QuasiStatic,PullInStroke}
+   33  -inf   MultiBody.Examples.Elementary.ThreeSprings
+```
+
+Five of the twenty-two answer `-inf` rather than `NaN`, and every one
+of those is the reciprocal already named in the solver's comment:
+`R_m = 1/G_m` with the conductance standing at the zero its
+declaration left it. The rest answer `NaN`, and the row is not one
+family: the machines are the machine chain parked since shift 130, the
+MultiBody three are geometry, and the three smallest - the orifices -
+turned out to be something else entirely.
+
+### The three smallest were the compiler losing a sentence
+
+The probe on the smallest (`/tmp/m204/probe.txt`) prints a start point
+that is perfectly finite and a residual that is not, at every value
+tried:
+
+```text
+newton 0 t=0 |f|=NaN v=[0.0]    f=[NaN]
+newton 0 t=0 |f|=NaN v=[1e-6]   f=[NaN]
+newton 0 t=0 |f|=NaN v=[1000.0] f=[NaN]
+```
+
+A residual built from finite inputs cannot come out NaN, so the fault
+was inside something the run walks rather than in the block. It was:
+`Modelica.Math.Nonlinear.solveOneNonlinearEquation` checks that the
+bracket it was handed contains a root and calls `error(...)` when it
+does not (`.msl/Modelica/Math/Nonlinear.mo:671`). A body the run walks
+cannot raise - it answers with a number that is not one and leaves its
+reason in `Walked::trouble` for whoever evaluated the point to read
+back out. The reader for an implicit block refused _before_ reading,
+so the library's own sentence was dropped and what came back named the
+solver, which is the one place nothing was wrong.
+
+With the reason read out first, the same three models say:
+
+```text
+... before any Newton step, because a function it calls could not be
+walked: `"The arguments u_min and u_max provided in the function call "`
+is a String, and a String has no value a step can carry
+```
+
+Which is two findings in one line. The refusal now points at the
+library function and at a bracketing that fails, and it also shows
+that a message built by concatenation is cut off at its first piece,
+because a `String` is refused where the walk wanted a number. The
+second half is the next thing to take: a model that explains itself in
+prose should have its prose carried whole to the reader.
