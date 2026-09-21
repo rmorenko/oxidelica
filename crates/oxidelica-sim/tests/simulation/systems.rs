@@ -737,3 +737,49 @@ fn a_function_that_refused_inside_a_loop_says_why() {
          walked: guard: u must exceed one"
     );
 }
+
+/// A model refusing in prose has its whole sentence carried, and the
+/// numbers in it filled in.
+///
+/// `Modelica.Utilities.Streams.error(text)` is how the standard
+/// library shouts, and the text is built by joining literals to
+/// `String(x)` of what the run knows. A call standing on its own is
+/// read for its value, so the first literal piece of the sentence was
+/// refused as "a String has no value a step can carry" and the reason
+/// the library wrote was replaced by a complaint about its spelling.
+/// With the call taken as the assert it is, the sentence arrives
+/// whole - and because the walk is standing in the frame that holds
+/// the values, `String(u)` comes out as the number rather than as the
+/// `?` a reading off the run can only give.
+#[test]
+fn a_model_that_refuses_in_prose_is_quoted_whole_with_its_numbers() {
+    let refused = compile(
+        &parse_model(
+            "model P \
+               function shout \
+                 input Real u; output Real y; \
+                 protected Real a; \
+                 algorithm \
+                   a := u; \
+                   while a < 10.0 loop a := a + 1.0; end while; \
+                   if u < 1.0 then \
+                     Modelica.Utilities.Streams.error(\
+                       \"u is \" + String(u) + \", which is below one\"); \
+                   end if; \
+                   y := u * u - 4.0; \
+               end shout; \
+               Real x; Real s(start = 0, fixed = true); \
+             equation shout(x) + x + 3.0 = 0; der(s) = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.5)); end P;",
+        )
+        .unwrap(),
+    )
+    .expect_err("the shout fires at the point the block starts from")
+    .to_string();
+    assert_eq!(
+        refused,
+        "`(P.shout(x) + x) + 3 = 0` of algebraic loop [\"x\"] is NaN at t = 0, \
+         before any Newton step, because a function it calls could not be \
+         walked: u is 0, which is below one"
+    );
+}

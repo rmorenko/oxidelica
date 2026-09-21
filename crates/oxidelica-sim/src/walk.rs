@@ -540,6 +540,44 @@ fn index_of(
     Ok(value as i64)
 }
 
+/// The sentence a refusal was written with, with the numbers in it
+/// filled in.
+///
+/// A model that refuses says why in prose, and the prose is built by
+/// joining literal pieces to `String(x)` of whatever the run knows.
+/// Off the run, `message_text` can only put `?` where such a piece
+/// stands, because nothing there has a value yet. Inside a walk the
+/// frame holds the values, so the piece can be worked out and the
+/// reader gets the number the library meant to show rather than a
+/// question mark. A piece that still cannot be worked out - a name the
+/// frame does not hold, a call that itself refuses - falls back to the
+/// `?` rather than losing the whole sentence: the literal halves are
+/// what say what went wrong.
+fn prose(
+    expr: &Expr,
+    frame: &mut Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> String {
+    match expr {
+        Expr::Str(text) => text.clone(),
+        Expr::Bin(oxidelica_parser::BinOp::Add, a, b) => {
+            prose(a, frame, programs, time, depth) + &prose(b, frame, programs, time, depth)
+        }
+        // `String(x)` and `String(x, format)` alike: the first
+        // argument is the value, and the rest say how to lay it out,
+        // which a diagnostic can do without.
+        Expr::Call(name, args) if name == "String" && !args.is_empty() => {
+            match number_of(&args[0], frame, programs, time, depth) {
+                Ok(value) => format!("{value}"),
+                Err(_) => "?".to_string(),
+            }
+        }
+        _ => oxidelica_parser::message_text(expr),
+    }
+}
+
 /// Walk a run of statements.
 fn run(
     body: &[Statement],
@@ -589,8 +627,22 @@ fn run(
             }
             Statement::Assert(condition, message) => {
                 if number_of(condition, frame, programs, time, depth)? == 0.0 {
-                    return err(oxidelica_parser::message_text(message));
+                    return err(prose(message, frame, programs, time, depth));
                 }
+            }
+            // `Streams.error(text)` is how the standard library
+            // refuses in prose: it is `assert(false, text)` written as
+            // a call, and its one argument is a sentence rather than a
+            // number. Read as a number - which is what a call standing
+            // on its own is read as - the first piece of the sentence
+            // is a String and the walk refuses about the String, so the
+            // reason the library took the trouble to write is thrown
+            // away and replaced by a complaint about its spelling. Take
+            // the text the way an `assert` takes it instead.
+            Statement::Call(name, args)
+                if name == "Modelica.Utilities.Streams.error" && args.len() == 1 =>
+            {
+                return err(prose(&args[0], frame, programs, time, depth));
             }
             // A call on its own: nothing takes its outputs, so it is
             // walked for the checks its body makes and for nothing
