@@ -139,9 +139,25 @@ FLATTEN_FLOOR=868
 #
 #   run          534 = 533 before, plus one
 #   runnable run 500, unmoved
-RUN_FLOOR=534
+#
+# Putting a Newton step's columns in their own units brought one more,
+# and this time the runnable pair moves with it. An enthalpy carried by
+# a mass flow that is zero at rest gives a column at 1e-24 beside a
+# volume flow at 1e-4, and pivots judged against 1e-14 flat called it
+# dead; scaled, the block is plainly invertible, and the step it yields
+# is damped from its first use because a pivot that small says the
+# block is nearly flat that way. Named from one binary,
+# /tmp/m212/chainoff.txt against /tmp/m212/chain.txt, with the rule
+# behind OXIDELICA_NO_COLUMN_UNITS:
+#
+#   arrived  Modelica.Thermal.FluidHeatFlow.Examples.PumpAndValve
+#   left     nothing
+#
+#   run          535 = 534 before, plus one
+#   runnable run 501 = 500 before, plus one
+RUN_FLOOR=535
 RUNNABLE_FLATTEN_FLOOR=753
-RUNNABLE_RUN_FLOOR=500
+RUNNABLE_RUN_FLOOR=501
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

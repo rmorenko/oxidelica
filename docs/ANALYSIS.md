@@ -13671,16 +13671,28 @@ incidental. Both encode what `pre` means to a model that settles, and
 what the change does to them is turn `pre(x)` into `x`, which is no
 longer a value from before anything.
 
-And it buys nothing even where it was aimed. With the rounds
-multiplied by twenty `Utilities.RSFF` still does not settle
-(measured, not reasoned: the refusal came back unchanged). So the
-iteration is a genuine cycle in the flattened equations, not a chain
-too long for the bound, and no amount of rounds and no reading of
-`pre` will close it. Where the cycle comes from is the next
-question - a `Nor` gate's `auxiliary` chain read through `pre` is a
-unit-delay in the model's own intent, and something about how the
-delay is realised here makes the loop simultaneous instead. That is
-the parking.
+And it buys nothing where it was aimed. What was actually measured is
+narrower than the sentence that first stood here, and the correction
+is worth more than the claim: one implementation of `pre`-per-round
+was tried, it turns `pre(x)` into `x`, it dropped two tests, and
+`Utilities.RSFF` did not settle under it. The run said to have
+multiplied the rounds by twenty printed `after 9 round(s)`, which is
+the same variable that bounds the loop - so that file is
+indistinguishable from a run with no multiplier at all, and no claim
+about the number of rounds rests on it.
+
+What the shrinking ring does say, on its own evidence: `RSFF`'s list
+went from 8 names to 7, which is a ring that all still turns rather
+than a chain that is merely long. The reading of 8.3.5 that was never
+measured is the other one - a snapshot _between_ rounds, where during
+round k `pre(v)` is the value at the end of round k-1 rather than the
+current one. That is an open question beside the question for the
+flattener, not a door this shift closed.
+
+Where the cycle comes from is the standing question - a `Nor` gate's
+`auxiliary` chain read through `pre` is a unit delay in the model's
+own intent, and something about how the delay is realised here makes
+the loop simultaneous instead. That is the parking.
 
 **Parked: the thirteen Digital models of the `come to rest` row.**
 Not for the reason the eight `DFFREG*` models are parked - those are
@@ -13688,3 +13700,104 @@ a `break` in an algorithm - but because the event iteration closes a
 loop the model meant to be broken by a delay, and finding where the
 delay was lost is a question about the flattener rather than the
 solver. The instrument for it now exists: the refusal names the ring.
+
+## The `singular Jacobian` row is two families, and one of them is units
+
+Ten models of the corpus stand at `singular Jacobian in algebraic
+loop`. Read as one row they are one work item; probed, they are two
+layers, and the probe is the loop's own name list rather than the
+refusal's wording.
+
+```text
+PumpAndValve  ["ambient1.flowPort.h", "idealPump.h",
+               "idealPump.flowPort_b.h", "valve.h",
+               "valve.flowPort_b.h", "valve.V_flow",
+               "ambient2.flowPort.h", "idealPump.dp",
+               "idealPump.flange_a.tau"]
+
+Rectifier     ["rectifierQS.vDC", "rectifierQS.vQS.re",
+               "rectifierQS.vQS.im", "rectifierAC.idealDiode1.s",
+               ... "rectifierAC.idealDiode4.s", "load2.v", ...]
+```
+
+Nine enthalpies, a volume flow, a pressure difference and a shaft
+torque on one side; four `s` coordinates of ideal diodes on the
+other. The second family is the piecewise-linear switch solver parked
+on shift 137 wearing a different row heading, so the untackled work in
+the row is eight models and all eight are hydraulic.
+
+### The enthalpy columns are small in their own unit, not dead
+
+`PumpAndValve`'s Jacobian, printed at the refusal
+(`/tmp/m212/pv_trail.txt`):
+
+```text
+jac row 0: [0, 0, 0, 0, -1.9e-24, -3.2e-4, 0, 0, 0]
+jac row 1: [-1.9e-24, 0, 0, 0, 1.9e-24, 2.6e-4, 0, 0, 0]
+...
+names: ["ambient1.flowPort.h", ..., "valve.V_flow", ...]
+```
+
+Five enthalpy columns at 1e-24 beside a volume flow at 1e-4. An
+enthalpy is carried by a mass flow, and at rest that flow is zero, so
+the smallness is the unit the unknown is measured in and nothing
+about whether the block determines a step. `solve_linear` judges its
+pivots against 1e-14 flat and came back with nothing.
+
+That is exactly the argument `equilibrate_columns` was written for,
+and it was applied on only one of the two paths that need it: the
+check that a _converged_ block is determined scaled its columns, and
+the Newton step that has to get the block there did not. Scaling the
+step's columns too, and dividing the answer back out, is the fix.
+
+### The step it yields is not to be trusted at full length
+
+Scaled, the block gives a step, and taken whole it sends the
+enthalpies to 1e19 on the first use and never comes back
+(`/tmp/m212/pv_trail.txt`, last line). The same fact read the other
+way round explains it: a pivot too small to solve against unscaled
+says the block is nearly flat along that unknown, so the full Newton
+step crosses a direction the linear model barely describes. Damped
+from its first use - the machinery that already exists for a block
+walking in a circle - the model runs.
+
+The two are one chain and were taken as one. Measured from a single
+binary with the rule behind `OXIDELICA_NO_COLUMN_UNITS`,
+`/tmp/m212/chainoff.txt` against `/tmp/m212/chain.txt`:
+
+```text
+off  868 flatten, 534 run; runnable 753 and 500
+on   868 flatten, 535 run; runnable 753 and 501
+```
+
+The run lists diffed name by name give one arrival,
+`Modelica.Thermal.FluidHeatFlow.Examples.PumpAndValve`, and no
+departure. The first link alone was measured too, before the second
+was written: `/tmp/m212/before.txt` against `/tmp/m212/after.txt` gave
+the same five numbers, an identical run list and an identical census
+line for line. A link measured at zero in the middle of a mapped chain
+is not grounds for reverting it, and here the end of the chain is what
+paid.
+
+### What the small model can and cannot witness
+
+The first link has a test that goes red without it: a block of two
+unknowns whose columns are twenty orders apart refuses as
+`singular Jacobian ["q", "h"]` unscaled and gives `h = 293.4` exactly
+when scaled. The second link has none, and the honest thing is to say
+why rather than to ship a test that passes either way. Three small
+models were written for it - a cubic, a quadratic and a quartic
+against the flat direction, at 1e-16, 1e-20 and 1e-22 - and all three
+converge undamped. A block small enough to write down is a block whose
+overshoot the line search on the next iteration recovers from. The
+witness for the damping half is the corpus, and it is the model named
+above.
+
+### Seven left in the row, all hydraulic
+
+`WaterPump` and `ParallelPumpDropOut`, the two nearest neighbours,
+have travelled to `the equations of algebraic loop [...] do not
+mention [...]` - a genuinely dead column rather than a small one, and
+a different question. `DrumBoiler`, the `BranchingPipes` and the rest
+still say `singular Jacobian`, so the row is worth probing again with
+the same instrument before it is read as one family.

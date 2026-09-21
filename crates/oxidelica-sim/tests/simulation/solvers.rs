@@ -792,3 +792,38 @@ fn a_newton_step_over_the_edge_of_a_domain_is_shortened_rather_than_called_diver
     let expected = 3.0 + 1.0 / (10.001f64 * 10.001);
     assert!((x - expected).abs() < 1e-9, "x={x}, expected {expected}");
 }
+
+#[test]
+fn a_column_small_in_its_own_unit_is_not_a_dead_column() {
+    // An enthalpy in a cooling circuit is carried by a mass flow, and
+    // at rest that flow is zero: `PumpAndValve` hands the solver a
+    // block whose five enthalpy columns sit at 1e-24 beside a volume
+    // flow at 1e-4. How small a column's entries are is the unit its
+    // unknown is measured in, and no honest test of whether a block
+    // determines a step may notice that - but `solve_linear` judges
+    // its pivots against 1e-14 flat, so the enthalpy columns read as
+    // though nothing in the block moved when they did, and the refusal
+    // came back as a singular Jacobian about a block with one plain
+    // answer.
+    //
+    // Divided each column through by its own largest entry the block
+    // is invertible, and the step comes back in the scaled unknowns to
+    // be divided out again. The same argument `equilibrate_columns`
+    // was written for, one path over: the check that a *converged*
+    // block is determined already scaled, and the step that has to get
+    // there did not.
+    let source = "model C parameter Real m = 1e-24; \
+                  Real h(start = 288.0); Real q(start = 0.1); equation \
+                  q*abs(q) + m*h = 0.25 + 293.15*m; \
+                  m*h*abs(h) = m*293.4*abs(293.4) + q*1e-24 - 0.5e-24; \
+                  annotation(experiment(StopTime=0.001, Interval=0.001)); end C;";
+    let result = run(source);
+    let row = result.rows.last().unwrap();
+    let names = &result.columns;
+    let at = |what: &str| row[names.iter().position(|n| n == what).expect(what)];
+    // The first equation fixes the flow at a half, and the second then
+    // fixes the enthalpy at 293.4 - the values, not the mere fact that
+    // the block came back with something.
+    assert!((at("q") - 0.5).abs() < 1e-9, "q={}", at("q"));
+    assert!((at("h") - 293.4).abs() < 1e-6, "h={}", at("h"));
+}

@@ -346,7 +346,10 @@ impl CompiledModel {
         // rest, and listing it beside the ones that did is the same
         // fault as a refusal that quotes whichever parameter came
         // first: the reader cannot tell the cause from the company it
-        // keeps. One model's list went from seventy-nine names to two.
+        // keeps. `Counter`'s list went from seventy-nine names to
+        // forty - four triggers of ten names apiece, which is the
+        // ring that actually turns rather than every discrete value
+        // the model holds.
         let mut moved: Vec<usize> = Vec::new();
         for _ in 0..rounds {
             // The algebraic part follows the discrete values, so it is
@@ -437,6 +440,16 @@ impl CompiledModel {
                     self.discretes.get(at)
                 })
                 .collect();
+            // The list cannot come out empty, and the reason is worth
+            // writing down rather than guarded against: a refusal that
+            // named `among []` would tell the reader less than the long
+            // one this replaced, so the question is real. But a `when`
+            // branch fires at most once an event - `fired` sees to
+            // that - and the bound is the branch count plus the
+            // definition count plus one, so by the round the loop runs
+            // out, every branch that could fire has, and the only thing
+            // that can still set `acted` is a definition that moved.
+            // Whatever the loop gave up on, it gave up on with a name.
             return Err(SimError(format!(
                 "the event at t = {t} does not come to rest after {rounds} round(s): \
                  what changes on every round is among {names:?}"

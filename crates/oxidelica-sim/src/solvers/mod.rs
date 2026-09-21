@@ -857,7 +857,36 @@ impl CompiledModel {
                     row[j] = (fp[i] - f[i]) / h;
                 }
             }
-            let Some(dv) = solve_linear(&mut jac, &f) else {
+            // A column's entries are small because of the unit its
+            // unknown is measured in, and no honest test may notice
+            // that. The enthalpies of a cooling circuit are the case:
+            // `PumpAndValve` hands a block whose five enthalpy columns
+            // sit at 1e-24 beside a volume flow at 1e-4, because an
+            // enthalpy is carried by a mass flow that is zero at rest,
+            // and `solve_linear` judges its pivots against 1e-14 flat.
+            // Divided each column through by its own largest entry the
+            // block is plainly invertible; the step comes back in the
+            // scaled unknowns and is divided back out again. The
+            // argument is the one `equilibrate_columns` was written
+            // for, one path over: the check that a *converged* block
+            // is determined already scales, and the step that has to
+            // get there did not.
+            let mut rescued = false;
+            let step = solve_linear(&mut jac.clone(), &f).or_else(|| {
+                if std::env::var_os("OXIDELICA_NO_COLUMN_UNITS").is_some() {
+                    return None;
+                }
+                let mut scaled = jac.clone();
+                let units: Vec<f64> = (0..n)
+                    .map(|j| scaled.iter().fold(0.0f64, |m, row| m.max(row[j].abs())))
+                    .collect();
+                crate::linear::equilibrate_columns(&mut scaled);
+                let dv = solve_linear(&mut scaled, &f)?;
+                let dv: Vec<f64> = (0..n).map(|j| dv[j] / units[j]).collect();
+                rescued = dv.iter().all(|x| x.is_finite());
+                rescued.then_some(dv)
+            });
+            let Some(dv) = step else {
                 // A column that is exactly zero is not a matrix that
                 // happened to come out ill conditioned: it is the
                 // block saying that nothing in it moves when that
@@ -891,6 +920,12 @@ impl CompiledModel {
                     .map(|j| block_names()[j])
                     .collect();
                 if dead.is_empty() {
+                    if newton_trail() {
+                        for (i, row) in jac.iter().enumerate() {
+                            eprintln!("jac row {i}: {row:?}");
+                        }
+                        eprintln!("names: {:?}", block_names());
+                    }
                     return err(format!(
                         "singular Jacobian in algebraic loop {:?}",
                         block_names()
@@ -925,7 +960,17 @@ impl CompiledModel {
             // that it is not: insisting on descent from the start
             // shortens steps that were about to work, and a magnetic
             // curve entering saturation rises once before it converges.
-            damped |= circling;
+            //
+            // A step that only exists because the columns were put in
+            // their own units is shortened from its first use, and for
+            // the same reason read the other way round: the pivot that
+            // was too small to solve against unscaled says the block is
+            // nearly flat along that unknown, so the full step is a
+            // huge one across a direction the linear model barely
+            // describes. `PumpAndValve` walks its enthalpies to 1e19
+            // on the first such step and never comes back; shortened
+            // until the residual falls, it runs.
+            damped |= circling || rescued;
             let mut next = full;
             let mut taken = 1.0f64;
             if damped {
