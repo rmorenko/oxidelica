@@ -155,9 +155,20 @@ FLATTEN_FLOOR=868
 #
 #   run          535 = 534 before, plus one
 #   runnable run 501 = 500 before, plus one
-RUN_FLOOR=535
+#
+# And one more, from the line search refusing to count a fall it
+# could buy only by cutting the step to a sliver (/tmp/m214/on2.ran
+# against /tmp/m214/off.ran, the two halves from one binary with the
+# rule behind OXIDELICA_SLIVER_STEPS):
+#
+#   arrived  Modelica.Electrical.Machines.Examples.Transformers.Rectifier12pulse
+#   left     nothing
+#
+#   run          536 = 535 before, plus one
+#   runnable run 502 = 501 before, plus one
+RUN_FLOOR=536
 RUNNABLE_FLATTEN_FLOOR=753
-RUNNABLE_RUN_FLOOR=501
+RUNNABLE_RUN_FLOOR=502
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

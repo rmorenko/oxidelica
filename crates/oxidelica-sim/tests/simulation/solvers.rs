@@ -858,3 +858,40 @@ fn a_direction_the_residual_does_not_fall_along_is_said_so_rather_than_walked() 
     assert!(refusal.contains("steps running"), "{refusal}");
     assert!(!refusal.contains("singular"), "{refusal}");
 }
+
+#[test]
+fn a_fall_bought_only_by_cutting_the_step_to_a_sliver_is_not_a_step() {
+    // The guard above asks whether the line search found a smaller
+    // residual, and that is not the whole question: a block can go on
+    // finding one for as long as the step is cut small enough, and
+    // then it is not travelling, it is creeping. Each such iteration
+    // reports descent and resets the count of stuck steps, so the
+    // guard never reaches three and the block spends its whole budget.
+    //
+    // This is what `BranchingPipes1` does. The trail in
+    // /tmp/m214/bp1b.txt has thirteen steps whose accepted fraction
+    // falls from 6.25e-2 to 9.5e-7 while the residual goes from
+    // 1.06078e6 to 1.06076e6 - two parts in a hundred thousand for the
+    // whole crawl - and it ends by stepping over the edge of the water
+    // formulation, where the residual is NaN and the Jacobian built
+    // there is four rows of NaN, reported as a singular matrix. The
+    // matrix again is not what is wrong.
+    //
+    // Here the crawl ends in the budget rather than in a NaN, so
+    // without the rule the refusal blames fifty iterations, which
+    // names a count and not a cause.
+    let refusal = refused(
+        "model E Real x(start = 0.0); Real y(start = 1.0); equation \
+                       y = abs(x) + 1e-9*x + sqrt(1.0 - x); \
+                       y*1e6 + x = -1e6; \
+                       annotation(experiment(StopTime=0.001, Interval=0.001)); end E;",
+    );
+    assert!(
+        refusal.contains("does not reduce the residual"),
+        "{refusal}"
+    );
+    // And it says what was paid for the fall, which is the fact the
+    // guard could not see before.
+    assert!(refusal.contains("only below"), "{refusal}");
+    assert!(!refusal.contains("50 Newton iterations"), "{refusal}");
+}

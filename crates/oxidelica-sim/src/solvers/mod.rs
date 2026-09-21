@@ -24,6 +24,14 @@ fn descent_guard_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_DESCENT_GUARD").is_some())
 }
 
+/// Whether a step the line search had to cut to a sliver counts as a
+/// step. Off by default; the switch exists so that the two halves of
+/// a measurement come from one binary.
+fn slivers_count() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_SLIVER_STEPS").is_some())
+}
+
 mod bdf;
 mod dopri;
 mod rk4;
@@ -1015,7 +1023,41 @@ impl CompiledModel {
                 // and then goes NaN (/tmp/m213/bp2.txt), and every
                 // column of the Jacobian printed there is NaN rather
                 // than dependent. Say the thing that was measured.
-                if !descended && !descent_guard_off() {
+                // A fall the line search could buy only by cutting the
+                // step to a sliver is not a step the block can travel
+                // on, and the guard as first written could not see it:
+                // `descended` says a smaller residual was found and
+                // says nothing about what was paid for it. Measured on
+                // `BranchingPipes1` (/tmp/m214/bp1b.txt), thirteen
+                // steps running come back descended with the fraction
+                // shrinking from 6.25e-2 to 9.5e-7, the residual
+                // falling from 1.06078e6 to 1.06076e6 - two parts in a
+                // hundred thousand over the whole crawl - and each of
+                // them resets `stuck` to zero, so the guard never
+                // reaches three. The crawl then steps over the edge of
+                // the water formulation, the residual is NaN, and the
+                // Jacobian built there has four rows of NaN and is
+                // reported as a singular matrix. That is the same lie
+                // `BranchingPipes2` told before the guard was written,
+                // wearing the one coat the guard did not look under.
+                //
+                // A thousandth of the Newton step is the line between
+                // the two. Ten halvings is a direction the linear model
+                // still describes somewhere near the point; past that
+                // the model has been abandoned and what is left is a
+                // crawl in a direction chosen by arithmetic that no
+                // longer applies.
+                // And a step that only exists because the columns were
+                // put in their own units is exempt. Such a step is a
+                // huge one across a direction the block is nearly flat
+                // along, so the line search cutting it to a sliver is
+                // the scaling being undone rather than the block
+                // refusing to travel: `PumpAndValve` walks its
+                // enthalpies that way and converges. Measured on the
+                // named five through `--only`, the rule without this
+                // exemption cost it.
+                let sliver = !slivers_count() && descended && lambda < 1e-4 && !rescued;
+                if (!descended || sliver) && !descent_guard_off() {
                     stuck += 1;
                     // One such step is not a verdict: `PumpAndValve`
                     // takes one on its way and converges afterwards,
@@ -1025,9 +1067,9 @@ impl CompiledModel {
                     if stuck >= 3 {
                         return err(format!(
                             "the Newton direction of algebraic loop {:?} does not reduce the \
-                             residual at t = {t}: halved twenty times from |f| = {before:e} on \
-                             {stuck} steps running and no trial was smaller, so the block has no \
-                             step to take from here",
+                             residual at t = {t}: from |f| = {before:e}, {stuck} steps running \
+                             bought a smaller residual only below {lambda:e} of the step or not \
+                             at all, so the block has no step to take from here",
                             block_names()
                         ));
                     }
@@ -1035,6 +1077,9 @@ impl CompiledModel {
                     stuck = 0;
                 }
                 taken = lambda;
+                if newton_trail() {
+                    eprintln!("  lambda={lambda:e} descended={descended} stuck={stuck}");
+                }
             }
             footing = Some((v.clone(), dv, taken));
             v = next;

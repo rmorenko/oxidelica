@@ -13839,3 +13839,59 @@ not hydraulic at all, so the fault was never the row's subject
 matter. The hydraulic seven remain refused, and now they refuse for a
 reason a reader can act on: the block has no step to take from where
 it stands.
+
+## A fall bought by cutting the step is not a step
+
+The guard of the shift before took `BranchingPipes2` out of the
+`singular Jacobian` row and left its two namesakes standing in it.
+Reading them as one family was the mistake: the heads of their loop
+are name for name the same, and the mechanism behind the wall was
+not.
+
+The probe says so in one run. `BranchingPipes1` under
+`OXIDELICA_NEWTON_TRAIL` (/tmp/m214/bp1b.txt) builds its Jacobian on
+a residual that is already NaN, and four of its nineteen rows are NaN
+rather than dependent - so the matrix is not what is wrong here
+either. What is wrong is one line above the guard. Thirteen steps
+running come back _descended_, with the accepted fraction of the step
+falling 6.25e-2, 1.56e-2, 7.8e-3 ... 9.5e-7 while the residual moves
+from 1.0607835e6 to 1.0607595e6. That is two parts in a hundred
+thousand for the whole crawl, and every one of those steps resets the
+count of stuck steps, so the guard that fires at three never reaches
+two. The crawl then steps over the edge of the water formulation and
+the refusal names the matrix.
+
+The guard could not see it because `descended` says a smaller
+residual was found and says nothing about what was paid for it. The
+rule added is that a fall the line search could buy only below a ten
+thousandth of the Newton step counts as a step that goes nowhere.
+
+One exemption, and it is the reason a bare threshold trades one model
+for another. A step that exists only because the columns were put in
+their own units is by construction a huge one across a direction the
+block is nearly flat along, so the line search cutting it small is
+the scaling being undone rather than the block refusing to travel.
+`PumpAndValve` walks its enthalpies exactly that way and converges.
+Measured on the six named models through `--only` at forty seconds a
+pass rather than by corpus runs at fourteen minutes: without the
+exemption a threshold of a thousandth costs the three `OpAmps` models
+and `PumpAndValve` and wins `Rectifier12pulse`, and a threshold of a
+millionth trades them back the other way. With it, all six run.
+
+The corpus agrees, both halves from one binary with the rule behind
+`OXIDELICA_SLIVER_STEPS`: 868 / 536 against 868 / 535, and the run
+lists diffed name for name (/tmp/m214/on2.ran against
+/tmp/m214/off.ran) show nobody left and `Rectifier12pulse` arrived.
+The floors move to 536 and 502 in the same commit.
+
+`BranchingPipes1` itself does not run. It leaves `singular Jacobian`
+for the row that names the measurement, which is what the shift set
+out to establish: the remaining hydraulic models of that row stand on
+a line search that crawls, not on a matrix.
+
+And the parked question of `dp_turbulent` is answered and dead. The
+`why` (/tmp/m214/why_dpt_fable.txt) shows no binding at all and no
+`use_Re` branch - a full physical equation through the viscosities
+and densities of both sides. It stands in the loop legitimately, and
+the guess that read a different valve's source by the same variable
+name was the third of its kind in a day.
