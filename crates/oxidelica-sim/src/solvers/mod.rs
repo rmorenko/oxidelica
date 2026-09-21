@@ -3,6 +3,19 @@
 
 use crate::*;
 
+/// Whether to print the Newton iteration of every algebraic block.
+///
+/// What a block does before it refuses is the only thing that says
+/// which refusal it is owed - a step into a domain's edge, a swing
+/// between two points and a residual sitting on the floor of the
+/// arithmetic all end at the same message. Read once: the answer
+/// cannot change during a run, and the question is asked inside the
+/// solver's innermost loop.
+fn newton_trail() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
+}
+
 mod bdf;
 mod dopri;
 mod rk4;
@@ -584,9 +597,47 @@ impl CompiledModel {
 
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
+        // The step that brought the iteration to where it now stands:
+        // where it came from, which way it went and how much of that
+        // way it took. Kept so that a step over the edge of a domain
+        // can be taken again, shorter, from the footing it left.
+        let mut footing: Option<(Vec<f64>, Vec<f64>, f64)> = None;
         for iteration in 0..50 {
             let parts = residual_parts(values, &v);
             let f: Vec<f64> = parts.iter().map(|(lhs, rhs)| lhs - rhs).collect();
+            if newton_trail() {
+                let norm = f.iter().map(|x| x * x).sum::<f64>().sqrt();
+                eprintln!("newton {iteration} t={t} |f|={norm:e} v={v:?} f={f:?}");
+            }
+            // A step that lands where the residual is not a number has
+            // not diverged: the iteration was going the right way and
+            // overshot the edge of a domain. Water is where this shows
+            // - the trail of `SeriesPipes2` steps a pressure from
+            // 4.97e5 to 2.08e7, where the IF97 formulation answers NaN,
+            // and the block was reported as diverged on its second
+            // iteration with a perfectly finite residual behind it.
+            // Nothing at the point stepped from gives the edge away, so
+            // the only thing to do is go back and take less of the same
+            // step. Divergence is then what is left when even a step of
+            // a millionth of the way still cannot be evaluated.
+            if !f.iter().all(|x| x.is_finite()) {
+                if let Some((from, dv, lambda)) = footing.take() {
+                    let lambda = lambda / 2.0;
+                    if lambda > 1e-6 {
+                        v = (0..n).map(|j| from[j] - lambda * dv[j]).collect();
+                        footing = Some((from, dv, lambda));
+                        // A block that has once been over the edge
+                        // keeps the shortened step for the rest of
+                        // this solve. Without that it walks back to
+                        // the same edge at the next full step and
+                        // spends its whole budget going over and
+                        // coming back, which is the trail the small
+                        // model printed before this line was added.
+                        damped = true;
+                        continue;
+                    }
+                }
+            }
             // A residual that is not a number is not a step away from
             // the solution: the block never had a finite one to step
             // from. Reported as divergence it names a thing that did
@@ -787,6 +838,7 @@ impl CompiledModel {
             // curve entering saturation rises once before it converges.
             damped |= circling;
             let mut next = full;
+            let mut taken = 1.0f64;
             if damped {
                 let norm = |r: &[f64]| r.iter().map(|x| x * x).sum::<f64>().sqrt();
                 let before = norm(&f);
@@ -800,7 +852,9 @@ impl CompiledModel {
                     lambda /= 2.0;
                     next = (0..n).map(|j| v[j] - lambda * dv[j]).collect();
                 }
+                taken = lambda;
             }
+            footing = Some((v.clone(), dv, taken));
             v = next;
             if v.iter().any(|value| !value.is_finite()) {
                 return err(format!("algebraic loop diverged: {:?}", block_names()));

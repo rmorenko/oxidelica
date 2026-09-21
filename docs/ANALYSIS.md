@@ -12761,3 +12761,123 @@ family stands at ten either way - one member left and `TestDensity`
 arrived - so the row's count is the same and its membership is not.
 This is a wall passed and the family not finished, and the two counts
 say so from both sides.
+
+## The family of diverged blocks, and what it turned out to be
+
+Sixteen models refuse with `algebraic loop diverged`, and they are not
+sixteen problems. Read off the raw material of one corpus pass
+(`/tmp/m202/raw.txt`, a model per `built` line), and taken by the first
+match so the parts do not overlap:
+
+| how many | what they are                            | the loop they share                                                    |
+| -------- | ---------------------------------------- | ---------------------------------------------------------------------- |
+| 5        | `TestWaterPump*` of `ModelicaTest.Fluid` | `pump.medium.p`, `pump.rho`, `pump.port_a.m_flow`, a valve's density   |
+| 7        | `BranchingPipes*` and `SeriesPipes*`     | `mediums[1].p` of each pipe, with `dp_turbulent` of the valves between |
+| 2        | `TestFlowRate`, `TestTemperature1`       | an orifice's `V_flow` beside the sensor's own medium                   |
+| 1        | `DrumBoiler`                             | an evaporator's enthalpy against its level                             |
+| 1        | `DynamicPipesAndFittings`                | a hundred and three unknowns over twelve pipes                         |
+
+The loop sizes say more about the parts than the names do. The pumps
+are 4, 5, 5, 5, 6 - one size, which is an argument for one mechanism.
+The pipes run 3, 6, 6, 6, 17, 19, 19 - sixfold at the same wall, so a
+part named by its file name may be two by its substance. The last is
+an order out on its own and is in the table alone for that reason.
+
+One correction to a reading that looks plausible and is not:
+`dp_turbulent` is not a parameter the compiler failed to evaluate. It
+is declared a variable in `Modelica/Fluid/Valves.mo:21` - `dp_turbulent
+= if not use_Re then dp_small else ...` - so standing unknown in a loop
+is its right.
+
+### What they diverge by: a step over the edge of a domain
+
+`SeriesPipes2` is the smallest of the sixteen, three unknowns, and its
+Newton trail (`OXIDELICA_NEWTON_TRAIL=1`, the run in
+`/tmp/m203/sp2_trail.txt`) is two lines long:
+
+```text
+newton 0 |f|=9.99e4  v=[497500, 100000, 492500]        f=[-997, 99990, -997]
+newton 1 |f|=NaN     v=[20848050, 10.0001, 20843867]   f=[NaN, 0.0001, NaN]
+```
+
+Nothing diverged. The first residual is finite and modest, the
+direction is right, and the step is simply too long: it takes a
+pressure from five atmospheres to two hundred, where the IF97
+formulation of water has nothing to say and answers NaN. The solver
+then reads a value that is not a number and calls the block diverged,
+which names the iteration for a fault of the medium's domain.
+
+The small model is that in twelve characters of arithmetic:
+`1/sqrt(x - 3) = 10 + time`, started at `x = 4`. One Newton step from
+four lands at minus fourteen, where the square root is not a number,
+and the block was refused before this change with a root sitting at
+3.01 a little way off.
+
+Backtracking already existed in the solver, and was reached only after
+the iteration had been seen to walk in a circle - which cannot happen
+here, because the second point is not a point at all. So the retreat is
+now hung on the residual rather than on the history: a step whose
+residual is not a number is taken again at half the length, from the
+footing it left, and the block keeps the shorter step for the rest of
+the solve. Divergence is what is left when even a millionth of the step
+cannot be evaluated.
+
+### The bridges are the other thing entirely
+
+`Modelica.Electrical.Analog.Examples.Rectifier`, the smallest of the
+six bridges that say `did not converge in 50 Newton iterations`, does
+not fail to converge. Its trail (`/tmp/m203/rect_trail.txt`):
+
+```text
+newton 1 |f|=4.2e-8   v=[-2.000000012, ... , 1.2e-8]
+newton 2 |f|=9.31e-10 v=[-2.0, -2.0, -2.0, -2.0, -2.0, -2.0, 3.37e-14]
+newton 3..49 |f|=9.31e-10 - the same to every digit
+```
+
+Six diode coordinates land on exactly minus two and stay; the seventh
+residual sits at 9.3e-10 and does not move for forty-seven iterations.
+That is the floor of the arithmetic again, and the floor test added
+last shift does not catch it: that test compares the difference against
+the two sides of the equation, and here the cancellation happens
+_inside_ one side, between terms of a sum, so both sides are small and
+their scale says nothing. The residual is noise at 1e-9 and the test
+demands 1e-10 of it.
+
+Which parks the six bridges with a name rather than a shrug: they are
+not a switching cycle and not a singular column, they are a convergence
+test that measures a sum's terms by the sum. Judging a residual against
+the largest term that went into it is the shape of the answer, and it
+wants the terms carried out of the residual the way the two sides
+already are - a change to what the evaluator hands back, which is why
+it is parked and not taken here.
+
+### What the retreat was worth: ten models a floor up, none won
+
+One corpus pass after the change (`/tmp/m203/corpus.txt`): 868 flatten
+and 528 run, runnable 753 and 496 - the same five numbers, and the run
+list diffed against the 528-line baseline in `/tmp/m203/ran_before.txt`
+is identical line for line. Nothing won, nothing lost.
+
+What moved is the family. The same sixteen models re-run on their own
+(`/tmp/m203/div_after.txt`) now say:
+
+```text
+ 4  singular Jacobian in algebraic loop ["pipe1.mediums[1].p", ...
+ 2  algebraic loop did not converge in 50 Newton iterations
+ 6  algebraic loop diverged (in four rows, by their loops)
+ 2  IF97 asked outside its region, at t = 0
+ 1  singular Jacobian ["evaporator.h_S", ...]
+ 1  a kind of its own
+```
+
+Sixteen became six. Ten models walked past the edge of the domain and
+died at the next wall along - four at a singular Jacobian, two at the
+iteration budget, two at the medium refusing outright with its own
+message, which is a better refusal than a NaN read back as divergence.
+The six that remain go over the edge again further in, where the
+shortened step cannot bring them back: `SeriesPipes2` retreats
+successfully at its second iteration, walks eleven more, and meets a
+second edge at the twelfth.
+
+This is a wall passed and the family not finished, and the count of
+models is the right number to have stayed still.

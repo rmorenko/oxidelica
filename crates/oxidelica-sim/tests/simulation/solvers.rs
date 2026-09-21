@@ -766,3 +766,29 @@ fn a_saturating_amplifier_does_not_send_newton_between_the_rails() {
         last[out]
     );
 }
+
+#[test]
+fn a_newton_step_over_the_edge_of_a_domain_is_shortened_rather_than_called_divergence() {
+    // `1/sqrt(x - 3)` is the shape of a medium's property function:
+    // finite and well behaved over its domain, and nothing at all
+    // beyond the edge of it. Newton's full step from `x = 4` lands at
+    // minus fourteen, where the square root is not a number, and the
+    // solver used to read that value and call the block diverged -
+    // naming the iteration for a fault of the domain, with the root
+    // sitting at 3.01 a short way from where it started.
+    //
+    // This is what the sixteen `algebraic loop diverged` models of the
+    // corpus do. `SeriesPipes2`, the smallest, steps a pressure from
+    // five atmospheres to two hundred, where water's IF97 formulation
+    // answers NaN, and refuses on its second iteration with a finite
+    // residual behind it.
+    let result = run("model D Real x(start = 4.0); equation \
+                      1.0 / sqrt(x - 3.0) = 10.0 + time; \
+                      annotation(experiment(StopTime=0.001, Interval=0.001)); end D;");
+    let x = result.rows.last().unwrap()[1];
+    // At `t = 0.001` the right side is 10.001, so `x - 3` is its
+    // inverse square: the answer is a value and not the mere fact that
+    // the block came back.
+    let expected = 3.0 + 1.0 / (10.001f64 * 10.001);
+    assert!((x - expected).abs() < 1e-9, "x={x}, expected {expected}");
+}
