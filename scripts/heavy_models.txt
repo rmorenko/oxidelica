@@ -21,6 +21,16 @@
 # the main check, so anything added here has to be subtracted from the
 # main check's floors in the same commit.
 #
+# The fourth name is carved out of the flatten half rather than the
+# run half, and for the same reason. `EngineV6` cost 270.1s to
+# flatten against 2032s for all 1040 models - 13.3% of the flatten
+# half on one name - and the next dearest model is three times
+# cheaper at 83.6s, which is as clean a cut as this list will ever
+# get. What it measures is the speed of flattening one large
+# mechanical loop, not how much of the library this compiler reads:
+# its five siblings in `Loops` read the same classes for a fraction
+# of the price.
+#
 # What does NOT belong here: a model that is dear because it is a
 # physical check rather than a speed benchmark.
 # `DynamicPipeEnergyConservationCheck` costs 199s and stays in the main
@@ -35,3 +45,6 @@ Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.FOURBIT
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder
 # 225s to run, 2026-09-14
 Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT
+
+# 270.1s to flatten, 2026-09-21
+Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6

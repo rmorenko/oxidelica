@@ -89,11 +89,30 @@
 # number that did not fall is as easy to misread a week later as one
 # that did.
 #
+# A fourth name joined that list on 2026-09-21, and this one is carved
+# out of the flatten half rather than the run half:
+# `Mechanics.MultiBody.Examples.Loops.EngineV6` cost 270.1s of a 2032s
+# flatten half, 13.3% on one name, with the next dearest model three
+# times cheaper. It flattens and does not run, so only the two flatten
+# floors move, and the arithmetic is written out because a number that
+# fell for a good reason and a number that fell from a regression look
+# identical a week later:
+#
+#   flatten 867 = 866 here + 1 in the scheduled run
+#   runnable flatten 752 = 751 here + 1 in the scheduled run
+#   run 536 and runnable run 502 are unmoved: EngineV6 does not run,
+#   so nothing left the run half with it.
+#
+# Both numbers are from one pass of one binary over the corpus with
+# EngineV6 already in `heavy_models.txt` (/tmp/m218/corpus.txt) - the
+# check reported 867 flatten and 752 runnable flatten - and the
+# scheduled half from /tmp/m218/heavy.txt.
+#
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=868
+FLATTEN_FLOOR=867
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -167,7 +186,7 @@ FLATTEN_FLOOR=868
 #   run          536 = 535 before, plus one
 #   runnable run 502 = 501 before, plus one
 RUN_FLOOR=536
-RUNNABLE_FLATTEN_FLOOR=753
+RUNNABLE_FLATTEN_FLOOR=752
 RUNNABLE_RUN_FLOOR=502
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
