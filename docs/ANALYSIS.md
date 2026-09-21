@@ -13146,3 +13146,60 @@ the tearing chose. Both are fluid, and four of the six unknowns in
 `junctionIdeal.medium.p` - which is a junction's pressure written three
 times over and a candidate for a loop that is singular because it is
 genuinely rank-deficient rather than because the values are bad.
+
+## The bracket wall was a shifted seat (shift 140)
+
+The wall seven models stood at was not about brackets at all. The
+probe on the smallest of them, `Inverse_sh_T`
+(`/tmp/m206/inverse_sh_T_fable.txt`), printed `u_min = 200`,
+`u_max = 6000`, `fa = -7.07e15`, `fb = -5.73e21` - a specific entropy
+of air fifteen orders above the few thousand joules per kilogram-kelvin
+it is owed, so the bracket was innocent and the function was producing
+rubbish.
+
+Where the rubbish came from is a seat nobody filled. A receiver
+specialized for a handed-over function takes ordinary numbers where
+the function input was, and the fields of a record filled in at the
+hand-over are appended after everything the call wrote. Between the
+two sits any input the call left to its own default. Brent's method
+declares `tolerance` and no medium writes it, so the NASA gas arrived
+one seat early: the molar mass read as the tolerance, `Tlimit` read as
+a coefficient, every coefficient read as its neighbour.
+
+The instrument that showed it was the pair of field lists printed side
+by side - the hand-over road writing twenty-three flat names and the
+call carrying twenty-two values into twenty-three seats. Neither list
+was wrong; the gap between them was.
+
+Two things are worth keeping from how this was found. The synthetic
+models were all green: six of them, each closer to the real shape than
+the last, and not one reproduced the fault, because the seat only goes
+missing when the receiver declares an input the call does not write -
+which is exactly the detail a hand-written reproduction supplies
+without thinking. What found it was printing the real specialized body
+and reading the argument list against the declared inputs. And the
+fault was silent: no refusal anywhere, a wrong number offered as a
+right one, and the refusal that did eventually appear named the
+bracket, which is to say it named the wrong layer. The census could
+never have shown this - the row it filled was about brackets.
+
+Three models arrive, by name from `/tmp/m206/corpus_after.txt` against
+`/tmp/m204/raw_after.txt`: `SolveOneNonlinearEquation.Inverse_sh_T`,
+`Dissipation.TestCases.PressureLoss.Orifice` and
+`NewFittings.Orifices.ThickEdgedOrifice`. The corpus goes 868 / 528 to
+868 / 531 and runnable 753 / 496 to 753 / 499. `BranchingPipes15-17`
+pass this wall and stop at the next one, which is the usual shape: a
+wall removed uncovers whatever stood behind it.
+
+## What guards a division by a vector's own length (shift 140, parked)
+
+`ThreeSprings` refuses with `der(body1.Q[3]) = NaN` before any Newton
+step, on a loop of thirty-three holding `e_rel_0 = r_rel_0/s`. The
+library's guard is real and it works here:
+`Interfaces/LineForceBase.mo:45` writes
+`s = Frames.Internal.maxWithoutEvent(length, s_small)` with
+`s_small = 1e-10`, and asked directly
+(`/tmp/m206/mwe.mo`) the compiler answers `s = 1e-10` and `e = 0` for
+a zero-length vector. So the NaN is not a division by zero at this
+line, and the guard is not what failed. The quaternion derivative is
+where to look next, not the line force.
