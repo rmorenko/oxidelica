@@ -12899,20 +12899,43 @@ and the listing beside it):
     6  NaN    Electrical.Analog.Examples.HeatingPNP_NORGate
     9  NaN    MultiBody.Examples.Elementary.DoublePendulum
    12  -inf   Magnetic.QuasiStatic.FluxTubes...NonLinearInductor
-   13+ NaN    nine machine models (SMPM/SMR, loops 13 to 47)
+   13+ NaN    five Electrical.Machines SMPM/SMR (loops 13 to 47)
+   13+ NaN    two FundamentalWave SMPM_Inverter, SMR_Inverter
    22  NaN    MultiBody.Examples.Loops.Fourbar2 (parked)
    26+ NaN    RollingWheel, RollingWheelSet{Driving,Pulling}
    32+ -inf   SolenoidActuator.Comparison{QuasiStatic,PullInStroke}
    33  -inf   MultiBody.Examples.Elementary.ThreeSprings
 ```
 
-Five of the twenty-two answer `-inf` rather than `NaN`, and every one
-of those is the reciprocal already named in the solver's comment:
-`R_m = 1/G_m` with the conductance standing at the zero its
-declaration left it. The rest answer `NaN`, and the row is not one
-family: the machines are the machine chain parked since shift 130, the
-MultiBody three are geometry, and the three smallest - the orifices -
-turned out to be something else entirely.
+The rows add to exactly twenty-two: 3 orifices + 1 + 2 gates + 1 + 1 +
+5 + 2 + 1 + 3 + 2 + 1. The machines are **seven**, not nine - five
+under `Electrical.Machines` and two under `FundamentalWave` - and the
+two `Heating{NPN,PNP}_NORGate` beside them are transistor examples of
+`Electrical.Analog`, which the machine parking of shift 130 does not
+cover. Counting them as machines is what made the earlier reading of
+this row say nine; the names are in `/tmp/m204/row22_names.txt` and can
+be counted.
+
+Five of the twenty-two answer `-inf` rather than `NaN`, and the honest
+name of that row is not `1/G_m` but **a division by a quantity whose
+start is exactly zero**. Read from the raw listing
+(`/tmp/m204/raw_after.txt`), four of the five divide by a conductance -
+`r_mFe.G_m` in `SaturatedInductor` and `NonLinearInductor`,
+`g_mFeYokeBot.G_m` in the two `SolenoidActuator` comparisons - and the
+fifth does not: `ThreeSprings` divides by
+`spring2.lineForce.s`, the distance between two points that coincide in
+the start position, to get a unit vector
+`e_rel_0[1] = r_rel_0[1] / s`. Different quantities, one mechanism: an
+equation divides by something the declaration left standing at zero.
+So the five belong together under that name, and the parenthetical
+`1/G_m` describes four of them.
+
+The rest answer `NaN`, and the row is not one family: the machines are
+the machine chain parked since shift 130, the MultiBody three are
+geometry, the two NOR gates are live and unparked, and the three
+smallest - the orifices - turned out to be something else entirely.
+Deducting the parked (Fourbar2, and the seven machines) leaves
+**fourteen live** members, not twenty-one.
 
 ### The three smallest were the compiler losing a sentence
 
@@ -12951,3 +12974,162 @@ that a message built by concatenation is cut off at its first piece,
 because a `String` is refused where the walk wanted a number. The
 second half is the next thing to take: a model that explains itself in
 prose should have its prose carried whole to the reader.
+
+### The prose carried whole, and the numbers it was holding
+
+Taken in shift 139. Two changes in the walk, both small. A call
+standing on its own is read for its value, and
+`Modelica.Utilities.Streams.error(text)` is a call standing on its own
+whose one argument is a sentence: read as a number, the first literal
+piece is a `String` and the walk refuses about the spelling of the
+message instead of delivering it. The walk now takes that call the way
+it takes an `assert`. And the message is assembled by `prose` rather
+than by `message_text`: off the run, a `String(x)` piece can only be a
+`?`, because nothing has a value yet, but a walk stands in the frame
+that holds the values, so the piece is worked out and the reader gets
+the number. A piece that still cannot be worked out keeps the `?`
+rather than costing the whole sentence.
+
+What the three orifices say now
+(`/tmp/m205/orifice.txt`, from `library check .msl --only
+ModelicaTest.Fluid.TestComponents.Fittings.TestSharpEdgedOrifice
+--refused`):
+
+```text
+... do not bracket the root of the single non-linear equation 0=f(u):
+  u_min  = 200
+  u_max  = 6000
+  fa = f(u_min) = -348110341317103700000
+  fb = f(u_max) = -8459081294005737000000000000
+fa and fb must have opposite sign which is not the case
+```
+
+Which answers the cause-before-consequence question outright, and the
+answer is that the fault is ours. The bracket is
+`IdealGases.Common.package.mo:367`, `T_h` inverting `h_T` for a
+temperature over the validity range of an ideal gas, 200 K to 6000 K -
+a bracket the library chose and one that is correct. The residual is
+`f(T) = h_T(data, T) - h`, and `h_T` over that range runs in the
+hundreds of thousands of joules per kilogram. For `f(200)` to come out
+at `-3.5e20`, the `h` handed in has to be about `3.5e20` J/kg, which is
+not an enthalpy any fluid has. So the bracket is honest and what was
+poured into it is not: an `h` fifteen orders of magnitude too large
+reaches `T_h` from the orifice's stream, and no bracketing could
+survive it.
+
+The second number says more than the first. `fb = -8.5e27` is not only
+huge, it is seven orders of magnitude further from zero than `fa`,
+where `h_T(6000) - h` should differ from `h_T(200) - h` by a few
+hundred thousand at most. Both ends moving with `T` on that scale means
+`h_T` itself is being evaluated with rubbish, not merely being offered
+a rubbish `h`. Where the rubbish enters - the orifice's `state_a.h`,
+the stream connector, or the medium's own constants - is the next
+question, and it is a `why` on the orifice's enthalpy rather than
+anything in the solver. Parked here with its address.
+
+The general shape is worth keeping: a compiler that drops a library's
+sentence does not merely print a worse message, it loses the
+measurement inside the sentence. Three models' worth of `u_min`,
+`u_max`, `fa` and `fb` were being computed and thrown away every run,
+and reading them back cost one line of walk and answered a question
+three shifts of probing had not.
+
+The register before and after says the change was text and nothing
+else. Diffed line for line over the run half
+(`/tmp/m204/census_after.txt:250` against
+`/tmp/m205/census_both.txt`), every row holds its count and its place,
+and exactly three rows changed their wording:
+
+```text
+-   4 at t = N.N: `X` is a String, and a String has no value a step can carry
++   4 at t = N.N: The arguments u_min and u_max provided in the function call
+      solveOneNonlinearEquation(f,u_min,u_max) do ...
+-   1 IFN medium function tsat called with too low pressure p = ? Pa <= ? Pa
++   1 IFN medium function tsat called with too low pressure p = -N.N Pa <= ? Pa
+-   1 Error in region computation of IFN steam tables(p = ?, h = ?)
++   1 Error in region computation of IFN steam tables(p = N.N, h = N.N)
+```
+
+Four models, not three, were losing their sentence - the orifices and
+one more - and two further models were printing a question mark where
+the run knew the number: the IF97 steam tables now say which pressure
+was too low and with what enthalpy. The `?` that survives in the
+`tsat` row is the triple-point constant, which is a parameter rather
+than anything the frame holds, and it keeps its question mark exactly
+as the rule says it should. No count moved anywhere, which is the
+right outcome for a change that alters what a refusal says and not
+which models refuse.
+
+## The `singular Jacobian in algebraic loop` row, taken apart (shift 139)
+
+Eighteen models, read by name from the same raw listing
+(`/tmp/m204/raw_after.txt`, the lines that say `built`). The file holds
+nineteen occurrences of the words and the nineteenth is not a model: it
+is the counter's own summary line at `raw_after.txt:550`, `4 singular
+Jacobian in algebraic loop [...]`, count and text together. Counted by
+`built`, the total is eighteen with no remainder.
+
+Sorted by the size of the loop that went singular:
+
+```text
+ loop  model
+    6  Fluid.Examples.DrumBoiler.DrumBoiler
+    6  ModelicaTest...TestPipesAndValves.BranchingPipes14
+    9  Thermal.FluidHeatFlow.Examples.PumpAndValve
+   12  Electrical.QuasiStatic.SinglePhase.Examples.Rectifier
+   12  ModelicaTest...TestComponents.Vessels.TestInitialization
+   17  ModelicaTest...TestPipesAndValves.BranchingPipes2
+   19  Electrical.Polyphase.Examples.PolyphaseRectifier
+   19  ModelicaTest...TestPipesAndValves.BranchingPipes1
+   19  ModelicaTest...TestPipesAndValves.BranchingPipes12
+   20  Electrical.Machines...SynchronousMachines.SMEE_LoadDump
+   22  Electrical.Machines...SynchronousMachines.SMEE_Rectifier
+   23  FundamentalWave...SynchronousMachines.SMEE_Rectifier
+   29  FundamentalWave...SynchronousMachines.SMEE_LoadDump
+   46  FundamentalWave...ComparisonPolyphase.SMEE_Generator_Polyphase
+   48  FundamentalWave...ComparisonPolyphase.SMPM_Inverter_Polyphase
+   48  FundamentalWave...ComparisonPolyphase.SMR_Inverter_Polyphase
+   76  FundamentalWave...ComparisonPolyphase.IMC_DOL_Polyphase
+  103  ModelicaTest...TestComponents.Pipes.DynamicPipesAndFittings
+```
+
+Cut by what is parked, the eighteen fall into three groups and the cut
+is exclusive:
+
+```text
+ 8  machines (SMEE/SMPM/SMR/IMC), parked since shift 130:
+    two under Electrical.Machines, six under FundamentalWave
+ 2  rectifiers with no machine in them: PolyphaseRectifier and
+    the QuasiStatic SinglePhase Rectifier - diodes in a loop,
+    `idealDiode.s` throughout
+ 8  fluid: DrumBoiler, PumpAndValve, TestInitialization,
+    BranchingPipes{1,12,14,2}, DynamicPipesAndFittings
+```
+
+The machine eight of this row and the machine seven of row 22 are the
+same parking and not the same models: row 22 holds `SMPM_Braking`,
+`SMPM_Inverter`, `SMPM_VoltageSource`, `SMR_DOL`, `SMR_Inverter` and
+two `FundamentalWave` inverters, while this row holds the `SMEE_*` pair
+and the whole `ComparisonPolyphase` group. Two rows of one parked
+family, not one row counted twice.
+
+None of the eighteen are migrants from the `diverged` row of shift 137.
+The six that still say `diverged` are `TestWaterPumpDefault{CV,LV}`,
+`TestTemperature1`, `BranchingPipes4`, `SeriesPipes{1,2}`, and no name
+appears in both lists: the retreat from the edge did not walk anybody
+into a singular Jacobian. The counts also did not move - 18 and 6 in
+both `/tmp/m204/census.txt:253,261` and `census_after.txt:253,261`.
+
+So the live count of this row is **ten** (18 minus the 8 parked
+machines), against **fourteen** live in row 22. Row 22 remains the top
+of the queue, and its three smallest members - the orifices - are the
+only ones of either row that a single reading has already moved.
+
+Two of the ten are worth naming as the small end: `DrumBoiler` and
+`BranchingPipes14` each go singular on a loop of **six**, which is the
+smallest singular loop in the corpus and the natural place to ask what
+the tearing chose. Both are fluid, and four of the six unknowns in
+`BranchingPipes14` are pressures - `pipe{1,2,3}.mediums[1].p` and
+`junctionIdeal.medium.p` - which is a junction's pressure written three
+times over and a candidate for a loop that is singular because it is
+genuinely rank-deficient rather than because the values are bad.
