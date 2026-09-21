@@ -417,12 +417,18 @@ pub(super) fn stream_mix(
         // weighted by their outbound flows, floored so the division
         // survives every flow going quiet.
         _ => {
-            // The specification weighs each port by `max(-m, 0)`: a port
-            // pushing nothing into the node has no say in what the node
-            // holds. Only the divisor is regularised - that is what
-            // `positiveMax` is - so the mix survives every flow going
-            // quiet without a silent port tugging it towards its own
-            // value.
+            // The specification weighs each port by `positiveMax(-m,
+            // eps)` on both halves of the fraction, and the floor is
+            // not decoration: weighted by `max(-m, 0)` on top, a node
+            // whose flows have all gone quiet mixes to exactly zero -
+            // not to any port's value but to the number a division of
+            // nothing by the floor leaves behind. Zero enthalpy is
+            // outside the steam tables, so the model that starts at
+            // rest dies before its first Newton step with a value no
+            // port ever held. With the floor on both halves the quiet
+            // node mixes to the plain average of what its neighbours
+            // hold, and a port that pushes something still drowns the
+            // floor by ten orders of magnitude.
             // Which way a port's flow points into the node depends on
             // which side of its class it is: an inside connector pushes
             // when its flow is negative, an outside one - a port of the
@@ -437,9 +443,7 @@ pub(super) fn stream_mix(
                     Expr::Neg(Box::new(flow))
                 }
             };
-            let weight =
-                |other: &str| Expr::Call("max".to_string(), vec![inflow(other), Expr::Number(0.0)]);
-            let guarded = |other: &str| {
+            let weight = |other: &str| {
                 Expr::Call(
                     "max".to_string(),
                     vec![inflow(other), Expr::Number(STREAM_EPS)],
@@ -461,7 +465,7 @@ pub(super) fn stream_mix(
                     )
                 })
                 .collect());
-            let denominator = sum(others.iter().map(|other| guarded(other)).collect());
+            let denominator = sum(others.iter().map(|other| weight(other)).collect());
             Expr::Bin(BinOp::Div, Box::new(numerator), Box::new(denominator))
         }
     };

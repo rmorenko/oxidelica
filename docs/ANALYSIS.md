@@ -12579,3 +12579,86 @@ those. The other eight are `ModelicaTest`: `Tables.Test25_usertab`,
 `Math.Random.TestRandomIntegers`. So the ceiling of that work is
 three models, against about a hundred standing behind the loops, and
 it is left where it is with its five names written down.
+
+## The thirty that are not numbers before the first Newton step
+
+The biggest single row of the run half is 30 models refused for a
+residual that is NaN or -inf at `t = 0`, before any Newton step. A row
+is a kind and not a family, so the thirty were split by the mechanism
+the refusal quotes - mutually exclusive, by first match, summing to
+exactly 30 (`grep "before any Newton step" /tmp/m200/raw2.txt`):
+
+```text
+IF97 (waterBaseProp_ph) ........... 7
+machines (airGap.RotationMatrix) .. 7
+MultiBody ......................... 6
+orifices .......................... 4
+FluxTubes (R_m = 1 / G_m) ......... 4
+transistors ....................... 2
+```
+
+The IF97 seven are `Fluid.Examples.DrumBoiler.DrumBoiler` and six of
+`ModelicaTest.Fluid`: `TestDensity`, `TestTemperature1`,
+`DynamicPipesAndFittings`, `BranchingPipes1`, `BranchingPipes12`,
+`BranchingPipes2`. The MultiBody six are `DoublePendulum`,
+`ThreeSprings`, `RollingWheel`, `RollingWheelSetDriving`,
+`RollingWheelSetPulling` and `Fourbar2`, the last of which is parked.
+
+### Where the IF97 non-number was born
+
+Probed on the smallest member, `TestDensity`. The refusal names
+`simpleGenericOrifice.port_a_T` and `.d`, and both are downstream: what
+they read is `waterBaseProp_ph(p, h, ...)` where `h` is a junction's
+stream mix. Every port of that junction starts with a zero flow, so
+the mix the flattener writes,
+
+```text
+(max(-m1, 0)*h1 + max(-m2, 0)*h2) / (max(-m1, 1e-10) + max(-m2, 1e-10))
+```
+
+evaluates to `0 / 3e-10`, which is exactly zero. Zero specific
+enthalpy is outside the IF97 tables at any pressure - `region_ph(1e5,
+0)` returns -1, the "outside of valid range" answer - and the medium
+hands back NaN. The non-number is not born in the solver, nor in the
+medium: it is born in the connection, where a floor was put on the
+divisor and not on the weights.
+
+The specification (15.2) uses `positiveMax` on both halves of that
+fraction, and the floor there is not decoration. With it on the
+divisor alone a node whose flows have all gone quiet mixes to zero,
+which is not any port's value but the residue of dividing nothing by
+the floor. With it on both, the quiet node mixes to the plain average
+of what its neighbours hold, and a port that actually pushes still
+drowns the floor by ten orders of magnitude - the weighted answers are
+unchanged to a part in ten billion.
+
+The small model that shows it whole: three ports on a node holding 100
+and 200 with every flow zero mixed to 0 before the change and to 150
+after.
+
+### What the change was worth, both halves
+
+Measured on one corpus pass (/tmp/m201/corpus.txt): 868 flatten and 528
+run, runnable 753 and 496, against 868/526 and 753/494 before. Two
+models won, both halves agreeing, and the flatten count untouched -
+which it should be, the mix being read only at the run.
+
+The two are named from the run lists rather than got by subtracting
+the counts, which is the only way that distinguishes two arrivals from
+three arrivals and a departure: diffed against the 526-line baseline
+of the previous pass, `TestWaterPumpRecirculation` and `TestPressure`
+came and nothing left. Both are `ModelicaTest.Fluid`, which is where
+the mechanism said they would be, and `TestPressure` is one of the
+four orifices - the sub-family the row's breakdown turned up and no
+earlier reading had named.
+
+The two are a small part of the story, and the rest is the more useful
+half. Of the eleven Fluid models in that row - the IF97 seven and the
+orifice four - only `TestPressure` runs outright. The others travelled
+one storey: `TestDensity`, probed again, no longer refuses for a
+non-number at all but for `algebraic loop did not converge in 50
+Newton iterations`. The mix now hands the medium an enthalpy that is
+inside the tables, the residual is a number, and what stands behind it
+is the loop's own convergence - a different wall, and the next one to
+work. This is a wall passed rather than a family finished, and the two
+counts say so from either side.

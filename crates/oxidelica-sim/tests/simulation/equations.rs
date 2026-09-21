@@ -879,10 +879,11 @@ fn a_field_of_an_array_of_records_is_summed_before_the_run() {
 #[test]
 fn a_stream_junction_weighs_only_what_flows_into_it() {
     // The mix at a node is each port's stream value weighted by what it
-    // pushes in - `max(-m, 0)` - so a port pushing nothing has no say.
-    // Only the divisor is regularised, which is what keeps the mix
-    // defined when every flow goes quiet without a silent port tugging
-    // the answer towards its own value.
+    // pushes in, floored: `positiveMax(-m, eps)` on both halves of the
+    // fraction. A port pushing nothing weighs the floor and so has
+    // almost no say beside one that pushes; when every flow has gone
+    // quiet the floors cancel and the mix is the plain average, rather
+    // than the zero a floored divisor alone would leave.
     const P: &str = "connector P Real p; flow Real m; stream Real h; end P; ";
     let mixed = |a_flow: f64, a_value: f64, b_flow: f64, b_value: f64| {
         let result = run(&format!(
@@ -895,11 +896,17 @@ fn a_stream_junction_weighs_only_what_flows_into_it() {
         let index = result.columns.iter().position(|c| c == "mix").unwrap();
         result.rows.last().unwrap()[index]
     };
-    // Two parts of 100 against one of 200. The divisor carries the
+    // Two parts of 100 against one of 200. Both halves carry the
     // regularising floor, so the answer is off by that much and no more.
     assert!((mixed(-2.0, 100.0, -1.0, 200.0) - 400.0 / 3.0).abs() < 1e-6);
-    // A port pushing nothing does not move the answer off 100.
+    // A port pushing nothing weighs 1e-10 against 2, so it moves the
+    // answer off 100 by a part in ten billion and no further.
     assert!((mixed(-2.0, 100.0, 0.0, 999.0) - 100.0).abs() < 1e-6);
+    // Every flow quiet: the mix is the average of what the two hold,
+    // not the zero that a floor on the divisor alone would give. Zero
+    // is a number no port holds, and downstream - a medium asked for
+    // properties at zero enthalpy - it is outside the tables entirely.
+    assert!((mixed(0.0, 100.0, 0.0, 200.0) - 150.0).abs() < 1e-6);
 }
 
 #[test]
