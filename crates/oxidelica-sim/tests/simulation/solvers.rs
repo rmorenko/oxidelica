@@ -827,3 +827,34 @@ fn a_column_small_in_its_own_unit_is_not_a_dead_column() {
     assert!((at("q") - 0.5).abs() < 1e-9, "q={}", at("q"));
     assert!((at("h") - 293.4).abs() < 1e-6, "h={}", at("h"));
 }
+
+#[test]
+fn a_direction_the_residual_does_not_fall_along_is_said_so_rather_than_walked() {
+    // `abs(x) + 1 = 0` has no root, and its Jacobian is a perfectly
+    // ordinary plus or minus one: nothing about the matrix is wrong.
+    // What is wrong is that the direction it hands back does not take
+    // the residual down, and no fraction of it does either - the line
+    // search halves twenty times and every trial is as large as where
+    // it started.
+    //
+    // Taken anyway, which is what happened before, the iteration
+    // creeps by a millionth of a step at a time until the arithmetic
+    // hands back a value that is not a number, and the Jacobian built
+    // at that point is all NaN and reported as singular. Seven models
+    // of the corpus refused that way; `BranchingPipes2` is the trail
+    // that showed it, twelve iterations with the residual rising from
+    // 1.6249e6 to 1.6251e6 and then NaN.
+    let refusal = refused(
+        "model D Real x(start = 1.0); equation \
+                           abs(x) + 1.0 = 0.0; \
+                           annotation(experiment(StopTime=0.001, Interval=0.001)); end D;",
+    );
+    assert!(
+        refusal.contains("does not reduce the residual"),
+        "{refusal}"
+    );
+    // And it names what was measured rather than the solver: how large
+    // the residual was when the halving began.
+    assert!(refusal.contains("steps running"), "{refusal}");
+    assert!(!refusal.contains("singular"), "{refusal}");
+}

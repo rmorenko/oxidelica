@@ -13801,3 +13801,41 @@ mention [...]` - a genuinely dead column rather than a small one, and
 a different question. `DrumBoiler`, the `BranchingPipes` and the rest
 still say `singular Jacobian`, so the row is worth probing again with
 the same instrument before it is read as one family.
+
+### The row was not a Jacobian at all
+
+Probed with the Newton trail, `BranchingPipes2` prints a matrix with
+no dependent columns in it: three of its seventeen rows are NaN from
+end to end, and the names on them are the enthalpy flows
+(/tmp/m213/bp2.txt, `jac row 1`, `jac row 8`, `jac row 13`). A matrix
+full of NaN is not a singular one, and the refusal that named it was
+describing the last thing the solver touched rather than what went
+wrong.
+
+What went wrong is upstream of the matrix by one line. The line
+search halves the step twenty times, finds no trial smaller than
+where it started, and takes the last one anyway: a millionth of a
+direction the residual does not fall along. The trail shows what that
+costs - twelve iterations with `|f|` rising from 1.6249031e6 to
+1.6251842e6, a thousandth of a percent a step, and then the
+arithmetic hands back NaN and the Jacobian is built there.
+
+The guard is that a direction which cannot be made to descend is said
+so rather than walked, and it counts three such steps in a row before
+it fires. One is ordinary: `PumpAndValve`, won the shift before,
+takes exactly one on its way to its answer, and a guard that fired on
+the first cost it (/tmp/m213/on.ran against off.ran, the run lists of
+the first attempt). At three the two run lists are identical name for
+name, 753 flatten and 501 run on both halves of one binary
+(/tmp/m213/on2.ran, /tmp/m213/off2.ran).
+
+No model was won, and the shift says so. What moved is the register:
+twelve models leave `singular Jacobian`, `did not converge` and
+`diverged` for a row that names the measurement, and the arithmetic
+is exact - 35 in those three rows without the guard, 23 with it, and
+12 in the new one (/tmp/m213/on2.txt, /tmp/m213/off2.txt). Among the
+twelve are `Rectifier`, `IMC_Transformer` and `IMC_DOL`, which are
+not hydraulic at all, so the fault was never the row's subject
+matter. The hydraulic seven remain refused, and now they refuse for a
+reason a reader can act on: the block has no step to take from where
+it stands.

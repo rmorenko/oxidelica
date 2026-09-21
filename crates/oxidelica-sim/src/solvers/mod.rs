@@ -16,6 +16,14 @@ fn newton_trail() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
 }
 
+/// Whether to take a Newton step whose direction the line search
+/// could not make descend. Off by default; the switch exists so that
+/// the two halves of a measurement come from one binary.
+fn descent_guard_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_DESCENT_GUARD").is_some())
+}
+
 mod bdf;
 mod dopri;
 mod rk4;
@@ -609,6 +617,11 @@ impl CompiledModel {
 
         let mut seen: Vec<Vec<f64>> = Vec::new();
         let mut damped = false;
+        // How many steps in a row the line search could not make
+        // descend. One such step is ordinary - `PumpAndValve` takes
+        // one on its way and converges afterwards - so what the guard
+        // below watches for is a run of them.
+        let mut stuck = 0usize;
         // The step that brought the iteration to where it now stands:
         // where it came from, which way it went and how much of that
         // way it took. Kept so that a step over the edge of a domain
@@ -977,14 +990,49 @@ impl CompiledModel {
                 let norm = |r: &[f64]| r.iter().map(|x| x * x).sum::<f64>().sqrt();
                 let before = norm(&f);
                 let mut lambda = 1.0f64;
+                let mut descended = false;
                 for _ in 0..20 {
                     if next.iter().all(|value| value.is_finite())
                         && norm(&residual(values, &next)) < before
                     {
+                        descended = true;
                         break;
                     }
                     lambda /= 2.0;
                     next = (0..n).map(|j| v[j] - lambda * dv[j]).collect();
+                }
+                // Twenty halvings that never brought the residual down
+                // say the direction is not one the residual falls
+                // along, and a millionth of such a step is no better
+                // than the whole of it. Taken anyway - which is what
+                // happened before this - the iteration walks uphill by
+                // a millionth a time until the arithmetic hands back a
+                // value that is not a number, and the Jacobian built
+                // at that point is reported as singular. That refusal
+                // names the matrix, and the matrix is not what is
+                // wrong: `BranchingPipes2` crawls twelve iterations
+                // with its residual rising from 1.6249e6 to 1.6251e6
+                // and then goes NaN (/tmp/m213/bp2.txt), and every
+                // column of the Jacobian printed there is NaN rather
+                // than dependent. Say the thing that was measured.
+                if !descended && !descent_guard_off() {
+                    stuck += 1;
+                    // One such step is not a verdict: `PumpAndValve`
+                    // takes one on its way and converges afterwards,
+                    // and a guard that fired on the first cost it.
+                    // Three in a row is a block that is not going
+                    // anywhere - `BranchingPipes2` has twelve.
+                    if stuck >= 3 {
+                        return err(format!(
+                            "the Newton direction of algebraic loop {:?} does not reduce the \
+                             residual at t = {t}: halved twenty times from |f| = {before:e} on \
+                             {stuck} steps running and no trial was smaller, so the block has no \
+                             step to take from here",
+                            block_names()
+                        ));
+                    }
+                } else {
+                    stuck = 0;
                 }
                 taken = lambda;
             }
