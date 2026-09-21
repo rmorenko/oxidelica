@@ -13986,3 +13986,57 @@ What remains in the `singular` row is therefore ten, all electrical
 all. The hydraulic family has not left that row almost entirely over
 three shifts; it has left it completely, and what stands there now is
 the machines, a parked family of their own.
+
+## The hydraulic half of the Newton direction row is one family, and it is homotopy
+
+Ten of the eighteen models in the `Newton direction ... does not
+reduce` row are hydraulic (/tmp/m215/raw.txt:339, 474, 475, 476, 480,
+481, 491, 492, 493, 507). Three of them were probed with
+`OXIDELICA_NEWTON_TRAIL` from the root of the corpus - `DrumBoiler`,
+`TestWaterPumpDefault` and `SeriesPipes1` - and the trail is in
+/tmp/m216/probe3.txt. All three are one shape, and it is the shape
+`BranchingPipes12` and `BranchingPipes14` already showed.
+
+`DrumBoiler` (probe3.txt:12-14) starts at a pressure of 1e6 Pa with a
+residual of 8.9e4, takes a full Newton step to an enthalpy of
+-3.75e5 - a negative enthalpy, outside the water table - and the
+residual is NaN at step 1, 2 and 3. `TestWaterPumpDefault`
+(probe3.txt:133-135) starts at 7e5 Pa and the first step lands at
+2.38e7 Pa, well past the 1e7 Pa edge of IF97; NaN again at steps 1
+and 2. `SeriesPipes1` (probe3.txt:189-191) starts at 5e5 Pa and the
+first step lands at 2.085e7 Pa, the same edge and the same NaN. In
+every case the line search then halves its way back to a point inside
+the domain, descends for six or seven steps, and stalls with
+`stuck=2` at a lambda of a few times 1e-6 while the residual is still
+of order 6e4. So the wall is one wall in three models: the full
+Newton step leaves the domain of the medium, and what the line search
+can recover from that is a crawl rather than a solution.
+
+There is a layer under this, and the probe for it is a grep rather
+than a trail. The Modelica library does not expect a solver to take
+that step at all - it writes `homotopy` in exactly these components:
+seven in `Modelica/Fluid/Machines.mo` (434, 440, 452, 458, 464, 468,
+470, which is the pump `TestWaterPumpDefault` instantiates), four in
+`Modelica/Fluid/Pipes.mo` (1199, 1214, 1232, 1248, the flow model the
+`BranchingPipes` and `SeriesPipes` families use) and ten in
+`Modelica/Fluid/Valves.mo`. `homotopy(actual, simplified)` names an
+easier problem to start from and a real one to end at.
+
+What this compiler does with it is one line, and the comment says so
+outright: `crates/oxidelica-parser/src/flatten/names.rs:842` takes
+`args[0]`, the actual, and throws the simplified away. That is a
+defensible reading of the specification - a tool may go straight at
+the real problem - but it is the reason these models start where they
+start. The library writes the simplified branch precisely so that the
+first Newton step is taken on a linear problem that has no medium
+table under it and therefore no domain to leave; we discard that
+branch and take the first step on the real one, into the wall the
+trail shows.
+
+So the hydraulic half of this row is not ten separate numerical
+accidents. It is one architectural choice, made in one line, and
+lifting it means starting a homotopy continuation rather than
+sharpening a line search. That is bigger than a shift and it is
+parked here with its address; the parked note `nominal for a Newton
+step` is a different lever on the same wall, and neither is the wall
+itself.
