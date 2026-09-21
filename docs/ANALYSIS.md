@@ -14272,3 +14272,78 @@ in the mapping above answers it, and the small model here cannot ask
 it, because the shape only arises where a differentiated name is
 matched by an equation in a circuit the settle fixpoint will not
 close. No code was changed for any of this.
+
+## Why a medium's temperature is not a state, and where the answer stops (shift 218)
+
+The densest live row is `der(X): X is not a state of the model` at 20
+models, seventeen of them in `ModelicaTest.Media` and
+`ModelicaTest.Fluid`. The refusal comes from one line,
+`crates/oxidelica-sim/src/compile.rs:32`, inside
+`substitute_derivatives_with`, and it fires while the initialisation
+is being compiled rather than while the model is being flattened.
+
+`oxidelica why ModelicaTest...Air.SimpleAir volume.medium.T` names the
+whole case in seven lines. `volume.medium.T` is bound to nothing, has
+`volume.T_start` as its start, and appears in five equations written
+inside the medium - `h = cp_const * (T - 298.15)`, `d = p / (R_s * T)`
+and three more. The one that matters is the last thing the probe
+prints: `initial equation: der(volume.medium.T) = 0`, written in
+`volume`. The volume asks for a steady temperature; the plan carries
+`h` as the state and computes `T` from it; so `der(T)` names a
+variable the solver does not carry.
+
+That much was already provided for. `algebraic_definition_derivatives`
+(compile.rs:4597) exists for exactly this: it walks the plan, takes
+every `PlanStage::Explicit { var, expr }`, differentiates the defining
+expression with respect to time and hands the result to the
+substitution as `also`. A medium writing `T` explicitly from `h` is
+answered there and the model goes on.
+
+The gap is the word `Explicit`. A name a torn implicit block solves
+has no defining expression in the plan at all, so it never enters
+`alg_defs`, so nothing is differentiated for it and the refusal stands.
+Shrunk to twelve lines, the two halves sit side by side:
+
+```modelica
+// runs: T is explicit, so its time derivative is worked out
+model DerNotState
+  Real h(start = 1000, fixed = false); Real T; Real p; Real d;
+equation
+  der(h) = 10 - 0.1 * T;
+  T = 298.15 + h / 1000;
+  p = d * 287 * T;  d = 1.2 + 0.001 * p;
+initial equation
+  der(T) = 0;
+end DerNotState;
+
+// refuses `der(T): `T` is not a state of the model`
+model DerNotState2
+  Real h(start = 1000, fixed = false); Real T; Real d;
+equation
+  der(h) = 10 - 0.1 * T;
+  h = 1000 + 1.0e3 * (T - 298.15) + 0.01 * d;
+  d = 1.2 + 0.001 * T * T;
+initial equation
+  der(T) = 0;
+end DerNotState2;
+```
+
+The only difference between them is which way round the medium's
+relation is written. `T` from `h` is a definition and gets a
+derivative; `h` from `T` is an equation the block has to solve and
+gets none. That is precisely the shape of `WaterIF97_ph` against
+`WaterIF97_pT`, and of `der(pipe.mediums[N].h)` where the pipe holds
+`p` and `T`: the library writes its media both ways round, and this
+compiler answers one of them.
+
+`OXIDELICA_NO_INIT_ALG_DER=1` confirms the layer from the other side -
+with it set, the model that runs above refuses with the same words,
+which is the switch turning off the very map that is missing entries.
+
+What this does not say is what the answer should be. The derivative of
+a name an implicit block solves is not a chain rule over a definition
+that does not exist: it is the implicit function theorem over the whole
+torn block, and getting it wrong here is a wrong number in an initial
+condition rather than a refusal. That is an architectural question of
+the kind this document parks for a consultation, and it is stated here
+with its reproduction rather than attempted. No code was changed.
