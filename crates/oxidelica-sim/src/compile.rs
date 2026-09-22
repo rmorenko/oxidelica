@@ -37,6 +37,21 @@ pub(crate) fn substitute_derivatives_with(
     })
 }
 
+/// What the plan has already worked out about derivatives, which the
+/// initialisation reads and never writes.
+///
+/// The two travel together because they answer one question between
+/// them - where a `der(x)` of something that is not a state comes
+/// from - and a name index reduction demoted is answered by the
+/// second where a name the plan computes explicitly is answered by
+/// the first.
+pub(crate) struct Worked<'a> {
+    /// The plan itself, in evaluation order.
+    pub(crate) stages: &'a [PlanStage],
+    /// What each demoted state's derivative is called.
+    pub(crate) dummies: &'a HashMap<String, String>,
+}
+
 /// Which states each state's right-hand side depends on, and a grouping
 /// of the columns that can be probed together.
 ///
@@ -4291,8 +4306,10 @@ pub(crate) fn compile_at(
             &derivatives,
             &table,
             &unsettled,
-            &stages,
-            &dummies,
+            &Worked {
+                stages: &stages,
+                dummies: &dummies,
+            },
         )?;
         compiled.check_block_regularity()?;
     }
@@ -4693,8 +4710,7 @@ impl CompiledModel {
     fn algebraic_definition_derivatives(
         &self,
         derivative_exprs: &[Expr],
-        plan: &[PlanStage],
-        dummies: &HashMap<String, String>,
+        plan: &Worked<'_>,
     ) -> HashMap<String, Expr> {
         let mut worked_out = HashMap::new();
         if std::env::var_os("OXIDELICA_NO_INIT_ALG_DER").is_some() {
@@ -4716,10 +4732,10 @@ impl CompiledModel {
         //
         // First into the table and by `or_insert` everywhere after, so
         // the layer only ever adds where a refusal stood.
-        for (demoted, dummy) in dummies {
+        for (demoted, dummy) in plan.dummies {
             worked_out.insert(demoted.clone(), Expr::Ref(dummy.clone()));
         }
-        for stage in plan {
+        for stage in plan.stages {
             if let PlanStage::Explicit { var, expr } = stage {
                 alg_defs.insert(self.algebraics[*var].clone(), expr.clone());
             }
@@ -4728,7 +4744,7 @@ impl CompiledModel {
             let target = DiffTarget::Time {
                 state_rhs: &state_rhs,
                 params: &params,
-                dummies,
+                dummies: plan.dummies,
                 alg_defs: &alg_defs,
                 implicit_defs: &implicit_defs,
                 holding: &[],
@@ -4808,8 +4824,7 @@ impl CompiledModel {
         derivative_exprs: &[Expr],
         table: &SlotTable,
         unsettled: &[(String, Slot)],
-        plan: &[PlanStage],
-        dummies: &HashMap<String, String>,
+        plan: &Worked<'_>,
     ) -> Result<(), SimError> {
         if initial_equations.is_empty() {
             return Ok(());
@@ -4851,8 +4866,13 @@ impl CompiledModel {
             .iter()
             .map(|(_, index, value)| (*index, *value))
             .collect();
-        let condition_match =
-            self.match_initial_conditions(initial_equations, &demoted_all, fixed, plan, unsettled);
+        let condition_match = self.match_initial_conditions(
+            initial_equations,
+            &demoted_all,
+            fixed,
+            plan.stages,
+            unsettled,
+        );
         let demoted_fixed: Vec<(usize, f64)> = match &condition_match {
             Some(matched) => demoted_all
                 .iter()
@@ -4973,8 +4993,7 @@ impl CompiledModel {
         // than one the solver carries - which this refused outright
         // for seventeen models of the library, having in hand the
         // definition it needed to differentiate.
-        let algebraic_derivatives =
-            self.algebraic_definition_derivatives(derivative_exprs, plan, dummies);
+        let algebraic_derivatives = self.algebraic_definition_derivatives(derivative_exprs, plan);
         let substituted: Vec<(Code, Code)> = initial_equations
             .iter()
             .map(|equation| {
