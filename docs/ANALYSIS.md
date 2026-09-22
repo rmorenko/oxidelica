@@ -15903,10 +15903,19 @@ there. The same mechanism reaches it ten times further down, which is
 a thing to measure when a model is found standing on it, not before.
 
 The fix is not a larger step everywhere. A column that comes back all
-zeros is asked again from a hundred times further away, up to `1e-3`,
-and the loop stops at the first step that answers - so a column that
-was alive at `1e-8` pays nothing, and a dead one pays three extra
-residual evaluations to say so.
+zeros is asked again from a hundred times further away, and the loop
+stops at the first step that answers - so a column that was alive at
+`1e-8` pays nothing, and a dead one pays four extra residual
+evaluations to say so: three to walk the ladder, one for the guard
+below. The ceiling is written `1e-3` and is tested before the step is
+multiplied, so the ladder is `1e-6`, `1e-4`, `1e-2` and the furthest
+distance actually asked is a hundredth, ten times the constant. That
+is the measured maximum and the one `Bridge` was won at; tightening
+the test to `h * 100 <= ceiling` would stop the ladder at `1e-4`, two
+orders weaker, which is a different change and would have to be
+measured as one. The prose is corrected to the machine rather than the
+other way round, because the hundredth is the number a model paid for
+and the thousandth is only the number that was typed.
 
 That much alone was wrong, and the control said so before the corpus
 did. `der(x)^2 = 4` went green: at the extremum of a square the slope
@@ -15936,21 +15945,186 @@ still says `T1.irc` is not mentioned, the `GearType2` branch is
 untouched, and `der(x)^2 = 4` is still refused.
 
 The honest reading of one model is that this was a storey and not a
-wall. The twenty-eight, counted by the wall they now stand at:
+wall. What follows was recounted a shift later, because the table
+first written here summed to fifty-two over a set of twenty-eight: it
+had been taken over the whole switching family of ninety-six rather
+than over the twenty-eight named above, and the file it was taken from
+was named for the smaller set while holding the larger. The counts
+below come from `/tmp/m236/table.sh`, whose output is in
+`/tmp/m236/table_out.txt`, over two censuses from one binary -
+`/tmp/m236/raw_off.txt` and `/tmp/m236/raw_on.txt`. The set of
+twenty-eight is the one named above; the smooth sixty-eight is the
+rest of the ninety-six, and the two are the two sections of
+`/tmp/m234/switch.txt`.
 
 ```text
-                        off    on
-equations of loop        19    17
-Newton direction         18    18
-singular Jacobian         9    10
-underdetermined           6     6
+the twenty-eight        off    on        the smooth 68    off    on
+equations of loop        15    14        equations         16    14
+Newton direction          6     6        Newton            22    22
+singular Jacobian         6     7        singular           5     5
+other                     1     1        underdetermined    7     7
+                                         other             18    19
+                         28    28                          68    67
 ```
 
-The `equations-of` row gave up two: one model ran and one moved to
-`singular Jacobian`, which is the loop saying its matrix is ill
-conditioned rather than saying it does not mention the unknown. The
-first of those is a model won, and the second is the refusal that was
-owed. What the rest are waiting for is the road this shift did not
-take: eighteen of them refuse on the Newton direction, which is the
-complementarity condition itself and not the arithmetic of the step -
-a pivoting solve, as the chapter above already recorded.
+Three models left the `equations-of` wall, and not one of them is
+where the commit message put them. From the twenty-eight exactly one
+moved, `PowerConverters.Examples.ACDC.RectifierBridge2mPulse.DiodeBridge2mPulse`,
+and it moved to `singular Jacobian` rather than into the run list -
+the refusal that was owed, since the loop now says its matrix is ill
+conditioned instead of saying the equations do not mention their own
+unknown. The other two came from the smooth sixty-eight, which is
+where the winner was: `Batteries.Examples.CCCV_Cell` ran, and
+`Batteries.Examples.CCCV_CellRC` moved off `equations-of` and onto an
+assertion of the library's own, `Parameters of RC-elements undefined!`
+That third model is named here because it was named nowhere when the
+work was reported, and a model that crossed a wall and fell at the
+next one is owed its name.
+
+So the family the fix was built for gave up no winners at all. The
+mechanism is the same on both sides of the split - a coefficient below
+what the residual can resolve, read as a coefficient that is not there
+
+- and the fix is the same fix, but the arithmetic of membership in the
+  commit message is wrong, and this is the correction of it. The way it
+  went wrong is worth keeping: a name was looked for with `grep` in a
+  file that has two sections, and a line that matched was taken for
+  membership of the set the file is named after. A file with sections
+  says nothing by holding a name until it says which section holds it.
+
+What the rest are waiting for is the road this shift did not take:
+twenty-eight of the ninety-six refuse on the Newton direction, which
+is the complementarity condition itself and not the arithmetic of the
+step - a pivoting solve, as the chapter above already recorded.
+
+## Two models asked what became of them, and neither answer was the step
+
+The chapter above left two names hanging, and a probe apiece settles
+both. Neither costs a corpus pass: one model under `--only` from the
+root of the libraries answers in a second what the corpus answers in
+six minutes.
+
+`Analog.Examples.OvervoltageProtection` was reported as having moved
+to another wall and had not moved at all - it stands where it stood,
+on `the equations of algebraic loop ["zDiode.v"] do not mention
+["zDiode.v"]`. The reading was taken under a step raised globally and
+credited to the fix, which is the same fault as counting from two
+builds: a number read under one setting and written down under
+another. Asked properly, with a print in the guard for the one column
+the model has, it says this:
+
+```text
+col=0  h=6.6e-4  steady=false
+v=[-5.645380947133184]
+f =[6.317365766486201e26]
+fp=[6.317365766486198e26]
+ff=[6.317365766486197e26]
+```
+
+The guard is honest and the model is not the guard's victim. A
+residual of `6.3e26` has an ulp of `1.4e11`, and the two grown
+differences are exactly two and three of them - `fp - f` is `-2` ulps
+and `ff - f` is `-3`. The slope from the near point and the slope from
+twice as far are then in the ratio `(2/1) / (3/2) = 4/3` exactly,
+which is the upper edge of the guard's window, and the guard rejects
+it by a hair with the arithmetic coming out equal to the last digit:
+`|a - b|` is `1.034093865839935e14` against a threshold of
+`1.03409386583993445e14`. What is being measured there is not a
+derivative at all but the quantization of a number of order `1e26`,
+and the ladder cannot reach past it: every step small enough to be a
+derivative moves the residual by a few ulps, and every answer is then
+a ratio of small integers. So the wall in front of this model is the
+size of its residual rather than the size of the step, and no
+tightening or loosening of the guard's quarter reaches it. The road
+is the one the chapter above named - a solve that does not need the
+column at all.
+
+There is a general note in it. The window `|a - b| <= 0.25 max(|a|,
+|b|)` accepts `a/b` between `0.8` and `4/3`, and what the guard was
+built to catch - the extremum of a square, whose apparent slope halves
+when the distance doubles - has `a/b = 2`. The lower edge is what
+carries the argument; the upper edge guards nothing the argument
+names, and it is the upper edge that `zDiode.v` sits on. Making the
+window one-sided is a change somebody could measure, and it is not
+measured here: this model would not survive it either, since what it
+needs is not to be asked the question.
+
+`Batteries.Examples.CCCV_CellRC` is a different family altogether and
+has nothing to do with the step. It now fails on the library's own
+`assert(cellData.rcData[1].R > 0, "Parameters of RC-elements
+undefined!")` in `BatteryStacks/CellRCStack.mo`, and the assertion is
+right: the compiler gave that parameter a zero. `why` says where the
+zero came from.
+
+```text
+cell.cellData.nRC           a parameter worth 1
+cell.cellData.rcData[1].R   bound to: 0      a parameter worth 0
+cell.cellData.R0            a parameter worth 0.0028
+```
+
+The model declares `cellData` as `TransientData.ExampleData`, which
+sets `nRC = 2` and `rcData = {RCData(R = 0.2 * Ri, ...), RCData(R =
+0.1 * Ri, ...)}`. Neither modifier reached the flat model: `nRC` came
+out `1` and `rcData[1].R` came out `0`, which are the defaults written
+in `CellData` one class further up. And the same record was read the
+other way at the same time - `R0` is declared as `Ri - sum(rcData.R)`
+and came out `0.0028`, which is `0.8 * Ri`, so whatever summed the
+resistances saw `0.2 * Ri` in the array that the field lookup reads as
+zero. One record, two readings, both taken from the same flat model.
+
+That is the shape this repository has now met four times, and the
+question is which writer produced the value rather than which reading
+is right. It is left unfixed deliberately: the fix is in the record
+builder and a redeclaring `extends` on an array of records, which is
+further than one place, and the work above was a correction rather
+than a feature. What is bought here is the name of the family and the
+name of the parameter, which is what the next shift needs to start
+from - and the two readings quoted side by side, which is the witness
+that the array is being built twice.
+
+## The register on `dea75d3`, summed by family rather than by wording
+
+The walls were re-dealt twice in three shifts - `3faabae` emptied the
+initialization wall into the solver's, `dea75d3` moved a row of the
+`equations-of` wall - so the old top of the register is no longer
+where to take work from. This is a fresh one, taken on `dea75d3` and
+kept in `/tmp/m236/census.txt` with a copy in
+`~/oxideflow/state/census_dea75d3.txt`; the raw report it was counted
+from is `/tmp/m236/raw_on.txt`. It counts 172 refusals in the flatten
+half and 324 in the run half.
+
+The counter splits a family by its wording, so the rows that mean the
+same thing are added first, and only then read. The run half:
+
+```text
+  94  an algebraic loop, all wordings
+  62  structurally singular model
+  43  a parameter without a value, both wordings
+  38  unbalanced model
+  17  a fixed start against what the constraints require
+  15  an event that will not come to rest
+  10  initialization proper: not square, singular, will not converge
+   9  an unknown variable, both wordings
+  36  the singles and the rest
+```
+
+Two things in that are worth saying outright. The loop family at 94 is
+the top by a wide margin and it is not one wall: it is the 96 of the
+switching census minus the one that now runs, and the chapter above
+splits it into the twenty-eight whose refusal is about the loop's
+arithmetic and the sixty-eight smooth ones. Twenty-eight of the 94
+refuse on the Newton direction, which is the complementarity condition
+and the road already recorded. And the structurally singular family at
+62 is the second, which is new: it was hidden behind the
+initialization wall that `3faabae` emptied, and initialization proper
+is now down to ten. A wall removed uncovers the wall behind it, and
+this is the uncovered one.
+
+The parameters at 43 are already sorted by the register itself - 27
+are a service class refusing rightly and 16 are models of their own -
+and that queue of 16 is printed by name at the foot of the census.
+`Batteries.Examples.CCCV_CellRC` from the chapter above is not in it,
+because a parameter defaulted quietly to zero is not a parameter
+without a value: the compiler had an answer, and the answer was wrong.
+That family is invisible to this register by construction, which is
+the register's blind spot stated once more from a new side.
