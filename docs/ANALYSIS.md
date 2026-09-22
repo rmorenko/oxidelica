@@ -15816,61 +15816,33 @@ this is the list a fix is measured against:
 
 ```text
 Electrical.Analog.Examples.OvervoltageProtection
-
 Electrical.Analog.Examples.Rectifier
-
 Electrical.Machines.Examples.InductionMachines.IMC_DOL
-
 Electrical.Machines.Examples.InductionMachines.IMC_Steinmetz
-
 Electrical.Machines.Examples.InductionMachines.IMC_Transformer
-
 Electrical.Machines.Examples.InductionMachines.IMC_YD
-
 Electrical.Machines.Examples.InductionMachines.IMC_YDarc
-
 Electrical.Machines.Examples.InductionMachines.IMS_Start
-
 Electrical.Machines.Examples.SynchronousMachines.SMEE_DOL
-
 Electrical.Machines.Examples.SynchronousMachines.SMEE_Rectifier
-
 Electrical.Machines.Examples.SynchronousMachines.SMPM_Braking
-
 Electrical.Machines.Examples.SynchronousMachines.SMR_DOL
-
 Electrical.Machines.Examples.Transformers.IMC_Transformer
-
 Electrical.Machines.Examples.Transformers.Rectifier6pulse
-
 Electrical.Polyphase.Examples.PolyphaseRectifier
-
 Electrical.Polyphase.Examples.Rectifier
-
 Electrical.PowerConverters.Examples.ACDC.RectifierBridge2mPulse.DiodeBridge2mPulse
-
 Electrical.PowerConverters.Examples.ACDC.RectifierBridge2mPulse.ThyristorBridge2mPulse_RLV
-
 Electrical.PowerConverters.Examples.ACDC.RectifierBridge2mPulse.ThyristorBridge2mPulse_RLV_Characteristic
-
 Electrical.QuasiStatic.SinglePhase.Examples.Rectifier
-
 Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.ComparisonPolyphase.IMC_DOL_Polyphase
-
 Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL
-
 Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer
-
 Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMS_Start
-
 Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMEE_LoadDump
-
 Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMEE_Rectifier
-
 Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMPM_Braking
-
 Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL
-
 ```
 
 Measuring a future fix is the twenty-eight named above, and the model
@@ -15898,3 +15870,87 @@ variable is not a state - `der(damper1.s)` three times in MultiBody,
 `der(transformer.core1.B)` in FluxTubes - and the rest are singles.
 Read as one row it looks like the third family down; read by layer it
 is a parked ten plus a nine that belong with the definitions work.
+
+### The step is bounded below by what the residual can resolve (shift 235)
+
+The chapter above established the arithmetic; this one is the fix and
+what it cost. The finite-difference step the Jacobian is built with was
+`1e-8 * (1 + |v|)` at two places in `solvers/mod.rs` - the Newton
+Jacobian and the singularity check that judges a converged block - and
+the textbook number is a compromise between two errors that pull
+opposite ways: the truncation of a first difference, which wants a
+small step, and the cancellation of subtracting two nearby numbers,
+which wants a large one. The switching loops walk into the second half.
+
+The probe is the step itself rather than a knob on the model.
+`OXIDELICA_FD_STEP` was put over both places and `Bridge.mo` run up the
+ladder from one binary:
+
+```text
+h = 1e-8   refused: the equations of loop ["d2.s"] do not mention ["d2.s"]
+h = 1e-6   ran, c.v(0.1) = 8.608543
+h = 1e-5   ran, c.v(0.1) = 8.608541
+h = 1e-4   ran, c.v(0.1) = 8.608542
+h = 1e-3   ran, c.v(0.1) = 8.608532
+```
+
+Four steps over three orders of magnitude agreeing to six figures is
+not a coefficient that appears when the step grows; it is a
+coefficient that was there all along and that `1e-8` could not
+resolve. `jacobian()` near `mod.rs:1260` was left alone: its step is
+`1e-7`, an order coarser, and no model in the family refuses from
+there. The same mechanism reaches it ten times further down, which is
+a thing to measure when a model is found standing on it, not before.
+
+The fix is not a larger step everywhere. A column that comes back all
+zeros is asked again from a hundred times further away, up to `1e-3`,
+and the loop stops at the first step that answers - so a column that
+was alive at `1e-8` pays nothing, and a dead one pays three extra
+residual evaluations to say so.
+
+That much alone was wrong, and the control said so before the corpus
+did. `der(x)^2 = 4` went green: at the extremum of a square the slope
+really is zero at the point, and a difference taken from further away
+returns the distance walked rather than a derivative. Two quite
+different things read identically at the base step, and the thing that
+separates them is how the answer changes when the distance changes. A
+coefficient below the resolution is a straight line, so its slope is
+the same from twice as far; a genuine extremum's apparent slope halves
+when the distance doubles. The grown answer is kept only where the two
+agree within a quarter. With that guard `Bridge` runs and `der(x)^2 =
+4` is refused as before.
+
+Measured on the corpus, both halves from one binary, the fix behind
+`OXIDELICA_NO_FD_GROWTH` (/tmp/m235/on.txt, /tmp/m235/off.txt):
+
+```text
+             flatten   run
+growth on      865     541
+growth off     865     540
+```
+
+One winner, `Electrical.Batteries.Examples.CCCV_Cell`, and no victims:
+the diff of the two run lists is one name one way and empty the other.
+The controls the shift was given all hold - `Spice3.Examples.Oscillator`
+still says `T1.irc` is not mentioned, the `GearType2` branch is
+untouched, and `der(x)^2 = 4` is still refused.
+
+The honest reading of one model is that this was a storey and not a
+wall. The twenty-eight, counted by the wall they now stand at:
+
+```text
+                        off    on
+equations of loop        19    17
+Newton direction         18    18
+singular Jacobian         9    10
+underdetermined           6     6
+```
+
+The `equations-of` row gave up two: one model ran and one moved to
+`singular Jacobian`, which is the loop saying its matrix is ill
+conditioned rather than saying it does not mention the unknown. The
+first of those is a model won, and the second is the refusal that was
+owed. What the rest are waiting for is the road this shift did not
+take: eighteen of them refuse on the Newton direction, which is the
+complementarity condition itself and not the arithmetic of the step -
+a pivoting solve, as the chapter above already recorded.

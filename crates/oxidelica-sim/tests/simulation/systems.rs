@@ -554,6 +554,22 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
          nothing in the block changes when it does, so no step determines it"
     );
 
+    // And a column that reads dead is not thereby dead. A residual of
+    // the order of 1e4 whose true coefficient on an unknown is 1e-9
+    // moves by 1e-13 under the textbook step of 1e-8 - a twentieth of
+    // an ulp of the number it is added to - and the subtraction gives
+    // that back as an exact zero. The unknown is determined; what is
+    // not determined is the difference, at that step. Asked again
+    // from further away the coefficient is there, and the block
+    // solves. This is what the switching loops of the library stand
+    // on: an ideal diode's off conductance is exactly this ratio.
+    let out = run("model T Real s(start = 0); Real y; \
+         equation y = 14127.0 + 1e-9 * s; \
+         y * y = (14127.0 + 2e-9) * (14127.0 + 1e-9 * s); \
+         annotation(experiment(StopTime = 0.1, Interval = 0.1)); end T;");
+    let y = out.rows.last().unwrap()[1];
+    assert!((y - 14127.0).abs() < 1e-3, "y = {y}");
+
     // A block whose divisor is one of its own unknowns is not given
     // that division to do: `u = y/(y - x)` divides by a difference of
     // two unknowns that both begin at zero, so the plan carries the

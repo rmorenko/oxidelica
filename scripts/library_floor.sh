@@ -241,9 +241,22 @@ FLATTEN_FLOOR=865
 #
 # Flattening does not move: it flattened before as well. The diff of
 # the run lists is exactly that one name arriving and none leaving.
-RUN_FLOOR=540
+#
+# And again for the same shape of reason, this time in the solver's
+# finite-difference step: a column of the Jacobian that came back all
+# zeros is now asked again from further away before it is believed
+# dead, because a coefficient too small for the residual to resolve
+# subtracted away to an exact zero. `CCCV_Cell` runs on it.
+#
+#   run          541 = 540 before, plus that one model
+#   runnable run 507 = 506 before, plus the same model
+#
+# Flattening is unmoved on both counts, and the diff of the run lists
+# taken from one binary with the fix switched off and on is that one
+# name arriving and none leaving.
+RUN_FLOOR=541
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=506
+RUNNABLE_RUN_FLOOR=507
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

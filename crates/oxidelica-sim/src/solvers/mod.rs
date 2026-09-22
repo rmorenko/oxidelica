@@ -3,6 +3,30 @@
 
 use crate::*;
 
+/// The relative size of the finite-difference step the Jacobian is
+/// built with. `1e-8` is the textbook choice for a first difference
+/// in double precision; the switch exists so that a probe and the
+/// code it is probing come from one binary.
+fn fd_step_scale() -> f64 {
+    static S: std::sync::OnceLock<f64> = std::sync::OnceLock::new();
+    *S.get_or_init(|| {
+        std::env::var("OXIDELICA_FD_STEP")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .filter(|x| x.is_finite() && *x > 0.0)
+            .unwrap_or(1e-8)
+    })
+}
+
+/// Whether to leave a finite-difference column that came back all
+/// zeros alone instead of asking it again with a larger step. Off by
+/// default; the switch exists so that the two halves of a measurement
+/// come from one binary.
+fn fd_growth_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_FD_GROWTH").is_some())
+}
+
 /// Whether to print the Newton iteration of every algebraic block.
 ///
 /// What a block does before it refuses is the only thing that says
@@ -850,10 +874,66 @@ impl CompiledModel {
                     // an artifact of the initial guess.
                     let mut jac = vec![vec![0.0f64; n]; n];
                     for j in 0..n {
-                        let h = 1e-8 * (1.0 + v[j].abs());
-                        let mut perturbed = v.clone();
-                        perturbed[j] += h;
-                        let fp = residual(values, &perturbed);
+                        let mut h = fd_step_scale() * (1.0 + v[j].abs());
+                        // A column that comes back all zeros is asked again with a
+                        // larger step before it is believed. The textbook step is a
+                        // compromise between the truncation error of a first
+                        // difference and the cancellation of subtracting two nearby
+                        // numbers, and it is the second half a switching loop walks
+                        // into: an ideal diode's residual carries a term of the order
+                        // of its off conductance, so at `d2.s` near zero a step of
+                        // 1e-8 moves a residual of 1.4e4 by 1e-13 - a twentieth of an
+                        // ulp of the number it is added to, which the subtraction
+                        // gives straight back as zero. The coefficient is not zero,
+                        // it is below what the residual can resolve at that step, and
+                        // the cure is to move further rather than to read the
+                        // rounding as a fact about the equations. Growing costs
+                        // nothing where the column was already alive, because the
+                        // loop stops at the first step that answers; a genuinely dead
+                        // column stays zero however far it is moved and pays three
+                        // extra residual evaluations to say so.
+                        let mut fp = {
+                            let mut perturbed = v.clone();
+                            perturbed[j] += h;
+                            residual(values, &perturbed)
+                        };
+                        if !fd_growth_off() {
+                            let ceiling = 1e-3 * (1.0 + v[j].abs());
+                            while h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
+                                h *= 100.0;
+                                let mut perturbed = v.clone();
+                                perturbed[j] += h;
+                                fp = residual(values, &perturbed);
+                            }
+                            // What a grown step answers has to be checked before it
+                            // is believed, because two different things read the
+                            // same at the base step. A coefficient too small for the
+                            // residual to resolve is a straight line whichever
+                            // distance it is measured over, so its slope comes back
+                            // the same from twice as far. A coefficient that is
+                            // genuinely zero *at this point* - `der(x)^2 = 4` where
+                            // the iteration stands at zero, the extremum of a square
+                            // - has a slope that is whatever distance was walked,
+                            // and halves when the distance doubles. So the answer is
+                            // kept only where the two agree: the first is a fact
+                            // about the equations, the second a fact about the step,
+                            // and believing the second hands back a step for a block
+                            // that really does admit two solutions.
+                            if h > fd_step_scale() * (1.0 + v[j].abs()) {
+                                let mut farther = v.clone();
+                                farther[j] += h * 2.0;
+                                let ff = residual(values, &farther);
+                                let steady =
+                                    fp.iter().zip(&ff).zip(&f).all(|((near, far), base)| {
+                                        let a = (near - base) / h;
+                                        let b = (far - base) / (h * 2.0);
+                                        (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+                                    });
+                                if !steady {
+                                    fp = f.clone();
+                                }
+                            }
+                        }
                         for (i, row) in jac.iter_mut().enumerate() {
                             row[j] = (fp[i] - f[i]) / h;
                         }
@@ -917,10 +997,65 @@ impl CompiledModel {
             // Finite-difference Jacobian of the residual.
             let mut jac = vec![vec![0.0f64; n]; n];
             for j in 0..n {
-                let h = 1e-8 * (1.0 + v[j].abs());
-                let mut perturbed = v.clone();
-                perturbed[j] += h;
-                let fp = residual(values, &perturbed);
+                let mut h = fd_step_scale() * (1.0 + v[j].abs());
+                // A column that comes back all zeros is asked again with a
+                // larger step before it is believed. The textbook step is a
+                // compromise between the truncation error of a first
+                // difference and the cancellation of subtracting two nearby
+                // numbers, and it is the second half a switching loop walks
+                // into: an ideal diode's residual carries a term of the order
+                // of its off conductance, so at `d2.s` near zero a step of
+                // 1e-8 moves a residual of 1.4e4 by 1e-13 - a twentieth of an
+                // ulp of the number it is added to, which the subtraction
+                // gives straight back as zero. The coefficient is not zero,
+                // it is below what the residual can resolve at that step, and
+                // the cure is to move further rather than to read the
+                // rounding as a fact about the equations. Growing costs
+                // nothing where the column was already alive, because the
+                // loop stops at the first step that answers; a genuinely dead
+                // column stays zero however far it is moved and pays three
+                // extra residual evaluations to say so.
+                let mut fp = {
+                    let mut perturbed = v.clone();
+                    perturbed[j] += h;
+                    residual(values, &perturbed)
+                };
+                if !fd_growth_off() {
+                    let ceiling = 1e-3 * (1.0 + v[j].abs());
+                    while h < ceiling && fp.iter().zip(&f).all(|(a, b)| a == b) {
+                        h *= 100.0;
+                        let mut perturbed = v.clone();
+                        perturbed[j] += h;
+                        fp = residual(values, &perturbed);
+                    }
+                    // What a grown step answers has to be checked before it
+                    // is believed, because two different things read the
+                    // same at the base step. A coefficient too small for the
+                    // residual to resolve is a straight line whichever
+                    // distance it is measured over, so its slope comes back
+                    // the same from twice as far. A coefficient that is
+                    // genuinely zero *at this point* - `der(x)^2 = 4` where
+                    // the iteration stands at zero, the extremum of a square
+                    // - has a slope that is whatever distance was walked,
+                    // and halves when the distance doubles. So the answer is
+                    // kept only where the two agree: the first is a fact
+                    // about the equations, the second a fact about the step,
+                    // and believing the second hands back a step for a block
+                    // that really does admit two solutions.
+                    if h > fd_step_scale() * (1.0 + v[j].abs()) {
+                        let mut farther = v.clone();
+                        farther[j] += h * 2.0;
+                        let ff = residual(values, &farther);
+                        let steady = fp.iter().zip(&ff).zip(&f).all(|((near, far), base)| {
+                            let a = (near - base) / h;
+                            let b = (far - base) / (h * 2.0);
+                            (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+                        });
+                        if !steady {
+                            fp = f.clone();
+                        }
+                    }
+                }
                 for (i, row) in jac.iter_mut().enumerate() {
                     row[j] = (fp[i] - f[i]) / h;
                 }
@@ -983,6 +1118,20 @@ impl CompiledModel {
                 // branch of the friction `if` drops where the bearing
                 // is locked. A parameter that is zero and a branch
                 // that does not mention it come to the same column.
+                //
+                // Narrowed since. A third way into this refusal was
+                // no fact about the equations at all: a coefficient
+                // small enough that the step could not resolve it
+                // subtracted away to an exact zero, and the loops of
+                // the switching devices - every ideal diode, switch
+                // and thyristor - arrived here on that rounding. The
+                // Jacobian above now asks a column that reads dead
+                // again from further away, and keeps the answer only
+                // where the slope is the same from twice the
+                // distance. So what reaches this point is a column
+                // that stayed zero over five orders of magnitude of
+                // step, which is the fact about the equations the
+                // message claims it is.
                 let dead: Vec<&str> = (0..n)
                     .filter(|&j| jac.iter().all(|row| row[j] == 0.0))
                     .map(|j| block_names()[j])
