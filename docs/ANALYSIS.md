@@ -15391,3 +15391,97 @@ pair is the input, which is the same shape as the standing rule that
 where the structure does not record the origin, the fix is to make it
 record the origin. Whether that is worth building is a decision for
 the review, not a branch to take mid-shift.
+
+## The adapter family loses a rule, not a name
+
+The previous chapter closed by asking the review whether the flat
+model should be made to record which half of the mirrored pair
+`der(mass.T) := mass.der_T` / `mass.der_T := der(mass.T)` is driven
+from outside. That question was the wrong one, and a probe rather
+than an argument is what said so.
+
+`oxidelica why` on `InverseCapacity` about `temperatureToHeatFlow.u`
+prints `u = p`, and the base class it comes from writes three
+branches:
+
+```modelica
+if (use_pder and use_pder2) then
+  u = Functions.state2({p, u1, u2}, time);
+elseif (use_pder and not use_pder2) then
+  u = Functions.state1({p, u1}, time);
+else
+  u = p;
+end if;
+```
+
+With `use_pder = true` and `use_pder2 = false` - both printed by
+`why` from the flat model - the second branch is the one taken, so
+`u = p` looks at first like a branch decided wrongly. It is not. A
+small model with a scalar function in the same place inlines to the
+same `u = p`, which is what `state1` says: its body is `s := u[1]`.
+The value is right. What is missing is beside it:
+
+```modelica
+annotation(derivative(noDerivative=u) = state1der1,
+           InlineAfterIndexReduction=true);
+```
+
+`state1der1` returns `u[2]`, and `u[2]` is `pder`, the input carrying
+`der(T)` from outside. That rule is the only thing in the model that
+says where `der(u)` comes from. Without it the layer has nothing but
+the mirrored pair, and refuses the pair correctly - which is why the
+previous chapter's reading of the refusal was right about the layer
+and wrong about the cause.
+
+The rule is dropped at `flatten/inlining.rs:113`, where a
+`noDerivative` naming a Real input - or an array of them, as `u[2]`
+is - makes the inliner return the value with no rule attached. The
+comment there says the record case is the one that is read and the
+rest is left for the refusal to come where the derivative is asked
+for. For this family the derivative is asked for, and what comes is
+a refusal about a mirrored pair rather than about a missing rule.
+
+Carrying the rule for Real inputs too was measured behind
+`OXIDELICA_REAL_NODERIVATIVE`, one binary and two corpus passes, so
+that the only difference between the numbers is the switch
+(`/tmp/m231/off.txt`, `/tmp/m231/on.txt`, both `--without
+scripts/heavy_models.txt`, peak 16.7 GB under a 24 GB cap):
+
+```text
+off  1037 examples, 865 flatten, 540 run
+on   1037 examples, 865 flatten, 537 run
+```
+
+The switch does reach this family: on `InverseCapacity` the equation
+the refusal quotes changes from `Neg(Ref("mass.der_T")) = Number(0.0)`
+to `Bin(Sub, Ref("temperatureToHeatFlow.u1"), Ref("mass.der_T")) =
+Number(0.0)`, which is the rule arriving - `u1` is `pder`. The model
+still does not run, and three others stop running:
+
+```text
+Modelica.Electrical.Analog.Examples.ResonanceCircuits
+Modelica.Mechanics.Rotational.Examples.GenerationOfFMUs
+Modelica.Mechanics.Translational.Examples.GenerationOfFMUs
+```
+
+Rotational's `GenerationOfFMUs` refuses on a residual naming
+`der(directInertia.torqueToAngle.phi)`, and `ResonanceCircuits` on a
+step size underflow at t = 0. Nothing was gained: the diff of run
+lists has an empty other half, and the `no equation determines` count
+is 12 in both passes - the kind did not move either. So the change
+was reverted.
+
+What the measurement establishes is narrower than a fix and worth
+having: the adapter family's missing name is a missing derivative
+rule, not a missing record of causality, and the rule is dropped at
+one named line for a stated reason. A fix that carries the rule for
+Real inputs wholesale is already measured and costs three models, so
+the next attempt has to be narrower than that - the `noDerivative`
+argument here is an array whose second element is the derivative of
+its first, which is a shape the blanket rule does not distinguish
+from a Real scalar held still. Whether that distinction is worth
+recording is now a question with a price attached to the alternative.
+
+There are 42 `noDerivative` annotations in the corpus, over `aux`
+(14), `q_qd_qdd` (4), `u` (3), `properties` (3) and a tail of
+singles, so the family is wider than the three adapters that moved.
