@@ -16322,10 +16322,18 @@ One model, and the corpus does not know it. Both halves of the pair
 ran from a single binary, the second under the switch:
 
 ```text
-              flatten  run    the Newton direction ...
+              flatten  run    Newton-direction LINES of library check
   loudness on   865    541          16
   loudness off  865    541          17
 ```
+
+The last column is in lines of `library check` output, where a loop
+over different variables is a different line, and not in models. In
+models the family is 28 going to 27: the 28 was printed by the census
+on `dea75d3` (`census_dea75d3.txt`), and the 27 is that 28 less the
+one model named below, `Rectifier` - no census was taken on
+`44698b2`, so the two figures do not come from one file and are not
+written as if they did.
 
 The run lists diff empty, line for line. What moved is the register:
 `Rectifier` left the Newton-direction row and arrived at `step size
