@@ -91,14 +91,36 @@ fn column_moves_far(
     f: &[f64],
     residual: &mut impl FnMut(&[f64]) -> Vec<f64>,
 ) -> bool {
+    secant_column(base, j, f, residual).is_some()
+}
+
+/// The slope of each equation in the unknown `j` taken over a step of
+/// a whole unit rather than over the vanishing one the Jacobian used,
+/// or `None` where the residual does not move at all.
+///
+/// The Jacobian's column is a tangent, and a tangent at an extremum
+/// says nothing: `dp = m^2/2` at `m = 0` reads as a column of zeros
+/// however small the step, and the block is refused for an unknown
+/// its own equations plainly carry. A secant over a unit does carry
+/// it, and it is the same two residual evaluations the probe already
+/// paid for. The direction is fixed - up first, down only where up
+/// leaves the residual where it was - so that the step the solver
+/// then takes is the same on every run.
+fn secant_column(
+    base: &[f64],
+    j: usize,
+    f: &[f64],
+    residual: &mut impl FnMut(&[f64]) -> Vec<f64>,
+) -> Option<Vec<f64>> {
     let far = 1.0 + base[j].abs();
-    [base[j] + far, base[j] - far].iter().any(|&x| {
+    [far, -far].into_iter().find_map(|d| {
         let mut moved = base.to_vec();
-        moved[j] = x;
-        residual(&moved)
-            .iter()
+        moved[j] = base[j] + d;
+        let g = residual(&moved);
+        g.iter()
             .zip(f)
             .any(|(a, b)| (a - b).abs() > 1e-12 * (1.0 + b.abs()))
+            .then(|| g.iter().zip(f).map(|(a, b)| (a - b) / d).collect())
     })
 }
 
@@ -1185,6 +1207,45 @@ impl CompiledModel {
                 rescued = dv.iter().all(|x| x.is_finite());
                 rescued.then_some(dv)
             });
+            // A column that reads dead at the point the iteration
+            // stands on, and moves when its unknown moves a whole
+            // unit, is not a fact about the equations - it is a fact
+            // about where the iteration happens to be standing. The
+            // extremum of `m^2/2` at `m = 0` is the case the library
+            // brings: the tangent is flat there and nowhere else, so
+            // the matrix is singular for a block that is perfectly
+            // determined. A secant over that unit gives the column
+            // the tangent could not, and the iteration walks off the
+            // extremum by its own arithmetic.
+            //
+            // The whole of this lives past a step that already came
+            // back as nothing, so it cannot touch a model that runs:
+            // the only road here is the one that ends in a refusal,
+            // and what it can do is turn that refusal into an answer.
+            // A column that does not move from a unit away keeps its
+            // refusal, in the same words - that one is the equations
+            // speaking, and no arithmetic on the matrix answers it.
+            let step = step.or_else(|| {
+                if std::env::var_os("OXIDELICA_NO_SECANT_COLUMN").is_some() {
+                    return None;
+                }
+                let flat: Vec<usize> = (0..n)
+                    .filter(|&j| jac.iter().all(|row| row[j] == 0.0))
+                    .collect();
+                if flat.is_empty() {
+                    return None;
+                }
+                let mut patched = jac.clone();
+                for &j in &flat {
+                    let col = secant_column(&v, j, &f, &mut |w| residual(values, w))?;
+                    for (i, row) in patched.iter_mut().enumerate() {
+                        row[j] = col[i];
+                    }
+                }
+                let dv = solve_linear(&mut patched, &f)?;
+                rescued = dv.iter().all(|x| x.is_finite());
+                rescued.then_some(dv)
+            });
             let Some(dv) = step else {
                 // A column that is exactly zero is not a matrix that
                 // happened to come out ill conditioned: it is the
@@ -1228,8 +1289,25 @@ impl CompiledModel {
                 // that stayed zero over five orders of magnitude of
                 // step, which is the fact about the equations the
                 // message claims it is.
+                //
+                // Narrower again, and this time in the list rather
+                // than in the test. A block may hold both kinds of
+                // dead column at once, and the secant above fails
+                // the whole step as soon as one of them is the
+                // equations speaking - so the refusal came back
+                // naming every zero column, including the ones the
+                // secant had just shown to be perfectly alive at a
+                // unit's distance. Naming a live column as unmentioned
+                // is a wrong statement in a refusal, which sends the
+                // reader to an unknown that is not the fault. The
+                // list is therefore the columns that do not move
+                // from far away, and the ones that do are left out.
                 let dead: Vec<&str> = (0..n)
                     .filter(|&j| jac.iter().all(|row| row[j] == 0.0))
+                    .filter(|&j| {
+                        std::env::var_os("OXIDELICA_NO_SECANT_COLUMN").is_some()
+                            || !column_moves_far(&v, j, &f, &mut |w| residual(values, w))
+                    })
                     .map(|j| block_names()[j])
                     .collect();
                 // Which of two different things a dead column is, said

@@ -592,6 +592,46 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
 }
 
 #[test]
+fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack() {
+    // Two blocks the Jacobian cannot tell apart: in both, every entry
+    // of one column is exactly zero at the values the iteration
+    // starts from. Only one of them is a fact about the equations.
+    //
+    // `dp = m^2/2` with `dp` pinned at 2 has a slope of zero in `m`
+    // at `m = 0` and nowhere else, so the block is determined and the
+    // tangent is simply blind there. A secant over a whole unit sees
+    // the curvature and the iteration walks off the extremum. Two
+    // roots answer the equation, `m = +-2`, and which is taken is a
+    // property of the compiler rather than of the model: the secant
+    // is tried upward first, so the step goes to the positive root,
+    // and the test fixes the value rather than the fact of running.
+    let out = run("model Q Real m(start = 0); Real dp; \
+         equation dp = 0.5 * m * m; dp = 2.0 + 0.0 * time; \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); end Q;");
+    let last = out.rows.last().unwrap();
+    let dp = last[1];
+    let m = last[2];
+    assert!((m - 2.0).abs() < 1e-6, "m = {m}");
+    assert!((dp - 2.0).abs() < 1e-9, "dp = {dp}");
+
+    // The other kind, unmoved by the same repair. `i * R = v` with
+    // the model card's `R` at zero has lost the unknown from the
+    // residual altogether, and no distance brings it back, so the
+    // block is refused in the words it was always refused in. This is
+    // the half the secant must not swallow: a wrong number here would
+    // be worse than the refusal.
+    assert_eq!(
+        refused(
+            "model Z parameter Real R = 0; Real i; Real v; Real s(start = 0, fixed = true); \
+             equation i * R = v; v = 1.0; der(s) = i; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end Z;"
+        ),
+        "the equations of algebraic loop [\"i\"] do not mention [\"i\"] at t = 0: \
+         nothing in the block changes when it does, so no step determines it"
+    );
+}
+
+#[test]
 fn a_block_does_not_divide_by_a_state_that_starts_at_zero() {
     // `u*sin(a) = x - 1` solved explicitly for `u` divides by
     // `sin(a)`, and `a` starts at zero: the assignment runs before

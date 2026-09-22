@@ -254,9 +254,26 @@ FLATTEN_FLOOR=865
 # Flattening is unmoved on both counts, and the diff of the run lists
 # taken from one binary with the fix switched off and on is that one
 # name arriving and none leaving.
-RUN_FLOOR=541
+#
+# A step further along the same road. Asking a dead column again from
+# further away told the solver which kind it was; taking the slope it
+# found and putting it into the matrix lets the block be solved. The
+# two kinds stay apart: a column that does not move from a unit away
+# keeps its refusal in the words it always had, because there the
+# equations really have lost the unknown. Three models arrive - a
+# thyristor bridge, `WaterPump`, and `TestSuddenExpansion` - and the
+# whole of the repair lives past a step that already came back as
+# nothing, so a model that ran cannot be touched by it.
+#
+#   run          544 = 541 before, plus those three
+#   runnable run 510 = 507 before, plus the same three
+#
+# Flattening is unmoved on both counts, and the diff of the run lists
+# taken from one binary with the repair switched off and on is those
+# three names arriving and none leaving.
+RUN_FLOOR=544
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=507
+RUNNABLE_RUN_FLOOR=510
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

@@ -1316,14 +1316,24 @@ fn a_derivative_is_got_out_of_the_equation_that_states_it() {
     let last = result.rows.last().unwrap()[1];
     assert!((last - 2.0).abs() < 1e-9, "x(1) = {last}");
 
-    // What a solved-for derivative may not be is undetermined. A
-    // square has two roots, and which one a model meant is not a thing
-    // to guess at.
-    let said = refused(
+    // A solved-for derivative whose equation has two roots is now
+    // answered rather than refused, and it is worth saying what
+    // changed and what it cost. `der(x)^2 = 4` starts from a guess of
+    // zero, which is the extremum of the square: every entry of the
+    // column is exactly zero there, and the block was refused as one
+    // the equations do not mention. It is mentioned - the tangent was
+    // simply blind at that one point - so the solver now asks the
+    // slope over a whole unit instead, and the iteration walks to a
+    // root. The price is that the model meant either root and gets
+    // one: the secant is tried upward first, so `der(x)` comes out at
+    // +2 and `x(1) = 3`. The choice is the compiler's and not the
+    // model's, which is why the test fixes the value.
+    let result = run(
         "model M Real x(start = 1, fixed = true); equation der(x)^2 = 4; \
-         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+         annotation(experiment(StopTime = 1, Interval = 1, Tolerance = 1e-10)); end M;",
     );
-    assert!(said.contains("der(x)"), "{said}");
+    let last = result.rows.last().unwrap()[1];
+    assert!((last - 3.0).abs() < 1e-8, "x(1) = {last}");
     // A derivative got out of an equation still has to be one of a
     // variable that moves.
     let said = refused("model M parameter Real p = 1; equation 2 * der(p) = 4; end M;");

@@ -16576,7 +16576,7 @@ layer from the one repaired here.
 
 The run half's largest row is now `the equations of algebraic loop
 [...] do not mention [X]`, at 28 models against the Newton
-direction's 27 (`/tmp/m241/census.txt:169-170`, unit: models, over
+direction's 27 (`/tmp/m241/census.txt:243-244`, unit: models, over
 the 1037 example models of the corpus less the carved-out giants).
 A row is not a family, and this one is two.
 
@@ -16670,3 +16670,92 @@ before the start-reading change of the previous chapter
 (`/tmp/m240/raw.txt`): sorted and diffed, the lists are equal. So
 that change, which moved fifteen names' starts, moved no model into
 or out of this wall.
+
+## A tangent that was blind, and a secant that was not
+
+The flat half of the wall above is now repaired, and the shape of the
+repair is worth writing down because it is smaller than the diagnosis
+suggested. The measurement is `/tmp/m242/off.txt` against
+`/tmp/m242/on.txt`, both from one binary with
+`OXIDELICA_NO_SECANT_COLUMN` set and unset: 865 flatten and 541 run
+becomes 865 flatten and 544 run, unit models, over the 1037 example
+models of the corpus less the carved-out giants. The diff of the two
+run lists is three names arriving and none leaving.
+
+A Jacobian entry is a tangent, and a tangent at an extremum says
+nothing. `dp = m^2/2` with `dp` held at 2 has a slope of zero in `m`
+at `m = 0` and nowhere else, so the column reads dead however small
+the step, and the block is refused for an unknown its own equations
+plainly carry. The probe of the previous chapter already asked the
+one question that separates this from a column the equations have
+truly lost - move the unknown a whole unit and see whether the
+residual notices - and the repair is to keep the slope the probe
+measured rather than throwing it away after reading its sign. A
+secant over the unit goes into the matrix where the tangent was, and
+the iteration walks off the extremum by its own arithmetic.
+
+The whole of it lives past a step that already came back as nothing,
+so it cannot touch a model that runs: the only road to it is the one
+that ends in a refusal, and what it can do is turn that refusal into
+an answer. The measurement bears the construction out - three models
+won, none lost - and a victim here would have been a defect rather
+than a price.
+
+The refusal itself had to be narrowed a second time, in the list this
+time rather than in the test. A block may hold both kinds of dead
+column at once, and the secant fails the whole step as soon as one of
+them is the equations speaking, so the message came back naming every
+zero column, including the ones the secant had just shown to be alive
+at a unit's distance. Naming a live column as unmentioned is a wrong
+statement in a refusal, and sends the reader to an unknown that is not
+the fault. The list is now the columns that do not move from far away.
+
+### Where the fifteen went
+
+The fifteen models the probe put in this half were asked one by one
+with `--only` from `.msl` (`/tmp/m242/ref2.txt`). Three run: the
+thyristor bridge `ThyristorBridge2mPulse_RLV_Characteristic`,
+`Modelica.Thermal.FluidHeatFlow.Examples.WaterPump`, and
+`ModelicaTest.Fluid.TestComponents.Fittings.TestSuddenExpansion`.
+Five moved to the wall behind this one and now say `singular
+Jacobian` - the flat column was not the only thing wrong with their
+matrix. One, `OvervoltageProtection`, had already been standing at
+the Newton direction rather than here. The remaining six kept this
+refusal with a narrowed list: `IMC_Inverter` no longer names
+`aimc.airGap.gamma`, `SMEE_DOL` is down to `smee.inertiaRotor.w`
+alone, and so on. That narrowing is the measured meaning of "moved
+one storey up" for a model that has not moved at all.
+
+### A model that runs is not thereby right
+
+`TestSuddenExpansion` runs and its numbers are wrong, which is worth
+recording as a finding rather than as a win.
+`suddenExpansion1.m_flow` comes out at +57.3 kg/s from the 1 bar side
+to the 1.1 bar side - uphill against the pressure - and the two
+adapters report `A_mean` at 3.93e122, a number no geometry produces.
+`WaterPump` by contrast is physical: `V_flow` is +0.135 m^3/s forward
+through the one-way valve, with a pump pressure rise of 2.69 bar.
+So of the three models won, two are answers and one is a run that
+reaches the end of its stop time carrying nonsense. The nonsense is
+upstream of the solver - an area that large is a flattening or
+evaluation fault, not a Newton one - and it belongs to whoever takes
+the adapters next.
+
+### What it cost, and it is not nothing
+
+One existing test went red, and that is the honest price rather than
+an accident. `der(x)^2 = 4` was refused on purpose: a square has two
+roots, and which one a model meant is not a thing to guess at. The
+mechanism behind that refusal turns out to be exactly the one repaired
+here - the guess of zero is the extremum of the square, so the column
+reads dead - and there is no way to keep the refusal for the square
+while taking `dp = m^2/2`, because they are the same block seen from
+two sides. So the square is now answered, at the positive root,
+because the secant is tried upward first.
+
+The choice of root is the compiler's and not the model's. That is a
+real loss of a refusal, and it is written into the test so that the
+next reader meets it as a decision rather than as a surprise. What
+saves it from being a guess of the worst kind is that the answer is
+deterministic and says so: the same model gives the same root on every
+run, and the rule that picks it is one sentence long.
