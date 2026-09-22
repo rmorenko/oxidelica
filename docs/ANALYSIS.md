@@ -16435,9 +16435,27 @@ it is a twelve-line model):
   1e6    refused
 ```
 
-The basin is roughly 985 to 1005 out of everything a start can be,
-and the table's gap - 958.6 down to 0.59, with nothing between - is
-the wall on both sides of it.
+The edges were then taken point by point, a second at a time, and
+written down as the instrument printed them (`/tmp/m240/scan.txt`):
+
+```text
+  970    IF97 g1: the temperature = -782069.68
+  975    IF97 g1: the temperature = -689304.23
+  980    IF97 g1: the temperature = -597628.93
+  985    runs
+  990    runs
+  998.5  runs
+  999    runs
+  999.5  runs
+  1000   refused (Newton direction of ["T"])
+```
+
+So the basin runs from between 980 and 985 to between 999.5 and 1000,
+out of everything a start can be, and the table's gap - 958.6 down to
+0.59, with nothing between - is the wall on both sides of it. The
+figure 1005 that stood here before was never printed by any
+instrument, and it lay past a point the same chapter's scan had
+already measured as a refusal.
 
 ### The repair that measured zero
 

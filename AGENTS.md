@@ -259,6 +259,18 @@ Guessing is worse than refusing. A value quietly defaulted to zero is
 a wrong answer presented as a right one, and every one of those found
 so far had been silently wrong for a long time.
 
+A number has a unit and a boundary. Saying what a family counts, say
+what the count is of - models, rows of the register, lines of output,
+occurrences in a file - and over which set it was taken. Five times
+running the total agreed while the parts did not, and each time the
+next shift planned from the wrong parts: rows given as models, lines
+of the register given as models, a split by library given as a split
+by what a loop contained, eighteen of one kind and three of another
+called by a single name, and a name found by grep in a file with
+sections credited to the whole file. A total that agrees while its
+parts disagree is a coincidence and not a confirmation. A name found
+by grep belongs to its section, not to the file.
+
 ## A census entry is not a family
 
 The run half's census is read by counting kinds, and a kind that
