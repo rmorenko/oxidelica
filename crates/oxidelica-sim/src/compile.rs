@@ -3944,6 +3944,21 @@ pub(crate) fn compile_at(
             )
         })
         .collect();
+    // A relation or a discrete definition is read at a point the run
+    // already stands on, and there `der(x)` of a state is not an
+    // approximation of anything: it is that state's right-hand side,
+    // which the run has just evaluated. `asc = der(Hstat) > 0` in the
+    // Tellinen hysteresis model is the whole family, and without this
+    // the call reaches the code table still standing and is refused.
+    //
+    // Nothing is guessed. The substitution is all-or-nothing, so an
+    // expression naming a `der` of something that is not a state is
+    // left exactly as it was and meets the refusal it met before.
+    let empty_also = HashMap::new();
+    let at_this_instant = |expr: &Expr| -> Expr {
+        substitute_derivatives_with(expr, &states, &derivatives, &empty_also)
+            .unwrap_or_else(|_| expr.clone())
+    };
     let discrete_definitions: Vec<(Slot, Code)> = discrete_defs
         .iter()
         .map(|equation| {
@@ -3958,7 +3973,7 @@ pub(crate) fn compile_at(
                     &equation.lhs,
                 ),
             };
-            Ok((table.slot(&name), table.compile(value)?))
+            Ok((table.slot(&name), table.compile(&at_this_instant(value))?))
         })
         .collect::<Result<Vec<_>, SimError>>()?;
     for (name, value) in discretes.iter().zip(&discrete_start) {

@@ -591,3 +591,28 @@ fn a_switch_resting_on_its_threshold_is_not_lost_for_the_rest_of_the_run() {
         "a sliding mode has to be refused rather than answered: {refusal}"
     );
 }
+
+#[test]
+fn a_derivative_inside_an_event_indicator_is_the_state_equation() {
+    // `asc = der(Hstat) > 0` is how the Tellinen hysteresis model
+    // names the direction it is travelling in, and an indicator is
+    // asked at a point the run already stands on: `der(x)` there is
+    // not an approximation of anything, it is that state's right-hand
+    // side, which the run has just evaluated.
+    //
+    // Checked by a number rather than by the model building. With
+    // `der(x) = 1 - 2*time` the crossing is at exactly t = 0.5, and
+    // `seen` integrates one while the indicator holds, so it must
+    // come out at 0.5 rather than at 0 or 1.
+    let result = run("model D Real x(start = 0, fixed = true); Boolean asc; \
+         Real seen(start = 0, fixed = true); \
+         equation der(x) = 1 - 2 * time; asc = der(x) > 0; \
+         der(seen) = if asc then 1 else 0; \
+         annotation(experiment(StopTime=1.0, Interval=0.01)); end D;");
+    let seen = result.columns.iter().position(|c| c == "seen").unwrap();
+    let last = result.rows.last().unwrap()[seen];
+    assert!(
+        (last - 0.5).abs() < 1e-3,
+        "the indicator must turn at t = 0.5, giving seen = 0.5, not {last}"
+    );
+}
