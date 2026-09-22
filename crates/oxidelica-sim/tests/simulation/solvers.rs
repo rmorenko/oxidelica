@@ -443,6 +443,71 @@ fn a_supplied_derivative_carries_a_model_the_compiler_could_not() {
 }
 
 #[test]
+fn an_auxiliary_the_caller_worked_out_is_handed_on_without_a_derivative() {
+    // `derivative(noDerivative = aux) = f_der` says the rule is handed
+    // the auxiliary record as it stands: the caller worked it out from
+    // the other arguments, so its rate of change is already accounted
+    // for by theirs, and a record has no derivative anybody could form.
+    // That is how the water library differentiates a property read -
+    // `rho_props_ph(p, h, waterBaseProp_ph(p, h, ...))` - without ever
+    // differentiating the property table.
+    //
+    // The producer here has a loop the inliner cannot unroll, so the
+    // call stands and the differentiator meets `makeAux(x)[1]`, which
+    // is exactly the shape the water models refuse on.
+    let library = "record Aux Real a; end Aux; \
+         function makeAux input Real p; output Aux aux; protected Real w; \
+         algorithm w := p; while w > 1.0 loop w := w - 1.0; end while; \
+         aux.a := 2.0 * p; end makeAux; ";
+    let with_rule = "function f input Real p; input Aux aux; output Real y; \
+         algorithm y := aux.a; \
+         annotation(derivative(noDerivative = aux) = f_der); end f; \
+         function f_der input Real p; input Aux aux; input Real p_der; \
+         output Real y_der; algorithm y_der := 2.0 * p_der; end f_der; ";
+
+    // `f(x, makeAux(x))` is `2x`, held at 2, so `x` is 1 and its rate
+    // is zero: the constraint had to be differentiated to get there,
+    // and only the annotation could differentiate it.
+    let result = run(&format!(
+        "model M {library} {with_rule} Real x(start = 1, fixed = true); Real v; \
+         equation der(x) = v; f(x, makeAux(x)) = 2.0; \
+         annotation(experiment(StopTime = 0.5, Interval = 0.25)); end M;"
+    ));
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let end = result.rows.last().unwrap();
+    assert!((end[at("x")] - 1.0).abs() < 1e-9, "{}", end[at("x")]);
+    assert!((end[at("v")]).abs() < 1e-9, "{}", end[at("v")]);
+
+    // A rule that moves with time, so the number says the seed reached
+    // it rather than that a constant came out right: `2x = 2 + t`
+    // gives `x = 1 + t/2` and a rate of a half.
+    let moving = run(&format!(
+        "model M {library} {with_rule} Real x(start = 1, fixed = true); Real v; \
+         equation der(x) = v; f(x, makeAux(x)) = 2.0 + time; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    let at = |name: &str| moving.columns.iter().position(|c| c == name).unwrap();
+    let end = moving.rows.last().unwrap();
+    assert!((end[at("x")] - 1.5).abs() < 1e-9, "{}", end[at("x")]);
+    assert!((end[at("v")] - 0.5).abs() < 1e-9, "{}", end[at("v")]);
+
+    // Without the annotation the same model is refused, and the words
+    // are the ones the water models met: the call stands, the
+    // subscript on it reaches the differentiator, and nothing there
+    // has a rule for it.
+    let refused = compile_err(&format!(
+        "model M {library} function f input Real p; input Aux aux; output Real y; \
+         algorithm y := aux.a; end f; Real x(start = 1, fixed = true); Real v; \
+         equation der(x) = v; f(x, makeAux(x)) = 2.0; \
+         annotation(experiment(StopTime = 0.5, Interval = 0.25)); end M;"
+    ));
+    assert!(
+        refused.contains("cannot differentiate a subscript that survived flattening"),
+        "{refused}"
+    );
+}
+
+#[test]
 fn a_model_with_nothing_to_integrate_still_finds_where_a_relation_turns() {
     // Nothing is integrated here, so the walk goes from output point to
     // output point - but a relation does not wait for the grid, and the

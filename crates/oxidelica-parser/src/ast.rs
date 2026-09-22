@@ -466,6 +466,13 @@ pub struct ClassDef {
     /// body - which has an `abs` in it - never has to be
     /// differentiated at all.
     pub derivative_needs_still: Vec<String>,
+    /// The inputs a `derivative(noDerivative = x)` names. The rule
+    /// function is handed each of those as it stands and gets no
+    /// derivative beside it: the value is an auxiliary the caller
+    /// worked out from the other arguments, so its rate of change is
+    /// already accounted for by theirs. That is how the water library
+    /// carries its property record from one call into the next.
+    pub derivative_unseeded: Vec<String>,
     /// `annotation(inverse(x = f_inv(y, z)))`: which input this class
     /// can be solved for, by which function, given which arguments.
     pub inverse: Vec<(String, String, Vec<String>)>,
@@ -519,6 +526,7 @@ impl ClassDef {
             experiment: Experiment::default(),
             derivative: None,
             derivative_needs_still: Vec::new(),
+            derivative_unseeded: Vec::new(),
             inverse: Vec::new(),
             annotations: Vec::new(),
         }

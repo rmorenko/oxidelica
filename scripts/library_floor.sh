@@ -187,9 +187,28 @@ FLATTEN_FLOOR=867
 #                 literals divided is folded before being called live,
 #                 and a dry air medium runs on the strength of it
 #   runnable run 503 = 502 before, plus the same one
-RUN_FLOOR=537
+#
+# And two more, from a `noDerivative` over a Real input being left
+# without a rule rather than read as though it named a record. The
+# diff was taken from two binaries of one machine - the list after in
+# /tmp/m226f/ran_after_fable.txt against the list before in
+# /tmp/m226f/ran_before.txt, the latter built in a worktree on
+# 7b76dd0 - and confirmed by a second run of the same tree
+# (/tmp/m226g/corpus_mine.txt, 867 flatten and 539 run, 752 and 505
+# runnable):
+#
+#   arrived  Modelica.Fluid.Examples.DrumBoiler.DrumBoiler
+#            ModelicaTest.Fluid.TestComponents.Sensors.TestFlowRate
+#   left     nothing
+#
+#   run          539 = 537 before, plus the two above
+#   runnable run 505 = 503 before, plus the same two, both of them
+#                 examples by the Example icon
+#
+# Flattening does not move: both models flattened before as well.
+RUN_FLOOR=539
 RUNNABLE_FLATTEN_FLOOR=752
-RUNNABLE_RUN_FLOOR=503
+RUNNABLE_RUN_FLOOR=505
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

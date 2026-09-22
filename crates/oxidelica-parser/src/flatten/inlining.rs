@@ -102,6 +102,45 @@ pub(super) fn inline_function(
     // body the differentiator could not read is still differentiable.
     match &class.derivative {
         None => Ok(value),
+        // A `noDerivative` over an input that is a Real, or an array of
+        // them, is a different claim from one over a record: the value
+        // is a number with a rate of change, and the annotation says
+        // the rule does not want it. Only the record case is read here
+        // - the auxiliary the caller worked out - and the rest is left
+        // where it was, with no rule, so that the refusal comes where
+        // the derivative is asked for rather than from a rule nobody
+        // has checked.
+        Some(_)
+            if class.derivative_unseeded.iter().any(|name| {
+                function_components(registry, class, 0).iter().any(|c| {
+                    c.name == *name
+                        && c.causality == Causality::Input
+                        && is_real(registry, c, &class.name, &class.imports)
+                })
+            }) =>
+        {
+            Ok(value)
+        }
+        // A rule over an auxiliary record is worth carrying only if it
+        // comes out as one scalar expression. The rule body reads the
+        // record field by field, and where the record is an array of
+        // its own the rule is built holding an array - which is a
+        // shape no later pass can put where a number belongs, and the
+        // model is then refused for the rule rather than for anything
+        // it says itself. Where that happens the value travels with no
+        // rule at all, exactly as it did before the annotation was
+        // read: the refusal, if one is owed, comes where the
+        // derivative is asked for.
+        Some(named) if !class.derivative_unseeded.is_empty() => {
+            match derivative_rule(class, named, args, shapes, consts, registry, depth) {
+                Ok(rule) if !holds_an_array(&rule.0) => Ok(Expr::WithDerivative(
+                    Box::new(value),
+                    Box::new(rule.0),
+                    rule.1,
+                )),
+                _ => Ok(value),
+            }
+        }
         Some(named) => {
             let rule = derivative_rule(class, named, args, shapes, consts, registry, depth)?;
             Ok(Expr::WithDerivative(
@@ -110,6 +149,41 @@ pub(super) fn inline_function(
                 rule.1,
             ))
         }
+    }
+}
+
+/// Whether a rule came out holding a shape rather than a number.
+///
+/// Matched by name so that a variant added to `Expr` has to be decided
+/// about here: what this asks is whether the whole expression can
+/// stand where one number belongs, and a catch-all answering "yes"
+/// would put an array there silently.
+fn holds_an_array(expr: &Expr) -> bool {
+    match expr {
+        Expr::Array(_) | Expr::MatrixRows(_) | Expr::Range(..) | Expr::Comprehension(..) => true,
+        Expr::Number(_)
+        | Expr::Bool(_)
+        | Expr::Str(_)
+        | Expr::Ref(_)
+        | Expr::Time
+        | Expr::ColonSubscript
+        | Expr::EndSubscript => false,
+        Expr::Neg(inner) | Expr::Not(inner) => holds_an_array(inner),
+        Expr::Bin(_, a, b) | Expr::Rel(_, a, b) | Expr::And(a, b) | Expr::Or(a, b) => {
+            holds_an_array(a) || holds_an_array(b)
+        }
+        Expr::If(c, a, b) => holds_an_array(c) || holds_an_array(a) || holds_an_array(b),
+        Expr::Index(base, subs) => holds_an_array(base) || subs.iter().any(|e| holds_an_array(e)),
+        Expr::Member(base, _) => holds_an_array(base),
+        Expr::Call(_, args) => args.iter().any(|e| holds_an_array(e)),
+        Expr::Elementwise(_, a, b) => holds_an_array(a) || holds_an_array(b),
+        Expr::NamedArg(_, inner) => holds_an_array(inner),
+        Expr::WithDerivative(value, rule, seeds) => {
+            holds_an_array(value)
+                || holds_an_array(rule)
+                || seeds.iter().any(|(_, seed)| holds_an_array(seed))
+        }
+        Expr::Tuple(parts) => parts.iter().flatten().any(holds_an_array),
     }
 }
 
@@ -188,6 +262,15 @@ fn derivative_rule(
     // A table is asked for a value by `(tableID, column, u)`, and
     // neither the table nor the column has a rate of change: the
     // derivative function takes the three and then `der_u` alone.
+    // An input a `noDerivative` names gets none either, and for a
+    // different reason: it is not held still, it is an auxiliary the
+    // caller worked out from the other arguments, so its rate of
+    // change is already accounted for by theirs. `derivative(
+    // noDerivative = properties) = rho_ph_der` takes `(p, h,
+    // properties, p_der, h_der)`; handing a `properties_der` as well
+    // would be a sixth argument the rule does not have - and the
+    // record has no derivative anybody could form.
+    //
     // An input the annotation holds still gets no derivative handed to
     // it either: `derivative(zeroDerivative = delta) = regRoot_der`
     // says the rule is the one for a `delta` that does not change, so
@@ -198,6 +281,7 @@ fn derivative_rule(
         .map(|component| {
             is_real(registry, component, &class.name, &class.imports)
                 && !class.derivative_needs_still.contains(&component.name)
+                && !class.derivative_unseeded.contains(&component.name)
         })
         .collect();
     let seeded = differentiable.iter().filter(|real| **real).count();

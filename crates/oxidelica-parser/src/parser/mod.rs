@@ -256,6 +256,9 @@ pub(super) struct Annotated {
     /// The inputs a `derivative(zeroDerivative = x)` names: the rule
     /// holds where each of those does not change with time.
     pub(super) derivative_needs_still: Vec<String>,
+    /// The inputs a `derivative(noDerivative = x)` names: the rule is
+    /// handed each of those as it stands, with no derivative beside it.
+    pub(super) derivative_unseeded: Vec<String>,
     /// `annotation(inverse(x = f_inv(y, z)))` on a function: which
     /// input, which function, and the arguments it is given.
     inverse: Vec<(String, String, Vec<String>)>,

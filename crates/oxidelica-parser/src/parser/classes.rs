@@ -516,6 +516,7 @@ impl Parser {
             experiment: annotated.experiment,
             derivative: annotated.derivative,
             derivative_needs_still: annotated.derivative_needs_still,
+            derivative_unseeded: annotated.derivative_unseeded,
             inverse: annotated.inverse,
             annotations: annotated.kept,
             class_aliases,
@@ -792,6 +793,7 @@ impl Parser {
                         // downstream could catch. An order or a
                         // `noDerivative` is still read past.
                         let mut needs_still = Vec::new();
+                        let mut unseeded = Vec::new();
                         let mut only_zero_derivatives = true;
                         let mut inner = 0usize;
                         loop {
@@ -809,6 +811,11 @@ impl Parser {
                                             self.bump();
                                             needs_still.push(self.ident("the input held still")?);
                                         }
+                                    } else if option == "noDerivative" {
+                                        if self.peek() == &Token::Assign {
+                                            self.bump();
+                                            unseeded.push(self.ident("the input with no seed")?);
+                                        }
                                     } else {
                                         only_zero_derivatives = false;
                                     }
@@ -821,9 +828,11 @@ impl Parser {
                         }
                         self.expect(&Token::Assign, "`=` after derivative")?;
                         let named = self.dotted_name("the derivative function")?;
-                        if only_zero_derivatives && !needs_still.is_empty() {
+                        if only_zero_derivatives && !(needs_still.is_empty() && unseeded.is_empty())
+                        {
                             into.derivative = Some(named);
                             into.derivative_needs_still = needs_still;
+                            into.derivative_unseeded = unseeded;
                         }
                         continue;
                     }
