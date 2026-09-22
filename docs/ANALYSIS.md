@@ -14899,3 +14899,136 @@ guards, and under `abs(-(x_small * (1/0)))`, whose argument is an
 infinity. Neither is a sign a branch settled, and neither should be
 guessed. `AdvancedSolenoid` is the mechanism of chapter 221 and was
 never expected to move.
+
+## Two walls of one fork, and what was behind them (shift 226)
+
+The register held two adjacent rows of the same fork in the symbolic
+differentiator - `a call of several arguments` (2) at symbolic.rs:1086
+and `a subscript that survived flattening` (6) at :1087 - and the
+shift set out to learn whether they were one family or two.
+
+They were two, and one of them was already gone. The subscript six
+were counted on the register of the shift before
+(`/tmp/m225/final_list.txt:1756`, `6 structurally singular model:
+cannot differentiate a subscrip`), and on this tree the row is absent
+altogether (`/tmp/m226g/corpus_mine.txt`, where no `cannot
+differentiate a subscript` line appears at all). Nothing in this shift
+touched the differentiator: what emptied the row was the
+`noDerivative` change begun in an earlier shift and committed at the
+head of this one. The head of the six answers for the family -
+`Modelica.Fluid.Examples.NonCircularPipes` now refuses with
+`initialization is not square: 8 initial equation(s) and 0 fi`, a wall
+of a different storey - and the rest scattered: the same census diff
+shows three new rows of one apiece naming Newton directions of
+algebraic loops that no earlier register held, and a row of 3 naming
+`subscripts and arrays survive flattening only as scalars`. Six models
+travelled and none of them arrived.
+
+That is the register doing the one thing no count of models can:
+without it the `noDerivative` change reads as two models won, and what
+it actually did was two models won and six moved a storey up.
+
+The other row is a different mechanism and a smaller one than it
+looked. The two models refuse over
+`Modelica.Fluid.Utilities.regRoot2.regRoot2_utility`, and the obvious
+reading - that a function of six arguments stood opaque because
+nothing could inline it - is wrong. It inlines. A twelve-line model
+reproduces the refusal in under a second:
+
+```modelica
+model R3
+  parameter Real x_small = 0.01;
+  parameter Real k1 = 1;
+  parameter Real k2 = 2;
+  Real x; Real y; Real yd;
+equation
+  x = time - 1;
+  y = Modelica.Fluid.Utilities.regRoot2(x, x_small, k1, k2);
+  yd = der(y);
+end R3;
+```
+
+and a probe on every exit of `inline_function` says which call stands
+and why. `regRoot2` inlines, `regRoot2_utility` inlines twice, and the
+call left standing is the one two storeys further in:
+
+```text
+PROBE loop-standing Modelica.Fluid.Utilities.evaluatePoly3_derivativeAtZero:
+  an expression did not come to an end here, nested deeper than the
+  compiler follows: Ref("k2")                                    (x5)
+PROBE loop-standing Modelica.Fluid.Utilities.evaluatePoly3_derivativeAtZero:
+  ... Ref("x_small")                                             (x3)
+```
+
+`evaluatePoly3_derivativeAtZero` is five straight assignments with no
+branch, no loop and no recursion - the sort of body that inlines
+anywhere - and on its own it does, with a literal argument or a
+parameter one, to a number the run gets right. What stops it is
+neither the body nor the call: it is the expression-depth budget,
+`MAX_DEPTH = 32` in flatten/mod.rs, spent on the way in. By the time
+`regRoot2_utility`'s body has been written out, the arguments handed
+to the helper are expressions thirty-odd nodes deep, and the guard
+refuses them for nesting rather than for anything undecidable. The
+message says `did not come to an end here`, `inline_function` reads
+that as a recursion with no bottom, and the call is left standing for
+the run to walk - which the differentiator then cannot read.
+
+So the wall is a budget and not a mechanism, and the size of the
+budget is a real question rather than a number to raise. Raised to 48
+behind an environment switch, the small model's refusal moves one
+storey, from the call to `abs`:
+
+```text
+OX_DEPTH=32  cannot differentiate a call of several arguments:
+             `Modelica.Fluid.Utilities.evaluatePoly3_derivativeAtZero(...)`
+OX_DEPTH=48  cannot differentiate function `abs`
+OX_DEPTH=64  cannot differentiate function `abs`
+```
+
+which is the wall of chapter 225 - the `abs` under `if 0 >= 1` and
+under an infinity that this project declined to guess a sign for, and
+declines still. The two models do not arrive at 48; they reach the
+refusal that was already judged honest.
+
+That leaves the budget as a change worth measuring on its own account
+and not for these two models, and the measurement was taken. It says
+the budget must not be raised at all.
+
+At 48 the corpus pass does not finish. It dies at the same place three
+times running - `read 312 of 1039 models` - and the third run, taken
+in the foreground where the shell could report it, names the cause:
+
+```text
+bash: 80264 Killed: 9   OX_DEPTH=48 oxidelica library check ...
+EXIT=137
+```
+
+Signal nine at 312 models of 1039 is the machine running out of
+memory, and it is worth being exact about what that means, because
+the first two deaths read as something else entirely. A background
+run that vanishes leaves a truncated output file and no process, which
+is indistinguishable by every instrument from a shell that outlived
+its job - and on this project that reading has a history. What told
+the two apart was the count: a shell death lands wherever the shell
+happened to die, and three runs landing on the same model is a
+property of the work rather than of the shell.
+
+So the depth guard is a ceiling in the sense the notes above mean, and
+`32` is not a number somebody failed to raise: it is holding an
+unbounded phase down. What is behind it is an expression that grows
+multiplicatively as one body is written into another - the arguments
+handed to `evaluatePoly3_derivativeAtZero` are already thirty nodes
+deep after two inlinings, and every further storey multiplies rather
+than adds. Sixteen more storeys of budget is enough to take a corpus
+pass into the machine's whole memory on the three hundred and twelfth
+model.
+
+Which makes the two models a parking rather than a piece of work, and
+the reason a firm one. The wall is real, the mechanism is understood
+to the line, and the only local fix - more budget - is measured and
+refused. What would actually win them is a differentiator that can
+read a call it did not inline, by the chain rule over the body, and
+that is a mechanism this compiler does not have. It is worth noting
+that even with it the two models arrive only at the `abs` of chapter
+225, which was judged honest: the prize for building it is not these
+two names.

@@ -690,6 +690,25 @@ A `matches!` asking whether a node is _one of a set_ - is this a
 Boolean, is this a list - is not one of these: the question there is
 membership, and the catch-all is the answer.
 
+A phase that has been given a ceiling is not thereby a phase somebody
+throttled. `MAX_DEPTH = 32` on expression nesting looks exactly like a
+conservative number waiting to be raised, and raising it to 48 behind
+an environment switch killed the corpus pass with signal nine on the
+three hundred and twelfth model, three runs out of three. What grows
+there grows multiplicatively - one body written into another, then
+into a third - so sixteen more storeys is not a quarter more memory.
+Before reading a ceiling as timidity, ask what the phase behind it
+does per storey.
+
+And an out-of-memory death wears the costume this project already
+knows: a background run that vanishes leaves a truncated file and no
+process, which reads exactly like a shell that outlived its job. The
+two are told apart by where they land. A shell death lands wherever
+the shell died, and a run that dies on the same model every time is
+dying of its own work - so the count in the last progress line is the
+evidence, and the confirmation is one run in the foreground where the
+shell can print the signal.
+
 ## Language
 
 Everything in the repository is English - code, comments, commit
