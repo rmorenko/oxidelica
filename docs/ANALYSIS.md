@@ -16363,3 +16363,109 @@ the one model that moved.
 So the road the rounding chapter opened is now walked to its end, and
 it was shorter than it looked. The convergence test knows what the
 arithmetic can express; the seven were not seven of a kind.
+
+## A start is a constraint wherever the initialisation cannot move it
+
+The twenty-one smooth models of the twenty-eight wall refuse inside a
+block and not in the section that was suspected. Where the value each
+one stumbles on comes from is the question maláva 239 asked, and the
+probe answers it in one line rather than in a theory.
+
+### Where the number comes from
+
+`OXIDELICA_INIT_PROBE` on `PumpingSystem` prints what each written
+initial condition reaches and what it claimed:
+
+```text
+init: written pumps.medium.T = pumps.T_start reaches [], took pumps.U
+init: written pumps.medium.p = pumps.p_start reaches [], took pumps.m
+init: written reservoir.medium.T = reservoir.T_start reaches [], took reservoir.m
+init: written reservoir.level = reservoir.level_start_eps reaches ["reservoir.V"], took reservoir.V
+init: written PT1.y = PT1.y_start reaches ["PT1.y"], took PT1.y
+```
+
+Three of the five reach nothing. The reachability walk is deliberately
+coarse about a simultaneous block, so a condition written about what
+such a block solves for reaches no state, and the pairing at
+`compile.rs:4576` hands it an orphan state instead - `reservoir.m`, a
+mass whose only statement in the model is `m = fluidVolume*medium.d`.
+Nothing wrong has happened yet: the counting is square and the
+condition is a real one.
+
+What happens next is where the answer is. The state that was not
+claimed stands at its declaration, `compile.rs:5081` - `declared ||
+!claimed[index]` - and that declaration is a guess. The residual is
+then evaluated at that guess, and evaluating it runs the whole
+algebraic plan, blocks and all. So a guess that no arithmetic can
+answer at is handed to a block that refuses, and the refusal that
+comes back names the block:
+
+```text
+error: the Newton direction of algebraic loop ["reservoir.medium.T"]
+  does not reduce the residual at t = 0 ... [solvers/mod.rs:1330]
+```
+
+So the mechanism is neither of the two the maláva offered. The
+constraint does not come from a `fixed = true` the model wrote, and
+the compiler does not promote a guess to a constraint on its own.
+The guess stays a guess, and it kills the run anyway, because the
+outer Newton never gets its first step: the inner block refuses while
+the residual is being computed, before there is a direction to take.
+
+### What the guess costs, in one measurement
+
+The tank is `m = V*d` with `V = 50`, so `m(start = 1)` asks the water
+tables for a density of 0.02 kg/m3. `/tmp/m237/tank.mo` reduced to
+the same shape, scanned over the start of `m` (`--only` is not needed,
+it is a twelve-line model):
+
+```text
+  0      refused (Newton direction)
+  1      refused
+  900    refused
+  950    refused
+  960    IF97 medium function out of range
+  970    IF97 medium function out of range
+  990    runs, T = 318
+  998    runs, T = 294
+  998.2  runs, T = 293.18
+  998.5  runs, T = 291
+  1000   refused
+  1e3    refused
+  1e6    refused
+```
+
+The basin is roughly 985 to 1005 out of everything a start can be,
+and the table's gap - 958.6 down to 0.59, with nothing between - is
+the wall on both sides of it.
+
+### The repair that measured zero
+
+That shape suggests a ladder like the one already at
+`compile.rs:5226`, which nudges a guess off zero and tries 1e-6, 1e-3,
+1, 1e3 until the residual is made of numbers. Widened behind
+`OXIDELICA_NO_INIT_RESCUE` to fire on any guess that fails whole -
+scaling every unpinned state together over 1e-3, 1, 1e2, 1e3, 1e5,
+1e7, and never touching a state the model pinned - it was measured on
+all twenty-one smooth models by name (`/tmp/m239/on.txt`, one
+`--only` apiece):
+
+```text
+  0 of 21 run
+```
+
+Zero, and the probe says why rather than leaving it to be guessed.
+The rescue fires - `rescue: bad=true` on `PumpingSystem`, with five
+unpinned states - and none of its six rungs lands in a basin twenty
+wide around a value the layer has no way to know. A ladder of powers
+is the right instrument for a guess that is merely at a pole, where
+any finite number will do; it is the wrong one for a guess that has
+to be near a particular answer.
+
+So the code was reverted and the finding is the measurement. What
+would pay here is not a wider ladder but a guess that comes from the
+model: the density the medium would have at the temperature the
+condition names is computable, and `m = V*d` then gives the mass
+directly. That is a different change - it reads a definition to build
+a starting point - and it wants its own shift and its own victims
+list.
