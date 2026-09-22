@@ -15153,3 +15153,72 @@ turns at exactly t = 0.5, and a variable integrating one while it
 holds comes out at 0.5. The three hysteresis models do not move on it,
 because what they want is `der` of an _algebraic_ name - which is box
 2 again, from the other side of the compiler.
+
+## The four boxes were one box, and the map said otherwise (shift 228)
+
+The consultation of shift 227 read the plan and named four boxes
+behind `der(X) is not a state`, with a form of probe to sort the
+family between them: a demoted state's dummy, an explicit definition
+that would not differentiate, a scalar implicit sort, a torn block,
+an `inner` assignment. The probe was written and run over one
+representative of each of the ten rows, and what came back was not a
+distribution over five boxes. It was one box.
+
+Measured on `/tmp/m228/probe.txt`, `OXIDELICA_INIT_DER_PROBE=1` over
+the ten first-on models: every refused name is either a torn unknown
+of a block or an `inner` assignment of one. Not a single
+`explicit-undiff`, not a single `implicit-scalar`, not a single
+`dummy`. The rows and the sizes of their blocks:
+
+```text
+IMC_Initialize (FundamentalWave)   inner of torn k=16   block 475, inner 459
+IMC_Initialize (QuasiStatic)       inner of torn k=31   block 1613, inner 1582
+TestJunctionVolume                 torn k=1             block 72, inner 71
+TestMixingVolumesPressureStates    torn k=24            block 125, inner 101
+DynamicPipeClosingValve            inner of torn k=2    block 66, inner 64
+SeriesPipes12                      inner of torn k=6    block 243, inner 237
+DynamicPipeWithNominalLaminarFlow  inner of torn k=43   block 1057, inner 1014
+TestWaterPumpCheckValve            inner of torn k=3    block 50, inner 47
+DryAirNasa                         torn k=4             block 47, inner 43
+WaterIF97OnePhase_ph               inner of torn k=3    block 63, inner 60
+```
+
+So the shift's own plan was void by measurement before its first
+line of logic: the scalar sort it was to put in the map is reached by
+no model of the family, and the `k=1` case it was to build on is one
+row of ten. The probe cost one build and two minutes and saved the
+rest of the shift from building against a map.
+
+### What the probe pointed at instead
+
+The layer read `PlanStage::Explicit` and nothing else, and handed the
+differentiation an `implicit_defs` table that was empty by
+construction - `let implicit_defs = HashMap::new()`, a line of the
+same breed as last shift's `let dummies = HashMap::new()`. Meanwhile
+`symbolic.rs:713` already holds the implicit function theorem in
+full, with the guard against a block that is genuinely simultaneous
+(`holding` meeting itself) and the refusal on a zero slope. The
+machinery was built and nothing was ever put into the table it reads.
+
+A torn block is not a wall of nameless unknowns. Its `inner`
+assignments are explicit by construction - that is what tearing
+means - and each torn unknown has exactly one residual matched to it,
+which is the shape the theorem wants. So `inner` goes into `alg_defs`
+and each `(torn, residual)` pair into `implicit_defs`, and nothing
+here decides that the theorem applies: where two torn unknowns
+determine each other the held chain meets itself and the
+differentiation refuses by name, exactly as it did for a block that is
+really simultaneous.
+
+The witness is a number, not a flattening. `y^3 + y = x` is torn
+because no rearrangement solves it, and with `der(y) = 0` the initial
+condition forces `x = a = 3`, whence `y = 1.2134116627622316` as the
+single real root. The small model gives that; under
+`OXIDELICA_NO_INIT_BLOCK_DER=1`, the same binary refuses it with
+`der(y): `y` is not a state of the model`.
+
+Eight of the ten representatives left the wall. They do not run: what
+stands behind is a singular Jacobian, a Newton direction that does not
+reduce, a limiter's arguments. That is the expected shape - a kind
+removed uncovers whatever stood behind it - and the two boxes the map
+named as separate walls turn out to have been one line.

@@ -4693,6 +4693,97 @@ impl CompiledModel {
         Ok(())
     }
 
+    /// Which box each refused `der(name)` of an initial equation
+    /// stands in, printed rather than acted on.
+    ///
+    /// The refusal at the top of this module is one line and the
+    /// absence behind it is not one thing: a demoted state whose dummy
+    /// the plan already names, a name with an explicit definition this
+    /// module could not differentiate, a scalar implicit sort, a name
+    /// a torn block iterates on, or an `inner` assignment of such a
+    /// block. Counting the rows of the register cannot tell them
+    /// apart, because all five wear the same words.
+    ///
+    /// `OXIDELICA_INIT_DER_PROBE=1` turns it on, so that the boxes can
+    /// be counted before anything is built for any of them.
+    fn probe_init_derivative_boxes(
+        &self,
+        initial_equations: &[EquationItem],
+        worked_out: &HashMap<String, Expr>,
+        plan: &Worked<'_>,
+    ) {
+        let mut wanted: Vec<&str> = Vec::new();
+        for equation in initial_equations {
+            for side in [&equation.lhs, &equation.rhs] {
+                side.for_each(&mut |node| {
+                    if let Some(name) = node.as_der_of() {
+                        wanted.push(name);
+                    }
+                });
+            }
+        }
+        wanted.sort_unstable();
+        wanted.dedup();
+        for name in wanted {
+            // A name the plan carries as a state, or one already
+            // answered, is not what this is about.
+            if self.states.iter().any(|s| s == name) || worked_out.contains_key(name) {
+                continue;
+            }
+            if plan.dummies.contains_key(name) {
+                eprintln!("init-der-probe: {name}: dummy");
+                continue;
+            }
+            let index = self.algebraics.iter().position(|a| a == name);
+            let Some(index) = index else {
+                eprintln!("init-der-probe: {name}: not an algebraic of the plan");
+                continue;
+            };
+            let mut box_of = "no stage assigns it".to_string();
+            for stage in plan.stages {
+                match stage {
+                    PlanStage::Explicit { var, .. } if *var == index => {
+                        box_of = "explicit-undiff".to_string();
+                    }
+                    PlanStage::Implicit {
+                        vars,
+                        torn,
+                        inner,
+                        residuals,
+                    } if vars.contains(&index) => {
+                        if inner.iter().any(|(v, _)| *v == index) {
+                            box_of = format!(
+                                "inner of torn k={} (block of {}, inner {})",
+                                torn.len(),
+                                vars.len(),
+                                inner.len()
+                            );
+                        } else if torn.len() == 1 && inner.is_empty() && vars.len() == 1 {
+                            box_of = "implicit-scalar".to_string();
+                        } else {
+                            let residual = torn
+                                .iter()
+                                .position(|v| *v == index)
+                                .and_then(|slot| residuals.get(slot))
+                                .map(|(lhs, rhs)| {
+                                    format!("{} = {}", lhs.describe(), rhs.describe())
+                                })
+                                .unwrap_or_else(|| "no residual of its own".to_string());
+                            box_of = format!(
+                                "torn k={} (block of {}, inner {}): {residual}",
+                                torn.len(),
+                                vars.len(),
+                                inner.len()
+                            );
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            eprintln!("init-der-probe: {name}: {box_of}");
+        }
+    }
+
     /// The derivative of every algebraic variable the plan assigns
     /// explicitly, worked out from its definition by the chain rule.
     ///
@@ -4723,7 +4814,7 @@ impl CompiledModel {
             .zip(derivative_exprs.iter().cloned())
             .collect();
         let params: HashMap<String, f64> = self.parameters.iter().cloned().collect();
-        let implicit_defs = HashMap::new();
+        let mut implicit_defs: HashMap<String, (Expr, Expr)> = HashMap::new();
         let mut alg_defs: HashMap<String, Expr> = HashMap::new();
         // A state index reduction demoted is not an algebraic name
         // without a derivative: its derivative has a name of its own,
@@ -4736,11 +4827,49 @@ impl CompiledModel {
             worked_out.insert(demoted.clone(), Expr::Ref(dummy.clone()));
         }
         for stage in plan.stages {
-            if let PlanStage::Explicit { var, expr } = stage {
-                alg_defs.insert(self.algebraics[*var].clone(), expr.clone());
+            match stage {
+                PlanStage::Explicit { var, expr } => {
+                    alg_defs.insert(self.algebraics[*var].clone(), expr.clone());
+                }
+                // A block is not a wall of names without definitions.
+                // Its `inner` assignments are explicit by construction
+                // - that is what tearing means - and each torn unknown
+                // has one residual matched to it, which is exactly the
+                // shape the implicit function theorem wants:
+                // `dx/dt = -(dg/dt at x fixed) / (dg/dx)`.
+                //
+                // Nothing here decides that the theorem applies. Where
+                // two torn unknowns determine each other, the chain of
+                // held names meets itself and the differentiation
+                // refuses by name rather than dividing by a slope that
+                // means nothing - so a block that is genuinely
+                // simultaneous is still refused, and only a residual
+                // that determines its own unknown alone is answered.
+                PlanStage::Implicit {
+                    torn,
+                    inner,
+                    residuals,
+                    ..
+                } => {
+                    if std::env::var_os("OXIDELICA_NO_INIT_BLOCK_DER").is_some() {
+                        continue;
+                    }
+                    for (var, expr) in inner {
+                        alg_defs.insert(self.algebraics[*var].clone(), expr.clone());
+                    }
+                    for (var, (lhs, rhs)) in torn.iter().zip(residuals) {
+                        implicit_defs
+                            .insert(self.algebraics[*var].clone(), (lhs.clone(), rhs.clone()));
+                    }
+                }
             }
         }
-        for (name, definition) in &alg_defs {
+        let names: Vec<(String, Option<Expr>)> = alg_defs
+            .iter()
+            .map(|(name, definition)| (name.clone(), Some(definition.clone())))
+            .chain(implicit_defs.keys().map(|name| (name.clone(), None)))
+            .collect();
+        for (name, definition) in &names {
             let target = DiffTarget::Time {
                 state_rhs: &state_rhs,
                 params: &params,
@@ -4754,7 +4883,15 @@ impl CompiledModel {
             // before - a refusal, never a guess. A minted `der(x)` is
             // no answer here either: the initialisation has no equation
             // to bring for it.
-            if let Ok(derivative) = differentiate(definition, &target) {
+            //
+            // A torn unknown has no definition to differentiate, so the
+            // derivative is asked for of the name itself and the
+            // theorem above answers it.
+            let asked = match definition {
+                Some(definition) => definition.clone(),
+                None => Expr::Ref(name.clone()),
+            };
+            if let Ok(derivative) = differentiate(&asked, &target) {
                 if take_needed_derivatives().is_empty() {
                     worked_out
                         .entry(name.clone())
@@ -4994,6 +5131,9 @@ impl CompiledModel {
         // for seventeen models of the library, having in hand the
         // definition it needed to differentiate.
         let algebraic_derivatives = self.algebraic_definition_derivatives(derivative_exprs, plan);
+        if std::env::var_os("OXIDELICA_INIT_DER_PROBE").is_some() {
+            self.probe_init_derivative_boxes(initial_equations, &algebraic_derivatives, plan);
+        }
         let substituted: Vec<(Code, Code)> = initial_equations
             .iter()
             .map(|equation| {

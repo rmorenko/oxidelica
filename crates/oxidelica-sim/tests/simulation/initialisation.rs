@@ -1213,3 +1213,31 @@ fn a_pole_the_conditions_hold_the_model_on_is_not_papered_over() {
     );
     assert!(message.contains("singularity"), "{message}");
 }
+
+/// A torn unknown has a derivative, and the theorem gives it.
+///
+/// `y^3 + y = x` determines `y` and no rearrangement solves for it, so
+/// the plan tears it and Newton iterates. That made `der(y)` in an
+/// initial equation a refusal - `y` is not a state - although the
+/// residual determining it is exactly the shape the implicit function
+/// theorem wants: `dy/dt = -(dg/dt at y fixed)/(dg/dy)`.
+///
+/// The check is on the number. `der(y) = 0` forces `der(x) = 0` and so
+/// `x = a = 3`, and `y^3 + y = 3` has the single real root
+/// 1.2134116627622316.
+#[test]
+fn a_torn_unknown_has_a_derivative_by_the_theorem() {
+    let result = run(
+        "model M parameter Real a = 3; Real x(start = 1); Real y(start = 0.5); \
+         initial equation der(y) = 0; \
+         equation y^3 + y = x; der(x) = a - x; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end M;",
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    assert!((first[index("x")] - 3.0).abs() < 1e-9, "{first:?}");
+    assert!(
+        (first[index("y")] - 1.2134116627622316).abs() < 1e-9,
+        "{first:?}"
+    );
+}
