@@ -15332,3 +15332,62 @@ which is the number the previous shift's report should have carried.
 Where the seventeen that left it went is visible in the same file:
 the algebraic-loop rows and the structurally-singular rows are where
 that traffic landed, both of them walls already on the map.
+
+## The nine FMU adapters take the old road, and the layer refuses them on purpose (shift 230)
+
+The `no equation determines der(X)` row holds nineteen models, of
+which nine are the FMU-adapter shape: a derivative given its own
+algebraic name and then driven from outside. The verdict that they go
+by the matching rather than by the definitions layer was taken on a
+binary built before `alg_defs` existed, so it was worth asking again
+on the binary of 20bff08.
+
+The question is answered at `compile.rs:1639`, where the loop over
+the derivatives a reduction still needs looks a name up in the
+matching and refuses when the lookup gives nothing. A throwaway print
+at that line, behind `OXIDELICA_NEEDED_PROBE`, says for each refusal
+which of the two halves is empty. All nine answer the same way, and
+the answer is the same one the old verdict gave:
+
+```text
+InverseCapacity          der(mass.T)                          matched Some(None)  alg_defs false
+GenerationOfFMUs         der(directCapacity.heatCapacitor.T)  matched Some(None)  alg_defs false
+PendulumWithSpringDamper der(damper1.s)                       matched Some(None)  alg_defs false
+HeatLosses               der(damper1.s)                       matched Some(None)  alg_defs false
+SpringDamperSystem       der(damper1.s)                       matched Some(None)  alg_defs false
+BevelGear1D              der(inertia2.rotorWith3DEffects.w_a[2])   matched Some(None)  alg_defs false
+GyroscopicEffects        der(rotor1D.rotorWith3DEffects.w_a[1])    matched Some(None)  alg_defs false
+ThreePhaseTransformerWithRectifier  der(transformer.core1.B)  matched Some(None)  alg_defs false
+EddyCurrentLosses        der(loss_m.Phi.im)                   matched Some(None)  alg_defs false
+```
+
+`matched Some(None)` means the name is an unknown the matching has a
+row for and left unmatched - not a name outside the system, which is
+what the words of the refusal would suggest to a reader.
+
+`alg_defs false` is the interesting half, because the layer is not
+short of the definition. `OXIDELICA_DEFS_PROBE` on `InverseCapacity`
+shows it as a candidate twice over, and next to its mirror image:
+
+```text
+candidate not settled: der(mass.T) := Ref("mass.der_T")
+candidate not settled: mass.der_T := Ref("der(mass.T)")
+```
+
+The two are each other's definition and ground nothing, which is
+exactly the two-name cycle `settle` at `compile.rs:1400` was written
+to reject - the comment there names `i = p.i` and `p.i = i` as the
+shape and the depth guard as what firing looks like without the
+rejection. So the layer is not failing to reach the adapter: it is
+refusing a pair it cannot tell apart, by a rule that is right.
+
+That makes the mechanism the prior one, and by the rule that a build
+is earned by a probe rather than by a hope, no fix was built this
+shift. What the family needs is not a wider reach but an outside
+fact - that `derT` is an input driven from beyond the model, so
+`mass.der_T` is the ground and `der(mass.T)` the derived name, not
+the other way about. Nothing in the flat model records which of the
+pair is the input, which is the same shape as the standing rule that
+where the structure does not record the origin, the fix is to make it
+record the origin. Whether that is worth building is a decision for
+the review, not a branch to take mid-shift.
