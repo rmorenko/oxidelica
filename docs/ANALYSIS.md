@@ -16128,3 +16128,131 @@ because a parameter defaulted quietly to zero is not a parameter
 without a value: the compiler had an answer, and the answer was wrong.
 That family is invisible to this register by construction, which is
 the register's blind spot stated once more from a new side.
+
+## The twenty-eight of the Newton direction are three families, not one
+
+The loop family at 94 is the top of the register, and twenty-eight of
+those refuse on the wording `the Newton direction of algebraic loop`.
+The road recorded for them was complementarity - a pivot or an
+active set - and the sort below says that road serves a quarter of
+them at most. The set is the twenty-eight named by
+`/tmp/m236/byname_on.txt`, the loops taken from the refusals
+themselves in `/tmp/m236/raw_on.txt`, sorted in
+`/tmp/m237/sorted28.txt` and checked name for name against the same
+twenty-eight:
+
+```text
+   7  a switching loop: the unknowns include a diode's or thyristor's `s`
+   3  a scalar loop: one unknown, and it is a water property
+  18  a smooth loop: pipes, pumps, valves, media, and no `s` among them
+```
+
+Seven and twenty-one, which is the division the register already
+showed by library - four Magnetic and three Electrical against
+eighteen `ModelicaTest.Fluid`, two `ModelicaTest.Media` and one
+`Modelica.Fluid`. Three quarters of the wall has no switch in it.
+
+### The scalar three stand in a gap the medium has no value in
+
+`Modelica.Fluid.Examples.PumpingSystem` refuses on a loop of one
+unknown, `reservoir.medium.T`, and one unknown is small enough to
+read whole. The trail (`/tmp/m237/pump.txt`) starts at the start
+attribute, 293.15 K, with a residual of 997.206, jumps twice through
+NaN, comes back at 1501 K and then walks down the temperature axis in
+shortening steps - 405.59, 385.56, 377.27, 373.47, 373.25, 373.13,
+373.1254 - with the residual falling from 0.453 to 0.402377 and
+stopping there. The guard fires because three steps running bought a
+fall only below a millionth of the step, which is exactly what the
+trail shows.
+
+What the block is solving is `reservoir.m = reservoir.fluidVolume *
+reservoir.medium.d` with the mass carrying a start of 1 and the
+density a start of 1, against `d = waterBaseProp_pT(p, T)[9]`. The
+residual is the density the loop wants minus the density the medium
+gives, and the first value says so outright: at 293.15 K the medium
+gives 998.205 and the residual is -997.206, which is 1 - 998.205 to
+the digit.
+
+So the question is whether water at one bar has a density of 1
+kg/m3 at any temperature at all, and it has not. Measured through
+`--only`-sized models (`/tmp/m237/ph5.mo`, `/tmp/m237/ph6.mo`,
+`/tmp/m237/wh3.mo`), the density at 1.013e5 Pa reads:
+
+```text
+  372.00 K  959.179        372.90 K  958.534
+  372.75 K  958.641        373.50 K    0.596823
+  372.78 K    0.590270     500.00 K    0.435131
+```
+
+The saturation line is a cliff between 958 and 0.59, and 1 kg/m3 is
+inside it. There is no temperature that answers, which is why the
+iteration walks to the edge of the cliff and stops: every step it
+takes reduces the residual a little, it never reaches zero, and the
+guard that watches the size of the step is the thing that notices.
+The same shape holds for the other two scalars, which stand on
+enthalpy rather than temperature and stall at h = 2.565e6 between the
+boiling curve at 4.174e5 and the dew curve at 2.6749e6
+(`/tmp/m237/tt2.txt`, `/tmp/m237/bp18.txt`).
+
+Twelve lines reproduce it whole, which is what a test of any future
+repair looks like (`/tmp/m237/tank.mo`):
+
+```modelica
+model Tank
+  parameter Real p = 1.013e5;
+  Real d(start = 1, unit = "kg/m3");
+  Real T(start = 293.15);
+  Real m(start = 1);
+equation
+  d = Modelica.Media.Water.IF97_Utilities.waterBaseProp_pT(p, T, 0)[9];
+  m = 1.0 * d;
+  der(m) = 0;
+end Tank;
+```
+
+It refuses in the same words on the same loop. Given `m(start =
+998.2)` instead it runs and settles at 998.206 with T at its start,
+which is the whole of the finding in one substitution: the start of
+the mass is what makes the problem unsolvable, not the solver.
+Writing the initial equation out by hand - `initial equation T =
+293.15` - changes nothing, so the start of `m` is being taken as an
+equation of the initialization problem beside it rather than as the
+guess it is.
+
+That is where the repair lies, and it is not the pivot. A start
+attribute is a guess unless `fixed` says otherwise, and a guess that
+contradicts the medium should lose to the medium rather than send
+the iteration to a cliff edge. The address is the initialization
+problem's treatment of a start on a variable that a medium function
+determines; the price is not measured, because the change belongs to
+a shift that can measure it against the whole eighteen of the smooth
+kind as well, several of which stall at the same enthalpy.
+
+### The switching seven refuse on a rounding floor
+
+`Modelica.Electrical.Analog.Examples.Rectifier` is the switching case
+named in the same breath as the pivot, and its trail
+(`/tmp/m237/rect.txt`) says the pivot is not what stops it. Six of
+the seven rows of the residual are exact zeros - `-0.0, 0.0, 0.0,
+-0.0, -0.0, -0.0` - and the seventh is 9.313225746154785e-10, which
+is 2^-30 exactly. The unknowns sit at -2.0 to the digit, the six
+diode thresholds. The block is solved; what remains is one row that
+cannot be driven below the spacing of the doubles it is built from,
+on a model whose voltages are 400 V RMS and whose knee is 2 V, so
+that a relative 1e-10 against 4.2e6 is 9.3e-10.
+
+This is the same finding as the overvoltage probe of the previous
+chapter, wearing the diode's coat: the difference of two large
+numbers rounds to a few units in the last place, the convergence
+test asks for a smaller number than the grid can express, and the
+descent guard then counts three steps that bought nothing. The
+Jacobian is not singular along the switches and the line search is
+not dying on a kink - the direction is right and there is nowhere
+left to go.
+
+So the two ends of this wall want opposite things. The switching end
+wants a convergence test that knows what the arithmetic can express,
+which is the road the rounding chapter already opened. The smooth and
+scalar end wants the initialization problem to stop treating a start
+as a constraint. Neither is the pivot, and a pivot built for the
+seven would leave the twenty-one exactly where they stand.
