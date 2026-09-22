@@ -15678,23 +15678,210 @@ ill conditioned (`singular Jacobian`), or whether a step exists but
 buys nothing (`Newton direction`). Seventy of the ninety-six models sit
 in those three.
 
-Splitting the family by what the loop is made of separates it further.
-Counting the models whose loop names an ideal switch - a diode's `s`, a
-closer, a thyristor - against those whose loop does not:
+Splitting the family by what the loop is made of separates it further,
+and the criterion has to be said in words before the number means
+anything. A model counts as a switching loop when an ideal switch's
+name - `diode`, `closer`, `thyristor`, `idealSwitch` - stands among the
+loop's **unknowns**, the bracketed list that follows `algebraic loop`,
+rather than merely somewhere in the refusal's text. The unknown is then
+the thing no step determines, which is the claim being made; a diode
+named only inside a quoted equation is a bystander.
+
+Parsing that list has a trap in it, and it cost this section three
+different numbers before it was found. Unknowns carry subscripts -
+`aimc.airGap.i_sr[2]` - so a reading that ends the list at the first
+`]` keeps only the names before the first subscripted one. Ending it at
+`"]` instead is what reads the list whole. The truncated reading gave
+12; the whole one gives 28, and the counts of 25 and 26 that stood here
+before were taken with no written criterion at all.
 
 ```text
-                     switch-like   smooth
-equations-of               14        17
-Newton direction            6        22
-singular Jacobian           5         6
+                      switch   smooth
+equations-of              15       16
+Newton direction           6       22
+singular Jacobian          6        5
+NaN at t = 0               0        8
+underdetermined            0        7
+other                      1       10
 ```
 
-Twenty-six of the ninety-six are a loop over ideal switching elements,
-where an `s` variable is a complementarity condition rather than a
-smooth unknown, and Newton has nothing to descend. That is a candidate
-mechanism with a name - the switching loops want a pivoting solve, not
-a damped Newton - and it is measurable the usual way, since those
-twenty-six are nameable from the raw half.
+Twenty-eight of the ninety-six are a loop over ideal switching
+elements, where an `s` variable is a complementarity condition rather
+than a smooth unknown, and Newton has nothing to descend. The wider
+reading - the switch's name anywhere in the refusal, quoted equation
+included - returns exactly the same twenty-eight, so the upper and
+lower bounds on this family coincide and there is nothing left to
+choose between. The machines are in the count on both readings:
+`IMC_YD` names five `idealClosingSwitch[i].s` among its unknowns beside
+the air gap's currents, and the earlier suspicion that the rectifier
+machines sat outside was an artifact of the truncated list rather than
+a fact about them.
+
+That is a candidate mechanism with a name - the switching loops want a
+pivoting solve, not a damped Newton - and it is measurable the usual
+way, since those twenty-eight are nameable from the raw half.
+
+### The dead column of a switching loop is arithmetic, not structure
+
+The refusal reads as a statement about the model - the equations do not
+mention the unknown - and for the switching loops it is not one. Six
+components reproduce it whole. A sine source, two ideal diodes into a
+capacitor with a resistive load, and a ground:
+
+```modelica
+model Bridge
+  Modelica.Electrical.Analog.Sources.SineVoltage src(V = 10, f = 50);
+  Modelica.Electrical.Analog.Ideal.IdealDiode d1;
+  Modelica.Electrical.Analog.Ideal.IdealDiode d2;
+  Modelica.Electrical.Analog.Basic.Capacitor c(C = 1e-3);
+  Modelica.Electrical.Analog.Basic.Resistor load(R = 100);
+  Modelica.Electrical.Analog.Basic.Ground g;
+equation
+  connect(src.p, d1.p);  connect(d1.n, c.p);
+  connect(src.n, d2.p);  connect(d2.n, c.p);
+  connect(c.n, src.n);   connect(c.p, load.p);
+  connect(load.n, c.n);  connect(src.n, g.p);
+  annotation(experiment(StopTime = 0.1));
+end Bridge;
+```
+
+```text
+error: the equations of algebraic loop ["d2.s"] do not mention ["d2.s"]
+       at t = 0.0003  [crates/oxidelica-sim/src/solvers/mod.rs:1002]
+```
+
+That is the same wording, the same line and the same shape as
+`OvervoltageProtection`, which is the smallest of the twenty-eight. One
+diode is not enough: source, resistor and a single `IdealDiode` runs to
+the end in 119 steps. It takes two switches sharing a node - the
+rectifier shape - before the block is torn onto an `s` alone.
+
+`OXIDELICA_NEWTON_TRAIL=1` says what the column actually is:
+
+```text
+newton 0 t=0.0002 |f|=6.27e-1  v=[0.0]      f=[0.627]
+newton 2 t=0.0002 |f|=2.64e-12 v=[62790.5]  f=[2.6e-12]
+newton 0 t=0.0003 |f|=1.41e4   v=[0.0]      f=[-14127.866894035891]
+```
+
+The block is not flat. It converged one step earlier at 62790, and at
+the next step it is handed zero again and asked about a residual of
+fourteen thousand. The diode writes `v = s*unitCurrent*(if off then 1
+else Ron) + Vknee` with `Ron` at 1e-5, so the derivative of the
+residual with respect to `s` is 1e-5. The finite difference bumps `s`
+by `h = 1e-8*(1+|v|)`, which at `v = 0` is 1e-8, and the change that
+makes in the residual is 1e-13 - **0.05 of one ulp of 14127.87**. The
+subtraction returns exactly zero, and the solver, reading a column of
+exact zeroes, says the truthful thing about the matrix it holds and the
+false thing about the model.
+
+Three knobs confirm the arithmetic rather than the structure, each one
+a run of the same six-component model:
+
+```text
+d2(Ron = 1e-2)          runs, 22 steps     coefficient raised
+d2(Goff = 1e-2)         refuses            the off branch is not it
+source V = 1e-3         runs, 24 steps     residual lowered instead
+```
+
+Raising the coefficient a thousandfold and lowering the residual
+tenthousandfold cure the same refusal from opposite ends, which is what
+a cancellation looks like and what a dead column cannot. `Goff` leaving
+it untouched names the guilty branch as the conducting one.
+
+So the mechanism for this family is not the complementarity condition
+after all - or not only it. Under the complementarity story stands a
+plain scaling fault: a column whose true entry is 1e-5 is being
+differenced against a residual of 1e4, and the comment at
+`solvers/mod.rs:960` already anticipates half of it, since
+`equilibrate_columns` scales the _columns_ of a Jacobian that has one.
+The Jacobian here has no column to scale, because the scaling was lost
+in the subtraction that built it. A step size chosen against the
+residual's own magnitude rather than against the unknown's would keep
+the entry: `h` at 1e-3 makes a change of 5500 ulp where 1e-8 makes
+0.05.
+
+That is the candidate, stated as a candidate: bound the finite
+difference below by what the residual can resolve, so that a small true
+coefficient survives being measured. The alternative reading - a
+pivoting or active-set step, because `s` is a complementarity condition
+and not a smooth unknown - is not refuted by any of this and may still
+be needed for the models where the switch really does sit on its kink.
+What the probe settles is that at least one of the twenty-eight is not
+there yet when it refuses: it is still on the smooth branch, with a
+derivative that exists and was rounded away.
+
+The twenty-eight, by name, with the `Modelica.` prefix dropped -
+this is the list a fix is measured against:
+
+```text
+Electrical.Analog.Examples.OvervoltageProtection
+
+Electrical.Analog.Examples.Rectifier
+
+Electrical.Machines.Examples.InductionMachines.IMC_DOL
+
+Electrical.Machines.Examples.InductionMachines.IMC_Steinmetz
+
+Electrical.Machines.Examples.InductionMachines.IMC_Transformer
+
+Electrical.Machines.Examples.InductionMachines.IMC_YD
+
+Electrical.Machines.Examples.InductionMachines.IMC_YDarc
+
+Electrical.Machines.Examples.InductionMachines.IMS_Start
+
+Electrical.Machines.Examples.SynchronousMachines.SMEE_DOL
+
+Electrical.Machines.Examples.SynchronousMachines.SMEE_Rectifier
+
+Electrical.Machines.Examples.SynchronousMachines.SMPM_Braking
+
+Electrical.Machines.Examples.SynchronousMachines.SMR_DOL
+
+Electrical.Machines.Examples.Transformers.IMC_Transformer
+
+Electrical.Machines.Examples.Transformers.Rectifier6pulse
+
+Electrical.Polyphase.Examples.PolyphaseRectifier
+
+Electrical.Polyphase.Examples.Rectifier
+
+Electrical.PowerConverters.Examples.ACDC.RectifierBridge2mPulse.DiodeBridge2mPulse
+
+Electrical.PowerConverters.Examples.ACDC.RectifierBridge2mPulse.ThyristorBridge2mPulse_RLV
+
+Electrical.PowerConverters.Examples.ACDC.RectifierBridge2mPulse.ThyristorBridge2mPulse_RLV_Characteristic
+
+Electrical.QuasiStatic.SinglePhase.Examples.Rectifier
+
+Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.ComparisonPolyphase.IMC_DOL_Polyphase
+
+Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL
+
+Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_Transformer
+
+Magnetic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMS_Start
+
+Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMEE_LoadDump
+
+Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMEE_Rectifier
+
+Magnetic.FundamentalWave.Examples.BasicMachines.SynchronousMachines.SMPM_Braking
+
+Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMC_DOL
+
+```
+
+Measuring a future fix is the twenty-eight named above, and the model
+quoted here is the test that must go red without it - quoted rather
+than committed, because a test written before the fix it guards has not
+been seen to fail for the right reason. The danger to watch is the one
+these notes already record from the other side: a dead column is also how `der(x)^2 = 4` refuses honestly at
+zero, and `solve_implicit_block` says so in its comment about the
+retry. A change to the difference step must leave that refusal
+standing, which is what makes this a solver question rather than a
+constant.
 
 ### The other two families, for completeness
 
