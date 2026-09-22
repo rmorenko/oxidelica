@@ -15215,7 +15215,7 @@ because no rearrangement solves it, and with `der(y) = 0` the initial
 condition forces `x = a = 3`, whence `y = 1.2134116627622316` as the
 single real root. The small model gives that; under
 `OXIDELICA_NO_INIT_BLOCK_DER=1`, the same binary refuses it with
-`der(y): `y` is not a state of the model`.
+`der(y)` is refused as `y` not being a state of the model.
 
 Eight of the ten representatives left the wall. They do not run: what
 stands behind is a singular Jacobian, a Newton direction that does not

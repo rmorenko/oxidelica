@@ -108,14 +108,17 @@ fn initialization_reports_what_it_cannot_solve() {
          initial equation b = 2 * a; end M;"
     )
     .contains("satisfied but not determined"));
-    // `der` of something that is neither a state nor a name with a
-    // definition to differentiate. `b + sin(b) = a` determines `b`
-    // and no rearrangement gets it alone on a side, so the chain rule
-    // has nothing to read and the refusal is owed. Where a definition
-    // does exist - `b = a` - the derivative is worked out instead,
-    // which is what the media models of the library rest on.
+    // `der` of a name two equations determine together. `b` and `c`
+    // are torn as one block and each residual reads the other, so the
+    // chain of held names meets itself: the two determine each other
+    // and neither has a derivative of its own. A linear system would
+    // answer it and that is not written, so the refusal is owed -
+    // where a single residual determines a single unknown, the
+    // implicit function theorem answers instead, which is what the
+    // media models of the library rest on.
     assert!(error(
-        "model M Real a(start = 1); Real b; equation der(a) = -a; b + sin(b) = a; \
+        "model M Real a(start = 1); Real b; Real c; equation der(a) = -a; \
+         b + sin(c) = a; c + sin(b) = a; \
          initial equation der(b) = 0; end M;"
     )
     .contains("is not a state"));
