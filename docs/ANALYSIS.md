@@ -16142,15 +16142,33 @@ themselves in `/tmp/m236/raw_on.txt`, sorted in
 twenty-eight:
 
 ```text
-   7  a switching loop: the unknowns include a diode's or thyristor's `s`
+   7  a switching loop: the unknowns include the complementary variable
+      of an ideal switch
    3  a scalar loop: one unknown, and it is a water property
-  18  a smooth loop: pipes, pumps, valves, media, and no `s` among them
+  18  a smooth loop: pipes, pumps, valves, media, and no such variable
 ```
 
-Seven and twenty-one, which is the division the register already
-showed by library - four Magnetic and three Electrical against
+Seven and twenty-one, and the cut is by what stands _in the loop_,
+not by which library wrote the model. The seven are three Magnetic
+(`SMPM_Braking`, `IMC_DOL`, `IMC_Transformer`), three Electrical
+(`Rectifier6pulse`, the Analog `Rectifier`, `ThyristorBridge2mPulse_RLV`)
+and one `ModelicaTest.Fluid` - `TestWaterPumpCheckValve`, whose loop is
+`["pump.medium.p", "pump.V_flow_single", "pump.s"]`. The register's
+division by library reads four Magnetic and three Electrical against
 eighteen `ModelicaTest.Fluid`, two `ModelicaTest.Media` and one
-`Modelica.Fluid`. Three quarters of the wall has no switch in it.
+`Modelica.Fluid`: the same two totals by an exchange of one for one,
+and a different set. A magnetic machine with no switch in its loop -
+the QuasiStatic `SMPM_Mains` - stands among the smooth, and the pump
+with a check valve comes over to the switching. That the two cuts
+disagree is the argument of this chapter rather than an obstacle to
+it: the mechanism follows the contents of the loop.
+
+And the variable is named honestly: `pump.s` is the abscissa of a
+check valve's characteristic, and `idealClosingSwitch` is not a diode.
+What the seven share is the complementary variable of an ideal switch,
+which the check valve is built out of exactly as the diodes are.
+
+Three quarters of the wall has no switch in it.
 
 ### The scalar three stand in a gap the medium has no value in
 
