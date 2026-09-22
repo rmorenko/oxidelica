@@ -4048,7 +4048,7 @@ pub(crate) fn compile_at(
         .collect::<Result<Vec<_>, SimError>>()?;
     let compiled_indicators: Vec<Code> = indicators
         .iter()
-        .map(|expr| table.compile(expr))
+        .map(|expr| table.compile(&at_this_instant(expr)))
         .collect::<Result<Vec<_>, SimError>>()?;
 
     let mut compiled_whens: Vec<CompiledWhen> = Vec::new();
@@ -4292,6 +4292,7 @@ pub(crate) fn compile_at(
             &table,
             &unsettled,
             &stages,
+            &dummies,
         )?;
         compiled.check_block_regularity()?;
     }
@@ -4693,6 +4694,7 @@ impl CompiledModel {
         &self,
         derivative_exprs: &[Expr],
         plan: &[PlanStage],
+        dummies: &HashMap<String, String>,
     ) -> HashMap<String, Expr> {
         let mut worked_out = HashMap::new();
         if std::env::var_os("OXIDELICA_NO_INIT_ALG_DER").is_some() {
@@ -4705,9 +4707,18 @@ impl CompiledModel {
             .zip(derivative_exprs.iter().cloned())
             .collect();
         let params: HashMap<String, f64> = self.parameters.iter().cloned().collect();
-        let dummies = HashMap::new();
         let implicit_defs = HashMap::new();
         let mut alg_defs: HashMap<String, Expr> = HashMap::new();
+        // A state index reduction demoted is not an algebraic name
+        // without a derivative: its derivative has a name of its own,
+        // the dummy, and the plan computes it. No theorem and no
+        // approximation - `der(v)` is `Ref(der_v)` outright.
+        //
+        // First into the table and by `or_insert` everywhere after, so
+        // the layer only ever adds where a refusal stood.
+        for (demoted, dummy) in dummies {
+            worked_out.insert(demoted.clone(), Expr::Ref(dummy.clone()));
+        }
         for stage in plan {
             if let PlanStage::Explicit { var, expr } = stage {
                 alg_defs.insert(self.algebraics[*var].clone(), expr.clone());
@@ -4717,7 +4728,7 @@ impl CompiledModel {
             let target = DiffTarget::Time {
                 state_rhs: &state_rhs,
                 params: &params,
-                dummies: &dummies,
+                dummies,
                 alg_defs: &alg_defs,
                 implicit_defs: &implicit_defs,
                 holding: &[],
@@ -4729,7 +4740,9 @@ impl CompiledModel {
             // to bring for it.
             if let Ok(derivative) = differentiate(definition, &target) {
                 if take_needed_derivatives().is_empty() {
-                    worked_out.insert(name.clone(), simplify(&derivative));
+                    worked_out
+                        .entry(name.clone())
+                        .or_insert_with(|| simplify(&derivative));
                 }
             }
             let _ = take_needed_derivatives();
@@ -4796,6 +4809,7 @@ impl CompiledModel {
         table: &SlotTable,
         unsettled: &[(String, Slot)],
         plan: &[PlanStage],
+        dummies: &HashMap<String, String>,
     ) -> Result<(), SimError> {
         if initial_equations.is_empty() {
             return Ok(());
@@ -4959,7 +4973,8 @@ impl CompiledModel {
         // than one the solver carries - which this refused outright
         // for seventeen models of the library, having in hand the
         // definition it needed to differentiate.
-        let algebraic_derivatives = self.algebraic_definition_derivatives(derivative_exprs, plan);
+        let algebraic_derivatives =
+            self.algebraic_definition_derivatives(derivative_exprs, plan, dummies);
         let substituted: Vec<(Code, Code)> = initial_equations
             .iter()
             .map(|equation| {

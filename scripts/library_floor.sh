@@ -206,9 +206,22 @@ FLATTEN_FLOOR=867
 #                 examples by the Example icon
 #
 # Flattening does not move: both models flattened before as well.
-RUN_FLOOR=539
+#
+# Both run floors go up by one, and the one is named: the
+# initialisation now knows the derivative of a state index reduction
+# demoted, which is the dummy the plan already computes, so
+# Modelica.Blocks.Examples.FilterWithDifferentiation runs where it
+# refused with `der(Bessel.x[2])`.
+#
+#   run          540 = 539 before, plus that one model
+#   runnable run 506 = 505 before, plus the same model, an example by
+#                     its experiment annotation
+#
+# Flattening does not move: it flattened before as well. The diff of
+# the run lists is exactly that one name arriving and none leaving.
+RUN_FLOOR=540
 RUNNABLE_FLATTEN_FLOOR=752
-RUNNABLE_RUN_FLOOR=505
+RUNNABLE_RUN_FLOOR=506
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

@@ -14293,7 +14293,7 @@ prints: `initial equation: der(volume.medium.T) = 0`, written in
 variable the solver does not carry.
 
 That much was already provided for. `algebraic_definition_derivatives`
-(compile.rs:4597) exists for exactly this: it walks the plan, takes
+(compile.rs:4677) exists for exactly this: it walks the plan, takes
 every `PlanStage::Explicit { var, expr }`, differentiates the defining
 expression with respect to time and hands the result to the
 substitution as `also`. A medium writing `T` explicitly from `h` is
@@ -14748,7 +14748,7 @@ of some fifty lines rather than for the two hundred and fifty of
 
 Prediction 4 held. With the flag and without it, `RevoluteConstraint`
 and `UniversalConstraint` refuse with the same `the equation
-determining` words from `symbolic.rs:728`, inside differentiation and
+determining` words from `symbolic.rs:737`, inside differentiation and
 before any victim is chosen, and `PrismaticConstraint` refuses earlier
 still on `cannot differentiate a call of`. The printing is
 `/tmp/m222/trio.txt`. The map of walls of chapter 219 stands.
@@ -14794,7 +14794,7 @@ non-constant exponent that is two constants divided, which is a
 finding of its own and not worked on here. And `PrismaticConstraint`,
 predicted by chapter 222 to move rather than run, moved exactly where
 it was predicted to: `the equation determining
-springOfConstraint.lineForce.frame_a.R.T[3,1]` from `symbolic.rs:728`,
+springOfConstraint.lineForce.frame_a.R.T[3,1]` from `symbolic.rs:737`,
 where `RevoluteConstraint` and `UniversalConstraint` already stood.
 The Constraints trio is now one wall rather than two, which is worth
 having on its own: whatever unblocks that wall unblocks all three.
@@ -15067,3 +15067,89 @@ that is a mechanism this compiler does not have. It is worth noting
 that even with it the two models arrive only at the `abs` of chapter
 225, which was judged honest: the prize for building it is not these
 two names.
+
+## `der(X) is not a state` is four walls wearing one message (shift 227)
+
+Twenty-one models refused with the same words and the register held
+them in eleven rows, which read as one family. The consultation read
+the plan instead of the message and found four unrelated boxes behind
+it, and the cheapest of them wanted no theorem at all.
+
+The rows are gathered by shape rather than by text, because the
+register clips its messages to a column width and the clip falls on a
+different letter in different rows: `grep -E "^ *[0-9]+  der\("` with
+`der() outside` filtered out, which is a different wall of the same
+shape. Measured that way on `/tmp/m226g/cens_after.txt`, the family is
+six `volume.medium.T`, three `pump.medium.h`, two apiece of
+`pipe.mediums[1].h`, `pipe3.mediums[1].h` and `volume.medium.h`, and
+singletons for `Bessel.x[2]`, both `airGap.V_msr.re`,
+`junction.medium.T`, `mixingVolume1.medium.h` and
+`pipeN10.mediums[1].h`.
+
+### The four boxes
+
+The refusal is one line, `compile.rs:32`, and the map it consults is
+built by `algebraic_definition_derivatives` (compile.rs:4677), which
+reads `PlanStage::Explicit` and nothing else. What a name's absence
+from that map means is not one thing:
+
+1. **A state index reduction demoted.** Its derivative is not missing
+   at all: it has a name of its own, the dummy minted at
+   compile.rs:1729, and the plan computes it. `Bessel.x[2]` is this.
+2. **A name a torn block solves.** `airGap.V_msr.re` and its three
+   neighbours in `IMC_Initialize`. This is the implicit function
+   theorem over the whole block, and it is the question the
+   consultation was called for.
+3. **An `inner` assignment of a block.** It has a definition already;
+   it wants ordering behind box 2, not a theorem.
+4. **A definition this module cannot differentiate.** The IF97 media.
+   A wall in the differentiation rules rather than in initialisation.
+
+### Box 1, and why it is exact
+
+A demoted state is the one case where nothing is approximated.
+Reduction takes `der(v)` out of the state set and puts a dummy
+`der_v` into the unknowns together with the equation
+`der_v = <the former state equation>` (compile.rs:1736-1740), so
+`der(v)` is `Ref(der_v)` outright. The initialisation held that table
+all along and threw it away at the door: `let dummies = HashMap::new()`
+stood where the real one belonged, so the layer differentiated with no
+knowledge of the names reduction had already answered for.
+
+Threading the table through and seeding the map from it wins
+`Modelica.Blocks.Examples.FilterWithDifferentiation`, which is `1 of 1
+run` where it was `built` with `der(Bessel.x[2])` before. The seeding
+is strictly additive - the explicit loop below it now uses
+`or_insert` - so the layer can only fill in where a refusal stood.
+
+Measured on the corpus, `/tmp/m227/corpus.txt` against
+`/tmp/m227/after.txt`: run 539 to 540, runnable run 505 to 506,
+both flatten counts unmoved. The diff of the run lists is exactly
+that one name arriving and none leaving, and the family goes from 21
+models in 11 rows to 20 in 10 - the `Bessel.x[2]` row is absent
+rather than moved, so nothing stood behind it.
+
+No small model witnesses this one, and that is worth saying outright
+rather than implying a test exists. Seven were written; every one of
+them gave the demoted name an explicit stage as well, so every one ran
+on the unchanged compiler too. The witness is the corpus model, by
+`--only`.
+
+### The wall the same shift found beside it
+
+`der() outside a state equation is not supported` (3 models, all
+`FluxTubes.Examples.Hysteresis`) is a neighbouring wall and a smaller
+one. The Tellinen model writes `asc = der(Hstat) > 0` - the direction
+it is travelling in, as an event indicator - and indicators and
+discrete definitions were compiled raw, without the substitution every
+other path gets. An indicator is read at a point the run already
+stands on, so `der(x)` of a state there is that state's right-hand
+side, which has just been evaluated; the substitution is
+all-or-nothing, so a `der` of something that is not a state is left
+exactly as it was and meets the refusal it met before.
+
+That is checked by a number: with `der(x) = 1 - 2*time` the indicator
+turns at exactly t = 0.5, and a variable integrating one while it
+holds comes out at 0.5. The three hysteresis models do not move on it,
+because what they want is `der` of an _algebraic_ name - which is box
+2 again, from the other side of the compiler.
