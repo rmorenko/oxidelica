@@ -15004,14 +15004,41 @@ EXIT=137
 ```
 
 Signal nine at 312 models of 1039 is the machine running out of
-memory, and it is worth being exact about what that means, because
-the first two deaths read as something else entirely. A background
-run that vanishes leaves a truncated output file and no process, which
-is indistinguishable by every instrument from a shell that outlived
-its job - and on this project that reading has a history. What told
-the two apart was the count: a shell death lands wherever the shell
-happened to die, and three runs landing on the same model is a
-property of the work rather than of the shell.
+memory, and the operating system's own report names the culprit
+outright: `JetsamEvent-2026-09-22-092414.ips` records
+`"largestProcess" : "oxidelica"`. It is worth being exact about what
+that means, because the first two deaths read as something else
+entirely. A background run that vanishes leaves a truncated output
+file and no process, which is indistinguishable by every instrument
+from a shell that outlived its job - and on this project that reading
+has a history. What told the two apart was the count: a shell death
+lands wherever the shell happened to die, and three runs landing on
+the same model is a property of the work rather than of the shell.
+
+And a corpus pass is the wrong instrument for the question anyway,
+which the pass itself says once it is read properly. The budget is
+not spent evenly over a thousand models; it is spent on a handful,
+and those are nameable. The last models reported before each death
+are a short list, and one run each under `--only` with the process's
+resident size sampled says which of them it is - a minute apiece
+instead of twenty-five:
+
+```text
+BasicHX                 depth=32  peakRSS=238MB
+BasicHX                 depth=48  peakRSS=18982MB
+TankWith3Inlet...Condensor  depth=32  peakRSS=170MB
+TankWith3Inlet...Condensor  depth=48  peakRSS=20400MB
+EquilibriumDrumBoiler   depth=48  peakRSS=1MB
+```
+
+Both are `Modelica.Fluid.Examples` base classes. Sixteen more storeys
+of budget takes one from 238 MB to 19.0 GB and the other from 170 MB
+to 20.4 GB - eighty and a hundred and twenty times over, on a machine
+with 48 GB of memory, and the corpus runs models in parallel. Two
+such models at once is the whole machine, which is what the jetsam
+report recorded. The third name from the same tail costs 1 MB at the
+same depth, and that is the useful half of the measurement: the
+growth is not a property of the depth but of two models meeting it.
 
 So the depth guard is a ceiling in the sense the notes above mean, and
 `32` is not a number somebody failed to raise: it is holding an
@@ -15019,9 +15046,17 @@ unbounded phase down. What is behind it is an expression that grows
 multiplicatively as one body is written into another - the arguments
 handed to `evaluatePoly3_derivativeAtZero` are already thirty nodes
 deep after two inlinings, and every further storey multiplies rather
-than adds. Sixteen more storeys of budget is enough to take a corpus
-pass into the machine's whole memory on the three hundred and twelfth
-model.
+than adds.
+
+There is a gap under this worth naming beyond these two models. The
+run half has ceilings on events and on rows, and flattening has one
+on the node count of a flat model, but the inlining depth has no
+ceiling on memory at all - the guard counts storeys, and what a
+storey costs is unbounded. A model that never trips the count can
+still take the machine, and nothing between the two numbers measures
+the thing that actually runs out. That is a question about the shape
+of the instrument rather than a fix to make in passing, and it is
+left named rather than answered.
 
 Which makes the two models a parking rather than a piece of work, and
 the reason a firm one. The wall is real, the mechanism is understood
