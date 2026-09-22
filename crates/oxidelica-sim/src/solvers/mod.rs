@@ -65,6 +65,43 @@ fn slivers_count() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_SLIVER_STEPS").is_some())
 }
 
+/// Whether to say, of a column the Jacobian reads as dead, which of
+/// the two kinds it is: an unknown the equations never carry, or one
+/// they carry at a point where the slope happens to vanish. Off by
+/// default; the probe answers a question the refusal's wording cannot.
+fn dead_probe() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_DEAD_PROBE").is_some())
+}
+
+/// Whether a residual moves at all when one of its unknowns is moved a
+/// whole unit either way from `base`.
+///
+/// This is the question that separates the two kinds of dead column,
+/// and it is not the question the Jacobian asked. A Jacobian entry is
+/// a slope at a point; `false` here says the unknown is absent from
+/// the equations, and `true` says it is present but that the point the
+/// iteration stands on happens to be flat - the extremum of `m^2/2` at
+/// `m = 0` being the case the library brings. Measured over the corpus
+/// at 28 models refused this way, 18 of 55 dead columns were the
+/// second kind.
+fn column_moves_far(
+    base: &[f64],
+    j: usize,
+    f: &[f64],
+    residual: &mut impl FnMut(&[f64]) -> Vec<f64>,
+) -> bool {
+    let far = 1.0 + base[j].abs();
+    [base[j] + far, base[j] - far].iter().any(|&x| {
+        let mut moved = base.to_vec();
+        moved[j] = x;
+        residual(&moved)
+            .iter()
+            .zip(f)
+            .any(|(a, b)| (a - b).abs() > 1e-12 * (1.0 + b.abs()))
+    })
+}
+
 mod bdf;
 mod dopri;
 mod rk4;
@@ -1195,6 +1232,34 @@ impl CompiledModel {
                     .filter(|&j| jac.iter().all(|row| row[j] == 0.0))
                     .map(|j| block_names()[j])
                     .collect();
+                // Which of two different things a dead column is, said
+                // by the residual rather than guessed from the name. A
+                // column may be dead because the equations genuinely do
+                // not carry the unknown - `i * R = v` with the model
+                // card's `R` at zero - or because the point the
+                // iteration stands on is an extremum of a term that
+                // does carry it: `dp = m^2/2` at `m = 0` has a slope of
+                // zero there and nowhere else. The message is the same
+                // for both and the repairs are not, so the probe asks
+                // the one question that separates them: move the
+                // unknown a long way and see whether the residual
+                // notices. Printed only when asked for, because the
+                // answer costs two residual evaluations per dead
+                // column.
+                if dead_probe() {
+                    for j in (0..n).filter(|&j| jac.iter().all(|row| row[j] == 0.0)) {
+                        let moved = column_moves_far(&v, j, &f, &mut |w| residual(values, w));
+                        eprintln!(
+                            "dead column {}: {} at t = {t}",
+                            block_names()[j],
+                            if moved {
+                                "flat here only"
+                            } else {
+                                "never mentioned"
+                            }
+                        );
+                    }
+                }
                 if dead.is_empty() {
                     if newton_trail() {
                         for (i, row) in jac.iter().enumerate() {
@@ -1489,5 +1554,31 @@ impl CompiledModel {
             }
         }
         Ok(jac)
+    }
+}
+
+#[cfg(test)]
+mod dead_column_tests {
+    use super::column_moves_far;
+
+    // The two kinds of dead column, told apart by the one question
+    // the Jacobian cannot ask. Both have a slope of exactly zero at
+    // the point given, so neither is distinguishable from the other
+    // by the matrix the solver refuses on; the difference is whether
+    // the unknown is in the equations at all.
+    #[test]
+    fn an_absent_unknown_and_a_flat_point_are_told_apart() {
+        // `i * R = v` with `R` at zero: the unknown has left the
+        // residual, and no distance will bring it back.
+        let mut absent = |w: &[f64]| vec![w[0] * 0.0 - 1.0];
+        let f = absent(&[0.0]);
+        assert!(!column_moves_far(&[0.0], 0, &f, &mut absent));
+
+        // `dp = m^2/2` at `m = 0`: the slope is zero at that one
+        // point and the unknown is plainly there, which a step of a
+        // whole unit sees at once.
+        let mut flat_here = |w: &[f64]| vec![0.5 * w[0] * w[0] - 2.0];
+        let f = vec![-2.0];
+        assert!(column_moves_far(&[0.0], 0, &f, &mut flat_here));
     }
 }

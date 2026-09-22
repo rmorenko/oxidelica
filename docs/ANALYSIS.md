@@ -16571,3 +16571,102 @@ never the guess that killed it. What refuses is
 `reservoir.medium.T`, and its start comes from `T_start` through an
 initial equation rather than from a definition, which is a different
 layer from the one repaired here.
+
+## A wall of twenty-eight that is two walls
+
+The run half's largest row is now `the equations of algebraic loop
+[...] do not mention [X]`, at 28 models against the Newton
+direction's 27 (`/tmp/m241/census.txt:169-170`, unit: models, over
+the 1037 example models of the corpus less the carved-out giants).
+A row is not a family, and this one is two.
+
+The refusal is raised in one place, where the Jacobian's step comes
+back as nothing and some column of it is exactly zero. What the
+message then says is a claim about the equations: nothing in the
+block changes when this unknown does. The claim has two ways of
+being true, and only one of them is about the equations.
+
+Twelve lines apiece show them:
+
+```modelica
+model zeropar                 model quad
+  parameter Real R = 0;         Real m(start = 0);
+  Real i;  Real v;              Real dp;
+equation                      equation
+  i * R = v;                    dp = 0.5 * m * m;
+  v = 1.0 + 0.0 * time;         dp = 2.0 + 0.0 * time;
+end zeropar;                  end quad;
+```
+
+Both refuse with the same words. In `zeropar` the claim is true
+everywhere: `R` is zero, so `i` has left the model and no point of
+the iteration will find it. In `quad` the claim is true at exactly
+one point - `m = 0` is the extremum of `m^2/2`, the slope is zero
+there and nowhere else, and a Newton iteration started anywhere else
+solves the block in three steps. A refusal that names the equations
+is right about the first and wrong about the second.
+
+### The probe, and what it counts
+
+`OXIDELICA_DEAD_PROBE=1` asks the question the wording cannot: move
+the unknown a whole unit either way and see whether the residual
+notices. It prints `never mentioned` where nothing moves and `flat
+here only` where something does, and it costs two residual
+evaluations per dead column, which is why it is behind a switch. On
+the two models above it says exactly what they are.
+
+Run over all twenty-eight (`/tmp/m241/probe.txt`, one `--only` from
+the root `.msl` per name), the row comes apart. Unit: models.
+
+```text
+   9  every dead column is flat here only
+  13  every dead column is never mentioned
+   6  both kinds in one block
+  --
+  28
+```
+
+And by column rather than by model, unit: dead columns, 55 of them
+over the 28 blocks: 18 flat here only, 37 never mentioned.
+
+The nine that are wholly a vanishing slope: `OvervoltageProtection`
+(the Zener at `t = 0.0008`, on the knee of its exponential),
+`SMPM_Inverter`, `SMR_DOL`, `SMR_Inverter` and the two
+FundamentalWave twins (`airGap.gamma`, the rotor angle, zero at
+rest), the thyristor bridge's `star_p.pin_n.v` at `t = 0.002`,
+`WaterPump` (three enthalpies at a standing flow) and
+`TestSuddenExpansion` (`m_flow` at zero, inside `m_flow^2/2` - the
+`quad` model above, found rather than invented).
+
+The thirteen that are wholly a genuine absence include both models
+whose loop holds one variable and never mentions it: `T1.irc` of the
+Spice3 `Oscillator`, whose `irc * m_collectorResist = ...` has a
+collector resistance the model card leaves at zero, and
+`bearingFriction.sa` of `GearType2`, dropped by every branch of the
+friction `if` where the bearing is locked. Both are `zeropar` with
+more words.
+
+### What this says about the queue
+
+Two repairs, not one, and the cheaper is not the larger. The nine
+plus the flat half of the six are a solver question - a block
+standing on an extremum needs a different point to start from, not
+different equations - and nothing about their equations is wrong. The
+thirteen are a question about how the block was built: an unknown
+paired with an equation that does not carry it is a matching fault,
+and `match.mo` shows the compiler already handles the easy shape of
+it (a zero `R` with a second equation available runs, `i = 1/3`).
+
+What the census cannot see, and the reason this chapter exists: both
+halves print the same sentence, so the row will stay at twenty-eight
+whichever half is repaired, and the other half will look untouched
+because it is. A shift that takes one of them should say which.
+
+### The family did not move
+
+The census on 4bcee4f (`/tmp/m241/census.txt`) counts 28 in this row,
+and the twenty-eight names are identical to the twenty-eight taken
+before the start-reading change of the previous chapter
+(`/tmp/m240/raw.txt`): sorted and diffed, the lists are equal. So
+that change, which moved fifteen names' starts, moved no model into
+or out of this wall.
