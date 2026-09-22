@@ -15277,12 +15277,46 @@ thing. Algebraic loops - `the equations of`, `the Newton direction
 of`, `singular Jacobian in`, `underdetermined`, `X of` - come to 96
 lines between them, far ahead of anything else, and most of that is
 the numerical wall the homotopy line is parked at. `unbalanced model`
-is 38. Index reduction, added over all its wordings, is 62: 34
+is 38. Index reduction, added over all its wordings, is 63: 34
 `constrains no state`, 19 `no equation determines`, 4 `the equation
-determining X does not`, and 5 in the two `cannot differentiate`
+determining X does not`, and 6 in the three `cannot differentiate`
 forms. That is down from the 69 the earlier map recorded, and the
 shape has moved inside it - the `cannot differentiate` group has
-halved from 10 to 5.
+fallen from 10 to 6.
+
+The 63 was first written here as 62, and the missing one is worth
+keeping rather than quietly correcting. `cannot differentiate` has
+three wordings, not two: `function abs` (three models), `a call of
+several arguments` (two), and `a non-constant exponent` - one model,
+`Modelica.Electrical.Analog.Examples.DifferenceAmplifier`, at
+`/tmp/m229/raw.txt:220`. The pattern that added the namesakes up
+caught two of the three, so the family was read one short. The
+chapter above this one says the counter splits a family by its
+wording and the wording is not the family; the third wording was
+already named in this same book, in the table of four rules the ten
+undifferentiable models wanted, and the count still missed it. Adding
+up the rows of a family means enumerating the wordings first, not
+matching the ones that come to mind.
+
+Where the four that left `cannot differentiate` went is answerable by
+name against the m217 lists, and all four are accounted for.
+`ModelicaTest.Tables.CombiTable2Ds.Test33` and its `2Dv` namesake are
+now in `no equation determines`, both on `trapezoid2.T_start`
+(`/tmp/m229/raw.txt:523-524`), which is the parked `when`-source
+phase. `PrismaticConstraint` is in `the equation determining`
+(`raw:394`), beside `RevoluteConstraint` and `UniversalConstraint` -
+the atan2 rule of a6d7ab5 gave it both arguments and moved it one
+wall along, which is also why the `a call of several arguments`
+wording no longer holds any MultiBody model. `DryAirNasa` of
+`TestsWithFluid` is out of index reduction entirely and on `algebraic
+loop diverged` (`raw:513`), a numerical wall.
+
+The 34 of `constrains no state` did not merely keep their count, they
+kept their membership: the sorted names of `/tmp/m217/sub_noconstrain.txt`
+and of the same row in `/tmp/m229/raw.txt` are identical line for
+line, so no exchange happened inside that row and the m218 split -
+eleven non-examples standing by right, the rest mapped - still
+describes exactly the models it was written about.
 
 `initial value of X is fixed at N but the constraints require M` is 14
 lines over 17 models, and seven of the seventeen are
