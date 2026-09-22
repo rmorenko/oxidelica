@@ -14806,10 +14806,10 @@ difference, and chapter 221's own split accounts for the rest, so
 exponents. The second of the exponents arrived here, from `min`. The
 five `abs` are the number the instrument prints rather than a
 recollection - one `--only` from the root of `.msl` for each of
-chapter 221's five names, each answering `cannot differentiate
-function ``abs``` (`/tmp/m225/abs_five.txt`). The abs row of chapter
-224 was written as four; the fifth, `TestPressureLossDerivatives`,
-lives in `TestComponents.Fittings`and not in`TestUtilities`, which is
+chapter 221's five names, each answering `cannot differentiate function
+abs` (`/tmp/m225/abs_five.txt`). The abs row of chapter 224 was written
+as four; the fifth is `TestPressureLossDerivatives`, which lives in
+`TestComponents.Fittings` rather than in `TestUtilities`, and that is
 how it went missing from a list written from memory.
 
 ## A constant nobody folded (shift 225)
