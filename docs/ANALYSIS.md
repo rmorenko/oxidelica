@@ -15482,6 +15482,96 @@ its first, which is a shape the blanket rule does not distinguish
 from a Real scalar held still. Whether that distinction is worth
 recording is now a question with a price attached to the alternative.
 
-There are 42 `noDerivative` annotations in the corpus, over `aux`
-(14), `q_qd_qdd` (4), `u` (3), `properties` (3) and a tail of
-singles, so the family is wider than the three adapters that moved.
+There are 43 `noDerivative` annotations in the corpus, over `aux`
+(14), `q_qd_qdd` (4), `u` (3), `properties` (3), `nextTimeEvent` (3),
+`pre_nextTimeEvent` (3) and a tail of singles, so the family is wider
+than the three adapters that moved. The corpus is `.msl` whole, which
+is what the check reads: `grep -roh noDerivative .msl --include="*.mo"`
+counts 43 and the same over `.msl/Modelica` counts 40, the difference
+being ModelicaTest. The earlier figure of 42 was a sum without a file
+beside it; the list is in `/tmp/m232/noderivative_sites.txt`.
+
+## The three victims do not share a mechanism
+
+The blanket rule was put back behind `OXIDELICA_REAL_NODERIVATIVE` on
+one binary, and each victim asked with `--only` from the root of
+`.msl` - a second apiece, where the corpus asks eleven minutes. The
+first thing the probe said was that the family gains nothing at all.
+All five models that use the adapters, on and off:
+
+```text
+Electrical.Analog.Examples.GenerationOfFMUs       1 run -> 1 run
+Thermal.HeatTransfer.Examples.GenerationOfFMUs    0 run -> 0 run
+Mechanics.Rotational.Examples.GenerationOfFMUs    1 run -> 0 run
+Mechanics.Translational.Examples.GenerationOfFMUs 1 run -> 0 run
+Electrical.Analog.Examples.ResonanceCircuits      1 run -> 0 run
+```
+
+So the upper bound on what the rule can win in this family is zero
+models, and the question is no longer how to carry it narrowly but
+what it costs where it arrives. That is a stronger statement than the
+count of minus three: minus three is a price, and a price is only
+worth arguing about when something is bought.
+
+`OXIDELICA_VICTIM_PROBE` then said the two halves of the loss are not
+one family. In Rotational, the rule gives index reduction a reach it
+did not have before - `directInertia.torqueToAngle.w_internal` appears
+in the raw reach of reduction 4 under `on` and not under `off` - and
+the seventh reduction, the one that demotes `inverseInertia.inertia.w`,
+never happens:
+
+```text
+off  7 reductions, last: der(directInertia.torqueToAngle.phi)
+                          - inverseInertia.inertia.w = 0
+                         victim: inverseInertia.inertia.w
+on   6 reductions, that one absent
+```
+
+The variable stays a state, the residual becomes a quotient whose
+denominator is `(-inverseInertia.angleToTorque.move.u[2]) ^ 2` - a
+division the source never writes, built by the compiler out of the
+rule - and `u[2]` is zero at t = 0, so the residual is NaN before any
+Newton step. Translational is the same reduction lost by the same
+name, `inverseMass.mass.v`, and needs no separate account.
+
+ResonanceCircuits moves the other way. Its victim list grows by six
+rather than shrinking by one, all of them an adapter's `y`:
+
+```text
+on but not off: currentToVoltageAdaptor2a.y, 2b.y, 2c.y,
+                voltageToCurrentAdaptor1a.y, 1b.y, 1c.y
+```
+
+The rule gives reduction something to reach through and it demotes six
+signals that were states, and the step size underflow at t = 0 follows
+from that rather than from anything the solver decided on its own. One
+switch, one line changed, and index reduction loses a victim in one
+model and gains six in another.
+
+What this takes off the table is the criterion the shape suggested: an
+array whose second element is the derivative of its first, against a
+scalar the annotation holds still. Both mechanical victims and all
+three adapters in ResonanceCircuits take exactly that array shape, and
+they break in opposite directions - one by a reduction not happening,
+the other by six happening. A criterion on the shape of the
+`noDerivative` argument cannot separate them because the shape is the
+same. Whatever distinguishes a rule worth carrying from one worth
+dropping is not in the annotation, and this is the third time in these
+notes that a test on the spelling of a thing stood in for a fact the
+structure does not record.
+
+The change is reverted again and the patch kept at
+`/tmp/m232/real_noderivative.patch` so a fourth shift does not write
+it by hand. The family is parked with its price known: zero models to
+be won on the adapters, three to be lost, and the two halves of the
+loss needing different repairs.
+
+InverseCapacity is behind the same wall it was behind before. Under
+`on` its refusal reads `no equation determines
+der(directCapacity.heatCapacitor.T)`, exactly as under `off`; what
+changed is only which equation is quoted as needing that derivative -
+`u1 - inverseCapacity.mass.der_T` under `on` against
+`der(directCapacity.heatFlowToTemperature.y) - inverseCapacity.mass.der_T`
+under `off`. Same wall, new wording. The kind was not removed and the
+model did not run, and of the two claims the honest one here is
+neither.
