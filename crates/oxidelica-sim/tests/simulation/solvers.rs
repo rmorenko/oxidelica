@@ -999,3 +999,42 @@ fn a_step_over_the_edge_of_a_domain_says_so_rather_than_naming_the_matrix() {
     assert!(!refusal.contains("singular"), "{refusal}");
     assert!(!refusal.contains("diverged"), "{refusal}");
 }
+
+#[test]
+fn a_residual_that_cancelled_inside_one_side_is_judged_against_what_it_cancelled() {
+    // How large a residual has to be before it means anything is set
+    // by the numbers it was subtracted from, and the convergence test
+    // asks that of the two sides of the equation. Which is right
+    // where the cancellation is between them, and blind where a side
+    // cancels within itself: then both sides are small, the floor
+    // taken from them is smaller still, and what is left is one ulp
+    // of numbers neither side remembers.
+    //
+    // Here both sides carry 2^22 and the difference being chased is
+    // 5e-10, which is under an ulp of it. Newton walks to within one
+    // and can go no further - there is no double in between - and the
+    // floor from the sides is 4e-22, a million times below where the
+    // iteration has to stop. Judged against the loudest number the
+    // row met on the way, 4194305, it is under 4 eps of it and the
+    // block is solved.
+    //
+    // `Modelica.Electrical.Analog.Examples.Rectifier` is the same
+    // eight lines with four million amperes in place of 2^22: its
+    // seventh row reads lhs = 9.313e-10, rhs = 0.
+    let source = "model C Real x(start = 1.0); \
+         parameter Real big = 4.194304e6; equation \
+         (big + x^3) - (big + x) = 5e-10; \
+         annotation(experiment(StopTime=0.001, Interval=0.001)); end C;";
+    let result = run(source);
+    // And the answer is the root, to what the arithmetic can hold:
+    // x^3 - x = 5e-10 near 1 has no solution the doubles can name, so
+    // what is accepted is the point one ulp away from where the two
+    // sides meet.
+    let column = result
+        .columns
+        .iter()
+        .position(|c| c == "x")
+        .expect("x is recorded");
+    let x = result.rows.last().expect("a row")[column];
+    assert!((x - 1.0).abs() < 1e-6, "x = {x}");
+}

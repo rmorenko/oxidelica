@@ -643,51 +643,134 @@ impl Code {
                     otherwise.run(values, time)
                 }
             }
-            Code::Unary(function, argument) => {
-                let x = argument.run(values, time);
-                match function {
-                    Unary::Ceil => x.ceil(),
-                    Unary::Floor => x.floor(),
-                    // integer(x) truncates toward negative infinity,
-                    // like floor - the spec defines it that way.
-                    Unary::IntegerPart => x.floor(),
-                    // `Integer(e)` is the ordinal of an enumeration
-                    // value, which is what one is carried as: there is
-                    // nothing left to do to it. It is not `integer(x)`,
-                    // which cuts a number down.
-                    Unary::Ordinal => x,
-                    Unary::Sin => x.sin(),
-                    Unary::Cos => x.cos(),
-                    Unary::Tan => x.tan(),
-                    Unary::Asin => x.asin(),
-                    Unary::Acos => x.acos(),
-                    Unary::Atan => x.atan(),
-                    Unary::Sinh => x.sinh(),
-                    Unary::Cosh => x.cosh(),
-                    Unary::Tanh => x.tanh(),
-                    Unary::Exp => x.exp(),
-                    Unary::Log => x.ln(),
-                    Unary::Log10 => x.log10(),
-                    Unary::Sqrt => x.sqrt(),
-                    Unary::Abs => x.abs(),
-                    Unary::Sign => x.signum(),
-                }
-            }
+            Code::Unary(function, argument) => apply_unary(*function, argument.run(values, time)),
             Code::Binary(function, l, r) => {
-                let (a, b) = (l.run(values, time), r.run(values, time));
-                match function {
-                    Binary::Atan2 => a.atan2(b),
-                    Binary::NthRoot => nth_root(a, b),
-                    Binary::Min => a.min(b),
-                    Binary::Max => a.max(b),
-                    // Integer division truncates toward zero; mod and
-                    // rem follow their spec definitions from it.
-                    Binary::Div => (a / b).trunc(),
-                    Binary::Mod => a - (a / b).floor() * b,
-                    Binary::Rem => a - (a / b).trunc() * b,
-                }
+                apply_binary(*function, l.run(values, time), r.run(values, time))
             }
         }
+    }
+}
+
+/// A one-argument built-in applied to a number it has already been
+/// given. Kept apart from the walk so that a second walk - the one
+/// that measures how loud an evaluation got - can apply it to what
+/// it worked out rather than working the argument out twice.
+fn apply_unary(function: Unary, x: f64) -> f64 {
+    match function {
+        Unary::Ceil => x.ceil(),
+        Unary::Floor => x.floor(),
+        // integer(x) truncates toward negative infinity,
+        // like floor - the spec defines it that way.
+        Unary::IntegerPart => x.floor(),
+        // `Integer(e)` is the ordinal of an enumeration
+        // value, which is what one is carried as: there is
+        // nothing left to do to it. It is not `integer(x)`,
+        // which cuts a number down.
+        Unary::Ordinal => x,
+        Unary::Sin => x.sin(),
+        Unary::Cos => x.cos(),
+        Unary::Tan => x.tan(),
+        Unary::Asin => x.asin(),
+        Unary::Acos => x.acos(),
+        Unary::Atan => x.atan(),
+        Unary::Sinh => x.sinh(),
+        Unary::Cosh => x.cosh(),
+        Unary::Tanh => x.tanh(),
+        Unary::Exp => x.exp(),
+        Unary::Log => x.ln(),
+        Unary::Log10 => x.log10(),
+        Unary::Sqrt => x.sqrt(),
+        Unary::Abs => x.abs(),
+        Unary::Sign => x.signum(),
+    }
+}
+
+/// A two-argument built-in applied to numbers already worked out.
+/// See [`apply_unary`].
+fn apply_binary(function: Binary, a: f64, b: f64) -> f64 {
+    match function {
+        Binary::Atan2 => a.atan2(b),
+        Binary::NthRoot => nth_root(a, b),
+        Binary::Min => a.min(b),
+        Binary::Max => a.max(b),
+        // Integer division truncates toward zero; mod and rem follow
+        // their spec definitions from it.
+        Binary::Div => (a / b).trunc(),
+        Binary::Mod => a - (a / b).floor() * b,
+        Binary::Rem => a - (a / b).trunc() * b,
+    }
+}
+
+impl Code {
+    /// Evaluate, and record how loud the evaluation got: the largest
+    /// magnitude any intermediate reached on the way to the answer.
+    ///
+    /// A residual is a difference, and how large it has to be before
+    /// it means anything is set by the numbers it was subtracted
+    /// from. Where those numbers are the two sides of the equation,
+    /// the sides themselves say it - but a side can be a sum that
+    /// cancels *within itself*, and then both sides are small and the
+    /// difference between them is the rounding of numbers neither
+    /// side remembers. A rectifier's current balance adds and
+    /// subtracts four million amperes and answers an ulp of that;
+    /// read from the sides, the floor would be 1e-21, and the ulp
+    /// stands a million times above it.
+    ///
+    /// This is not on the hot path: it is asked once, where the solve
+    /// is about to be refused, to ask whether what is left is a
+    /// distance from the solution or the floor of the arithmetic.
+    pub(crate) fn loudest(&self, values: &[f64], time: f64, loud: &mut f64) -> f64 {
+        let worth = match self {
+            Code::Const(value) => *value,
+            Code::Slot(slot) => values[*slot],
+            Code::Time => time,
+            Code::Neg(inner) => -inner.loudest(values, time, loud),
+            Code::Not(inner) => truth(inner.loudest(values, time, loud) == 0.0),
+            Code::Bin(op, l, r) => {
+                let (a, b) = (l.loudest(values, time, loud), r.loudest(values, time, loud));
+                match op {
+                    BinOp::Add => a + b,
+                    BinOp::Sub => a - b,
+                    BinOp::Mul => a * b,
+                    BinOp::Div => a / b,
+                    BinOp::Pow => a.powf(b),
+                }
+            }
+            Code::Rel(op, l, r) => {
+                let (a, b) = (l.loudest(values, time, loud), r.loudest(values, time, loud));
+                truth(match op {
+                    RelOp::Lt => a < b,
+                    RelOp::Le => a <= b,
+                    RelOp::Gt => a > b,
+                    RelOp::Ge => a >= b,
+                    RelOp::Eq => a == b,
+                    RelOp::Ne => a != b,
+                })
+            }
+            Code::And(_, _) | Code::Or(_, _) | Code::If(_, _, _) => {
+                // Short-circuiting and branching: which children are
+                // evaluated at all is the point of these, so the walk
+                // does not reach past them and the answer stands for
+                // its own loudness.
+                self.run(values, time)
+            }
+            // A call is as loud as what it answers with. What it did
+            // inside is another body's arithmetic, and this compiler
+            // does not hold the equations it belongs to.
+            Code::Program(_, _, _, _, _) | Code::Outside(_, _, _) => self.run(values, time),
+            Code::Unary(function, argument) => {
+                let x = argument.loudest(values, time, loud);
+                apply_unary(*function, x)
+            }
+            Code::Binary(function, l, r) => {
+                let (a, b) = (l.loudest(values, time, loud), r.loudest(values, time, loud));
+                apply_binary(*function, a, b)
+            }
+        };
+        if worth.is_finite() {
+            *loud = loud.max(worth.abs());
+        }
+        worth
     }
 }
 

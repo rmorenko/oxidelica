@@ -16274,3 +16274,84 @@ which is the road the rounding chapter already opened. The smooth and
 scalar end wants the initialization problem to stop treating a start
 as a constraint. Neither is the pivot, and a pivot built for the
 seven would leave the twenty-one exactly where they stand.
+
+## A row's floor is set by its loudest term, not by its two sides
+
+The switching end of the wall above wanted "a convergence test that
+knows what the arithmetic can express", and the test already had
+one: a residual is accepted when it falls under `1e-12 * (|lhs| +
+|rhs|)`, the two sides being the numbers the difference came from.
+That floor is right where the cancellation is _between_ the sides,
+and blind where a side cancels _within itself_.
+
+`Modelica.Electrical.Analog.Examples.Rectifier` shows which of the
+two it is. Printing the sides at the refusal
+(`/tmp/m238/rect.txt`, the `parts=` lines), its seventh row reads:
+
+```text
+  f   = 9.313225746154785e-10
+  lhs = 9.313225746154785e-10   rhs = 0.0
+```
+
+The residual _is_ the left side. The four million amperes were added
+and subtracted inside it, and what came out is one ulp of them -
+2^-30 against terms of 2^22, which the previous chapter measured. So
+the floor computed from the sides is `1e-12 * 9.3e-10`, about
+9.3e-22, and the iteration has to stop a million million times above
+it. The old floor was not too tight; it was asking the wrong numbers.
+
+What answers is the loudest number the row met: the largest magnitude
+any intermediate reached while either side was worked out.
+`Code::loudest` walks an expression alongside the evaluation and
+records it, and where the descent guard or the fiftieth iteration is
+about to refuse, the block is asked once more: is every `|f_i|` under
+`4 * eps * loudness_i`? The four is slack and is named as slack -
+the rectifier's row is exactly one ulp, so one would have done. This
+is asked only at the refusal, never on the hot path.
+
+The small model is eight lines and carries the rectifier's shape
+whole (`tests/small/a_residual_that_cancelled_inside_one_side.mo`):
+`(big + x^3) - (big + x) = 5e-10` with `big = 2^22`. Without the
+loudness floor it refuses with `|f| = 4.313225746154785e-10`; with
+it, it runs. The same case is a test in the suite, and it goes red
+with `OXIDELICA_NO_LOUDNESS_FLOOR=1`.
+
+### What it bought, measured from one binary
+
+One model, and the corpus does not know it. Both halves of the pair
+ran from a single binary, the second under the switch:
+
+```text
+              flatten  run    the Newton direction ...
+  loudness on   865    541          16
+  loudness off  865    541          17
+```
+
+The run lists diff empty, line for line. What moved is the register:
+`Rectifier` left the Newton-direction row and arrived at `step size
+underflow at t = 0.000000`, which now stands at 2. That is a model
+one storey up and not a model won - the block is solved, and what
+waits behind it is an integrator that cannot take a first step.
+
+And the six other switching models do not move at all, which is the
+finding that keeps the rule narrow. Probed on
+`SMPM_Braking` (`/tmp/m238/smpm.txt`), twenty-one of its
+twenty-three rows are under the floor by a wide margin - loudness
+around 2e6 against residuals of 2.8e-14 - and two are not:
+
+```text
+  f    = -7.945e-23              2.328e-10
+  loud =  7.945e-23              2.328e-10
+```
+
+Their loudest number _is_ their own residual. Nothing large was
+cancelled on the way to them, so there is no rounding to blame and
+the iteration is genuinely not at a solution. The rule declines to
+accept them, which is what a rule that must not give a wrong answer
+should do. Six of the seven switching models stand on something
+other than the arithmetic floor, and naming that is worth more than
+the one model that moved.
+
+So the road the rounding chapter opened is now walked to its end, and
+it was shorter than it looked. The convergence test knows what the
+arithmetic can express; the seven were not seven of a kind.

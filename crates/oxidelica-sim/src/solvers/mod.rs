@@ -40,6 +40,15 @@ fn newton_trail() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_NEWTON_TRAIL").is_some())
 }
 
+/// Whether to refuse a stalled block without first asking whether
+/// what is left of its residual is the floor of the arithmetic. Off
+/// by default; the switch exists so that the two halves of a
+/// measurement come from one binary.
+fn loudness_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_LOUDNESS_FLOOR").is_some())
+}
+
 /// Whether to take a Newton step whose direction the line search
 /// could not make descend. Off by default; the switch exists so that
 /// the two halves of a measurement come from one binary.
@@ -643,6 +652,56 @@ impl CompiledModel {
                 .into_iter()
                 .map(|(lhs, rhs)| lhs - rhs)
                 .collect()
+        };
+        // How loud each equation got on the way to its residual: the
+        // largest magnitude any intermediate of either side reached.
+        // Asked only where a solve is about to be refused - see
+        // `Code::loudest` for why the two sides alone cannot say it.
+        let loudness = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
+            for (j, &index) in block.iter().enumerate() {
+                values[self.algebraic_slots[index]] = v[j];
+            }
+            for (var, code) in inner {
+                values[self.algebraic_slots[*var]] = code.run(values, t);
+            }
+            residuals
+                .iter()
+                .map(|(lhs, rhs)| {
+                    let mut loud = 0.0f64;
+                    lhs.loudest(values, t, &mut loud);
+                    rhs.loudest(values, t, &mut loud);
+                    loud
+                })
+                .collect()
+        };
+        // Whether what is left of the residual is the floor of the
+        // arithmetic rather than a distance from the solution.
+        //
+        // The convergence test asks this from the two sides of each
+        // equation, and that is enough where the cancellation is
+        // between them. Where a side cancels within itself it is not:
+        // `Modelica.Electrical.Analog.Examples.Rectifier` refuses on
+        // a current balance whose seventh row reads lhs = 9.313e-10,
+        // rhs = 0, so the floor taken from the sides is 9e-22 while
+        // the residual left is one ulp of the four million amperes
+        // that were added up inside the lhs to make it
+        // (`/tmp/m238/rect.txt`). Asked of the loudest number the row
+        // met, 9.313225746154785e-10 is exactly 2^-30 against terms
+        // of 2^22 - one ulp, so a C of 1 would do and 4 is taken as
+        // slack. This is asked once, where the solve is about to be
+        // refused, and never on the hot path.
+        let on_arithmetic_floor = |values: &mut [f64], v: &[f64]| -> bool {
+            if loudness_off() {
+                return false;
+            }
+            let f = residual(values, v);
+            let loud = loudness(values, v);
+            if newton_trail() {
+                eprintln!("  floor? f={f:?}\n         loud={loud:?}");
+            }
+            f.iter()
+                .zip(&loud)
+                .all(|(fi, li)| fi.abs() <= 4.0 * f64::EPSILON * li.abs())
         };
         let block_names =
             || -> Vec<&str> { block.iter().map(|&i| self.algebraics[i].as_str()).collect() };
@@ -1262,6 +1321,12 @@ impl CompiledModel {
                     // Three in a row is a block that is not going
                     // anywhere - `BranchingPipes2` has twelve.
                     if stuck >= 3 {
+                        if on_arithmetic_floor(values, &v) {
+                            for (j, &index) in block.iter().enumerate() {
+                                alg_guess[index] = v[j];
+                            }
+                            return Ok(());
+                        }
                         return err(format!(
                             "the Newton direction of algebraic loop {:?} does not reduce the \
                              residual at t = {t}: from |f| = {before:e}, {stuck} steps running \
@@ -1283,6 +1348,12 @@ impl CompiledModel {
             if v.iter().any(|value| !value.is_finite()) {
                 return err(format!("algebraic loop diverged: {:?}", block_names()));
             }
+        }
+        if on_arithmetic_floor(values, &v) {
+            for (j, &index) in block.iter().enumerate() {
+                alg_guess[index] = v[j];
+            }
+            return Ok(());
         }
         err(format!(
             "algebraic loop did not converge in 50 Newton iterations: {:?}",
