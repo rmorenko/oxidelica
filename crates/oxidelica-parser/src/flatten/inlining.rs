@@ -173,9 +173,9 @@ fn holds_an_array(expr: &Expr) -> bool {
             holds_an_array(a) || holds_an_array(b)
         }
         Expr::If(c, a, b) => holds_an_array(c) || holds_an_array(a) || holds_an_array(b),
-        Expr::Index(base, subs) => holds_an_array(base) || subs.iter().any(|e| holds_an_array(e)),
+        Expr::Index(base, subs) => holds_an_array(base) || subs.iter().any(holds_an_array),
         Expr::Member(base, _) => holds_an_array(base),
-        Expr::Call(_, args) => args.iter().any(|e| holds_an_array(e)),
+        Expr::Call(_, args) => args.iter().any(holds_an_array),
         Expr::Elementwise(_, a, b) => holds_an_array(a) || holds_an_array(b),
         Expr::NamedArg(_, inner) => holds_an_array(inner),
         Expr::WithDerivative(value, rule, seeds) => {
