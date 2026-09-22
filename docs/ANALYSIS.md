@@ -15534,19 +15534,34 @@ rule - and `u[2]` is zero at t = 0, so the residual is NaN before any
 Newton step. Translational is the same reduction lost by the same
 name, `inverseMass.mass.v`, and needs no separate account.
 
-ResonanceCircuits moves the other way. Its victim list grows by six
-rather than shrinking by one, all of them an adapter's `y`:
+ResonanceCircuits moves the other way, and the way it moves is not the
+one first written down here. The set of names is the same under both
+switches - the difference of the sets is empty - and what grows is how
+often each is demoted: six demotions become twelve, every name a second
+time.
 
 ```text
-on but not off: currentToVoltageAdaptor2a.y, 2b.y, 2c.y,
-                voltageToCurrentAdaptor1a.y, 1b.y, 1c.y
+off  6 victims,  6 distinct names (each once)
+on  12 victims,  6 distinct names (each twice)
+
+     currentToVoltageAdaptor2a.y, 2b.y, 2c.y,
+     voltageToCurrentAdaptor1a.y, 1b.y, 1c.y
 ```
 
-The rule gives reduction something to reach through and it demotes six
-signals that were states, and the step size underflow at t = 0 follows
-from that rather than from anything the solver decided on its own. One
-switch, one line changed, and index reduction loses a victim in one
-model and gains six in another.
+Those two readings are different mechanisms and only one of them is
+what the instrument printed. "Six signals that were states are demoted"
+would make the rule reach somewhere it could not reach before; "the
+same six are demoted a second time" makes it differentiate one storey
+further down a chain it was already in. The probe cannot separate them
+any better than that, because it prints a victim without its subscript:
+each of these names is a two-element array whose second element is the
+derivative of its first, so two demotions under one name are most
+likely its two components, and the instrument is blind to which.
+
+Whichever of those it is, the step size underflow at t = 0 follows from
+it rather than from anything the solver decided on its own. One switch,
+one line changed, and index reduction loses a victim in one model and
+doubles its demotions in another.
 
 What this takes off the table is the criterion the shape suggested: an
 array whose second element is the derivative of its first, against a
@@ -15575,3 +15590,124 @@ changed is only which equation is quoted as needing that derivative -
 under `off`. Same wall, new wording. The kind was not removed and the
 model did not run, and of the two claims the honest one here is
 neither.
+
+## The census after thirty commits: where the definitions sent the families
+
+The last census was taken at 444958e and thirty commits had gone by,
+four of them the series that gives names a definition. A series like
+that moves families between walls without moving a count, which is
+exactly what it did. Both censuses were taken with the same pipe, the
+full `.msl` and both halves; the files are
+`~/oxideflow/state/census_444958e.txt` and `census_a8375f9.txt`, with
+the raw halves beside them.
+
+The totals first, from the header line of each raw half:
+
+```text
+444958e  1040 examples, 868 flatten, 519 run
+a8375f9  1037 examples, 865 flatten, 540 run
+```
+
+Twenty-one models more run, and three fewer flatten - the three being
+the difference in what the example filter caught rather than a loss,
+since the flatten half's rows are identical line for line between the
+two censuses. The run half is where everything happened: 349 refusing
+models became 325.
+
+Families are counted here by name from the raw half, one refusal per
+model, so the unit is models and not rows:
+
+```text
+family                        444958e   a8375f9
+algebraic loop (8 wordings)        71        96
+unbalanced                         38        38
+constrains-no-state (parked)       34        34
+structurally singular, other       36        28
+parameter has no value             29        25
+initialization is not square       28         3
+initial value fixed vs required    15        17
+event does not come to rest         5        14
+unknown variable (2 wordings)      19         9
+```
+
+The row that matters is `initialization is not square`: 28 models to 3.
+Nothing was written to remove it, and it did not empty into the run
+count either. Following the twenty-six departed models by name says
+where they went, and the answer is one storey up almost to a model:
+
+```text
+26 left the not-square row
+ -> 19 now refuse inside an algebraic loop
+        (13 "the equations ... do not mention", 6 "singular Jacobian")
+ ->  3 now run: PointGravity, SpringWithMass,
+        PointGravityWithPointMasses2.SystemWithStandardBodies
+ ->  2 now refuse in the Newton direction of a loop
+        (WaterIF97_ph, WaterIF97OnePhase_ph)
+ ->  1 ThreeSprings, on a scalar-array refusal
+ ->  1 WaterIF97_pT, on a der() of a non-state
+```
+
+So the definitions series bought three models outright and carried
+nineteen from the initialization wall to the solver wall. That is the
+shape these notes predict for a definition-adding change and it is
+worth recording that the prediction held: the initialization problem
+became square because the definitions pinned down what had been
+unpinned, and what stood behind it was a loop.
+
+### The top of the queue is one family with six wordings
+
+The algebraic loop family is now the top of the run half by a wide
+margin - 96 models against 38 for the next - and the counter splits it
+into eight rows, of which none alone is the top. Added by layer rather
+than by wording, and probed with `--only` from the root of `.msl`:
+
+```text
+31  the equations of ... do not mention [...]   solvers/mod.rs:1003
+28  the Newton direction does not reduce        solvers/mod.rs:1117
+11  singular Jacobian                           solvers/mod.rs:998
+ 9  `X` of ... is NaN at t = 0
+ 7  underdetermined                             solvers/mod.rs:910
+10  diverged / did not converge / other
+```
+
+All six come out of one function, `solve_implicit_block_from`, and the
+first three are the same test: the Jacobian has no step to give. Which
+of the three is printed depends on whether a whole column is zero
+(`do not mention`, naming the unknown), whether the matrix is merely
+ill conditioned (`singular Jacobian`), or whether a step exists but
+buys nothing (`Newton direction`). Seventy of the ninety-six models sit
+in those three.
+
+Splitting the family by what the loop is made of separates it further.
+Counting the models whose loop names an ideal switch - a diode's `s`, a
+closer, a thyristor - against those whose loop does not:
+
+```text
+                     switch-like   smooth
+equations-of               14        17
+Newton direction            6        22
+singular Jacobian           5         6
+```
+
+Twenty-six of the ninety-six are a loop over ideal switching elements,
+where an `s` variable is a complementarity condition rather than a
+smooth unknown, and Newton has nothing to descend. That is a candidate
+mechanism with a name - the switching loops want a pivoting solve, not
+a damped Newton - and it is measurable the usual way, since those
+twenty-six are nameable from the raw half.
+
+### The other two families, for completeness
+
+`unbalanced` (38 models, compile.rs:961) splits by wording into 21
+"nothing determines" and 17 "nothing is left for", and the probe puts
+both in the same place: the equation count comes out one short, and the
+name quoted is whichever unknown was left over. `FilterOrder` at 6
+equations for 7 unknowns and `DirectCapacitor` at 30 for 31 are the two
+smallest, and both are off by exactly one.
+
+`structurally singular, other` (28 models) is not one family at all:
+ten of them are the parked T0/T_start set, nine are a derivative whose
+variable is not a state - `der(damper1.s)` three times in MultiBody,
+`der(transformer.core1.B)` in FluxTubes - and the rest are singles.
+Read as one row it looks like the third family down; read by layer it
+is a parked ten plus a nine that belong with the definitions work.
