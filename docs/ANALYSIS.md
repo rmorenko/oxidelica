@@ -16487,3 +16487,87 @@ condition names is computable, and `m = V*d` then gives the mass
 directly. That is a different change - it reads a definition to build
 a starting point - and it wants its own shift and its own victims
 list.
+
+## A guess computed from the model, and the layer that already does it
+
+The shift that followed went looking for a place to compute the
+density from the temperature the condition names, and found that the
+compiler has done exactly that since some earlier shift: `read_starts`
+at `compile.rs:3680` takes the equations a model wrote and reads a
+start out of them for any name whose declaration is silent. `m = V*d`
+is precisely the shape it was built for, and the note beside it says
+so in as many words - a mass written as a volume times a density.
+
+So the question was not how to build the mechanism but why the
+mechanism did not fire. A probe on the loop, over the twelve-line tank
+of the previous chapter, answered in one run:
+
+```text
+read: d not solved linearly out of its equation
+read:   lhs d / rhs Modelica.Media.Water.IF97_Utilities.waterBaseProp_pT(p, T, 0)[9]
+```
+
+Reading a start goes through `solve_linear_known`, and solving means
+taking a slope, and a slope means differentiating. Nothing
+differentiates a medium call: the refusal is raised about
+`waterBaseProp_pT`, a function, and it is a true refusal about that
+function. It is not a statement about `d`, which stands by itself on
+one side of its own equation.
+
+The repair is one test before the solver. Where the name is alone on
+one side and the other side does not mention it, the other side is
+what the equation says the name is, no slope wanted. Behind
+`OXIDELICA_NO_READ_ISOLATED` so that the two numbers below come from
+one binary.
+
+What it does to the small models, with the switch off and on:
+
+```text
+  d = 900 + div(T, 3)   off:  T ends at -2702, d at 0
+                        on :  T stays at 293.15, d at 997
+  the water tank        off:  refused on the Newton direction
+                        on :  runs, d = 998.206 at T = 293.15
+```
+
+The second pair is the point rather than the first: 998.206 kg/m3 at
+293.15 K is what the tables say water is, so the change hands the
+solver the answer it was hunting for instead of a wider place to hunt.
+The first pair is the test, `div` standing in for the medium call
+because it is a builtin with no derivative that a small model can
+carry - seen red without the change and green with it.
+
+### What it cost on the library, which is nothing either way
+
+The twenty-one smooth models were asked one `--only` apiece
+(`/tmp/m240/on21.txt`, twenty-one lines, one per name): twenty-one
+flatten, none run, the same as before. Then the corpus pair from one
+binary, the switch the only difference between the runs:
+
+```text
+  off  1037 example models, 865 flatten, 541 run;  908 runnable, 750 flatten, 507 run
+  on   1037 example models, 865 flatten, 541 run;  908 runnable, 750 flatten, 507 run
+```
+
+`/tmp/m240/off.txt` and `/tmp/m240/on.txt`. The lists of names that
+run are identical: 541 each, and `diff` of the two sorted lists is
+empty. So the floors do not move, and there is nothing here to raise
+them by.
+
+That leaves the question the register cannot answer either, since the
+Newton-direction rows read 16 in both halves: does the new path ever
+fire? Counted directly over the corpus it does, on 15 names and 22
+occurrences - `pump.W_single`, the `T1`/`T2` transistor times of a
+Spice model, `simpleGenericOrifice2.mu_a`, `rightLeg.B_N`
+(`/tmp/m240/fire.txt`). Fifteen names that now begin where their own
+equations put them rather than at zero, and not one of them was the
+last wall in any model's way.
+
+Which is the honest shape of this shift: the repair is right, it is
+cheap, it is measured to cost nothing, and the water tank of the
+previous chapter runs because of it while `PumpingSystem` does not.
+The read reaches `reservoir.m` in that model and always did -
+`reservoir.m = 110.0` with the switch either way - so the mass was
+never the guess that killed it. What refuses is
+`reservoir.medium.T`, and its start comes from `T_start` through an
+initial equation rather than from a definition, which is a different
+layer from the one repaired here.

@@ -843,6 +843,42 @@ fn a_state_with_no_start_is_read_from_the_equation_that_defines_it() {
     assert!((state("H") - 30.0).abs() < 1e-9, "H = {}", state("H"));
 }
 
+/// A definition whose other side has no derivative still says where a
+/// variable starts.
+///
+/// Reading a start out of an equation goes through the linear solver,
+/// which takes a slope - and a slope means differentiating whatever
+/// stands on the other side. A density read from a water table is
+/// `d = waterBaseProp_pT(p, T, 0)[9]`, nothing differentiates a medium
+/// call, so the read was refused and the density began at zero. The
+/// slope was never needed: the name stands alone on one side, and what
+/// the equation says about it is the other side, read off by
+/// inspection.
+///
+/// `div` stands in for the medium call here, being a builtin with no
+/// derivative that a small model can carry. With the fault present `d`
+/// begins at zero and the run takes `T` far from where it was put.
+#[test]
+fn a_start_is_read_from_a_definition_no_slope_can_be_taken() {
+    let model = parse_model(
+        "model M Real T(start = 293.15); Real d; Real m; \
+         equation d = 900 + div(T, 3); m = 1.0 * d; der(m) = 0; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let state = |name: &str| {
+        let index = compiled
+            .states
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
+        compiled.initial[index]
+    };
+    // 900 + div(293.15, 3) = 900 + 97 = 997, and the mass is the
+    // density times one.
+    assert!((state("m") - 997.0).abs() < 1e-9, "m = {}", state("m"));
+}
+
 /// A parameter the initialisation solves for needs no start of its
 /// own: the start is where Newton begins, and `fixed = false` is the
 /// statement that the declaration is not where the value comes from.

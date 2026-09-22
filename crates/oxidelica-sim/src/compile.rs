@@ -3785,9 +3785,42 @@ pub(crate) fn compile_at(
                 if !wanted_names.contains(name) || read_starts.contains_key(name) {
                     continue;
                 }
-                let Some(solved) = crate::symbolic::solve_linear_known(lhs, rhs, name, &stated)
-                else {
-                    continue;
+                // An equation that already stands the name alone on
+                // one side needs no slope taken: `d = waterBaseProp_pT
+                // (p, T, 0)[9]` says what `d` is outright, and the
+                // other side, which mentions nothing unvalued, is a
+                // number. Asked through the linear solver it is
+                // refused, because taking a slope means
+                // differentiating a medium call nothing has a rule
+                // for - and the refusal is about the function rather
+                // than about the unknown, which stands by itself and
+                // linearly by inspection.
+                //
+                // This is the shape the water tank is built out of:
+                // a mass `m = V*d` on a density read from a table, so
+                // the mass began at zero, and a start of zero for a
+                // mass asks the tables for a density no water has.
+                let isolated = |side: &Expr, other: &Expr| -> Option<Expr> {
+                    if std::env::var_os("OXIDELICA_NO_READ_ISOLATED").is_some() {
+                        return None;
+                    }
+                    let Expr::Ref(alone) = side else { return None };
+                    if alone != name {
+                        return None;
+                    }
+                    let mut over = Vec::new();
+                    other.collect_refs(&mut over);
+                    if over.contains(&name) {
+                        return None;
+                    }
+                    Some(other.clone())
+                };
+                let solved = match crate::symbolic::solve_linear_known(lhs, rhs, name, &stated) {
+                    Some(solved) => solved,
+                    None => match isolated(lhs, rhs).or_else(|| isolated(rhs, lhs)) {
+                        Some(alone) => alone,
+                        None => continue,
+                    },
                 };
                 let value = eval(
                     &solved,
