@@ -108,11 +108,33 @@
 # check reported 867 flatten and 752 runnable flatten - and the
 # scheduled half from /tmp/m218/heavy.txt.
 #
+# Two more names joined that list on 2026-09-22, both from
+# `ModelicaTest.Fluid.TestComponents.Pipes`, and both for the same
+# reason as the others: what they cost is spent reaching a wall that
+# is already on the map. `DynamicPipeWithNominalLaminarFlow` cost at
+# least 293s of a 1989s run half - 14.7% on one name, with the next
+# dearest at 147.6s, twice cheaper - and what it reaches is the parked
+# IF97 wall, `pipeN20.mediums[3].d` bound to a `waterBaseProp` call
+# the compiler will not evaluate before the run.
+# `DynamicPipeEnergyConservationCheck2` cost at least 67s, nearly all
+# of it in the flatten half, and stands at the same wall. Both flatten
+# and neither runs, so again only the flatten floors move:
+#
+#   flatten 867 = 865 here + 2 in the scheduled run
+#   runnable flatten 752 = 750 here + 2 in the scheduled run
+#   run 540 and runnable run 506 are unmoved: neither of the two runs.
+#
+# The main numbers are from /tmp/m229/main.txt and the scheduled half
+# from /tmp/m229/heavy.txt, both from one build of one binary.
+#
+# Its namesake without the `2` is a different matter and stays in the
+# main run at 199s: a physical check is not a benchmark however dear.
+#
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=867
+FLATTEN_FLOOR=865
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -220,7 +242,7 @@ FLATTEN_FLOOR=867
 # Flattening does not move: it flattened before as well. The diff of
 # the run lists is exactly that one name arriving and none leaving.
 RUN_FLOOR=540
-RUNNABLE_FLATTEN_FLOOR=752
+RUNNABLE_FLATTEN_FLOOR=750
 RUNNABLE_RUN_FLOOR=506
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one

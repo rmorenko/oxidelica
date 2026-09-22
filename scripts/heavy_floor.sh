@@ -27,13 +27,13 @@
 set -euo pipefail
 
 # The counts are small and exact, so they are written as the floors
-# they are: four models, all four flatten, and none of them runs yet.
+# they are: six models, all six flatten, and none of them runs yet.
 # A zero floor still earns its place - the day one of these runs, the
 # number goes up and the floor with it, and until then a model that
 # stops flattening is caught.
-FLATTEN_FLOOR=4
+FLATTEN_FLOOR=6
 RUN_FLOOR=0
-RUNNABLE_FLATTEN_FLOOR=2
+RUNNABLE_FLATTEN_FLOOR=4
 RUNNABLE_RUN_FLOOR=0
 
 directory="${1:?usage: heavy_floor.sh <library directory>}"

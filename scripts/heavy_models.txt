@@ -48,3 +48,8 @@ Modelica.Electrical.Spice3.Examples.Spice3BenchmarkFourBitBinaryAdder.TWOBIT
 
 # 270.1s to flatten, 2026-09-21
 Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
+
+# 293s to run, 2026-09-22
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
+# 67s to flatten, 2026-09-22
+ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck2

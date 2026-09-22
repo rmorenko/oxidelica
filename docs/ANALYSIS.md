@@ -15222,3 +15222,79 @@ stands behind is a singular Jacobian, a Newton direction that does not
 reduce, a limiter's arguments. That is the expected shape - a kind
 removed uncovers whatever stood behind it - and the two boxes the map
 named as separate walls turn out to have been one line.
+
+### Three left on the wall, and the counter showed one
+
+The shift that took the torn block reported the `der(X) is not a
+state` family as falling from ten rows to one. It fell to three, in
+three rows, and the difference is the instrument rather than the
+compiler. The census truncates a refusal at about sixty characters,
+so a long name eats the tail of the message: what is printed for the
+two machines is `is not a s`, and a pattern written from the full
+sentence catches one row out of three. Seventeen models left the wall,
+not nineteen. This is the old blind spot - the counter splits a family
+by its wording - wearing a new coat: here the wording is not the
+author's, it is the counter's own scissors. So a family is added up
+over the raw half, where the messages are whole, and a count taken
+from the census lines is a lower bound on the family.
+
+The three that remain were read with `OXIDELICA_INIT_DER_PROBE` on the
+new binary, one `--only` run each from the root of the corpus, and
+each of them stands somewhere different.
+
+The two machines - `FundamentalWave` and its `QuasiStatic` twin, both
+`IMC_Initialize` - print `aimc.airGap.V_msr.re: inner of torn k=16
+(block of 475, inner 459)`. The name is reached by the new layer:
+`inner` is exactly what now goes into `alg_defs`, so the definition
+was offered and the differentiation declined it. Sixteen torn unknowns
+in one block of four hundred and seventy-five is a block that is
+genuinely simultaneous, which is the case the guard at `symbolic.rs`
+exists to refuse rather than to answer with a slope that means
+nothing. These two stand by right, and no reordering of the layer
+reaches them: what would is a differentiation that carries sixteen
+coupled unknowns at once, which is a different compiler.
+
+The third, `WaterIF97_pT` of `TestsWithFluid`, prints `volume.medium.T:
+torn k=4 (block of 60, inner 56)` with the residual named:
+`volume.medium.d = Modelica.Media.Water.IF97_Utilities.waterBaseProp_pT
+(volume.medium.p, volume.medium.T, 0)[9]`. So the definition is a call
+into IF97 and differentiating through it is what fails. That is the
+parked wall, not this layer's: its six namesakes left the wall because
+their media are differentiable expressions, and this one's is a table
+lookup behind a function call. It is recorded here and not fixed.
+
+The verdict by name, then: two stand by right, one stands on a parked
+wall, and none of the three is a hole in the new layer's coverage.
+
+### The live queue on 2026-09-22, counted over the raw half
+
+Taken from `/tmp/m229/raw.txt`, one census over 1037 models at 865
+flatten and 540 run, with the rows of a family added up before the
+number was read.
+
+The top of the queue is not one row but three that mean the same
+thing. Algebraic loops - `the equations of`, `the Newton direction
+of`, `singular Jacobian in`, `underdetermined`, `X of` - come to 96
+lines between them, far ahead of anything else, and most of that is
+the numerical wall the homotopy line is parked at. `unbalanced model`
+is 38. Index reduction, added over all its wordings, is 62: 34
+`constrains no state`, 19 `no equation determines`, 4 `the equation
+determining X does not`, and 5 in the two `cannot differentiate`
+forms. That is down from the 69 the earlier map recorded, and the
+shape has moved inside it - the `cannot differentiate` group has
+halved from 10 to 5.
+
+`initial value of X is fixed at N but the constraints require M` is 14
+lines over 17 models, and seven of the seventeen are
+`Electrical.Digital` adders and gates, which are parked. The live
+remainder is ten, scattered one apiece across Clocked, FluxTubes,
+FundamentalWave, MultiBody, Translational, Media and FluidHeatFlow -
+a column of singles, which by the rule above means it should be probed
+before it is worked on, not read as one family because the words
+match.
+
+And the `der(X) is not a state` family counts 3 over the raw half,
+which is the number the previous shift's report should have carried.
+Where the seventeen that left it went is visible in the same file:
+the algebraic-loop rows and the structurally-singular rows are where
+that traffic landed, both of them walls already on the map.
