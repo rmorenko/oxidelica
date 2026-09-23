@@ -200,7 +200,28 @@ FILES_FLOOR=2671
 #                 of `s_T` the run cannot evaluate, and
 #                 ModelicaTest.Math.TestPolynomials, whose fit now comes
 #                 from `dgelsy` written here
-FLATTEN_FLOOR=886
+#
+# And five the conditions of components let through, measured from one
+# binary either side of its six switches (/tmp/m261/off2.txt:
+# 886/578 and 771/536; /tmp/m261/on2.txt: 891/578 and 776/536),
+# nothing leaving either list. None of the five runs yet, so only the
+# flatten floors move:
+#
+#   flatten 891 = 886 above, plus
+#                 Machines.Examples.InductionMachines.IMC_DCBraking,
+#                 wired by a string handed down from a setting record,
+#                 which stops at `der(imc.is[1])` of a non-state;
+#                 FundamentalWave...SynchronousMachines.SMEE_DOL, whose
+#                 condition reads a sibling declared below it, at a
+#                 singular Jacobian in the air gap's loop;
+#                 MultiBody.Examples.Systems.RobotR3.FullRobot, whose
+#                 condition reads an `outer` one level down, at two
+#                 equations for a gear spring's derivative; and
+#                 Constraints.SphericalConstraint and Elementary.
+#                 PointGravityWithPointMasses2, whose joints draw their
+#                 graph branch before the graph is asked, both at a
+#                 structurally singular model
+FLATTEN_FLOOR=891
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -548,7 +569,10 @@ FLATTEN_FLOOR=886
 RUN_FLOOR=578
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
-RUNNABLE_FLATTEN_FLOOR=771
+#
+# And runnable flatten 776 = 771, plus the five conditions of
+# components set out at `FLATTEN_FLOOR`, all runnable examples.
+RUNNABLE_FLATTEN_FLOOR=776
 RUNNABLE_RUN_FLOOR=536
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
@@ -624,11 +648,18 @@ RUN_MS_CEILING=8000
 # more expansions and 0.9% more bodies: the fits of the table-based
 # media are worked out wherever a medium of theirs is named, and the
 # models that name one are more than the two that came in.
-WORK_CLASSES=276261
-WORK_EXPANSIONS=91026015
-WORK_BODIES=1291208
-WORK_POINTS=31348271
-WORK_NEWTON=43593540
+#
+# Refreshed again with the floors, from the run that moved them
+# (/tmp/m261/on2.txt). The same binary with the six switches of the
+# conditions of components off printed exactly the numbers above
+# (/tmp/m261/off2.txt), so the series did 1.9% more classes, 0.4% more
+# expansions and 0.4% more bodies: the five models that flatten now
+# are machines and multi-body systems, and each is built whole.
+WORK_CLASSES=281610
+WORK_EXPANSIONS=91433342
+WORK_BODIES=1295839
+WORK_POINTS=31348278
+WORK_NEWTON=43593563
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

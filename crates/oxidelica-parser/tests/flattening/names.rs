@@ -376,8 +376,10 @@ fn a_string_chooses_what_a_model_does() {
         );
         model
     };
-    assert!(format!("{:?}", density("water").conditional).contains("Bool(true)"));
-    assert!(format!("{:?}", density("oil").conditional).contains("Bool(false)"));
+    // The `if` is settled before the run and only the branch the string
+    // takes is left: a condition the compiler can read is structural.
+    assert_eq!(rhs_of(&density("water"), "rho"), "Number(1000.0)");
+    assert_eq!(rhs_of(&density("oil"), "rho"), "Number(850.0)");
 
     // Built from another string, from a number, and compared with `<>`.
     let model = parse_model(
@@ -950,5 +952,114 @@ fn a_function_is_reached_through_a_component_that_holds_it() {
     assert!(
         rhs.contains("4.0") || rhs.contains("2.0"),
         "the body did not come through: {rhs}"
+    );
+}
+
+/// Sources for the conditions settled on a string handed down: a
+/// setting record whose one string picks another, and a box that
+/// wires itself by the string it is handed.
+const WIRING: &str = "model One Real v; equation v = 1; end One; \
+     model Two Real v; equation v = 2; end Two; \
+     record Settings \
+       parameter String layout = \"Y3\"; \
+       parameter String conn = if layout == \"Y3\" or layout == \"Y2\" then \"Y\" else \"D\"; \
+     end Settings; \
+     model Box parameter String conn(start = \"Y\"); \
+       One star if conn <> \"D\"; Two delta if conn == \"D\"; end Box; ";
+
+/// `terminalBox(terminalConnection = settings.terminalConnection)` is
+/// how the machines of the library wire a box from a setting record,
+/// and the value handed down is written in the names of the class
+/// above. The box read it against its own names, found nothing, and
+/// refused the condition of its star as not a constant - on a string
+/// the setting had settled all along. And the string the setting
+/// holds is itself a choice between two strings on a third.
+#[test]
+fn a_string_handed_down_decides_the_condition_it_reaches() {
+    let m = parse_model(&format!(
+        "{WIRING} model M parameter Settings s(layout = \"D3\"); \
+           Box b(conn = s.conn); Real k; \
+         equation \
+           if s.layout == \"D3\" then k = 3; end if; \
+           if s.layout == \"Y3\" then k = 1; end if; \
+         end M;"
+    ))
+    .expect("the conditions settle");
+    let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+    // "D3" makes the connection "D": the delta stands, the star goes.
+    assert!(names.contains(&"b.delta.v"), "{names:?}");
+    assert!(!names.iter().any(|n| n.starts_with("b.star")), "{names:?}");
+    assert_eq!(rhs_of(&m, "b.delta.v"), "Number(2.0)");
+    // And the `if` on the layout took its one branch, not the other.
+    assert_eq!(rhs_of(&m, "k"), "Number(3.0)");
+
+    // A choice on something the compiler cannot settle leaves the
+    // string unknown, and the condition is refused by name rather
+    // than wired on a guess.
+    let refused = parse_model(&format!(
+        "{WIRING} model M Real x = time; \
+           parameter String c = if x > 1 then \"Y\" else \"D\"; \
+           Box b(conn = c); end M;"
+    ))
+    .expect_err("a string nobody can settle decides nothing");
+    assert!(
+        refused
+            .to_string()
+            .contains("condition of component `b.star`"),
+        "{refused}"
+    );
+}
+
+/// `Shape cylinder(...) if world.enableAnimation and animation` reads
+/// an `outer`, and the `inner` it stands for is filed under the path
+/// it was instantiated at. At the top of the model the two spell the
+/// same; one level down - a robot's mechanics holding its own world -
+/// `world.enableAnimation` is `mechanics.world.enableAnimation`, and
+/// the condition was read under the short name and refused.
+#[test]
+fn a_condition_on_an_outer_is_read_under_the_instance_path() {
+    let m = parse_model(
+        "model One Real v; equation v = 1; end One; \
+         model World parameter Boolean on = true; end World; \
+         model Part outer World world; One shape if world.on; One kept; end Part; \
+         model Mech parameter Boolean flag = false; \
+           inner World world(on = flag); Part p; end Mech; \
+         model M Mech m; end M;",
+    )
+    .expect("the condition settles under the path");
+    let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+    assert!(names.contains(&"m.p.kept.v"), "{names:?}");
+    assert!(!names.iter().any(|n| n.contains("shape")), "{names:?}");
+}
+
+/// `RealOutput irRMS if smee.useDamperCage` stands above `smee(...,
+/// useDamperCage = true)`, and declarations are built in the order
+/// written, so the member the condition reads held nothing yet. The
+/// value is written out on the sibling's declaration. One handed down
+/// from above outranks it, and there the declaration is not read.
+#[test]
+fn a_condition_reads_a_sibling_declared_below_it() {
+    let source = |handed: &str| {
+        format!(
+            "model One Real v; equation v = 1; end One; \
+             model Machine parameter Boolean cage(start = false); end Machine; \
+             model Rig One out if machine.cage; \
+               Machine machine(cage = true); end Rig; \
+             model M Rig r{handed}; end M;"
+        )
+    };
+    let m = parse_model(&source("")).expect("the sibling says what its member is");
+    let names: Vec<&str> = m.components.iter().map(|c| c.name.as_str()).collect();
+    assert!(names.contains(&"r.out.v"), "{names:?}");
+    // Handed a value from above, the sibling's own is not what counts,
+    // and the condition is refused by name rather than decided on the
+    // declaration the handed value overrules.
+    let handed = parse_model(&source("(machine(cage = false))"))
+        .expect_err("the declaration is not read past a handed value");
+    assert!(
+        handed
+            .to_string()
+            .contains("condition of component `r.out`"),
+        "{handed}"
     );
 }

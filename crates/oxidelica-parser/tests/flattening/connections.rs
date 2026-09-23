@@ -2088,3 +2088,77 @@ fn a_short_connector_inside_a_package_keeps_its_direction() {
         "an input joined to nothing takes its start, so the set must know which end is the source"
     );
 }
+
+/// A free joint that holds states says so to the graph inside an `if`
+/// that also asks the graph a question: `if enforceStates then
+/// Connections.branch(a, b); if Connections.rooted(a) then ... end if;
+/// end if;`. Folded, that is one chain whose every condition asks the
+/// graph, and setting the whole of it aside for the second pass left
+/// the branch out of the graph the second pass was to answer from.
+/// Whatever the graph answers, the branch is in, so it is drawn first.
+#[test]
+fn a_branch_every_answer_takes_is_drawn_before_the_graph_is_asked() {
+    let joint = |enforce: bool| {
+        format!(
+            "model M \
+               connector Frame Real r; flow Real f; end Frame; \
+               model Joint parameter Boolean enforce = true; Frame a; Frame b; Real w; \
+               equation a.f + b.f = 0; \
+                 if enforce then \
+                   Connections.branch(a.r, b.r); \
+                   if Connections.rooted(a.r) then b.r = a.r + w; else a.r = b.r - w; end if; \
+                 else \
+                   b.r = a.r + w; \
+                 end if; \
+               end Joint; \
+               Frame ground; Joint j(enforce = {enforce}); \
+             equation \
+               Connections.root(ground.r); ground.r = 0; \
+               connect(ground, j.a); j.b.f = 0; der(j.w) = 1; \
+             end M;"
+        )
+    };
+    let m = parse_model(&joint(true)).expect("the graph holds the branch");
+    // `a` is first in the branch and the ground roots it, so `rooted`
+    // answers true and the first leaf is the one written.
+    assert_eq!(
+        rhs_of(&m, "j.b.r"),
+        rhs_of(&parse_model(&joint(false)).unwrap(), "j.b.r")
+    );
+    let text = format!("{:?}", m.equations);
+    assert!(
+        !text.contains("Connections."),
+        "every question answered: {text}"
+    );
+}
+
+/// Where the graph clauses an `if` takes depend on what the graph
+/// answers, nothing is drawn on a guess: the `if` is set aside for the
+/// second pass exactly as before, and a clause standing in a branch
+/// the graph decides is refused there by name.
+#[test]
+fn a_branch_only_one_answer_takes_is_not_drawn_on_a_guess() {
+    let refused = parse_model(
+        "model M \
+           connector Frame Real r; flow Real f; end Frame; \
+           model Joint Frame a; Frame b; Real w; \
+           equation a.f + b.f = 0; \
+             if Connections.rooted(a.r) then \
+               Connections.branch(a.r, b.r); b.r = a.r + w; \
+             else \
+               a.r = b.r - w; \
+             end if; \
+           end Joint; \
+           Frame ground; Joint j; \
+         equation \
+           Connections.root(ground.r); ground.r = 0; \
+           connect(ground, j.a); j.b.f = 0; der(j.w) = 1; \
+         end M;",
+    )
+    .expect_err("a branch drawn on one answer only is not drawn");
+    let text = refused.to_string();
+    assert!(
+        text.contains("a `Connections` clause in `M.Joint`"),
+        "refused by the class that wrote it: {text}"
+    );
+}

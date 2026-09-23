@@ -406,17 +406,36 @@ fn settle_naming<'a>(
             if component.type_name != "String" || local_texts.contains_key(&component.name) {
                 continue;
             }
-            let said = env
+            let handed = env
                 .overrides
                 .iter()
                 .find(|(name, _)| name == &component.name)
-                .map(|(_, value)| value.clone())
-                .or_else(|| component.binding.clone())
-                .or_else(|| component.start.clone());
-            let Some(said) = said else { continue };
-            let said = substitute_class_constants(&said, registry, scope, &imports, &shadow);
-            if let Some(text) = strings::text_of(&said, &local_texts, &HashMap::new()) {
+                .map(|(_, value)| value.clone());
+            // A value handed down is written in the flat names of the
+            // class above - `settings.terminalConnection` - and is read
+            // against what the class above settled, never against this
+            // class's own names.
+            let text = if let Some(handed) = handed {
+                if std::env::var_os("OXIDELICA_NO_HANDED_TEXTS").is_some() {
+                    strings::text_of(&handed, &local_texts, &HashMap::new())
+                } else {
+                    strings::text_of(&handed, &acc.texts, &HashMap::new())
+                }
+            } else {
+                let Some(said) = component
+                    .binding
+                    .clone()
+                    .or_else(|| component.start.clone())
+                else {
+                    continue;
+                };
+                let said = substitute_class_constants(&said, registry, scope, &imports, &shadow);
+                strings::text_of(&said, &local_texts, &HashMap::new())
+            };
+            if let Some(text) = text {
                 local_texts.insert(component.name.clone(), text.clone());
+                acc.texts
+                    .insert(format!("{prefix}{}", component.name), text.clone());
                 local_texts.insert(format!("{prefix}{}", component.name), text);
                 progress = true;
             }

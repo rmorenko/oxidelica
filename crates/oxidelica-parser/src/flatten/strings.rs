@@ -262,6 +262,20 @@ pub(super) fn text_of(
     match expr {
         Expr::Str(text) => Some(text.clone()),
         Expr::Ref(name) => values.get(name).cloned(),
+        // `if layout == "Y3" or layout == "Y2" then "Y" else "D"`: a
+        // choice between two strings on something already settled is
+        // the string of the branch it takes. A condition that is not
+        // settled leaves the string unknown, never a guess at a side.
+        Expr::If(condition, then, otherwise)
+            if std::env::var_os("OXIDELICA_NO_TEXT_IF").is_none() =>
+        {
+            let condition = fold(condition, values, numbers).ok()?;
+            if const_eval(&condition, numbers)? != 0.0 {
+                text_of(then, values, numbers)
+            } else {
+                text_of(otherwise, values, numbers)
+            }
+        }
         // `+` joins two strings, which is what Modelica spells it as.
         Expr::Bin(BinOp::Add, a, b) => {
             Some(text_of(a, values, numbers)? + &text_of(b, values, numbers)?)

@@ -2368,6 +2368,12 @@ struct Flat {
     /// class that supplied it, so what one class knows has to still
     /// be in view while the class it hands the value to is built.
     records: HashMap<String, String>,
+    /// What every `String` parameter settled so far is worth, by flat
+    /// path. A modifier is written in the terms of the class above, as
+    /// `terminalBox(terminalConnection = settings.terminalConnection)`
+    /// is, and the class below, which has to decide a condition on the
+    /// string before anything else, knows nothing of `settings`.
+    texts: HashMap<String, String>,
 }
 
 /// How many `connect` equations name each connector.

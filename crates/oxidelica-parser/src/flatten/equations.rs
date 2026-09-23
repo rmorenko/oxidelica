@@ -433,6 +433,16 @@ fn flatten_if_equations<'a>(
     graph_from_branches: &mut Vec<&'a GraphClause>,
 ) -> Result<(), String> {
     let no_loop_vars = HashMap::new();
+    // What the strings of the model settled so far are worth, by flat
+    // path: `if settings.layout == "Y3" then` decides on one. Taken
+    // once for the class, since nothing below settles a string.
+    let texts = if class.if_equations.is_empty()
+        || std::env::var_os("OXIDELICA_NO_TEXT_CONDITIONS").is_some()
+    {
+        HashMap::new()
+    } else {
+        acc.texts.clone()
+    };
     let Graph {
         known_roots,
         known_rooted,
@@ -473,6 +483,16 @@ fn flatten_if_equations<'a>(
             if let Some(value) = settled_by_shape(&asked, local_consts, sizes_here) {
                 return Some(value);
             }
+            // A comparison of strings the model has settled - kept
+            // under the instance path like everything else here.
+            if !texts.is_empty() {
+                if let Some(value) = strings::fold(&asked, &texts, &env)
+                    .ok()
+                    .and_then(|folded| const_eval(&folded, &env))
+                {
+                    return Some(value);
+                }
+            }
             if !answered {
                 return None;
             }
@@ -492,6 +512,20 @@ fn flatten_if_equations<'a>(
         // the whole model is built again once the graph is in.
         if !decidable && !answered && asks_the_graph(if_equation) {
             acc.graph_asked = true;
+            // What the `if` says about the graph itself cannot wait
+            // for the graph. `if enforceStates then
+            // Connections.branch(frame_a.R, frame_b.R); if
+            // Connections.rooted(frame_a.R) then ...` is one chain
+            // once the inner `if` is folded in, and setting it all
+            // aside left the branch out of the graph the second pass
+            // asks about - so `rooted` found no node to answer for.
+            // Whatever the graph answers, the clauses taken are the
+            // same, and those are drawn now.
+            if std::env::var_os("OXIDELICA_NO_GRAPH_BEFORE_GRAPH").is_none() {
+                if let Some(clauses) = graph_whatever_answered(if_equation, &settle) {
+                    graph_from_branches.extend(clauses);
+                }
+            }
             continue;
         }
         if !decidable {
@@ -1423,4 +1457,74 @@ pub(super) fn asks_the_graph(if_equation: &IfEquation) -> bool {
         .branches
         .iter()
         .any(|branch| branch.condition.as_ref().is_some_and(asks_the_connections))
+}
+
+/// The graph clauses an `if` asking the graph takes whatever the graph
+/// answers, where that is one list.
+///
+/// Every question the conditions put to the graph is given each answer
+/// in turn, the rest of each condition is settled as usual, and the
+/// branch taken is read off. Where every way of answering takes the
+/// same clauses, those are what the `if` says about the graph, and
+/// the graph can be drawn with them before anything is asked of it.
+/// Where the answers disagree, or something other than the graph
+/// leaves a condition open, there is no such list and nothing is
+/// taken: a clause drawn on a guess is a wrong graph.
+fn graph_whatever_answered<'b>(
+    if_equation: &'b IfEquation,
+    settle: &dyn Fn(&Expr) -> Option<f64>,
+) -> Option<Vec<&'b GraphClause>> {
+    let mut questions: Vec<Expr> = Vec::new();
+    for branch in &if_equation.branches {
+        if let Some(condition) = &branch.condition {
+            condition.for_each(&mut |expr| {
+                if let Expr::Call(name, _) = expr {
+                    if (name == "Connections.isRoot" || name == "Connections.rooted")
+                        && !questions.contains(expr)
+                    {
+                        questions.push(expr.clone());
+                    }
+                }
+            });
+        }
+    }
+    // Each question doubles the ways of answering; a joint asks one
+    // or two, and a chain asking more is not one to guess about.
+    if questions.is_empty() || questions.len() > 4 {
+        return None;
+    }
+    let mut taken: Option<Vec<&GraphClause>> = None;
+    for answers in 0..(1u32 << questions.len()) {
+        let answer = |expr: &Expr| -> Option<Expr> {
+            let at = questions.iter().position(|q| q == expr)?;
+            Some(Expr::Bool(answers & (1 << at) != 0))
+        };
+        let mut chosen = None;
+        for branch in &if_equation.branches {
+            let Some(condition) = &branch.condition else {
+                chosen = Some(branch);
+                break;
+            };
+            if settle(&answered_with(condition, &answer))? != 0.0 {
+                chosen = Some(branch);
+                break;
+            }
+        }
+        let clauses: Vec<&GraphClause> = chosen.map_or_else(Vec::new, |b| b.graph.iter().collect());
+        match &taken {
+            None => taken = Some(clauses),
+            Some(before) if *before == clauses => {}
+            Some(_) => return None,
+        }
+    }
+    taken
+}
+
+/// A condition with every question the graph is asked replaced by the
+/// answer `answer` gives for it.
+fn answered_with(expr: &Expr, answer: &dyn Fn(&Expr) -> Option<Expr>) -> Expr {
+    if let Some(told) = answer(expr) {
+        return told;
+    }
+    expr.map_children(&mut |child| answered_with(child, answer))
 }

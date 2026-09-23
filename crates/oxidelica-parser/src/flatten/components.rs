@@ -215,6 +215,31 @@ pub(super) fn instantiate_components(
             // belongs to the `inner` the name stands for.
             let named = substitute_class_constants(condition, registry, scope, imports, &[]);
             let value = const_eval(&named, &env)
+                // Under the instance path, where an `outer` is the
+                // `inner` it stands for: `world.enableAnimation` read
+                // inside `m.r1` is `m.world.enableAnimation`, and only
+                // at the top of the model are the two spelt alike.
+                .or_else(|| {
+                    if std::env::var_os("OXIDELICA_NO_PREFIXED_CONDITION").is_some() {
+                        return None;
+                    }
+                    const_eval(&prefix_expr(&named, prefix, outers), &env)
+                })
+                // `irRMS if smee.useDamperCage` stands above
+                // `smee(useDamperCage = true)`: declarations are
+                // instantiated in the order written, so the sibling
+                // has not been built and its member holds nothing yet.
+                // The value is written out on its declaration, and a
+                // constant written out is what the member will be.
+                .or_else(|| {
+                    if std::env::var_os("OXIDELICA_NO_SIBLING_CONDITION").is_some() {
+                        return None;
+                    }
+                    let Expr::Ref(wanted) = &named else {
+                        return None;
+                    };
+                    sibling_written_value(wanted, class, inherited, overrides, &env)
+                })
                 .or_else(|| {
                     // The condition may be a comparison of strings.
                     let folded = strings::fold(&named, local_texts, &env).ok()?;
@@ -1834,4 +1859,47 @@ fn sibling_written_shape(
         shape.push(length);
     }
     (!shape.is_empty()).then_some(shape)
+}
+
+/// What `sibling.member` comes to where the sibling is declared in this
+/// class and writes the member a constant among its modifiers.
+///
+/// A condition may read a sibling declared further down, which has not
+/// been instantiated when the condition is decided. Only a value
+/// written out and constant on its own is taken; a value handed down
+/// from above that reaches the sibling outranks the declaration, so
+/// where there is one this answers nothing.
+fn sibling_written_value(
+    wanted: &str,
+    class: &ClassDef,
+    inherited: &[(Component, Option<Expr>)],
+    overrides: &[(String, Expr)],
+    env: &HashMap<String, f64>,
+) -> Option<f64> {
+    let (head, member) = wanted.split_once('.')?;
+    if member.contains('.') || member.contains('[') || head.contains('[') {
+        return None;
+    }
+    let reaches = |target: &str| {
+        target == head
+            || target
+                .strip_prefix(head)
+                .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('['))
+    };
+    if overrides.iter().any(|(target, _)| reaches(target)) {
+        return None;
+    }
+    let sibling = class
+        .components
+        .iter()
+        .chain(inherited.iter().map(|(component, _)| component))
+        .find(|component| component.name == head)?;
+    if !sibling.dimensions.is_empty() {
+        return None;
+    }
+    let (_, written) = sibling
+        .modifiers
+        .iter()
+        .find(|(modified, _)| modified == member)?;
+    const_eval(written, env)
 }

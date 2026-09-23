@@ -18167,3 +18167,105 @@ The number the plan asked for did not come. None of the six named
 models runs, and the census row will not empty. It moves: the two
 table-based media now stand at the unit reader with the rest of that
 family.
+
+## The m261 census, and five conditions of components
+
+The census was taken from the binary of 160c3b1 (/tmp/m261/census.txt,
+names in /tmp/m261/raw.txt). The halves are 151 refused and 308 built
+and not run, 459 together, which is 1037 less 578. The families, added
+from the rows of the register with the singles counted in: loops
+27+20+13+11+9+7+3+3 = 93, structurally singular 62, parameters with no
+value or that cannot be evaluated 44, unbalanced 39, shapes in the
+refused half 33, outside C or FORTRAN 11+8+5 = 24, units 12. Against
+m259 the refusals of eleven models changed text, and the list of
+names lost one, `ModelicaTest.Math.TestPolynomials`:
+
+- `Glycol47`, `Essotherm650` (both the `IncompleteMedia` and the
+  `MediaTestModels` pairs), `TestGlycol` and
+  `TestValvesIncompressibleReverse` now stand at the units wall,
+  `cannot subtract medium.h (m2.s-2) and 101300 / medium.d`, as the
+  plan expected;
+- `InverseIncompressible_sh_T` flattens and stops in the run at `an
+array reached the evaluator: 1:2`, not at `cannot evaluate s_min` as
+  the plan expected: the census reads the run, and the run meets the
+  array first;
+- `IncompressibleFluidNetwork` moved from `size(poly_Cp)` to an `if`
+  equation of `PartialDistributedVolume` with no `else`, not to the
+  units wall;
+- `TestMatrices` moved from `dgelsy_vec` to `dgglse_vec`, the next
+  LAPACK name it calls, so the outside FORTRAN row is five, not six;
+- `MoistAir` and the two `R134a_setState_pTX` changed wording only:
+  the evaluator now names the array that reached it.
+
+The top of what is not parked was still the conditions of components,
+so that was the work.
+
+Five models refused a condition, three as `condition of component X is
+not a compile-time constant` and two as `a Connections clause sits in
+an if branch whose condition is not known at compile time`. Probed one
+at a time with `--only` from `.msl`, and shrunk to a small model each
+(/tmp/m261/s), they turned out to be four causes and not two:
+
+1. `IMC_DCBraking`: `TerminalBox terminalBox(terminalConnection =
+settings.terminalConnection)`, where `settings` is a
+   `DcBrakeSettings` record whose string is `if layout == "Y3" or
+layout == "Y2" then "Y" else "D"`. The strings of a class were
+   settled against the class's own names, so a value written in the
+   names of the class above found nothing, and `text_of` had no case
+   for a choice between two strings. The strings settled so far are
+   now kept by flat path on the accumulator, a handed value is read
+   against them (`OXIDELICA_NO_HANDED_TEXTS`), and a choice whose
+   condition settles is the string of its branch
+   (`OXIDELICA_NO_TEXT_IF`). Behind it stood a second link in the same
+   model: `if settings.layout == "D3" then` in the initial equations,
+   where the `if` equation could not compare strings. It now can,
+   against the same table (`OXIDELICA_NO_TEXT_CONDITIONS`).
+2. `FullRobot`: `Shape cylinder if world.enableAnimation and
+animation` inside `mechanics.r1`, with the `inner World` declared in
+   `mechanics`. The comment above the condition said it was put under
+   the instance path, and it was not: at the top of a model the two
+   spellings agree, and one level down `world.enableAnimation` is
+   `mechanics.world.enableAnimation`. It is now read under the path as
+   well (`OXIDELICA_NO_PREFIXED_CONDITION`).
+3. `SMEE_DOL` of `FundamentalWave`: `RealOutput irRMS if
+smee.useDamperCage` is declared above `smee(useDamperCage = true)`.
+   Declarations are built in the order written, so the member held
+   nothing when the condition was decided. A constant written out on
+   the sibling's own declaration is now read, and a value handed from
+   above that reaches the sibling still makes the condition refuse
+   (`OXIDELICA_NO_SIBLING_CONDITION`). This is the condition's
+   counterpart of the sibling shape of m259.
+4. `SphericalConstraint` and `PointGravityWithPointMasses2`: the
+   joints write `if enforceStates then Connections.branch(a, b); if
+Connections.rooted(a) then ... end if; end if;`. Folded, every leaf
+   of the chain asks the graph, so the whole `if` was set aside for the
+   second pass, and the branch it declares was never drawn. On the
+   second pass `rooted` had no node to answer for, and the clause was
+   refused. Every answer the graph could give is now tried on the first
+   pass. Where all of them take the same clauses, those clauses are
+   drawn at once. Where they disagree, nothing is drawn and the refusal
+   stands (`OXIDELICA_NO_GRAPH_BEFORE_GRAPH`).
+
+None of the conditions was a refusal owed: each was a constant the
+compiler failed to read. Each switch turns its own test red. The pair
+was measured from one binary either side of all six switches
+(/tmp/m261/off2.txt, /tmp/m261/on2.txt). Flatten went from 886 to 891,
+runnable flatten from 771 to 776, run stayed at 578 and runnable run
+at 536. Nothing left either list. The off side printed the floors and
+the work counts of 160c3b1 to the digit.
+
+The five stop in the run half, each at a wall of its own (probed one by
+one with `--only`):
+
+- `IMC_DCBraking`: `der(imc.is[1])` in an initial equation, where
+  `imc.is[1]` is not a state;
+- `SMEE_DOL`: a singular Jacobian in the air gap's algebraic loop,
+  the machine family of the loop rows;
+- `FullRobot`: two equations for `der(axis1.gear.spring.w_rel)`, the
+  row the three other gear models already stand at;
+- `SphericalConstraint` and `PointGravityWithPointMasses2`: a
+  structurally singular model, in the multi-body part of that family.
+
+So the census rows for the conditions empty and five rows in the run
+half grow by one each. The run count is a separate claim, and it did
+not move.

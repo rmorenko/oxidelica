@@ -645,7 +645,7 @@ pub struct IfBranch {
 }
 
 /// A statement about the overconstrained connection graph.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum GraphClause {
     /// `Connections.root(a)` — this node is a root and stays one.
     Root(String),
