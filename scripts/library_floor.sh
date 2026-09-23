@@ -149,7 +149,19 @@ FILES_FLOOR=2671
 # decided:
 #
 #   flatten 870 = 869 above, plus Modelica.Blocks.Examples.Filter
-FLATTEN_FLOOR=870
+#
+# And five from unrolling a `for` in an `if` branch the run chooses,
+# with a flag worked out in a loop kept a flag - the LossyGear chain:
+#
+#   flatten 875 = 870 above, plus Rotational.Examples.HeatLosses,
+#                 LossyGearDemo1, LossyGearDemo2, LossyGearDemo3 and
+#                 ModelicaTest.Rotational.TestBearingConversion
+#
+# Measured from one binary either side of `OXIDELICA_NO_LOOP_IN_BRANCH`
+# and `OXIDELICA_NO_BOOL_FOLD` (/tmp/m257/before.txt: 870/568 and
+# 755/526; /tmp/m257/after.txt: 875/571 and 760/529), nothing leaving
+# either list.
+FLATTEN_FLOOR=875
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -463,11 +475,19 @@ FLATTEN_FLOOR=870
 #                LinearWater_pT_Ambient, which flattens and does not run
 #   runnable run 526 = 523 before, plus the same three, all runnable
 #                examples
-RUN_FLOOR=568
+#
+# And the LossyGear chain set out at `FLATTEN_FLOOR`:
+#
+#   run          571 = 568 above, plus HeatLosses, LossyGearDemo1 and
+#                LossyGearDemo3; LossyGearDemo2 and TestBearingConversion
+#                flatten and stop at an algebraic loop
+#   runnable flatten 760 = 755 below, plus all five, runnable examples
+#   runnable run 529 = 526 below, plus the three that run
+RUN_FLOOR=571
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
-RUNNABLE_FLATTEN_FLOOR=755
-RUNNABLE_RUN_FLOOR=526
+RUNNABLE_FLATTEN_FLOOR=760
+RUNNABLE_RUN_FLOOR=529
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

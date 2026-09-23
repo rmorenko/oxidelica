@@ -872,15 +872,35 @@ fn the_library_forms_are_read_and_their_limits_named() {
     .message;
     assert!(error.contains("not an initial one"), "{error}");
 
-    // A `for` equation in a branch the run decides would make the
-    // model a different size depending on the run.
-    let error = parse_model(
+    // A `for` equation in a branch the run decides has a number of
+    // rounds the compiler knows, so each branch holds a known count:
+    // the loops are written out into their branches, position for
+    // position.
+    let m = parse_model(
         "model M Real v[2]; equation if time > 1 then for i in 1:2 loop v[i] = i; end for; \
          else for i in 1:2 loop v[i] = 0; end for; end if; end M;",
     )
-    .expect_err("a loop in an undecided branch")
+    .expect("a loop in an undecided branch");
+    assert!(m.equations.is_empty(), "{:?}", m.equations);
+    assert_eq!(m.conditional.len(), 1);
+    let branches = &m.conditional[0].branches;
+    assert_eq!(
+        format!("{:?}", branches[0]),
+        "[EquationItem { lhs: Ref(\"v[1]\"), rhs: Number(1.0), origin: \"\" }, \
+         EquationItem { lhs: Ref(\"v[2]\"), rhs: Number(2.0), origin: \"\" }]"
+    );
+    assert_eq!(branches[1].len(), 2);
+    // A loop whose body is not equations alone cannot be lifted into a
+    // branch, and the refusal says what it found.
+    let error = parse_model(
+        "connector Pin Real v; flow Real i; end Pin; \
+         model M Pin a[2]; Pin b[2]; equation if time > 1 then \
+         for i in 1:2 loop connect(a[i], b[i]); end for; \
+         else for i in 1:2 loop connect(a[i], b[i]); end for; end if; end M;",
+    )
+    .expect_err("a connect in a loop in an undecided branch")
     .message;
-    assert!(error.contains("settled before the run"), "{error}");
+    assert!(error.contains("a `connect`"), "{error}");
 
     // A `connect` in one is structural in the same way.
     let error = parse_model(

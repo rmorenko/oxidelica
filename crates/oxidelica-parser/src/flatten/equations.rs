@@ -495,11 +495,27 @@ fn flatten_if_equations<'a>(
             continue;
         }
         if !decidable {
+            let unroll_here = |loop_eq: &ForEquation, acc: &mut Flat| {
+                unroll(
+                    loop_eq,
+                    &HashMap::new(),
+                    local_consts,
+                    prefix,
+                    outers,
+                    sizes_here,
+                    records_here,
+                    registry,
+                    scope,
+                    imports,
+                    acc,
+                )
+            };
             push_conditional(
                 if_equation,
                 &class.name,
                 resolve_here,
                 expand_here,
+                Some(&unroll_here),
                 &no_loop_vars,
                 acc,
             )?;

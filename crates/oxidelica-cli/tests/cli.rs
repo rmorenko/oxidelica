@@ -1202,3 +1202,95 @@ fn index_reduction_can_be_asked_what_it_spent() {
     // one spent, and that is what the fifth arm records.
     assert!(loud.contains("spent: [\"x\"]"), "{loud}");
 }
+
+/// The value of column `name` on the first row of a CSV.
+fn first_row(csv: &str, name: &str) -> f64 {
+    let mut lines = csv.lines();
+    let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let row: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let at = header.iter().position(|column| *column == name).unwrap();
+    row[at].parse().unwrap()
+}
+
+/// A `for` in an `if` branch only the run can choose.
+///
+/// How many equations the loop makes is known before the run - its
+/// range is a number the compiler has - so the branch holds a known
+/// count and the `if` is as balanced as one written out by hand. The
+/// else-branch below is the one taken, so what `r` comes to is what
+/// the loop wrote, which is what is checked rather than that the model
+/// flattened. `OXIDELICA_NO_LOOP_IN_BRANCH` gives back the refusal, so
+/// the same binary shows both sides.
+#[test]
+fn a_loop_in_a_branch_the_run_chooses_is_written_out_into_it() {
+    let file = TempFile::new(
+        "loop_in_branch.mo",
+        "model M Boolean ideal; Real r[3]; Real x; \
+         equation ideal = time < -1; \
+         if ideal then r = {1, 1, 1}; else for i in 1:size(r, 1) loop r[i] = 2 * i; end for; \
+         end if; x = r[1] + r[2] + r[3]; end M;",
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_LOOP_IN_BRANCH", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "1", "--dt", "0.5"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(first_row(&stdout(&out), "x"), 12.0);
+    assert_eq!(first_row(&stdout(&out), "r[3]"), 6.0);
+    let refused = run(true);
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains("a `for` equation in `M` sits in an `if` branch"),
+        "{}",
+        stderr(&refused)
+    );
+}
+
+/// A flag a function works out inside a loop is still a flag.
+///
+/// `result := false` under an `if` in a `while` comes out of the
+/// merge as a choice between truths, and folded to the number 0 it
+/// reached the model as `b = 0` - a Boolean against an Integer. The
+/// search here finds a difference, so `b` is false.
+/// `OXIDELICA_NO_BOOL_FOLD` folds it to a number as before and gives
+/// back the refusal.
+#[test]
+fn a_flag_settled_inside_a_loop_stays_a_flag() {
+    let file = TempFile::new(
+        "flag_in_loop.mo",
+        "model M function h input Real a; output Boolean result; \
+         protected Integer i = 1; algorithm result := true; \
+         while i <= 2 loop if a > 0 then result := false; end if; i := i + 1; end while; \
+         end h; Boolean b; Boolean c; Real x; \
+         equation b = h(1); c = h(-1); x = if b then 1 else 2; end M;",
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_BOOL_FOLD", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "1", "--dt", "0.5"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    assert_eq!(first_row(&stdout(&out), "b"), 0.0);
+    assert_eq!(first_row(&stdout(&out), "c"), 1.0);
+    assert_eq!(first_row(&stdout(&out), "x"), 2.0);
+    let refused = run(true);
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains("Boolean against Integer"),
+        "{}",
+        stderr(&refused)
+    );
+}

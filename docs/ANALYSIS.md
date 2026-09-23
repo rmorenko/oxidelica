@@ -17820,3 +17820,84 @@ algebraic loops, 85 across six wordings - Newton direction 27,
 equations 19, singular Jacobian 12, bare 11, `X of` 9, underdetermined
 7 - then `unknown variable` (9 across two wordings), unbalanced (about
 30 across many wordings, one model apiece).
+
+## A loop in a branch the run chooses, and the flag that came out a number
+
+The `LossyGear` six stood at `push_conditional` (instantiate.rs), which
+refused any `for` in an `if` branch whose condition only the run can
+decide. The refusal was wider than its reason. A branch the compiler
+picked already unrolls its loops through `extents::unroll`, and the
+same call answers for an undecided branch: the loop is written out
+into the model as usual, and what it wrote is lifted back out and
+into the branch. The rounds are counted before the run whether or not
+the condition is, so the branch holds a known number of equations and
+the balance rule has what it counts. A range the compiler cannot
+count still refuses, inside the unrolling, as it does anywhere. A body
+that would write anything but equations - a `connect`, a check, a
+`when`, an `if` the run decides - is refused, naming which, since
+lifting carries equations only. Kept behind
+`OXIDELICA_NO_LOOP_IN_BRANCH`.
+
+The chain had a second link, found on the first `--only` of the six:
+four of them went on to `type mismatch in gear.ideal = 0: Boolean
+against Integer`. The cause is in the body walk, not in the loop.
+`Matrices.isEqual` sets `result := false` under an `if` inside a
+`while`. Inside a loop, the walk folds a value that settles into
+`Expr::Number` so that rounds do not pile up, and a choice between two
+truths folded that way came out as the number 0. Reproduced in
+twenty-three lines (a `while` whose body sets a Boolean output to
+`false` under an `if`); `true` came through intact only because the
+value assigned before the loop was never merged. The fold now writes a
+settled value in the kind its form has: a Boolean literal or operator,
+or a choice whose every arm is one, becomes `Expr::Bool`. Kept behind
+`OXIDELICA_NO_BOOL_FOLD`.
+
+Both links have a test that checks a number, run both ways from one
+binary: the loop's values (`r[3] = 6`, `x = 12`) from the else branch,
+and the flag's truth (`b = 0`, `c = 1`, and `x = 2` read through it).
+
+The six, one at a time from `.msl`:
+
+- `LossyGearDemo1`: runs, and the numbers are the table's: with
+  `lossTable = [0, 0.5, 0.5, 0, 0]` the gear reads `ideal = false`,
+  `interpolation_result = [0.5, 0.5, 0, 0]`, `eta_mf1 = eta_mf2 =
+0.5`, over the whole second of `simulate`.
+- `LossyGearDemo3`, `HeatLosses`: pass the check's ten steps. A full
+  `simulate` stops at `step size underflow` (t = 0.499 and t = 0.034),
+  which is where the gear changes mode - the next wall, a run-half one.
+- `LossyGearDemo2`: flattens, refused in the run at `singular Jacobian
+in algebraic loop ["gear.quadrant2", ...]`.
+- `TestBearingConversion`: flattens, refused in the run at an
+  algebraic loop through `bearingFriction.a_relfric`.
+- `ActuatorWithNoise`: now refused at
+  `Xorshift64star.random`, which is external C and parked.
+
+## The `break`/`return` row is the parked registers
+
+Row 8 of the m256 census, `a branch holding break or return needs a
+condition the compiler can decide`, is exactly the eight registers
+`DFFREG`, `DFFREGL`, `DFFREGSRH`, `DFFREGSRL`, `DLATREG`, `DLATREGL`,
+`DLATREGSRH`, `DLATREGSRL` (names from /tmp/m256/raw.txt) - the set
+already parked as a family. So it is not a new layer. It is the same
+eight seen from the refusal's side.
+
+The layer is `one_if_statement` (statements.rs, the refusal at the
+`UNDECIDABLE_LEAVING` message). An `if` in an algorithm whose condition
+the compiler cannot decide is merged symbolically, branch by branch.
+A branch holding `break` or `return` cannot be merged that way, because
+whether the loop goes on depends on which branch fired, so the
+condition is required to settle, and in the registers it is
+`clock_flag == 0` and `next_assign_val[i] == ...`, both values of the
+run. The source is `Digital.mo` `DFFR`: a `for i in 1:n` under `when`
+logic (`change(clock)`), with `break` in three branches keyed on run
+values. Reproduced in sixteen lines (/tmp/m257/BR.mo): a `for` in a
+`when` whose body `break`s under `if time > 0.25`.
+
+What it needs is a loop whose exit is itself a value: a flag
+`running` that each `break` sets to false and that guards every later
+statement and round, so the unrolled body stays a merge of choices.
+That is the general lowering of structured exits to guarded
+assignments, and it is a change to the body walk, not to the
+condition. It is sized by the eight registers and no other model, and
+they are parked for more than this. So the lowering is for when the
+registers are taken up, not before.

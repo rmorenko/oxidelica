@@ -1221,6 +1221,71 @@ fn keep_check_only_if() -> bool {
     std::env::var_os("OXIDELICA_NO_CHECK_ONLY_IF").is_none()
 }
 
+/// Whether a `for` in a branch only the run can choose is unrolled
+/// into that branch rather than refused. `OXIDELICA_NO_LOOP_IN_BRANCH`
+/// is kept so that one binary can be measured both ways.
+fn unroll_loops_in_branches() -> bool {
+    std::env::var_os("OXIDELICA_NO_LOOP_IN_BRANCH").is_none()
+}
+
+/// Unroll one `for` equation into the model, the way a branch the
+/// compiler picked does it. Handed to [`push_conditional`] by the
+/// caller that knows the class's names and shapes.
+pub(super) type UnrollHere<'a> = &'a dyn Fn(&ForEquation, &mut Flat) -> Result<(), String>;
+
+/// The equations a `for` in an undecided branch comes to, taken as
+/// that branch's own.
+///
+/// How many equations a loop makes is settled before the run whenever
+/// its range is: `for i in 1:size(r, 2)` is four rounds however the
+/// condition above it falls, and four equations in a branch are what
+/// the balance rule counts, written out or not. So the loop is
+/// unrolled exactly as it would be in a branch the compiler picked,
+/// and what it wrote is lifted out of the model and into the branch.
+/// A range the compiler cannot count refuses inside the unrolling, as
+/// it does anywhere else.
+///
+/// Only equations may come out. A `connect`, a check or a nested `if`
+/// the run decides would each belong to the branch in a way this
+/// lifting does not carry, so the loop is refused naming which.
+fn unrolled_into_branch(
+    loop_eq: &ForEquation,
+    class_name: &str,
+    unroll_here: UnrollHere<'_>,
+    acc: &mut Flat,
+) -> Result<Vec<EquationItem>, String> {
+    let before = (
+        acc.equations.len(),
+        acc.connects.len(),
+        acc.asserts.len(),
+        acc.conditional.len(),
+        acc.when_clauses.len(),
+        acc.initial_equations.len(),
+    );
+    unroll_here(loop_eq, acc)?;
+    let grew = [
+        (acc.connects.len() > before.1, "a `connect`"),
+        (acc.asserts.len() > before.2, "a check"),
+        (acc.conditional.len() > before.3, "an `if` the run decides"),
+        (acc.when_clauses.len() > before.4, "a `when`"),
+        (
+            acc.initial_equations.len() > before.5,
+            "an initial equation",
+        ),
+    ];
+    if let Some((_, what)) = grew.iter().find(|(grew, _)| *grew) {
+        return Err(format!(
+            "a `for` equation in `{class_name}` sits in an `if` branch whose condition is \
+             not known at compile time, and its body holds {what}, which a branch the run \
+             chooses cannot carry"
+        ));
+    }
+    // The size ceiling keeps a cursor into the equations; one that had
+    // already weighed what is lifted out must not point past the end.
+    acc.counted_up_to = acc.counted_up_to.min(before.0);
+    Ok(acc.equations.drain(before.0..).collect())
+}
+
 /// Record an `if` equation whose condition only the run can decide.
 ///
 /// The spec calls such an `if` balanced: every branch, `else`
@@ -1228,11 +1293,15 @@ fn keep_check_only_if() -> bool {
 /// has one equation per position however the condition falls. What a
 /// branch may not do is change the structure - no `connect`, since a
 /// connection is drawn once and for all.
+///
+/// `unroll_here` is how a `for` in a branch is written out; where it
+/// is `None` a loop in a branch is refused.
 pub(super) fn push_conditional<R, E>(
     if_equation: &IfEquation,
     class_name: &str,
     resolve_here: R,
     expand_here: E,
+    unroll_here: Option<UnrollHere<'_>>,
     no_loop_vars: &HashMap<String, f64>,
     acc: &mut Flat,
 ) -> Result<(), String>
@@ -1252,7 +1321,7 @@ where
         && if_equation
             .branches
             .iter()
-            .all(|branch| branch.equations.is_empty());
+            .all(|branch| branch.equations.is_empty() && branch.loops.is_empty());
     for (position, branch) in if_equation.branches.iter().enumerate() {
         let last = position + 1 == if_equation.branches.len();
         match (&branch.condition, last) {
@@ -1274,7 +1343,8 @@ where
                  known at compile time; connections are structural"
             ));
         }
-        if !branch.loops.is_empty() {
+        let unroll_here = unroll_here.filter(|_| unroll_loops_in_branches());
+        if !branch.loops.is_empty() && unroll_here.is_none() {
             return Err(format!(
                 "a `for` equation in `{class_name}` sits in an `if` branch whose condition is \
                  not known at compile time; how many equations a loop makes is settled before \
@@ -1322,6 +1392,11 @@ where
                     rhs,
                     origin: acc.origin.clone(),
                 });
+            }
+        }
+        if let Some(unroll_here) = unroll_here {
+            for loop_eq in &branch.loops {
+                scalars.extend(unrolled_into_branch(loop_eq, class_name, unroll_here, acc)?);
             }
         }
         branches.push(scalars);

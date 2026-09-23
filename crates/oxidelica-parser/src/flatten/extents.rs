@@ -499,6 +499,7 @@ pub(super) fn unroll(
                             scope,
                             |expr: &Expr| side(expr)?.scalar(),
                             |expr: &Expr, _: &HashMap<String, f64>| side(expr),
+                            None,
                             &HashMap::new(),
                             acc,
                         )?;

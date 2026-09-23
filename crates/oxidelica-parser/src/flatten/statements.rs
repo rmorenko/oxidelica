@@ -638,11 +638,38 @@ fn one_assignment(
     // start without it: `i := length(s) - length(needle) + 1` is the
     // first line of every search the standard library writes.
     let value = match settled_truth(&value, consts, &texts_in_view()) {
-        Some(number) if fold || holds_a_string(&value) => Expr::Number(number),
+        Some(number) if fold || holds_a_string(&value) => settled_as(&value, number),
         _ => value,
     };
     bindings.insert(target, value);
     Ok(())
+}
+
+/// What a value that settled comes to, written in its own kind.
+///
+/// A flag worked out inside a loop is still a flag: `result := false`
+/// under an `if` of a search comes out of the merge as a choice
+/// between two truths, and written as the number 0 it reached the
+/// model as `ideal = 0`, a Boolean against an Integer, which the type
+/// layer rightly refused. The number is the same; what changes is that
+/// the kind the author wrote survives the folding.
+/// `OXIDELICA_NO_BOOL_FOLD` folds every kind to a number, as before,
+/// so that one binary can be measured both ways.
+pub(super) fn settled_as(value: &Expr, number: f64) -> Expr {
+    if std::env::var_os("OXIDELICA_NO_BOOL_FOLD").is_none() && reads_as_boolean(value) {
+        Expr::Bool(number != 0.0)
+    } else {
+        Expr::Number(number)
+    }
+}
+
+/// Whether a value is a truth by its form: a Boolean literal or
+/// operator, or a choice every arm of which is one.
+fn reads_as_boolean(value: &Expr) -> bool {
+    match value {
+        Expr::If(_, taken, otherwise) => reads_as_boolean(taken) && reads_as_boolean(otherwise),
+        _ => is_boolean(value),
+    }
 }
 
 /// Whether an expression asks something of a string.
@@ -1268,7 +1295,7 @@ fn one_if_statement(
         // conditions, and the next round's head cannot be decided
         // through it.
         let value = match settled_truth(&value, consts, &texts_in_view()) {
-            Some(number) if fold => Expr::Number(number),
+            Some(number) if fold => settled_as(&value, number),
             _ => value,
         };
         bindings.insert(name, value);
