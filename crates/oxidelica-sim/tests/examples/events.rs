@@ -349,3 +349,52 @@ fn a_switch_defined_by_a_delayed_signal_finds_its_slot() {
         }
     }
 }
+
+/// A `when initial()` fires after the definitions have settled among
+/// themselves, not while one of them still holds the value it had
+/// before the event.
+///
+/// A discrete definition reads the algebraic part, and a definition
+/// whose input is another definition's output is an ordering: asked
+/// once each, in whatever order the compiler holds them, the second
+/// answers from what the first was worth beforehand. For a definition
+/// that is harmless, because it is asked again next round. For a
+/// `when initial()` it is not: the clause fires exactly once, and
+/// what it stored on that round is what the model carries for the
+/// rest of the run.
+///
+/// Here `late` is the downstream definition, worth NaN before the
+/// event and 3 after it, and `kept` is what the clause stored. A
+/// `when initial()` that fires too early keeps the NaN, and the
+/// model then never comes to rest at all - NaN differs from itself,
+/// so the definition holding it reports a change on every round for
+/// ever. `Modelica.Electrical.Digital` is thirteen models of this.
+#[test]
+fn a_when_at_the_start_sees_the_definitions_settled() {
+    let model = compile(
+        &oxidelica_parser::parse_model(
+            "model M Real x(start = 0, fixed = true); \
+             Integer late; Integer early; Integer kept(start = 0, fixed = true); \
+             Real relay; discrete Real t_next; \
+             algorithm \
+             when {initial(), time >= t_next} then \
+               t_next := time + 1; kept := late; \
+             end when; \
+             equation der(x) = 1; \
+             late = if relay > 2.5 then 3 else 0/0; \
+             relay = early; \
+             early = if x >= 0 then 3 else 0; \
+             annotation(experiment(StopTime = 0.5, Interval = 0.1)); end M;",
+        )
+        .unwrap(),
+    );
+    let run = model.expect("the model compiles").simulate();
+    let out = run.expect("the event comes to rest");
+    let kept = out
+        .columns
+        .iter()
+        .position(|c| c == "kept")
+        .expect("`kept` is in the output");
+    let last = out.rows.last().expect("the run has a row");
+    assert_eq!(last[kept], 3.0, "the clause stored a half-built value");
+}

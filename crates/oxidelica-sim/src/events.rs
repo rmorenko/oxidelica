@@ -352,9 +352,6 @@ impl CompiledModel {
         // the model holds.
         let mut moved: Vec<usize> = Vec::new();
         for _ in 0..rounds {
-            // The algebraic part follows the discrete values, so it is
-            // re-evaluated before the conditions are tested again.
-            self.eval_point(t, y, values, &mut scratch, alg_guess)?;
             let mut acted = false;
             moved.clear();
             // What a discrete-valued name is worth now. Unlike the
@@ -364,13 +361,46 @@ impl CompiledModel {
             // that moves is a reason to go round again: the algebraic
             // part is solved with the switches held still, and a
             // switch that flips changes the system it was solved in.
-            for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
-                let new = code.run(values, t);
-                if values[*slot] != new {
-                    values[*slot] = new;
-                    outcome.changed = true;
-                    acted = true;
-                    moved.push(at);
+            //
+            // They are settled among themselves before any `when` is
+            // allowed to fire, and the reason is the whole of what a
+            // `when initial()` is for. A definition reads the
+            // algebraic part, and the algebraic part is only
+            // re-evaluated at the top of a pass, so a definition whose
+            // input is another definition's output reads the value
+            // from before the event on the first pass through. That is
+            // harmless for a definition, which is asked again next
+            // pass - but a `when initial()` fires exactly once, and if
+            // it fires on that pass it writes what it read from a
+            // half-built point. In `Modelica.Electrical.Digital` the
+            // half-built point is `bUF3S.yy = NaN`, the delay's body
+            // stores the NaN, and because NaN is equal to nothing at
+            // all - not even itself - the definition that holds it
+            // reports a change on every pass for ever and the event
+            // never comes to rest.
+            for _ in 0..=self.discrete_definitions.len() {
+                self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+                let mut again = false;
+                for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
+                    let new = code.run(values, t);
+                    // A value that is NaN twice running has not moved.
+                    // The comparison below is the one the language
+                    // means - a discrete value holds until something
+                    // assigns it another - and IEEE's answer that NaN
+                    // differs from itself is about arithmetic rather
+                    // than about whether an assignment happened.
+                    if values[*slot] != new && !(values[*slot].is_nan() && new.is_nan()) {
+                        values[*slot] = new;
+                        outcome.changed = true;
+                        acted = true;
+                        again = true;
+                        if !moved.contains(&at) {
+                            moved.push(at);
+                        }
+                    }
+                }
+                if !again {
+                    break;
                 }
             }
             let now = self.when_conditions(t, values);
@@ -432,12 +462,13 @@ impl CompiledModel {
         if !settled {
             // The discrete-valued names, which is where a definition
             // that keeps moving has to be: the slots run alongside.
-            let names: Vec<&String> = moved
+            let names: Vec<String> = moved
                 .iter()
                 .filter_map(|&which| {
                     let (slot, _) = self.discrete_definitions.get(which)?;
                     let at = self.discrete_slots.iter().position(|held| held == slot)?;
-                    self.discretes.get(at)
+                    let name = self.discretes.get(at)?;
+                    Some(format!("{name} = {}", values[*slot]))
                 })
                 .collect();
             // The list cannot come out empty, and the reason is worth

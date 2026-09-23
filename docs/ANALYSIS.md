@@ -16921,3 +16921,65 @@ state nobody pinned being guessed at its declaration and handed to
 the water tables. That layer is where this row is owed work, and it
 is a layer the register has now pointed at twice from two different
 censuses.
+
+## A clause that fires once must not read a half-built point
+
+The thirteen `Modelica.Electrical.Digital` examples refused with `the
+event at t = 0 does not come to rest after N round(s)`, N from 9 to 80,
+and the name still moving was always a delay's output:
+`bUF3S.inertialDelaySensitive.y` for `BUF3S`, the same field of
+`nXFERGATE` and `nRXFERGATE` for the two transfer gates, forty names of
+`Counter.FF[*].RS*.Nor*` for the counter.
+
+Teaching the refusal to print the value beside the name answered it in
+one build. Every one of them read `= NaN`, and the small model that
+shows the mechanism is twelve lines: a discrete definition worth NaN
+reports a change on every round for ever, because IEEE says NaN differs
+from itself and the loop's test for "did this move" is `!=`.
+
+Where the NaN came from is the finding, and it is an ordering rather
+than an arithmetic fault. Printing the definitions round by round:
+
+```text
+-- round
+  def "x_table.y":                        0 -> 1
+  def "bUF3S.inertialDelaySensitive.y":   1 -> 1
+  def "bUF3S.nextstate":                  1 -> NaN
+  def "bUF3S.yy":                         1 -> NaN
+-- round
+  def "bUF3S.nextstate":                NaN -> 5
+  def "bUF3S.yy":                       NaN -> 5
+-- round
+  def "bUF3S.inertialDelaySensitive.y":   1 -> NaN
+```
+
+`nextstate` is a table read whose index is `x_table.y` reaching it
+through the algebraic part, and the algebraic part was re-evaluated
+only at the top of a round. So on the first round `nextstate` indexed
+a table with the value `x_table.y` held _before_ the event, fell off
+the end of the table and answered NaN. Harmless for a definition,
+which is asked again next round and answers 5. Not harmless for the
+`when initial()` inside the delay, which fires exactly once, and fired
+on that first round: it stored the NaN into `y_auxiliary`, and from
+there `y` held a NaN that no later round could clear.
+
+The repair is to settle the definitions among themselves - evaluating
+the algebraic part between passes - before any `when` is allowed to
+fire, bounded by the definition count. A `when initial()` then sees
+the point the model means rather than the point the loop was halfway
+through building. The `!=` test also learned that NaN twice running is
+not a movement, which is the language's meaning of a discrete value
+holding rather than IEEE's about arithmetic.
+
+The numbers are checked against the truth table rather than against
+flattening: `BUF3S` now returns `Z, Z, DataIn, DataIn, X` as
+`Tristates.BUF3S` documents, and the delay is a real delay - `y` lags
+`yy` by the one second of `tLH`.
+
+Worth naming as a general shape, because the census could not have
+found it: thirteen models refused with one wording, in one layer, for
+a reason no count of kinds distinguishes from chattering. What found
+it was the refusal being taught to print a value beside the name it
+already printed, which cost four lines. A refusal that names _what_ it
+refused is the rule; this is the same rule one step further - a
+refusal that names what the thing was _worth_.

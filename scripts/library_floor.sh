@@ -278,9 +278,26 @@ FLATTEN_FLOOR=865
 # taken from one binary with the repair switched off and on is those
 # two names arriving and none leaving (/tmp/m243/off.txt and
 # /tmp/m243/on.txt: 865/541 and 750/507 against 865/543 and 750/509).
-RUN_FLOOR=543
+#
+# The whole of `Modelica.Electrical.Digital` that was standing at the
+# event iteration arrives at once: thirteen models, because the
+# `when initial()` inside the inertial delay no longer fires on a
+# round where the definitions behind it still hold the values from
+# before the event. Six of the thirteen are `Examples.Utilities`
+# helpers rather than examples proper, which is why the two run
+# floors move by different amounts.
+#
+#   run          556 = 543 before, plus the thirteen
+#   runnable run 516 = 509 before, plus the seven that are examples
+#
+# Flattening is unmoved on both counts - all thirteen flattened
+# already and refused in the run half. The diff of the run lists,
+# taken from one tree built twice (/tmp/m245/before.txt and
+# /tmp/m245/after.txt: 865/543 and 750/509 against 865/556 and
+# 750/516), is those thirteen names arriving and none leaving.
+RUN_FLOOR=556
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=509
+RUNNABLE_RUN_FLOOR=516
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
