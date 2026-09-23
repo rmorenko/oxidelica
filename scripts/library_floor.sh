@@ -556,6 +556,28 @@ RUN_MS_CEILING=8000
 # differently where a floating point library answers a last digit
 # differently, and if it does, the build machine's numbers go here and
 # the difference is named.
+#
+# The flattening counts also depend on where the library stands on the
+# disk, and not only on the binary and the library. A model that reads
+# its table from `loadResource("modelica://...")` has the absolute path
+# worked over by the string functions, and that work grows with the
+# path - by its length or by its segments, which has not been told
+# apart. The same binary over the same
+# revision printed 89763460 expansions and 1279374 bodies from `.msl`
+# (/tmp/m259/c1.txt and c2.txt, which agree to the
+# digit) and 89881564 and 1292028 from the preflight's default
+# `~/.local/share/oxidelica/libraries/Modelica`
+# (/tmp/m259/c3-L.txt). Model by model, over the 187 table and
+# utilities models that flatten, the difference sits on the table tests
+# that read a file, 3192 expansions and 342 bodies apiece on a
+# one-dimensional or time table and 4788 and 513 on a two-dimensional
+# one, and comes to 105336 of the 118104 expansions over that set. The
+# other 12768 are four times 3192 and lie outside it, not yet traced
+# by name. So the numbers here are from `.msl`
+# under this checkout. The build machine's checkout path is another
+# path, and its flattening counts may sit a fraction of a percent off
+# these for that reason alone: 27 characters more moved them 0.13% and
+# 0.99%, inside the five percent the ratchet allows.
 WORK_CLASSES=275975
 WORK_EXPANSIONS=89763460
 WORK_BODIES=1279374
