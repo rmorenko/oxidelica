@@ -464,6 +464,63 @@ fn numbers_in(expr: &Expr) -> usize {
     }
 }
 
+/// Whether an output's declared value is left out of the body until
+/// the end, as it was before: the switch that lets one binary give
+/// both numbers.
+fn output_defaults_off() -> bool {
+    super::lookup::table_media_held_back()
+        || std::env::var_os("OXIDELICA_OUTPUT_DEFAULTS_OFF").is_some()
+}
+
+/// Whether the least-squares fit is left to whoever has LAPACK, as it
+/// was before.
+fn least_squares_off() -> bool {
+    super::lookup::table_media_held_back()
+        || std::env::var_os("OXIDELICA_LEAST_SQUARES_OFF").is_some()
+}
+
+/// A call of `dgelsy` with the counts of rows and columns written in
+/// front of what it was handed, and how many numbers it answers with.
+///
+/// A refusal where the matrix did not arrive with two dimensions, or
+/// the right-hand side is not a whole number of columns of that
+/// height: those are shapes the declaration rules out, so meeting one
+/// means the compiler lost track of a shape rather than that the model
+/// is wrong.
+fn least_squares_call(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+) -> Result<(Expr, usize), String> {
+    let refused = || {
+        format!(
+            "`{}` is handed its matrix in a shape this compiler cannot read: {:?}",
+            class.name,
+            shapes.iter().take(2).collect::<Vec<_>>()
+        )
+    };
+    let Some([rows, columns]) = shapes.first().map(Vec::as_slice) else {
+        return Err(refused());
+    };
+    let (rows, columns) = (*rows as usize, *columns as usize);
+    // The right-hand side is measured by its shape and not by what it
+    // is written as: a name standing for a vector is one expression
+    // and many numbers.
+    let side = shapes
+        .get(1)
+        .map_or(0, |shape| shape.iter().product::<i64>().max(0) as usize);
+    // The condition number is written out by every caller in the
+    // library; one left to its default would be read off the end of
+    // the right-hand side.
+    if rows == 0 || !side.is_multiple_of(rows) || args.len() != 3 {
+        return Err(refused());
+    }
+    let mut given = vec![Expr::Number(rows as f64), Expr::Number(columns as f64)];
+    given.extend(args.iter().cloned());
+    let answers = crate::outside::least_squares_answers(rows, columns, side / rows);
+    Ok((Expr::Call("dgelsy".to_string(), given), answers))
+}
+
 /// The outputs of a body written here, each taking its own place of
 /// what the call answers with.
 ///
@@ -1418,6 +1475,31 @@ fn worked_body(
             }
         }
     }
+    // An output given a value on its declaration holds that value from
+    // the start of the body, the way a local does: `output Real
+    // integral = 0.0` of `Polynomials.integralValue` is read inside the
+    // loop that builds it up, `integral := u_high*(p[j]/(n - j + 1) +
+    // integral)`, and with nothing seeded the first reading carried the
+    // body's own name out into the flat model. Only a single number: an
+    // array or a record output is built up by other roads.
+    if !output_defaults_off() {
+        for output in &outputs {
+            if !output.dimensions.is_empty() || bindings.contains_key(&output.name) {
+                continue;
+            }
+            let Some(value) = &output.binding else {
+                continue;
+            };
+            let a_record = lookup(registry, &output.type_name, &class.name, &class.imports)
+                .is_some_and(|of| of.kind == ClassKind::Record);
+            if a_record {
+                continue;
+            }
+            let value =
+                substitute_class_constants(value, registry, &class.name, &class.imports, &[]);
+            bindings.insert(output.name.clone(), substitute_refs(&value, &bindings));
+        }
+    }
     let mut assigned = Vec::new();
     // `Return` is simply an early landing here; the outputs are read
     // out the same way. A `break` with no loop has nowhere to go.
@@ -1630,6 +1712,27 @@ fn body_written_elsewhere(
             return Err(outside_this_language(class));
         };
         let made = Expr::Call(call.called.clone(), args.to_vec());
+        // A least-squares problem is handed over as a matrix of any
+        // height and width, and the numbers alone do not say which:
+        // twelve of them are three rows of four or four of three. So
+        // the call carries the two counts in front, read off the shape
+        // the matrix arrived in.
+        if call.called == "dgelsy" {
+            if least_squares_off() {
+                return Err(outside_this_language(class));
+            }
+            let (made, answers) = least_squares_call(class, args, shapes)?;
+            let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
+            for (input, shape) in function_components(registry, class, 0)
+                .iter()
+                .filter(|c| c.causality == Causality::Input)
+                .zip(shapes)
+            {
+                given_shapes.insert(input.name.clone(), shape.clone());
+            }
+            return numbered_outputs(class, registry, consts, &given_shapes, &made, answers)
+                .map(Some);
+        }
         // A body written here in Rust answers with numbers rather than
         // with a string, and may answer with several: the generators
         // give a value and the state they moved to. Each output takes
@@ -2183,5 +2286,51 @@ fn hands_a_function_over(statement: &Statement) -> bool {
         // over in. Named rather than swept up, so a statement added to
         // the language has to be decided about here.
         Statement::Break | Statement::Return => false,
+    }
+}
+
+#[cfg(test)]
+mod least_squares {
+    use super::*;
+
+    fn a_function() -> ClassDef {
+        crate::parse_file("function dgelsy_vec input Real A[:, :]; end dgelsy_vec;")
+            .expect("parses")
+            .remove(0)
+    }
+
+    /// The shapes a least-squares call is refused for, each of which
+    /// the declaration rules out and meeting one means a shape was lost.
+    #[test]
+    fn a_fit_handed_a_shape_it_cannot_read_is_refused_by_name() {
+        let class = a_function();
+        let three = vec![
+            Expr::Ref("A".into()),
+            Expr::Ref("b".into()),
+            Expr::Number(0.0),
+        ];
+        let (made, answers) = least_squares_call(&class, &three, &[vec![4, 2], vec![4], vec![]])
+            .expect("a matrix and a side of its height");
+        assert_eq!(answers, 6);
+        let Expr::Call(called, given) = made else {
+            panic!("a call")
+        };
+        assert_eq!(called, "dgelsy");
+        assert_eq!(given.len(), 5);
+        assert_eq!(given[0], Expr::Number(4.0));
+
+        for (shapes, args) in [
+            // A matrix that is not two-dimensional.
+            (vec![vec![4], vec![4], vec![]], three.clone()),
+            // A side of a height the matrix has not got.
+            (vec![vec![4, 2], vec![3], vec![]], three.clone()),
+            // No rows at all.
+            (vec![vec![0, 2], vec![0], vec![]], three.clone()),
+            // The condition number left to its default.
+            (vec![vec![4, 2], vec![4]], three[..2].to_vec()),
+        ] {
+            let why = least_squares_call(&class, &args, &shapes).unwrap_err();
+            assert!(why.contains("dgelsy_vec") && why.contains("shape"), "{why}");
+        }
     }
 }

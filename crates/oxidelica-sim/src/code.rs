@@ -563,7 +563,12 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
         | Expr::ColonSubscript
         | Expr::EndSubscript
         | Expr::MatrixRows(_)
-        | Expr::Tuple(_) => return err("an array reached the evaluator".to_string()),
+        | Expr::Tuple(_) => {
+            return err(format!(
+                "an array reached the evaluator: {}",
+                expr.describe().chars().take(160).collect::<String>()
+            ))
+        }
         // A named argument is its value under a name: the water of the
         // library calls its property function with `phase = 0`, and by
         // the time a parameter is settled the name has done its work -

@@ -27,6 +27,7 @@ pub fn written_here(called: &str) -> bool {
             | "ModelicaRandom_xorshift128plus"
             | "ModelicaRandom_xorshift1024star"
             | "dgesv"
+            | "dgelsy"
     )
 }
 
@@ -55,6 +56,13 @@ pub fn shape(called: &str, given: &[usize]) -> Option<(usize, usize)> {
         ("dgesv", [square, width]) if *width * *width == *square && *width > 0 => {
             Some((all, width + 1))
         }
+        // The two counts, the matrix, the right-hand side and the
+        // condition number. The counts themselves are not in view
+        // here, only how many numbers each argument came to; the
+        // answer's length is known where the call was laid out, and
+        // what is checked here is that the grouping is the one that
+        // place writes.
+        ("dgelsy", [1, 1, matrix, side, 1]) if *matrix > 0 && *side > 0 => Some((all, 0)),
         _ => None,
     }
 }
@@ -104,7 +112,145 @@ pub fn answer(called: &str, given: &[f64]) -> Option<Vec<f64>> {
             answer.push(0.0);
             Some(answer)
         }
+        // The count of rows and of columns come first, since a matrix
+        // and a right-hand side of any width cannot be told apart by
+        // how many numbers they come to; then the matrix row by row,
+        // the right-hand side row by row, and the condition number the
+        // rank is judged by.
+        ("dgelsy", [rows, columns, rest @ ..]) => {
+            let (rows, columns) = (whole(*rows)?, whole(*columns)?);
+            let (rcond, numbers) = rest.split_last()?;
+            let (matrix, side) = numbers.split_at_checked(rows * columns)?;
+            if rows == 0 || side.len() % rows != 0 {
+                return None;
+            }
+            let (solved, rank) = least_squares(matrix, rows, columns, side, *rcond)?;
+            let mut answer = solved;
+            // Whether all went well, and the rank the matrix was
+            // judged to have, the way LAPACK says them.
+            answer.push(0.0);
+            answer.push(rank as f64);
+            Some(answer)
+        }
         _ => None,
+    }
+}
+
+/// How many numbers `dgelsy` answers with for a matrix of this many
+/// rows and columns and a right-hand side of this many columns: the
+/// solution, as tall as the taller of the two sides, then word of how
+/// it went and the rank.
+pub fn least_squares_answers(rows: usize, columns: usize, sides: usize) -> usize {
+    rows.max(columns) * sides + 2
+}
+
+/// A count carried as a number, back as a count.
+fn whole(value: f64) -> Option<usize> {
+    (value >= 0.0 && value.fract() == 0.0).then_some(value as usize)
+}
+
+/// The least-squares solution of `A X = B` with the smallest norm, the
+/// matrix and the right-hand side given row by row; the answer written
+/// row by row as tall as the taller of the matrix's two sides, with the
+/// rank the matrix was judged to have.
+///
+/// What LAPACK's `dgelsy` answers. The columns are taken in order of
+/// what is left of them, each cleared below the diagonal by a
+/// reflection, and the rank is where a diagonal entry falls below
+/// `rcond` times the first. With every column independent the answer
+/// is read back from the bottom up. With fewer, the remaining freedom
+/// is spent on the shortest answer: of every `y` the kept rows `W`
+/// allow, `W^T (W W^T)^-1 c` is the one nearest nothing. Rows past the
+/// column count carry nothing a caller reads - `leastSquares` keeps the
+/// first `columns` - and are written as zeros.
+pub fn least_squares(
+    matrix: &[f64],
+    rows: usize,
+    columns: usize,
+    side: &[f64],
+    rcond: f64,
+) -> Option<(Vec<f64>, usize)> {
+    let sides = side.len() / rows.max(1);
+    let mut a: Vec<Vec<f64>> = matrix.chunks(columns.max(1)).map(<[f64]>::to_vec).collect();
+    let mut b: Vec<Vec<f64>> = side.chunks(sides.max(1)).map(<[f64]>::to_vec).collect();
+    if columns == 0 {
+        a = vec![Vec::new(); rows];
+    }
+    let mut order: Vec<usize> = (0..columns).collect();
+    let steps = rows.min(columns);
+    let mut rank = 0;
+    let mut first = 0.0;
+    for step in 0..steps {
+        // The column with the most left in it below this row.
+        let left = |a: &[Vec<f64>], c: usize| (step..rows).map(|r| a[r][c] * a[r][c]).sum::<f64>();
+        let pick = (step..columns).max_by(|x, y| {
+            left(&a, *x)
+                .partial_cmp(&left(&a, *y))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
+        for row in a.iter_mut() {
+            row.swap(step, pick);
+        }
+        order.swap(step, pick);
+        let norm = left(&a, step).sqrt();
+        if step == 0 {
+            first = norm;
+        }
+        if norm == 0.0 || norm <= rcond.abs() * first {
+            break;
+        }
+        // A reflection taking the column below the diagonal to zero.
+        let alpha = if a[step][step] > 0.0 { -norm } else { norm };
+        let mut v: Vec<f64> = (step..rows).map(|r| a[r][step]).collect();
+        v[0] -= alpha;
+        let vv: f64 = v.iter().map(|x| x * x).sum();
+        if vv > 0.0 {
+            reflect(&mut a[step..], step..columns, &v, vv);
+            reflect(&mut b[step..], 0..sides, &v, vv);
+        }
+        rank += 1;
+    }
+    let tall = rows.max(columns);
+    let mut answer = vec![0.0; tall * sides];
+    for k in 0..sides {
+        let c: Vec<f64> = (0..rank).map(|r| b[r][k]).collect();
+        let y: Vec<f64> = if rank == columns {
+            let mut y = vec![0.0; rank];
+            for r in (0..rank).rev() {
+                let known: f64 = (r + 1..rank).map(|j| a[r][j] * y[j]).sum();
+                y[r] = (c[r] - known) / a[r][r];
+            }
+            y
+        } else {
+            // The kept rows, upper trapezoidal, and the shortest `y`
+            // they allow.
+            let gram: Vec<f64> = (0..rank)
+                .flat_map(|i| {
+                    let a = &a;
+                    (0..rank).map(move |j| (i.max(j)..columns).map(|t| a[i][t] * a[j][t]).sum())
+                })
+                .collect();
+            let z = solve(&gram, &c)?;
+            (0..columns)
+                .map(|t| (0..rank.min(t + 1)).map(|i| a[i][t] * z[i]).sum())
+                .collect()
+        };
+        for (place, value) in order.iter().zip(y) {
+            answer[place * sides + k] = value;
+        }
+    }
+    Some((answer, rank))
+}
+
+/// One reflection `I - 2 v v^T / (v^T v)` applied to the named columns
+/// of the rows given, which start where `v` does.
+fn reflect(rows: &mut [Vec<f64>], columns: std::ops::Range<usize>, v: &[f64], vv: f64) {
+    for c in columns {
+        let dot: f64 = rows.iter().zip(v).map(|(row, x)| x * row[c]).sum();
+        let share = 2.0 * dot / vv;
+        for (row, x) in rows.iter_mut().zip(v) {
+            row[c] -= share * x;
+        }
     }
 }
 
@@ -347,6 +493,65 @@ mod tests {
         assert!((told[0] - 0.8).abs() < 1e-12, "{told:?}");
         assert_eq!(shape("dgesv", &[4, 2]), Some((6, 3)));
         assert_eq!(shape("dgesv", &[4, 3]), None);
+    }
+
+    /// A fit through points that do not lie on the line, one that
+    /// cannot tell two columns apart, one with more unknowns than
+    /// equations, and the shapes a call is refused for.
+    #[test]
+    fn a_least_squares_fit_is_the_shortest_of_the_best() {
+        // Four points about `2.1 u + 1.1`: the normal equations give
+        // that slope and intercept exactly.
+        let rows = [0.0, 1.0, 1.0, 1.0, 2.0, 1.0, 3.0, 1.0];
+        let (x, rank) = least_squares(&rows, 4, 2, &[1.0, 3.5, 5.0, 7.5], 1e-13).unwrap();
+        assert_eq!(rank, 2);
+        assert_eq!(x.len(), 4, "as tall as the taller side");
+        assert!((x[0] - 2.1).abs() < 1e-12, "{x:?}");
+        assert!((x[1] - 1.1).abs() < 1e-12, "{x:?}");
+
+        // Two columns the same: rank one, and of every answer that
+        // fits, the shortest splits the weight evenly.
+        let (x, rank) = least_squares(&[1.0, 1.0, 2.0, 2.0], 2, 2, &[2.0, 4.0], 1e-10).unwrap();
+        assert_eq!(rank, 1);
+        assert!(
+            (x[0] - 1.0).abs() < 1e-12 && (x[1] - 1.0).abs() < 1e-12,
+            "{x:?}"
+        );
+
+        // One equation in two unknowns, `x + y = 2`: the shortest answer
+        // is one apiece, and it comes out as long as the columns.
+        let (x, rank) = least_squares(&[1.0, 1.0], 1, 2, &[2.0], 0.0).unwrap();
+        assert_eq!(rank, 1);
+        assert!(
+            (x[0] - 1.0).abs() < 1e-12 && (x[1] - 1.0).abs() < 1e-12,
+            "{x:?}"
+        );
+
+        // A matrix of nothing but zeros has rank nothing and answers
+        // with zeros.
+        let (x, rank) = least_squares(&[0.0, 0.0], 2, 1, &[1.0, 1.0], 0.0).unwrap();
+        assert_eq!((x, rank), (vec![0.0, 0.0], 0));
+
+        // Through the name it is called by: the counts first, then the
+        // matrix, the side and the condition number; the answer, then
+        // word of how it went and the rank.
+        let told = super::answer("dgelsy", &[2.0, 1.0, 3.0, 4.0, 6.0, 8.0, 0.0]).unwrap();
+        assert_eq!(told.len(), least_squares_answers(2, 1, 1));
+        assert!((told[0] - 2.0).abs() < 1e-12, "{told:?}");
+        assert_eq!(&told[2..], &[0.0, 1.0]);
+        assert_eq!(shape("dgelsy", &[1, 1, 8, 4, 1]), Some((15, 0)));
+        assert_eq!(shape("dgelsy", &[1, 1, 8, 4]), None);
+        assert_eq!(shape("dgelsy", &[1, 1, 0, 4, 1]), None);
+        // Counts that are not counts, a matrix short of what they
+        // promise, and a side that is not a whole number of columns.
+        assert_eq!(super::answer("dgelsy", &[1.5, 1.0, 3.0, 6.0, 0.0]), None);
+        assert_eq!(super::answer("dgelsy", &[2.0, 2.0, 3.0, 0.0]), None);
+        assert_eq!(
+            super::answer("dgelsy", &[2.0, 1.0, 3.0, 4.0, 6.0, 0.0]),
+            None
+        );
+        assert_eq!(super::answer("dgelsy", &[0.0, 1.0, 0.0]), None);
+        assert_eq!(super::answer("dgelsy", &[1.0]), None);
     }
 
     #[test]

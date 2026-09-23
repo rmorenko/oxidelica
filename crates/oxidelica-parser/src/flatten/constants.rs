@@ -1247,17 +1247,46 @@ fn substitute_at(
             };
             match enclosing_binding(registry, named, scope) {
                 Some(Expr::Array(items)) => Expr::Number(items.len() as f64),
+                // A table written with the matrix brackets, counted by
+                // the dimension asked: `hasDensity = not
+                // (size(tableDensity, 1) == 0)` is how a table-based
+                // medium says it was given one.
+                Some(Expr::MatrixRows(rows)) if !chosen_arrays_off() => match args.get(1) {
+                    Some(Expr::Number(one)) if *one == 1.0 => Expr::Number(rows.len() as f64),
+                    Some(Expr::Number(two)) if *two == 2.0 && !rows.is_empty() => {
+                        Expr::Number(rows[0].len() as f64)
+                    }
+                    _ => expr.clone(),
+                },
                 _ => expr.clone(),
             }
         }
         Expr::Call(name, args) => {
             let args: Vec<Expr> = args.iter().map(recur).collect();
-            let found = lookup(registry, name, scope, imports);
+            let found = lookup(registry, name, scope, imports)
+                .or_else(|| through_base_imports(registry, name, scope, settle_calls));
             if let Some(builtin) = found.and_then(|class| class.builtin.clone()) {
                 return Expr::Call(builtin, args);
             }
             match found.filter(|_| settle_calls && depth <= MAX_CONSTANT_DEPTH) {
                 Some(class) if class.kind == ClassKind::Function => {
+                    // A column of a table written with the matrix
+                    // brackets is handed over as the list it is:
+                    // `fitting(tableDensity[:, 1], ...)` is how every
+                    // table-based medium fits its coefficients, and a
+                    // colon handed into a body means nothing there.
+                    let args: Vec<Expr> = match chosen_arrays_off() {
+                        true => args,
+                        false => args
+                            .into_iter()
+                            .map(|arg| match &arg {
+                                Expr::Index(..) | Expr::Elementwise(..) | Expr::If(..) => {
+                                    as_list(&arg).unwrap_or(arg)
+                                }
+                                _ => arg,
+                            })
+                            .collect(),
+                    };
                     let shapes: Vec<Vec<i64>> = args.iter().map(|_| Vec::new()).collect();
                     // The function the call really means: the medium this
                     // was asked under may have redeclared it with inputs
@@ -1405,7 +1434,19 @@ fn constant_array_of_package(
     // building one can answer nothing here, and asking
     // it costs a body written out per asking. That order
     // was four hundred thousand inlinings over one model.
-    if !matches!(binding, Expr::Array(_)) && !builds_an_array(&binding) {
+    // A table written with the matrix brackets is a list as much as one
+    // written with braces - the dotted road already reads it so - and
+    // every table-based medium writes its tables that way.
+    let a_matrix = |binding: &Expr| {
+        matches!(binding, Expr::MatrixRows(_))
+            && super::names::package_tables_open()
+            && !chosen_arrays_off()
+    };
+    if !matches!(binding, Expr::Array(_))
+        && !a_matrix(&binding)
+        && !builds_an_array(&binding)
+        && !chooses_an_array(&binding)
+    {
         return None;
     }
     let binding = substitute_at(
@@ -1417,7 +1458,22 @@ fn constant_array_of_package(
         depth + 1,
         true,
     );
-    if let Expr::Array(_) = binding {
+    // A binding that picks between arrays is the side its condition
+    // picks, once the condition has come to a number. Unsettled, it is
+    // no list and answers nothing here.
+    let binding = match binding {
+        Expr::If(condition, then, other)
+            if chooses_an_array(&Expr::If(condition.clone(), then.clone(), other.clone())) =>
+        {
+            match const_eval(&condition, &HashMap::new()) {
+                Some(truth) if truth != 0.0 => as_list(&then).unwrap_or(*then),
+                Some(_) => as_list(&other).unwrap_or(*other),
+                None => return None,
+            }
+        }
+        binding => binding,
+    };
+    if matches!(binding, Expr::Array(_)) || a_matrix(&binding) {
         return Some(binding);
     }
     // A binding that says how to build the array rather
@@ -1497,6 +1553,115 @@ fn gathering_settled(
 fn builds_an_array(binding: &Expr) -> bool {
     matches!(binding, Expr::Call(name, args)
         if matches!(name.as_str(), "fill" | "zeros" | "ones") && !args.is_empty())
+}
+
+/// Whether a binding picks between two arrays, one of them built by
+/// the language's own constructors: `poly_Cp = if hasHeatCapacity then
+/// Polynomials.fitting(...) else zeros(npolHeatCapacity + 1)` is how
+/// every table-based medium fits its coefficients. The constructor on
+/// one side is what says the binding is an array at all, and it is as
+/// cheap to see as the plain constructor is - so the judgment that
+/// spares every scalar binding the dear substitution stays cheap.
+fn chooses_an_array(binding: &Expr) -> bool {
+    if chosen_arrays_off() {
+        return false;
+    }
+    matches!(binding, Expr::If(_, then, other)
+        if builds_an_array(then) || builds_an_array(other))
+}
+
+/// Whether a binding that picks between arrays is left unread, as it
+/// was before: the switch that lets one binary give both numbers.
+fn chosen_arrays_off() -> bool {
+    super::lookup::table_media_held_back()
+        || std::env::var_os("OXIDELICA_CHOSEN_ARRAYS_OFF").is_some()
+}
+
+/// A function named in a binding a base wrote, read with the imports of
+/// that base.
+///
+/// Imports are not inherited, but a binding is: `TableBased` says
+/// `import Modelica.Math.Polynomials` and binds `poly_lam =
+/// Polynomials.fitting(...)`, and `Glycol47`, which extends it and
+/// holds the binding now, has no `Polynomials` of its own in view. The
+/// name means what it meant where it was written, so the bases of the
+/// class asking are asked with their own imports. Only where a call is
+/// being settled, and only after the class's own reading found nothing.
+fn through_base_imports<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    name: &str,
+    scope: &str,
+    settle_calls: bool,
+) -> Option<&'a ClassDef> {
+    if !settle_calls || chosen_arrays_off() {
+        return None;
+    }
+    let mut owner = *registry.get(scope)?;
+    for _ in 0..MAX_DEPTH {
+        let extend = owner.extends.first()?;
+        let base = lookup(registry, &extend.base, &owner.name, &owner.imports)?;
+        if base.name == owner.name {
+            return None;
+        }
+        if let Some(found) = lookup(registry, name, &base.name, &base.imports) {
+            return Some(found);
+        }
+        owner = base;
+    }
+    None
+}
+
+/// A settled expression that comes to a list, written out as one.
+///
+/// Only the few shapes a medium's constant tables are built of: a list
+/// already written out, a choice whose condition has come to a number,
+/// a column taken out of a matrix written with brackets, and an
+/// operation element by element over lists and numbers. `invTK = if
+/// TinK then 1 ./ tableViscosity[:, 1] else ...` is all four at once.
+/// Anything else is not a list this can see, and says so with `None`.
+fn as_list(expr: &Expr) -> Option<Expr> {
+    match expr {
+        Expr::Array(_) => Some(expr.clone()),
+        Expr::If(condition, then, other) => match const_eval(condition, &HashMap::new())? {
+            truth if truth != 0.0 => as_list(then),
+            _ => as_list(other),
+        },
+        Expr::Index(base, subscripts) => {
+            let (Expr::MatrixRows(rows), [Expr::ColonSubscript, column]) =
+                (base.as_ref(), subscripts.as_slice())
+            else {
+                return None;
+            };
+            let column = const_eval(column, &HashMap::new())?;
+            let at = (column as usize).checked_sub(1)?;
+            let picked: Option<Vec<Expr>> = rows.iter().map(|row| row.get(at).cloned()).collect();
+            Some(Expr::Array(picked?))
+        }
+        Expr::Elementwise(op, left, right) => {
+            let list = |side: &Expr| match as_list(side) {
+                Some(Expr::Array(items)) => Some(items),
+                _ => None,
+            };
+            let items = match (list(left), list(right)) {
+                (Some(l), Some(r)) if l.len() == r.len() => l
+                    .into_iter()
+                    .zip(r)
+                    .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                    .collect(),
+                (Some(l), None) => l
+                    .into_iter()
+                    .map(|a| Expr::Bin(*op, Box::new(a), right.clone()))
+                    .collect(),
+                (None, Some(r)) => r
+                    .into_iter()
+                    .map(|b| Expr::Bin(*op, left.clone(), Box::new(b)))
+                    .collect(),
+                _ => return None,
+            };
+            Some(Expr::Array(items))
+        }
+        _ => None,
+    }
 }
 
 fn built_from_the_gathering(binding: &Expr, settled: &dyn Fn(&str) -> Option<f64>) -> Option<Expr> {
@@ -2095,4 +2260,81 @@ fn asked_as_constant(
         return None;
     }
     class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
+}
+
+#[cfg(test)]
+mod lists {
+    use super::*;
+
+    fn n(value: f64) -> Expr {
+        Expr::Number(value)
+    }
+
+    fn table() -> Expr {
+        Expr::MatrixRows(vec![vec![n(1.0), n(2.0)], vec![n(3.0), n(4.0)]])
+    }
+
+    fn column(which: f64) -> Expr {
+        Expr::Index(Box::new(table()), vec![Expr::ColonSubscript, n(which)])
+    }
+
+    /// Every shape a medium's table constants are built of, and each
+    /// way one of them fails to be a list.
+    #[test]
+    fn a_settled_expression_is_written_out_as_the_list_it_comes_to() {
+        let listed = |expr: &Expr| as_list(expr).map(|list| list.describe());
+        assert_eq!(listed(&column(2.0)), Some("{2, 4}".to_string()));
+        // A column the table does not have, one numbered nothing, and
+        // one numbered by a name.
+        assert_eq!(listed(&column(3.0)), None);
+        assert_eq!(listed(&column(0.0)), None);
+        let by_name = Expr::Index(
+            Box::new(table()),
+            vec![Expr::ColonSubscript, Expr::Ref("k".into())],
+        );
+        assert_eq!(listed(&by_name), None);
+        // A row rather than a column is not one of these.
+        let row = Expr::Index(Box::new(table()), vec![n(1.0), Expr::ColonSubscript]);
+        assert_eq!(listed(&row), None);
+
+        // Element by element, the list on either side or both.
+        let over = |l: Expr, r: Expr| Expr::Elementwise(BinOp::Div, Box::new(l), Box::new(r));
+        assert!(listed(&over(n(1.0), column(1.0))).is_some());
+        assert!(listed(&over(column(1.0), n(2.0))).is_some());
+        assert!(listed(&over(column(1.0), column(2.0))).is_some());
+        assert_eq!(listed(&over(n(1.0), n(2.0))), None);
+        let short = Expr::Array(vec![n(1.0)]);
+        assert_eq!(listed(&over(short, column(1.0))), None);
+
+        // A choice goes the way its condition settled, and an unsettled
+        // one is no list.
+        let pick = |c: Expr| {
+            Expr::If(
+                Box::new(c),
+                Box::new(column(1.0)),
+                Box::new(Expr::Array(vec![n(9.0)])),
+            )
+        };
+        assert_eq!(listed(&pick(Expr::Bool(true))), Some("{1, 3}".to_string()));
+        assert_eq!(listed(&pick(Expr::Bool(false))), Some("{9}".to_string()));
+        assert_eq!(listed(&pick(Expr::Ref("c".into()))), None);
+        assert_eq!(listed(&Expr::Ref("c".into())), None);
+    }
+
+    #[test]
+    fn a_choice_is_an_array_only_where_one_side_is_built_as_one() {
+        let zeros = Expr::Call("zeros".into(), vec![n(2.0)]);
+        let call = Expr::Call("fitting".into(), vec![]);
+        let choice =
+            |a: Expr, b: Expr| Expr::If(Box::new(Expr::Bool(true)), Box::new(a), Box::new(b));
+        assert!(chooses_an_array(&choice(call.clone(), zeros.clone())));
+        assert!(chooses_an_array(&choice(zeros, call.clone())));
+        assert!(!chooses_an_array(&choice(call.clone(), n(1.0))));
+        assert!(!chooses_an_array(&call));
+        let _held = super::super::lookup::hold_back_table_media_here();
+        assert!(!chooses_an_array(&choice(
+            call,
+            Expr::Call("zeros".into(), vec![n(2.0)])
+        )));
+    }
 }

@@ -1719,3 +1719,187 @@ fn a_record_local_of_a_body_has_the_values_its_declaration_gives() {
     );
     assert_eq!(y, 23.0);
 }
+
+/// The value of `name` at the last point of a run.
+fn last_of(result: &SimResult, name: &str) -> f64 {
+    let at = result.columns.iter().position(|c| c == name).unwrap();
+    result.rows.last().unwrap()[at]
+}
+
+/// Compile under the table-media readings held back, and say what was
+/// refused - at compiling or at running.
+fn refused_held_back(source: &str) -> String {
+    let _held = oxidelica_parser::hold_back_table_media_here();
+    let model = match parse_model(source) {
+        Ok(model) => model,
+        Err(e) => return e.message,
+    };
+    match compile(&model) {
+        Err(e) => e.to_string(),
+        Ok(compiled) => match compiled.simulate() {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("should have been refused with the readings held back"),
+        },
+    }
+}
+
+/// A medium whose state is named by the extends clause rather than
+/// written in the medium.
+const REDECLARED_STATE: &str = "package P \
+     partial package Base \
+       replaceable record State end State; \
+       replaceable partial function visc input State state; output Real eta; end visc; \
+       replaceable function mk input Real T; output State state; end mk; \
+     end Base; \
+     record Props Real T; Real p; end Props; \
+     package Med \
+       extends Base(redeclare record State = Props); \
+       redeclare function extends visc algorithm eta := 2*state.T; end visc; \
+       redeclare function extends mk algorithm state := State(T = T, p = 1e5); end mk; \
+     end Med; \
+     model M \
+       package Medium = Med; \
+       Medium.State state = Medium.mk(300); \
+       Real eta = Medium.visc(state); \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end P;";
+
+#[test]
+fn a_state_the_extends_clause_redeclares_is_the_state_the_functions_take() {
+    // `extends PartialMedium(redeclare record ThermodynamicState =
+    // Common.BaseProps_Tpoly)` is how the incompressible media say what
+    // their state is. Read from the base alone the state was the
+    // interface's empty record, and a function taking it was told it
+    // takes nothing: `dynamicViscosity is missing its argument state`.
+    let result = run(REDECLARED_STATE);
+    assert_eq!(last_of(&result, "eta"), 600.0);
+    assert!(
+        refused_held_back(REDECLARED_STATE).contains("is missing its argument `state`"),
+        "the reading is what the number stands on"
+    );
+}
+
+/// A least-squares fit the way the standard library writes one: a
+/// Vandermonde matrix handed to LAPACK's `dgelsy`.
+const LEAST_SQUARES: &str = "package L \
+     function dgelsy_vec input Real A[:, :]; input Real b[size(A, 1)]; input Real rcond = 0.0; \
+       output Real x[max(size(A, 1), size(A, 2))] = cat(1, b, zeros(max(nrow, ncol) - nrow)); \
+       output Integer info; output Integer rank; \
+       protected Integer nrow = size(A, 1); Integer ncol = size(A, 2); Integer nrhs = 1; \
+       Integer nx = max(nrow, ncol); Integer lwork = 10; Real work[10]; \
+       Real Awork[size(A, 1), size(A, 2)] = A; Integer jpvt[size(A, 2)] = zeros(ncol); \
+       external \"FORTRAN 77\" dgelsy(nrow, ncol, nrhs, Awork, nrow, x, nx, jpvt, rcond, rank, \
+         work, lwork, info); \
+     end dgelsy_vec; \
+     function leastSquares input Real A[:, :]; input Real b[size(A, 1)]; \
+       output Real x[size(A, 2)]; protected Integer info; Integer rank; \
+       Real xx[max(size(A, 1), size(A, 2))]; \
+       algorithm (xx, info, rank) := dgelsy_vec(A, b, 1e-13); x := xx[1:size(A, 2)]; \
+       assert(info == 0, \"the fit failed\"); \
+     end leastSquares; \
+     function fitting input Real u[:]; input Real y[size(u, 1)]; input Integer n; \
+       output Real p[n + 1]; protected Real V[size(u, 1), n + 1]; \
+       algorithm V[:, n + 1] := ones(size(u, 1)); \
+       for j in n:-1:1 loop V[:, j] := {u[i] * V[i, j + 1] for i in 1:size(u, 1)}; end for; \
+       p := leastSquares(V, y); \
+     end fitting; \
+     model M \
+       Real p[2] = fitting({0, 1, 2, 3}, {1, 3.5, 5, 7.5}, 1); \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end L;";
+
+#[test]
+fn a_least_squares_fit_is_answered_here() {
+    // The points lie about the line 2.1 u + 1.1 and not on it: the
+    // normal equations give a slope of 21/10 and an intercept of 11/10
+    // exactly, which is the answer LAPACK gives as well. A system that
+    // was merely solved rather than fitted would not come out so.
+    let result = run(LEAST_SQUARES);
+    assert!((last_of(&result, "p[1]") - 2.1).abs() < 1e-12);
+    assert!((last_of(&result, "p[2]") - 1.1).abs() < 1e-12);
+    assert!(
+        refused_held_back(LEAST_SQUARES).contains("FORTRAN 77"),
+        "held back, the name goes back to being one nobody answers for"
+    );
+}
+
+/// A medium's coefficients fitted from a table in matrix brackets, by
+/// a function its base brought into view with an import.
+const TABLE_MEDIUM: &str = "package T \
+     package Fns \
+       function scaled input Real u[:]; input Integer n; output Real y[n]; \
+         algorithm for i in 1:n loop y[i] := 2*u[i]; end for; end scaled; \
+       function dot input Real a[:]; input Real b[:]; input Real k; output Real y = 0.0; \
+         algorithm for i in 1:size(a, 1) loop y := y + k*a[i] + b[i]; end for; end dot; \
+     end Fns; \
+     partial package Base \
+       import F = T.Fns; \
+       constant Real tab[:, 2]; \
+       constant Boolean has = not (size(tab, 1) == 0); \
+       final constant Real c[:] = if has then F.scaled(tab[:, 2], 3) else zeros(3); \
+       final constant Real inv[:] = if has then 1 ./ tab[:, 1] else zeros(3); \
+       function total input Real k; output Real y; algorithm y := F.dot(c, inv, k); end total; \
+     end Base; \
+     package Med extends Base(tab = [1, 1; 2, 3; 4, 5]); end Med; \
+     model M \
+       package Medium = Med; \
+       Real y = Medium.total(10); \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end T;";
+
+#[test]
+fn a_medium_fits_its_coefficients_from_a_table_in_matrix_brackets() {
+    // The table-based media write every table in matrix brackets, pick
+    // between a fit and `zeros` on whether a table was given, and call
+    // the fit by a name their base imported - which the medium that
+    // extends the base does not have in view. Each of
+    // those was a wall of its own; together they are what the numbers
+    // stand on. `c` is 2, 6, 10 and `inv` is 1, 1/2, 1/4, so ten of the
+    // one and one of the other is 181.75.
+    let result = run(TABLE_MEDIUM);
+    assert_eq!(last_of(&result, "y"), 181.75);
+    let why = refused_held_back(TABLE_MEDIUM);
+    assert!(why.contains("Ref(\"c\") is of shape []"), "{why}");
+}
+
+#[test]
+fn an_output_declared_with_a_value_holds_it_from_the_start_of_the_body() {
+    // `Polynomials.integralValue` declares `output Real integral = 0.0`
+    // and builds the integral up in a loop that reads it. With nothing
+    // seeded the first reading carried the body's own name out, and the
+    // run refused `unknown variable integral`.
+    let source = "model M \
+         function iv input Real p[:]; input Real u; output Real integral = 0.0; \
+           protected Integer n = size(p, 1); \
+           algorithm for j in 1:n loop integral := u*(p[j]/(n - j + 1) + integral); end for; \
+         end iv; \
+         Real T(start = 1); Real z = iv({2, 1}, T); \
+         equation der(T) = 1; \
+         annotation(experiment(StopTime = 1, Interval = 1)); \
+         end M;";
+    let result = run(source);
+    // The integral of 2u + 1 from nothing to two is six.
+    assert!((last_of(&result, "z") - 6.0).abs() < 1e-9);
+    assert!(refused_held_back(source).contains("integral"));
+}
+
+#[test]
+fn a_table_in_matrix_brackets_is_counted_along_either_side() {
+    // `hasDensity = not (size(tableDensity, 1) == 0)` is how a
+    // table-based medium says it was given a table; the width is asked
+    // the same way. A dimension past the second says nothing and the
+    // name is left for whoever can read it.
+    let source = "package S \
+         package Med constant Real tab[:, 2] = [1, 1; 2, 3; 4, 5]; \
+           constant Integer rows = size(tab, 1); constant Integer cols = size(tab, 2); \
+           function f input Real k; output Real y; algorithm y := k*rows + cols; end f; \
+         end Med; \
+         model M Real y = Med.f(10); \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M; \
+         end S;";
+    assert_eq!(last_of(&run(source), "y"), 32.0);
+    assert!(refused_held_back(source).contains("unknown variable `rows`"));
+}

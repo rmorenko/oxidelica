@@ -18058,3 +18058,112 @@ functions: 3192 expansions and 342 bodies on each one-dimensional or
 time table, 4788 and 513 on each two-dimensional one. No environment
 variable was involved. The switches of the m258 pair were not the
 cause.
+
+## The table-based media, walked to the unit reader
+
+The six at `dynamicViscosity is missing its argument state` were two
+families that the counter had merged under one wording. Four of them
+are the `PartialMediumFunctions` test models themselves:
+`PartialMediumFunctions` and the three `IncompleteMedia.PartialMedium
+FunctionsFor*`. Each is written `replaceable package Medium =
+PartialMedium` and meant to be extended with a real medium. Run as
+they stand they call a partial function on an empty state record, and
+the refusal is right about them. They are parked as refusing rightly,
+not as a wall. The other two, `IncompleteMedia.Glycol47` and
+`Essotherm650`, are the table-based media. The same chain stood behind
+four more models under other wordings: `Incompressible.Examples.
+TestGlycol`, `SolveOneNonlinearEquation.InverseIncompressible_sh_T`,
+`Fluid.Examples.IncompressibleFluidNetwork` and `TestComponents.
+Valves.TestValvesIncompressibleReverse`.
+
+The chain was walked to its end with `--only` from `.msl` and one
+small model per link (/tmp/m260). Each link was taken locally before
+anything was measured. Eight links are taken in this series:
+
+1. `extends PartialMedium(redeclare record ThermodynamicState =
+Common.BaseProps_Tpoly)`. The member reached through the base was
+   the base's own member, so the state was the interface's empty
+   record. `member_of_base` now asks the extends clause first for a
+   class it redeclares (`OXIDELICA_EXTENDS_REDECLARE_OFF`).
+2. `Polynomials.fitting` goes to `Matrices.leastSquares`, which calls
+   `LAPACK.dgelsy_vec`. That is FORTRAN, and nobody answered for it.
+   `dgelsy` is now written in `outside.rs`: column-pivoted Householder,
+   the rank judged against `rcond`, and the shortest answer where the
+   rank falls short. The call site puts the counts of rows and columns
+   in front of the numbers, because the numbers alone cannot tell three
+   rows of four from four of three (`OXIDELICA_LEAST_SQUARES_OFF`).
+   This moves no LAPACK model named in the parking list:
+   `TestMatrices` and `TestPolynomials` call `dgelsy_vec` too, and
+   whether they come in is a number for the pair.
+3. `poly_Cp = if hasHeatCapacity then fitting(...) else zeros(...)`.
+   The cheap gate in front of a package's constant arrays let through
+   only a list or `fill`/`zeros`/`ones`. A choice with a constructor on
+   either side now passes the gate, and the side its settled condition
+   picks is taken.
+4. `hasDensity = not (size(tableDensity, 1) == 0)`, with the table
+   written in matrix brackets. `size` over a package constant counted
+   braces only. It now counts `MatrixRows` along either dimension.
+5. `invTK = if TinK then 1 ./ tableViscosity[:, 1] else ...` is a
+   nested choice, a column of a bracket matrix and an operation
+   element by element, all at once. `as_list` writes those out as a
+   list, and only those.
+6. `poly_lam = ... Polynomials.fitting(...)`. `Polynomials` is an
+   import of `TableBased`, and `Glycol47` inherits the binding but not
+   the import. A call that is being settled and finds nothing under the
+   class's own names is now asked of its bases with their imports.
+7. The unit reader: `u = h - reference_p/d` with `reference_p` folded
+   to the whole number 101300. A whole number is read as
+   dimensionless, so pressure over density is not an energy per mass.
+   This is the family `SimpleAir` and `LinearColdWater` already stand
+   at, and it is parked with them, not taken.
+8. Behind link 7, seen by a local probe that let every number bend
+   (not committed): `Polynomials.integralValue` declares `output Real
+integral = 0.0` and builds the value up in a loop that reads it.
+   Nothing seeded the output, so the first reading carried the body's
+   own name out: `unknown variable integral`. A scalar output with a
+   declared value now holds it from the start of the body
+   (`OXIDELICA_OUTPUT_DEFAULTS_OFF`). The fault is in no way
+   particular to media. The binary of m259 refuses the twelve-line
+   model the same way.
+
+Links 3 to 6 share `OXIDELICA_CHOSEN_ARRAYS_OFF`. In a test, all four
+switches are taken together on one thread by
+`hold_back_table_media_here`.
+
+What stands at the end, under the same local probe past link 7:
+`TestGlycol` runs; `Glycol47`, `Essotherm650` and
+`InverseIncompressible_sh_T` reach the run and stop at `an array
+reached the evaluator: 1:2`, which is `poly_Cp[1:npol]` in `s_T`
+evaluated as a parameter before the run. The twelve-line form of it
+runs, so the next step is to shrink `s_min` of `InverseIncompressible_
+sh_T` rather than grow a synthetic model. `IncompressibleFluidNetwork`
+stops at an `if` equation of `PartialDistributedVolume` with no
+`else`. `TestValvesIncompressibleReverse` stops at a
+`solveOneNonlinearEquation` it cannot carry. The message of the
+evaluator now names the array that reached it. Before, it said only
+that one had.
+
+So the series takes a chain whose models still stand at a wall, the
+units wall of link 7. Without the probe, five of the six end at
+`cannot subtract medium.h (m2.s-2) and 101300 / medium.d`.
+`InverseIncompressible_sh_T` flattens and stops at `cannot evaluate
+parameters [s_min ...]`.
+
+The pair was measured from one binary either side of the four switches
+(/tmp/m260/off.txt, /tmp/m260/on.txt). Flatten went from 884 to 886,
+run from 577 to 578, runnable flatten from 769 to 771 and runnable run
+from 535 to 536. Nothing left either list. The two that flatten are
+`InverseIncompressible_sh_T`, at the parameter above, and
+`ModelicaTest.Math.TestPolynomials`, which also runs. Its own assert
+holds `Polynomials.fitting` to the cubic the points were made from.
+It came in through `dgelsy` and nothing else, so it is a LAPACK model
+leaving the parking list rather than a medium. `TestMatrices` calls
+`dgelsy_vec` as well and did not move: it stops at the next LAPACK
+name it calls. The series did 1.4% more expansions and 0.9% more
+bodies over the corpus, because the fits are now worked out wherever a
+table-based medium is named.
+
+The number the plan asked for did not come. None of the six named
+models runs, and the census row will not empty. It moves: the two
+table-based media now stand at the unit reader with the rest of that
+family.

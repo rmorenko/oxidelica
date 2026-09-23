@@ -188,7 +188,19 @@ FILES_FLOOR=2671
 # Measured from one binary either side of `OXIDELICA_NO_SIBLING_SHAPE`
 # (/tmp/m259/c2.txt, the binary before the change: 879/572 and 764/530;
 # /tmp/m259/on.txt: 884/577 and 769/535), nothing leaving either list.
-FLATTEN_FLOOR=884
+#
+# And two the table-based media series let through, measured from one
+# binary either side of its four switches (/tmp/m260/off.txt:
+# 884/577 and 769/535; /tmp/m260/on.txt: 886/578 and 771/536),
+# nothing leaving either list:
+#
+#   flatten 886 = 884 above, plus
+#                 Modelica.Media.Examples.SolveOneNonlinearEquation.
+#                 InverseIncompressible_sh_T, which stops at a parameter
+#                 of `s_T` the run cannot evaluate, and
+#                 ModelicaTest.Math.TestPolynomials, whose fit now comes
+#                 from `dgelsy` written here
+FLATTEN_FLOOR=886
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -526,11 +538,18 @@ FLATTEN_FLOOR=884
 #   runnable flatten 769 = 764 below, plus the same five, runnable
 #                examples
 #   runnable run 535 = 530 below, plus the same five
-RUN_FLOOR=577
+#
+# And the table-based media series set out at `FLATTEN_FLOOR`:
+#
+#   run          578 = 577 above, plus TestPolynomials, whose own assert
+#                holds the fitted cubic to the one it was built from
+#   runnable flatten 771 = 769 below, plus both, runnable examples
+#   runnable run 536 = 535 below, plus TestPolynomials
+RUN_FLOOR=578
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
-RUNNABLE_FLATTEN_FLOOR=769
-RUNNABLE_RUN_FLOOR=535
+RUNNABLE_FLATTEN_FLOOR=771
+RUNNABLE_RUN_FLOOR=536
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -597,10 +616,18 @@ RUN_MS_CEILING=8000
 # path, and its flattening counts may sit a fraction of a percent off
 # these for that reason alone: 27 characters more moved them 0.13% and
 # 0.99%, inside the five percent the ratchet allows.
-WORK_CLASSES=275975
-WORK_EXPANSIONS=89763460
-WORK_BODIES=1279374
-WORK_POINTS=31347994
+#
+# Refreshed with the floors, from the same run that set them
+# (/tmp/m260/on.txt). The same binary with the table-media switches off
+# printed 275990 classes, 89768564 expansions, 1279649 bodies and
+# 31348264 points (/tmp/m260/off.txt), so the series itself did 1.4%
+# more expansions and 0.9% more bodies: the fits of the table-based
+# media are worked out wherever a medium of theirs is named, and the
+# models that name one are more than the two that came in.
+WORK_CLASSES=276261
+WORK_EXPANSIONS=91026015
+WORK_BODIES=1291208
+WORK_POINTS=31348271
 WORK_NEWTON=43593540
 WORK_JACOBIANS=324
 WORK_PERCENT=5

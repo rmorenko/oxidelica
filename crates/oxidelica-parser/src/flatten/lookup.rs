@@ -224,6 +224,16 @@ fn member_of_base<'a>(
     let (holder, member) = name.rsplit_once('.')?;
     let owner = registry.get(holder)?;
     owner.extends.iter().find_map(|extend| {
+        // The extends clause may have replaced the member on the way
+        // in: `extends PartialMedium(redeclare record ThermodynamicState
+        // = Common.BaseProps_Tpoly)` is how the incompressible media
+        // say what their state is. Read from the base alone the member
+        // is the interface's empty record, and a function taking that
+        // state was told it takes nothing at all. The replacement is
+        // written in the terms of the class holding the clause.
+        if let Some(replaced) = redeclared_by_extends(registry, owner, extend, member) {
+            return Some(replaced);
+        }
         let base = plain_lookup(registry, &extend.base, holder)?;
         let reached = format!("{}.{member}", base.name);
         registry
@@ -232,6 +242,74 @@ fn member_of_base<'a>(
             .or_else(|| through_alias(registry, &reached, depth + 1))
             .or_else(|| member_of_base(registry, &reached, depth + 1))
     })
+}
+
+/// The class an extends clause puts in place of a member of its base:
+/// `redeclare record ThermodynamicState = Common.BaseProps_Tpoly`,
+/// resolved where the clause is written.
+fn redeclared_by_extends<'a>(
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    owner: &ClassDef,
+    extend: &crate::ast::Extend,
+    member: &str,
+) -> Option<&'a ClassDef> {
+    if extends_redeclare_off() {
+        return None;
+    }
+    let redeclare = extend
+        .redeclares
+        .iter()
+        .find(|r| r.class_level && r.name == member)?;
+    // A replacement naming the member it replaces would find itself
+    // again through this very clause.
+    if redeclare.type_name == member {
+        return None;
+    }
+    lookup(registry, &redeclare.type_name, &owner.name, &owner.imports)
+}
+
+/// Whether the class an extends clause redeclares is left unread, as
+/// it was before: the switch that lets one binary give both numbers.
+/// The environment answers for a corpus run and a thread for a test,
+/// for the reason [`component_member_refused`] gives.
+fn extends_redeclare_off() -> bool {
+    table_media_held_back() || std::env::var_os("OXIDELICA_EXTENDS_REDECLARE_OFF").is_some()
+}
+
+/// Whether this thread asked for the readings the table-based media
+/// were taken with to be held back.
+///
+/// Four readings make one series - the state an extends clause
+/// redeclares, a table in matrix brackets and a choice between arrays
+/// among a package's constants, an output's declared value seeding the
+/// body, and the least-squares fit the coefficients come from - and a
+/// test takes them away together to see the numbers come from them.
+/// Each has its own switch in the environment as well, so that a
+/// corpus run can say which of them a model stood on.
+pub(super) fn table_media_held_back() -> bool {
+    UNREAD.with(Cell::get)
+}
+
+thread_local! {
+    /// Whether this thread asked for the table-media readings to be
+    /// held back.
+    static UNREAD: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Hold the table-media readings back on this thread until the guard
+/// is dropped.
+pub fn hold_back_table_media_here() -> TableMediaGuard {
+    UNREAD.with(|unread| unread.set(true));
+    TableMediaGuard(())
+}
+
+/// Puts the reading back where it was.
+pub struct TableMediaGuard(());
+
+impl Drop for TableMediaGuard {
+    fn drop(&mut self) {
+        UNREAD.with(|unread| unread.set(false));
+    }
 }
 
 /// A class named through one import list: `import Basic = A.B;` then
