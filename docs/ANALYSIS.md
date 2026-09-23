@@ -17172,3 +17172,54 @@ node, and the variable it multiplied is determined by the balance
 equation that already names it. That is a rewrite before the loop is
 formed rather than a solver improvement, which is why it is written
 down here rather than taken this shift.
+
+## Adder4, the sixth NaN writer, and where it stands
+
+Five of the six models that the discrete-NaN check caught named
+`TD1.x_delayed` in the transport delay, and all five are cured by
+seeding the delay's memory: before anything is remembered,
+`delay(u, T)` is `u` at the start time rather than zero.
+
+The sixth, `Modelica.Electrical.Digital.Examples.Adder4`, is a
+different layer, and the probe walks it in one pass.
+`OXIDELICA_EVENT_TRAIL=1` shows the initial event settling over five
+rounds, and the fifth is where the model dies:
+
+```text
+round 4  Adder1.Adder1.XOR.G1.auxiliary[2] = 3   G2.y = 1
+round 5  Adder1.Adder1.XOR.G1.auxiliary[2] = 3   G2.y = 0
+round 5  Adder1.Adder2.AND.G1.auxiliary[2] = NaN
+```
+
+The chain, read off `why` link by link and all inside one full
+adder:
+
+```text
+Adder1.Adder1.XOR.G1.auxiliary_n = auxiliary[2]
+Adder1.Adder1.XOR.G1.y           = pre(auxiliary_n)
+Adder1.Adder1.XOR.G2.x           = Adder1.Adder1.XOR.G1.y
+Adder1.Adder1.XOR.G2.y           = if tLH > 0 or tHL > 0 then y_auxiliary else x
+Adder1.Adder1.s                  = Adder1.Adder1.XOR.y
+Adder1.Adder2.a                  = Adder1.Adder1.s
+Adder1.Adder2.AND.x[2]           = Adder1.Adder2.a
+Adder1.Adder2.AND.G1.auxiliary[2] = AndTable[auxiliary[1], x[2]]
+```
+
+`AndTable` is a nine-by-nine table of logic values, and the flattener
+writes its lookup as a chain of comparisons ending in `else NaN`. So
+a zero arriving at `x[2]` is not an index the table has, and the NaN
+is the table saying so. Twenty-four names carry it at that round,
+which is the same gate repeated across four adders rather than
+twenty-four faults.
+
+Where the zero comes from is the open question, and it is one round
+deep: `G2.y` is 1 on the fourth round and 0 on the fifth, with the
+gate's own `auxiliary[2]` unmoved at 3 across both. A small model of
+the shape - an integer settled by an equation, read through `pre`,
+indexed into a table - does not reproduce it: seeded `pre` slots
+answer correctly at the start point and across events. What the
+small models have not reproduced is a `pre` read on a _later_ round
+of the same event, after another definition has moved, which is
+exactly where the fifth round sits. That is the next probe, and it
+wants the event iteration rather than the seeding layer, so it is
+written down rather than taken.

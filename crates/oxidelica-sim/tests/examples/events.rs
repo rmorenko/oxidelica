@@ -318,6 +318,35 @@ fn hysteresis_switches_exactly_on_its_band() {
 }
 
 #[test]
+fn a_delay_reads_its_own_expression_before_anything_is_remembered() {
+    // Until `T` has passed, `delay(u, T)` is what `u` was at the start
+    // time. The memory is empty there, and an empty memory used to
+    // answer zero - a number no enumeration is worth.
+    // `Electrical.Digital`'s transport delay indexes a table of logic
+    // values by it, so the whole of the first delay came out NaN and
+    // five flip-flops wrote nothing but NaN to their stop time.
+    let result = compile(
+        &parse_model(
+            "model D Integer x(start = 3, fixed = true); Real xr; \
+             Integer y; constant Integer tab[3] = {10, 20, 30}; \
+             equation x = 3; xr = Integer(pre(x)); \
+             y = tab[integer(delay(xr, 0.2))]; end D;",
+        )
+        .unwrap(),
+    )
+    .unwrap()
+    .simulate()
+    .unwrap();
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let first = result.rows.first().expect("a row at the start time");
+    assert!(
+        (first[y] - 30.0).abs() < 1e-9,
+        "the delay reads `xr` at the start, so the table gives 30, not {}",
+        first[y]
+    );
+}
+
+#[test]
 fn a_switch_defined_by_a_delayed_signal_finds_its_slot() {
     // A flip-flop is written as a delayed signal compared against a
     // threshold, which makes a Boolean's definition read the slot the

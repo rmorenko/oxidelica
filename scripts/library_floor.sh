@@ -348,7 +348,24 @@ FLATTEN_FLOOR=865
 # lists is exactly those six names and nothing else - nothing outside
 # `Digital` was answering with NaN. Flattening is unmoved on both
 # counts, as it must be: the check lives in the run half.
-RUN_FLOOR=551
+#
+# Five of the six are back, and by the writer rather than by the
+# reader: `delay(u, T)` before anything has been remembered is `u` at
+# the start time, and an empty memory used to answer zero instead.
+# `Electrical.Digital`'s transport delay indexes a table of logic
+# values by that answer and `LogicValues[0]` has no element, so the
+# whole of the first delay came out NaN. The sixth, `Adder4`, has a
+# wall of its own - a gate's `auxiliary[2]` reaches NaN in the fifth
+# round of the initial event - and is left standing.
+#
+#   run          556 = 551 before, plus the five flip-flops
+#   runnable run 514 unmoved: none of the five is a runnable example,
+#                and `Adder4`, which is one, still does not run
+#
+# Measured on /tmp/m248/corpus.txt: 865/556 and 750/514, and the diff
+# of the run lists against /tmp/m247/b.ran is exactly `Counter`,
+# `Counter3`, `DFF`, `JKFF` and `RSFF` arriving with nothing leaving.
+RUN_FLOOR=556
 RUNNABLE_FLATTEN_FLOOR=750
 RUNNABLE_RUN_FLOOR=514
 # Every file of the library parses. This is a ceiling reached rather

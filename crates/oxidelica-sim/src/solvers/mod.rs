@@ -267,6 +267,9 @@ impl CompiledModel {
             state.when_prev = self.when_conditions(t0, &values);
         } else {
             values[self.initial_slot] = 1.0;
+            // The delay's memory has to hold the starting point before
+            // the initial event, which reads it while it settles.
+            self.seed_delays(t0, &y, &mut values, &mut scratch, &mut alg_guess);
             // The initial event comes before the first output point: a
             // `when initial()` or a `sample(0, …)` has already fired by then.
             state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);

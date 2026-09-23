@@ -100,8 +100,56 @@ impl CompiledModel {
         }
         let history = self.history.borrow();
         for (delay, trace) in self.delays.iter().zip(history.iter()) {
-            values[delay.slot] = look_back(trace, t - delay.seconds);
+            // Before anything has been remembered, a delay is worth
+            // what its expression is worth now: `delay(u, T)` is `u`
+            // at the start time, which is what the language says. The
+            // empty trace used to answer zero instead, and zero is not
+            // a value every expression can be read at -
+            // `Electrical.Digital`'s transport delay indexes a table
+            // of logic values by it and `LogicValues[0]` has no
+            // element, so the whole of the first delay came out NaN.
+            values[delay.slot] = if trace.is_empty() {
+                delay.source.run(values, t)
+            } else {
+                look_back(trace, t - delay.seconds)
+            };
         }
+    }
+
+    /// Put the point the run starts from into every delay's memory.
+    ///
+    /// A `delay(u, T)` is `u` at the start time until `T` has passed,
+    /// which is what the language says and what an empty memory cannot
+    /// answer: `look_back` over nothing gives zero, and zero is not a
+    /// value every expression can be read at. `Electrical.Digital`'s
+    /// transport delay indexes a table of logic values by it, and
+    /// `LogicValues[0]` has no element, so the whole of the first
+    /// delay was written as NaN. The start point is remembered before
+    /// the initial event rather than after it, because the event's own
+    /// iteration reads the delay while it settles.
+    ///
+    /// What is remembered has to be a point rather than the template,
+    /// since the expression being delayed is usually an algebraic one:
+    /// `xr = Integer(pre(x))` is worth nothing until the stages have
+    /// run. A point that cannot be evaluated at all is left alone -
+    /// the run meets that refusal for itself a moment later, with its
+    /// own message.
+    pub(crate) fn seed_delays(
+        &self,
+        t: f64,
+        y: &[f64],
+        values: &mut [f64],
+        scratch: &mut Vec<f64>,
+        alg_guess: &mut [f64],
+    ) {
+        if self.delays.is_empty() {
+            return;
+        }
+        if self.eval_point(t, y, values, scratch, alg_guess).is_err() {
+            return;
+        }
+        self.remember_delays(t, values);
+        self.fill_delays(t, values);
     }
 
     /// Read each profile a unit ahead and a unit behind, so the two
