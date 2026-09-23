@@ -16812,3 +16812,112 @@ numbers already computed and is not thereby safe. The question it
 still owes an answer to is what it turns each refusal into, and the
 instrument for that is not the count of models but the refusals it
 removes, read one by one.
+
+## The census after the two-sided answer, and where nine models went
+
+The register was taken again from the binary of `d7e1326`
+(`/tmp/m244/census.txt`, names in `/tmp/m244/raw.txt`, 322 built
+refusals and 172 flattening ones over the 1037 example models less
+the carved-out giants). It is read here against the census of
+maláva 241 (`/tmp/m241/census.txt`), which is the last one taken
+before the two repairs of 242 and 243.
+
+### The row that emptied, read by name rather than by count
+
+`the equations of algebraic loop [...] do not mention [X]` stood at
+28 and now stands at 19. The nine that left are named, and where
+each went is the finding:
+
+```text
+  OvervoltageProtection                    -> has a solution on either side
+  SynchronousMachines.SMPM_Inverter        -> has a solution on either side
+  SynchronousMachines.SMR_DOL              -> has a solution on either side
+  SynchronousMachines.SMR_Inverter         -> has a solution on either side
+  FundamentalWave ... SMPM_Inverter        -> has a solution on either side
+  FundamentalWave ... SMR_Inverter         -> has a solution on either side
+  TestSuddenExpansion                      -> has a solution on either side
+  ThyristorBridge2mPulse_RLV_Characteristic -> runs
+  WaterPump                                -> runs
+```
+
+Seven of the nine travelled one storey, two left the register
+altogether - and those two are exactly the pair the corpus pair of
+243 recorded as arriving. So the whole of the two-sided repair is
+accounted for model by model, which is what the count of a row could
+not have said: a row that fell by nine and a run count that rose by
+two are the same nine models, seven of them still standing at the
+next wall.
+
+### The new row is not a new family
+
+`has a solution on either side` is seven models, and by name it is
+not a scattering: five of the seven are the airGap machine chain
+this file has followed since maláva 228, one is a Zener diode
+(`zDiode.v`) and one is the Fluid square (`suddenExpansion1.m_flow`).
+Two layers wearing one wording, and the larger of them is a chain
+already mapped. Nothing here is new work - it is the old chain, now
+refusing honestly instead of refusing with a sentence that had become
+untrue.
+
+The counter also hides this row inside a wider one. Read as the
+counter prints it, the eleven-model row `algebraic loop [...]` is a
+single entry; split by wording it is 7 `has a solution on either
+side` and 4 `stepped outside the domain`
+(`ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesAndFittings`,
+`BranchingPipes12`, `BranchingPipes14`, `SeriesPipes2`). The second
+four are Fluid and unrelated to the first seven.
+
+### The top of the run half is one family in eight rows
+
+Added the way the rules of this repository require - rows that mean the same thing
+summed before the number is read - the algebraic-loop family is the
+whole top of the register:
+
+```text
+  27  the Newton direction does not reduce the residual
+  19  the equations do not mention [X]
+  12  singular Jacobian
+  11  either side (7) + stepped outside the domain (4)
+   9  `X` of algebraic loop
+   7  underdetermined
+   3  diverged
+   3  did not converge in 50 Newton iterations
+  ---
+  91  models of one family, over eight rows
+```
+
+Ninety-one of the 322 built refusals, and no other family comes near
+it. The next entry down is the event iteration at 13.
+
+### The largest row is Fluid, and it has not moved at all
+
+The 27 of `the Newton direction does not reduce the residual` are by
+chapter 18 `ModelicaTest.Fluid`, 4 `Modelica.Magnetic`, 2
+`ModelicaTest.Media`, 2 `Modelica.Electrical`, 1 `Modelica.Fluid`.
+Diffed by name against the same row in `/tmp/m241/raw.txt`, the two
+lists are identical - not one model arrived or left across two
+repairs. This is the family of maláva 239's twenty-one smooth
+models, still standing where the init-rescue ladder was measured at
+zero against it, and probing two of its members by `--only` from the
+root (`TestWaterPumpDefault`, `SeriesPipes1`) returns the same
+refusal the corpus gives, so nothing about it is a context effect.
+
+What that row says of itself is worth quoting whole, because it is
+not a divergence and not a singular matrix:
+
+```text
+  the Newton direction of algebraic loop ["pump.medium.p", "pump.rho",
+  "pump.port_a.m_flow", "pump.port_b.h_outflow", "Valve.state_a.d"]
+  does not reduce the residual at t = 0: from |f| = 6.484e2, 3 steps
+  running bought a smaller residual only below 9.537e-7 of the step
+  or not at all
+```
+
+A residual of 648 at the first instant with a direction that buys
+nothing: the block is not near a solution and the line search knows
+it. Eighteen of the 27 are `ModelicaTest.Fluid` and most name a
+medium's `p` or `h` first, which is the same shape 239 traced to a
+state nobody pinned being guessed at its declaration and handed to
+the water tables. That layer is where this row is owed work, and it
+is a layer the register has now pointed at twice from two different
+censuses.
