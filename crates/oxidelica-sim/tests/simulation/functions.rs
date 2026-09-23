@@ -1608,3 +1608,114 @@ fn a_walked_body_reads_its_package_and_its_named_arguments() {
         .expect("the model's one variable");
     assert_eq!(answered.rows.last().unwrap()[y], -400.0);
 }
+
+/// The value of `y` at the first row of a model's run.
+fn first_y(source: &str) -> f64 {
+    let result = run(source);
+    let y = result
+        .columns
+        .iter()
+        .position(|c| c == "y")
+        .expect("the model's `y`");
+    result.rows[0][y]
+}
+
+#[test]
+fn a_row_written_with_a_colon_on_the_left_is_every_element_of_it() {
+    // `A[1, :] := ...` is how a companion matrix is built, and the
+    // colon is the whole width the declaration gave. Each element
+    // lands on its own place: 2 + 3 * 100 + 10 * 1000.
+    let y = first_y(
+        "model Colon
+           function f
+             input Real p[3];
+             output Real y;
+           protected
+             Real A[2, 2];
+           algorithm
+             A[1, :] := {p[1], p[2]};
+             A[2, :] := {p[3], 10};
+             y := A[1, 2] + A[2, 1] * 100 + A[2, 2] * 1000;
+           end f;
+           Real y = f({1, 2, 3});
+           annotation(experiment(StopTime=0.01, Interval=0.01));
+         end Colon;",
+    );
+    assert_eq!(y, 10302.0);
+}
+
+#[test]
+fn scalar_of_a_length_is_that_length() {
+    // `n = scalar(size(b)) - 1` is how the media write the last index
+    // of a grid, and a slice bounded by it is a slice of known length:
+    // `b[2:n]` of four elements is the second and the third.
+    let y = first_y(
+        "model Scal
+           function f
+             input Real x;
+             input Real b[:];
+             output Real y;
+           protected
+             Integer n = scalar(size(b)) - 1;
+           algorithm
+             y := sum(b[2:n]) + x;
+           end f;
+           Real y = f(time, {1, 2, 4, 8});
+           annotation(experiment(StopTime=0.01, Interval=0.01));
+         end Scal;",
+    );
+    assert_eq!(y, 6.0);
+}
+
+#[test]
+fn a_record_handed_by_name_is_the_record_handed_in_order() {
+    // `eta(state = s)` is `eta(s)`: the body reads the field it was
+    // given, and 2 * sqrt(4) is what comes back.
+    let y = first_y(
+        "model Top
+           record S
+             Real T;
+             Real p;
+           end S;
+           function eta
+             input S state;
+             output Real e;
+           algorithm
+             e := 2 * sqrt(state.T);
+           end eta;
+           S s(T = 4 + time, p = 1);
+           Real y = eta(state = s);
+           annotation(experiment(StopTime=0.01, Interval=0.01));
+         end Top;",
+    );
+    assert_eq!(y, 4.0);
+}
+
+#[test]
+fn a_record_local_of_a_body_has_the_values_its_declaration_gives() {
+    // A table of coefficients kept as a record local: the base sizes
+    // the array, the extending record fills it, and the body reads it
+    // by element. 2 * 10 + 3.
+    let y = first_y(
+        "model Id
+           record Base
+             parameter Integer nc = 5;
+             parameter Real[nc] a;
+           end Base;
+           record Ideal
+             extends Base(nc = 3, a = {1, 2, 3});
+           end Ideal;
+           function f
+             input Real x;
+             output Real y;
+           protected
+             Ideal id;
+           algorithm
+             y := id.a[2] * x + id.a[3];
+           end f;
+           Real y = f(time + 10);
+           annotation(experiment(StopTime=0.01, Interval=0.01));
+         end Id;",
+    );
+    assert_eq!(y, 23.0);
+}

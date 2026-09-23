@@ -161,7 +161,22 @@ FILES_FLOOR=2671
 # and `OXIDELICA_NO_BOOL_FOLD` (/tmp/m257/before.txt: 870/568 and
 # 755/526; /tmp/m257/after.txt: 875/571 and 760/529), nothing leaving
 # either list.
-FLATTEN_FLOOR=875
+#
+# And four from the subscript family and what stood behind it - a colon
+# on the left, `scalar` folded, a record handed by name read in order,
+# and a record local of a body given its declared fields:
+#
+#   flatten 879 = 875 above, plus
+#                 ModelicaTest.Fluid.TestComponents.Machines.TestLinearPower
+#                 and ModelicaTest.Media.TestOnly.R134a_setState_pTX,
+#                 R134a_setState_pTX_high_T and R134a_setState_phX
+#
+# Measured from one binary either side of `OXIDELICA_NO_COLON_WRITE`,
+# `OXIDELICA_NO_SCALAR_FOLD`, `OXIDELICA_NO_NAMED_IN_ORDER` and
+# `OXIDELICA_NO_RECORD_LOCALS` (/tmp/m258/off.txt: 875/571 and
+# 760/529; /tmp/m258/on.txt: 879/572 and 764/530), nothing leaving
+# either list.
+FLATTEN_FLOOR=879
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -483,11 +498,20 @@ FLATTEN_FLOOR=875
 #                flatten and stop at an algebraic loop
 #   runnable flatten 760 = 755 below, plus all five, runnable examples
 #   runnable run 529 = 526 below, plus the three that run
-RUN_FLOOR=571
+#
+# And the subscript family set out at `FLATTEN_FLOOR`:
+#
+#   run          572 = 571 above, plus TestLinearPower, whose `p`
+#                comes out 23 as the library's own assert asks; the
+#                three R134a tests flatten and stop at a slice the
+#                run decides inside a walked `dofpT`, and at `sat`
+#   runnable flatten 764 = 760 below, plus all four, runnable examples
+#   runnable run 530 = 529 below, plus TestLinearPower
+RUN_FLOOR=572
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
-RUNNABLE_FLATTEN_FLOOR=760
-RUNNABLE_RUN_FLOOR=529
+RUNNABLE_FLATTEN_FLOOR=764
+RUNNABLE_RUN_FLOOR=530
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -497,6 +521,48 @@ UNREAD_CEILING=0
 # for why these are the build machine's numbers and not a desk's.
 FLATTEN_MS_CEILING=12000
 RUN_MS_CEILING=8000
+
+# The work the check did, counted in steps rather than seconds, and
+# held to within five percent of what is written here either way.
+#
+# The ceilings above are catastrophe traps: the clock over one binary
+# and one library has come out twice as long on one desk pass as on the
+# next, so a ceiling can only sit far above the noise, and a doubling of
+# the work clears it without a word. That happened: flattening went from
+# 2619ms to 5455ms per model with no model won, and a person caught it,
+# not a check. The steps do not have weather. Two whole passes of one
+# binary over the corpus, run side by side on 2026-09-23
+# (/tmp/m258/corpus1.txt and corpus2.txt), printed the same six counts
+# below to the digit. A seventh, the names looked up, differed by 47 in
+# 1.2 billion between the two passes, so it is printed and not held -
+# a count that wanders cannot be a ratchet, and a ratchet that fires
+# for nothing is one somebody turns off.
+#
+# Five percent is wide against a count that does not move at all and
+# narrow against the doubling it is there for. Going above it is a
+# change that made the compiler do more: if models were won by it, the
+# numbers are moved in the same commit with the reason beside them;
+# if not, that is the regression. Going below it is written down the
+# same way, because a count that fell for a good reason and one that
+# fell because a pass stopped being reached look alike a week later.
+#
+# Set from the pass that also moved the floors to 879/572 on
+# 2026-09-23 (/tmp/m258/on.txt), with the four switches of that change
+# on. The same binary with them off printed 275971 classes, 89508344
+# expansions, 1278449 bodies, 31347957 points, 43593540 newton and 324
+# jacobians (/tmp/m258/off.txt), so the change itself did 0.3% more
+# expansions and 0.07% more bodies for the four models it let through.
+# The counts are a desk's; the build machine's run half may count
+# differently where a floating point library answers a last digit
+# differently, and if it does, the build machine's numbers go here and
+# the difference is named.
+WORK_CLASSES=275975
+WORK_EXPANSIONS=89763460
+WORK_BODIES=1279374
+WORK_POINTS=31347994
+WORK_NEWTON=43593540
+WORK_JACOBIANS=324
+WORK_PERCENT=5
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
@@ -525,7 +591,7 @@ report="$(echo "$report" | grep -v '^  \(flat\|ran\)  ')"
 # answer nothing where nothing ran, and it does not cut its own
 # output short. Where one line is wanted, take it without a pipe.
 printf '%s\n' "${report%%$'\n'*}"
-echo "$report" | grep -E '^(classes:|runnable examples|time:)'
+echo "$report" | grep -E '^(classes:|runnable examples|time:|work:)'
 
 read_now="$(echo "$report" | sed -n 's/^files: \([0-9]*\) read.*/\1/p')"
 unread_now="$(echo "$report" | sed -n 's/^files: [0-9]* read, \([0-9]*\) not read.*/\1/p')"
@@ -570,6 +636,35 @@ else
   [ "$flatten_ms_now" -le "$FLATTEN_MS_CEILING" ] || over "flattening" "$flatten_ms_now" "$FLATTEN_MS_CEILING"
   [ "$run_ms_now" -le "$RUN_MS_CEILING" ] || over "running" "$run_ms_now" "$RUN_MS_CEILING"
 fi
+
+# The work. Each count is read off the `work:` line by the word that
+# follows it, and a count that is not there is a failure for the same
+# reason a missing time is.
+work_line="$(echo "$report" | grep '^work:' || true)"
+work_of() {
+  echo "$work_line" | sed -n "s/.* \([0-9][0-9]*\) $1[;,].*/\1/p; s/.* \([0-9][0-9]*\) $1\$/\1/p" | head -n 1
+}
+held() {
+  local what="$1" now="$2" written="$3"
+  if [ -z "$now" ]; then
+    echo "WORK: the report did not say how many $what; the work line changed shape"
+    status=1
+    return
+  fi
+  # Within WORK_PERCENT of the written number, in integers: now * 100
+  # against written * (100 +- percent).
+  if [ $((now * 100)) -gt $((written * (100 + WORK_PERCENT))) ] ||
+    [ $((now * 100)) -lt $((written * (100 - WORK_PERCENT))) ]; then
+    echo "WORK: $what is $now against $written written here ($(awk "BEGIN { printf \"%.3f\", $now / $written }")x), outside ${WORK_PERCENT}%"
+    status=1
+  fi
+}
+held "classes instantiated" "$(work_of classes)" "$WORK_CLASSES"
+held "expansions" "$(work_of expansions)" "$WORK_EXPANSIONS"
+held "bodies worked out" "$(work_of bodies)" "$WORK_BODIES"
+held "points evaluated" "$(work_of points)" "$WORK_POINTS"
+held "newton iterations" "$(work_of newton)" "$WORK_NEWTON"
+held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS"
 
 if [ "$status" -eq 0 ]; then
   echo "OK: $read_now files read, $flatten_now flatten, $run_now run; runnable $runnable_flatten_now flatten, $runnable_run_now run"

@@ -443,13 +443,30 @@ fn one_assignment(
     // generator's state and a transformation matrix that
     // way. Each element is assigned its own, which is what
     // the run of names comes to.
-    if subscripts.iter().any(|s| matches!(s, Expr::Range(_, _, _))) {
+    //
+    // A colon names a run as well - `A[1, :] := ...` is every element
+    // of the first row - and its bounds are the length of that
+    // dimension, which the declared shape says outright.
+    let colon_writes = std::env::var_os("OXIDELICA_NO_COLON_WRITE").is_none();
+    if subscripts.iter().any(|s| {
+        matches!(s, Expr::Range(_, _, _)) || (colon_writes && matches!(s, Expr::ColonSubscript))
+    }) {
         let settled = |e: &Expr| {
             algorithms::settled_in_body(e, bindings, consts, sizes, registry, scope, imports, depth)
         };
         let mut spans: Vec<Vec<i64>> = Vec::new();
-        for subscript in subscripts {
+        for (dimension, subscript) in subscripts.iter().enumerate() {
             let span = match subscript {
+                Expr::ColonSubscript => match sizes.get(target).and_then(|s| s.get(dimension)) {
+                    Some(&length) if length >= 0 => (1..=length).collect(),
+                    _ => {
+                        return Err(format!(
+                            "`{target}` is given a whole dimension {} whose length \
+                             this compiler cannot see",
+                            dimension + 1
+                        ))
+                    }
+                },
                 Expr::Range(from, step, to) => {
                     let (Some(from), Some(to)) = (settled(from), settled(to)) else {
                         return Err(format!(

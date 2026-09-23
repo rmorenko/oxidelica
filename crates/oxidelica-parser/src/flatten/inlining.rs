@@ -1166,6 +1166,7 @@ fn worked_body(
     depth: usize,
     checks: &mut Vec<(Expr, String)>,
 ) -> Result<Vec<(String, Expr)>, String> {
+    crate::work::tick(crate::work::Step::Inlined);
     if depth > MAX_DEPTH {
         return Err(format!("`{}` {NO_BOTTOM}", class.name));
     }
@@ -1316,6 +1317,7 @@ fn worked_body(
             sizes.insert(component.name.clone(), measured);
         }
     }
+    record_locals_as_declared(class, registry, &mut bindings, &mut sizes);
     let no_loop_vars = HashMap::new();
     // The body's own names are not records, and the caller's may be:
     // an argument substituted in carries the caller's spelling, so
@@ -1968,6 +1970,84 @@ fn bare_record_constant(registry: &HashMap<&str, &ClassDef>, named: &str) -> Opt
 /// knows its shape and a bare name written in its place does not, so
 /// binding one would turn a matrix into something of no shape at all.
 /// Those are still reached through the record's own name.
+/// The fields a record local of a body is declared with, bound before
+/// the body runs.
+///
+/// `Ideal id;` in a medium's function is a table of coefficients: the
+/// record's declaration - or an `extends` modifying its base - gives
+/// every field its value, and the body only reads `id.a[2]`. Nothing
+/// bound those, so the read carried `id.a[2]` out of the body, where
+/// no model declares it. A field is bound only where its value comes
+/// to plain numbers, read against the fields before it, so `a[nc]`
+/// takes its length from the `nc` the same record settled. A local
+/// that has a value of its own, a field that is not a number, and a
+/// name already bound are all left as they were.
+fn record_locals_as_declared(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    bindings: &mut HashMap<String, Expr>,
+    sizes: &mut HashMap<String, Vec<i64>>,
+) {
+    if std::env::var_os("OXIDELICA_NO_RECORD_LOCALS").is_some() {
+        return;
+    }
+    for local in &class.components {
+        if local.causality != Causality::None
+            || local.binding.is_some()
+            || !local.dimensions.is_empty()
+        {
+            continue;
+        }
+        let Some(record) = lookup(registry, &local.type_name, &class.name, &class.imports)
+            .filter(|of| of.kind == ClassKind::Record)
+        else {
+            continue;
+        };
+        let mut known: HashMap<String, f64> = HashMap::new();
+        for field in record_fields::record_components(registry, record, 0) {
+            let value = local
+                .modifiers
+                .iter()
+                .find(|(name, _)| name == &field.name)
+                .map(|(_, value)| value.clone())
+                .or(field.binding.clone());
+            let Some(value) = value else { continue };
+            let whole = format!("{}.{}", local.name, field.name);
+            if bindings.contains_key(&whole) {
+                continue;
+            }
+            match field.dimensions.is_empty() {
+                true => {
+                    if let Some(number) = const_eval(&value, &known) {
+                        known.insert(field.name.clone(), number);
+                        bindings.insert(whole, Expr::Number(number));
+                    }
+                }
+                false => {
+                    let Expr::Array(items) = &value else { continue };
+                    let numbers: Option<Vec<f64>> =
+                        items.iter().map(|item| const_eval(item, &known)).collect();
+                    let Some(numbers) = numbers else { continue };
+                    let declared: Option<Vec<f64>> = field
+                        .dimensions
+                        .iter()
+                        .map(|length| const_eval(length, &known))
+                        .collect();
+                    if field.dimensions.len() != 1
+                        || declared.is_some_and(|d| d[0] != numbers.len() as f64)
+                    {
+                        continue;
+                    }
+                    for (at, number) in numbers.iter().enumerate() {
+                        bindings.insert(format!("{whole}[{}]", at + 1), Expr::Number(*number));
+                    }
+                    sizes.insert(whole, vec![numbers.len() as i64]);
+                }
+            }
+        }
+    }
+}
+
 /// Every element of a value written out as a list, under the name it
 /// is bound to: `e` bound to `{a, b}` also binds `e[1]` and `e[2]`,
 /// which is how a name with a subscript is read.

@@ -17901,3 +17901,118 @@ assignments, and it is a change to the body walk, not to the
 condition. It is sized by the eight registers and no other model, and
 they are parked for more than this. So the lowering is for when the
 registers are taken up, not before.
+
+## The subscript family was four layers under two wordings
+
+The m256 census named 13 models in two wordings about subscripts: 7 as
+"the subscript of `X` must be a whole number the compiler can see" and
+6 as "a slicing subscript must be constant at compile time" (names from
+/tmp/m256/raw.txt). Probed one model at a time from `.msl`, the two
+wordings came from two files and four different causes. None of them
+was a subscript decided by the run.
+
+**The three Math tests** (`TestMatrices2b`, `TestPolynomials`,
+`TestVectors`) were refused at the statements layer (`one_assignment`)
+on a colon on the left: `A[1, :] := -p[2:np]/p[1]` in
+`Polynomials.roots`, `V[:, j] := ...`, `B[i, :] := B[i, :]*G`. The run
+of elements a colon names is the whole declared dimension, and the
+range road beside it already wrote each element of a run to its own
+name. The colon now goes down that road (`OXIDELICA_NO_COLON_WRITE`).
+All three then stop at LAPACK (`dhseqr`, `dgesvd`, `dgelsy`), which is
+FORTRAN and parked.
+
+**The four FFT models** (`RealFFT1`, `RealFFT2`, `Rectifier6pulseFFT`,
+`Rectifier12pulseFFT`) write `buf[iTick] := u` under a `when`, with
+`iTick` a counter of the run, and hand the buffer to
+`realFFT`. That is `external "C"`
+`ModelicaFFT_kiss_fftr`. The index could be read with the chain of
+`if` the array layer already builds for a read, but the buffer then
+goes to C. It is parked with the external C line.
+
+**The six R134a models** were not refused over a slice decided by the
+run at all. The refusal now names the pick, and it was
+`scalar(478) - 1`. `FindInterval` writes `n = scalar(size(breaks)) - 1`,
+and `scalar` was neither folded by `const_eval` nor expanded by the
+array layer. Both now take it (`OXIDELICA_NO_SCALAR_FOLD`), and an
+argument longer than one element is refused by name, not read as its
+first element. Behind that wall the chain went on:
+
+1. `scalar` (above). Taken.
+2. `` `sqrt` is not a function, so it cannot take named arguments ``.
+   The refusal now names the argument, `state`.
+   `thermalConductivity` calls `dynamicViscosity(state=state)`. A
+   record handed by name to a function that takes a record went down
+   the array branch as fields each wearing the name, and those were
+   matched to inputs by place. Fourteen lines reproduce it
+   (`eta(state = s)`). Named arguments that fill the inputs in order
+   with no gap are now rewritten in order before that branch reads
+   them (`OXIDELICA_NO_NAMED_IN_ORDER`). Taken.
+3. `unknown variable id.a[2]`. `fid_R134a` declares `R134aData.Ideal
+id;` as a protected record local and reads `id.a[2]`. `Ideal` is
+   `extends EOSIdealCoeff(nc=5, a={...})`. Nothing bound the fields of
+   a record local, and a local `parameter Real b = 2` failed in the
+   same way. The fields are now bound to their declared values where
+   these come to numbers, with lengths read against the fields before
+   them (`OXIDELICA_NO_RECORD_LOCALS`). Taken.
+4. Here the chain splits into other families, and it stops:
+   `setState_pTX` and `setState_pTX_high_T` flatten and stop at "an
+   array reached the evaluator". `dofpT` is left standing for the run
+   to walk (it is a Newton loop with `while`), and its body reads
+   `dl_coef[int, 1:4]` with `int` decided by the run. The walker
+   (`walk.rs`, `to_scalar` on `Expr::Index`) takes one element per
+   subscript and has no slice. `setState_phX` flattens and stops at
+   `unknown variable sat`. `R134a1` and `R134a2` are refused at flatten
+   with an array where a scalar is expected
+   (`Array([Ref("volume.medium.state.p"), ...` - a state record handed
+   whole where one number is read). `R134a_pTX_phX_all` is refused as
+   `unit mismatch in der(T) = dT` (`s-1.K against 1`), which is the
+   units line. The next storey is a slice in the walker. That is
+   a layer of its own, sized by two models, and it is the map for the
+   next note.
+
+Each of the three layers taken was shown by a model under twenty lines
+that is red with its switch set and gives the right number without it.
+They are the four tests in `tests/simulation/functions.rs`, and each
+test goes red under its own switch and no other.
+
+## The CombiTimeTable five stand on declaration order
+
+`ModelicaTest.Tables.CombiTimeTable.Test68` to `Test72` are refused
+with "the flexible size `:` of `startTime_0.table` needs a value to
+read its length from, and Ref("startTime.table") is not one". The
+source says why. `startTime_0` is declared first, with
+`table=startTime.table`, and `startTime` is declared after it, with
+its table written out. The layer is `measure_dimensions`
+(components.rs), which measures a `[:]` from the binding while the
+component is instantiated. When `startTime_0` is measured, `startTime`
+has not been instantiated, so neither the sizes table nor the
+expansion can see its value.
+
+Reproduced in four lines (/tmp/m258/small/Ord). `A.mo` declares `b(table
+= a.table)` before `a(table = [0, 0; 1, 2])` and is refused the same
+way. `B.mo` is the same two lines swapped, and it runs with `b.y[1] =
+2`. So the cause is the order and not the reference. Modelica does not
+order declarations, so the fix is to measure the sibling a binding
+names before the component that names it. One way is to take a
+reference to a sibling's parameter as a question to that sibling's
+declared binding, which is written out in the source (`startTime`'s
+`table=[...]` modifier), and to measure its shape there. This does not
+belong to the `t_new.columns` line (7), which is external C.
+
+## The names count wanders and the output does not
+
+Two whole passes of one binary over the corpus (/tmp/m258/corpus1.txt
+and corpus2.txt) printed `names` 1202197767 and 1202197720: 47 apart in
+1.2 billion, while the six other counts matched to the digit. To tell a
+wandering count from wandering behaviour, the two full outputs were
+compared with the time, progress and work lines taken out. Kept in
+order they differ in one line, a `note: pipe.T_start ...` printed four
+lines earlier in one pass than in the other. The notes go to the
+output as each thread reaches them. Sorted, the two outputs are
+identical. Without the notes and kept in order, the 2080 lines are
+identical, and that includes every `flat` and `ran` name (1446 lines)
+and every refusal. So the compiler's answer did not move, and only
+the count of lookups did. The likely cause is that some walk visits a
+`HashMap` in the order of its per-process random seed, and a lookup
+that ends early asks a different number of names. That is a guess and
+has not been shown. It is why `names` is printed and not held.

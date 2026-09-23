@@ -13,6 +13,7 @@ pub(super) fn instantiate(
     acc: &mut Flat,
     depth: usize,
 ) -> Result<(), String> {
+    crate::work::tick(crate::work::Step::Instantiated);
     // What a body comes to is remembered for as long as one class is
     // being instantiated: the parameter values a body folds with are
     // this class's, and they do not move while it is built.

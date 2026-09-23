@@ -23,6 +23,7 @@ pub(super) fn expand(
     imports: &[(String, String)],
     depth: usize,
 ) -> Result<Value, String> {
+    crate::work::tick(crate::work::Step::Expanded);
     if depth > MAX_DEPTH {
         // A last resort before refusing, the same one `resolve` takes,
         // and gated the same way: only while a parameter is being
@@ -713,8 +714,13 @@ fn index_into(
             // follows applies inside each of them.
             let mut out = Vec::with_capacity(picks.len());
             for pick in picks {
-                let index = constant_here(&pick.scalar()?).ok_or_else(|| {
-                    "a slicing subscript must be constant at compile time".to_string()
+                let pick = pick.scalar()?;
+                let index = constant_here(&pick).ok_or_else(|| {
+                    format!(
+                        "a slicing subscript must be constant at compile time, \
+                         and `{}` is not",
+                        sketch(&pick)
+                    )
                 })?;
                 out.push(one(index)?);
             }
@@ -918,6 +924,24 @@ pub(super) fn expand_call(
         ("sum" | "product" | "min" | "max" | "vector", 1) => {
             folded_over_an_array(name, &args[0], shapes, registry, scope, imports, depth)
         }
+        // `scalar(A)` is the one element of an array whose every
+        // dimension is one long, and a number of what is one already.
+        // `scalar(size(breaks))` is how the media write the length of
+        // a grid. Anything longer is refused by name rather than read
+        // as its first element.
+        ("scalar", 1) if std::env::var_os("OXIDELICA_NO_SCALAR_FOLD").is_none() => {
+            let value = expand(&args[0], shapes, registry, scope, imports, depth + 1)?;
+            let shape = value.shape();
+            let mut items = Vec::new();
+            value.flatten_into(&mut items);
+            match <[Expr; 1]>::try_from(items) {
+                Ok([one]) if shape.iter().all(|length| *length == 1) => Ok(Value::Scalar(one)),
+                _ => Err(format!(
+                    "`scalar` reads an array whose every dimension is one long, \
+                     and this is of shape {shape:?}"
+                )),
+            }
+        }
         ("zeros", _) | ("ones", _) if !args.is_empty() => {
             let value = if name == "ones" { 1.0 } else { 0.0 };
             let lengths = args
@@ -1119,6 +1143,17 @@ pub(super) fn expand_call(
             // would compute something else entirely.
             if let Some(class) = lookup(registry, name, scope, imports) {
                 if class.kind == ClassKind::Function && takes_or_gives_an_array(class, registry) {
+                    // Arguments given by name that fill the inputs in
+                    // order are the same call given in order, and in
+                    // order is the road the rest of this branch reads.
+                    // A record handed by name otherwise went through
+                    // as its fields each wearing the name, and matched
+                    // to the inputs by place rather than by name.
+                    if let Some(in_order) = named_in_order(class, registry, args) {
+                        return expand_call(
+                            name, &in_order, shapes, registry, scope, imports, depth,
+                        );
+                    }
                     let values = args
                         .iter()
                         .map(&recur)
@@ -1859,6 +1894,52 @@ fn takes_or_gives_an_array(class: &ClassDef, registry: &HashMap<&str, &ClassDef>
             resolve_type(registry, &mut component, &class.name, &class.imports);
             !component.dimensions.is_empty()
         })
+}
+
+/// A call whose named arguments fill the next inputs in declared
+/// order, written with every argument in its place.
+///
+/// `eta(state = s)` and `eta(s)` are one call. Only a run with no gap
+/// is rewritten: an input left out in the middle takes its default,
+/// and writing the ones after it in place would hand the default's
+/// place to somebody else. Nothing named, a name that is no input,
+/// or a gap answers `None` and the call is read as it was written.
+fn named_in_order(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    args: &[Expr],
+) -> Option<Vec<Expr>> {
+    if std::env::var_os("OXIDELICA_NO_NAMED_IN_ORDER").is_some() {
+        return None;
+    }
+    let first_named = args
+        .iter()
+        .position(|arg| matches!(arg, Expr::NamedArg(..)))?;
+    if args[first_named..]
+        .iter()
+        .any(|arg| !matches!(arg, Expr::NamedArg(..)))
+    {
+        return None;
+    }
+    let inputs: Vec<String> = inlining::function_components(registry, class, 0)
+        .into_iter()
+        .filter(|c| c.causality == Causality::Input)
+        .map(|c| c.name)
+        .collect();
+    let mut in_order = args[..first_named].to_vec();
+    let mut left = args.len() - first_named;
+    for input in inputs.iter().skip(first_named) {
+        if left == 0 {
+            break;
+        }
+        let given = args[first_named..].iter().find_map(|arg| match arg {
+            Expr::NamedArg(named, value) if named == input => Some((**value).clone()),
+            _ => None,
+        })?;
+        in_order.push(given);
+        left -= 1;
+    }
+    (left == 0).then_some(in_order)
 }
 
 /// What an expression comes to, read against the parameters and the

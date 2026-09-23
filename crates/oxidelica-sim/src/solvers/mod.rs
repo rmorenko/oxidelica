@@ -590,6 +590,7 @@ impl CompiledModel {
         derivatives_out: &mut Vec<f64>,
         alg_guess: &mut [f64],
     ) -> Result<(), SimError> {
+        oxidelica_parser::work::tick(oxidelica_parser::work::Step::Point);
         // Parameters sit in the array from the start and discrete values
         // are written there by the event machinery, so a point only has
         // to place the states, look up what was delayed, and run the
@@ -836,6 +837,7 @@ impl CompiledModel {
         // can be taken again, shorter, from the footing it left.
         let mut footing: Option<(Vec<f64>, Vec<f64>, f64)> = None;
         for iteration in 0..50 {
+            oxidelica_parser::work::tick(oxidelica_parser::work::Step::Newton);
             let parts = residual_parts(values, &v);
             let f: Vec<f64> = parts.iter().map(|(lhs, rhs)| lhs - rhs).collect();
             if newton_trail() {
@@ -1697,6 +1699,7 @@ impl CompiledModel {
         values: &mut [f64],
         alg_guess: &[f64],
     ) -> Result<Vec<Vec<f64>>, SimError> {
+        oxidelica_parser::work::tick(oxidelica_parser::work::Step::Jacobian);
         let n = y.len();
         let mut jac = vec![vec![0.0; n]; n];
         let mut probe = y.to_vec();

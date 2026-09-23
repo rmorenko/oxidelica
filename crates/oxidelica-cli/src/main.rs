@@ -905,8 +905,12 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let (mut built_count, mut refused_count) = (0_usize, 0_usize);
     let mut running = std::time::Duration::ZERO;
     let mut ran_count = 0usize;
+    let mut flattening_work = oxidelica_parser::work::Work::default();
+    let mut running_work = oxidelica_parser::work::Work::default();
     for (_, (answer, spent)) in &answers {
         flattening += spent.flattening;
+        flattening_work = flattening_work.plus(spent.flattening_work);
+        running_work = running_work.plus(spent.running_work);
         // The two halves of that total, kept apart. A model refused
         // early costs almost nothing and a model that goes all the
         // way is dear, so a total divided by every model says the
@@ -1033,6 +1037,22 @@ fn library_check(args: &[String]) -> Result<(), String> {
          refused {refused_time:.0}s over {refused_count} ({:.0}ms each)",
         each(built_time, built_count),
         each(refused_time, refused_count)
+    );
+    // The same two halves counted in steps rather than seconds. The
+    // clock over one binary and one library has come out twice as long
+    // on one run as on the next, so it can only hold a catastrophe; the
+    // steps come out the same to the digit, so they can hold a ratchet
+    // a few percent wide.
+    println!(
+        "work: flattening {} classes, {} expansions, {} bodies, {} names; \
+         running {} points, {} newton, {} jacobians",
+        flattening_work.instantiated,
+        flattening_work.expanded,
+        flattening_work.inlined,
+        flattening_work.names,
+        running_work.points,
+        running_work.newton,
+        running_work.jacobians
     );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
@@ -1161,9 +1181,12 @@ enum Answer {
 /// Read one model as far as it goes.
 fn how_far(classes: &[oxidelica_parser::ClassDef], name: &str) -> (Answer, Spent) {
     let mut spent = Spent::default();
+    let before = oxidelica_parser::work::Work::here();
     let started = std::time::Instant::now();
     let flattened = oxidelica_parser::flatten_named(classes, name);
     spent.flattening = started.elapsed();
+    let flattened_at = oxidelica_parser::work::Work::here();
+    spent.flattening_work = flattened_at.since(before);
     match flattened {
         // Flattening is not the whole of it. A flat model still has to
         // come out as something that runs, and a model that flattens
@@ -1173,6 +1196,7 @@ fn how_far(classes: &[oxidelica_parser::ClassDef], name: &str) -> (Answer, Spent
             let started = std::time::Instant::now();
             let ran = run_a_little(&model);
             spent.running = started.elapsed();
+            spent.running_work = oxidelica_parser::work::Work::here().since(flattened_at);
             match ran {
                 Ok(()) => (Answer::Ran, spent),
                 Err(why) => (Answer::Flat(why), spent),
@@ -1194,6 +1218,11 @@ fn how_far(classes: &[oxidelica_parser::ClassDef], name: &str) -> (Answer, Spent
 struct Spent {
     flattening: std::time::Duration,
     running: std::time::Duration,
+    /// The steps flattening took, which unlike the time come out the
+    /// same on every run of one binary over one library.
+    flattening_work: oxidelica_parser::work::Work,
+    /// The steps the run took, counted the same way.
+    running_work: oxidelica_parser::work::Work,
 }
 
 /// Take a flat model as far as a few steps of a run.

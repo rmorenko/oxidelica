@@ -308,6 +308,13 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
                 // number down. An enumeration is carried as its ordinal
                 // here, so there is nothing left to do.
                 "Integer" => one()?,
+                // `scalar` of what is already one number is that
+                // number. `n = scalar(size(breaks)) - 1` is how the
+                // media write the last index of a grid, and it comes
+                // here as `scalar(478)` once the size is read. An
+                // array argument is not a number here and still
+                // answers nothing.
+                "scalar" if std::env::var_os("OXIDELICA_NO_SCALAR_FOLD").is_none() => one()?,
                 "atan2" => {
                     let (a, b) = two()?;
                     a.atan2(b)
@@ -860,9 +867,18 @@ pub(super) fn resolve(
                     )),
                 ),
                 _ if args.iter().any(|a| matches!(a, Expr::NamedArg(_, _))) => {
+                    let named: Vec<&str> = args
+                        .iter()
+                        .filter_map(|a| match a {
+                            Expr::NamedArg(named, _) => Some(named.as_str()),
+                            _ => None,
+                        })
+                        .collect();
                     return Err(format!(
-                        "`{name}` is not a function, so it cannot take named arguments"
-                    ))
+                        "`{name}` is not a function, so it cannot take named arguments \
+                         (given {})",
+                        named.join(", ")
+                    ));
                 }
                 _ => Expr::Call(name.clone(), args),
             }
