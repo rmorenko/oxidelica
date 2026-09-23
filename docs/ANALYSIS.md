@@ -17287,3 +17287,37 @@ is the same fallback answering `None`, which is why a hand-written
 small model of the shape refused to compile while the library model
 ran on happily with a zero. The refusal and the wrong number were one
 layer wearing two coats.
+
+## A gate that holds zero before it turns, and a hair that led nowhere
+
+Five of the Digital examples - `Counter`, `Counter3`, `FlipFlop`,
+`FullAdder`, `Multiplexer` - stood at one refusal with one signature:
+"handled more than 10000 events between t = 0.003 and
+t = 0.0030000099999500053". One instant, one window of about 1e-8, five
+models. The event trail showed the run creeping forward by 1e-12 a
+time and holding every discrete value still while it did so, which is
+not event iteration running away but the same event being found over
+and over.
+
+The layer is the search for a crossing in the walk that has nothing to
+integrate. An indicator reading exactly zero where the walk stands is
+read there as a relation resting on its threshold and about to leave
+it, so the walk steps a hair along - `from + (to - from) * 1e-9` - and
+lets the `when` see the turn. That reading is right for a relation
+that leaves zero as the walk does. It is wrong for one that sits at
+zero over a stretch of time and steps off it later, which is what a
+digital gate does: at the hair the indicator is still zero, the same
+turn is found again, and the walk is exactly where it began. Measured
+on `FlipFlop`, the probe printed `start=0 end=2 at_hair=0` on every one
+of the ten thousand events.
+
+What the hair was standing in for is the instant the indicator stops
+being zero, and that is found by asking rather than assumed - a
+bisection between the hair and the far end for where zero gives out.
+Where the indicator does leave zero at the hair, the hair is still the
+answer and nothing has changed.
+
+The mechanism fits on ten lines: `x = if time < 0.5 then 0 else 1`
+with a `when x > 0`, which refused with ten thousand events before the
+change and reaches its stop time with `seen = 1` after it. That is the
+test.

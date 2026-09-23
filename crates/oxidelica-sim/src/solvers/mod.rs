@@ -344,7 +344,35 @@ impl CompiledModel {
                 continue;
             }
             if start == 0.0 {
-                earliest = Some(earliest.map_or(hair, |so_far: f64| so_far.min(hair)));
+                // A hair past the threshold is the right answer only
+                // where the relation leaves zero as the walk does. An
+                // indicator that is still zero a hair along has not
+                // turned there at all, and stepping to the hair leaves
+                // the walk in exactly the state it began in: the same
+                // reading of zero, the same turn found again, another
+                // hair. `Digital.Examples.FlipFlop` crept forward by
+                // 1e-12 at a time from t = 0.003 and raised ten
+                // thousand events without moving. What turns there is
+                // a gate whose indicator holds zero over a stretch and
+                // then steps off it, so the instant to stop at is
+                // where it stops being zero, and that is found by
+                // asking rather than assumed.
+                self.eval_point(hair, y, values, scratch, alg_guess)?;
+                if self.indicator_values(hair, values)[index] != 0.0 {
+                    earliest = Some(earliest.map_or(hair, |so_far: f64| so_far.min(hair)));
+                    continue;
+                }
+                let (mut lo, mut hi) = (hair, to);
+                for _ in 0..40 {
+                    let mid = 0.5 * (lo + hi);
+                    self.eval_point(mid, y, values, scratch, alg_guess)?;
+                    if self.indicator_values(mid, values)[index] == 0.0 {
+                        lo = mid;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                earliest = Some(earliest.map_or(hi, |so_far: f64| so_far.min(hi)));
                 continue;
             }
             let (mut lo, mut hi) = (from, to);

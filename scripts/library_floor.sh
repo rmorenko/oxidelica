@@ -384,9 +384,31 @@ FLATTEN_FLOOR=865
 # of the run lists (/tmp/m248/b.ran against /tmp/m249/a.ran) is the
 # single line `Modelica.Electrical.Digital.Examples.Adder4` arriving
 # with nothing leaving.
-RUN_FLOOR=557
+# And again a road, this time the walk's search for a crossing. An
+# indicator reading exactly zero was taken for a relation leaving its
+# threshold as the walk left, so the walk stepped a hair along - and
+# a digital gate holds zero over a stretch before stepping off it, so
+# at the hair the reading was zero still and the same turn was found
+# again. Five Digital examples crept forward by 1e-12 at a time from
+# t = 0.003 and raised ten thousand events without moving. The hair
+# was standing in for the instant zero gives out, and that instant is
+# now found by asking.
+#
+#   run          563 = 557 before, plus the five Digital examples that
+#                stood at the one signature - Counter, Counter3,
+#                FlipFlop, FullAdder, Multiplexer - and
+#                Analog.AD_DA_conversion, which chattered on the same
+#                layer at another instant
+#   runnable run 521 = 515 before, plus the same six, all of them
+#                runnable examples
+#   both flatten counts unmoved: all six always flattened
+#
+# Measured on /tmp/m250/corpus.txt: 865/563 and 750/521, and the diff
+# of the run lists (/tmp/m249/a.ran against /tmp/m250/b.ran) is those
+# six names arriving with nothing leaving.
+RUN_FLOOR=563
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=515
+RUNNABLE_RUN_FLOOR=521
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

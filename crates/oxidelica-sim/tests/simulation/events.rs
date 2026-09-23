@@ -692,3 +692,30 @@ fn a_branch_of_a_when_that_says_nothing_leaves_the_value_it_had() {
     let last = result.rows.last().unwrap();
     assert_eq!(last[column], 9.0, "the later branch gives `y` its 9");
 }
+
+#[test]
+fn an_indicator_that_holds_zero_before_it_turns_is_stepped_past_once() {
+    // `Digital.Examples.FlipFlop` crept forward by a thousandth of a
+    // nanosecond at a time from t = 0.003 and raised ten thousand
+    // events without arriving anywhere. What turns there is a gate
+    // whose indicator sits at zero over a stretch of time and then
+    // steps off it: the walk read zero, called that a relation about
+    // to leave its threshold, and stepped a hair along - where the
+    // indicator was still zero, so the same turn was found again, and
+    // again, for as long as the run had patience.
+    //
+    // The instant that has to be stepped onto is where the indicator
+    // stops being zero, not a hair past where it started being zero.
+    let result = run(
+        "model C Real x; discrete Real seen(start = 0, fixed = true); \
+         equation x = if time < 0.5 then 0 else 1; \
+         when x > 0 then seen = pre(seen) + 1; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.1)); end C;",
+    );
+    let at = result.columns.iter().position(|c| c == "seen").unwrap();
+    let last = result.rows.last().unwrap()[at];
+    assert_eq!(
+        last, 1.0,
+        "the gate turns once and the run has to reach its stop time: seen = {last}"
+    );
+}
