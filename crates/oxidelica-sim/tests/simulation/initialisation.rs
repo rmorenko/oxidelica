@@ -57,6 +57,26 @@ fn a_plain_start_is_a_guess_but_fixed_is_an_initial_condition() {
 }
 
 #[test]
+fn a_discrete_start_pins_what_it_was_and_not_what_it_is() {
+    // A wired logic node declares `auxiliary(start = 'Z', fixed = true)`
+    // and in the same breath says `auxiliary[1] = x[1]`. The two are
+    // not a contradiction: MLS 8.6 reads the start of a discrete-valued
+    // name as `pre(v) = start`, and `pre(auxiliary)` is exactly what
+    // the node hands to its output before anything has resolved.
+    // Holding `v` itself to the start refused the model.
+    let result = run(
+        "model W Integer x; Integer aux(start = 5, fixed = true); Integer y; \
+         equation x = 3; aux = x; y = pre(aux); \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end W;",
+    );
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // What it was before the first event is the declared start,
+    assert_eq!(result.rows[0][at("y")], 5.0);
+    // and what it is at the first instant is what the equation says.
+    assert_eq!(result.rows[0][at("aux")], 3.0);
+}
+
+#[test]
 fn the_initialisation_problem_is_solved_or_named() {
     // An initial equation that pins nothing.
     // `0 = 0` is satisfied wherever `x` stands, so the refusal owed

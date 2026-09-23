@@ -17376,3 +17376,63 @@ startTime.table` where `startTime` comes second in the source. The
   declaration order rather than about which class holds the name.
 - `impedance.cellData.OCV_SOC`, 1 model, a field of a record, not
   looked at.
+
+## A discrete start pins what a name was, not what it is
+
+A wired logic node in `Electrical.Digital` declares its internal
+variable both ways at once:
+
+```modelica
+D.Interfaces.Logic auxiliary[n](each start = L.'Z', each fixed = true);
+equation
+  auxiliary[1] = x[1];
+  y = pre(auxiliary[n]);
+```
+
+Read as a Real, that is a contradiction: the declaration pins
+`auxiliary[1]` to `'Z'` and the equation pins it to the input, and the
+compiler said so - `initial value of wiredX.auxiliary[1] is fixed at 5
+but the constraints require 1`. It is not a contradiction, because
+`auxiliary` is discrete-valued. MLS 8.6 reads the declared start of a
+discrete variable as a condition on `pre(v)`, not on `v`: what the
+start says is where the name stood before the first event, and `v` at
+the first instant is whatever the equations make it. The node relies on
+exactly that - `pre(auxiliary[n])` is what it hands to its output
+before anything has resolved, and `'Z'` is the value it is supposed to
+hand.
+
+So the check that `v == start` at the first instant, built for Real
+states demoted by index reduction, was reaching names it had no
+business reaching. It now skips the discrete-valued ones. Nothing had
+to be built for the other half of the rule: the `$pre` slots were
+already seeded from the declared start, which is why the start comes
+out right rather than merely unchecked - `y` at `t = 0` is 5, the
+fifth logic value, `'Z'`.
+
+The measurement, from one binary either side of an environment switch:
+865/563 and 750/521 (/tmp/m252/before.txt) against 865/564 and 750/522
+(/tmp/m252/after.txt), and the diff of the two run lists is one name
+arriving, `Electrical.Digital.Examples.WiredX`, with nothing leaving.
+
+The census (/tmp/m252/census.txt, /tmp/m252/raw.txt, taken before the
+change) shows why the number is one and not eleven. The row `initial
+value of X is fixed at N but the constraints require N` counts 11
+models by name, and only this one is discrete. The other ten are Real
+and stay standing, two of them - `smpm.phiMechanical` required at
+1.39e-64 and `medium.T` required at 46.31 K - with numbers that look
+like a defect in the computing rather than in the initialisation, and
+they were deliberately not let through.
+
+Two other things that census settles, both claims an earlier shift
+made from `--only` rather than from the instrument. The row for the
+flexible size of `t_new.table` is indeed gone: `grep -c t_new.table`
+over the raw report returns 0. And
+`ModelicaStandardTables_CombiTimeTable_getValue` appears twice, so the
+two models did travel to the external-C line.
+
+And the `unknown variable` family (9 models in /tmp/m252/raw.txt) is
+not one layer but three, by `OXIDELICA_WHERE=1` on one model apiece:
+`code.rs:843` for `seedOut[1]` and `IN_con.a` (4 models),
+`compile.rs:2338` for `j` and `imsQS.vr[1].re.re` (3), and
+`code.rs:174` for `ph_explicit` (2). The count of kinds put them in one
+row; the probe puts them in three. Nothing built for it.

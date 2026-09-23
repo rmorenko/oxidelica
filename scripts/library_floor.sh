@@ -406,9 +406,24 @@ FLATTEN_FLOOR=865
 # Measured on /tmp/m250/corpus.txt: 865/563 and 750/521, and the diff
 # of the run lists (/tmp/m249/a.ran against /tmp/m250/b.ran) is those
 # six names arriving with nothing leaving.
-RUN_FLOOR=563
+#
+# And a wired logic node ran once its declared start stopped being read
+# as a condition on the first instant. `fixed = true` on a discrete
+# name pins what the name was before the first event, not what it is
+# at t = 0, so a node that starts at `'Z'` and is at once defined by
+# its input was refused for keeping the standard.
+#
+#   run          564 = 563 before, plus Electrical.Digital.Examples.WiredX
+#   runnable run 522 = 521 before, plus the same one, a runnable example
+#   both flatten counts unmoved: it always flattened
+#
+# Measured from one binary either side of an environment switch
+# (/tmp/m252/before.txt: 865/563 and 750/521; /tmp/m252/after.txt:
+# 865/564 and 750/522), and the diff of the run lists is that one
+# name arriving with nothing leaving.
+RUN_FLOOR=564
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=521
+RUNNABLE_RUN_FLOOR=522
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

@@ -3911,6 +3911,20 @@ pub(crate) fn compile_at(
             if component.fixed != Some(true) {
                 return None;
             }
+            // `fixed = true` on a discrete-valued name pins what it
+            // was before the first event, not what it is at the first
+            // instant: MLS 8.6 reads the declared start of a discrete
+            // variable as `pre(v) = start`, while `v` itself is left
+            // to the equations. A wired node says `auxiliary[1] =
+            // x[1]` and starts at `'Z'`, and the two disagree by
+            // design - the start is what `pre(auxiliary[n])` hands to
+            // the output before anything has been resolved. Holding
+            // `v` to the start here refused a model for keeping the
+            // standard. The pinning itself is done where the
+            // `$pre` slots are seeded.
+            if discrete_valued.iter().any(|d| d == name) {
+                return None;
+            }
             let value = eval(component.start.as_ref()?, &ctx).ok()?;
             Some((name.clone(), index, value))
         })
