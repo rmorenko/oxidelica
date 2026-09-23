@@ -17055,3 +17055,120 @@ that accidental catch. Nothing catches a discrete NaN now: the only
 tests for it are the sampler's period and the solvers' error norms,
 which read `err_norm` rather than the discrete values. A model whose
 discrete value goes to NaN will run to the end and say nothing.
+
+## The guard that answers that debt, and what it found (shift 247)
+
+The debt named at the end of the last chapter is now measurable.
+After the event iteration has come to rest - not inside a round,
+where a half-built point is entitled to hold NaN - every discrete
+slot is asked whether it holds a number, and the refusal names the
+variable and the instant. It was built behind
+`OXIDELICA_DISCRETE_NAN_GUARD`, because a check whose cost in models
+is unknown does not belong in the default, and the measurement then
+put it there: the whole cost is six models and all six are the family
+it was built to look at, so it is on by default now and the switch
+set to `0` is what takes it off.
+
+The first thing it was pointed at was the claim of the previous
+shift, which said that ten of the thirteen `Digital` models were
+answering with NaN and that four of them left when the cause was
+repaired. The inference from those two numbers is that six were
+cured. The inference is wrong, and the guard says so directly: of
+the sixteen `Digital` models that run today, six are still writing
+NaN.
+
+```text
+Adder4                    Adder1.Adder2.AND.G1.auxiliary[2]
+Utilities.Counter         FF[1].RS1.TD1.x_delayed
+Utilities.Counter3        FF[1].RS1.TD1.x_delayed
+Utilities.DFF             RSFF1.RS1.TD1.x_delayed
+Utilities.JKFF            RSFF1.RS1.TD1.x_delayed
+Utilities.RSFF            RS1.TD1.x_delayed
+```
+
+Five of the six name the same variable inside the transport delay,
+`TD1.x_delayed`, which is the layer the previous shift seeded from
+the declaration's start - seeded for `pre` and for the value slot,
+and evidently not for whatever writes `x_delayed` itself. The sixth,
+`Adder4`, names an `auxiliary` of a gate's table. So the family is
+one layer and one straggler rather than six separate faults, and the
+runnable floor of 557 still stands on six models whose columns are
+not numbers. Quieter than before, and no more true.
+
+What it costs elsewhere in the corpus is nothing, and that was
+measured rather than assumed: one binary built once and run twice,
+with the check off (`/tmp/m247/off.txt`: 865 flatten, 557 run; 750
+and 515 runnable) and on (`/tmp/m247/on.txt`: 865/551 and 750/514).
+The diff of the two run lists is exactly the six names above and no
+others. So the floors come down by six and by one in the same commit,
+with the arithmetic beside them, and the compiler now refuses where it
+used to answer.
+
+## The loop rows are two thirds parked (shift 247)
+
+The census of shift 246 (`/tmp/m246/raw.txt`, 529 lines) holds 93
+rows whose refusal is about an algebraic loop. Counted by kind they
+are six rows and read as six families; counted by what the loop
+variables are named after, they are not.
+
+```text
+                            parked machines   live
+Newton direction                     4         23
+equations do not mention            13          6
+singular Jacobian                    8          4
+underdetermined                      1          6
+solution on either side              5          2
+did not converge                     0          5
+diverged                             0          3
+other wording                        0         13
+                                    31         62
+```
+
+"Parked machines" is the `airGap`/`V_mss` chain parked since shift
+130, matched on the loop's own variable names. Thirty-one of the
+ninety-three rows are that one parked family, spread over five
+different kinds - which is the register's blind spot from the usual
+side: one layer wearing five wordings.
+
+Of the sixty-two live rows, the `Newton direction` twenty-three are
+the numerical wall parked by earlier shifts (`pump.medium.p`,
+`pipe1.mediums[1].p`, `reservoir.medium.T`), and the thirteen "other
+wording" are the per-equation residual messages that name no loop
+kind at all. What is left unparked and coherent is the
+**underdetermined** six, all in `Spice3`:
+
+```text
+CascodeCircuit                        J2.irs
+InvertersExtendedModel.MNmos          der(Dinternal), der(B.v), ...
+InvertersExtendedModel.MPmos          der(Dinternal), der(B.v), ...
+Spice3BenchmarkFourBitBinaryAdder.NAND   Q5.irc
+Spice3BenchmarkFourBitBinaryAdder.ONEBIT X9.D2CLAMP.ir
+Spice3BenchmarkRtlInverter            Q1.ire
+```
+
+That is the first unparked entrance to the loop family, and `why`
+gives the mechanism in one screen. `Spice3BenchmarkRtlInverter`,
+asked about `Q1.ire`:
+
+```text
+equation: Q1.ire * Q1.p1.m_emitterResist = Q1.E.v - Q1.Einternal
+equation: Q1.E.i = Q1.ire
+equation: 0 = Q1.ibegmin + Q1.ire + Q1.cc.iCC + Q1.cc.iBEN + Q1.cc.iBE + Q1.icapbe
+```
+
+`m_emitterResist` is a parasitic resistance with a default of zero,
+and `why` prints that default. At zero the first equation is
+`0 = E.v - Einternal`, which does not mention `ire` at all: the
+current is determined by the rest of the circuit and the equation
+that nominally owns it has degenerated into a short. `CascodeCircuit`
+is the identical shape one terminal over - `J2.irs * J2.p2.m_sourceResist
+= J2.S.v - J2.Sinternal` - so the six are one family and not six.
+
+What the compiler does with it is right as far as it goes: it
+refuses rather than inventing a current. What a tool that runs these
+models does instead is recognise the degeneracy structurally - a
+parasitic resistance of exactly zero means the two nodes are the same
+node, and the variable it multiplied is determined by the balance
+equation that already names it. That is a rewrite before the loop is
+formed rather than a solver improvement, which is why it is written
+down here rather than taken this shift.

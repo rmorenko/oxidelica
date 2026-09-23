@@ -323,9 +323,34 @@ FLATTEN_FLOOR=865
 # taken from one tree built twice (/tmp/m245/a.ran against
 # /tmp/m246/a.ran: 865/556 and 750/516 against 865/557 and 750/515),
 # is those four names leaving and those five arriving.
-RUN_FLOOR=557
+#
+# The run pair comes down by six and by one, and the six are named.
+# A discrete variable that reaches NaN used to be carried untouched to
+# the stop time, so the model finished and the check counted it as a
+# win while every column it wrote from that point on was not a number.
+# Asked after the event has come to rest, six models of
+# `Electrical.Digital` say so: `Adder4`, `Utilities.Counter`,
+# `Utilities.Counter3`, `Utilities.DFF`, `Utilities.JKFF` and
+# `Utilities.RSFF`. Five of the six name `TD1.x_delayed` inside the
+# transport delay, so this is one layer rather than six faults. A
+# refusal that names the variable is worth more than a row of NaN
+# presented as an answer, which is the trade this whole compiler is
+# built on, so the fall is the point of the change rather than a
+# regression to be held against.
+#
+#   run          551 = 557 before, less the six
+#   runnable run 514 = 515 before, less the one of the six that is a
+#                runnable example
+#
+# Both halves from one binary built once and run twice, with the check
+# off and on (/tmp/m247/off.txt: 865/557 and 750/515;
+# /tmp/m247/on.txt: 865/551 and 750/514), and the diff of the two run
+# lists is exactly those six names and nothing else - nothing outside
+# `Digital` was answering with NaN. Flattening is unmoved on both
+# counts, as it must be: the check lives in the run half.
+RUN_FLOOR=551
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=515
+RUNNABLE_RUN_FLOOR=514
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

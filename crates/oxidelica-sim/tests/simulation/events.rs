@@ -616,3 +616,36 @@ fn a_derivative_inside_an_event_indicator_is_the_state_equation() {
         "the indicator must turn at t = 0.5, giving seen = 0.5, not {last}"
     );
 }
+
+#[test]
+fn a_discrete_that_reaches_nan_is_named_rather_than_carried_to_the_end() {
+    // A discrete value is written by an event and then carried
+    // untouched to the stop time: nothing in the integration reads it
+    // back, so a model whose switch lands on NaN used to run to the
+    // end and report a column of NaN as though it were an answer. Ten
+    // `Digital` models did exactly that. The check asks after the
+    // event has come to rest, and it names the variable; setting
+    // `OXIDELICA_DISCRETE_NAN_GUARD=0` gives the old silence back.
+    let source =
+        "model N Real x(start = -1, fixed = true); discrete Real d(start = 0, fixed = true); \
+         equation der(x) = -1; \
+         when time > 0.5 then d = sqrt(x); end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end N;";
+    let refusal = run_err(source);
+    assert!(
+        refusal.contains("`d` is not a number"),
+        "the check names the variable that went to NaN: {refusal}"
+    );
+    std::env::set_var("OXIDELICA_DISCRETE_NAN_GUARD", "0");
+    let quiet = run(source);
+    std::env::remove_var("OXIDELICA_DISCRETE_NAN_GUARD");
+    let column = quiet
+        .columns
+        .iter()
+        .position(|c| c == "d")
+        .expect("d is reported");
+    assert!(
+        quiet.rows.last().unwrap()[column].is_nan(),
+        "without the check the run reaches its stop time writing NaN"
+    );
+}

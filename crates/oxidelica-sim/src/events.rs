@@ -519,6 +519,38 @@ impl CompiledModel {
         }
         self.eval_point(t, y, values, &mut scratch, alg_guess)?;
         state.when_prev = self.when_conditions(t, values);
+        // A model whose discrete value goes to NaN runs to its stop
+        // time and says nothing: the integration never touches a
+        // discrete slot, so nothing downstream is in a position to
+        // notice. Asked here, once the event has come to rest, the
+        // question is about what the event decided rather than about a
+        // value some round of the iteration merely passed through - a
+        // half-built point inside a round is allowed to hold NaN, and
+        // catching it there would refuse models that settle perfectly
+        // well.
+        //
+        // Measured over the corpus from one binary with the check and
+        // without it, the whole cost is six models, and all six are
+        // the `Digital` family the check was built to look at. Nothing
+        // outside it was answering with NaN, so the check is on by
+        // default; `OXIDELICA_DISCRETE_NAN_GUARD=0` takes it off for
+        // anyone who would rather have the wrong number.
+        if std::env::var("OXIDELICA_DISCRETE_NAN_GUARD").as_deref() != Ok("0") {
+            for (at, &slot) in self.discrete_slots.iter().enumerate() {
+                if values[slot].is_nan() {
+                    let name = self
+                        .discretes
+                        .get(at)
+                        .map_or_else(|| format!("discrete #{at}"), Clone::clone);
+                    return crate::err(format!(
+                        "`{name}` is not a number after the event at t = {t}: \
+                         a discrete value that reaches NaN is carried to the \
+                         stop time unchanged, so every row written from here \
+                         on is wrong",
+                    ));
+                }
+            }
+        }
         Ok(outcome)
     }
 }
