@@ -17627,3 +17627,67 @@ carry it.
 No code was written for this. The next shift has the reproduction
 above, which answers in a second what the corpus answers in eleven
 minutes.
+
+## A loop head was decided by less than the body beside it
+
+The map above placed the `LossyGear` family's cost on a subscript of a
+parameter not reaching `settled_truth`. Looking for where that road
+runs, the difference turned out to be plainer than a missing value: a
+`while` head and a branch condition were decided by `settled_truth`,
+which is arithmetic and strings, while every assignment in the same
+body was decided by `settled_in_body`, which asks the array layer
+where the cheap half could not answer. A condition was the one thing
+in a body asked less than its neighbours.
+
+Made the same, a body measuring what it was handed folds:
+
+```modelica
+function high
+  input Real a[:];
+  output Real r;
+protected
+  Integer j = 1;
+algorithm
+  r := 0;
+  while j <= size(a, 1) loop r := r + a[j]; j := j + 1; end while;
+end high;
+```
+
+`high({1, 2, 3})` comes to `6` now and stood as a call before. A
+length is neither arithmetic nor a string, so the two layers a
+condition used to be asked of both answered nothing and the trip count
+was declared unsettled - for a loop whose bound is a number the array
+layer produces on request. The switch is `OXIDELICA_NO_BODY_CONDITIONS`,
+so one binary gives both numbers, and the test above is red under it
+and green without it.
+
+What this does not do is move `LossyGear`. Measured one model at a
+time with the switch, `isEqual` with a subscripted matrix literal
+refuses the same way with the change and without it, and so does a
+fifteen-line clone of `isEqual` written here. The wall that family
+stands at is lower than the loop head: `{{lt[1,1], lt[1,2], 1, 0}}`
+handed in as a matrix argument refuses where `{{p, 1, 1, 0}}` with `p`
+a plain parameter folds, and where `[0,1,1,0]` written out folds. So
+it is how a matrix literal holding subscripts is bound as an argument,
+in `bind_the_arguments`, and not how a condition inside the body is
+decided. The fold of the loop head is worth having on its own terms;
+the family's own chain starts one storey down and is the next link to
+walk.
+
+## What stood behind the row that emptied
+
+Four of the six media models the last shift expected came in, and the
+two that did not are at walls of their own, named by `--only` from the
+root in a second apiece:
+
+```text
+SimpleAir              cannot add `(s / SimpleAir.cp_const) + ...`
+LinearColdWater        unit mismatch in `d2 = ((1 + ...))`
+LinearWater_pT_Ambient unknown variable `dT_explicit` in equation
+```
+
+None of the three is the `instantiate.rs:1243` refusal they stood at
+before: the first two are the unit reader refusing a sum, and the
+third flattens and dies in the run half for a name nothing defines.
+They travelled past the wall the last shift took down and met the next
+one, which is what a row emptying usually looks like.

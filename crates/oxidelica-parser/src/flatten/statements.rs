@@ -311,7 +311,10 @@ pub(super) fn execute(
                 let mut rounds = 0;
                 loop {
                     let now = substitute_refs(condition, bindings);
-                    let truth = settled_truth(&now, consts, &texts_in_view()).ok_or_else(|| {
+                    let truth = settled_condition(
+                        &now, bindings, consts, sizes, registry, scope, imports, depth,
+                    )
+                    .ok_or_else(|| {
                         format!(
                             "{UNDECIDABLE_LOOP}: a `while` here is unrolled, so the trip \
                              count cannot depend on a simulated variable"
@@ -726,6 +729,47 @@ fn record_fields_named(
 /// It is the same two steps a component's condition is settled by,
 /// and `findLast` needs them: its `while` goes round until the piece
 /// of text it is looking at is the one it was looking for.
+/// What a condition governing a body's control flow comes to.
+///
+/// A `while` head and a branch condition were decided by arithmetic
+/// and strings alone, while every assignment in the same body was
+/// decided by `settled_in_body`, which may also ask the array layer.
+/// That difference is the whole of the `LossyGear` family's refusal:
+/// `cmp(v[1])` hands a subscript of a parameter vector in, the body
+/// writes its own counter from inside a branch, and the branch
+/// condition reads the argument - so the trip count was declared
+/// unsettled for a value that folds perfectly well one layer down.
+/// `v[1]` is a number the array layer can produce; a condition is
+/// asked the same question the assignments beside it are asked.
+///
+/// The cheap half is asked first and the array layer only where it
+/// could not answer, which is the order `settled_in_body` itself
+/// keeps.
+///
+/// `OXIDELICA_NO_BODY_CONDITIONS=1` stops at the cheap half, so that
+/// one binary gives both numbers.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn settled_condition(
+    expr: &Expr,
+    bindings: &HashMap<String, Expr>,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Option<f64> {
+    if let Some(number) = settled_truth(expr, consts, &texts_in_view()) {
+        return Some(number);
+    }
+    if std::env::var_os("OXIDELICA_NO_BODY_CONDITIONS").is_some() {
+        return None;
+    }
+    algorithms::settled_in_body(
+        expr, bindings, consts, sizes, registry, scope, imports, depth,
+    )
+}
+
 pub(super) fn settled_truth(
     expr: &Expr,
     consts: &HashMap<String, f64>,
@@ -957,10 +1001,15 @@ fn one_if_statement(
     // branch that continues it is taken as well.
     let decidable = branches.iter().all(|branch| {
         branch.condition.as_ref().is_none_or(|condition| {
-            settled_truth(
+            settled_condition(
                 &substitute_refs(condition, bindings),
+                bindings,
                 consts,
-                &texts_in_view(),
+                sizes,
+                registry,
+                scope,
+                imports,
+                depth,
             )
             .is_some()
         })
@@ -979,13 +1028,15 @@ fn one_if_statement(
                 }
                 Some(condition) => {
                     let condition = substitute_refs(condition, bindings);
-                    let value =
-                        settled_truth(&condition, consts, &texts_in_view()).ok_or_else(|| {
-                            format!(
-                                "a branch holding `break` or `return` \
+                    let value = settled_condition(
+                        &condition, bindings, consts, sizes, registry, scope, imports, depth,
+                    )
+                    .ok_or_else(|| {
+                        format!(
+                            "a branch holding `break` or `return` \
                              {UNDECIDABLE_LEAVING}"
-                            )
-                        })?;
+                        )
+                    })?;
                     if value != 0.0 {
                         taken = Some(&branch.body);
                         break;

@@ -133,6 +133,26 @@ fn named_arguments_and_defaults_fill_the_inputs() {
 }
 
 #[test]
+fn a_loop_head_is_decided_the_way_the_body_beside_it_is() {
+    // A `while` whose condition measures the array it was handed. The
+    // length is not arithmetic and not a string, so the two layers a
+    // condition used to be asked of both answer nothing, while every
+    // assignment in the same body would have had the array layer to
+    // ask. Decided the same way the assignments are, the body folds
+    // to the number it plainly comes to.
+    const BODY: &str = "function high input Real a[:]; output Real r; \
+         protected Integer j = 1; \
+         algorithm r := 0; \
+         while j <= size(a, 1) loop r := r + a[j]; j := j + 1; end while; \
+         end high;";
+    let m = parse_model(&format!(
+        "{BODY} model M Real y; equation y = high({{1, 2, 3}}); end M;"
+    ))
+    .unwrap();
+    assert_eq!(format!("{:?}", m.equations[0].rhs), "Number(6.0)");
+}
+
+#[test]
 fn while_break_and_return_run_at_compile_time() {
     // Euclid's algorithm: a `while` folding its state each round.
     let m = parse_model(

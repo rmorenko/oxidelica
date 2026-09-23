@@ -144,7 +144,12 @@ FILES_FLOOR=2671
 #
 #   flatten 869 = 865 before, plus CO2, ConstantPropertyLiquidWater,
 #                 DryAirNasa and LinearWater_pT_Ambient
-FLATTEN_FLOOR=869
+#
+# And one more, from deciding a loop head the way the body beside it is
+# decided:
+#
+#   flatten 870 = 869 above, plus Modelica.Blocks.Examples.Filter
+FLATTEN_FLOOR=870
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -459,7 +464,9 @@ FLATTEN_FLOOR=869
 #   runnable run 526 = 523 before, plus the same three, all runnable
 #                examples
 RUN_FLOOR=568
-RUNNABLE_FLATTEN_FLOOR=754
+# And runnable flatten 755 = 754 above, plus Filter, which is a
+# runnable example and flattens without running.
+RUNNABLE_FLATTEN_FLOOR=755
 RUNNABLE_RUN_FLOOR=526
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
