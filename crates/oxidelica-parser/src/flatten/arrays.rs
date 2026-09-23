@@ -561,6 +561,21 @@ pub(super) fn expand(
                         Expr::Ref(name) => Expr::Ref(format!("{name}.{path}")),
                         other => Expr::Member(Box::new(other), path.clone()),
                     }),
+                    // One element of an array of components, and a
+                    // member of it that is an array in its own right:
+                    // `ports[1].Xi` where each port carries `Xi[nXi]`.
+                    // The subscript left one name, and the table
+                    // measured that name's member under its full
+                    // spelling - read as a scalar, the member lost the
+                    // shape the table already held, and every source of
+                    // a moist medium was refused for an equation
+                    // between a scalar and a vector of one.
+                    Value::Scalar(Expr::Ref(name))
+                        if member_shapes_open()
+                            && shapes.sizes.contains_key(&format!("{name}.{path}")) =>
+                    {
+                        recur(&Expr::Ref(format!("{name}.{path}")))?
+                    }
                     _ => scalar(expr)?,
                 }
             }
@@ -592,6 +607,13 @@ pub(super) fn expand(
 /// both numbers.
 pub(crate) fn deep_matrix_open() -> bool {
     std::env::var_os("OXIDELICA_NO_DEEP_MATRIX").is_none()
+}
+
+/// Whether a member of one element of an array of components is read
+/// with the shape the table measured for it. `OXIDELICA_NO_MEMBER_SHAPES`
+/// closes the road, so that one binary gives both numbers.
+fn member_shapes_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_MEMBER_SHAPES").is_none()
 }
 
 /// One part of a `[ ]` as the matrix it stands for: a scalar is one by

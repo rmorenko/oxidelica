@@ -18410,3 +18410,159 @@ the six and the run list gained `TestGlycol`. Nothing left either
 list. The four victims of the first pair are back on the run list.
 `LinearColdWater` stays refused, as it should, until its `reference_T`
 is read from the medium.
+
+## The m263 census, a moved constant, and a member of one port
+
+The census of m263 (/tmp/m263/census.txt, raw half in
+/tmp/m263/raw.txt) was taken from the binary of d72cb7b. It printed 140
+would-not-flatten and 318 would-not-run, 458 together, which is 1037 − 579. The model lists against m262 moved by exactly the six the bare
+constant let through, and by name. `TestGlycol` left both lists: it
+runs. The other five went from the refused half to the run half.
+
+- `IncompleteMedia.Glycol47` and `Essotherm650` stand at `an array
+reached the evaluator: 1:2`. That row went from 1 to 3.
+- `TestsWithFluid...Incompressible.Glycol47` and `Essotherm650` stand
+  at a loop through `shortPipe.flowModel.states[1].p`.
+  `TestValvesIncompressibleReverse` stands at a loop through
+  `V2.state_b.T`, NaN before any Newton step. All three are in the row
+  `X of algebraic loop`, which went from 9 to 12. The forecast put the
+  valve model next to the four `do not bracket`. It is not there.
+- The row `cannot subtract medium.h (m2.s-2) and 101300 / medium.d`
+  (6) is gone.
+
+The families summed row by row:
+
+- algebraic loops 27+20+14+12+11+7+3+3 = 97, from 94.
+- structurally singular 64, unmoved.
+- parameters 24 `has no value` + 20 `cannot evaluate` = 44, unmoved.
+- unbalanced 5+3+2 and 29 singles = 39, unmoved.
+- C and FORTRAN 11+8+5 = 24, unmoved.
+- units 2+1+1+1+1 = 6, from 12 when the six left.
+- `der()` outside a state equation 3, and `two equations for`
+  1+1+1+1+1 = 5.
+
+**A constant the medium moved, read by a body it inherited.**
+`LinearColdWater` was refused at `d2 = ((1 + ((101325 - 101325) *
+kappa_const)) - ((278.15 - 298.15) * beta_const)) * reference_d`. The
+278.15 is the medium's `reference_T`, given by the argument. The
+298.15 inside the inlined body is `PartialMedium`'s default. The walk
+outwards in `enclosing_constant_at` found `reference_T` in the
+gathering of `PartialLinearFluid`, where the interface gives it a
+value. It asked the medium on the mark first. The mark declines any
+constant with a unit off the settling road, so that the constant can
+be minted as a name. The walk took that as "no answer" and folded the
+interface's own digit. Two writers, both true: the interface wrote
+298.15 and the medium wrote 278.15. Only the writer on the mark is
+the one the body was called for.
+
+Reproduced in 50 lines
+(`tests/small/a_constant_a_medium_moved_read_by_an_inherited_body.mo`).
+A smaller form of the same thing, with the body reading the constant
+directly and no unit on the other side, gave `d2 = 1002.18` in place
+of 997.05 and refused nothing. It is the test on the number, and it
+turns red at 1002.18 under `OXIDELICA_INTERFACE_DIGIT`.
+
+The fix: where a medium stands on the mark and descends from the
+package, only the mark answers. It gives the medium's digit where a
+digit is wanted. Where the unit has to be kept it gives nothing, which
+leaves the mint to name the medium's constant with its unit. It is the
+same as a name the interface leaves without a value. The first
+version, which folded the medium's digit whatever the unit, took the
+unit away from every minted constant. Two flattening tests
+(`a_medium_constant_an_equation_reads_keeps_its_unit` and its twin)
+said so before any pair was read, and that version was never
+measured.
+
+`LinearColdWater` now reads `(278.15 - 278.15)`, and `d2` is
+`reference_d` exactly. It stops at the next link: `cannot add` in
+`isentropicEnthalpy`, where `p_downstream = 2*Medium.reference_p`
+arrives as `2 * 101325` with no unit. The model writes that argument
+as a dotted name of the medium, and the dotted road folds it to a
+digit. Reproduced in 25 lines (/tmp/m263/lk3.mo, `K against 1`). This
+link is left mapped. It is the dotted twin of the bare mint of m262,
+and only the pair could say what minting a dotted constant inside a
+call's arguments costs.
+
+**A member of one element of an array of components.** The row family
+`an equation between shapes [] and [N]` with `Xi_outflow = medium.Xi`
+is one layer, not a medium's. The probe went down to nine lines with
+no medium at all (`tests/small/a_member_of_one_element_of_an_array_of_components.mo`):
+`Port ports[2]` with `Real Xi[1]`, and `ports[1].Xi = {0.5}`. The size
+table held `ports[1].Xi` as `[1]`. The equation arrives as
+`Member(Index(Ref("ports"), [1]), "Xi")`. The subscript collapsed the
+base to one name, and the member fell through to the scalar path
+without asking the table. The fix: a scalar name plus its member, when
+the table measured that pair, expands as the array it is
+(`OXIDELICA_NO_MEMBER_SHAPES`). The test reads both elements' numbers
+and turns red under the switch.
+
+Nine models of the family were probed one at a time with the fix.
+`PsychrometricData` now flattens and does not run. The other eight
+each went one wall on, into four different walls. That is the census
+lesson again: the family was one layer at the first wall and is four
+at the second.
+
+- `BranchingDynamicPipes`: `size(..., 1): Ref("state.X") is of shape
+[]`.
+- `RoomCO2`, `RoomCO2WithControls` and `TestTraceSubstances`: `an
+array value cannot be used where a scalar is expected: {0.01,
+0.99}`.
+- `TestSources`, `TestJunctionTraceSubstances` and
+  `TestMultiPortTraceSubstances`: `C_outflow` against
+  `C_in_internal[1]`. This is the same kind of fault one axis further
+  on (`[1]` against `[1, 1]`).
+- `TestMultiPort`: `FluidPort_a has no member Xi_outflow[1]`.
+- `Inverse_sh_TX` (`[]` against `[4]`, on `Th`) is a different shape
+  and was not taken.
+
+The pair, one binary either side of both switches (/tmp/m263/d_off.txt,
+/tmp/m263/d_on.txt), printed:
+
+- off: 897/579 and 782/537, with work counts equal to m262's to the
+  digit.
+- on: 898/579 and 783/537.
+
+The flatten list gained `PsychrometricData` and lost nothing. The run
+lists are identical to the name. A first pair was taken from the wide
+version of the constant fix and discarded unread, because two tests
+had already found its victims.
+
+**`Graetz` is the library's text.** `rout.vp.m_dConduct` comes from
+`resDepTemp(resist, temp, tnom, tc1, tc2)`. That computes `factor = 1 +
+tc1*difference + tc2*difference^2` and `conduct = 1/(resist*factor)`.
+`ResistorModelLineParams` declares `m_dTC1` as
+`SI.LinearTemperatureCoefficientResistance` (`Ohm/K`) and `m_dTC2` as
+`...QuadraticTemperatureCoefficientResistance` (`Ohm/K2`)
+(Spice3.mo:9024). So `factor` is in ohms, and `1/(resist*factor)` is a
+siemens squared. The resistor's own `TC1` parameter is declared the
+same way. The coefficient the formula wants is `1/K`. The error is in
+the declarations, and it is parked with the thyristors and
+`SimpleAir`.
+
+**The top of the unparked refused half, by layer.**
+
+1. The eight `is called where nothing could inline it ... is a slice`
+   are not the `s_T` line. They are the eight Noise models, and each
+   stands on `Xorshift64star.random` answering `stateOut` of a length
+   the walk cannot see. The two `derTwoSided` rows are the same
+   wording from `ModelicaTest.Math.Random`. This is external-state
+   work, parked as before.
+2. The `Xi` family is above, and was taken.
+3. The four `function X is missing its argument X` are exactly the four
+   `PartialMediumFunctions`. `Medium.dynamicViscosity(state)` there
+   reaches the partial interface's function, the medium being
+   `PartialMedium` itself. They are parked by right since m260.
+4. The three `X has N output(s) for N target(s)`: `RAM` and
+   `TestExamplesCalculator` call `Strings.scanInteger`, whose body
+   writes `(nextIndex, number) := Advanced.scanInteger(...)`. That is
+   external C with two outputs, and the compiler's own answer for
+   `ModelicaStrings_scanInteger` (external.rs:192) gives only the
+   number. `readRealParameterModel` is the same with `Streams.readLine`
+   and `endOfFile`. One layer: external functions answered with their
+   first output only. Parked with the external code.
+5. The three `an array cannot be a divisor`: `TestComplexFunctions` and
+   `TestComplexOperations` divide one `Complex` by another (`(2*b +
+a)/b`). A record reaches the array layer as its fields, and `/` has
+   no operator record of its own there. `IdealMixing1` is
+   `FlueGasSixComponents`, which elsewhere is refused at a `[6, 6]`
+   shape. Two layers. Operator records are architecture.

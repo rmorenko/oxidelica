@@ -1923,6 +1923,26 @@ fn enclosing_constant_at(
                 // answers the interface's default for every medium
                 // whose own numbers differ, which is silent and wrong
                 // rather than loud and wrong.
+                //
+                // Whatever the interface itself says. Where a medium
+                // stands on the mark and descends from this package,
+                // the interface's value is not the answer at all:
+                // `reference_T` is `298.15` in `PartialMedium` and
+                // `278.15` in the cold water that extends it, and the
+                // body of `density_pTX` took the first - the mark
+                // declined for the unit and the walk went on to fold
+                // the interface's digit - turning `T - reference_T` at
+                // the reference into twenty kelvin and the density
+                // half a percent wrong. So the mark answers as it does
+                // for a name the interface leaves without a value: the
+                // medium's digit where a digit is wanted, and nothing
+                // where the unit has to be kept, which leaves the mint
+                // to make the medium's name with its unit.
+                let medium_stands = !interface_digit_kept()
+                    && super::inlining::asked_as_package(registry, &owner.name).is_some();
+                if medium_stands {
+                    return asked_as_constant(registry, name, &owner.name, depth);
+                }
                 if let Some(answer) = asked_as_constant(registry, name, &owner.name, depth) {
                     return Some(answer);
                 }
@@ -2402,6 +2422,14 @@ fn asked_as_constant(
         return None;
     }
     class_constant_at(registry, &format!("{under}.{name}"), &under, &[], depth + 1)
+}
+
+/// Whether a constant the interface gives a value is folded as the
+/// interface's digit where a medium stands on the mark, as it was
+/// before: `OXIDELICA_INTERFACE_DIGIT=1` keeps the old road, so that
+/// one binary can give both numbers.
+fn interface_digit_kept() -> bool {
+    std::env::var_os("OXIDELICA_INTERFACE_DIGIT").is_some()
 }
 
 #[cfg(test)]

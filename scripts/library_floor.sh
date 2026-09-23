@@ -236,7 +236,21 @@ FILES_FLOOR=2671
 #                 `shortPipe.flowModel.states[1].p`; and
 #                 TestValvesIncompressibleReverse, at a
 #                 `solveOneNonlinearEquation` of `V2.state_b.T`
-FLATTEN_FLOOR=897
+#
+# And one a member of an array of components let through, measured
+# from one binary either side of both `OXIDELICA_NO_MEMBER_SHAPES` and
+# `OXIDELICA_INTERFACE_DIGIT` (/tmp/m263/d_off.txt: 897/579 and
+# 782/537; /tmp/m263/d_on.txt: 898/579 and 783/537), nothing leaving
+# either list and the run list the same to the name. `medium_T[1].Xi`
+# now keeps the shape the size table measured for it:
+#
+#   flatten 898 = 897 above, plus Media.Examples.PsychrometricData,
+#                 which flattens and does not run. The medium's own
+#                 `reference_T` read in an inherited body moved no
+#                 count: LinearColdWater now reads 278.15 - 278.15,
+#                 and stands at the next wall, a bare `2*101325` in
+#                 `isentropicEnthalpy`
+FLATTEN_FLOOR=898
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -594,7 +608,10 @@ RUN_FLOOR=579
 #
 # And runnable flatten 776 = 771, plus the five conditions of
 # components set out at `FLATTEN_FLOOR`, all runnable examples.
-RUNNABLE_FLATTEN_FLOOR=782
+#
+# And runnable flatten 783 = 782, plus PsychrometricData, a runnable
+# example set out at `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=783
 RUNNABLE_RUN_FLOOR=537
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
@@ -683,11 +700,18 @@ RUN_MS_CEILING=8000
 # printed exactly the numbers of m261 (/tmp/m262/off2.txt), so the
 # series did 0.004% more expansions and 0.09% more bodies: the six
 # models that flatten now are small media tests.
-WORK_CLASSES=281610
-WORK_EXPANSIONS=91437290
-WORK_BODIES=1296998
-WORK_POINTS=31348317
-WORK_NEWTON=43593590
+#
+# Refreshed again with the floors, from the run that moved them
+# (/tmp/m263/d_on.txt). The same binary with both switches of m263 off
+# printed exactly the numbers of m262 (/tmp/m263/d_off.txt), so the
+# series did 0.12% more classes, 0.1% fewer expansions and 0.24% more
+# bodies. PsychrometricData is built whole now; which of the two
+# changes moved the expansions was not measured apart.
+WORK_CLASSES=281958
+WORK_EXPANSIONS=91341181
+WORK_BODIES=1300159
+WORK_POINTS=31348302
+WORK_NEWTON=43593653
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

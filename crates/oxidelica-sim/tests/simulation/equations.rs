@@ -2279,3 +2279,25 @@ fn a_table_handed_from_a_block_declared_below_reads_the_same() {
     assert!((below - 2.0).abs() < 1e-6, "{below}");
     assert!((below - above).abs() < 1e-12, "{below} against {above}");
 }
+
+#[test]
+fn a_member_of_one_element_of_an_array_of_components_keeps_its_shape() {
+    // `ports[1].Xi = {0.5}` where each port carries `Xi[1]`: how every
+    // source of a moist medium writes its trace fractions. The member
+    // was read as a scalar, and the equation refused as one between a
+    // scalar and a vector of one.
+    let source = "package Q \
+         connector Port Real Xi[1]; end Port; \
+         model Source Port ports[2]; \
+         equation ports[1].Xi = {0.5}; ports[2].Xi = {0.25}; end Source; \
+         model Test Source s; \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end Test; \
+       end Q;";
+    let result = run(source);
+    let last = |name: &str| {
+        let at = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[at]
+    };
+    assert!((last("s.ports[1].Xi[1]") - 0.5).abs() < 1e-12);
+    assert!((last("s.ports[2].Xi[1]") - 0.25).abs() < 1e-12);
+}

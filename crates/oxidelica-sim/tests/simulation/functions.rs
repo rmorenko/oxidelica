@@ -1995,3 +1995,45 @@ fn a_record_constant_settled_through_a_bare_sibling_keeps_its_number() {
     let result = run(source);
     assert!((last_of(&result, "medium.R_s") - 8.314472 / 0.044).abs() < 1e-9);
 }
+
+/// A medium whose `extends` moves a constant its interface already
+/// gave a value, read in the body of a function the medium inherits.
+const MOVED_REFERENCE: &str = "package W \
+     partial package Base \
+       constant Real reference_T(unit = \"K\") = 298.15; \
+       replaceable function density \
+         input Real T(unit = \"K\"); output Real d(unit = \"kg/m3\"); \
+       end density; \
+     end Base; \
+     partial package Linear \
+       extends Base; \
+       constant Real beta(unit = \"1/K\"); \
+       constant Real reference_d(unit = \"kg/m3\"); \
+       redeclare function extends density \
+       algorithm d := (1 - (T - reference_T)*beta)*reference_d; \
+       end density; \
+     end Linear; \
+     package Cold \
+       extends Linear(reference_T = 278.15, beta = 2.5713e-4, reference_d = 997.05); \
+     end Cold; \
+     model M \
+       replaceable package Medium = Base; \
+       Real d2(unit = \"kg/m3\") = Medium.density(Medium.reference_T); \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     model Test extends M(redeclare package Medium = Cold); end Test; \
+   end W;";
+
+#[test]
+fn a_constant_a_medium_moved_is_the_one_its_inherited_body_reads() {
+    // At the reference temperature the density is the reference
+    // density. The body read the interface's 298.15 against the
+    // argument's 278.15 and came to 1002.18 - twenty kelvin of
+    // expansion that nobody wrote, with no refusal to say so.
+    let result = run(MOVED_REFERENCE);
+    assert!(
+        (last_of(&result, "d2") - 997.05).abs() < 1e-9,
+        "{}",
+        last_of(&result, "d2")
+    );
+}
