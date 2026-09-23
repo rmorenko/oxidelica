@@ -649,3 +649,46 @@ fn a_discrete_that_reaches_nan_is_named_rather_than_carried_to_the_end() {
         "without the check the run reaches its stop time writing NaN"
     );
 }
+
+#[test]
+fn a_branch_of_a_when_that_says_nothing_leaves_the_value_it_had() {
+    // `if c then y := x; end if;` inside a `when` of a model: on a
+    // tick where the condition is false the variable keeps what it
+    // held, which at an event is `pre` of it. Reading it as the
+    // type's start instead is how `Electrical.Digital`'s inertial
+    // delay answered zero - a logic value no table has - and
+    // `Adder4` died on `AndTable` a round later.
+    //
+    // The number is what the test is for. `y` is set to 7 at the
+    // initial event, the `if` at t = 0.5 is not taken, and the
+    // branch at t = 0.8 sets it to 9: a run that reads the fallback
+    // as the start shows 0 in between rather than 7.
+    let result = run("model W discrete Real y(start = 1, fixed = true); \
+         discrete Real seen(start = 0, fixed = true); \
+         Real x(start = 0, fixed = true); \
+         equation der(x) = 1; \
+         algorithm \
+         when {initial(), time > 0.5, time > 0.8} then \
+           if initial() then y := 7; end if; \
+           if time > 0.8 then y := 9; end if; \
+           if time > 0.6 and time < 0.7 then seen := 1; end if; \
+         end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.01)); end W;");
+    let column = result
+        .columns
+        .iter()
+        .position(|c| c == "y")
+        .expect("y is reported");
+    let time = result.columns.iter().position(|c| c == "time").unwrap();
+    let between = result
+        .rows
+        .iter()
+        .find(|row| row[time] > 0.6 && row[time] < 0.75)
+        .expect("a row between the two events");
+    assert_eq!(
+        between[column], 7.0,
+        "a branch that did not fire leaves `y` at the 7 it was given, not at its type's start"
+    );
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[column], 9.0, "the later branch gives `y` its 9");
+}

@@ -133,6 +133,7 @@ fn run_algorithm_sections(
                 let mut written: HashMap<String, Expr> = HashMap::new();
                 let mut order: Vec<String> = Vec::new();
                 let mut checked: Vec<(Expr, String)> = Vec::new();
+                let _at_an_event = statements::InWhen::body();
                 match statements::execute(
                     &branch.body,
                     &mut written,

@@ -365,9 +365,28 @@ FLATTEN_FLOOR=865
 # Measured on /tmp/m248/corpus.txt: 865/556 and 750/514, and the diff
 # of the run lists against /tmp/m247/b.ran is exactly `Counter`,
 # `Counter3`, `DFF`, `JKFF` and `RSFF` arriving with nothing leaving.
-RUN_FLOOR=556
+#
+# And now the sixth as well, by the language rather than by the gate:
+# a branch of an `if` inside a `when` that says nothing about a
+# variable leaves it the value it had, which at an event is `pre` of
+# it. The algorithm side read that as the type's start, so the
+# inertial delay's `y_auxiliary` came out of a tick it did not fire on
+# as zero - a logic value no table has - and `AndTable` answered with
+# no number a round later. The `if` written among equations had read
+# it the right way all along; the two roads to an event now agree.
+#
+#   run          557 = 556 before, plus `Adder4`
+#   runnable run 515 = 514 before, plus `Adder4`, which is a runnable
+#                example: it carries `experiment(StopTime=...)`
+#   both flatten counts unmoved: the model always flattened
+#
+# Measured on /tmp/m249/corpus.txt: 865/557 and 750/515, and the diff
+# of the run lists (/tmp/m248/b.ran against /tmp/m249/a.ran) is the
+# single line `Modelica.Electrical.Digital.Examples.Adder4` arriving
+# with nothing leaving.
+RUN_FLOOR=557
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=514
+RUNNABLE_RUN_FLOOR=515
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

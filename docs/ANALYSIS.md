@@ -17223,3 +17223,67 @@ of the same event, after another definition has moved, which is
 exactly where the fifth round sits. That is the next probe, and it
 wants the event iteration rather than the seeding layer, so it is
 written down rather than taken.
+
+### And the layer turned out to be neither
+
+The probe above named the wrong suspect, and the reason is worth
+keeping: five synthetic models of `pre` at an event all answered
+correctly, so the event iteration looked guilty by elimination.
+Shrinking the real model instead put the answer out in one pass.
+`Adder4` refuses the same way with four adders, with two, and with
+_two half adders_; with one it runs. The shrunken model is twelve
+lines, and what it shows is not a `pre` read late but a value that
+should have been a `pre` and was a zero:
+
+```text
+time      AND.G2.lh  AND.G2.delayTime  AND.G2.y_auxiliary
+0         0          0                 1
+1e-12     -1         0.001             0      <- assigned by nobody
+```
+
+`InertialDelaySensitive` writes
+
+```modelica
+when {initial(), ...} then
+  lh := delayTable[y_old, x];
+  delayTime := if lh > 0 then tLH else if lh < 0 then tHL else 0;
+  if lh == 0 or abs(delayTime) < small then
+    y_auxiliary := x;
+  end if;
+elsewhen time >= t_next then
+  y_auxiliary := x;
+end when;
+```
+
+With `lh = -1` and `delayTime = 0.001` the `if` is not taken, so
+`y_auxiliary` keeps the value it had. The compiler's algorithm side
+merged the branch the other way: a name no branch assigns falls back
+to what its _type_ starts at, and for a logic value that is zero.
+Zero is not a logic value at all, `AndTable[auxiliary[1], 0]` has no
+such column, and the NaN four layers on is the table saying so.
+
+The fallback is right where it was written for - a function body,
+where a local a branch leaves alone really does start at its type's
+start, and the steam tables lean on it. It is wrong inside the body
+of a `when` of a model, where the same shape means an event and a
+name that is not assigned holds `pre` of itself. The `if` written
+among _equations_ had read it that way all along (`equations.rs`
+builds `pre(target)` for a branch that says nothing about a name), so
+the two roads to an event disagreed about what holding a value means.
+The fix is a bracket - `InWhen`, set where the lift executes a
+`when` body and taken away again for any function inlined inside
+it - and inside that bracket the fallback is `pre(name)`.
+
+Measured: `Adder4` runs, run 556 to 557 and runnable run 514 to 515,
+and the diff of the run lists is the single line `Adder4` arriving
+with nothing leaving.
+
+Two things about method are worth taking away. The synthetic models
+were not merely unlucky: all five tested the layer that had been
+imagined, and the fault was in a layer no `pre` test would ever reach.
+And the refusal that stood between the shrunken model and its cause,
+"`y` is assigned in one branch only and has no value before the `if`",
+is the same fallback answering `None`, which is why a hand-written
+small model of the shape refused to compile while the library model
+ran on happily with a zero. The refusal and the wrong number were one
+layer wearing two coats.

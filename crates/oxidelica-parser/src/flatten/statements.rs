@@ -860,6 +860,62 @@ impl Drop for Afterwards {
     }
 }
 
+thread_local! {
+    /// Whether the statements being worked out are the body of a
+    /// `when` of a model.
+    ///
+    /// What a branch leaves alone means two different things on the
+    /// two sides of that line: in a function body it is the local's
+    /// start, and at an event it is the value the variable already
+    /// held. The road from the lift in `equations.rs` down to the
+    /// merge runs through half a dozen signatures that have no
+    /// business carrying a flag, so the lift leaves it here.
+    static IN_WHEN: RefCell<usize> = const { RefCell::new(0) };
+}
+
+/// Mark the statements being worked out as the body of a `when`, and
+/// unmark them again after.
+pub(super) struct InWhen;
+
+impl InWhen {
+    pub(super) fn body() -> InWhen {
+        IN_WHEN.with(|depth| *depth.borrow_mut() += 1);
+        InWhen
+    }
+}
+
+impl Drop for InWhen {
+    fn drop(&mut self) {
+        IN_WHEN.with(|depth| *depth.borrow_mut() -= 1);
+    }
+}
+
+/// Whether what is being executed is the body of a `when` of a model.
+fn inside_when() -> bool {
+    IN_WHEN.with(|depth| *depth.borrow() > 0)
+}
+
+/// Put the `when` bracket aside while a function body is worked out,
+/// and hand it back after.
+///
+/// A function called from inside a `when` is still a function: its
+/// locals are the language's, started at what their type starts at,
+/// and nothing there has a `pre` to keep. Without this the bracket
+/// would follow the call in and answer about the caller's event.
+pub(super) struct OutsideWhen(usize);
+
+impl OutsideWhen {
+    pub(super) fn body() -> OutsideWhen {
+        OutsideWhen(IN_WHEN.with(|depth| std::mem::take(&mut *depth.borrow_mut())))
+    }
+}
+
+impl Drop for OutsideWhen {
+    fn drop(&mut self) {
+        IN_WHEN.with(|depth| *depth.borrow_mut() = self.0);
+    }
+}
+
 /// Whether a name is read after the statements given, counting what
 /// runs after every `if` these sit inside.
 fn read_after(rest: &[Statement], name: &str) -> bool {
@@ -1097,6 +1153,23 @@ fn one_if_statement(
             })
         });
         let fallback = before.get(&name).cloned().or_else(|| {
+            // Inside the body of a `when` of a model, a variable a
+            // branch leaves alone keeps the value it had - which at
+            // an event is `pre` of it, not what its type starts at.
+            // The two readings differ everywhere after the first
+            // event, and taking the type's start is how a digital
+            // gate's `y_auxiliary` came out of the delay's `if` as
+            // zero: the branch that assigns it is the one that did
+            // not fire, and zero is a logic value no table has, so
+            // `AndTable` further on answered with no number at all.
+            // The `if` written among equations already reads this
+            // way - `equations.rs` builds `pre(target)` for a branch
+            // that says nothing about a name - and the two roads to
+            // an event should not disagree about what holding a
+            // value means.
+            if inside_when() && !name.contains('[') {
+                return Some(Expr::Call("pre".to_string(), vec![Expr::Ref(name.clone())]));
+            }
             let start = record_fields::starts_at(&name, registry, scope)?;
             // A flag costs nothing to give a start to: it
             // decides a branch rather than being folded

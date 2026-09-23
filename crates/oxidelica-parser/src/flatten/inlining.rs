@@ -1409,6 +1409,7 @@ fn worked_body(
     // carrying one reaches the run as a name nothing answers for.
     // The outputs are substituted on the way out; the checks are
     // taken from here on and given the same treatment.
+    let _a_function = statements::OutsideWhen::body();
     if statements::execute(
         function_body(registry, class, 0),
         &mut bindings,
