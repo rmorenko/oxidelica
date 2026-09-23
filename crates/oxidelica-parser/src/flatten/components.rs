@@ -78,10 +78,22 @@ pub(super) fn instantiate_components(
         // `sequence[3]` is 3 - and a declaration after it may be
         // written with that number. The elements are recorded as they
         // are instantiated, so what is new is taken up here.
+        let minted = counted < acc.numbers.len();
         while counted < acc.numbers.len() {
             let (name, value) = &acc.numbers[counted];
             local_consts.entry(name.clone()).or_insert(*value);
             counted += 1;
+        }
+        // An element that has just become a number changes what a
+        // body folds to, and the ledger of inlined bodies was written
+        // before it did. A `while` whose head reads `w[1]` refused
+        // for a trip count it could not settle while the element was
+        // still a name, and the refusal answered every later asking -
+        // by which time the number was here. Every other settling in
+        // this flattener forgets the ledger on the same beat; the
+        // elements of an array were the one mint that did not.
+        if minted && std::env::var_os("OXIDELICA_KEEP_LEDGER_PAST_ELEMENTS").is_none() {
+            inlining::forget_trip_refusals();
         }
         // A parameter may be worth a number only once the
         // declarations before it have been measured: `Integer n =

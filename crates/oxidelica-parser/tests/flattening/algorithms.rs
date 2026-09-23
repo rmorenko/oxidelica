@@ -153,6 +153,37 @@ fn a_loop_head_is_decided_the_way_the_body_beside_it_is() {
 }
 
 #[test]
+fn a_refusal_about_a_trip_count_is_not_remembered_past_its_cause() {
+    // A `while` whose head reads an element of a parameter array. The
+    // elements of an array are minted later than the array itself, so
+    // the first asking of the body meets `w[1]` as a name and refuses
+    // for a trip count it cannot settle - and the ledger of inlined
+    // bodies remembered that "no" for every later asking, by which
+    // time the element was a number. A refusal about a trip count is
+    // a refusal about values that may not have arrived, so the
+    // ledger is forgotten on the beat the elements are minted, the
+    // way every other settling in this flattener already forgets it.
+    const BODY: &str = "function gv input Real v[:]; output Boolean r; \
+         protected Integer j; \
+         algorithm r := true; j := 1; \
+         while j <= size(v, 1) loop \
+         if v[j] > 99 then r := false; j := size(v, 1); end if; \
+         j := j + 1; end while; \
+         end gv;";
+    let m = parse_model(&format!(
+        "{BODY} model M parameter Real w[4] = {{0, 1, 1, 0}}; \
+         parameter Boolean e = gv(w); Real y; equation y = if e then 1 else 2; end M;"
+    ))
+    .unwrap();
+    let settled = m
+        .components
+        .iter()
+        .find(|c| c.name == "e")
+        .and_then(|c| c.binding.clone());
+    assert_eq!(format!("{settled:?}"), "Some(Bool(true))");
+}
+
+#[test]
 fn while_break_and_return_run_at_compile_time() {
     // Euclid's algorithm: a `while` folding its state each round.
     let m = parse_model(

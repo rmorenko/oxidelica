@@ -17691,3 +17691,132 @@ before: the first two are the unit reader refusing a sum, and the
 third flattens and dies in the run half for a name nothing defines.
 They travelled past the wall the last shift took down and met the next
 one, which is what a row emptying usually looks like.
+
+## A refusal about a trip count outlived the reason for it
+
+The map of the two shifts before placed the `LossyGear` family's cost
+on a subscript of a parameter vector not reaching the layer that
+decides a loop head, and the shift before that took the loop head
+itself. Neither moved the family, and the third probe finds why:
+nothing about either layer was wrong. What was wrong is that the
+answer they gave was written down.
+
+The smallest form fits in twenty lines and needs no matrix at all:
+
+```modelica
+function gv
+  input Real v[:];
+  output Boolean r;
+protected
+  Integer j;
+algorithm
+  r := true; j := 1;
+  while j <= size(v, 1) loop
+    if v[j] > 99 then r := false; j := size(v, 1); end if;
+    j := j + 1;
+  end while;
+end gv;
+```
+
+Called as `gv(w)` with `w` a parameter vector written out, it stands
+as a call. Declare one idle neighbour beside it - `parameter Real c =
+w[2]` - and the same call folds to `true`. The neighbour is read by
+nothing; it does not even have to come first. A `c = 5` does not do
+it and a `c = size(w, 1)` does not do it; only a neighbour that reads
+an element does.
+
+That is the shape of a ledger holding a stale answer, and the ledger
+is `INLINED` (inlining.rs:1115). The elements of a parameter array are
+minted later than the array itself - `w[1]` becomes a number when the
+declaration is taken apart element by element, which is a storey below
+where the parameters settle. The first asking of `gv` meets `w[1]` as
+a name, cannot settle the trip count, and refuses; the refusal goes
+into the ledger; by the time anything asks again the element is a
+number, and the ledger answers with the old "no". A neighbour reading
+an element forces the mint early, so the first asking already has the
+number and the ledger never learns a lie.
+
+So the fix is a stale entry dropped on the beat that makes it stale,
+and getting there took three tries whose costs are the finding. Not
+writing the refusal down at all is correct and doubles the flattening
+time - 2619ms per model against 5455ms, measured over the whole
+corpus for nought models gained, because a body that refuses once
+refuses a thousand times and the ledger existed to stop exactly that.
+Forgetting the whole ledger where the elements are minted is correct
+and costs 1.7 to 1.9 times on the dearest models, because it throws
+away the successful foldings, which are the dear half. Clearing
+`EXPANDED` on the same beat costs another 1.3, and it buys nothing:
+an element becoming a number falsifies no expansion already worked
+out.
+
+What is left is one line. Where the elements of an array are taken up
+(components.rs:81), the entries of the ledger that refused about a
+trip count are dropped and every other entry stands. Measured on the
+three dearest models of the families involved, 32.6s against 31.6,
+76.5 against 74.3 and 16.1 against 14.4 - within the noise band these
+notes already record. `OXIDELICA_KEEP_LEDGER_PAST_ELEMENTS` keeps the
+old behaviour, so one binary gives both numbers, and the twenty-line
+model above is the test: red under the switch, green without it.
+
+The general rule is worth stating past this case, because the ledger
+is not the last table this compiler will grow. A memo of a refusal is
+a memo of the world the refusal was about, and this flattener already
+knows that: every other settling forgets the ledger on the beat it
+learns a number. The elements of an array were the one mint that did
+not, and the entry they falsify is the one that names a trip count.
+
+What this does not do is move `LossyGear`, and the reason is worth
+recording because it ends the chain the last two shifts were walking.
+`ideal` is not a parameter at all. It is declared `Boolean ideal` at
+LossyGear.mo:72 and fixed by an equation at line 140 - a variable of
+the model, decided by whatever decides equations, and no amount of
+constant folding in the parameter layer reaches it. Reproduced in
+thirty-five lines (/tmp/m256/L.mo): a `Boolean` variable bound by an
+equation to a foldable call, with a `for` in the `else` of the `if`
+that reads it, refuses exactly as the six do. The next link is
+`push_conditional` (instantiate.rs:1277), which refuses a `for` in an
+undecided branch outright - though this one's trip count, `1:size(
+interpolation_result, 2)`, is a number the compiler has all along. A
+loop whose extent is known contributes a known count to every branch,
+which is the very thing the balance rule wants; refusing it is a rule
+wider than the case it fires on. That is the next link, and it is a
+different layer from anything the last three shifts touched.
+
+## What the m256 census says
+
+Taken from /tmp/m256/census.txt, one run of `refusals.sh .msl both`
+against 51b2900.
+
+**Conditionals, added up rather than read by rows.** Four layers, 19
+in all: 8 at `a branch holding X or X needs a condition the compiler
+can decide`, 6 at the `for`-in-a-branch row that is the `LossyGear`
+family, 3 at `condition of component X is not a compile-time constant`
+(the `TerminalBox` string-table layer), 2 at the `Connections` row.
+The plan expected about 10 and the count is 19; the difference is
+that the `for` row is 6 rather than the ~4 the plan had, and the `a
+branch holding break or return` row at 8 was not in the plan's
+arithmetic at all. It is its own layer - a body's control flow, not
+an equation's count.
+
+**The unit reader.** Three models, not a row of its own: `cannot add`
+(1), `unit mismatch` (2). `SimpleAir` stands at the first
+(`(s / cp_const) + log(298.15)`, dimensionless against something) and
+`LinearColdWater` at the second (`d2 = ((1 + ...))`). Both flatten-half.
+
+**`LinearWater_pT_Ambient` and the explicit flags.** It is in the run
+half now at `unknown variable dT_explicit in equation`. Its
+neighbours are the same family by a different flag: `ph_explicit` (2),
+`medium.ph_explicit` (1). Four models, one cause - a medium's `final
+ph_explicit = true` or `dT_explicit` reaching an equation as a name
+rather than as a truth. Added to the rest of the `unknown variable`
+rows the total is 9: `seedOut[1]` (2), `imsQS.vr[1].re.re` (2),
+`IN_con.a` (1) beside the four.
+
+**The top of each half.** Flatten: external C (11 + 8 by two
+wordings, 19 together), `a branch holding break or return` (8), `the
+subscript of X must be a whole number` (7), flexible size from a
+`Range` (7), a body the run walks answering N things (7). Run:
+algebraic loops, 85 across six wordings - Newton direction 27,
+equations 19, singular Jacobian 12, bare 11, `X of` 9, underdetermined
+7 - then `unknown variable` (9 across two wordings), unbalanced (about
+30 across many wordings, one model apiece).

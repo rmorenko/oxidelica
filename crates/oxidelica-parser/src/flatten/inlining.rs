@@ -739,6 +739,22 @@ impl Inlined {
     }
 }
 
+/// Drop the refusals that were about a trip count, keeping every
+/// answer the ledger worked for.
+///
+/// Forgetting the whole ledger on this beat is correct and costs
+/// nearly twice the flattening time, because the successful foldings
+/// it throws away are the dear half. A refusal about a trip count is
+/// the only entry an element becoming a number can falsify, so it is
+/// the only entry dropped.
+pub(super) fn forget_trip_refusals() {
+    INLINED.with(|held| {
+        held.borrow_mut().retain(
+            |_, told| !matches!(told, Err(why) if why.starts_with(algorithms::UNDECIDABLE_LOOP)),
+        )
+    });
+}
+
 impl Drop for Inlined {
     fn drop(&mut self) {
         INLINED.with(|held| *held.borrow_mut() = std::mem::take(&mut self.0));
