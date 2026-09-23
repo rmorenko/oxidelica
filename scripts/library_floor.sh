@@ -134,7 +134,17 @@
 set -euo pipefail
 
 FILES_FLOOR=2671
-FLATTEN_FLOOR=865
+# The flatten floor moved by four, and the four are named: giving a
+# constant imported by an enclosing class its number, and letting a
+# check written under a condition be counted, brought in
+# Modelica.Media.Examples.ReferenceAir.CO2, ConstantPropertyLiquidWater,
+# DryAirNasa and LinearWater_pT_Ambient - the last of which flattens
+# and does not run, which is why the run floor moves by three and this
+# one by four.
+#
+#   flatten 869 = 865 before, plus CO2, ConstantPropertyLiquidWater,
+#                 DryAirNasa and LinearWater_pT_Ambient
+FLATTEN_FLOOR=869
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -532,13 +542,6 @@ if [ -z "${flatten_ms_now:-}" ] || [ -z "${run_ms_now:-}" ]; then
 else
   [ "$flatten_ms_now" -le "$FLATTEN_MS_CEILING" ] || over "flattening" "$flatten_ms_now" "$FLATTEN_MS_CEILING"
   [ "$run_ms_now" -le "$RUN_MS_CEILING" ] || over "running" "$run_ms_now" "$RUN_MS_CEILING"
-fi
-
-if [ "$status" -eq 0 ]; then
-  echo "OK: $read_now files read, $flatten_now flatten, $run_now run; runnable $runnable_flatten_now flatten, $runnable_run_now run"
-  echo "OK: ${flatten_ms_now}ms per model flattening, ${run_ms_now}ms running"
-fi
-exit "$status"
 fi
 
 if [ "$status" -eq 0 ]; then
