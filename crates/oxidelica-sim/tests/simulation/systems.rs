@@ -592,27 +592,32 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
 }
 
 #[test]
-fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack() {
+fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack_nor_an_answer() {
     // Two blocks the Jacobian cannot tell apart: in both, every entry
     // of one column is exactly zero at the values the iteration
     // starts from. Only one of them is a fact about the equations.
     //
     // `dp = m^2/2` with `dp` pinned at 2 has a slope of zero in `m`
-    // at `m = 0` and nowhere else, so the block is determined and the
-    // tangent is simply blind there. A secant over a whole unit sees
-    // the curvature and the iteration walks off the extremum. Two
-    // roots answer the equation, `m = +-2`, and which is taken is a
-    // property of the compiler rather than of the model: the secant
-    // is tried upward first, so the step goes to the positive root,
-    // and the test fixes the value rather than the fact of running.
-    let out = run("model Q Real m(start = 0); Real dp; \
-         equation dp = 0.5 * m * m; dp = 2.0 + 0.0 * time; \
-         annotation(experiment(StopTime = 0.01, Interval = 0.01)); end Q;");
-    let last = out.rows.last().unwrap();
-    let dp = last[1];
-    let m = last[2];
-    assert!((m - 2.0).abs() < 1e-6, "m = {m}");
-    assert!((dp - 2.0).abs() < 1e-9, "dp = {dp}");
+    // at `m = 0` and nowhere else, so the tangent is simply blind
+    // there and a secant over a whole unit sees the curvature. But
+    // the equation is answered by `m = +-2`, and the two secants say
+    // so: the one walked upward and the one walked downward do not
+    // agree, so the column is not taken and the block is refused.
+    // This is the price of refusing to guess - the same square that
+    // makes `der(x)^2 = 4` undetermined makes this block
+    // undetermined, and it costs this model its run. What the
+    // refusal must not do is name the solver, because nothing is
+    // wrong in the solver: it names the unknown that is answered
+    // both ways.
+    assert_eq!(
+        refused(
+            "model Q Real m(start = 0); Real dp; \
+             equation dp = 0.5 * m * m; dp = 2.0 + 0.0 * time; \
+             annotation(experiment(StopTime = 0.01, Interval = 0.01)); end Q;"
+        ),
+        "algebraic loop [\"m\"] has a solution on either side of [\"m\"] at t = 0: \
+         the equations are answered both ways and do not say which was meant"
+    );
 
     // The other kind, unmoved by the same repair. `i * R = v` with
     // the model card's `R` at zero has lost the unknown from the

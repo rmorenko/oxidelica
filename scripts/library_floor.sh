@@ -260,20 +260,27 @@ FLATTEN_FLOOR=865
 # found and putting it into the matrix lets the block be solved. The
 # two kinds stay apart: a column that does not move from a unit away
 # keeps its refusal in the words it always had, because there the
-# equations really have lost the unknown. Three models arrive - a
-# thyristor bridge, `WaterPump`, and `TestSuddenExpansion` - and the
-# whole of the repair lives past a step that already came back as
+# equations really have lost the unknown.
+#
+# The slope is asked in both directions and kept only where the two
+# agree, which is what decides whether a block has one solution here
+# or two. That narrowing took a model back off the list rather than
+# adding one: `TestSuddenExpansion` was answered by the first
+# direction tried and is now refused by its own ambiguity, so two
+# models arrive and not three - a thyristor bridge and `WaterPump`.
+# The whole of the repair lives past a step that already came back as
 # nothing, so a model that ran cannot be touched by it.
 #
-#   run          544 = 541 before, plus those three
-#   runnable run 510 = 507 before, plus the same three
+#   run          543 = 541 before, plus those two
+#   runnable run 509 = 507 before, plus the same two
 #
 # Flattening is unmoved on both counts, and the diff of the run lists
 # taken from one binary with the repair switched off and on is those
-# three names arriving and none leaving.
-RUN_FLOOR=544
+# two names arriving and none leaving (/tmp/m243/off.txt and
+# /tmp/m243/on.txt: 865/541 and 750/507 against 865/543 and 750/509).
+RUN_FLOOR=543
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=510
+RUNNABLE_RUN_FLOOR=509
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

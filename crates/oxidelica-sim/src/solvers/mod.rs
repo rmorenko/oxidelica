@@ -91,29 +91,21 @@ fn column_moves_far(
     f: &[f64],
     residual: &mut impl FnMut(&[f64]) -> Vec<f64>,
 ) -> bool {
-    secant_column(base, j, f, residual).is_some()
+    let (up, down) = secant_slopes(base, j, f, residual);
+    up.is_some() || down.is_some()
 }
 
-/// The slope of each equation in the unknown `j` taken over a step of
-/// a whole unit rather than over the vanishing one the Jacobian used,
-/// or `None` where the residual does not move at all.
-///
-/// The Jacobian's column is a tangent, and a tangent at an extremum
-/// says nothing: `dp = m^2/2` at `m = 0` reads as a column of zeros
-/// however small the step, and the block is refused for an unknown
-/// its own equations plainly carry. A secant over a unit does carry
-/// it, and it is the same two residual evaluations the probe already
-/// paid for. The direction is fixed - up first, down only where up
-/// leaves the residual where it was - so that the step the solver
-/// then takes is the same on every run.
-fn secant_column(
+/// The slope of each equation in the unknown `j` measured over a whole
+/// unit up and over a whole unit down, each `None` where the residual
+/// does not move that way at all.
+fn secant_slopes(
     base: &[f64],
     j: usize,
     f: &[f64],
     residual: &mut impl FnMut(&[f64]) -> Vec<f64>,
-) -> Option<Vec<f64>> {
+) -> (Option<Vec<f64>>, Option<Vec<f64>>) {
     let far = 1.0 + base[j].abs();
-    [far, -far].into_iter().find_map(|d| {
+    let mut one = |d: f64| {
         let mut moved = base.to_vec();
         moved[j] = base[j] + d;
         let g = residual(&moved);
@@ -121,7 +113,42 @@ fn secant_column(
             .zip(f)
             .any(|(a, b)| (a - b).abs() > 1e-12 * (1.0 + b.abs()))
             .then(|| g.iter().zip(f).map(|(a, b)| (a - b) / d).collect())
-    })
+    };
+    (one(far), one(-far))
+}
+
+/// The slope of each equation in the unknown `j` taken over a step of
+/// a whole unit rather than over the vanishing one the Jacobian used,
+/// or `None` where the block does not agree on what that slope is.
+///
+/// The Jacobian's column is a tangent, and a tangent at an extremum
+/// says nothing: `dp = m^2/2` at `m = 0` reads as a column of zeros
+/// however small the step, and the block is refused for an unknown
+/// its own equations plainly carry. A secant over a unit does carry
+/// it - but only where it is the same secant whichever way it was
+/// walked. The square is the case that shows why: `der(x)^2 = 4` at
+/// zero answers `+2` going up and `-2` going down, and a value that
+/// depends on which direction was tried first is a guess dressed as
+/// an answer. So both directions are asked, and the column is taken
+/// only where they agree; where one side moves and the other does
+/// not, the moving one is the whole of what the block says and there
+/// is nothing to disagree with. Where they disagree the block has
+/// more than one solution through this point and the refusal stands.
+fn secant_column(
+    base: &[f64],
+    j: usize,
+    f: &[f64],
+    residual: &mut impl FnMut(&[f64]) -> Vec<f64>,
+) -> Option<Vec<f64>> {
+    match secant_slopes(base, j, f, residual) {
+        (Some(up), Some(down)) => up
+            .iter()
+            .zip(&down)
+            .all(|(a, b)| (a - b).abs() <= 0.25 * a.abs().max(b.abs()))
+            .then_some(up),
+        (Some(col), None) | (None, Some(col)) => Some(col),
+        (None, None) => None,
+    }
 }
 
 mod bdf;
@@ -1339,6 +1366,35 @@ impl CompiledModel {
                     }
                 }
                 if dead.is_empty() {
+                    // A column flat at this point whose two secants
+                    // disagree is neither an unknown the equations
+                    // lack nor a matrix that came out badly: it is a
+                    // block with a solution on either side of where
+                    // the iteration stands, and `der(x)^2 = 4` at
+                    // zero is the whole of the case - `+2` going up
+                    // and `-2` going down. Saying `singular Jacobian`
+                    // here names the solver, and the solver is the
+                    // one place nothing is wrong. Say instead that
+                    // the unknown has a solution each way and that
+                    // the block does not say which was meant, which
+                    // is the fact the model has to answer.
+                    let split: Vec<&str> = (0..n)
+                        .filter(|&j| jac.iter().all(|row| row[j] == 0.0))
+                        .filter(|&j| {
+                            std::env::var_os("OXIDELICA_NO_SECANT_COLUMN").is_none()
+                                && secant_column(&v, j, &f, &mut |w| residual(values, w)).is_none()
+                                && column_moves_far(&v, j, &f, &mut |w| residual(values, w))
+                        })
+                        .map(|j| block_names()[j])
+                        .collect();
+                    if !split.is_empty() {
+                        return err(format!(
+                            "algebraic loop {:?} has a solution on either side of {split:?} at \
+                             t = {t}: the equations are answered both ways and do not say \
+                             which was meant",
+                            block_names()
+                        ));
+                    }
                     if newton_trail() {
                         for (i, row) in jac.iter().enumerate() {
                             eprintln!("jac row {i}: {row:?}");

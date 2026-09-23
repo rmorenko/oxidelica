@@ -16680,7 +16680,10 @@ suggested. The measurement is `/tmp/m242/off.txt` against
 `OXIDELICA_NO_SECANT_COLUMN` set and unset: 865 flatten and 541 run
 becomes 865 flatten and 544 run, unit models, over the 1037 example
 models of the corpus less the carved-out giants. The diff of the two
-run lists is three names arriving and none leaving.
+run lists is three names arriving and none leaving. The narrowing
+below takes that to two; the numbers in this paragraph are the first
+shape of the repair and are kept because the chapter reasons from
+them.
 
 A Jacobian entry is a tangent, and a tangent at an extremum says
 nothing. `dp = m^2/2` with `dp` held at 2 has a slope of zero in `m`
@@ -16697,9 +16700,10 @@ the iteration walks off the extremum by its own arithmetic.
 The whole of it lives past a step that already came back as nothing,
 so it cannot touch a model that runs: the only road to it is the one
 that ends in a refusal, and what it can do is turn that refusal into
-an answer. The measurement bears the construction out - three models
-won, none lost - and a victim here would have been a defect rather
-than a price.
+an answer. The measurement bears the construction out - no model
+lost either time - and a victim here would have been a defect rather
+than a price. What it does not bear out is the safety of the branch
+for refusals, which is the subject of the last section below.
 
 The refusal itself had to be narrowed a second time, in the list this
 time rather than in the test. A block may hold both kinds of dead
@@ -16748,14 +16752,63 @@ an accident. `der(x)^2 = 4` was refused on purpose: a square has two
 roots, and which one a model meant is not a thing to guess at. The
 mechanism behind that refusal turns out to be exactly the one repaired
 here - the guess of zero is the extremum of the square, so the column
-reads dead - and there is no way to keep the refusal for the square
-while taking `dp = m^2/2`, because they are the same block seen from
-two sides. So the square is now answered, at the positive root,
-because the secant is tried upward first.
+reads dead - and the first shape of the repair answered the square at
+the positive root, because the secant was tried upward first and the
+first answer taken.
 
-The choice of root is the compiler's and not the model's. That is a
-real loss of a refusal, and it is written into the test so that the
-next reader meets it as a decision rather than as a surprise. What
-saves it from being a guess of the worst kind is that the answer is
-deterministic and says so: the same model gives the same root on every
-run, and the rule that picks it is one sentence long.
+That was a guess wearing a deterministic coat, and it is withdrawn.
+An answer that depends on which direction was tried first is not an
+answer about the model, and determinism is not the property that
+makes one: a coin that always lands the same way up is still a coin.
+The secant is now asked in both directions and the column is kept
+only where the two agree. Where one side moves and the other does
+not, the moving side is the whole of what the block says and there is
+nothing to disagree with; where they disagree - `+2` upward and `-2`
+downward - the block has a solution on either side of where the
+iteration stands, and the refusal stands with it.
+
+The refusal that stands had to be given its own words. Falling
+through to `singular Jacobian` names the solver, and the solver is the
+one place nothing is wrong: the block is answered twice over and does
+not say which was meant. It now says that, and names the unknown it
+is true of.
+
+The narrowing took a model back rather than adding one, and the
+arithmetic says which. `TestSuddenExpansion` ran only because the
+first direction tried was taken; with both asked it refuses by its own
+ambiguity, which is the best available ending for the model of the
+chapter above - the one that ran while carrying `A_mean` at 3.93e122
+and a mass flow uphill. It leaves the floor by its own arithmetic and
+not by anyone's decision about it. Measured from one binary with the
+repair switched off and on (`/tmp/m243/off.txt`, `/tmp/m243/on.txt`):
+865 flatten and 541 run becomes 865 flatten and 543 run, 750 and 507
+becomes 750 and 509, with the diff of the run lists showing the
+thyristor bridge and `WaterPump` arriving and none leaving.
+
+`dp = m^2/2` with `dp` pinned, the small model this repair was built
+for, refuses too. That is the same square from the other side, and
+letting it through while refusing the derivative would have been the
+original guess with a smaller audience. A repair that costs its own
+motivating example is a narrower repair, not a failed one: what
+survives is every block whose two secants agree, which is every block
+with one solution through the point.
+
+### A branch that cannot spoil a number can still spoil a refusal
+
+This repair lives entirely past a step that already came back as
+nothing, and that was offered as the argument for its safety: the
+only road to it ends in a refusal, so no model that runs can be
+touched, and the measurement bore it out both times. The argument is
+true and it is half of one. What the other half says is that a branch
+in the refusal path cannot make a number wrong but can make a
+principled refusal into a guess, which is exactly what happened here
+and what the first measurement could not see - three models arrived,
+none left, and one of the three was a guess and another was carrying
+nonsense.
+
+So the two halves are written together, because the first on its own
+reads as a licence. A change on the refusal path is safe for the
+numbers already computed and is not thereby safe. The question it
+still owes an answer to is what it turns each refusal into, and the
+instrument for that is not the count of models but the refusals it
+removes, read one by one.
