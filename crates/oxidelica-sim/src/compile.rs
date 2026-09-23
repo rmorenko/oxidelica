@@ -4030,6 +4030,45 @@ pub(crate) fn compile_at(
         let pre = table.slot(&format!("$pre.{name}"));
         table.template[pre] = *value;
     }
+    // A name that is discrete-valued by its type without being one of
+    // the discrete variables - `Integer x` settled by an equation -
+    // may still be read as `pre(x)`, and until the first event has
+    // copied a value across, the slot holding what it was stands at
+    // whatever the table was made with. Zero is a number no
+    // enumeration is ever worth, and reading a table at it is how
+    // `Electrical.Digital`'s transport delay answered with no number
+    // at all for the whole of the first delay: `xr = Integer(pre(x))`
+    // at t = 0 gave zero, and `LogicValues[0]` has no element. What it
+    // was before the run began is what the declaration says it starts
+    // at, which is the same rule the discrete variables above are
+    // seeded by.
+    for name in &pre_wanted {
+        let Some(component) = model.components.iter().find(|c| &c.name == name) else {
+            continue;
+        };
+        let Some(expr) = component.start.as_ref().or(component.binding.as_ref()) else {
+            continue;
+        };
+        let Ok(value) = eval(
+            expr,
+            &EvalCtx {
+                vars: &params,
+                time: 0.0,
+                programs: None,
+                depth: 0,
+            },
+        ) else {
+            continue;
+        };
+        let pre = table.slot(&format!("$pre.{name}"));
+        table.template[pre] = value;
+        // And the slot the value itself is read from, because the
+        // first event copies value into `pre` before anything has
+        // been evaluated: seeding only the second of the pair is
+        // undone before the first point is written.
+        let slot = table.slot(name);
+        table.template[slot] = value;
+    }
 
     let compiled_stages: Vec<AlgStage> = stages
         .iter()

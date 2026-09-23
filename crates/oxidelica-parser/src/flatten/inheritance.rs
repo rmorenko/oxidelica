@@ -284,6 +284,21 @@ pub(super) fn resolve_type(
         };
         if !class.enumeration.is_empty() {
             component.type_name = "Integer".to_string();
+            // An enumeration is carried as the position of its
+            // literal, counted from one, and the language says a
+            // declaration with nothing else said about it starts at
+            // the first literal rather than at zero. Carrying it as
+            // an `Integer` gives it `Integer`'s default of zero,
+            // which is not a position any literal has: the logic
+            // tables of `Electrical.Digital` are read at the value of
+            // a signal, and a signal that stood at zero indexed off
+            // the front of the table, where the chain of `if index ==
+            // k` falls through to a value that is no number. Ten
+            // models ran to the end filling their results with NaN
+            // and were counted as having run.
+            if component.start.is_none() {
+                component.start = Some(Expr::Number(1.0));
+            }
             return;
         }
         let Some((base, attributes)) = class.alias_of.clone() else {

@@ -403,6 +403,21 @@ impl CompiledModel {
                     break;
                 }
             }
+            // A probe rather than a feature: what the event iteration
+            // held after each round, so that a refusal naming three
+            // names that keep moving can be read as the ring they
+            // actually turn in. `OXIDELICA_EVENT_TRAIL=1` runs it.
+            if std::env::var_os("OXIDELICA_EVENT_TRAIL").is_some() {
+                let held: Vec<String> = self
+                    .discrete_definitions
+                    .iter()
+                    .filter_map(|(slot, _)| {
+                        let at = self.discrete_slots.iter().position(|held| held == slot)?;
+                        Some(format!("{} = {}", self.discretes.get(at)?, values[*slot]))
+                    })
+                    .collect();
+                eprintln!("event t = {t}: {held:?}");
+            }
             let now = self.when_conditions(t, values);
             for (index, clause) in self.when_clauses.iter().enumerate() {
                 // `elsewhen` is a priority list: the first branch that

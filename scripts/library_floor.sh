@@ -295,9 +295,37 @@ FLATTEN_FLOOR=865
 # taken from one tree built twice (/tmp/m245/before.txt and
 # /tmp/m245/after.txt: 865/543 and 750/509 against 865/556 and
 # 750/516), is those thirteen names arriving and none leaving.
-RUN_FLOOR=556
+#
+# A variable typed by an enumeration started at zero, which is not a
+# position any literal has, and a table read at it fell through the
+# chain of `if index == k` a run-time subscript becomes, to a value
+# that is no number. Ten of the thirteen that had just arrived were
+# filling their results with NaN and being counted as having run -
+# `Counter` held 284 columns of them out of 323. Starting such a
+# variable at its first literal, and seeding what `pre` of it was
+# worth before the run began from the same place, takes the NaN out.
+#
+#   run          557 = 556 before, less four, plus five
+#   runnable run 515 = 516 before, less four, plus three
+#
+# The four that left - `Counter`, `Counter3`, `FlipFlop`,
+# `Multiplexer` - are four of the ten that were filling their rows
+# with NaN, and what they meet now is the chatter guard: a gate that
+# genuinely oscillates raises more than ten thousand events inside one
+# output interval. A run that refused is worth more than a run that
+# answered with no number, so the fall of four is the point of the
+# change rather than its price. The five that arrived -
+# `Adder4`, `HalfAdder`, `Utilities.FullAdder`, `Utilities.HalfAdder`,
+# `VectorDelay` - were standing at a fixed start the NaN made
+# impossible, and three of them are runnable examples.
+#
+# Flattening is unmoved on both counts. The diff of the run lists,
+# taken from one tree built twice (/tmp/m245/a.ran against
+# /tmp/m246/a.ran: 865/556 and 750/516 against 865/557 and 750/515),
+# is those four names leaving and those five arriving.
+RUN_FLOOR=557
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=516
+RUNNABLE_RUN_FLOOR=515
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

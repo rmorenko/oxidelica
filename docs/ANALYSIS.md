@@ -16983,3 +16983,75 @@ it was the refusal being taught to print a value beside the name it
 already printed, which cost four lines. A refusal that names _what_ it
 refused is the rule; this is the same rule one step further - a
 refusal that names what the thing was _worth_.
+
+## A model that ran to the end filling its rows with no number
+
+The thirteen above were counted as running. Ten of them were
+answering with NaN, and the count could not see it: the run half asks
+whether a model reached its stop time, not whether the numbers it
+wrote are numbers. Counted by column over a one second run:
+
+```text
+Counter            284 of 323 columns held NaN
+Counter3           207 of 238
+Utilities.Counter  214 of 234
+FlipFlop            60 of 82
+Multiplexer         99 of 140
+```
+
+The cause is one line of arithmetic about positions. An enumeration
+is carried through flattening as an `Integer` holding the position of
+its literal, counted from one, and a variable carried that way took
+`Integer`'s default of zero. Zero is a position no literal has. A
+subscript that is not settled until the run becomes a chain of `if
+index == k then a[k]`, and the chain ends in a value that is no
+number precisely so that an index outside the array cannot quietly
+take the end - which is right, and here the index outside the array
+was every logic signal nobody had written a start for.
+
+`Electrical.Digital` reads its truth tables at the value of a signal,
+so the NaN entered at the first table read and spread by the ordinary
+route: `AndTable[0]` is NaN, the gate's output is NaN, the next
+gate's input is NaN, and a hundred columns are gone by the second
+row. The language says what the missing rule is: a declaration with
+nothing else said about it starts at the first literal.
+
+There was a second half, in the same breed and one layer down.
+`pre(x)` of a name that is discrete by its type without being one of
+the discrete variables reads a slot nothing had seeded, and the same
+zero came back: the transport delay of `Digital` computes `xr =
+Integer(pre(x))` at the first point and reads `LogicValues[xr]`,
+which for the whole of the first delay answered with no number. The
+slot is seeded from the declaration's start, the same rule the
+discrete variables were already seeded by - and the value slot with
+it, because the first event copies value into `pre` before anything
+has been evaluated, so seeding only the second of the pair is undone
+before the first row is written.
+
+What the corpus says: 556 run to 557, and the named diff is four
+models leaving and five arriving. The four that left - `Counter`,
+`Counter3`, `FlipFlop`, `Multiplexer` - are four of the ten that were
+answering with NaN, and what they meet now is the chatter guard:
+more than ten thousand events inside one output interval. That is a
+refusal rather than an answer, which is the trade the whole of this
+compiler is built on. The five that arrived were standing at a fixed
+start the NaN had made impossible.
+
+The general shape is worth stating, because it outlives the models:
+the run count asks whether a model finished, and finishing is not
+answering. A family that reaches the end of its stop time with NaN in
+its results is invisible to every instrument this project has - the
+floors count it as a win, the census never sees it because it raised
+no refusal, and the diff of run lists shows it arriving. The only
+thing that finds it is reading the results, and the cheapest form of
+that is counting the columns that hold a value which is not a number.
+
+And a debt, named rather than paid: before the repair of the
+thirteen, a discrete variable holding NaN was caught by accident -
+the event iteration spun on it for ever, because NaN differs from
+itself, and the model refused at the round ceiling. Reading NaN twice
+running as "not a movement" was right about the language and removed
+that accidental catch. Nothing catches a discrete NaN now: the only
+tests for it are the sampler's period and the solvers' error norms,
+which read `err_norm` rather than the discrete values. A model whose
+discrete value goes to NaN will run to the end and say nothing.

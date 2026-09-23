@@ -2224,3 +2224,31 @@ fn a_derivative_scaled_by_a_zero_parameter_is_an_algebraic_relation() {
     assert!(v.abs() < 1e-9, "voltage over a shorted branch: {v}");
     assert!((i - 2.0).abs() < 1e-9, "current: {i}, expected 2");
 }
+
+/// A variable typed by an enumeration and settled by an equation
+/// starts at the first literal, not at zero.
+///
+/// The position of a literal is counted from one, so zero names none
+/// of them, and a table read at the value of such a variable indexes
+/// off its front. The chain of `if index == k` a run-time subscript
+/// becomes falls through to a value that is no number, and the whole
+/// of `Electrical.Digital` ran to the end with NaN in its results:
+/// `xr = Integer(pre(x))` at the first point gave zero, and
+/// `LogicValues[0]` has no element to give back.
+#[test]
+fn an_enumeration_with_nothing_said_about_it_starts_at_its_first_literal() {
+    let result = run("model M type Kind = enumeration(a, b, c); \
+         constant Real table[3] = {7, 8, 9}; \
+         Kind k; Real y; Real seen; \
+         equation k = if time > 0.5 then Kind.c else pre(k); \
+         y = table[k]; seen = table[Integer(pre(k))]; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;");
+    let at = |name: &str| {
+        let index = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows[0][index]
+    };
+    // The first literal, so the first element of the table - and not
+    // a value that is no number, which is what an index of zero gave.
+    assert_eq!(at("y"), 7.0);
+    assert_eq!(at("seen"), 7.0);
+}
