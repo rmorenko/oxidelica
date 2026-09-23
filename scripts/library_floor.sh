@@ -421,9 +421,26 @@ FLATTEN_FLOOR=865
 # (/tmp/m252/before.txt: 865/563 and 750/521; /tmp/m252/after.txt:
 # 865/564 and 750/522), and the diff of the run lists is that one
 # name arriving with nothing leaving.
-RUN_FLOOR=564
+#
+# And a record constant brought in by an enclosing class's `import` is
+# now read where a function body names it. The walk out of the
+# enclosing packages answered with an `f64`, so `import
+# Modelica.ComplexMath.j` at the top of a block left `j` inside
+# `powerOfJ` with no road at all: the bare name travelled into the flat
+# model and met `unknown variable j` a storey lower.
+#
+#   run          565 = 564 before, plus ComplexBlocks.Examples.ShowTransferFunction
+#   runnable run 523 = 522 before, plus the same one, a runnable example
+#   both flatten counts unmoved: it always flattened
+#
+# Measured from one binary either side of `OXIDELICA_NO_IMPORTED_RECORDS`
+# (/tmp/m253/before.txt: 865/564 and 750/522; /tmp/m253/after.txt:
+# 865/565 and 750/523), and the diff of the run lists
+# (/tmp/m253/b.ran against /tmp/m253/a.ran) is that one name arriving
+# with nothing leaving.
+RUN_FLOOR=565
 RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=522
+RUNNABLE_RUN_FLOOR=523
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

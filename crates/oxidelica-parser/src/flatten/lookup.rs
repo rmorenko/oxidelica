@@ -42,6 +42,40 @@ pub(super) fn enclosing_import(
     None
 }
 
+/// The same walk for a constant that comes to a list rather than a
+/// number: `import Modelica.ComplexMath.j` is written once at the top
+/// of a block and the function bodies written inside it say `j`.
+///
+/// `enclosing_import` answers with an `f64`, so a record constant
+/// brought in that way had no road at all: the name travelled into the
+/// flat model whole, and what the model met a storey lower was
+/// `unknown variable j` - a value gone missing rather than a refusal
+/// owed.
+pub(super) fn enclosing_import_array(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<Expr> {
+    let mut prefix = scope;
+    while let Some((head, _)) = prefix.rsplit_once('.') {
+        if let Some(owner) = registry.get(head) {
+            if let Some(value) = owner
+                .imports
+                .iter()
+                .find(|(local, _)| local == name)
+                .and_then(|(_, target)| {
+                    class_constant_array_at(registry, target, head, &owner.imports, depth)
+                })
+            {
+                return Some(value);
+            }
+        }
+        prefix = head;
+    }
+    None
+}
+
 /// The class a short definition inside a package stands for.
 ///
 /// `package StandardWater = WaterIF97_ph(...)` gives the package a

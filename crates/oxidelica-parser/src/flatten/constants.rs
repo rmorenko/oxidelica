@@ -1055,6 +1055,14 @@ pub(super) fn declared_length(
         .map(|length| length as i64)
 }
 
+/// Whether a record constant brought in by an enclosing class's
+/// `import` is read. `OXIDELICA_NO_IMPORTED_RECORDS=1` closes the
+/// road, so that one binary answers both ways and the only thing
+/// differing between two measurements is this.
+fn imported_records_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_IMPORTED_RECORDS").is_none()
+}
+
 pub(super) fn substitute_class_constants(
     expr: &Expr,
     registry: &HashMap<&str, &ClassDef>,
@@ -1175,6 +1183,19 @@ fn substitute_at(
                 // the library and every shape below writes `mu_0`.
                 if let Some(value) = enclosing_import(registry, name, scope, depth) {
                     return Expr::Number(value);
+                }
+                // The same import, where what it brought in is a
+                // record rather than a number: `import
+                // Modelica.ComplexMath.j` at the top of a block, and
+                // `j` written in a function body inside it.
+                // `OXIDELICA_NO_IMPORTED_RECORDS=1` closes this road,
+                // so that one binary can be measured both ways.
+                if imported_records_open() {
+                    if let Some(value) =
+                        super::lookup::enclosing_import_array(registry, name, scope, depth)
+                    {
+                        return value;
+                    }
                 }
                 // The same walk for a constant that comes to a list
                 // rather than a number: `NotTable` of a logic package

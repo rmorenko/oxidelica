@@ -211,6 +211,28 @@ fn a_record_valued_constant_and_a_record_in_a_declaration_are_read() {
 }
 
 #[test]
+fn a_record_constant_an_enclosing_class_imported_is_read_in_a_body() {
+    // `import Modelica.ComplexMath.j;` at the top of a block, and `j`
+    // written inside a function of that block: `powerOfJ` of the
+    // complex transfer function does exactly this. The walk out of the
+    // enclosing classes answered with an `f64`, so a record brought in
+    // that way had no road at all and the name travelled into the flat
+    // model whole - `unknown variable j` a storey lower.
+    let m = parse_model(
+        "record C Real re; Real im; end C; \
+         package K constant C j = C(0, 1); end K; \
+         block B import K.j; \
+           function pj output C x; algorithm x := j; end pj; \
+           C q; equation q = pj(); end B; \
+         model M B b; annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("a record constant an enclosing block imported");
+    let said = format!("{:?}", m.equations);
+    assert!(!said.contains("Ref(\"j\")"), "{said}");
+    assert!(said.contains("b.q.re"), "{said}");
+}
+
+#[test]
 fn a_function_written_for_one_record_takes_a_whole_array_of_them() {
     // `Modelica.ComplexMath.abs(v)` of a `Complex[3]`: the function
     // was written for one, so it is called once per element.

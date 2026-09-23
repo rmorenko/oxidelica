@@ -17436,3 +17436,100 @@ not one layer but three, by `OXIDELICA_WHERE=1` on one model apiece:
 `compile.rs:2338` for `j` and `imsQS.vr[1].re.re` (3), and
 `code.rs:174` for `ph_explicit` (2). The count of kinds put them in one
 row; the probe puts them in three. Nothing built for it.
+
+## The conditions the compiler does not decide: four rows, four layers
+
+The family read by folding the census rows that mean the same thing is
+25 models in five rows, of which the top row - 8 registers `DFFREG`
+through `DLATREGSRL` - is parked. Each of the four remaining rows was
+probed with `library check .msl --only <model>` under
+`OXIDELICA_WHERE=1`, one model apiece, and the condition read out of
+the class by hand.
+
+**Six models, `for` in an undecided branch.** The condition is `ideal`
+of `Modelica.Mechanics.Rotational.Components.LossyGear`, bound at line
+140 to `Modelica.Math.Matrices.isEqual(lossTable, [0, 1, 1, 0, 0],
+Modelica.Constants.eps)`. The `else` of that `if` holds a `for` over
+`1:size(interpolation_result, 2)`, and `push_conditional`
+(instantiate.rs:1258) refuses a loop inside a branch it cannot settle.
+The condition is not runtime: `lossTable` is a parameter with a
+declared default, and `isEqual` is a library function over two
+constant matrices. This is const-eval not reaching through a matrix
+comparison in a library function, so the row could fall as one line.
+
+**Six models, `if` without `else`.** `time >= t_min` in
+`ModelicaTest.Media.TestAllProperties.PartialMediumFunctions` (Media.mo
+lines 93, 98, 103, 108), guarding four `assert` calls with no `else`.
+That condition is honestly runtime - it is `time`. The refusal
+(instantiate.rs:1243) is about the equation count differing between
+branches, but every branch here holds only asserts and no equations at
+all. A branch of asserts changes no count, so this row is a refusal
+owed to a rule wider than the case it fires on rather than to
+architecture.
+
+**Two models, `Connections` in an undecided branch.** `enforceStates`
+of `Modelica.Mechanics.MultiBody.Joints.Spherical` (line 129), a
+`parameter Boolean` defaulting to false and set to `true` outright by
+the example (`SphericalConstraint.mo:9`). The branch holds
+`Connections.branch(frame_a.R, frame_b.R)` and the refusal is
+instantiate.rs:1265. The condition is a plain parameter with a value
+handed down, so the question is why `settle` did not read the
+modifier, not whether it could be read.
+
+**Three models, condition on a component's declaration.** This row was
+missing from the plan and is its own layer.
+`Modelica.Electrical.Machines.Utilities.TerminalBox` declares `Star
+star(final m=m) if (terminalConnection <> "D")`, and the refusal is
+components.rs:228 rather than either equation site. The condition is a
+`String` comparison, and the string table built at instantiate.rs:397
+gathers only components whose `type_name` is `String`; `terminalBox`
+takes its value from `settings.terminalConnection`, a field of a record
+parameter, which the table never sees. Reproduced in twelve lines
+(/tmp/m253/E.mo): the same declaration decides when the value is a
+literal and refuses when it is a record field. So the three are not the
+`if`-equation layer at all, and the working family is 17 rather than
+14 - four layers and not three.
+
+## A record constant an enclosing class imported had no road
+
+`Modelica.ComplexBlocks.Examples.ShowTransferFunction` refused for
+`unknown variable j`, one of the three layers the previous shift's
+probe separated (compile.rs:2338). `j` is
+`Modelica.ComplexMath.j`, a `constant Complex` built by its own
+constructor, brought in by `import` at the top of
+`ComplexMath.TransferFunction` and written inside the function
+`powerOfJ` of that block.
+
+Shrunk to eighteen lines (/tmp/m253/J6.mo), and the narrowing is what
+names the layer. The same constant used in an equation of the model
+folds (J3.mo runs); written inside a function body it does not (J4,
+J6); written with its package on the front inside the same body it does
+(J7.mo runs); with the `import` repeated inside the function it does
+(J8.mo runs). So it is neither the inlining nor the constant itself but
+the walk out of the enclosing classes: `enclosing_import`
+(lookup.rs:20) answers with an `f64`, and a record constant has no
+twin to answer with a list. The name travelled into the flat model
+whole, and the run met it as unknown - a value gone missing rather
+than a refusal owed.
+
+`enclosing_import_array` is that twin, asking
+`class_constant_array_at` of the same walk, and it stands where the
+other enclosing walks already stand in `substitute_at`. The small
+model now gives the right number rather than merely flattening: `q.im
+= 1, q.re = 0`, which is what `j` is.
+
+The measurement, from one binary either side of
+`OXIDELICA_NO_IMPORTED_RECORDS`: 865/564 and 750/522
+(/tmp/m253/before.txt) against 865/565 and 750/523
+(/tmp/m253/after.txt), and the diff of the run lists (/tmp/m253/b.ran
+against /tmp/m253/a.ran) is one name arriving,
+`Modelica.ComplexBlocks.Examples.ShowTransferFunction`, with nothing
+leaving. The flatten counts do not move: the model always flattened,
+and it was the run that could not read the name.
+
+The other two layers of the `unknown variable` family are untouched
+and named for the next shift: `seedOut[1]` and `IN_con.a` at
+code.rs:843 (4 models), `ph_explicit` at code.rs:174 (2), and
+`imsQS.vr[1].re.re`, which shares compile.rs:2338 with `j` but is a
+complex name assembled twice rather than a constant never resolved -
+it did not move here.
