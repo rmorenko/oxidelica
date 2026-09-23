@@ -653,6 +653,7 @@ fn build_the_model(
     let mut acc = Flat::default();
     let env = Env {
         outer_sizes: &HashMap::new(),
+        sizing_shapes: &HashMap::new(),
         overrides: &[],
         redeclares: &[],
         inners: &HashMap::new(),
@@ -2426,6 +2427,17 @@ struct Env<'a> {
     /// The arrays of the class above, whose names a modifier it wrote
     /// still uses even though it is read down here.
     outer_sizes: &'a HashMap<String, Vec<i64>>,
+    /// The same lengths again, for measuring a flexible `:` and for
+    /// nothing else.
+    ///
+    /// `handed_shapes` cannot serve: it is read to decide whether a
+    /// value spreads over the elements of an array, and widening it so
+    /// a `:` could be measured told that reader an array was longer
+    /// than the declaration it lands on - twenty-one models refused
+    /// for it where two were won. A length that fixes a `:` and a
+    /// length that spreads a value are two questions, and one table
+    /// answering both answers one of them wrongly.
+    sizing_shapes: &'a HashMap<String, Vec<i64>>,
 }
 
 /// One component element about to be instantiated: the declaration, the
@@ -2468,6 +2480,11 @@ struct Level<'a> {
     /// down still uses. In view for reading such a value and nowhere
     /// else.
     outer_sizes: &'a HashMap<String, Vec<i64>>,
+    /// The lengths that came down with the modifiers, for fixing a
+    /// flexible `:` and for nothing else. Kept apart from `sizes`
+    /// because that table also decides whether a value spreads over
+    /// the elements of an array.
+    sizing_shapes: &'a HashMap<String, Vec<i64>>,
     /// `outer` declaration name -> flat path of the `inner` instance.
     outers: &'a HashMap<String, String>,
     /// `inner` instances the components below can bind to.

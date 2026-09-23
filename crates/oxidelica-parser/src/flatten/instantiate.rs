@@ -734,9 +734,26 @@ fn instantiate_bases(
                 (n.clone(), measured_sizes(&e, &handed_shapes, &here))
             }))
             .collect();
+        // What this class was itself handed travels on to its bases,
+        // on the sizing channel alone. A model hands a table down
+        // through three layers of partial classes before it reaches
+        // the block that declares the `:`, and a length dropped at
+        // the first layer is a length the last one cannot ask anybody
+        // for.
+        let mut sizing_shapes: HashMap<String, Vec<i64>> = handed_shapes.clone();
+        for (name, shape) in env.sizing_shapes {
+            let short = name.strip_prefix(prefix).unwrap_or(name);
+            if short.contains('.') {
+                continue;
+            }
+            sizing_shapes
+                .entry(format!("{prefix}{short}"))
+                .or_insert_with(|| shape.clone());
+        }
         let base_env = Env {
             overrides: &mods,
             handed_shapes: &handed_shapes,
+            sizing_shapes: &sizing_shapes,
             outer_sizes: env.outer_sizes,
             redeclares: &base_redeclares,
             inners,

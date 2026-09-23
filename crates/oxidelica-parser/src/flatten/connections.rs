@@ -177,6 +177,7 @@ pub(super) fn expand_buses(
 
     let env = Env {
         outer_sizes: &HashMap::new(),
+        sizing_shapes: &HashMap::new(),
         overrides: &[],
         redeclares: &[],
         inners: &HashMap::new(),

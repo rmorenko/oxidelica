@@ -2208,3 +2208,36 @@ fn a_running_subscript_into_an_integer_target_is_not_made_real_by_the_fallthroug
         m.when_clauses
     );
 }
+
+#[test]
+fn a_length_handed_down_with_a_modifier_travels_with_it() {
+    // A base is instantiated before the class extending it has
+    // measured anything of its own, so a table handed down through an
+    // `extends` names an array the base has never heard of: inside the
+    // base, `tbl` has no value and no shape, and the `:` it fixes
+    // cannot be measured at all. The length was measured where the
+    // name still meant something and has to travel with the modifier.
+    let model = parse_model(
+        "block Tab parameter Real table[:, 2] = [0, 1; 1, 2]; output Real y; \
+         equation y = table[1, 2] + size(table, 1); end Tab; \
+         partial model Base Tab t; end Base; \
+         model M final constant Real tbl[:, 2] = [1, 0; 2, 0; 3, 5]; \
+         extends Base(t(table = tbl)); Real z; equation z = t.y; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("the length comes down with the value");
+    // Three rows, and the second column of the first is zero: the
+    // table that was handed down, not the two-row default.
+    let z = model
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "z"))
+        .expect("z is solved for");
+    assert_eq!(format!("{:?}", z.rhs), "Ref(\"t.y\")");
+    let y = model
+        .equations
+        .iter()
+        .find(|e| matches!(&e.lhs, Expr::Ref(n) if n == "t.y"))
+        .expect("the block's output is solved for");
+    assert!(format!("{y:?}").contains('3'), "{y:?}");
+}

@@ -17321,3 +17321,58 @@ The mechanism fits on ten lines: `x = if time < 0.5 then 0 else 1`
 with a `when x > 0`, which refused with ten thousand events before the
 change and reaches its stop time with `seen = 1` after it. That is the
 test.
+
+## A length handed down with a modifier had nobody to ask
+
+Fifteen models refused with "the flexible size `:` of X needs a value to
+read its length from", the top of the flatten half's census. Four
+signatures, and the probe put them in three different layers rather
+than one - which the shift had been told to expect and to measure
+rather than believe.
+
+The layer that was taken is the one the two `t_new.table` models stand
+in. A base is instantiated before the class extending it has measured
+anything of its own, so a table handed down through an `extends` names
+an array the base has never heard of: by the time the base reads
+`table = tbl`, `tbl` has no value and no shape there at all, and the
+`:` it was meant to fix cannot be measured by anybody. The length was
+measured where the name still meant something, one class up, and it
+now travels with the modifier.
+
+What cost the first attempt twenty-one models is worth recording,
+because it is the same breed as the note about two readings of one
+value. The lengths were first put into `handed_shapes`, the table
+already carrying exactly this kind of length downwards - and that
+table is read for a second question: whether a value spreads over the
+elements of an array it lands on. A length put there so a `:` could be
+measured told the spreading reader an array was longer than the
+declaration it lands on, and twenty-one models across the machines,
+QuasiStatic and MultiBody refused for it while two were won. So the
+lengths travel on a channel of their own, `sizing_shapes`, read only
+where a `:` is measured. One table answering two questions answers one
+of them wrongly.
+
+The measurement: 865 flatten and 563 run before and after, name for
+name identical in both lists (/tmp/m251/before.list against
+/tmp/m251/after2.list, both from copies of the two binaries). The
+census is where the change shows: the row for the flexible size of `t_new.table` held 2 and is now absent, and a row naming
+`ModelicaStandardTables_CombiTimeTable_getValue` holds 2 where it held
+none. The two models travelled from a wall this compiler owns to the
+parked external-C line, which is a kind removed rather than a model
+won, and the floors do not move for it.
+
+The other two layers are mapped and not taken:
+
+- `t_new.columns`, 7 models. The table is in a MAT file, so the
+  declared shape is `[0, 2]` and `columns[:] = 2:size(table, 2)` read
+  off the declaration would give a wrong column count. Reading the
+  range there was tried and reverted within the shift: a wrong number
+  is worse than a refusal, and the length these want is one only the
+  file can say.
+- `startTime_0.table`, 5 models. The value names a member of a sibling
+  component declared _after_ the one reading it - `table =
+startTime.table` where `startTime` comes second in the source. The
+  probe shows nothing measured at all at that point, so this is about
+  declaration order rather than about which class holds the name.
+- `impedance.cellData.OCV_SOC`, 1 model, a field of a record, not
+  looked at.

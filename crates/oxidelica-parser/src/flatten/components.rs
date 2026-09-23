@@ -344,6 +344,7 @@ pub(super) fn instantiate_components(
             &component,
             &flat_name,
             sizing_binding.as_ref(),
+            env.sizing_shapes,
             registry,
             scope,
             prefix,
@@ -375,6 +376,7 @@ pub(super) fn instantiate_components(
             prefix,
             sizes: &sizes_here,
             outer_sizes: env.outer_sizes,
+            sizing_shapes: env.sizing_shapes,
             outers,
             inners,
             overrides,
@@ -584,6 +586,12 @@ fn measure_dimensions(
     component: &Component,
     flat_name: &str,
     sizing_binding: Option<&(Expr, bool)>,
+    // Lengths that came down with the modifiers, for measuring a `:`
+    // and nothing else. Kept apart from `sizes_here` because that
+    // table is read to decide whether a value spreads over elements,
+    // and a length put there for a `:` told that reader the wrong
+    // thing - twenty-one models refused for it where two were won.
+    sizing_shapes: &HashMap<String, Vec<i64>>,
     registry: &HashMap<&str, &ClassDef>,
     scope: &str,
     prefix: &str,
@@ -634,6 +642,25 @@ fn measure_dimensions(
                     if let Some(length) = flexible_size(binding, axis, registry, scope, imports) {
                         return Some(length);
                     }
+                    // A value that is a bare name says its length by
+                    // being that array, and the array may be one this
+                    // class cannot reach: `extends Base(t(table = tbl))`
+                    // hands a base the constant of the model doing the
+                    // extending, and inside the base `tbl` is a name with
+                    // no value at all. Its shape travelled down with the
+                    // modifier and is in the table; asking the table is
+                    // what the expansion below cannot do, because it
+                    // wants the value and not the shape.
+                    if let Expr::Ref(name) = binding {
+                        let known = sizes_here
+                            .get(name.as_str())
+                            .or_else(|| sizes_here.get(format!("{prefix}{name}").as_str()))
+                            .or_else(|| sizing_shapes.get(name.as_str()))
+                            .or_else(|| sizing_shapes.get(format!("{prefix}{name}").as_str()));
+                        if let Some(length) = known.and_then(|shape| shape.get(axis)) {
+                            return Some(*length);
+                        }
+                    }
                     let shapes = Shapes {
                         sizes: sizes_here,
                         loop_vars: &HashMap::new(),
@@ -649,6 +676,14 @@ fn measure_dimensions(
                             prefix_expr(&binding, prefix, outers)
                         }
                     };
+                    // A range says its length by its bounds rather
+                    // than by any value: the table blocks write
+                    // `columns[:] = 2:size(table, 2)`, and how many
+                    // columns that is, the table beside it says. The
+                    // early road through `shapes.rs` already reads a
+                    // range this way, and a road that measures one
+                    // declaration two ways is a road that will
+                    // disagree with itself.
                     // A measurement is not the model asking for a
                     // value, so nothing it works out is kept.
                     let mark = checks_mark();
@@ -1163,6 +1198,7 @@ pub(super) fn instantiate_one(
         prefix,
         sizes,
         outer_sizes,
+        sizing_shapes: handed_sizing,
         outers,
         inners,
         overrides,
@@ -1574,12 +1610,44 @@ pub(super) fn instantiate_one(
                 return Ok(());
             }
             let child_prefix = format!("{flat_name}.");
+            // How long the arrays a modifier names are. A value handed
+            // to a component is written where this class stands -
+            // `t_new(table = tbl)` names a constant of the model, not
+            // anything the block ever heard of - so once the child is
+            // being built the name has no shape and no value there at
+            // all. The length was measured here, where the name still
+            // means something, and travels down with the modifier.
+            // Only the bare names a modifier writes are carried: a
+            // shape nobody asked about is a guess about which class the
+            // name lands in, and this compiler owes a refusal instead.
+            let mut handed_below: HashMap<String, Vec<i64>> = HashMap::new();
+            for (_, value) in &mods {
+                let Expr::Ref(named) = value else {
+                    continue;
+                };
+                let known = sizes
+                    .get(named.as_str())
+                    .or_else(|| sizes.get(format!("{prefix}{named}").as_str()))
+                    // And the lengths this class was itself handed: a
+                    // table travels down three layers of partial
+                    // classes before it reaches the block declaring
+                    // the `:`, and a length dropped at the first is a
+                    // length the last cannot ask anybody for.
+                    .or_else(|| handed_sizing.get(named.as_str()))
+                    .or_else(|| handed_sizing.get(format!("{prefix}{named}").as_str()));
+                if let Some(shape) = known {
+                    handed_below
+                        .entry(named.clone())
+                        .or_insert_with(|| shape.clone());
+                }
+            }
             let child_env = Env {
                 overrides: &mods,
                 redeclares,
                 inners,
                 broken: &[],
                 handed_shapes: &HashMap::new(),
+                sizing_shapes: &handed_below,
                 outer_sizes: sizes,
                 inside_a_parameter,
             };
