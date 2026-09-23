@@ -18269,3 +18269,144 @@ one with `--only`):
 So the census rows for the conditions empty and five rows in the run
 half grow by one each. The run count is a separate claim, and it did
 not move.
+
+## The m262 census, and a medium's constant named bare
+
+The census of m262 (/tmp/m262/census.txt, raw half in
+/tmp/m262/raw.txt) was taken from the binary of ca44566. It printed
+146 would-not-flatten and 313 would-not-run, 459 together, which is
+1037 − 578. The diff of the model lists by half against m261 is the
+five of the conditions of components and nothing else: each left the
+refused list and arrived in the built one. The `condition of
+component` and `Connections ... in an if branch` rows are gone. The
+families summed row by row:
+
+- algebraic loops 27+20+14+11+9+7+3+3 = 94. The 13 of `singular
+Jacobian` became 14 with `SMEE_DOL`.
+- structurally singular 64, from 62. `the equation determining X does
+not depend on it` went from 4 to 5 (`SphericalConstraint`) and one
+  `constrains no state` row of one arrived
+  (`PointGravityWithPointMasses2`).
+- parameters (`has no value` + `cannot evaluate parameters`) 44 over
+  36 rows, unmoved.
+- unbalanced 39 over 32 rows, unmoved.
+- C and FORTRAN 11+8+5 = 24, unmoved.
+- units 6+2+1+1+1+1 = 12, unmoved.
+- `is not a state` 1+1+1+1 = 4, including `IMC_DCBraking` at
+  `der(imc.is[1])`.
+- `two equations for` 1+1+1+1+1 = 5, including `FullRobot`.
+
+The unit rows, probed one model apiece with `--only` from `.msl`, are
+three layers and not one.
+
+**The six `cannot subtract medium.h and 101300 / medium.d`.**
+`TestGlycol`, `TestValvesIncompressibleReverse` and the two
+`Glycol47` and two `Essotherm650` models. One layer. `u = h -
+reference_p/d` is written in `BaseProperties` of
+`Incompressible.TableBased`, and `reference_p` is named there bare. The
+walk outwards found the `1.013e5` the medium's `extends` gives it, and
+it handed back a digit. The digit carries no unit, so the check read
+`101300/d` as cubic metres per kilogram against the joules per
+kilogram of `h`. The equation is right. The unit is in the declaration
+(`AbsolutePressure`), and the dotted road through
+`mint_asked_as_constant` already keeps such a constant as a name.
+The bare road did not. Reproduced in 25 lines (/tmp/m262/s/U.mo).
+
+The fix mints the constant on the bare road as well, and only on the
+equation road. It becomes `{medium}.reference_p`, a parameter with the
+declared unit and the value the medium gave it. A parameter, a length
+or a condition still takes the digit. A dimensionless constant stays
+a digit. A name that already stands for another value keeps the
+digit, so two media are never put under one name
+(`OXIDELICA_NO_ENCLOSING_MINT`). The test reads the number: `u =
+4000 - 101300/1000 = 3898.7`. Held back, the test turns red at the
+refusal it replaced. On `TestGlycol` the run gives `medium.u` =
+−101768.922 against `h` = −101673.892 and `d` = 1065.978. By hand
+that is −101673.892 − 101300/1065.978 = −101768.922, and the
+function road (`u`) prints the same.
+
+What stands behind the six (probed with `--only`, same binary):
+
+- `TestGlycol` runs.
+- `IncompleteMedia.Glycol47` and `IncompleteMedia.Essotherm650` stop
+  at `an array reached the evaluator: 1:2`, the wall
+  `InverseIncompressible_sh_T` already stood at.
+- `TestsWithFluid...Glycol47` and `...Essotherm650` stop at an
+  algebraic loop through `shortPipe.flowModel.states[1].p`.
+- `TestValvesIncompressibleReverse` stops at a
+  `solveOneNonlinearEquation` of `V2.state_b.T` in a loop.
+
+**The `1:2` wall, walked two links and parked.** Link 1 is a slice in
+a walked body. `integralValue(poly_Cp[1:npol], T, T0)` in `s_T` hands a
+range subscript to a call, and the walk had no reading for it. Twelve
+lines reproduce it (/tmp/m262/s/R2.mo, `an array reached the
+evaluator: 1:n`). Reading the slice as the elements it picks turns
+the small model green with the right number (6). The change is in
+/tmp/m262/walked_slices.patch and is not committed, because link 2
+stands behind it. The body of `s_T` is carried to the walk under
+`Modelica.Media.Incompressible.TableBased`, the interface, and not
+under the medium. `poly_Cp` and `TinK` reach it as bare names that
+nothing gives a value to. With link 1 taken, a 35-line model whose
+sliced constant is bound to a function call (/tmp/m262/s/R4.mo) still
+refuses with the same `1:2`. The same model with the binding written
+`if b then mk(1) else zeros(3)`, which is the library's own shape,
+runs (/tmp/m262/s/R7.mo). So what is left is that the carried body is
+not keyed by the medium it was reached under: one body per function
+where it would need one per medium. That is architecture, and it is
+left with this map. The three models (`InverseIncompressible_sh_T`
+and the two `IncompleteMedia`) stay at `1:2`.
+
+**The six singles, parked as the library's own dimensions.** Each was
+read against its source.
+
+- `ThyristorBehaviourTest` and `SimpleTriacCircuit`: `Thyristor.mo:53`
+  writes `10000*(iGK-0.95*IGT)*vAK` in one branch and `10*vAK` in the
+  other. They differ by an ampere, and the text says so.
+- `SimpleAir`: `setState_psX` writes `s/cp_const + log(reference_T) +
+R_gas*log(p/reference_p)` inside one `exp`, a dimensionless term
+  added to one in J/(kg.K). The library divides by `cp_const` in the
+  first term and not in the third.
+- `R134a_pTX_phX_all`: `der(T) = dT` with `dT` declared
+  `SI.PerUnit`.
+- `Graetz` (a conductance against a squared one) has not yet been
+  read to the line. It is listed rather than guessed at.
+
+Refusing a dimension the library got wrong is refusing rightly. None
+of these is taken.
+
+**`LinearColdWater` is not the library's fault, and it guards a wrong
+number.** The refused equation reads `d2 = ((1 + ((101325 - 101325) *
+kappa_const)) - ((278.15 - 298.15) * beta_const)) * reference_d`. That
+is `density_pTX(reference_p, reference_T, reference_X)` of
+`PartialLinearFluid` inlined. The argument `278.15` is the medium's
+`reference_T`. The `298.15` inside the body is the interface's
+default, read where the medium's own was owed. The right value is
+`reference_d` exactly. The inlined one is off by `20*beta_const`,
+about half a percent. The unit check stops it only by accident. Were
+the units to agree, this would be a wrong number that passed. It is
+not taken in this shift. It is the next thing to probe on the media
+line, before any change that could let the model through.
+
+**Four victims, found by the pair and repaired before the commit.** The
+first pair (/tmp/m262/off.txt, /tmp/m262/on.txt, one binary) printed
+flatten 891 → 897 and run 578 → 575. The run list lost
+`PressureLoss.Orifice`, `NewFittings.Orifices.ThickEdgedOrifice`,
+`TestAllProperties.CO2` and `DryAirNasa`, all at `unknown variable
+...data.R_s in equation`. The mint had also fired below the top of the
+substitution. `data.R_s` of an ideal gas is written on the package's
+own bare `R_NASA_2002`, and settling it to a number went through the
+same road and got a name where it needed a digit. The mint is now held
+to depth zero of an equation's own substitution. A 25-line model of
+the shape (/tmp/m262/s/V.mo) failed under the first binary and runs
+under the second with `R_s = 8.314472/0.044`. That is now a test,
+and it turns red with the guard removed.
+
+The second pair came from the repaired binary, one binary either side
+of `OXIDELICA_NO_ENCLOSING_MINT` (/tmp/m262/off2.txt,
+/tmp/m262/on2.txt). The off side printed the floors and the work
+counts of ca44566 to the digit (891/578, 776/536). The on side printed
+flatten 897, run 579, runnable 782 and 537. The flatten list gained
+the six and the run list gained `TestGlycol`. Nothing left either
+list. The four victims of the first pair are back on the run list.
+`LinearColdWater` stays refused, as it should, until its `reference_T`
+is read from the medium.

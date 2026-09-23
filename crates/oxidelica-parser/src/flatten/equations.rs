@@ -1110,7 +1110,12 @@ pub(super) fn flatten_equations(
     let _records = statements::Records::in_view(records_here);
     // Equations: arrays expanded, subscripts resolved, calls inlined.
     let expand_here = |expr: &Expr, loop_vars: &HashMap<String, f64>| -> Result<Value, String> {
-        let expr = substitute_class_constants(expr, registry, scope, imports, shadow);
+        // An equation is the road where a medium's constant found by
+        // walking outwards keeps its unit as a name of the flat model.
+        let expr = {
+            let _road = constants::EquationRoad::now();
+            substitute_class_constants(expr, registry, scope, imports, shadow)
+        };
         let expr = prefix_expr(&expr, prefix, outers);
         let shapes = Shapes {
             sizes: sizes_here,

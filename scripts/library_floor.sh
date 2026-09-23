@@ -221,7 +221,22 @@ FILES_FLOOR=2671
 #                 PointGravityWithPointMasses2, whose joints draw their
 #                 graph branch before the graph is asked, both at a
 #                 structurally singular model
-FLATTEN_FLOOR=891
+#
+# And six a medium's constant named bare let through, measured from
+# one binary either side of `OXIDELICA_NO_ENCLOSING_MINT`
+# (/tmp/m262/off2.txt: 891/578 and 776/536; /tmp/m262/on2.txt:
+# 897/579 and 782/537), nothing leaving either list. `reference_p` in
+# `u = h - reference_p/d` of the table-based media now keeps its unit:
+#
+#   flatten 897 = 891 above, plus Incompressible.Examples.TestGlycol,
+#                 which runs; TestAllProperties.IncompleteMedia.Glycol47
+#                 and Essotherm650, at `1:2` in the walked `s_T`;
+#                 TestsWithFluid...Incompressible.Glycol47 and
+#                 Essotherm650, at an algebraic loop through
+#                 `shortPipe.flowModel.states[1].p`; and
+#                 TestValvesIncompressibleReverse, at a
+#                 `solveOneNonlinearEquation` of `V2.state_b.T`
+FLATTEN_FLOOR=897
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -566,14 +581,21 @@ FLATTEN_FLOOR=891
 #                holds the fitted cubic to the one it was built from
 #   runnable flatten 771 = 769 below, plus both, runnable examples
 #   runnable run 536 = 535 below, plus TestPolynomials
-RUN_FLOOR=578
+#
+# And the bare constant set out at `FLATTEN_FLOOR`:
+#
+#   run          579 = 578 above, plus TestGlycol, whose `u` comes out
+#                h - 101300/d by hand
+#   runnable flatten 782 = 776 below, plus all six, runnable examples
+#   runnable run 537 = 536 below, plus TestGlycol
+RUN_FLOOR=579
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
 # And runnable flatten 776 = 771, plus the five conditions of
 # components set out at `FLATTEN_FLOOR`, all runnable examples.
-RUNNABLE_FLATTEN_FLOOR=776
-RUNNABLE_RUN_FLOOR=536
+RUNNABLE_FLATTEN_FLOOR=782
+RUNNABLE_RUN_FLOOR=537
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -655,11 +677,17 @@ RUN_MS_CEILING=8000
 # (/tmp/m261/off2.txt), so the series did 1.9% more classes, 0.4% more
 # expansions and 0.4% more bodies: the five models that flatten now
 # are machines and multi-body systems, and each is built whole.
+#
+# Refreshed again with the floors, from the run that moved them
+# (/tmp/m262/on2.txt). The same binary with the enclosing mint off
+# printed exactly the numbers of m261 (/tmp/m262/off2.txt), so the
+# series did 0.004% more expansions and 0.09% more bodies: the six
+# models that flatten now are small media tests.
 WORK_CLASSES=281610
-WORK_EXPANSIONS=91433342
-WORK_BODIES=1295839
-WORK_POINTS=31348278
-WORK_NEWTON=43593563
+WORK_EXPANSIONS=91437290
+WORK_BODIES=1296998
+WORK_POINTS=31348317
+WORK_NEWTON=43593590
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

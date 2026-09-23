@@ -1903,3 +1903,95 @@ fn a_table_in_matrix_brackets_is_counted_along_either_side() {
     assert_eq!(last_of(&run(source), "y"), 32.0);
     assert!(refused_held_back(source).contains("unknown variable `rows`"));
 }
+
+/// The table-based media's `u = h - reference_p/d`, shrunk: the
+/// constant is the medium's own, named bare in `BaseProperties`.
+const REFERENCE_PRESSURE: &str = "package U \
+     type Pressure = Real(unit = \"Pa\"); \
+     type Density = Real(unit = \"kg/m3\"); \
+     type SpecificEnthalpy = Real(unit = \"J/kg\"); \
+     partial package PM \
+       constant Pressure reference_p = 101325; \
+       constant Real factor(unit = \"1\") = 2; \
+       partial model BP Density d; SpecificEnthalpy h; SpecificEnthalpy u; \
+         Real twice; end BP; \
+     end PM; \
+     package TB \
+       extends PM(reference_p = 1.013e5); \
+       model BaseProperties extends BP; \
+       equation u = h - reference_p/d; d = 1000; h = 4000; \
+         twice = factor*d; end BaseProperties; \
+     end TB; \
+     model M TB.BaseProperties medium; \
+       parameter Real pressure(unit = \"Pa\") = TB.reference_p; \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M; \
+   end U;";
+
+#[test]
+fn a_medium_constant_an_equation_names_bare_keeps_its_unit() {
+    // What the medium's `extends` gave it, not the interface's 101325:
+    // 4000 - 101300/1000.
+    let result = run(REFERENCE_PRESSURE);
+    assert!((last_of(&result, "medium.u") - 3898.7).abs() < 1e-9);
+    // A dimensionless constant has nothing a name would keep, and stays
+    // the digit it was.
+    assert!((last_of(&result, "medium.twice") - 2000.0).abs() < 1e-9);
+    // A parameter's road wants the number, and gets it.
+    let model = parse_model(REFERENCE_PRESSURE).unwrap();
+    let pressure = model
+        .components
+        .iter()
+        .find(|c| c.name == "pressure")
+        .unwrap();
+    assert_eq!(
+        pressure.binding,
+        Some(oxidelica_parser::Expr::Number(101300.0))
+    );
+    let minted = model
+        .components
+        .iter()
+        .find(|c| c.name == "U.TB.reference_p")
+        .expect("the constant became a name of the flat model");
+    assert_eq!(minted.unit.as_deref(), Some("Pa"));
+    assert!(!model.components.iter().any(|c| c.name == "U.TB.factor"));
+
+    // Held back, the digit arrives without its unit and the equation
+    // is refused for a mismatch it does not have.
+    let _held = oxidelica_parser::hold_back_enclosing_mint_here();
+    let refused = match parse_model(REFERENCE_PRESSURE) {
+        Err(e) => e.message,
+        Ok(model) => compile(&model)
+            .map(|_| String::new())
+            .unwrap_or_else(|e| e.to_string()),
+    };
+    assert!(
+        refused.contains("cannot subtract `medium.h` (m2.s-2) and `101300 / medium.d`"),
+        "{refused}"
+    );
+}
+
+#[test]
+fn a_record_constant_settled_through_a_bare_sibling_keeps_its_number() {
+    // An ideal gas's `data.R_s` is written on the package's own
+    // `R_NASA`, named bare. Settling it wants the number: a name in
+    // its place leaves the field with no value at all, which is how
+    // four models were lost when the bare road first learned to mint.
+    let source = "package V \
+         type SpecificHeatCapacity = Real(unit = \"J/(kg.K)\"); \
+         record DataRecord Real MM(unit = \"kg/mol\"); SpecificHeatCapacity R_s; end DataRecord; \
+         package Data \
+           constant Real R_NASA(unit = \"J/(mol.K)\") = 8.314472; \
+           constant DataRecord gas(MM = 0.044, R_s = R_NASA/0.044); \
+         end Data; \
+         package Gas \
+           constant DataRecord data = Data.gas; \
+           model BaseProperties SpecificHeatCapacity R_s; Real T(unit = \"K\") = 300; \
+             Real u(unit = \"J/kg\"); \
+           equation R_s = data.R_s; u = R_s*T; end BaseProperties; \
+         end Gas; \
+         model M Gas.BaseProperties medium; \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M; \
+       end V;";
+    let result = run(source);
+    assert!((last_of(&result, "medium.R_s") - 8.314472 / 0.044).abs() < 1e-9);
+}

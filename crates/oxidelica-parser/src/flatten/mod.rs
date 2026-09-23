@@ -60,6 +60,7 @@ mod tables;
 #[cfg(test)]
 mod tests;
 
+pub use constants::{hold_back_enclosing_mint_here, EnclosingMintGuard};
 pub use lookup::{
     counts as name_counts, hold_back_components_here, hold_back_table_media_here,
     ComponentMemberGuard, TableMediaGuard, Trail,

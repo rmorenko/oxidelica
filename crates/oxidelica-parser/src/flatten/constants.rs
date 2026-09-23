@@ -1175,6 +1175,17 @@ fn substitute_at(
             // not in view of what is written inside another class of it.
             if !shadow.contains(&name.as_str()) {
                 if let Some(value) = enclosing_constant(registry, name, scope, depth) {
+                    // Only at the top of the equation's own
+                    // substitution. Below it a constant is being
+                    // settled to a number - `data.R_s` of an ideal gas
+                    // is `R_NASA_2002/MM`, worked out through here -
+                    // and a name there is a number lost.
+                    if depth == 0 && !settle_calls {
+                        if let Some(minted) = mint_enclosing_constant(registry, name, scope, value)
+                        {
+                            return minted;
+                        }
+                    }
                     return enclosing_as_declared(registry, name, scope, depth, value);
                 }
                 // What a package this class is written inside brought
@@ -2203,6 +2214,137 @@ fn mint_asked_as_constant(
         held.borrow_mut()
             .insert(minted.clone(), (value, Some(unit)))
     });
+    ANY_MINTED.with(|any| any.set(true));
+    Some(Expr::Ref(minted))
+}
+
+thread_local! {
+    /// Whether what is being substituted is an equation of a model,
+    /// the one road on which a constant found by walking outwards may
+    /// become a name instead of a digit.
+    static ON_EQUATION_ROAD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Hold [`ON_EQUATION_ROAD`] for as long as an equation is being
+/// substituted, and put it back after.
+pub(super) struct EquationRoad(bool);
+
+impl EquationRoad {
+    pub(super) fn now() -> EquationRoad {
+        EquationRoad(ON_EQUATION_ROAD.with(|on| on.replace(true)))
+    }
+}
+
+impl Drop for EquationRoad {
+    fn drop(&mut self) {
+        ON_EQUATION_ROAD.with(|on| on.set(self.0));
+    }
+}
+
+/// Whether a constant found by walking out of an equation's class may
+/// be minted. `OXIDELICA_NO_ENCLOSING_MINT=1` closes the road, so that
+/// one binary can be measured both ways.
+fn enclosing_mint_open() -> bool {
+    !ENCLOSING_MINT_HELD.with(std::cell::Cell::get)
+        && std::env::var_os("OXIDELICA_NO_ENCLOSING_MINT").is_none()
+}
+
+thread_local! {
+    /// Whether this thread asked for the enclosing mint to be held
+    /// back - what a test does to see the refusal it replaces.
+    static ENCLOSING_MINT_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Hold the enclosing mint back on this thread until the guard is
+/// dropped. The environment switch is one for the whole process; a
+/// test running beside others needs one of its own.
+pub fn hold_back_enclosing_mint_here() -> EnclosingMintGuard {
+    ENCLOSING_MINT_HELD.with(|held| held.set(true));
+    EnclosingMintGuard(())
+}
+
+/// Puts the enclosing mint back where it was.
+pub struct EnclosingMintGuard(());
+
+impl Drop for EnclosingMintGuard {
+    fn drop(&mut self) {
+        ENCLOSING_MINT_HELD.with(|held| held.set(false));
+    }
+}
+
+/// A constant a model's equation names bare, found in a package the
+/// class is written inside, as a name of the flat model rather than a
+/// digit.
+///
+/// The twin of [`mint_asked_as_constant`] for the other road a medium's
+/// constant reaches an equation by. `u = h - reference_p/d` is written
+/// in `BaseProperties` of a table-based medium, and `reference_p` is the
+/// medium's own: the walk outwards finds `1.013e5` and a digit is what
+/// it used to hand back. The digit is dimensionless, so the check read
+/// `1.013e5/d` as cubic metres per kilogram against the joules per
+/// kilogram of `h` - a model refused for an equation that is right,
+/// with the unit the declaration gives `reference_p` in plain view.
+///
+/// Only on the equation road, where nothing folds what it is handed:
+/// a parameter, a length or a condition wants the number, and a name
+/// there would take away an answer the compiler had. Only for a
+/// constant declared with a unit, since a name buys nothing over a
+/// digit otherwise. And only where the name says one number: the
+/// medium on the mark when one stands, the package that declares the
+/// constant when not, and never a name already standing for another
+/// value - that is two media under one name, and the digit is kept.
+fn mint_enclosing_constant(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    value: f64,
+) -> Option<Expr> {
+    if !ON_EQUATION_ROAD.with(|on| on.get())
+        || SETTLING_PARAMETER.with(|on| on.get())
+        || !super::lookup::REGISTRY_STANDS.with(|stands| stands.get())
+        || !enclosing_mint_open()
+    {
+        return None;
+    }
+    // The package that answered: the nearest one enclosing the scope
+    // whose gathering holds the name, which is the walk
+    // `enclosing_constant_at` made.
+    let mut owner = None;
+    let mut at = scope;
+    while !at.is_empty() {
+        if let Some(found) = registry
+            .get(at)
+            .filter(|found| found.kind == ClassKind::Package)
+        {
+            let mut constants = Vec::new();
+            gather_package_constants(registry, found, 0, &mut constants);
+            if constants.iter().any(|(known, _)| known == name) {
+                owner = Some(found.name.clone());
+                break;
+            }
+        }
+        at = at.rsplit_once('.').map_or("", |(head, _)| head);
+    }
+    let owner = owner?;
+    let under = super::inlining::asked_as_package(registry, &owner).unwrap_or(owner);
+    let unit = declared_unit(registry, &under, name, 0)?;
+    if unit.is_empty() || unit == "1" {
+        return None;
+    }
+    let minted = format!("{under}.{name}");
+    let agrees = MINTED.with(|held| {
+        let mut held = held.borrow_mut();
+        match held.get(&minted) {
+            Some((known, _)) => *known == value,
+            None => {
+                held.insert(minted.clone(), (value, Some(unit)));
+                true
+            }
+        }
+    });
+    if !agrees {
+        return None;
+    }
     ANY_MINTED.with(|any| any.set(true));
     Some(Expr::Ref(minted))
 }
