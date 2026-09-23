@@ -93,10 +93,25 @@ jobs:
     # A ceiling of our own. Without one the job runs under GitHub's
     # six hours, which is not a limit anybody chose: a model that
     # takes for ever would hold a runner most of a working day before
-    # anyone heard about it. Ninety minutes is above what this job
-    # takes today - around half an hour, most of it one model - and
-    # low enough that going wrong is news the same morning.
-    timeout-minutes: 90
+    # anyone heard about it. Ninety minutes was set when the job took
+    # around half an hour, and it has not stayed there. The job grows
+    # with the number of models that run, because each of them is
+    # simulated here, and the successful runs of this job measured it:
+    #
+    #   7b76dd0  537 run  53.3 min
+    #   20bff08  540 run  62.7 min  (after the two pipes were carved out)
+    #   d7397f9  572 run  69.0 min
+    #   d72cb7b  579 run  82.3 min
+    #
+    # From 20bff08 to d72cb7b that is 19.6 minutes for 36 models, about
+    # half a minute a model, and ninety minutes left room for some
+    # fourteen more. A hundred and fifty leaves 67 minutes over the
+    # last run: at half a minute a model that is some 120 models, and
+    # with the runner's weather allowed for, roughly seventy models
+    # ahead. It is headroom for the next stretch of work, not a number
+    # for ever: when the job approaches it again the answer is to split
+    # the job, not to raise the ceiling blindly.
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
 
