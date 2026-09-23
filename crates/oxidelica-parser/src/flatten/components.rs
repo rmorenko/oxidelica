@@ -397,6 +397,8 @@ pub(super) fn instantiate_components(
             imports,
             scope,
             inside_a_parameter: env.inside_a_parameter,
+            class,
+            inherited,
         };
         // An array bound - or started - as a whole hands each element
         // its own value.
@@ -1219,6 +1221,8 @@ pub(super) fn instantiate_one(
         imports,
         scope,
         inside_a_parameter,
+        class: _,
+        inherited: _,
     } = *level;
     // A `parameter` record is a parameter all the way down: its
     // fields are declared plainly inside the record, and left as they
@@ -1633,6 +1637,10 @@ pub(super) fn instantiate_one(
             // shape nobody asked about is a guess about which class the
             // name lands in, and this compiler owes a refusal instead.
             let mut handed_below: HashMap<String, Vec<i64>> = HashMap::new();
+            // The siblings' shapes among them, apart: a value naming
+            // a sibling not yet instantiated is spread over elements
+            // by these, where nothing else has measured it.
+            let mut siblings_below: HashMap<String, Vec<i64>> = HashMap::new();
             for (_, value) in &mods {
                 let Expr::Ref(named) = value else {
                     continue;
@@ -1647,6 +1655,26 @@ pub(super) fn instantiate_one(
                     // length the last cannot ask anybody for.
                     .or_else(|| handed_sizing.get(named.as_str()))
                     .or_else(|| handed_sizing.get(format!("{prefix}{named}").as_str()));
+                // A member of a sibling declared further down:
+                // `startTime_0(table = startTime.table)` standing above
+                // `startTime(table = [...])`. Modelica does not order
+                // declarations, but they are instantiated in the order
+                // they are written, so the sibling has not been
+                // measured yet. Its value is written out on its own
+                // declaration, and a value written out says its
+                // length by being written out.
+                let written;
+                let known = match known {
+                    Some(shape) => Some(shape),
+                    None if std::env::var_os("OXIDELICA_NO_SIBLING_SHAPE").is_none() => {
+                        written = sibling_written_shape(named, level, registry);
+                        if let Some(shape) = &written {
+                            siblings_below.insert(named.clone(), shape.clone());
+                        }
+                        written.as_ref()
+                    }
+                    None => None,
+                };
                 if let Some(shape) = known {
                     handed_below
                         .entry(named.clone())
@@ -1658,7 +1686,7 @@ pub(super) fn instantiate_one(
                 redeclares,
                 inners,
                 broken: &[],
-                handed_shapes: &HashMap::new(),
+                handed_shapes: &siblings_below,
                 sizing_shapes: &handed_below,
                 outer_sizes: sizes,
                 inside_a_parameter,
@@ -1755,4 +1783,55 @@ fn same_binding(before: Option<&Expr>, now: Option<&Expr>) -> bool {
         }
         _ => false,
     }
+}
+
+/// The shape of `sibling.member`, where `sibling` is a component of
+/// the class being instantiated whose own declaration writes `member`
+/// out in full.
+///
+/// Only a value written out is measured: a literal table says its
+/// length by how it is written, wherever it stands and whatever has
+/// been instantiated so far. A value handed down from above that
+/// reaches the sibling or its member outranks the declaration, so
+/// where there is one this answers nothing and the measurement is left
+/// to the roads that know what the handed value says.
+fn sibling_written_shape(
+    named: &str,
+    level: &Level,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<Vec<i64>> {
+    let local = named.strip_prefix(level.prefix).unwrap_or(named);
+    let (head, member) = local.split_once('.')?;
+    if member.contains('.') || member.contains('[') || head.contains('[') {
+        return None;
+    }
+    let reaches = |target: &str| {
+        target == head
+            || target
+                .strip_prefix(head)
+                .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('['))
+    };
+    if level.overrides.iter().any(|(target, _)| reaches(target)) {
+        return None;
+    }
+    let sibling = level
+        .class
+        .components
+        .iter()
+        .chain(level.inherited.iter().map(|(component, _)| component))
+        .find(|component| component.name == head)?;
+    if !sibling.dimensions.is_empty() {
+        return None;
+    }
+    let (_, written) = sibling
+        .modifiers
+        .iter()
+        .find(|(modified, _)| modified == member)?;
+    let mut shape = Vec::new();
+    while let Some(length) =
+        extents::flexible_size(written, shape.len(), registry, level.scope, level.imports)
+    {
+        shape.push(length);
+    }
+    (!shape.is_empty()).then_some(shape)
 }

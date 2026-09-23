@@ -18016,3 +18016,45 @@ the count of lookups did. The likely cause is that some walk visits a
 `HashMap` in the order of its per-process random seed, and a lookup
 that ends early asks a different number of names. That is a guess and
 has not been shown. It is why `names` is printed and not held.
+
+## The CombiTimeTable five run, and the work counts were the library's path
+
+The five `Test68` to `Test72` stood on one link and then a second
+inside it, both about the same unmeasured sibling. In the first, the
+block above measures its `:` from `startTime.table` while `startTime`
+has not been instantiated. When the value handed down is
+`sibling.member`, and the sibling's own declaration writes that member
+out as a literal, the shape is now read off the declaration. Nothing
+handed from above may reach the sibling, or this reading stays silent.
+In the second, with the length known, every element of the child's
+`table` was still bound to the whole of `startTime.table`, and the
+table's handle came out as names that no parameter settles. That
+refusal was the one about the external `getValue`. The sibling's
+shape is now handed to the child on the table that spreads a value
+over elements. It sits in a table of its own and not in the sizing
+table, because widening that table once cost twenty-one models.
+Swapping the declarations in the source gives the same numbers:
+`startTime_0.y[1] = 365` at 8000 either way round. Behind the switch
+`OXIDELICA_NO_SIBLING_SHAPE`: 879/572 to 884/577, with the five added
+to both lists and nothing leaving (/tmp/m259/c2.txt against
+/tmp/m259/on.txt).
+
+A pitfall for the next reader. Run with `simulate` at its default
+step, the reordered Test68 dies at the output-row ceiling just before
+t = 2000. So does a bare `der(x) = 1` with StopTime 8000. That is the
+default output interval against a long stop time, and it says nothing
+about the table.
+
+The work counts from two passes of one tree differed by 0.13% in
+expansions and 0.99% in bodies. The counter is not at fault. Two clean
+passes from `.msl` agree with each other and with the written numbers
+to the digit (/tmp/m259/c1.txt, c2.txt). A pass of the same binary
+over the same revision of the library from the preflight's default
+directory, `~/.local/share/oxidelica/libraries/Modelica`, reproduces
+the preflight's numbers to the digit (/tmp/m259/c3-L.txt). Model by
+model, the difference sits on the table tests that read a file through
+`loadResource`, whose absolute path is worked over by the string
+functions: 3192 expansions and 342 bodies on each one-dimensional or
+time table, 4788 and 513 on each two-dimensional one. No environment
+variable was involved. The switches of the m258 pair were not the
+cause.

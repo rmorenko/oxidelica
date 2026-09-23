@@ -176,7 +176,19 @@ FILES_FLOOR=2671
 # `OXIDELICA_NO_RECORD_LOCALS` (/tmp/m258/off.txt: 875/571 and
 # 760/529; /tmp/m258/on.txt: 879/572 and 764/530), nothing leaving
 # either list.
-FLATTEN_FLOOR=879
+#
+# And five that stood on the order of their declarations: a time table
+# handed `table = startTime.table` from a block declared below it, whose
+# `:` nothing had measured yet and whose elements were each bound to
+# the whole of the other table:
+#
+#   flatten 884 = 879 above, plus
+#                 ModelicaTest.Tables.CombiTimeTable.Test68 to Test72
+#
+# Measured from one binary either side of `OXIDELICA_NO_SIBLING_SHAPE`
+# (/tmp/m259/c2.txt, the binary before the change: 879/572 and 764/530;
+# /tmp/m259/on.txt: 884/577 and 769/535), nothing leaving either list.
+FLATTEN_FLOOR=884
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -507,11 +519,18 @@ FLATTEN_FLOOR=879
 #                run decides inside a walked `dofpT`, and at `sat`
 #   runnable flatten 764 = 760 below, plus all four, runnable examples
 #   runnable run 530 = 529 below, plus TestLinearPower
-RUN_FLOOR=572
+#
+# And the five time tables set out at `FLATTEN_FLOOR`, all of which run:
+#
+#   run          577 = 572 above, plus Test68 to Test72
+#   runnable flatten 769 = 764 below, plus the same five, runnable
+#                examples
+#   runnable run 535 = 530 below, plus the same five
+RUN_FLOOR=577
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
-RUNNABLE_FLATTEN_FLOOR=764
-RUNNABLE_RUN_FLOOR=530
+RUNNABLE_FLATTEN_FLOOR=769
+RUNNABLE_RUN_FLOOR=535
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

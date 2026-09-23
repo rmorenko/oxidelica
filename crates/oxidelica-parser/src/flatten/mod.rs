@@ -2503,6 +2503,11 @@ struct Level<'a> {
     scope: &'a str,
     /// Whether the enclosing class is itself part of a parameter.
     inside_a_parameter: bool,
+    /// The enclosing class, whose declarations a modifier may name
+    /// before they have been instantiated.
+    class: &'a ClassDef,
+    /// The declarations it inherited, which it may name the same way.
+    inherited: &'a [(Component, Option<Expr>)],
 }
 
 /// How a statement list finished: fell off the end, hit a `break`, or

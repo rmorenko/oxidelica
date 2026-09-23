@@ -2252,3 +2252,30 @@ fn an_enumeration_with_nothing_said_about_it_starts_at_its_first_literal() {
     assert_eq!(at("y"), 7.0);
     assert_eq!(at("seen"), 7.0);
 }
+
+/// A table may be handed the table of a block declared below it.
+///
+/// Modelica does not order declarations: `b(table = a.table)` written
+/// above `a(table = [...])` is the same model as the two lines the
+/// other way round. Declarations are instantiated in the order they
+/// are written, so where `b` measures its flexible `:` nothing has
+/// measured `a` yet, and the model was refused. The standard library's
+/// own tests of the time table write it this way round, five times.
+#[test]
+fn a_table_handed_from_a_block_declared_below_reads_the_same() {
+    let block = "block B parameter Real table[:, :]; \
+         Times.Handle h = Times.Handle(\"NoName\", \"NoName\", table, 0, {2}, 1, 2, 0); \
+         Real y; equation y = Times.getValue(h, 1, time, 0, 0); end B;";
+    let value_of_b = |order: &str| {
+        let result = run(&format!(
+            "{TIME_TABLE} {block} model M {order} \
+             annotation(experiment(StopTime = 1, Interval = 0.25)); end M;"
+        ));
+        let which = result.columns.iter().position(|c| c == "b.y").unwrap();
+        result.rows.last().unwrap()[which]
+    };
+    let below = value_of_b("B b(table = a.table); B a(table = [0, 0; 1, 2]);");
+    let above = value_of_b("B a(table = [0, 0; 1, 2]); B b(table = a.table);");
+    assert!((below - 2.0).abs() < 1e-6, "{below}");
+    assert!((below - above).abs() < 1e-12, "{below} against {above}");
+}
