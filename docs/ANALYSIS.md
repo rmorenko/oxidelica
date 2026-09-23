@@ -17533,3 +17533,97 @@ code.rs:843 (4 models), `ph_explicit` at code.rs:174 (2), and
 `imsQS.vr[1].re.re`, which shares compile.rs:2338 with `j` but is a
 complex name assembled twice rather than a constant never resolved -
 it did not move here.
+
+## An `if` that holds only a check owes no `else`
+
+Six of the seventeen live conditional models - every
+`ModelicaTest.Media.TestAllProperties` case with a medium that reads
+properties - died at the same wall, and the refusal named counting:
+"an `if` equation has a condition the compiler cannot decide and no
+`else`, so the model would have a different number of equations
+depending on it". The source it names is `Media.mo` lines 93 to 108,
+four `if time >= t_min then assert(...); end if;` clauses, and their
+branches hold no equation at all. The complaint is about a count that
+differs between branches, and a branch that contributes nothing
+contributes the same nothing whichever way the condition falls.
+
+So `push_conditional` asks first whether any branch holds an
+equation. Where none does, the missing `else` is no longer refused,
+and the `if` records no mode for the compiler to settle: `conditional`
+stays empty and the equation list is untouched, which is what the
+truncation in `mod.rs` expects.
+
+The checks are not dropped, which is the point that mattered. They
+travel by the road the balanced case already built, a few lines
+further down the same function: each becomes `not guard or condition`,
+with the guard the branch's own condition and the denial of every
+condition before it. A check written under `time >= t_min` therefore
+holds trivially before `t_min` and bites after it, which is what the
+library wrote it to do. Measured on a small model with the check
+deliberately made to fail: `assertion failed at t = 0.008000` with
+`t_min = 0.005`, and silence before that.
+
+The switch is `OXIDELICA_NO_CHECK_ONLY_IF`, so that one binary gives
+both numbers.
+
+## Where the LossyGear family's constant folding actually gives up
+
+The row of six models refused at `instantiate.rs:1258` - a `for` in a
+branch the compiler could not decide - stands on one parameter,
+`ideal = Modelica.Math.Matrices.isEqual(lossTable, [0,1,1,0,0],
+Constants.eps)`. The question worth answering before any code is
+written was which part of that call the constant layer cannot do, and
+the answer is none of the parts anybody would name first.
+
+Narrowed with `why`, one variant at a time. The library call is not
+the wall: `isEqual([1,2],[1,2],Modelica.Constants.eps)` folds to a
+number, so a body with a `while` and an early return is walked and
+`Modelica.Constants.eps` and the default third argument are both
+settled. The matrix literal is not the wall either: `sum([v[1],2])`
+and `size([v[1],2],2)` both fold. And the shape is not the wall: an
+input declared `[1,2]` with no `size()` in the body fails the same way
+a `[:,:]` one does.
+
+What decides is smaller than any of those, and a fifteen-line function
+shows it with no matrix in sight:
+
+```modelica
+function cmp
+  input Real x;
+  output Boolean r;
+protected
+  Integer j = 1;
+algorithm
+  r := true;
+  while j <= 2 loop
+    if x > 99 then
+      r := false; j := 2;
+    end if;
+    j := j + 1;
+  end while;
+end cmp;
+```
+
+Called as `cmp(s)` with `s` a scalar parameter this folds to `true`.
+Called as `cmp(v[1])`, with `v` a parameter vector, it stands as
+`P.cmp(v[1])` and the run then reports `nothing works out P.cmp`.
+Remove the early `j := 2` and both fold; write the condition without
+`x` and both fold. So the three ingredients are: a `while` whose trip
+count the body itself writes from inside a branch, a branch condition
+reading an argument, and that argument being a subscript of a
+parameter rather than a parameter. Any two of the three fold.
+
+That places the cost of the row. It is not "teach const-eval to
+execute function bodies" - the bodies are executed already, loops,
+early exits and all. It is that a subscript of a parameter does not
+reach `settled_truth` as a number where a plain parameter does,
+`const_eval` answers nothing for it, and the `while` at
+`statements.rs:316` then declares its trip count unsettled because a
+branch inside it wanted to write the counter. `v[1]` folds perfectly
+well on its own - `parameter Real b = v[1]` gives `1` - so the value
+is reachable; it is the road into the unrolled body that does not
+carry it.
+
+No code was written for this. The next shift has the reproduction
+above, which answers in a second what the corpus answers in eleven
+minutes.

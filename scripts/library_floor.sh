@@ -438,9 +438,19 @@ FLATTEN_FLOOR=865
 # 865/565 and 750/523), and the diff of the run lists
 # (/tmp/m253/b.ran against /tmp/m253/a.ran) is that one name arriving
 # with nothing leaving.
-RUN_FLOOR=565
-RUNNABLE_FLATTEN_FLOOR=750
-RUNNABLE_RUN_FLOOR=523
+#
+# And the check-only `if` above, whose numbers are set out at
+# `FLATTEN_FLOOR`:
+#
+#   run          568 = 565 before, plus CO2,
+#                ConstantPropertyLiquidWater and DryAirNasa
+#   runnable flatten 754 = 750 before, plus those three and
+#                LinearWater_pT_Ambient, which flattens and does not run
+#   runnable run 526 = 523 before, plus the same three, all runnable
+#                examples
+RUN_FLOOR=568
+RUNNABLE_FLATTEN_FLOOR=754
+RUNNABLE_RUN_FLOOR=526
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -522,6 +532,13 @@ if [ -z "${flatten_ms_now:-}" ] || [ -z "${run_ms_now:-}" ]; then
 else
   [ "$flatten_ms_now" -le "$FLATTEN_MS_CEILING" ] || over "flattening" "$flatten_ms_now" "$FLATTEN_MS_CEILING"
   [ "$run_ms_now" -le "$RUN_MS_CEILING" ] || over "running" "$run_ms_now" "$RUN_MS_CEILING"
+fi
+
+if [ "$status" -eq 0 ]; then
+  echo "OK: $read_now files read, $flatten_now flatten, $run_now run; runnable $runnable_flatten_now flatten, $runnable_run_now run"
+  echo "OK: ${flatten_ms_now}ms per model flattening, ${run_ms_now}ms running"
+fi
+exit "$status"
 fi
 
 if [ "$status" -eq 0 ]; then

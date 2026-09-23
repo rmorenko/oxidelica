@@ -734,6 +734,33 @@ fn a_check_may_be_written_where_the_statements_are() {
         err("model M Real y; algorithm terminate(\"now\"); y := 1; end M;")
             .contains("belongs in a `when`")
     );
+    // An `if` with no `else` whose branch holds only a check changes
+    // no count of equations however the condition falls, so the
+    // complaint about counting has nothing to say. The check itself
+    // survives, guarded by the branch's own condition.
+    let m = parse_model(
+        "model M Real y; constant Real t_min = 1e-6; \
+         equation y = time; \
+         if time >= t_min then assert(y >= 0, \"y went negative\"); end if; \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("an `if` holding only a check needs no `else`");
+    assert_eq!(m.asserts.len(), 1);
+    assert_eq!(m.asserts[0].1, "y went negative");
+    assert!(
+        format!("{:?}", m.asserts[0].0).starts_with("Or(Not("),
+        "{:?}",
+        m.asserts[0].0
+    );
+    assert!(
+        m.conditional.is_empty(),
+        "an `if` contributing no equation leaves no mode to settle"
+    );
+    // A branch that does hold an equation is still owed an `else`.
+    assert!(
+        err("model M Real y; equation if time >= 1 then y = 1; end if; end M;")
+            .contains("no `else`")
+    );
 }
 
 #[test]

@@ -1214,6 +1214,13 @@ pub(super) struct Built {
     pub(super) broke_something: Vec<bool>,
 }
 
+/// Whether an `if` holding no equations at all is allowed to stand
+/// without an `else`. `OXIDELICA_NO_CHECK_ONLY_IF` is kept so that one
+/// binary can be measured both ways.
+fn keep_check_only_if() -> bool {
+    std::env::var_os("OXIDELICA_NO_CHECK_ONLY_IF").is_none()
+}
+
 /// Record an `if` equation whose condition only the run can decide.
 ///
 /// The spec calls such an `if` balanced: every branch, `else`
@@ -1235,11 +1242,23 @@ where
 {
     let mut conditions = Vec::new();
     let mut branches: Vec<Vec<EquationItem>> = Vec::new();
+    // The missing `else` is a complaint about counting, so it has
+    // nothing to say where there is nothing to count: an `if` whose
+    // branches hold only checks contributes no equation whichever way
+    // the condition falls. The checks themselves are not dropped -
+    // each leaves the guarded form `not guard or condition` below,
+    // which is the same thing the balanced case already emits.
+    let counts_nothing = keep_check_only_if()
+        && if_equation
+            .branches
+            .iter()
+            .all(|branch| branch.equations.is_empty());
     for (position, branch) in if_equation.branches.iter().enumerate() {
         let last = position + 1 == if_equation.branches.len();
         match (&branch.condition, last) {
             (Some(condition), false) => conditions.push(resolve_here(condition)?),
             (None, true) => {}
+            (Some(condition), true) if counts_nothing => conditions.push(resolve_here(condition)?),
             (Some(_), true) => {
                 return Err(format!(
                     "an `if` equation in `{class_name}` has a condition the compiler cannot \
@@ -1351,6 +1370,12 @@ where
             };
             acc.asserts.push((held, message.clone()));
         }
+    }
+    // An `if` that contributes no equation has nothing for the
+    // compiler to settle a mode about; the guarded checks above are
+    // the whole of what it left behind.
+    if counts_nothing {
+        return Ok(());
     }
     acc.conditional.push(ConditionalEquations {
         conditions,
