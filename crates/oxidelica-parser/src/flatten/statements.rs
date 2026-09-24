@@ -1170,15 +1170,34 @@ fn one_if_statement(
                 expand(&c, &shapes, registry, scope, imports, depth + 1)?.scalar()
             })
             .transpose()?;
-        // The `else` branch holds where no condition before it did, and
-        // that is not one expression here; a check it made is left as it
-        // was rather than guarded by a guess.
-        if let Some(condition) = &condition {
-            let otherwise = Expr::Not(Box::new(condition.clone()));
+        // A branch is taken where its own condition holds and none
+        // before it did, and that conjunction is what guards its
+        // checks. The `else` has no condition of its own, but it still
+        // has the ones before it: left bare, `assert(false, ...)` in an
+        // `else` fired at the first step of a run whose inputs chose
+        // the branch above it. Its own condition alone is not enough
+        // for an `elseif` either, which would shout wherever an earlier
+        // branch was the one taken.
+        let old_guard = std::env::var_os("OXIDELICA_OLD_BRANCH_GUARD").is_some();
+        let taken = if old_guard {
+            condition.clone()
+        } else {
+            let not_before = outcomes
+                .iter()
+                .filter_map(|(earlier, _)| earlier.clone())
+                .map(|earlier| Expr::Not(Box::new(earlier)))
+                .reduce(|a, b| Expr::And(Box::new(a), Box::new(b)));
+            match (not_before, condition.clone()) {
+                (Some(before), Some(own)) => Some(Expr::And(Box::new(before), Box::new(own))),
+                (before, own) => own.or(before),
+            }
+        };
+        if let Some(taken) = &taken {
+            let otherwise = Expr::Not(Box::new(taken.clone()));
             for (check, _) in asserts.iter_mut().skip(mark) {
                 *check = Expr::Or(Box::new(otherwise.clone()), Box::new(check.clone()));
             }
-            algorithms::checks_guarded(aside, condition, true);
+            algorithms::checks_guarded(aside, taken, true);
         }
         outcomes.push((condition, local));
     }

@@ -2441,3 +2441,37 @@ fn a_length_handed_as_the_holders_name_measures_the_base() {
         );
     }
 }
+
+#[test]
+fn a_check_in_a_branch_not_taken_holds_its_fire() {
+    // An `else` is taken only where no condition before it held, and
+    // what it checks is guarded by that. Left bare, the check fired at
+    // the first step although the `elseif` above it was the branch
+    // every point of the run takes. The `elseif` itself is guarded by
+    // the branches before it too: its check must not fire where the
+    // first branch was taken.
+    let result = run("model NI \
+           function h input Real u; input Real p = 2; output Real y = 0; \
+           algorithm \
+             if u >= 10 then y := 1; \
+             elseif p >= 1.5 then y := 2*u; \
+             else assert(false, \"no branch\"); end if; \
+           end h; \
+           function g input Real u; output Real y = 0; \
+           algorithm \
+             if u >= 2 then y := u; \
+             elseif u >= 1 then assert(u < 2, \"shadowed\"); y := -u; \
+             else y := 0; end if; \
+           end g; \
+           Real s; Real r; \
+         equation s = h(time + 3); r = g(time + 3); \
+         annotation(experiment(StopTime = 1.0, Interval = 0.1)); end NI;");
+    assert!(result.terminated.is_none());
+    let s = result.columns.iter().position(|c| c == "s").unwrap();
+    let r = result.columns.iter().position(|c| c == "r").unwrap();
+    let time = result.columns.iter().position(|c| c == "time").unwrap();
+    for row in &result.rows {
+        assert!((row[s] - 2.0 * (row[time] + 3.0)).abs() < 1e-9, "{row:?}");
+        assert!((row[r] - (row[time] + 3.0)).abs() < 1e-9, "{row:?}");
+    }
+}

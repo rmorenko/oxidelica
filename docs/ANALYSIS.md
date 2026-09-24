@@ -19920,3 +19920,50 @@ Modelica.Math.Nonlinear.quadratureLobatto$...]`, and none has come. The
 parameter rows are 35, 27 service classes and 8 in the queue, from 9:
 `QuadratureLobatto3` has left the queue and runs. Together 116 + 326 =
 442 = 1034 − 592.
+
+## The m273 series: a check in a branch not taken, and the names held
+
+### The m273 branch guard: an `else` is guarded by what came before it
+
+`/tmp/m272/NI.mo` was read in m272 as a fault of `Constants.inf` in a
+walked body. The probe says otherwise. With `Modelica.Constants.inf`
+written as `1e60` the condition `p >= 1e60` is decided while the body
+is inlined, only the taken branch is worked out, and the model runs.
+With `Modelica.Constants.pi` in its place (`/tmp/m273/NI2.mo`) it
+refuses exactly as with `inf`. So what `inf` does is only to make the
+first condition one the inliner cannot settle, and then every branch
+is worked out and merged, and the checks each branch makes are carried
+out of the `if` guarded by its condition.
+
+The fault is in that guard (`one_if_statement` in
+`flatten/statements.rs`). A branch's checks were guarded by its own
+condition alone, and the `else`, having none, carried its checks out
+bare. `assert(false, ...)` in an `else` - which is what
+`Streams.error` is - then fired at the first step of every run. The
+`?` in the message is a second symptom and not the cause: the message
+of a merged branch is read as text off the run, where `String(p)` has
+no value to show. Why the default of `p` is not substituted into it
+was not traced.
+
+The same guard was also too wide for an `elseif`: its own condition
+alone holds where an earlier branch was the one taken, so a check in
+it could fire at a point where it was never reached. The guard is now
+the conjunction the language means - no condition before held, and the
+branch's own does - with `OXIDELICA_OLD_BRANCH_GUARD` bringing back the
+old one. The test `a_check_in_a_branch_not_taken_holds_its_fire`
+covers both halves without the library and fails on the old guard with
+`assertion failed at t = 0.000000: no branch`.
+
+### The m273 pair
+
+One binary, `/tmp/m273/on.txt` and `/tmp/m273/off.txt`, the second with
+`OXIDELICA_OLD_BRANCH_GUARD` set. Both print 918 flatten and 592 run,
+803 and 550 runnable, and the two lists of models that ran agree name
+by name (`/tmp/m273/ran_on.txt` against `ran_off.txt`, an empty diff).
+The only count that moved is the expansions, 94394474 against
+94394384: ninety more, the guards being written out where the merged
+branches are. So the change wins no model on its own. It is still a
+wrong answer removed rather than a refusal moved: a check that fires
+for a branch not taken stops a run that is right, and the model that
+showed it, TestMatrices2b, stands behind the `dgesvd` chain parked in
+m272, whose last link this was.
