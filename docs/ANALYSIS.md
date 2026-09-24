@@ -20003,3 +20003,14 @@ So `held` takes an optional band in parts per million, the names get
 2000 of it, and the other six stay under the five percent. Fed the
 desk line, the build machine's line and the preflight's it passes;
 fed a rise of 18% or a fall of 0.22% it fails.
+
+### The m273 census
+
+Taken after the branch guard (`/tmp/m273/census.txt`, raw in
+`/tmp/m273/raw.txt`) over 1034 models, counted by the section bounds.
+The refused half is 116 in 51 rows and the run half 326 in 167, and
+the counted rows of both halves are identical to m272 line for line.
+The parameter rows are 35, 27 service classes and 8 in the queue, as
+before. Together 116 + 326 = 442 = 1034 − 592. The guard moved no
+refusal: the one model it frees stands behind the parked `dgesvd`
+chain, which is where the census still counts it.
