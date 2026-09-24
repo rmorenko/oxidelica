@@ -645,7 +645,7 @@ fn gather_package_constants<'a>(
                     continue;
                 }
                 if let Some(held) = out.iter_mut().find(|(existing, _)| existing == name) {
-                    held.1 = Some(value.clone());
+                    held.1 = Some(written_whole(registry, class, value));
                 }
             }
         }
@@ -700,6 +700,43 @@ fn gather_package_constants<'a>(
                 }
             }
         }
+    }
+}
+
+/// A name an `extends` modifier gives a constant, written out whole
+/// under the class that wrote the `extends`.
+///
+/// `H2O` says `extends SingleGasNasa(data = Common.SingleGasesData.H2O)`
+/// and `Common` means something only where `H2O` is written. A medium
+/// that extends `H2O` in turn - the standard library's `IdealSteam` -
+/// gathers the same modifier and then reads the name from its own
+/// package, where `Common` is nobody: the gas data went missing and
+/// every enthalpy of steam was refused. The writer is known here and
+/// nowhere later, so the name is resolved here. Only a name whose head
+/// is a class, alone or as an element of a list - `fluidConstants =
+/// {Common.FluidData.H2O}` is the same modifier's neighbour - and
+/// anything else is left as it was written.
+fn written_whole(registry: &HashMap<&str, &ClassDef>, writer: &ClassDef, value: &Expr) -> Expr {
+    if constant_records_off() {
+        return value.clone();
+    }
+    match value {
+        Expr::Array(items) => Expr::Array(
+            items
+                .iter()
+                .map(|item| written_whole(registry, writer, item))
+                .collect(),
+        ),
+        Expr::Ref(named) => {
+            let Some((head, tail)) = named.split_once('.') else {
+                return value.clone();
+            };
+            match lookup(registry, head, &writer.name, &writer.imports) {
+                Some(found) if found.name != head => Expr::Ref(format!("{}.{tail}", found.name)),
+                _ => value.clone(),
+            }
+        }
+        _ => value.clone(),
     }
 }
 
@@ -1298,6 +1335,24 @@ fn substitute_at(
                             })
                             .collect(),
                     };
+                    // A record handed to the body is handed as its
+                    // fields, the way the model's own road hands one:
+                    // `density(state)` of a linear fluid, where `state`
+                    // is a sibling constant built by `setState_pT`, or
+                    // a constructor written out in place. Left as it
+                    // was, the body read `s.d` off a name that holds
+                    // nothing, and the parameter the medium's constants
+                    // feed was refused for a variable no model writes.
+                    let args: Vec<Expr> = match constant_records_off() {
+                        true => args,
+                        false => args
+                            .into_iter()
+                            .map(|arg| {
+                                record_as_fields(&arg, registry, scope, imports, depth)
+                                    .unwrap_or(arg)
+                            })
+                            .collect(),
+                    };
                     let shapes: Vec<Vec<i64>> = args.iter().map(|_| Vec::new()).collect();
                     // The function the call really means: the medium this
                     // was asked under may have redeclared it with inputs
@@ -1318,6 +1373,24 @@ fn substitute_at(
                             scope != *pkg && inlining::descends_from(registry, scope, pkg)
                         })
                         .and_then(|_| inlining::AskedAs::under(scope));
+                    // A call written through a package the function is
+                    // inherited into - `StandardWater.setState_pT`,
+                    // whose body the two-phase interface wrote - is
+                    // asked under that package, the way the model's
+                    // road asks `Medium.density`. By the class that
+                    // wrote it, the body's `setState_pTX` is the
+                    // interface's partial one, which assigns nothing,
+                    // and the linear fluid's reference state was
+                    // refused for a phase no body gave it.
+                    let _written = match constant_records_off() {
+                        true => None,
+                        false => name.rsplit_once('.').and_then(|(head, _)| {
+                            let package = lookup(registry, head, scope, imports)?;
+                            (package.kind == ClassKind::Package
+                                && !class.name.starts_with(&format!("{}.", package.name)))
+                            .then(|| inlining::AskedAs::under(&package.name))?
+                        }),
+                    };
                     let class = inlining::function_asked_under(class, registry);
                     inlining::inline_function(
                         class,
@@ -1595,6 +1668,110 @@ fn scaled_constructor(binding: &Expr) -> Option<(BinOp, &Expr, &Expr)> {
         }
         Expr::Bin(BinOp::Mul, left, right) if is_constructor(right) => {
             Some((BinOp::Mul, left.as_ref(), right.as_ref()))
+        }
+        _ => None,
+    }
+}
+
+/// Whether a constant's binding hands its records to a body as they
+/// were written, as it did before: the switch that lets one binary give
+/// both numbers.
+fn constant_records_off() -> bool {
+    std::env::var_os("OXIDELICA_CONSTANT_RECORDS_OFF").is_some()
+}
+
+/// A record handed to a function inside a constant's binding, as the
+/// list of its fields in the order the record declares them - which is
+/// the shape the body's binder takes a record in.
+///
+/// Two spellings reach here. A constructor written in place, `S(h = 1,
+/// d = 3)`, is read field by field, a field it leaves out taking its
+/// declaration's value. A name, `state`, is a record constant of a
+/// package in view - a linear fluid's reference state, `setState_pT(
+/// reference_p, reference_T)` - and its binding is worked out under the
+/// package that holds it. Anything else is not a record this can read,
+/// and `None` leaves the argument as it was.
+fn record_as_fields(
+    arg: &Expr,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Option<Expr> {
+    if depth > MAX_CONSTANT_DEPTH {
+        return None;
+    }
+    match arg {
+        Expr::Call(called, given) => {
+            let record = lookup(registry, called, scope, imports)
+                .filter(|of| of.kind == ClassKind::Record)?;
+            let declared = super::record_fields::record_components(registry, record, 0);
+            let mut position = 0;
+            let mut fields = Vec::new();
+            for field in record_fields_of(registry, record, 0) {
+                let named = given.iter().find_map(|arg| match arg {
+                    Expr::NamedArg(name, value) if *name == field => Some((**value).clone()),
+                    _ => None,
+                });
+                let value = named.or_else(|| {
+                    let taken = given
+                        .get(position)
+                        .filter(|arg| !matches!(arg, Expr::NamedArg(..)))
+                        .cloned();
+                    position += usize::from(taken.is_some());
+                    taken
+                });
+                let value = match value {
+                    Some(value) => value,
+                    None => substitute_at(
+                        declared
+                            .iter()
+                            .find(|c| c.name == field)?
+                            .binding
+                            .as_ref()?,
+                        registry,
+                        &record.name,
+                        &record.imports,
+                        &[],
+                        depth + 1,
+                        true,
+                    ),
+                };
+                fields.push(value);
+            }
+            Some(Expr::Array(fields))
+        }
+        Expr::Ref(named) => {
+            let (owner, held) = match named.rsplit_once('.') {
+                None => enclosing_record_constant(registry, named, scope)?,
+                Some((head, member)) => {
+                    let owner = lookup(registry, head, scope, imports)?;
+                    (owner, declared_record(registry, owner, member, true)?)
+                }
+            };
+            // Only a record: a constant array handed by name is a list
+            // already, and the binder reads it as one.
+            lookup(registry, &held.type_name, &owner.name, &owner.imports)
+                .filter(|of| of.kind == ClassKind::Record)?;
+            let mut constants = Vec::new();
+            gather_package_constants(registry, owner, 0, &mut constants);
+            let binding = constants
+                .iter()
+                .find(|(known, _)| *known == held.name)
+                .and_then(|(_, binding)| binding.clone())?;
+            let settled = substitute_at(
+                &binding,
+                registry,
+                &owner.name,
+                &owner.imports,
+                &[],
+                depth + 1,
+                true,
+            );
+            match settled {
+                Expr::Array(_) => Some(settled),
+                other => record_as_fields(&other, registry, &owner.name, &owner.imports, depth + 1),
+            }
         }
         _ => None,
     }

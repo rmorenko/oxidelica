@@ -686,7 +686,13 @@ FLATTEN_FLOOR=917
 # whose `dp_small` is worked out by walking the library's pressure
 # loss (/tmp/m267/on2.txt against /tmp/m267/off2.txt). Nothing left
 # the run list. Runnable run 547 = 545 plus the same two.
-RUN_FLOOR=589
+#
+# And run 590 = 589 plus TestAllProperties.LinearWater_pT_Ambient, a
+# runnable example, whose linear fluid now reads its reference state
+# through the water package that fills it in (/tmp/m268/on.txt against
+# /tmp/m268/off.txt, one binary). Nothing left the run list and the
+# flatten list did not move. Runnable run 548 = 547 plus the same one.
+RUN_FLOOR=590
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -706,7 +712,7 @@ RUN_FLOOR=589
 # `FLATTEN_FLOOR`, runnable run 547 = 545 plus the two bends set out at
 # `RUN_FLOOR` (/tmp/m267/on2.txt).
 RUNNABLE_FLATTEN_FLOOR=802
-RUNNABLE_RUN_FLOOR=547
+RUNNABLE_RUN_FLOOR=548
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -848,11 +854,20 @@ RUN_MS_CEILING=8000
 # more than the whole rise of 5396078, the other 1031 models doing
 # 84896 fewer between them (0.09%); that difference was not traced.
 # The two bends that now run add 102 points and 220 Newton steps.
+#
+# Refreshed from /tmp/m268/on.txt, the off side of the same binary
+# (/tmp/m268/off.txt) printing the numbers above to the digit. The
+# classes did not move; the expansions fell 3.58% and the bodies rose
+# 0.78%, both inside the band. Those two were not traced model by
+# model. The names looked up, printed and not held, rose 18% (1509 to
+# 1781 million), so a later rise in the flatten half's time is to be
+# looked for here first. The one model that runs now adds 46 points and
+# 50 Newton steps.
 WORK_CLASSES=283567
-WORK_EXPANSIONS=97901382
-WORK_BODIES=1392192
-WORK_POINTS=32250622
-WORK_NEWTON=44495283
+WORK_EXPANSIONS=94392961
+WORK_BODIES=1402985
+WORK_POINTS=32250668
+WORK_NEWTON=44495333
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

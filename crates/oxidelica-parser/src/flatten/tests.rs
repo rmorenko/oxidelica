@@ -1018,3 +1018,66 @@ fn a_constructor_scaled_by_a_number_is_built_as_the_array_it_names() {
         }
     }
 }
+
+/// The number a parameter of the flat model settled to, where it did.
+fn settled_parameter(source: &str, name: &str) -> Option<f64> {
+    let m = parse_model(source).unwrap_or_else(|e| panic!("{e}"));
+    m.components
+        .iter()
+        .find(|c| c.name == name)
+        .and_then(|c| c.binding.clone())
+        .and_then(|b| super::const_eval(&b, &std::collections::HashMap::new()))
+}
+
+#[test]
+fn a_record_handed_to_a_body_in_a_constant_arrives_as_its_fields() {
+    // A linear fluid writes `reference_d = density(state)`, with the
+    // state a sibling record constant. Handed on as the bare name, the
+    // body read `s.d` off nothing and the parameters the medium feeds
+    // were refused. Checked on the number: twice the density handed in.
+    let source = "record S Real h; Real d; end S; \
+         function g input S s; output Real b; algorithm b := 2*s.d; end g; \
+         package K constant S st = S(h = 1, d = 3); \
+           constant Real c = g(st); constant Real c2 = g(S(h = 1, d = 5)); end K; \
+         model M parameter Real r = K.c; parameter Real r2 = K.c2; \
+           Real x; equation der(x) = r + r2; end M;";
+    assert_eq!(settled_parameter(source, "r"), Some(6.0));
+    assert_eq!(settled_parameter(source, "r2"), Some(10.0));
+}
+
+#[test]
+fn a_call_through_an_inheriting_package_finds_that_package_s_redeclaration() {
+    // `StandardWater.setState_pT` is written in the two-phase interface
+    // and calls `setState_pTX`, which only the water package fills in.
+    // Asked by the class that wrote it, the body met the partial one,
+    // which assigns nothing, and the reference state was refused.
+    let source = "record S Real h; Real d; end S; \
+         function g input S s; output Real b; algorithm b := 2*s.d; end g; \
+         partial package Base \
+           replaceable partial function f input Real p; output S s; end f; \
+           function wrap input Real p; output S s; algorithm s := f(p); end wrap; \
+         end Base; \
+         package Med extends Base; \
+           redeclare function extends f algorithm s := S(h = 1, d = 3*p); end f; \
+         end Med; \
+         package Lin constant S state = Med.wrap(4); constant Real c = g(state); end Lin; \
+         model M parameter Real r = Lin.c; Real x; equation der(x) = r; end M;";
+    assert_eq!(settled_parameter(source, "r"), Some(24.0));
+}
+
+#[test]
+fn a_name_an_extends_gives_is_read_where_the_extends_was_written() {
+    // `H2O` says `extends SingleGasNasa(data = Common.SingleGasesData.H2O)`
+    // and `IdealSteam`, in another package, extends `H2O`. `Common` is a
+    // name only beside `H2O`; read from `IdealSteam` it was nobody, and
+    // every property of steam lost its gas data.
+    let source = "record S Real h; Real d; end S; \
+         package Gases \
+           package Common constant S N(h = 1, d = 7); end Common; \
+           partial package Nasa constant S data; end Nasa; \
+           package H extends Nasa(data = Common.N); end H; \
+         end Gases; \
+         package Water package Steam extends Gases.H; end Steam; end Water; \
+         model M parameter Real r = Water.Steam.data.d; Real x; equation der(x) = r; end M;";
+    assert_eq!(settled_parameter(source, "r"), Some(7.0));
+}

@@ -19239,3 +19239,140 @@ media functions. By family, added from the rows:
 - `an array reached the evaluator`: 5 (3 + 2), unchanged. `C_nominal`
   went to 0 from 3.
 - divisor: 3, unchanged.
+
+## The m268 series: a medium's constants and the records they hand on
+
+### Five models at one wall, and three layers behind it
+
+The brief named five models at `cannot evaluate parameters
+[...h_start...]` (`/tmp/m267c/raw.txt` lines 268, 376, 381, 466 and
+467). The whole message, read from the raw half rather than the
+census, names what each one lacks, and the lists do not agree:
+
+- `HeatingSystem` and `LinearFluid.LinearWater_pT`: `state.d`,
+  `state.h`, `state.phase`, `dT_explicit`, `pT_explicit`. The linear
+  fluid's reference constants (`reference_d = density(state)` and its
+  like) are written on a record constant `state = setState_pT(p, T)`
+  of the water package.
+- `Water.IdealSteam`: `data.R_s`, `data.Tlimit` and the NASA
+  coefficients.
+- `ReferenceAir.DryAir1`: no name at all. The parameter is bound to a
+  list `{101325, 293.15, ...}`, a whole state record where one number
+  belongs.
+- `Inverse_sh_TX`: `MMX[1..4]`, `data.MM[1..4]`, `referenceChoice` of
+  the reference moist air.
+
+So the five share a message and not a cause. Three layers came out of
+the probe, each with a small model that went red the same way:
+
+1. A record handed to a function inside a package constant's binding
+   was handed as the bare name. `constant Real c = g(st)` with `st` a
+   sibling record constant, or `g(S(h = 1, d = 3))` written in place,
+   left the body reading `s.d` off nothing. The model's own road
+   already hands a record as its fields. The constants road
+   (`substitute_at` in `constants.rs`) did not. It now reads a
+   constructor, or a record constant by name, into the list of fields
+   the binder takes (`record_as_fields`).
+2. `StandardWater.setState_pT` is written in the two-phase interface
+   and calls `setState_pTX`. Asked by the class that wrote it, the call
+   found the interface's partial `setState_pTX`, which assigns
+   nothing. The inlining refused with `never assigns state.phase of its
+output`, and the refusal was swallowed into a standing call. The
+   call is now asked under the package its head names, the way the
+   model's road asks `Medium.density`.
+3. `H2O` writes `extends SingleGasNasa(data =
+Common.SingleGasesData.H2O, fluidConstants =
+{Common.FluidData.H2O})`. `IdealSteam`, in the water package,
+   extends `H2O`. The gathering carried the modifier up into
+   `IdealSteam` as written and read `Common` there, where it names
+   nothing. The name is now resolved under the class that wrote the
+   `extends` (`written_whole`). `IdealSteam.data.R_s` settles to
+   461.525 J/(kg K), the same as `H2O` asked directly.
+
+All three sit behind `OXIDELICA_CONSTANT_RECORDS_OFF`. Each has a test
+on the number, and each test goes red with the switch: twice the
+density handed in (6 and 10), a redeclared body reached through an
+inheriting package (24), and a record constant named through the
+writer's sibling package (7).
+
+The numbers were checked against published water data, not only for
+settling. `LinearWater_pT_Ambient.reference_d` comes to 997.048 kg/m3
+and `reference_h` to 104929.3 J/kg, at 101325 Pa and 298.15 K. The
+IAPWS value for the density is 997.05. For the enthalpy of liquid
+water at 25 °C the steam tables give about 104.9 kJ/kg (the IAPWS-IF97
+region 1 value is 104.93 kJ/kg at 0.1 MPa).
+
+### Where each of the five went
+
+Run one at a time with `--only` on the same binary:
+
+- `LinearFluid.LinearWater_pT`: to `der(volume.medium.T):
+volume.medium.T is not a state of the model`, index reduction.
+- `HeatingSystem`: to `pump.delta_head_init`, where `pump.pump.V_flow_op`
+  and `pump.pump.head_op` have no value. Those are the fields of the
+  pump's characteristic record, handed over through a redeclared
+  `flowCharacteristic`, which is another road.
+- `Water.IdealSteam`: it flattens and reaches the run, where
+  `solveOneNonlinearEquation` is handed a bracket of 200 K to 6000 K
+  that does not hold the root: f(200) = 36923 and f(6000) = 1.7e7, the
+  same sign. That is a wall of its own in the run.
+- `DryAir1`: not moved. The state record reaches `h_start` whole only
+  under `PartialTestModel`. The same `h_default` of `Air_pT`, asked by
+  a model that redeclares the medium in a smaller wrapper, settles to
+  20122.5 J/kg. So the list comes from something the test model adds,
+  not from the medium. Parked, with that as the map.
+- `Inverse_sh_TX`: not moved. The reference moist air's `MMX` and
+  `data.MM` are a different family (the moist-air arrays), parked.
+
+The corpus pair (`/tmp/m268/off.txt` against `/tmp/m268/on.txt`, one
+binary, the switch the only difference) moved one model none of the
+five was: `TestAllProperties.LinearWater_pT_Ambient` runs. That is a
+linear fluid whose reference state was the only thing in its way.
+Flatten 917 on both sides, run 589 to 590, runnable run 547 to 548.
+Nothing left either list. The off side printed the work counts written
+in `library_floor.sh` to the digit. The on side did 3.58% fewer
+expansions, 0.78% more bodies and 18% more names looked up, and the
+flatten half took 3214 ms per model against 3101.
+
+### The m268 census
+
+This census was taken after the series (`/tmp/m268/census.txt`, raw in
+`/tmp/m268/raw.txt`) with the binary the pair measured, over 1034
+models. The refused half is 117 over 49 rows, the same as m267. The
+run half is 327 over 166 rows, one fewer than m267's 328. Together
+they make 444 = 1034 − 590.
+
+Comparing the raw reports model by model against `/tmp/m267c/raw.txt`,
+four lines changed and nothing else did:
+
+- `TestAllProperties.LinearWater_pT_Ambient` left the run half. It had
+  stood at `unknown variable dT_explicit`, and it runs.
+- `HeatingSystem` moved inside the parameter rows, from `tank.h_start`
+  to `pump.delta_head_init`.
+- `LinearFluid.LinearWater_pT` moved from the parameters to `der(
+volume.medium.T): ... is not a state of the model`, which goes from
+  2 to 3.
+- `Water.IdealSteam` moved from the parameters to the unbracketed
+  `solveOneNonlinearEquation` at t = 0, which goes from 4 to 5.
+
+So the parameter rows went from 42 to 40, split 27 service classes
+(unchanged) and 13 queue (from 15). The loops, singular, unbalanced,
+`array reached the evaluator` and divisor rows are line for line those
+of m267, since no model in them changed.
+
+### Parked after m268, with the map
+
+- `ReferenceAir.DryAir1`: a whole state record reaches `h_start`, but
+  only under `Media.Examples.Utilities.PartialTestModel`. The same
+  `h_default`, asked through a smaller wrapper that redeclares the
+  medium, settles to 20122.5 J/kg. The next probe cuts
+  `PartialTestModel` down until the list goes away.
+- `Inverse_sh_TX`: the reference moist air's `MMX` and `data.MM`,
+  which belong to the moist-air arrays.
+- `HeatingSystem`: the pump characteristic's `V_flow_op` and `head_op`
+  through a redeclared `flowCharacteristic`. `TestControlledPump`
+  stands at the same line.
+- `Water.IdealSteam`: a bracket that does not hold the root, in the
+  run, beside the four models already there.
+- `LinearFluid.LinearWater_pT`: index reduction, beside the two
+  already at `der(volume.medium.T)`.
