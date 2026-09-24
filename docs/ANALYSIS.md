@@ -19664,3 +19664,119 @@ an equation can hold` (`TestStreams`, the file it writes itself).
 
 So 117 = 116 + 1 with `TestReadFile` the one, and the two new rows are
 two models that moved one wall on.
+
+## The m271 series: a length handed as a name, and a ceiling that has no gap
+
+### The m271 heat exchanger: the holder's number, read by its full name
+
+The seventeen lines of `HX2` above refused because the pipe's base was
+measured against the numbers settled under the pipe's own prefix, and
+`n = nNodes` reaches the pipe as `n = hx.nNodes`: the holder's number
+had settled one floor up, under the holder's path, and the pipe's
+table had not heard of `n`. So `dxs[n]` had no length, `h * dxs` came
+back whole, and every element of `dheights` was tied to the whole
+array. The fix is one reading in `instantiate_bases`: a value this
+class was handed that settles against the model's table is offered
+under the short name it answers, beside the numbers that already
+were. `OXIDELICA_NO_HANDED_NAMES` closes it. The test takes `HX2` with
+`n = 5` and with `n = nNodes`, and asks for `sum(dheights) = 2` in
+both; under the switch the name half refuses exactly as before
+(`/tmp/m271/red.txt`).
+
+It moves no count. `HeatExchangerSimulation` goes one wall on: from
+`cannot evaluate parameters [HEX.pipe_1.dheights[1] = ...]` to
+`unbalanced model: 3627 algebraic equation(s) for 3631 unknown(s);
+nothing determines HEX.pipe_1.flowModel.rhos_act[20],
+HEX.pipe_2.flowModel.mus_act[1], HEX.port_a1.h_outflow,
+HEX.port_b2.h_outflow`. The next wall is not this one's family, and a
+small model shows it without any handed name at all: a `StaticPipe`
+inside a wrapper with ports of its own, connected
+`connect(port_a, pipe.port_a)`, refuses `nothing determines
+w.pipe.flowModel.mus[2], w.pipe.flowModel.mus_act[1]`, while the same
+wrapper without the ports, the pipe reached as `w.pipe.port_a`, runs.
+So what stands behind the heat exchanger is a pipe seen through the
+connectors of the class holding it, parked here with that
+reproduction (`/tmp/m271/QS2.mo` against `/tmp/m271/R.mo`). The two
+`h_start` notes stay notes, carried into the run.
+
+`BasicHX` and `WallConstProps` are not the same road: both refuse
+identically with the switch on and off, `parameter length has no
+value` and `parameter s has no value`, which is what a service class
+with no value written for its length is owed. Their census rows do
+not move.
+
+### The m271 ceiling: measured, and stopped before it was built
+
+The brief was a ceiling on the size of one differentiated expression,
+set an order above the healthy maximum and orders below the giant
+that `Engine1b_analytic` becomes under the parked rod patch. Two
+measurements came first, with a temporary counter of `Expr` nodes on
+the output of every top-level `differentiate`, on a binary built in a
+scratch tree with the patch applied (`/tmp/m271/e1b_probe.txt`,
+`/tmp/m271/healthy.txt`, `/tmp/m271/e1b_shared.txt`).
+
+- The healthy maximum is 353037 nodes, from an input of 80653, reached
+  at the tenth derivative of every MultiBody model probed: `Pendulum`
+  and `SpringMassSystem`, which run, as well as `DoublePendulum` and
+  `Engine1b`. `DrumBoiler` peaks at 1503 and `DCPM_CurrentControlled`
+  at 220.
+- The giant, killed at 11264 MB of footprint, had reached 935051 nodes
+  in its largest expression - 2.6 times the healthy maximum - over
+  9302 derivatives totalling 263 million nodes, and the largest had
+  stopped growing long before the memory did.
+
+So the growth is not one expression running away. It is many large
+ones living at once. A ceiling an order above the healthy maximum
+would stand at 3.5 million and never fire on the giant; a ceiling in
+the gap would stand between 353 thousand and 935 thousand, which is
+fitting a threshold into a crack, and the brief's own rule says to
+stop there. The series is stopped, and the patch stays parked. What a
+ceiling for this phase would have to count is the whole of what it
+holds - nodes alive across one reduction - and that is a different
+series.
+
+The second measurement changes what the parking of shared derivatives
+costs. Under `OXIDELICA_SHARED_DERIVATIVES=1` the same giant finishes:
+a refusal by name, `structurally singular model`, after 40 s
+flattening and 200 s running, at a peak footprint of 4502 MB. Its
+single largest expression is then 5.4 million nodes, larger than
+anything the unshared run reached, over 14898 derivatives - so what
+the rule removes is not the size of one expression but the copies of
+the same subtree held at once. The other five models of the wall
+(`EngineV6_analytic`, `PlanarLoops_analytic`, `CylinderBase`,
+`Cylinder_analytic_CAD`, `Utilities.EngineV6_analytic`) already go to
+`unbalanced` under the patch with the rule off or on, at the same
+counts and 0.3 to 0.7 GB either way (`/tmp/m271/b5.txt`). So the one
+giant of the wall is `Engine1b_analytic`, and the parked rule is what
+tames it: the switch left off now costs this patch as well as saving
+`Brake` and its three neighbours.
+
+### The m271 quadrature: a function passed on, reconnaissance
+
+`QuadratureLobatto3` refuses `cannot evaluate parameters [s =
+Modelica.Math.Nonlinear.quadratureLobatto$..._fun7(0, 1, ..., A, ws)]`,
+the evaluator saying `unknown variable f`. The specialization in
+`arrays.rs` that gives a function-valued input a copy of its own
+rewrites the calls the body writes as `f(x)` (`calls_rewritten`), and
+nothing else. `quadratureLobatto` does not call `f` itself: it hands
+it to `quadStep(f, a, b, ...)`, which calls `f` and hands it on to
+itself, recursively. Thirty lines show the first half of it without
+the recursion (`/tmp/m271/QL2.mo`): a function `outerf(f, x)` whose
+body is `r := step(f, x)` refuses the same way, `unknown variable f`,
+while the same model with the body `r := f(x) + 1` runs and gives 7.
+So the fix is to specialize a callee handed the functional input as
+an argument, the same copy made one call deeper, and for `quadStep`
+that callee is the function being specialized, so the copy has to
+name itself. Parked with that map; no change was begun.
+
+### The m271 pair
+
+One binary, the switch the only difference, over the main pass
+(`/tmp/m271/on.txt`, `/tmp/m271/off.txt`): 918 flatten and 591 run on
+both sides, 803 and 549 of the runnable ones, the floors to the digit.
+The lists of models that flatten and that run are identical line for
+line. The refusal lines differ in exactly one model,
+`HeatExchangerSimulation`, from `cannot evaluate parameters
+[HEX.pipe_1.dheights[1] = ...]` off to `unbalanced model: 3627
+algebraic equation(s) for 3631 unknown(s)` on. So the floors stand,
+and the change is a wall removed, not a model won.

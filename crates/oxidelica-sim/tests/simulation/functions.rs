@@ -2365,3 +2365,43 @@ fn a_function_filled_in_by_a_redeclaration_reads_the_names_of_whoever_wrote_it()
         assert!((got - 7.5).abs() < 1e-12, "`{pump}`: {got}");
     }
 }
+
+/// A pipe handed its length as the name of its holder's parameter.
+const LENGTH_HANDED_AS_A_NAME: &str = "model HX2 \
+     partial model Base \
+       parameter Integer n = 2; \
+       parameter Real dheights[n]; \
+       Real y = sum(dheights) * time; \
+     end Base; \
+     model Pipe \
+       extends Base(final dheights = h * dxs); \
+       parameter Real h = 2; \
+       final parameter Real[n] dxs = fill(1/n, n); \
+     end Pipe; \
+     model Holder \
+       parameter Integer nNodes = 4; \
+       Pipe p(n = NODES); \
+     end Holder; \
+     Holder hx(nNodes = 5); \
+     annotation(experiment(StopTime = 1, Interval = 0.5)); \
+   end HX2;";
+
+#[test]
+fn a_length_handed_as_the_holders_name_measures_the_base() {
+    // A heat exchanger hands each pipe `n = nNodes`, and the pipe
+    // hands its base `final dheights = height_ab*dxs`, where `dxs[n]`
+    // is a declaration of the pipe. What reaches the pipe is the
+    // holder's name, whose number had settled one floor up but not
+    // under the pipe's own; so `dxs` had no length, the product came
+    // back whole, and every element of `dheights` was tied to the
+    // whole array. Five heights of 2/5 sum to 2, and so do four of
+    // 2/4: the number written and the name handed must agree.
+    for handed in ["5", "nNodes"] {
+        let source = LENGTH_HANDED_AS_A_NAME.replace("NODES", handed);
+        let result = run(&source);
+        assert!(
+            (last_of(&result, "hx.p.y") - 2.0).abs() < 1e-9,
+            "n = {handed}"
+        );
+    }
+}

@@ -676,7 +676,7 @@ fn instantiate_bases(
         // path it has in the model. The numbers of this class are
         // offered under the names its own declarations use, so a
         // length like that can be measured at all.
-        let here: HashMap<String, f64> = acc
+        let mut here: HashMap<String, f64> = acc
             .const_values
             .iter()
             .filter_map(|(named, value)| {
@@ -687,6 +687,24 @@ fn instantiate_bases(
                 }
             })
             .collect();
+        // A number this class was handed as the name of a parameter of
+        // the class holding it: a heat exchanger declares `Pipe
+        // pipe_1(n = nNodes)`, and what reaches the pipe is `n =
+        // hx.nNodes`, a full path whose number settled one floor up.
+        // The pipe's own table has not heard of `n` yet, so a length
+        // written `dxs[n]` beside the `extends` went unmeasured and the
+        // value handed to the base came back whole. Read by its full
+        // name, the number is the one the holder already settled.
+        if handed_names_open() {
+            for (name, value) in env.overrides {
+                if name.contains('.') || here.contains_key(name) {
+                    continue;
+                }
+                if let Some(number) = const_eval(value, &acc.const_values) {
+                    here.insert(name.clone(), number);
+                }
+            }
+        }
         // The arrays of the class doing the extending, under the short
         // names its own declarations use. A modifier handed to a base
         // is written where this class stands - a table block is given
@@ -1477,4 +1495,12 @@ where
         branches,
     });
     Ok(())
+}
+
+/// Whether a number handed to a class as the name of its holder's
+/// parameter is offered to the lengths measured beside its `extends`.
+/// `OXIDELICA_NO_HANDED_NAMES` closes the road, so that one binary
+/// gives both numbers.
+fn handed_names_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_HANDED_NAMES").is_none()
 }
