@@ -2325,3 +2325,43 @@ fn a_record_input_handed_on_whole_keeps_the_instance_it_belongs_to() {
     let got = result.rows.last().unwrap()[at("fitting1.m")];
     assert!((got - 15.0).abs() < 1e-9, "{got}");
 }
+
+#[test]
+fn a_function_filled_in_by_a_redeclaration_reads_the_names_of_whoever_wrote_it() {
+    // A controlled pump of the standard library fills in its
+    // characteristic where it extends the partial pump: `extends
+    // PartialPump(redeclare function flowCharacteristic =
+    // quadraticFlow(V_flow_nominal = {0, V_flow_op, 1.5*V_flow_op}))`.
+    // The redeclaration already wears the flat name `pump.V_flow_op`
+    // when it is written, and taking the component's prefix a second
+    // time named `pump.pump.V_flow_op`, which nothing declares. The
+    // same holds for a redeclaration written on the component, where
+    // the name belongs to the model around it.
+    let source = |pump: &str| {
+        format!(
+            "package P \
+               function line input Real x; input Real a[2]; output Real y; \
+               algorithm y := a[1] + a[2] * x; end line; \
+               partial model Base replaceable function fc = line(a = {{1, 1}}); \
+                 parameter Real d = fc(2.0); end Base; \
+               model Extending extends Base(redeclare replaceable function fc = \
+                 line(a = {{k, 2 * k}})); parameter Real m = 3; \
+                 final parameter Real k = m / 2; end Extending; \
+               model Plain replaceable function fc = line(a = {{1, 1}}); \
+                 parameter Real d = fc(2.0); end Plain; \
+               model M parameter Real k = 1.5; {pump} Real z; \
+                 equation z = pump.d * (1 + time); \
+                 annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;"
+        )
+    };
+    for pump in [
+        "Extending pump;",
+        "Plain pump(redeclare function fc = line(a = {k, 2 * k}));",
+    ] {
+        let result = run(&source(pump));
+        let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        // k + 2k * 2 with k = 1.5.
+        let got = result.rows[0][at("z")];
+        assert!((got - 7.5).abs() < 1e-12, "`{pump}`: {got}");
+    }
+}

@@ -19376,3 +19376,104 @@ of m267, since no model in them changed.
   run, beside the four models already there.
 - `LinearFluid.LinearWater_pT`: index reduction, beside the two
   already at `der(volume.medium.T)`.
+
+## The m269 series: a pump's characteristic, and a rod's unit vectors
+
+### The m269 pump: a redeclaration prefixed twice
+
+Three models stood at one parameter row, `pump.delta_head_init`, with
+nothing giving a value to `pump.pump.V_flow_op` and `pump.pump.head_op`:
+`Fluid.Examples.HeatingSystem`, `Fluid.Examples.InverseParameterization`
+and `TestComponents.Machines.TestControlledPump` (the last with
+`pump1.pump1.*` as well). The doubled component name was the whole
+clue. `ControlledPump` fills in its characteristic where it extends the
+partial pump:
+
+```modelica
+extends PartialPump(redeclare replaceable function flowCharacteristic =
+  quadraticFlow(V_flow_nominal = {0, V_flow_op, 1.5*V_flow_op},
+                head_nominal = {2*head_op, head_op, 0}));
+```
+
+A redeclaration is qualified where it is written, prefix included, so
+its modifiers already wear the flat names. The place that remembers a
+function's filled inputs then prefixed them a second time, a treatment
+meant only for the modifiers of an alias the class declares itself
+(`function accel = Scaled(c = k)`). A twenty-line model reproduced it,
+and the same fault showed from the other side too: a redeclaration
+written on the component, `Plain pump(redeclare function fc =
+line(a = {k, 2*k}))`, came out as `pump.k` when the `k` belongs to the
+model around the pump. Both now settle to the right 7.5. Pump numbers
+checked by hand on `TestControlledPump`: `V_flow_op` = 1/998.2 =
+0.0010018 m³/s and `head_op` = 9e5/(998.2·9.81) = 91.94 m, as settled.
+
+The test checks both writers against the number. It is red with
+`OXIDELICA_PREFIX_FILLED_TWICE=1` (log in `/tmp/m269/red.txt`) and
+green without it.
+
+The corpus pair came from one binary with the switch on and off
+(`/tmp/m269/off.txt`, `/tmp/m269/on.txt`): 917 flatten and 590 run
+both ways, and the sorted run lists are identical line for line. So
+the floors do not move. The three models only moved on, each to a wall
+of its own in the run half:
+
+- `HeatingSystem`: `structurally singular model: cannot differentiate
+a subscript...`;
+- `InverseParameterization`: at t = 0, the IF97 `visc_dTp` out of range;
+- `TestControlledPump`: at t = 0, `Error in region computation of IF97
+steam tables(p = 1000000, h = 20716983.7)`. That enthalpy is not a
+  physical one for water at 10 bar, so the initial point is at fault
+  and not the tables.
+
+### The m269 rod: an element of a component declared below
+
+Reconnaissance only, and no change was kept. `Engine1b_analytic`,
+`EngineV6_analytic` and `PlanarLoops_analytic` stand at `jointRRP.e_ia
+[1] = jointRRP.jointUSP.e2_ia`: an element bound to a whole array. The
+cause is declaration order, which a sixteen-line model shows:
+
+```modelica
+model Asm
+  final parameter Real e1[3] = rod1.e;   // rod1 declared below
+  Rod rod1;
+end Asm;
+```
+
+With `rod1` declared first, `a.e1[1]` is bound to `a.rod1.e[1]` and
+settles to 0.6. Declared after, the shape of `rod1.e` has not been
+measured when `e1` is instantiated, so the single name is spread
+whole over three elements. A term of arithmetic (`2*rod1.e`) goes the
+same way. `JointUSP`/`JointUSR` declare `eRod1_ia`, `e2_ia` and
+`rod1Length` above `rod1`, and `JointRRP`/`JointRRR` declare `e_ia` and
+`e_b` above `jointUSP`/`jointUSR`, so each link of the assembly hits it.
+
+A throwaway switch that subscripted any unmeasured dotted name by the
+declaring component's own length took `PlanarLoops_analytic` past the
+parameters to `unbalanced model: 3954 algebraic equation(s) for 3978
+unknowns`. `Engine1b_analytic` under the same switch had used 7.5
+minutes of CPU and 3.7 GB before it was stopped, with no verdict. The
+switch is a guess about the shape rather than a measurement, so it is
+not the fix. The fix is to measure the shapes of the components below
+before the bindings above are taken apart, or to take them apart
+again once they are. Walk it for the next series: the declaration
+order first, then the 24 missing equations of `PlanarLoops_analytic`,
+then what `Engine1b` spends its minutes on.
+
+### The m269 census
+
+This census was taken after the series (`/tmp/m269/census.txt`, raw in
+`/tmp/m269/raw.txt`) over 1034 models. The refused half is 117 and the
+run half 327, both as in m268, and together they make 444 = 1034 − 590.
+Diffed row by row against `/tmp/m268/census.txt`, one row emptied and
+three singles appeared:
+
+- gone: `cannot evaluate parameters [pump.delta_head_init = ...]`, 3;
+- new: `structurally singular model: cannot differentiate a subscript
+that survived flattening` (`HeatingSystem`), `IF97 medium function
+visc_dTp ... too low density` (`InverseParameterization`) and a second
+  `Error in region computation of IF97 steam tables` spelling
+  (`TestControlledPump`), 1 each.
+
+The parameter rows went from 40 to 37: 27 service classes, unchanged,
+and 10 in the queue, from 13. The three jointRR\* models are still there
+as a row of 3 and two singles.

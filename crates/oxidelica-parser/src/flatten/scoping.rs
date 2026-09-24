@@ -105,21 +105,40 @@ pub(super) fn effective_imports(
         // fills in some of that function's inputs, and the call the
         // model writes gives only the rest. The alias itself is a
         // pair of names and has nowhere to carry them.
-        let filled = replacement
-            .map(|held| held.modifiers.clone())
-            .filter(|held| !held.is_empty())
-            .or_else(|| Some(alias.modifiers.clone()).filter(|held| !held.is_empty()));
+        //
+        // What survives flattening carries the flat model's names, and
+        // who wrote the modifier decides which names those are. A
+        // redeclaration was qualified where it was written - the
+        // model that said `pump(redeclare function f = g(a = k))`
+        // means its own `k`, and `extends Base(redeclare function f =
+        // g(a = k))` means the extending class's - so it already
+        // wears the flat name and is taken as it stands. Prefixed a
+        // second time it named `pump.pump.k`, which nothing declares,
+        // and every controlled pump of the fluid library lost its
+        // characteristic that way. The alias's own modifiers were
+        // written by this class: `function accel = Scaled(c = k)` in
+        // a component means *that component's* `k`, and only those
+        // take the prefix here.
+        let filled = match replacement {
+            Some(held) if !held.modifiers.is_empty() => Some(
+                held.modifiers
+                    .iter()
+                    .map(|(name, value)| match prefix_twice() {
+                        true => (name.clone(), prefix_expr(value, prefix, outers)),
+                        false => (name.clone(), value.clone()),
+                    })
+                    .collect(),
+            ),
+            _ if !alias.modifiers.is_empty() => Some(
+                alias
+                    .modifiers
+                    .iter()
+                    .map(|(name, value)| (name.clone(), prefix_expr(value, prefix, outers)))
+                    .collect(),
+            ),
+            _ => None,
+        };
         if let Some(filled) = filled {
-            // What survives flattening carries the flat model's names.
-            // `function accel = Scaled(c = k)` written in a component
-            // means *that component's* `k`, and the value is read
-            // again where the call is inlined - long after the class
-            // that wrote it is out of view. Left as written, the name
-            // reaches the run bare and nothing answers for it.
-            let filled = filled
-                .into_iter()
-                .map(|(name, value)| (name, prefix_expr(&value, prefix, outers)))
-                .collect();
             super::statements::remember_filled_inputs(&target, filled);
         }
         // What the alias itself wrote, kept apart from what a
@@ -480,4 +499,12 @@ pub(super) fn outers_with_no_inner(
         }
     }
     seen.remove(&class.name);
+}
+
+/// Whether a redeclaration's filled inputs take the component prefix a
+/// second time, as they did before the redeclaration was known to be
+/// qualified where it was written. Kept so the corpus can be measured
+/// both ways from one binary.
+fn prefix_twice() -> bool {
+    std::env::var_os("OXIDELICA_PREFIX_FILLED_TWICE").is_some()
 }
