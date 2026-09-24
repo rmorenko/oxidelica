@@ -663,7 +663,15 @@ FLATTEN_FLOOR=914
 # And run 583 = 579, plus Interaction1, both ControlledTanks and
 # ReferenceAir.MoistAir, from /tmp/m264/on.txt. The run list lost
 # nothing.
-RUN_FLOOR=582
+#
+# And run 587 = 582 after the carving above, plus the five of the
+# Wagner wall: Media.Examples.MoistAir, PsychrometricData,
+# TestOnly.MoistAir, TestMultiPort and TestTraceSubstances, all
+# runnable examples (/tmp/m266/on.txt against /tmp/m266/off.txt from
+# one binary; the off side is the carving's main pass to the digit).
+# Nothing left the run list and the flatten list did not move. Runnable
+# run 545 = 540 plus the same five.
+RUN_FLOOR=587
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -679,7 +687,7 @@ RUN_FLOOR=582
 # And runnable flatten 802 = 793 plus the nine set out at
 # `FLATTEN_FLOOR`, all runnable examples (/tmp/m265/p2/on.txt).
 RUNNABLE_FLATTEN_FLOOR=799
-RUNNABLE_RUN_FLOOR=540
+RUNNABLE_RUN_FLOOR=545
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -805,11 +813,16 @@ RUN_MS_CEILING=8000
 # expansions (0.96% fewer), 1337023 bodies (5.19% fewer - outside the
 # band), 32249779 points and 44495032 Newton steps (49 and 60 fewer,
 # the one of the three that ran).
+#
+# And the run counts refreshed from /tmp/m266/on.txt, where the five
+# Wagner models run: 741 more points and 31 more Newton steps than the
+# off side of the same binary, the flattening counts identical to the
+# digit.
 WORK_CLASSES=283282
 WORK_EXPANSIONS=92505304
 WORK_BODIES=1337023
-WORK_POINTS=32249779
-WORK_NEWTON=44495032
+WORK_POINTS=32250520
+WORK_NEWTON=44495063
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

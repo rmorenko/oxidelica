@@ -2201,3 +2201,70 @@ fn a_record_field_with_a_named_length_is_bound_through_an_element() {
     let last = result.rows.last().expect("a final row")[column];
     assert!((last - 288.74).abs() < 1e-9, "R came to {last}");
 }
+
+/// An array that reaches the evaluator from a walked body says which
+/// expression of which body brought it. The refusal used to show the
+/// array alone - `{-7.86, 1.84, ...}` for five moist-air models - and
+/// which body had written it was a guess. The innermost expression is
+/// the one named, once, and the body it stands in beside it.
+#[test]
+fn an_array_in_a_walked_body_is_refused_with_its_address() {
+    let why = run_err(
+        "model M function f input Real x; output Real y; protected Real i; \
+           algorithm i := 0; while i < x loop i := i + 1; end while; \
+           y := {x, 1}*{1, 1}*{1, 1}; end f; \
+         Real y; equation y = f(time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    );
+    assert!(why.contains("an array reached the evaluator"), "{why}");
+    assert!(
+        why.contains("standing in `({x, 1} * {1, 1}) * {1, 1}`"),
+        "{why}"
+    );
+    assert!(why.contains("of the walked body `M.f`"), "{why}");
+    assert_eq!(why.matches("standing in").count(), 1, "{why}");
+}
+
+/// `Real a[:] = {2, 3, 5}` in a walked body is three numbers, as long
+/// as its binding. The water's saturation pressure declares Wagner's
+/// six coefficients this way, and the walk took the whole literal for
+/// one number. `2 + 3 x + 5 x^2` at `x = 1` is 10.
+#[test]
+fn a_local_sized_by_a_colon_takes_the_length_of_its_binding() {
+    let result = run("model M function f input Real x; output Real y; \
+           protected Real a[:] = {2, 3, 5}; Real i; \
+           algorithm i := 0; while i < x loop i := i + 1; end while; \
+           y := a[1] + a[2]*x + a[3]*x*x; end f; \
+         Real y; equation y = f(time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows.last().unwrap()[column], 10.0);
+}
+
+/// Three things moist air's `h_pTX` needs of a walked body, all at
+/// once: a call written inside a list travels with the body that
+/// writes it, a record constant of the package handed by its bare name
+/// goes over as its fields, and an input left out takes the default
+/// its own function wrote, read where that function was written. With
+/// `a = 2`, `b[2] = 4`, the default offset `k = 10` and `z = 100`, at
+/// `x = 1` the call is `2 + 4 + 10 + 100 = 116`, and the list product
+/// adds the one: 117.
+#[test]
+fn a_walked_body_hands_a_package_record_to_a_call_inside_a_list() {
+    let result = run("model M \
+           package Data record R Real a; Real b[2]; end R; \
+             constant R base(a = 2, b = {3, 4}); end Data; \
+           package P \
+             constant Data.R c = Data.base; \
+             constant Real k = 10; \
+             function g input Data.R d; input Real x; input Real off = k; input Real z; \
+               output Real y; algorithm y := d.a*x + d.b[2] + off + z; end g; \
+             function f input Real x; output Real y; protected Real i; \
+               algorithm i := 0; while i < x loop i := i + 1; end while; \
+               y := {g(d = c, x = x, z = 100), 1}*{1, x}; end f; \
+           end P; \
+           Real y; equation y = P.f(time); \
+           annotation(experiment(StopTime = 1, Interval = 1)); end M;");
+    let column = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows.last().unwrap()[column], 117.0);
+}

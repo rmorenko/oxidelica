@@ -398,11 +398,24 @@ fn in_declared_order(
     for (seat, held) in out.into_iter().take(last + 1).enumerate() {
         match held {
             Some(value) => ordered.push(value),
+            // The input's own default is written where the callee
+            // was, and its names mean what they mean there: the ideal
+            // gas enthalpy defaults `exclEnthForm =
+            // excludeEnthalpyOfFormation`, a constant of its own
+            // package, and put in the seat unread that name reached
+            // the run from the body of whoever called it.
             None => match inputs[seat]
                 .binding
                 .clone()
                 .or_else(|| inputs[seat].start.clone())
             {
+                Some(value) if callee_defaults_open() => ordered.push(substitute_class_constants(
+                    &value,
+                    registry,
+                    &class.name,
+                    &class.imports,
+                    &[],
+                )),
                 Some(value) => ordered.push(value),
                 None => return args.clone(),
             },
@@ -470,6 +483,10 @@ fn qualified_in(
                 .map(|class| class.name.clone())
                 .unwrap_or_else(|| name.clone());
             let args: Vec<Expr> = args.iter().map(recur).collect();
+            let args = match of {
+                Some(class) => records_spelled_out(class, registry, scope, imports, args),
+                None => args,
+            };
             // A named argument is put in the seat the callee declares
             // it in. The walk binds what it is handed by position -
             // the frame is a list of inputs, and the name a call wrote
@@ -500,6 +517,88 @@ fn qualified_in(
         Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
         _ => expr.clone(),
     }
+}
+
+/// Whether a record constant of an enclosing package, handed by its
+/// bare name to a call in a carried body, is sent as its fields.
+/// `OXIDELICA_NO_CARRIED_RECORD_CONSTANTS` closes the road, so that one
+/// binary gives both numbers.
+fn carried_record_constants_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_CARRIED_RECORD_CONSTANTS").is_none()
+}
+
+/// A call's record arguments written out as the fields the callee
+/// reads, where the argument is a record constant of a package the
+/// body is written inside.
+///
+/// Moist air's `h_pTX` is walked rather than inlined, and it hands
+/// `data = steam` to the ideal gas enthalpy, where `steam` is the
+/// `constant DataRecord steam = SingleGasesData.H2O` its package
+/// declares beside it. The inlining road reads such a name as the
+/// record it names; the road that carries a body out to the walk did
+/// not, and `steam` reached the run as a name nothing gives a value
+/// to - which stopped every moist-air model that asked for an
+/// enthalpy. The callee reads its record by position in
+/// [`record_fields::handed_record_fields`], the same list its own
+/// renaming uses, so the fields are written out in that order. A field
+/// that does not come to a number leaves the argument as it was, for
+/// the run to refuse by name rather than read out of the wrong seat.
+fn records_spelled_out(
+    callee: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    args: Vec<Expr>,
+) -> Vec<Expr> {
+    if !carried_record_constants_open() {
+        return args;
+    }
+    let held = with_inherited_components(callee, registry);
+    let inputs: Vec<&Component> = held
+        .iter()
+        .filter(|component| component.causality == Causality::Input)
+        .collect();
+    let spelled = |input: Option<&&Component>, arg: &Expr| -> Option<Expr> {
+        let Expr::Ref(named) = arg else {
+            return None;
+        };
+        if named.contains('.') || named.contains('[') {
+            return None;
+        }
+        let input = input.filter(|input| input.dimensions.is_empty())?;
+        let of = lookup(registry, &input.type_name, &callee.name, &callee.imports)
+            .filter(|of| of.kind == ClassKind::Record)?;
+        let fields = record_fields::handed_record_fields(registry, of);
+        if fields.is_empty() {
+            return None;
+        }
+        let mut values = Vec::with_capacity(fields.len());
+        for field in &fields {
+            let whole = format!("{named}.{field}");
+            let value = match field.contains('[') {
+                true => constant_element(&whole, registry, scope, imports)
+                    .filter(|value| matches!(value, Expr::Number(_)))?,
+                false => Expr::Number(class_constant_at(registry, &whole, scope, imports, 0)?),
+            };
+            values.push(value);
+        }
+        Some(Expr::Array(values))
+    };
+    let mut seat = 0;
+    args.into_iter()
+        .map(|arg| match arg {
+            Expr::NamedArg(name, value) => {
+                let input = inputs.iter().find(|input| input.name == name);
+                let value = spelled(input, &value).unwrap_or(*value);
+                Expr::NamedArg(name, Box::new(value))
+            }
+            positional => {
+                let input = inputs.get(seat);
+                seat += 1;
+                spelled(input, &positional).unwrap_or(positional)
+            }
+        })
+        .collect()
 }
 
 /// Every user function an expression calls.
@@ -553,8 +652,34 @@ pub(super) fn gather_calls(
         // `f(x)[2]` - a call answering with several numbers, asked for
         // one of them. The call is under the subscript.
         Expr::Index(base, _) => gather_calls(base, registry, scope, imports, out),
+        // A call written inside a list, or as a named argument of
+        // another: moist air's `h_pTX` answers with `{h_Tlow(data =
+        // steam, ...), h_Tlow(data = dryair, ...)} * {X_steam, X_air}`,
+        // and a gathering that stopped at the braces carried the body
+        // out without the one it calls. The run then met `h_Tlow` as a
+        // built-in it had never heard of.
+        Expr::Array(items) if carried_array_calls_open() => items
+            .iter()
+            .for_each(|item| gather_calls(item, registry, scope, imports, out)),
+        Expr::NamedArg(_, value) if carried_array_calls_open() => {
+            gather_calls(value, registry, scope, imports, out)
+        }
         _ => {}
     }
+}
+
+/// Whether a call inside a list or a named argument is gathered with
+/// the body that writes it. `OXIDELICA_NO_CARRIED_ARRAY_CALLS` closes
+/// the road, so that one binary gives both numbers.
+fn carried_array_calls_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_CARRIED_ARRAY_CALLS").is_none()
+}
+
+/// Whether an input left out of a carried call takes its default read
+/// where the callee wrote it. `OXIDELICA_NO_CALLEE_DEFAULTS` closes the
+/// road, so that one binary gives both numbers.
+fn callee_defaults_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_CALLEE_DEFAULTS").is_none()
 }
 
 /// Every user function the statements of a body call.

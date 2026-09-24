@@ -18905,3 +18905,132 @@ fault as layer 1, a copy of Brent's method spread over its array
 input. Both still refuse, each at a wall of its own. Nothing was done
 to pull the parking back. `PumpingSystem` (`reservoir.medium.T`)
 refuses word for word as in m264.
+
+## The m266 series: the Wagner wall and `h_pTX` were one chain
+
+The instrument came first. The refusal `an array reached the
+evaluator` showed the array and nothing else, so the walk now puts an
+address on it: the innermost expression of the walked body that asked
+for a number, and the body it stands in, each said once. On the small
+model of m265 (`/tmp/m265/w/wo1.mo`, scratch) it printed:
+
+```text
+an array reached the evaluator: {-7.85951783, ...}, standing in
+`{-7.85951783, ...}` of the walked body
+`Modelica.Media.Air.MoistAir.saturationPressure`
+```
+
+The expression is the whole literal, so it was never a statement: it
+was a binding. `saturationPressureLiquid` declares `Real a[:] = {...}`,
+and the walk's `declared_length` knew a number and `size(v, 1)` but
+not `:`. The local was laid out as one number, and its binding reached
+the evaluator whole. The suspicion of m265 (a body left standing by
+`NO_BOTTOM`, derivative seeds carrying the local) is refuted. The
+derivative road plays no part, and a body is walked whenever it holds
+a loop the model decides. The probes that ran in m265 ran because the
+splice was inlined there and not walked.
+
+Behind that wall all five models stood at one more,
+`unknown variable steam`. The small model is three lines:
+`y = Modelica.Media.Air.MoistAir.h_pTX(1e5, T, {0.01, 0.99})`. So item
+2 of the brief (`h_pTX` in `h_start`) is the same road as item 1, and
+the two were taken as one series. The chain, walked to its end on
+that model, had four links:
+
+1. `a[:]` takes the length of its written-out binding
+   (`OXIDELICA_NO_COLON_LENGTH`).
+2. A call written inside a list travels with the body that writes it.
+   `h_pTX` answers with `{h_Tlow(data = steam, ...), h_Tlow(data =
+dryair, ...)} * {X_steam, X_air}`. `gather_calls` stopped at the
+   braces, so the carried body went out without `h_Tlow`, and the run
+   met `h_Tlow` as an unknown built-in (`OXIDELICA_NO_CARRIED_ARRAY_CALLS`).
+3. A record constant of an enclosing package, handed to a call by its
+   bare name, goes over as its fields in the order
+   `handed_record_fields` gives the callee. `steam` is
+   `constant DataRecord steam = SingleGasesData.H2O`
+   (`OXIDELICA_NO_CARRIED_RECORD_CONSTANTS`). A field that does not
+   come to a number leaves the argument as it was, for the run to
+   refuse by name.
+4. An input left out of a carried call takes its own default, read
+   where the callee wrote it. `h_Tlow`'s `exclEnthForm =
+excludeEnthalpyOfFormation` is a constant of the ideal gas
+   package, and put in the seat unread it reached the run from
+   `h_pTX`'s body (`OXIDELICA_NO_CALLEE_DEFAULTS`).
+
+At the end of the chain the small model runs, and the number is right.
+At 300 K, `h_pTX(1e5, 300, {0.01, 0.99})` came to 52203.3 J/kg, and at
+301 K to 53216.8, which is what the inlined `enthalpyOfGas` gives for
+the same state by another road (`/tmp/m266/w/s1.mo`, `s2.mo`). The
+Wagner fragment `wo1` gives 0.0227316 at 300 K, which is
+`p_sat · 0.62 / (p − p_sat)` with `p_sat` = 3536.8 Pa. Each link has a
+test that goes red with its switch alone.
+
+The corpus pair from one binary (`/tmp/m266/on.txt` against
+`/tmp/m266/off.txt`, the four switches off together) printed 914
+flatten and 587 run on, 914 and 582 off. The runnable counts were 799
+and 545 on, 799 and 540 off. The off side is the carving's main pass
+(`/tmp/m266/main.txt`, the binary before the series) to the digit. The
+run list gained exactly the five Wagner models (`Media.Examples.MoistAir`,
+`PsychrometricData`, `TestOnly.MoistAir`, `TestMultiPort`,
+`TestTraceSubstances`), lost nothing, and the flatten list did not
+move. `Media.Examples.MoistAir` gives 10649.5 J/kg at 274 K and
+210904 J/kg at 355 K on its own run. By hand that is about 10652 and
+210928, the difference being the NASA polynomial against a constant
+heat capacity.
+
+### What the `h_pTX` queue met behind its wall
+
+The five models that stood at `h_pTX` in `h_start` all left that wall.
+None of them runs yet, and each stands at a wall of its own:
+
+| model                          | now                                                       |
+| ------------------------------ | --------------------------------------------------------- |
+| `RoomCO2`                      | singular Jacobian in a loop holding `traceVolume.CVec[1]` |
+| `RoomCO2WithControls`          | a loop on `volume.portInDensities[3]`                     |
+| `TestMultiPortTraceSubstances` | `unknown variable volume2.Medium.C_nominal`               |
+| `TestJunctionTraceSubstances`  | `unknown variable junction1.Medium.C_nominal`             |
+| `BranchingDynamicPipes`        | unbalanced, 1943 equations for 1923 unknowns              |
+
+The two `C_nominal` rows are the same wall that
+`DynamicPipesWithTraceSubstances` has stood at since m264: a medium's
+constant read through the instance (`volume2.Medium.C_nominal`). That
+makes it a family of three, and the next thing to take from this
+chain. `SolveOneNonlinearEquation.Inverse_sh_TX` (`h_min`) is not this
+family. Its binding is the NASA polynomial written out, with no call
+to `h_pTX` left in it, and it was not touched.
+
+### The m266 census
+
+Taken after the series (`/tmp/m266c/census.txt`, raw in
+`/tmp/m266c/raw.txt`), with the three ReferenceAir giants carved out,
+so over 1034 models. The refused half is 120 (11 + 8×2 + 7 + 6 + 5×2 +
+4 + 3×6 + 2×11 + 26×1), as in m265. The run half is 327 (27 + 20 + 18
+
+- 15 + 13 + 11 + 7×2 + 6 + 5×3 + 4×3 + 3×12 + 2×13 + 132×1). Together
+  that is 447 = 1034 − 587.
+
+Against m265's 454: seven names left the census. Five are the Wagner
+models, which run now, and two are `ReferenceAir.MoistAir1` and
+`MoistAir2`, carved out. None arrived. By family, added from the rows:
+
+- loops 99 (27 + 20 + 15 + 13 + 11 + 7 + 3 + 3), unchanged;
+- structurally singular 64, unchanged;
+- unbalanced 41 (5 + 3 + 2 + 31×1), one more: `BranchingDynamicPipes`
+  from the parameter queue;
+- parameters 45 (24 "has no value" + 21 "cannot evaluate"), five
+  fewer. The census splits them 27 service classes and 18 queue;
+- Wagner 0 (from 5). The row `an array reached the evaluator` still
+  counts 5 (3 + 2), but those are other models with the same words:
+  the `1:2` range of the three incompressible tables and the R134a
+  pair, which m265 counted apart. The R134a pair's array changed from
+  a vector of viscosities to a matrix of coefficients. That is one
+  wall further along the same body, not a new wall;
+- divisor 3, unchanged and still not ours.
+
+One row changed its numbers without changing its wall.
+`TestJunctionIdeal` reads 179 equations for 182 unknowns in this
+census and 170 for 173 in m265. Run alone with `--only` it gives 170
+for 173 on the binary before the series, and on the binary after it
+with the switches on or off. So the difference depends on what the
+model is checked beside in the corpus pass, not on this series. It
+was not traced further.

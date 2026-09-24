@@ -171,7 +171,8 @@ pub(crate) fn walk(
             .unwrap_or(0.0);
         frame.numbers.insert(component.name.clone(), start);
     }
-    run(&class.algorithm, &mut frame, programs, time, depth)?;
+    run(&class.algorithm, &mut frame, programs, time, depth)
+        .map_err(|SimError(why)| SimError(inside_body(why, name)))?;
     // The answer, in the order the flat model asks for it: one number
     // for a plain output, and the elements in turn for an array. What
     // a body may answer with at all was settled before the run began.
@@ -229,6 +230,17 @@ fn declared_length(component: &Component, frame: &Frame) -> Option<usize> {
             let Expr::Ref(of) = &args[0] else { return None };
             frame.lengths.get(of).copied()
         }
+        // `Real a[:] = {-7.86, 1.84, ...}`: a length of `:` is the length
+        // of what the declaration writes out. Without it the whole
+        // literal was taken for one number, and the water's saturation
+        // pressure - Wagner's six coefficients, declared this way -
+        // refused every moist-air model that walked it.
+        Expr::ColonSubscript if std::env::var_os("OXIDELICA_NO_COLON_LENGTH").is_none() => {
+            match component.binding.as_ref().or(component.start.as_ref()) {
+                Some(Expr::Array(items)) => Some(items.len()),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -252,6 +264,38 @@ fn number_of(
             depth,
         },
     )
+    .map_err(|SimError(why)| SimError(standing_in(why, expr)))
+}
+
+/// The wording the evaluator refuses a whole array with. Only that
+/// refusal is given an address below: every other one already names
+/// its own culprit, and a sentence that grew a clause at every storey
+/// of a walk would bury it.
+const ARRAY_REACHED: &str = "an array reached the evaluator";
+
+/// The expression of the body an array arrived in, said once.
+///
+/// The evaluator sees only the array, and an array of six numbers says
+/// nothing about where it was written: the refusal read `{-7.86, ...}`
+/// for five models, and which of their bodies held it was a guess.
+/// The innermost expression that asked for a number is the one that
+/// wrote the array, so the first to see the refusal names itself and
+/// the ones above it leave the sentence alone.
+fn standing_in(why: String, expr: &Expr) -> String {
+    if !why.contains(ARRAY_REACHED) || why.contains(", standing in `") {
+        return why;
+    }
+    let written: String = expr.describe().chars().take(200).collect();
+    format!("{why}, standing in `{written}`")
+}
+
+/// And the body that expression was written in, again said once: the
+/// innermost body is the one whose statement it is.
+fn inside_body(why: String, name: &str) -> String {
+    if !why.contains(ARRAY_REACHED) || why.contains(" of the walked body `") {
+        return why;
+    }
+    format!("{why} of the walked body `{name}`")
 }
 
 /// What an expression written over arrays comes to as one number.
