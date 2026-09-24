@@ -130,6 +130,26 @@
 # Its namesake without the `2` is a different matter and stays in the
 # main run at 199s: a physical check is not a benchmark however dear.
 #
+# Three more names joined that list on 2026-09-24, the moist-air
+# examples of `Modelica.Media.Examples.ReferenceAir`: `MoistAir2`
+# 377.7s, `MoistAir1` 372.1s and `MoistAir` 369.4s to flatten, 1119s
+# between them of a 4192s flatten half - 26.7% on three names, with the
+# next dearest at 155.9s, two and a half times cheaper. What they cost
+# is the reference air's Helmholtz tables built whole three times over,
+# not how much of the library reads. This is the first carving that
+# takes a model that RUNS: `ReferenceAir.MoistAir` runs, so the run
+# floors come down by one here and the scheduled run holds that one
+# under a run floor of its own, which until now stood at zero. A fall
+# from 583 to 582 is this and nothing else:
+#
+#   flatten          917 = 914 here + 3 in the scheduled run
+#   run              583 = 582 here + 1 in the scheduled run
+#   runnable flatten 802 = 799 here + 3 in the scheduled run
+#   runnable run     541 = 540 here + 1 in the scheduled run
+#
+# The main numbers are from /tmp/m266/main.txt and the scheduled half
+# from /tmp/m266/heavy.txt, both from one build of one binary.
+#
 # Usage: scripts/library_floor.sh <library directory>
 set -euo pipefail
 
@@ -287,7 +307,7 @@ FILES_FLOOR=2671
 #                 SolveOneNonlinearEquation (the copy of Brent's method
 #                 spread over its array input). None of the nine runs
 #                 yet, so the run floors stand.
-FLATTEN_FLOOR=917
+FLATTEN_FLOOR=914
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -643,7 +663,7 @@ FLATTEN_FLOOR=917
 # And run 583 = 579, plus Interaction1, both ControlledTanks and
 # ReferenceAir.MoistAir, from /tmp/m264/on.txt. The run list lost
 # nothing.
-RUN_FLOOR=583
+RUN_FLOOR=582
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -658,8 +678,8 @@ RUN_FLOOR=583
 #
 # And runnable flatten 802 = 793 plus the nine set out at
 # `FLATTEN_FLOOR`, all runnable examples (/tmp/m265/p2/on.txt).
-RUNNABLE_FLATTEN_FLOOR=802
-RUNNABLE_RUN_FLOOR=541
+RUNNABLE_FLATTEN_FLOOR=799
+RUNNABLE_RUN_FLOOR=540
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -774,11 +794,22 @@ RUN_MS_CEILING=8000
 # model read 4162ms off and 3957ms on, over the same 1037 models from
 # the same binary run one after the other; the fall was not traced and
 # is taken for weather, not for a saving.
-WORK_CLASSES=283386
-WORK_EXPANSIONS=93401804
-WORK_BODIES=1410168
-WORK_POINTS=32249828
-WORK_NEWTON=44495092
+#
+# Refreshed again on 2026-09-24 for a carving and not for a change of
+# the compiler: the three ReferenceAir moist-air examples left for the
+# scheduled run (see the head of this file), which reverses the
+# "declined" above - Roman decided the other way the same day. Built
+# whole they were a quarter of the flatten half, and the counts fell
+# with them far enough to leave the band for no fault: from
+# /tmp/m266/main.txt, 283282 classes (0.04% fewer), 92505304
+# expansions (0.96% fewer), 1337023 bodies (5.19% fewer - outside the
+# band), 32249779 points and 44495032 Newton steps (49 and 60 fewer,
+# the one of the three that ran).
+WORK_CLASSES=283282
+WORK_EXPANSIONS=92505304
+WORK_BODIES=1337023
+WORK_POINTS=32249779
+WORK_NEWTON=44495032
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

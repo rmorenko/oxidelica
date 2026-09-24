@@ -53,3 +53,10 @@ Modelica.Mechanics.MultiBody.Examples.Loops.EngineV6
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeWithNominalLaminarFlow
 # 67s to flatten, 2026-09-22
 ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipeEnergyConservationCheck2
+
+# 377.7s to flatten, 2026-09-24
+Modelica.Media.Examples.ReferenceAir.MoistAir2
+# 372.1s to flatten, 2026-09-24
+Modelica.Media.Examples.ReferenceAir.MoistAir1
+# 369.4s to flatten, 2026-09-24
+Modelica.Media.Examples.ReferenceAir.MoistAir

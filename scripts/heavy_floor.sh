@@ -27,14 +27,17 @@
 set -euo pipefail
 
 # The counts are small and exact, so they are written as the floors
-# they are: six models, all six flatten, and none of them runs yet.
-# A zero floor still earns its place - the day one of these runs, the
-# number goes up and the floor with it, and until then a model that
-# stops flattening is caught.
-FLATTEN_FLOOR=6
-RUN_FLOOR=0
-RUNNABLE_FLATTEN_FLOOR=4
-RUNNABLE_RUN_FLOOR=0
+# they are. Six models stood here with none of them running, and a
+# zero floor earned its place by waiting for the day one ran. On
+# 2026-09-24 three ReferenceAir moist-air examples joined, and one of
+# them, `ReferenceAir.MoistAir`, already runs: it left the main run
+# floors and is held here instead, so the run floor stops being zero
+# for the first time. Nine models, all nine flatten, one runs; seven of
+# them are runnable examples (/tmp/m266/heavy.txt).
+FLATTEN_FLOOR=9
+RUN_FLOOR=1
+RUNNABLE_FLATTEN_FLOOR=7
+RUNNABLE_RUN_FLOOR=1
 
 directory="${1:?usage: heavy_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
