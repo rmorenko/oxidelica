@@ -2301,3 +2301,73 @@ fn a_member_of_one_element_of_an_array_of_components_keeps_its_shape() {
     assert!((last("s.ports[1].Xi[1]") - 0.5).abs() < 1e-12);
     assert!((last("s.ports[2].Xi[1]") - 0.25).abs() < 1e-12);
 }
+
+#[test]
+fn a_member_of_a_slice_of_components_keeps_its_inner_axis() {
+    // `ports.C_outflow = fill(C_in_internal, nPorts)` where each port
+    // carries `C_outflow[nC]`: how every fluid source writes its trace
+    // substances. Read as one name per port, the slice lost the inner
+    // axis and was refused as `[n]` against `[n, 1]`.
+    let result = run("model M \
+           connector Port Real C[2]; end Port; \
+           Port ports[3]; Real Cin[2]; \
+         equation Cin = {0.5, 0.25}; ports.C = fill(Cin, 3); \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;");
+    let last = |name: &str| {
+        let at = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[at]
+    };
+    assert!((last("ports[3].C[1]") - 0.5).abs() < 1e-12);
+    assert!((last("ports[3].C[2]") - 0.25).abs() < 1e-12);
+    assert!((last("ports[1].C[2]") - 0.25).abs() < 1e-12);
+}
+
+#[test]
+fn a_connection_to_an_array_input_that_was_left_out_is_dropped() {
+    // `C_in[Medium.nC] if use_C_in` with the input off: the side
+    // expanded to no names at all, so nothing asked whether it was left
+    // out, and the source was refused for connecting nothing to two.
+    let result = run("model M \
+           package Base constant Integer nC = 0; end Base; \
+           package Two extends Base(nC = 2); end Two; \
+           model Src replaceable package Medium = Base; \
+             parameter Boolean use_C_in = false; \
+             input Real C_in[Medium.nC] if use_C_in; \
+             Real C_in_internal[Medium.nC]; \
+           equation connect(C_in, C_in_internal); \
+             if not use_C_in then C_in_internal = fill(0.5, Medium.nC); end if; \
+           end Src; \
+           package P = Two; \
+           Src s(redeclare package Medium = P); \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;");
+    let at = result
+        .columns
+        .iter()
+        .position(|c| c == "s.C_in_internal[2]")
+        .unwrap();
+    assert!((result.rows.last().unwrap()[at] - 0.5).abs() < 1e-12);
+}
+
+#[test]
+fn a_stream_member_that_is_an_array_is_mixed_element_by_element() {
+    // `inStream(port.C_outflow)` over `C_outflow[nC]` reached the
+    // stream reader one element at a time, `C_outflow[1]`, and the
+    // connector was said to have no such member. Three ports on a node
+    // and one of them pushing: what `a` hears is what `b` pushes.
+    let result = run("model M \
+           connector P Real p; flow Real m_flow; stream Real C[2]; end P; \
+           P a, b, c; Real ca[2]; \
+         equation connect(a, b); connect(a, c); \
+           a.p = 1; a.m_flow = 0; b.m_flow = -1; \
+           a.C = {1, 2}; b.C = {10, 20}; c.C = {30, 40}; \
+           ca = inStream(a.C); \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;");
+    let last = |name: &str| {
+        let at = result.columns.iter().position(|c| c == name).unwrap();
+        result.rows.last().unwrap()[at]
+    };
+    // The floor on each weight lets `c` in by a hair, which is the
+    // specification's own regularisation and not an error.
+    assert!((last("ca[1]") - 10.0).abs() < 1e-6, "{}", last("ca[1]"));
+    assert!((last("ca[2]") - 20.0).abs() < 1e-6, "{}", last("ca[2]"));
+}

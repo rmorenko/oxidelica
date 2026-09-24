@@ -255,7 +255,18 @@ pub(super) fn execute(
             Statement::For(variable, range, body) => {
                 let values = match range {
                     Some(range) => {
-                        let expr = substitute_refs(range, bindings);
+                        // A range may count a package's constant: the
+                        // trace substance sensor walks `1:Medium.nC` in
+                        // its initial algorithm. The conditions and the
+                        // values of a statement already have the
+                        // constants of their scope put in; the range did
+                        // not, and every such sensor was refused for a
+                        // trip count the compiler had in hand.
+                        let range = match loop_constants_open() {
+                            true => substitute_class_constants(range, registry, scope, imports, &[]),
+                            false => range.clone(),
+                        };
+                        let expr = substitute_refs(&range, bindings);
                         // Through the array layer first, so a range
                         // written `1:size(v, 1)` is a list of numbers by
                         // the time it is asked to be constant - and so
@@ -1389,4 +1400,11 @@ pub(super) fn remember_filled_inputs(named: &str, filled: Vec<(String, Expr)>) {
 /// What a redeclaration filled in on this function, if anything.
 pub(super) fn filled_inputs(named: &str) -> Option<Vec<(String, Expr)>> {
     FILLED_INPUTS.with(|held| held.borrow().get(named).cloned())
+}
+
+/// Whether the range of a `for` statement has the constants of its
+/// scope put in before it is counted. `OXIDELICA_NO_LOOP_CONSTANTS`
+/// closes the road, so that one binary gives both numbers.
+fn loop_constants_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_LOOP_CONSTANTS").is_none()
 }

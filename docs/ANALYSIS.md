@@ -18566,3 +18566,166 @@ a)/b`). A record reaches the array layer as its fields, and `/` has
    no operator record of its own there. `IdealMixing1` is
    `FlueGasSixComponents`, which elsewhere is refused at a `[6, 6]`
    shape. Two layers. Operator records are architecture.
+
+## The m264 series: seven layers of the trace-substance chain
+
+The m263 map left eight models of the `Xi` family at four walls. Each
+wall was probed with the smallest model that refused the same way,
+and each probe showed that the wall stood on another. The chain was
+walked to its end before anything was measured, and taken as one
+series behind seven switches. Every layer has a test on a number that
+turns red under its own switch.
+
+1. **A member of a slice of components** (`OXIDELICA_NO_SLICE_MEMBER_SHAPES`).
+   `ports.C_outflow = fill(C_in_internal, nPorts)` where each port
+   carries `C_outflow[nC]` was `[n]` against `[n, 1]`. This is the
+   m263 layer one road over. The dotted name `ports.C_outflow` goes
+   through `member_of_array`, which named one element per port and
+   never asked the size table what the member measured. Now each
+   element's member is expanded to its measured shape.
+2. **A connection to an array input that was left out**
+   (`OXIDELICA_NO_DISABLED_BY_NAME`). `connect(C_in, C_in_internal)`
+   with `C_in[Medium.nC] if use_C_in` switched off gave `connect
+between 0 and 1`. The side left out expanded to no names, so there
+   was no name for the disabled test to ask about. The name the side
+   was written with is asked as well. The refusal now also names the
+   `connect` it refused, and that is how this layer was found.
+3. **A derivative rule over an array argument**
+   (`OXIDELICA_NO_ARRAY_SEEDS`). The `{0.01, 0.99}` wall was moist
+   air's `h_default`. `h_pTX` says `derivative = h_pTX_der` and takes
+   `X[:]`, and its seed was one array standing where a number belongs.
+   Reproduced in 23 lines with no medium. The seed is now split into
+   one per element, named as the flat model names an element. A rule
+   of ten times the true derivative gives 0.4 in the test, which shows
+   the rule is used and the body is not taken apart.
+4. **A record constant of the caller's package**
+   (`OXIDELICA_NO_ENCLOSING_RECORDS`). `h_pTX` hands `data = steam` to
+   the ideal-gas enthalpy, and `steam = SingleGasesData.H2O` is a
+   constant of `MoistAir`. The bare name was read in the scope of the
+   function being called (`IdealGases.Common.Functions.h_Tlow`), where
+   nothing declares it, and `steam.R_s` reached the flat model. A stack
+   of the bodies being walked now says whose scope a bare argument
+   belongs to. The inlining cache takes the caller into its key only
+   when an argument is a bare name. With the fix, moist air's default
+   enthalpy reads 45262.6 J/kg, right for air at 20 °C and a water
+   fraction of 0.01.
+5. **A loop range that counts a package constant**
+   (`OXIDELICA_NO_LOOP_CONSTANTS`). The trace-substance sensor walks
+   `for i in 1:Medium.nC` in its initial algorithm. The range was the
+   one part of a statement that nobody filled with the constants of
+   its scope.
+6. **`inStream` of one element of an array stream**
+   (`OXIDELICA_NO_ELEMENT_STREAMS`). `CVec = inStream(port.C_outflow)`
+   reached the stream reader as `port.C_outflow[1]`, and the connector
+   was said to have no such member. This is also the `TestMultiPort`
+   wall of item 1.2 (`Xi_outflow[1]`). The declaration is now read
+   without the subscript, and the element keeps it.
+7. **A `when` over a vector named whole** (`OXIDELICA_NO_WHEN_VECTORS`).
+   This is item 3 of the brief, the `start.pre_reset[N]` triple.
+   `RadioButtonSource` writes `when pre_reset then` over `Boolean
+pre_reset[nReset]`. The parser splits `when {c1, c2}` into a branch
+   apiece, but a vector written as a name shows its length only after
+   flattening. The split is now done there too, and only for a name. A
+   range in that seat stays refused, as a test already required.
+
+**The pair**, one binary either side of all seven switches:
+
+- off (/tmp/m264/off.txt): 898/579 and 783/537, with the work counts
+  of m263 to the digit;
+- on (/tmp/m264/on.txt): 908/583 and 793/541.
+
+Neither the flatten list nor the run list lost a model.
+
+- Ten models flatten now: `Interaction1`, both `ControlledTanks`,
+  `ReferenceAir.MoistAir`, `MoistAir1`, `MoistAir2`, `TestOnly.MoistAir`,
+  `TestJunctionTraceSubstances`, `TestMultiPort` and
+  `DynamicPipesWithTraceSubstances`.
+- Four of them run: `Interaction1`, both `ControlledTanks` and
+  `ReferenceAir.MoistAir`.
+
+**The price.** The flatten half went from 3018s to 4133s. The ten new
+models were timed alone (/tmp/m264/new10_time.txt). Three are giants:
+`ReferenceAir.MoistAir`, `MoistAir1` and `MoistAir2` cost 334s to 345s
+each, and `DynamicPipesWithTraceSubstances` 120s. That is 1140s, and
+it accounts for the whole rise. Keeping the caller out of the
+inlining cache's key changed nothing: `ReferenceAir.MoistAir` cost
+255s either way. The cost belongs to the model once it reads, not to
+the key. The brief declined to carve out another giant this shift,
+and the CI ceiling is now 150 minutes. These four are the first names
+for the split the ceiling's comment points to.
+
+**Where the family stands now**, one model at a time with `--only`:
+
+- `TestSources` and `TestTraceSubstances`: `an equation between shapes
+[] and [1]`, `boundary1.medium.T` against a
+  `solveOneNonlinearEquation` specialised for `MoistAir.T_phX`. A
+  scalar function has come out as a vector of one.
+- `RoomCO2`, `RoomCO2WithControls` and `TestJunctionTraceSubstances`
+  stood at the loop-range layer on the binary before the last two
+  layers. Their fate on the final binary is in the m264 census.
+- `TestMultiPortTraceSubstances`: `an array cannot be a divisor`.
+- `BranchingDynamicPipes`: `size(..., 1): Ref("state.X") is of shape
+[]`. Its smallest form, `specificHeatCapacityCp(setState_pTX(...))`
+  of moist air, stops at `an array reached the evaluator` on the
+  Wagner coefficients of `saturationPressureLiquid`. That wall is
+  older than this series (the same on the off side), and it is where
+  `h_pTX_der` is walked at run time.
+
+**Item 2, the dotted constant.** It was built behind
+`OXIDELICA_NO_DOTTED_MINT` and then taken out unmeasured. Its only
+witness, `LinearColdWater`, no longer stands at the unit wall even on
+HEAD. It flattens and fails in `initialization did not converge in 50
+Newton iterations`, with and without the mint. The 25-line lk3 model
+still refuses on units, but lk3 reproduces the wall through a
+declaration binding. The mint's road is the equation road, and in the
+equation form (lk4) it moves the refusal from `K against 1` to a
+`cannot add` of pascals against a pure number. The body adds `101325`
+bare to `p`, and that is the library's text. With no corpus model
+behind it and a refusal that only changes its wording, a pair would
+measure nothing. The change was not kept.
+
+**Item 3b, `X is partial and cannot be instantiated`.** The three are
+`Media.Examples.Utilities.FixedAmbient`, `FixedMassFlowRate` and
+`PortVolume`: helper models whose `Medium` defaults to `PartialMedium`
+and is meant to be redeclared by whoever uses them. Refusing them is
+right, and they are parked by right.
+
+**The m264 census** (/tmp/m264/census.txt, raw /tmp/m264/raw.txt),
+taken after the series from the final binary. Halves 129 and 325,
+together 454 = 1037 - 583, against 140 and 318 of m263. Families, each
+added up from its rows:
+
+- algebraic loops 27+20+14+14+11+7+3+3 = 99, from 97. The two are
+  `ReferenceAir.MoistAir1` and `MoistAir2`, new to the run half, at
+  `X of algebraic loop` (12 to 14);
+- structurally singular 64, unbalanced 39, both unmoved;
+- parameters 45, from 44. The one is `TestJunctionTraceSubstances`,
+  new to the run half, which cannot evaluate `junction1.h_start =
+MoistAir.h_pTX(...)` before the run.
+
+The rows that emptied and where their models went:
+
+- the `Xi_outflow = medium.Xi` rows (1+1+1+2+3), `medium_T[N].Xi`,
+  `C_outflow` and the `{0.01, 0.99}` rows are gone;
+- `start.pre_reset[N]` (3) is gone, and all three models run;
+- `connect between N and N` in its old bare wording is gone. The one
+  left, with its `connect` now named, is `massFlowRate.ports[N]`
+  against `tank.topPorts`, a different model;
+- `an array cannot be a divisor` went 3 to 7. It gained `RoomCO2`,
+  `RoomCO2WithControls`, `TestMultiPortTraceSubstances` and
+  `TestsWithFluid.MediaTestModels.Air.MoistAir`, and that is now the
+  next wall of the trace-substance chain;
+- `unknown variable X in equation` went 4 to 6, with `TestMultiPort`
+  and `DynamicPipesWithTraceSubstances` new to the run half;
+- `an array reached the evaluator` on the Wagner coefficients went 1
+  to 3, with `PsychrometricData` and `TestOnly.MoistAir`. This is the
+  `saturationPressureLiquid` wall named above, and it now holds three
+  models;
+- `function X is missing its argument X` went 4 to 5, with
+  `IncompleteMedia.ReferenceMoistAir`. That is the partial-medium
+  family parked by right;
+- `CCCV_Stack` and `CCCV_StackRC` moved from `CombiTable1D_getValue
+is written outside Modelica` to `OCV_SOC has 6 element(s) but its
+value has 348`, by the slice-member layer alone. Same count, a
+  different wall. The flexible-size table of the battery records is
+  parked with `CCCV_CellRC`.

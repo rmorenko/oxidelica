@@ -250,7 +250,25 @@ FILES_FLOOR=2671
 #                 count: LinearColdWater now reads 278.15 - 278.15,
 #                 and stands at the next wall, a bare `2*101325` in
 #                 `isentropicEnthalpy`
-FLATTEN_FLOOR=898
+#
+# And seven layers of the trace-substance chain, measured from one
+# binary either side of all seven switches (OXIDELICA_NO_SLICE_MEMBER_
+# SHAPES, _DISABLED_BY_NAME, _ARRAY_SEEDS, _ENCLOSING_RECORDS,
+# _LOOP_CONSTANTS, _ELEMENT_STREAMS, _WHEN_VECTORS). The off side
+# printed 898/579 and 783/537 and the work counts above to the digit
+# (/tmp/m264/off.txt); the on side (/tmp/m264/on.txt) printed:
+#
+#   flatten 908 = 898 above, plus ten, none lost:
+#                 Blocks.Examples.Interaction1,
+#                 Fluid.Examples.ControlledTankSystem.ControlledTanks,
+#                 StateGraph.Examples.ControlledTanks (a `when` over a
+#                 vector named whole), Media.Examples.ReferenceAir.
+#                 MoistAir, MoistAir1, MoistAir2, ModelicaTest.Media.
+#                 TestOnly.MoistAir (moist air's default enthalpy),
+#                 and TestJunctionTraceSubstances, TestMultiPort,
+#                 DynamicPipesWithTraceSubstances (the trace-substance
+#                 ports)
+FLATTEN_FLOOR=908
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -602,7 +620,11 @@ FLATTEN_FLOOR=898
 #                h - 101300/d by hand
 #   runnable flatten 782 = 776 below, plus all six, runnable examples
 #   runnable run 537 = 536 below, plus TestGlycol
-RUN_FLOOR=579
+#
+# And run 583 = 579, plus Interaction1, both ControlledTanks and
+# ReferenceAir.MoistAir, from /tmp/m264/on.txt. The run list lost
+# nothing.
+RUN_FLOOR=583
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -611,8 +633,11 @@ RUN_FLOOR=579
 #
 # And runnable flatten 783 = 782, plus PsychrometricData, a runnable
 # example set out at `FLATTEN_FLOOR`.
-RUNNABLE_FLATTEN_FLOOR=783
-RUNNABLE_RUN_FLOOR=537
+#
+# And runnable flatten 793 = 783 plus the ten, runnable run 541 = 537
+# plus the four, all of them runnable examples (/tmp/m264/on.txt).
+RUNNABLE_FLATTEN_FLOOR=793
+RUNNABLE_RUN_FLOOR=541
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -707,11 +732,22 @@ RUN_MS_CEILING=8000
 # series did 0.12% more classes, 0.1% fewer expansions and 0.24% more
 # bodies. PsychrometricData is built whole now; which of the two
 # changes moved the expansions was not measured apart.
-WORK_CLASSES=281958
-WORK_EXPANSIONS=91341181
-WORK_BODIES=1300159
-WORK_POINTS=31348302
-WORK_NEWTON=43593653
+#
+# Refreshed again with the floors, from /tmp/m264/on.txt. The off side
+# of the same binary printed the numbers of m263 above to the digit
+# (/tmp/m264/off.txt), so the series did 0.16% more classes, 1.6% more
+# expansions, 7.1% more bodies, 2.9% more points and 2.1% more Newton
+# steps. Nearly all of it is ten models built whole, and three of them
+# are dear: the ReferenceAir moist-air examples cost about 340s each to
+# flatten and DynamicPipesWithTraceSubstances 120s, measured one at a
+# time (/tmp/m264/new10_time.txt). They were left in the main pass
+# rather than carved out: carving another giant was declined on
+# 2026-09-24, with the CI ceiling raised to 150 minutes instead.
+WORK_CLASSES=282397
+WORK_EXPANSIONS=92767192
+WORK_BODIES=1392637
+WORK_POINTS=32249825
+WORK_NEWTON=44495092
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

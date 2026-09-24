@@ -2037,3 +2037,74 @@ fn a_constant_a_medium_moved_is_the_one_its_inherited_body_reads() {
         last_of(&result, "d2")
     );
 }
+
+#[test]
+fn a_derivative_rule_over_an_array_argument_is_seeded_element_by_element() {
+    // `h_pTX(p, T, X)` of moist air says `derivative = h_pTX_der`, and
+    // `X` is an array. Its seed was one array standing where a number
+    // belongs, and every moist-air medium was refused for its default
+    // enthalpy. The rule here is ten times the true derivative, so the
+    // number says the rule was used and not the body taken apart. At
+    // x = 2, h = 2 * 0.02 + 0.99 = 1.03, and the rule gives
+    // 10 * (1 * 0.02 + 2 * 0.01) = 0.4 where the true rate is 0.04.
+    let result = run("model M \
+           function f input Real p; input Real X[:]; output Real h; \
+           algorithm h := p*X[1] + X[2]; annotation(derivative = f_der); end f; \
+           function f_der input Real p; input Real X[:]; input Real dp; \
+             input Real dX[:]; output Real dh; \
+           algorithm dh := 10*(dp*X[1] + p*dX[1] + dX[2]); end f_der; \
+           Real x(start = 1, fixed = true); \
+           Real h = f(x, {0.01*x, 0.99}); Real v = der(h); \
+         equation der(x) = 1; \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    assert!(
+        (last_of(&result, "h") - 1.03).abs() < 1e-6,
+        "{}",
+        last_of(&result, "h")
+    );
+    assert!(
+        (last_of(&result, "v") - 0.4).abs() < 1e-6,
+        "{}",
+        last_of(&result, "v")
+    );
+}
+
+#[test]
+fn a_record_constant_of_the_callers_package_is_handed_over_as_its_record() {
+    // Moist air writes `constant DataRecord steam = SingleGasesData.H2O`
+    // beside `h_pTX`, which hands `data = steam` to the ideal gas
+    // enthalpy. The bare name was read from the scope of the function
+    // being called, where nothing declares it, and the body carried
+    // `steam.R_s` into a flat model that has no such variable.
+    let result = run("model M \
+           package Data record R Real a; Real b; end R; \
+             constant R H2O = R(a = 2, b = 3); end Data; \
+           package Pk constant Data.R r = Data.H2O; \
+             function g input Data.R d; input Real x; output Real y; \
+             algorithm y := d.a * x + d.b; end g; \
+             function f input Real x; output Real y; \
+             algorithm y := g(d = r, x = x); end f; \
+           end Pk; \
+           Real h = Pk.f(time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    assert!(
+        (last_of(&result, "h") - 5.0).abs() < 1e-9,
+        "{}",
+        last_of(&result, "h")
+    );
+}
+
+#[test]
+fn the_range_of_a_loop_in_an_algorithm_counts_a_package_constant() {
+    // The trace substance sensor walks `for i in 1:Medium.nC` in its
+    // initial algorithm to find its substance. The range was the one
+    // part of a statement nobody put the package's constants into.
+    let result = run("model M \
+           package Pk constant Integer nC = 2; end Pk; \
+           model S replaceable package Medium = Pk; Integer ind; \
+           algorithm ind := -1; \
+             for i in 1:Medium.nC loop ind := i; end for; end S; \
+           S s; \
+           annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;");
+    assert!((last_of(&result, "s.ind") - 2.0).abs() < 1e-12);
+}

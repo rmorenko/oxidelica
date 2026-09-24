@@ -719,3 +719,25 @@ fn an_indicator_that_holds_zero_before_it_turns_is_stepped_past_once() {
         "the gate turns once and the run has to reach its stop time: seen = {last}"
     );
 }
+
+#[test]
+fn a_when_over_a_vector_named_whole_fires_on_each_element() {
+    // `when pre_reset then` over `Boolean pre_reset[n]` fires when any
+    // element becomes true, as `when {c1, c2}` does. A vector written
+    // as a name shows its length only after flattening, and was
+    // refused as an array where one condition was wanted. Two
+    // elements turning true at two instants count two events.
+    for section in [
+        "algorithm when c then y := pre(y) + 1; end when;",
+        "equation when c then y = pre(y) + 1; end when;",
+    ] {
+        let result = run(&format!(
+            "model M Boolean c[2]; discrete Real y(start = 0, fixed = true); \
+             equation c[1] = time > 0.3; c[2] = time > 0.6; {section} \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end M;"
+        ));
+        let at = result.columns.iter().position(|c| c == "y").unwrap();
+        let y = result.rows.last().unwrap()[at];
+        assert!((y - 2.0).abs() < 1e-12, "{section}: {y}");
+    }
+}

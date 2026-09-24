@@ -50,14 +50,26 @@ pub(super) fn push_connects(
     // while the left is a run of two. Counted against each other,
     // that is a refusal about a connection nobody asked for.
     let gone = |held: &[String]| held.iter().any(|name| acc.is_disabled(name));
-    if gone(&left) || gone(&right) {
+    // A side switched off may also expand to no names at all: an array
+    // of connectors `C_in[Medium.nC] if use_C_in` that was left out is
+    // measured by nobody, and it came back as nothing - so there was no
+    // name for the test above to ask about, and every source of a
+    // medium with trace substances was refused for connecting nothing
+    // to one input. The name the side was written with is asked too.
+    let written_gone = |expr: &Expr| {
+        disabled_connects_open()
+            && matches!(prefix_expr(expr, prefix, outers), Expr::Ref(name) if acc.is_disabled(&name))
+    };
+    if gone(&left) || gone(&right) || written_gone(a) || written_gone(b) {
         return Ok(());
     }
     if left.len() != right.len() {
         return Err(format!(
-            "connect between {} and {} connector(s)",
+            "connect between {} and {} connector(s): connect({}, {})",
             left.len(),
-            right.len()
+            right.len(),
+            crate::flatten::names::sketch(a),
+            crate::flatten::names::sketch(b),
         ));
     }
     // A connector named here is "outside" when it is a port of the very
@@ -392,7 +404,17 @@ pub(super) fn stream_mix(
     };
     let class = context.registry[class_name.as_str()];
     let held = connector_members(context.registry, class);
-    let Some(component) = held.iter().find(|c| c.name == member) else {
+    // A stream member that is an array reaches here one element at a
+    // time: `inStream(port.C_outflow)` over `C_outflow[nC]` was spread
+    // into `port.C_outflow[1]` and so on before the streams were
+    // resolved. The declaration is the member without its subscript,
+    // and the element keeps it: what the other ports push is the same
+    // element of theirs.
+    let declared = match element_streams_open() {
+        true => member.split_once('[').map_or(member, |(bare, _)| bare),
+        false => member,
+    };
+    let Some(component) = held.iter().find(|c| c.name == declared) else {
         return Err(format!("connector `{class_name}` has no member `{member}`"));
     };
     if !component.stream {
@@ -1026,4 +1048,19 @@ pub(super) fn constraint_is_empty(
                 .iter()
                 .any(|d| matches!(d, Expr::Number(n) if *n == 0.0))
         })
+}
+
+/// Whether a `connect` whose side was written as the name of a
+/// component left out is dropped even where that side expanded to no
+/// names. `OXIDELICA_NO_DISABLED_BY_NAME` closes the road, so that one
+/// binary gives both numbers.
+fn disabled_connects_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_DISABLED_BY_NAME").is_none()
+}
+
+/// Whether `inStream` of one element of an array stream member is read
+/// through the member's declaration. `OXIDELICA_NO_ELEMENT_STREAMS`
+/// closes the road, so that one binary gives both numbers.
+fn element_streams_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_ELEMENT_STREAMS").is_none()
 }

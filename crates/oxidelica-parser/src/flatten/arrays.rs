@@ -280,6 +280,31 @@ pub(super) fn expand(
             Expr::Ref(name) if member_of_array(name, shapes.sizes).is_some() => {
                 let (array, member) = member_of_array(name, shapes.sizes).expect("just matched");
                 let elements = elements_of(array, &shapes.sizes[array]);
+                // The member may be an array on every element in its
+                // own right: `ports.C_outflow` over ports that each
+                // carry `C_outflow[nC]`. The table measured each of
+                // those under its full spelling, and named one per
+                // element the slice lost the inner axis - every source
+                // with trace substances was refused for `[n]` against
+                // `[n, 1]`.
+                let measured = |each: &str| {
+                    slice_member_shapes_open()
+                        && shapes.sizes.contains_key(&format!("{each}.{member}"))
+                };
+                let mut any_measured = false;
+                visit_names(&elements, &mut |each| any_measured |= measured(each));
+                if any_measured {
+                    // An element the table did not measure keeps its
+                    // member as one name, as the reading below gives.
+                    return try_map_names(&elements, &|each| {
+                        let whole = Expr::Ref(format!("{each}.{member}"));
+                        Some(match measured(each) {
+                            true => recur(&whole),
+                            false => Ok(Value::Scalar(whole)),
+                        })
+                    })
+                    .map(|mapped| mapped.unwrap_or(elements.clone()));
+                }
                 map_value(&elements, &|element| match element {
                     Expr::Ref(each) => Expr::Ref(format!("{each}.{member}")),
                     other => other,
@@ -614,6 +639,50 @@ pub(crate) fn deep_matrix_open() -> bool {
 /// closes the road, so that one binary gives both numbers.
 fn member_shapes_open() -> bool {
     std::env::var_os("OXIDELICA_NO_MEMBER_SHAPES").is_none()
+}
+
+/// Whether a member read off every element of a slice of components
+/// takes the shape the table measured for it on each element.
+/// `OXIDELICA_NO_SLICE_MEMBER_SHAPES` closes the road, so that one
+/// binary gives both numbers.
+fn slice_member_shapes_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_SLICE_MEMBER_SHAPES").is_none()
+}
+
+/// Every name in an array of names, in order.
+fn visit_names(value: &Value, f: &mut dyn FnMut(&str)) {
+    match value {
+        Value::Scalar(Expr::Ref(name)) => f(name),
+        Value::Scalar(_) => {}
+        Value::Array(items) => items.iter().for_each(|item| visit_names(item, f)),
+    }
+}
+
+/// Replace the names in an array of names by what `f` makes of each,
+/// where it makes anything of it. `None` where it made nothing of any:
+/// the caller's own reading then stands untouched.
+fn try_map_names(
+    value: &Value,
+    f: &dyn Fn(&str) -> Option<Result<Value, String>>,
+) -> Result<Option<Value>, String> {
+    match value {
+        Value::Scalar(Expr::Ref(name)) => f(name).transpose(),
+        Value::Scalar(_) => Ok(None),
+        Value::Array(items) => {
+            let mut any = false;
+            let mut out = Vec::with_capacity(items.len());
+            for item in items {
+                match try_map_names(item, f)? {
+                    Some(mapped) => {
+                        any = true;
+                        out.push(mapped);
+                    }
+                    None => out.push(item.clone()),
+                }
+            }
+            Ok(any.then_some(Value::Array(out)))
+        }
+    }
 }
 
 /// One part of a `[ ]` as the matrix it stands for: a scalar is one by

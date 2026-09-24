@@ -314,7 +314,60 @@ fn derivative_rule(
         .collect();
     let shapes: Vec<Vec<i64>> = shapes.iter().cloned().chain(seeded_shapes).collect();
     let rule = inline_function(of, &handed, &shapes, consts, registry, depth + 1)?;
+    // A seed stands for one argument's derivative, and an argument may
+    // be an array: `h_pTX(p, T, X)` takes the mass fractions whole, and
+    // its rule reads `dX[1]` and `dX[2]`. Kept as one seed holding the
+    // array, it was a list where every later pass wants a number, and
+    // every moist-air medium was refused for its default enthalpy. The
+    // rule names each element of the seed on its own, so each element
+    // is a seed of its own, differentiated from its own argument.
+    let seeds = match array_seeds_open() {
+        false => seeds,
+        true => {
+            let mut split = Vec::with_capacity(seeds.len());
+            for (name, argument) in seeds {
+                split_seed(&name, argument, &mut split);
+            }
+            split
+        }
+    };
     Ok((rule, seeds))
+}
+
+/// One seed per element of an array argument, named as the flat model
+/// names an element: `$seed2[1]`, `$seed2[1,2]`.
+fn split_seed(name: &str, argument: Expr, out: &mut Vec<(String, Expr)>) {
+    match argument {
+        Expr::Array(items) => {
+            for (index, item) in items.into_iter().enumerate() {
+                split_seed_under(name, &[index + 1], item, out);
+            }
+        }
+        other => out.push((name.to_string(), other)),
+    }
+}
+
+fn split_seed_under(name: &str, at: &[usize], argument: Expr, out: &mut Vec<(String, Expr)>) {
+    match argument {
+        Expr::Array(items) => {
+            for (index, item) in items.into_iter().enumerate() {
+                let mut deeper = at.to_vec();
+                deeper.push(index + 1);
+                split_seed_under(name, &deeper, item, out);
+            }
+        }
+        other => {
+            let subscripts: Vec<String> = at.iter().map(|i| i.to_string()).collect();
+            out.push((format!("{name}[{}]", subscripts.join(",")), other));
+        }
+    }
+}
+
+/// Whether an array argument's derivative is handed to a rule element
+/// by element. `OXIDELICA_NO_ARRAY_SEEDS` closes the road, so that one
+/// binary gives both numbers.
+fn array_seeds_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_ARRAY_SEEDS").is_none()
 }
 
 /// Execute a function body symbolically and return every output, in
@@ -758,6 +811,39 @@ thread_local! {
         RefCell::new(std::collections::HashSet::new());
 }
 
+thread_local! {
+    // The functions whose bodies are being walked, innermost last. The
+    // arguments a body hands on are written in that body's scope, so
+    // a bare name among them is looked for from there - not from the
+    // function being called, which may live in another library
+    // altogether.
+    static WALKING: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// The body whose arguments are being bound is the caller's while this
+/// stands.
+struct Walking;
+
+impl Walking {
+    fn enter(name: &str) -> Self {
+        WALKING.with(|held| held.borrow_mut().push(name.to_string()));
+        Walking
+    }
+
+    /// The function whose body wrote the call now being bound.
+    fn caller() -> Option<String> {
+        WALKING.with(|held| held.borrow().last().cloned())
+    }
+}
+
+impl Drop for Walking {
+    fn drop(&mut self) {
+        WALKING.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
+}
+
 /// A body marked as folding while this stands, unmarked when it falls.
 struct Folding(String);
 
@@ -1181,8 +1267,21 @@ fn inline_body(
         true => String::new(),
         false => under,
     };
+    // A bare name among the arguments is read in the scope of the body
+    // that wrote the call, so two callers handing over `steam` may mean
+    // two different records. Only then does the caller belong to the
+    // key: every other asking stays as shared as it was.
+    let bare_argument = |arg: &Expr| match arg {
+        Expr::Ref(name) => !name.contains('.'),
+        Expr::NamedArg(_, value) => matches!(&**value, Expr::Ref(name) if !name.contains('.')),
+        _ => false,
+    };
+    let caller = match enclosing_records_open() && args.iter().any(bare_argument) {
+        true => Walking::caller().unwrap_or_default(),
+        false => String::new(),
+    };
     let asked = format!(
-        "{}|{under}|{depth}|{folded:?}|{args:?}|{shapes:?}",
+        "{}|{under}|{caller}|{depth}|{folded:?}|{args:?}|{shapes:?}",
         class.name
     );
     if let Some(told) = INLINED.with(|held| held.borrow().get(&asked).cloned()) {
@@ -1256,6 +1355,9 @@ fn worked_body(
         &mut bindings,
         &mut given_shapes,
     )?;
+    // From here on the arguments this body hands to others are written
+    // in its own scope.
+    let _walking = Walking::enter(&class.name);
     // Whatever the call left unsaid falls back to the input's own
     // default. Defaults may name earlier inputs, so they are resolved
     // against what is already bound.
@@ -1922,12 +2024,88 @@ fn record_argument(
         return None;
     };
     match named.rsplit_once('.') {
-        None => bare_record_constant(registry, named),
+        None => bare_record_constant(registry, named)
+            .or_else(|| enclosing_record_argument(registry, named)),
         Some((head, tail)) => match lookup(registry, head, &class.name, &class.imports).is_none() {
             true => bare_record_constant(registry, tail),
             false => None,
         },
     }
+}
+
+/// A bare name standing for a record constant of a package the calling
+/// function is written inside, where no medium on the mark answers for
+/// it.
+///
+/// Moist air writes `constant DataRecord steam = SingleGasesData.H2O`
+/// beside its functions, and `h_pTX` hands `data = steam` to the ideal
+/// gas enthalpy. Asked by its full name `Modelica.Media.Air.MoistAir.
+/// h_pTX` there is no mark at all, so the medium road stayed silent,
+/// the bare name was bound, and the body read `steam.R_s` out into a
+/// flat model that declares no such thing. The packages the function
+/// is written inside are where the language looks for the name, and
+/// the first one declaring it as a constant is the one it means.
+fn enclosing_record_argument(registry: &HashMap<&str, &ClassDef>, named: &str) -> Option<Expr> {
+    if !enclosing_records_open() {
+        return None;
+    }
+    let caller = Walking::caller()?;
+    let mut prefix = caller.as_str();
+    while let Some((outer, _)) = prefix.rsplit_once('.') {
+        prefix = outer;
+        let Some(owner) = registry.get(prefix) else {
+            continue;
+        };
+        if owner.kind != ClassKind::Package {
+            continue;
+        }
+        let Some(held) = with_inherited_components(owner, registry)
+            .into_iter()
+            .find(|c| c.name == named)
+        else {
+            continue;
+        };
+        if held.variability != Variability::Constant {
+            return None;
+        }
+        // The constant is usually another record constant under a
+        // second name - `steam = SingleGasesData.H2O` - and it is the
+        // one named that holds the constructor.
+        let whole = match &held.binding {
+            Some(Expr::Ref(other)) if other.contains('.') => {
+                let (path, member) = other.rsplit_once('.')?;
+                let there = lookup(registry, path, &owner.name, &owner.imports)?;
+                format!("{}.{member}", there.name)
+            }
+            _ => format!("{}.{}", owner.name, held.name),
+        };
+        // The constructor is written in the package that holds the
+        // record constant, and its name is read there.
+        let (home, _) = whole.rsplit_once('.')?;
+        let home = registry.get(home)?;
+        let built =
+            constants::class_constant_array_at(registry, &whole, &home.name, &home.imports, 0)?;
+        let Expr::Call(record, args) = &built else {
+            return None;
+        };
+        let of = lookup(registry, record, &home.name, &home.imports)?;
+        let mut fields = Vec::new();
+        for field in &record_fields_of(registry, of, 0) {
+            fields.push(args.iter().find_map(|arg| match arg {
+                Expr::NamedArg(given, value) if given == field => Some((**value).clone()),
+                _ => None,
+            })?);
+        }
+        return Some(Expr::Array(fields));
+    }
+    None
+}
+
+/// Whether a bare record constant of an enclosing package is handed to
+/// a function as the record it names. `OXIDELICA_NO_ENCLOSING_RECORDS`
+/// closes the road, so that one binary gives both numbers.
+fn enclosing_records_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_ENCLOSING_RECORDS").is_none()
 }
 
 /// Bind what a record argument stands for, field by field, and say

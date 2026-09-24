@@ -177,10 +177,12 @@ fn run_algorithm_sections(
                     .condition
                     .as_ref()
                     .ok_or_else(|| "a `when` has no `else`".to_string())?;
-                lifted.push(WhenBranch {
-                    condition: resolve_here(condition)?,
-                    actions,
-                });
+                for condition in when_conditions(condition, expand_here)? {
+                    lifted.push(WhenBranch {
+                        condition,
+                        actions: actions.clone(),
+                    });
+                }
             }
             acc.when_clauses.push(WhenClause {
                 branches: lifted,
@@ -1040,10 +1042,12 @@ fn flatten_when_clauses(
                     }
                 }
             }
-            branches.push(WhenBranch {
-                condition: resolve_here(&branch.condition)?,
-                actions,
-            });
+            for condition in when_conditions(&branch.condition, &expand_here)? {
+                branches.push(WhenBranch {
+                    condition,
+                    actions: actions.clone(),
+                });
+            }
         }
         acc.when_clauses.push(WhenClause {
             branches,
@@ -1532,4 +1536,29 @@ fn answered_with(expr: &Expr, answer: &dyn Fn(&Expr) -> Option<Expr>) -> Expr {
         return told;
     }
     expr.map_children(&mut |child| answered_with(child, answer))
+}
+
+/// The conditions a `when` branch stands for once its condition is
+/// flattened.
+///
+/// `when pre_reset then` over `Boolean pre_reset[nReset]` fires when
+/// any element becomes true - the same as `when {c1, c2}`, which the
+/// parser already splits into a branch apiece. A vector written as a
+/// name only shows its length here, after flattening, and was refused
+/// for being an array where one condition was wanted: every radio
+/// button of the state graphs and the controlled tanks met it.
+fn when_conditions(condition: &Expr, expand_here: &ExpandHere<'_>) -> Result<Vec<Expr>, String> {
+    let value = expand_here(condition, &HashMap::new())?;
+    // Only a vector written as a name: a range or a list of numbers in
+    // that seat is not a set of conditions, and stays refused.
+    if std::env::var_os("OXIDELICA_NO_WHEN_VECTORS").is_some() || !matches!(condition, Expr::Ref(_))
+    {
+        return Ok(vec![value.scalar()?]);
+    }
+    let mut conditions = Vec::new();
+    value.flatten_into(&mut conditions);
+    match conditions.is_empty() {
+        true => Ok(vec![value.scalar()?]),
+        false => Ok(conditions),
+    }
 }
