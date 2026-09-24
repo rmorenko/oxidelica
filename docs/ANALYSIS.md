@@ -19034,3 +19034,208 @@ for 173 on the binary before the series, and on the binary after it
 with the switches on or off. So the difference depends on what the
 model is checked beside in the corpus pass, not on this series. It
 was not traced further.
+
+## The m267 series: `C_nominal`, and the bends' `dp_small`
+
+### `C_nominal` was a constructor with a factor on it
+
+The three trace-substance models that m266 left at
+`unknown variable <volume>.Medium.C_nominal` were
+`TestJunctionTraceSubstances`, `TestMultiPortTraceSubstances` and
+`DynamicPipesWithTraceSubstances` (`/tmp/m266c/raw.txt` lines 399,
+401 and 419). The wall is one line of the medium interface:
+`constant Real C_nominal[nC] = 1.0e-6*ones(nC)`. The constants layer
+builds an array constant out of `fill`, `zeros` and `ones` against
+the owner's gathering (`builds_an_array` in `constants.rs`). A
+constructor with a factor on it was not one of the three, so the
+constant stayed a bare name that nothing declares. The small model
+(`/tmp/m267/s10.mo`, scratch) is six lines: a package constant
+`c[1] = 1.0e-6*ones(1)` read by a model. `ones(1)` alone and
+`fill(1.0e-6, 1)` alone both flatten.
+
+The fix reads a product with a number on either side, and a quotient
+with the constructor on the left, as the constructor built and then
+scaled (`OXIDELICA_SCALED_ARRAYS_OFF`). A scalar divided by an array
+is not one of the language's elementwise readings, so it is left
+alone. The test builds `2.0e-6*ones(nC)`, `ones(nC)*2.0e-6` and
+`fill(6.0e-6, nC)/2` against a medium that extends the interface with
+two substance names. It checks that each element of the product is
+the number 2e-6 or 3e-6, and it goes red with the switch.
+
+None of the three runs yet. Each moved to a wall of its own, run one
+at a time with `--only`:
+
+- `TestJunctionTraceSubstances`: unbalanced, 485 equations for 494
+  unknowns, nothing determining `junction1.Hb_flow`,
+  `junction1.mbC_flow[1]` and seven more;
+- `TestMultiPortTraceSubstances`: an algebraic loop over
+  `volume1.medium.p`, `T` and `phi` and the port densities;
+- `DynamicPipesWithTraceSubstances`: a standing
+  `solveOneNonlinearEquation` over the NASA `T_h` of the pipe's
+  outlet state.
+
+Those are the families the brief lists as architecture: loops and
+unbalanced. They are named here and not taken.
+
+### The bends' `dp_small`: three links, and an instrument first
+
+The refusal was `cannot evaluate parameters [fitting1.dp_small =
+...dp_curvedOverall_DP(...)]: nothing works out ...`. That names the
+call and not the reason: the parameter loop dropped the evaluator's
+own error. The refusal now carries what the evaluator said about the
+first parameter it could not work out, as `(the evaluator said: ...)`.
+The existing refusal test holds the new words. On the seven-line
+model (`/tmp/m267/bend.mo`, the library's `dp_curvedOverall_DP` over
+literals) the chain was walked to its end with that instrument:
+
+1. A local's binding in a walked body reads its record input the way
+   the frame holds it. `records_as_arrays` renamed `IN_con.d_hyd` to
+   `IN_con[1]` in the statements only, while the thirty coefficients
+   of the bend are protected locals bound on the record. The evaluator
+   said `unknown variable IN_con.d_hyd`
+   (`OXIDELICA_NO_LOCAL_RECORD_FIELDS`).
+2. A call in a local's binding is named the way the registry knows
+   it, and is carried out with the body. `Re_lam_leave` is bound on
+   `Modelica.Math.exp(...)`, and `gather_calls` read the statements
+   alone. The evaluator said `unknown function Modelica.Math.exp`
+   (`OXIDELICA_NO_LOCAL_BINDING_CALLS`).
+3. A record input that an inlined body hands on whole to a call left
+   standing is bound whole. `CurvedBend.massFlowRate` takes
+   `geometry` and passes it straight to `dp_curvedOverall_MFLOW`,
+   which the run walks. Unbound, the bare name reached the flat model
+   as `geometry` with no instance on it. That is the name-shortened
+   guess of AGENTS.md from the other end
+   (`OXIDELICA_NO_RECORDS_HANDED_ON`).
+
+At the end of the chain the small model gives `DP` = 0.0078265 for
+`d_hyd` 0.1, `R_0` 0.5, `delta` 1.5, `eta` 0.001, `rho` 995.586 and
+`m_flow` 0.01. The body worked by hand from the library's text
+(Re = 127.3, laminar branch, `Re_lam_leave` = 1908.3) gives
+0.0078262. One test covers links 1 and 2 on a walked body: `frac =
+g.R/g.d` and `boost = P.Lib.exp(...)` as locals, with a loop counted
+by the time so that nothing inlines it. It gives 3·e·5·3/2 at the end,
+and it goes red with either switch alone. Link 3's small model
+(`/tmp/m267/geo2.mo`) gives 15 = 3×5. It is a test too, and it goes
+red with its switch.
+
+### What the first corpus pair caught
+
+The first pair from one binary (`/tmp/m267/on.txt` against
+`/tmp/m267/off.txt`, `/tmp/ox267c`, with three links and
+`C_nominal`) printed 912 flatten and 589 run on, against 914 and 587
+off. The run list gained the two bends and nothing else. The flatten
+list lost two models, and each loss was one link, found by turning
+the switches off one at a time under `--only`:
+
+- `Media.Examples.SolveOneNonlinearEquation.Inverse_sh_TX` was lost to
+  link 2. A local's binding in the moist air's bodies calls
+  `massToMoleFractions`, whose answer has a length the compiler
+  cannot see. Carried out with the body, `walkable` refused it, and
+  that refused the whole model. A body that a binding reaches is now
+  gathered the way a body that a declaration reaches already was:
+  taken if it can be carried, and passed over if it cannot.
+- `TestAllProperties.IncompleteMedia.ReferenceAir_dT` was lost to
+  link 3. `specificEnthalpy_psX` hands its `X` on to `setState_psX`,
+  and that link now binds the whole list. `setState_psX` is a
+  `redeclare function extends` that declares no inputs of its own.
+  The resolver judged which arguments may be aggregates from the
+  class's own components, so it read none, took `X[:]` for a scalar,
+  and refused `{1.0}`. It now reads the inherited inputs too
+  (`with_inherited_components`, `OXIDELICA_NO_INHERITED_INPUTS`).
+  With that link the model flattens again, and it stops at the same
+  refusal as the off side (`an array of 11 written out`). Three
+  synthetic models of the shape (`/tmp/m267/inherited/`, scratch)
+  did not go red, because they take another road through the
+  inliner. So the witness for this link is the corpus model under
+  `--only` and not a small test, and the commit says so.
+
+Of the four names in the queue, `NewFittings.Bends.CurvedBend` and
+`EdgedBend` run under `--only`. The other two moved and are parked:
+
+- `PressureLoss.Bend`: `algebraic loop did not converge in 50 Newton
+iterations` over `from_dp.V_flow`, `from_mflow.V_flow` and
+  `from_mflow.dp`, which is the loop family;
+- `SeveralTestCases`: `unknown variable IN_con.a`, raised when the
+  run is compiled. It comes from the generic volume-flow resistance
+  (`GenericResistances.VolumeFlowRate`), which the model holds beside
+  its bends. A small model of the same shape
+  (`/tmp/m267/vfr.mo`: an `Inline=true` body with record-reading
+  locals under a `LateInline` wrapper) runs, so this is a different
+  road and was not walked further.
+
+### The corpus pair, and what link 4 won besides
+
+The pair from `/tmp/ox267e` (`/tmp/m267/on2.txt` against
+`/tmp/m267/off2.txt`, the five switches off together, the heavy set
+carved out) printed 917 flatten and 589 run on, against 914 and 587
+off. The runnable counts were 802 and 547 on, 799 and 545 off. The off
+side equals the floors to the digit. Nothing left either list. The run
+list gained `NewFittings.Bends.CurvedBend` and `EdgedBend`. The
+flatten list gained three models that nobody aimed at:
+`Fluid.Examples.HeatingSystem`, `Media.Examples.R134a.R134a1` and
+`R134a2`. Each one, run alone with every switch on but one, was won by
+link 4 and by no other link. Before the series they stood at `an
+array value cannot be used where a scalar is expected` (the R134a
+pair) and at `cannot evaluate parameters [tank.h_start = ...]`
+(HeatingSystem). None of the three runs yet.
+
+The work counters left the band: expansions rose 5.83% and bodies
+4.13%. The three new models, measured alone with `--only-from`, came
+to 6032970 expansions against 551996 when they refused. That
+difference is larger than the whole rise, so the new work is
+accounted for and is the price of three models built whole. The time
+per model was 3117 ms flattening and 2002 ms running on, against 3143
+and 2140 off, from the same binary one after the other.
+
+### Parked, with the map
+
+- The `C_nominal` three: behind the wall, at unbalanced
+  (`TestJunctionTraceSubstances`), a loop (`TestMultiPortTraceSubstances`)
+  and a standing `solveOneNonlinearEquation` (`DynamicPipesWithTraceSubstances`).
+- `Dissipation.TestCases.PressureLoss.Bend`: a Newton loop over the
+  two volume flows, in the loop family.
+- `Dissipation.TestCases.PressureLoss.SeveralTestCases`:
+  `unknown variable IN_con.a` in the generic volume-flow resistance.
+  It is a different road, and the small model of the obvious shape
+  runs.
+
+### The m267 census
+
+This census was taken after the series (`/tmp/m267c/census.txt`, raw
+in `/tmp/m267c/raw.txt`) over 1034 models, with the binary the pair
+measured.
+
+- The refused half is 117 (11 + 8×2 + 7 + 6 + 5 + 4×2 + 3×6 + 2×11 +
+  24×1).
+- The run half is 328 (27 + 21 + 15 + 14 + 11 + 7×2 + 5×3 + 4×5 +
+  3×12 + 2×13 + 129×1).
+- Together they make 445 = 1034 − 589.
+
+Against m266 (120 and 327), the refused half lost HeatingSystem and
+the R134a pair, which flatten now. The run half gained those three
+and lost the two bends, which run: 327 + 3 − 2 = 328. Comparing the
+raw reports model by model, twelve refusals changed. Ten are named
+above. The other two, `IncompleteMedia.ReferenceMoistAir` and
+`TestAllProperties.MoistAir`, still refuse to flatten. Each moved to
+`an array value cannot be used where a scalar is expected:
+{state.X[1], state.X[2]}`, a wall one step further along in the same
+media functions. By family, added from the rows:
+
+- loops: 102 (27 + 21 + 15 + 14 + 11 + 7 + 4 + 3). That is three
+  more: `PressureLoss.Bend` (did not converge),
+  `TestMultiPortTraceSubstances` (the equations of a loop) and
+  `DynamicPipesWithTraceSubstances` (its standing solve, counted as
+  the `X` of a loop).
+- structurally singular: 64 (4 + 3 + 3 + 2 + 2 + 2 + 48×1),
+  unchanged.
+- unbalanced: 42 (5 + 3 + 2 + 32×1). That is one more,
+  `TestJunctionTraceSubstances`.
+- parameters: 42 (24 "has no value" + 18 "cannot evaluate"). That is
+  three fewer. Four bend models left and HeatingSystem arrived. The
+  census splits them into 27 service classes and 15 queue.
+- `unknown variable IN_con.a`: 2, `SeveralTestCases` beside
+  `NewFittings.GenericResistances.VolumeFlowRate`, which stood there
+  in m266 already. The two make a family for a later brief.
+- `an array reached the evaluator`: 5 (3 + 2), unchanged. `C_nominal`
+  went to 0 from 3.
+- divisor: 3, unchanged.

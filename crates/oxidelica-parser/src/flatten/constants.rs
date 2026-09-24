@@ -1562,8 +1562,48 @@ fn gathering_settled(
 /// in one. Asked before the owner's gathering is worked out, which is
 /// dear.
 fn builds_an_array(binding: &Expr) -> bool {
-    matches!(binding, Expr::Call(name, args)
-        if matches!(name.as_str(), "fill" | "zeros" | "ones") && !args.is_empty())
+    let constructor = |expr: &Expr| {
+        matches!(expr, Expr::Call(name, args)
+            if matches!(name.as_str(), "fill" | "zeros" | "ones") && !args.is_empty())
+    };
+    constructor(binding)
+        || scaled_constructor(binding).is_some_and(|(_, _, built)| constructor(built))
+}
+
+/// A constructor scaled by a number: `C_nominal[nC] = 1.0e-6*ones(nC)`
+/// is how every medium states the nominal size of its trace
+/// substances, and the product is as much a way of building an array
+/// as the constructor under it. Handed back as the operator, the
+/// factor and the side that builds, so the builder can build the one
+/// and scale it by the other.
+///
+/// Only a product on either side and a quotient with the constructor
+/// on the left, which are the element-by-element readings the language
+/// gives an array and a scalar; a scalar divided by an array is not
+/// one of them.
+fn scaled_constructor(binding: &Expr) -> Option<(BinOp, &Expr, &Expr)> {
+    if scaled_arrays_off() {
+        return None;
+    }
+    let is_constructor = |expr: &Expr| {
+        matches!(expr, Expr::Call(name, _)
+        if matches!(name.as_str(), "fill" | "zeros" | "ones"))
+    };
+    match binding {
+        Expr::Bin(op @ (BinOp::Mul | BinOp::Div), left, right) if is_constructor(left) => {
+            Some((*op, right.as_ref(), left.as_ref()))
+        }
+        Expr::Bin(BinOp::Mul, left, right) if is_constructor(right) => {
+            Some((BinOp::Mul, left.as_ref(), right.as_ref()))
+        }
+        _ => None,
+    }
+}
+
+/// Whether a constructor scaled by a number is left unread, as it was
+/// before: the switch that lets one binary give both numbers.
+fn scaled_arrays_off() -> bool {
+    std::env::var_os("OXIDELICA_SCALED_ARRAYS_OFF").is_some()
 }
 
 /// Whether a binding picks between two arrays, one of them built by
@@ -1676,9 +1716,6 @@ fn as_list(expr: &Expr) -> Option<Expr> {
 }
 
 fn built_from_the_gathering(binding: &Expr, settled: &dyn Fn(&str) -> Option<f64>) -> Option<Expr> {
-    let Expr::Call(name, args) = binding else {
-        return None;
-    };
     // Every name in the shape asked of the walk that already answers
     // numbers - and answers them from a remembered table. Working out
     // the owner's whole gathering here instead would inline an IF97
@@ -1697,6 +1734,17 @@ fn built_from_the_gathering(binding: &Expr, settled: &dyn Fn(&str) -> Option<f64
             named.insert(name, value);
         }
         const_eval(expr, &named)
+    };
+    // A constructor scaled by a number is the constructor built and
+    // every element of it scaled. The factor has to come to a number:
+    // one that is itself an array is not the scalar the reading takes.
+    if let Some((op, factor, built)) = scaled_constructor(binding) {
+        let factor = number(factor)?;
+        let built = built_from_the_gathering(built, settled)?;
+        return Some(scaled(built, op, factor));
+    }
+    let Expr::Call(name, args) = binding else {
+        return None;
     };
     let (filler, lengths) = match name.as_str() {
         "fill" => (number(args.first()?)?, args.get(1..)?),
@@ -1721,6 +1769,23 @@ fn built_from_the_gathering(binding: &Expr, settled: &dyn Fn(&str) -> Option<f64
         built = Expr::Array(vec![built; length as usize]);
     }
     Some(built)
+}
+
+/// An array built of numbers, each element taken by `op` with a factor.
+fn scaled(built: Expr, op: BinOp, factor: f64) -> Expr {
+    match built {
+        Expr::Array(items) => Expr::Array(
+            items
+                .into_iter()
+                .map(|item| scaled(item, op, factor))
+                .collect(),
+        ),
+        Expr::Number(value) => Expr::Number(match op {
+            BinOp::Div => value / factor,
+            _ => value * factor,
+        }),
+        other => other,
+    }
 }
 
 /// A constant of a package the given scope is written inside.

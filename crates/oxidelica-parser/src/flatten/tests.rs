@@ -976,3 +976,45 @@ fn a_record_constant_bound_to_another_record_constant_carries_its_fields() {
         "temperature limit came out {read}"
     );
 }
+
+#[test]
+fn a_constructor_scaled_by_a_number_is_built_as_the_array_it_names() {
+    // Every medium states the nominal size of its trace substances as
+    // `C_nominal[nC] = 1.0e-6*ones(nC)`, with the length a constant of
+    // whoever extends the interface. Built, the product was a bare name
+    // nothing declares, and a volume scaling its trace masses by it
+    // stood on that name.
+    let flat = |binding: &str| {
+        parse_model(&format!(
+            "partial package PM \
+               constant String extraPropertiesNames[:] = fill(\"\", 0); \
+               final constant Integer nC = size(extraPropertiesNames, 1); \
+               constant Real C_nominal[nC] = {binding}; \
+             end PM; \
+             package Air extends PM(extraPropertiesNames = {{\"CO2\", \"H2O\"}}); end Air; \
+             model Vol replaceable package Medium = PM; \
+               Real s[Medium.nC]; Real c[Medium.nC]; \
+             equation s = ones(Medium.nC); c = s .* Medium.C_nominal; end Vol; \
+             model M Vol v(redeclare package Medium = Air); end M;"
+        ))
+    };
+    for (binding, factor) in [
+        ("2.0e-6*ones(nC)", 2.0e-6),
+        ("ones(nC)*2.0e-6", 2.0e-6),
+        ("fill(6.0e-6, nC)/2", 3.0e-6),
+    ] {
+        let m = flat(binding).unwrap_or_else(|e| panic!("{binding}: {e}"));
+        for at in 1..=2 {
+            let equation = m
+                .equations
+                .iter()
+                .find(|e| format!("{:?}", e.lhs) == format!("Ref(\"v.c[{at}]\")"))
+                .unwrap_or_else(|| panic!("{binding}: no equation for v.c[{at}]"));
+            let written = format!("{:?}", equation.rhs);
+            assert!(
+                written.contains(&format!("Number({factor:?})")),
+                "{binding}: v.c[{at}] = {written}"
+            );
+        }
+    }
+}

@@ -2268,3 +2268,60 @@ fn a_walked_body_hands_a_package_record_to_a_call_inside_a_list() {
     let column = result.columns.iter().position(|c| c == "y").unwrap();
     assert_eq!(result.rows.last().unwrap()[column], 117.0);
 }
+
+#[test]
+fn a_walked_body_reads_its_record_and_its_calls_in_the_bindings_of_its_locals() {
+    // The pressure losses of the standard library's bends work out
+    // every coefficient as a protected local bound on the input record
+    // - `frac_RD = R_0/d_hyd` - and on library functions -
+    // `Re_lam_leave = ... Modelica.Math.exp(...)`. A body walked rather
+    // than inlined had only its statements renamed and searched: the
+    // record field went to the run under the spelling the frame does
+    // not hold, and the function the binding called was never carried
+    // out with the body. A loop counted by the time is what keeps this
+    // one from being inlined.
+    let result = run("package P \
+           package Lib function exp input Real u; output Real y; \
+             algorithm y := .exp(u); annotation(Inline = true); end exp; end Lib; \
+           record Geo Real d; Real R; end Geo; \
+           function dp input Geo g; input Real m; output Real y; \
+           protected Real frac = g.R / g.d; \
+             Real boost = P.Lib.exp(if frac > 2 then 1 else 0); Integer k; \
+           algorithm y := 0; k := 0; \
+             while k < m loop y := y + boost * frac * m / 2; k := k + 1; end while; \
+             annotation(Inline = false); end dp; \
+           model M parameter Geo g(d = 0.1, R = 0.5); \
+             Real small = dp(Geo(d = g.d, R = g.R), 2 + time); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; end P;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // At the end the loop runs three times, each adding e * 5 * 3 / 2.
+    let expected = 3.0 * std::f64::consts::E * 5.0 * 3.0 / 2.0;
+    let got = result.rows.last().unwrap()[at("small")];
+    assert!((got - expected).abs() < 1e-9, "{got} against {expected}");
+}
+
+#[test]
+fn a_record_input_handed_on_whole_keeps_the_instance_it_belongs_to() {
+    // A bend of the standard library takes its geometry as a record and
+    // hands it straight on to the pressure-loss function the run walks:
+    // `m_flow := dp_curvedOverall_MFLOW(geometry, ...)`. Inlined into
+    // the component, the bare `geometry` was left unbound and reached
+    // the flat model without the instance it belongs to, a name nothing
+    // declares. A loop counted by the input keeps the callee walked.
+    let result = run("package G record Geo Real d; Real R; end Geo; \
+           function g input Geo geo; input Real dp; output Real m; \
+           protected Integer k; \
+           algorithm m := 0; k := 0; \
+             while k < dp loop m := m + geo.R / geo.d; k := k + 1; end while; \
+             annotation(Inline = false); end g; \
+           function f input Real dp; input Geo geometry; output Real m; \
+           algorithm m := g(geometry, dp); end f; \
+           model Fit parameter Geo geometry(d = 0.1, R = 0.5); Real m; input Real dp; \
+           equation m = f(dp, geometry); end Fit; \
+           model M Fit fitting1(dp = 2 + time); \
+             annotation(experiment(StopTime = 1, Interval = 1)); end M; end G;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    // Three passes at the end, each adding 0.5 / 0.1.
+    let got = result.rows.last().unwrap()[at("fitting1.m")];
+    assert!((got - 15.0).abs() < 1e-9, "{got}");
+}

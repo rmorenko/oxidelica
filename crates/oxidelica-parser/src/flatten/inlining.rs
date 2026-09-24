@@ -2169,7 +2169,21 @@ fn bind_record_argument(
         // else a body reads a record field by field, and a name bound
         // to the whole list is a list where a number was wanted - a
         // one-field state written `{1}` was refused for exactly that.
-        return Ok(class.algorithm.iter().any(hands_a_function_over));
+        //
+        // And where the body hands the record on whole to a call: the
+        // bends of the standard library take their geometry and pass it
+        // straight to `dp_curvedOverall_MFLOW`, which the run walks
+        // rather than inlines. Left unbound, the bare name travelled to
+        // the flat model as `geometry`, a name without the instance it
+        // belongs to - which is a guess about who owns it, and one
+        // nothing declares. Handed on as an argument, the whole list is
+        // exactly what the callee takes.
+        return Ok(class.algorithm.iter().any(hands_a_function_over)
+            || (records_handed_on_open()
+                && class
+                    .algorithm
+                    .iter()
+                    .any(|statement| hands_a_name_on(statement, &input.name))));
     }
     // A record handed over by name rather than written out is the
     // commoner way of it: the caller has the record as a variable and
@@ -2507,6 +2521,58 @@ fn hands_a_function_over(statement: &Statement) -> bool {
         // Nothing here holds an expression a function could be handed
         // over in. Named rather than swept up, so a statement added to
         // the language has to be decided about here.
+        Statement::Break | Statement::Return => false,
+    }
+}
+
+/// Whether a record input handed on whole to a call is bound whole.
+/// `OXIDELICA_NO_RECORDS_HANDED_ON` leaves it unbound, as it was, so
+/// that one binary gives both numbers.
+fn records_handed_on_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_RECORDS_HANDED_ON").is_none()
+}
+
+/// Whether a statement hands the bare name on, whole, as an argument of
+/// a call - `m_flow := dp_curvedOverall_MFLOW(geometry, ...)` - rather
+/// than reading a field of it.
+fn hands_a_name_on(statement: &Statement, name: &str) -> bool {
+    fn in_expr(expr: &Expr, name: &str) -> bool {
+        if let Expr::Call(_, args) = expr {
+            let bare = |arg: &Expr| match arg {
+                Expr::NamedArg(_, value) => {
+                    matches!(value.as_ref(), Expr::Ref(given) if given == name)
+                }
+                Expr::Ref(given) => given == name,
+                _ => false,
+            };
+            if args.iter().any(bare) {
+                return true;
+            }
+        }
+        let mut found = false;
+        expr.map_children(&mut |child| {
+            found |= in_expr(child, name);
+            child.clone()
+        });
+        found
+    }
+    let expr = |e: &Expr| in_expr(e, name);
+    let inner = |body: &[Statement]| body.iter().any(|s| hands_a_name_on(s, name));
+    let branches = |branches: &[StatementBranch]| {
+        branches
+            .iter()
+            .any(|branch| branch.condition.as_ref().is_some_and(expr) || inner(&branch.body))
+    };
+    match statement {
+        Statement::Assign(_, subscripts, value) => subscripts.iter().any(expr) || expr(value),
+        Statement::TupleAssign(_, value) => expr(value),
+        Statement::Assert(condition, _) => expr(condition),
+        Statement::Call(_, args) => {
+            args.iter().any(expr) || args.iter().any(|a| matches!(a, Expr::Ref(g) if g == name))
+        }
+        Statement::If(held) | Statement::When(held) => branches(held),
+        Statement::For(_, range, body) => range.as_ref().is_some_and(expr) || inner(body),
+        Statement::While(condition, body) => expr(condition) || inner(body),
         Statement::Break | Statement::Return => false,
     }
 }

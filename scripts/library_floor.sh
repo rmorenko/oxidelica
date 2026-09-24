@@ -307,7 +307,16 @@ FILES_FLOOR=2671
 #                 SolveOneNonlinearEquation (the copy of Brent's method
 #                 spread over its array input). None of the nine runs
 #                 yet, so the run floors stand.
-FLATTEN_FLOOR=914
+#
+# And flatten 917 = 914 plus three, from /tmp/m267/on2.txt against
+# /tmp/m267/off2.txt (one binary, the five switches of the series off
+# together; the off side is the floors to the digit). The three are
+# Fluid.Examples.HeatingSystem, Media.Examples.R134a.R134a1 and
+# R134a2, all runnable examples: a `redeclare function extends` that
+# declares no inputs of its own now has its inherited ones read when
+# the resolver asks which arguments may be arrays. Nothing left the
+# flatten list.
+FLATTEN_FLOOR=917
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -671,7 +680,13 @@ FLATTEN_FLOOR=914
 # one binary; the off side is the carving's main pass to the digit).
 # Nothing left the run list and the flatten list did not move. Runnable
 # run 545 = 540 plus the same five.
-RUN_FLOOR=587
+#
+# And run 589 = 587 plus the two bends of the new fittings,
+# NewFittings.Bends.CurvedBend and EdgedBend, both runnable examples,
+# whose `dp_small` is worked out by walking the library's pressure
+# loss (/tmp/m267/on2.txt against /tmp/m267/off2.txt). Nothing left
+# the run list. Runnable run 547 = 545 plus the same two.
+RUN_FLOOR=589
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -686,8 +701,12 @@ RUN_FLOOR=587
 #
 # And runnable flatten 802 = 793 plus the nine set out at
 # `FLATTEN_FLOOR`, all runnable examples (/tmp/m265/p2/on.txt).
-RUNNABLE_FLATTEN_FLOOR=799
-RUNNABLE_RUN_FLOOR=545
+#
+# And runnable flatten 802 = 799 plus the three of m267 set out at
+# `FLATTEN_FLOOR`, runnable run 547 = 545 plus the two bends set out at
+# `RUN_FLOOR` (/tmp/m267/on2.txt).
+RUNNABLE_FLATTEN_FLOOR=802
+RUNNABLE_RUN_FLOOR=547
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -818,11 +837,22 @@ RUN_MS_CEILING=8000
 # Wagner models run: 741 more points and 31 more Newton steps than the
 # off side of the same binary, the flattening counts identical to the
 # digit.
-WORK_CLASSES=283282
-WORK_EXPANSIONS=92505304
-WORK_BODIES=1337023
-WORK_POINTS=32250520
-WORK_NEWTON=44495063
+#
+# Refreshed from /tmp/m267/on2.txt, the off side of the same binary
+# (/tmp/m267/off2.txt) printing the numbers above to the digit. The
+# expansions rose 5.83% and left the band, the bodies 4.13%: that is
+# the three models the series built whole for the first time, which
+# alone count 6032970 expansions and 58743 bodies on the on side and
+# 551996 and 5890 where they refused before (both measured over just
+# those three with --only-from). Their 5480974 more expansions are
+# more than the whole rise of 5396078, the other 1031 models doing
+# 84896 fewer between them (0.09%); that difference was not traced.
+# The two bends that now run add 102 points and 220 Newton steps.
+WORK_CLASSES=283567
+WORK_EXPANSIONS=97901382
+WORK_BODIES=1392192
+WORK_POINTS=32250622
+WORK_NEWTON=44495283
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

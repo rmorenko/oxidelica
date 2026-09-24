@@ -168,6 +168,30 @@ pub(super) fn programs_used(
             }
         }
         let renamed = records_as_arrays(&mut carried, registry);
+        // A local's binding reads a record input the way a statement
+        // does, and has to be spelled the way the walk's frame holds it.
+        // `dp_curvedOverall_DP` works out every one of its thirty
+        // coefficients as a protected local bound on `IN_con.d_hyd`;
+        // renamed in the statements only, the first local the walk laid
+        // out asked for a field the frame holds as `IN_con[1]`, and the
+        // whole call came to nothing.
+        if local_record_fields_open() {
+            for held in &mut carried.components {
+                for written in [&mut held.binding, &mut held.start].into_iter().flatten() {
+                    *written =
+                        substitute_refs(&subscripts_spelled_out(written, &renamed), &renamed);
+                }
+            }
+        }
+        // And a call in a local's binding is named the way the walk's
+        // one table knows it, exactly as a call in a statement is.
+        if local_binding_calls_open() {
+            for held in &mut carried.components {
+                for written in [&mut held.binding, &mut held.start].into_iter().flatten() {
+                    *written = qualified_in(written, registry, &class.name, &class.imports);
+                }
+            }
+        }
         // What the body's own frame gives a value to: an input, an
         // output, a local. Those are names the walk supplies, and a
         // package constant of the same spelling must not be folded
@@ -187,6 +211,33 @@ pub(super) fn programs_used(
         );
         out.push(carried);
         let mut calls = Vec::new();
+        // What a local's binding calls is called by the body as much as
+        // what a statement calls. `dp_curvedOverall_DP` works out its
+        // laminar boundary as a protected local bound on
+        // `Modelica.Math.exp(...)`, and a gathering that read the
+        // statements alone left that body behind: the walk met the
+        // library's `exp` as a function the run had never heard of.
+        //
+        // Taken if it can be had, the way a declaration's call is: a
+        // body only a binding reaches was never carried before, and a
+        // model whose walk never asks for it flattened all the same.
+        // Refusing it now for a shape the walk cannot carry cost
+        // `Inverse_sh_TX`, whose moist air binds a local on
+        // `massToMoleFractions` - an answer of a length nobody can see.
+        let mut from_bindings = Vec::new();
+        if local_binding_calls_open() {
+            for held in &class.components {
+                for written in [&held.binding, &held.start].into_iter().flatten() {
+                    gather_calls(
+                        written,
+                        registry,
+                        &class.name,
+                        &class.imports,
+                        &mut from_bindings,
+                    );
+                }
+            }
+        }
         gather_calls_in_statements(
             &class.algorithm,
             registry,
@@ -194,6 +245,12 @@ pub(super) fn programs_used(
             &class.imports,
             &mut calls,
         );
+        for called in from_bindings {
+            if !calls.contains(&called) && !wanted.contains(&called) {
+                optional.insert(called.clone());
+            }
+            calls.push(called);
+        }
         // What an optional body calls is wanted only as much as it is:
         // a generator nothing asks for asks in turn for nothing.
         if optional.contains(&name) {
@@ -202,6 +259,20 @@ pub(super) fn programs_used(
         wanted.extend(calls);
     }
     Ok(out)
+}
+
+/// Whether a local's binding reads a record input under the walk's
+/// spelling of it. `OXIDELICA_NO_LOCAL_RECORD_FIELDS` leaves the
+/// bindings as they were written, so that one binary gives both numbers.
+fn local_record_fields_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_LOCAL_RECORD_FIELDS").is_none()
+}
+
+/// Whether the calls a local's binding makes are named the way the
+/// registry knows them and carried out with the body.
+/// `OXIDELICA_NO_LOCAL_BINDING_CALLS` leaves them as they were written.
+fn local_binding_calls_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_LOCAL_BINDING_CALLS").is_none()
 }
 
 /// Every record a body deals in written as an array of its members.

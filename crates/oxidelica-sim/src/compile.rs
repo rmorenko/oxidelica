@@ -2868,6 +2868,13 @@ fn evaluate_parameters(
     }
     loop {
         let before = pending.len();
+        // What the evaluator said about each parameter it could not
+        // work out, the last time it was asked. A call that "nothing
+        // works out" names the call and not the reason, and the reason
+        // is the whole of the question: a body walked to a field read
+        // under the wrong spelling and a body walked to a function the
+        // run does not know both came out as the same sentence.
+        let mut said: Vec<String> = Vec::new();
         pending.retain(|(name, expr)| {
             match eval(
                 expr,
@@ -2882,7 +2889,10 @@ fn evaluate_parameters(
                     params.insert((*name).to_string(), v);
                     false
                 }
-                Err(_) => true,
+                Err(why) => {
+                    said.push(format!("{name}: {}", why.0));
+                    true
+                }
             }
         });
         if pending.is_empty() {
@@ -2937,13 +2947,14 @@ fn evaluate_parameters(
                     listed(undeclared.iter().map(|name| format!("`{name}`")).collect())
                 ),
                 (true, false) => format!(
-                    "nothing works out {}",
+                    "nothing works out {} (the evaluator said: {})",
                     listed(
                         standing
                             .iter()
                             .map(|called| format!("`{called}`"))
                             .collect()
-                    )
+                    ),
+                    said.first().map_or("nothing", String::as_str)
                 ),
                 (true, true) => "they wait on each other".to_string(),
             };

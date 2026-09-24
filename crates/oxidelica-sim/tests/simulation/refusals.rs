@@ -88,6 +88,13 @@ fn a_parameter_waiting_on_a_call_says_which_call() {
         compile_err("model M parameter Real a = nowhere(1, 2); Real x; equation x = 1; end M;");
     assert!(why.contains("nothing works out"), "{why}");
     assert!(why.contains("`nowhere`"), "{why}");
+    // And what the evaluator said about it, which is the reason rather
+    // than the name: two different faults in a walked body used to come
+    // out as this one sentence.
+    assert!(
+        why.contains("the evaluator said: a: unknown function `nowhere`"),
+        "{why}"
+    );
 
     // A name nothing declares is still named outright.
     let why = compile_err("model M parameter Real a = nowhere; Real x; equation x = 1; end M;");

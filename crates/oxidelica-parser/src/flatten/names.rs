@@ -768,8 +768,16 @@ pub(super) fn resolve(
             let aggregates_allowed = lookup(registry, name, scope, imports)
                 .filter(|class| class.kind == ClassKind::Function)
                 .map(|class| {
-                    class
-                        .components
+                    // The inputs a base declared are inputs all the
+                    // same: `redeclare function extends setState_psX`
+                    // declares nothing of its own, and the `X[:]` it
+                    // inherits was taken for a scalar, refusing the
+                    // mass fractions handed to it as an array.
+                    let declared = match inherited_inputs_open() {
+                        true => inlining::with_inherited_components(class, registry),
+                        false => class.components.clone(),
+                    };
+                    declared
                         .iter()
                         .filter(|component| component.causality == Causality::Input)
                         .map(|component| {
@@ -980,6 +988,13 @@ pub(super) fn substitute_end(expr: &Expr, length: f64) -> Expr {
         ),
         other => other.clone(),
     }
+}
+
+/// Whether a call's aggregate arguments are judged against the inputs
+/// its bases declared too. `OXIDELICA_NO_INHERITED_INPUTS` reads the
+/// class's own declarations alone, as before.
+fn inherited_inputs_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_INHERITED_INPUTS").is_none()
 }
 
 /// A short rendering of an expression, for a message that has to say
