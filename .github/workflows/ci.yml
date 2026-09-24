@@ -105,12 +105,26 @@ jobs:
     #
     # From 20bff08 to d72cb7b that is 19.6 minutes for 36 models, about
     # half a minute a model, and ninety minutes left room for some
-    # fourteen more. A hundred and fifty leaves 67 minutes over the
-    # last run: at half a minute a model that is some 120 models, and
-    # with the runner's weather allowed for, roughly seventy models
-    # ahead. It is headroom for the next stretch of work, not a number
-    # for ever: when the job approaches it again the answer is to split
-    # the job, not to raise the ceiling blindly.
+    # fourteen more.
+    #
+    # Half a minute a model is the average over that stretch, and it is
+    # not what the next model costs. The very next series, 7d3f3f9,
+    # added about nineteen minutes of flattening for ten models that
+    # newly flatten - close to two minutes each - and the whole of that
+    # rise sits on four names: three `ReferenceAir` media and
+    # `DynamicPipes`. The cheap models were won long ago; what is left
+    # to win is dear, so the cost per model rises as the work goes on
+    # rather than holding. Read the headroom at the dearer rate: a
+    # hundred and fifty over a job that now takes about a hundred
+    # minutes leaves fifty, which is some twenty-five models at two
+    # minutes each, not a hundred at half a minute.
+    #
+    # So this is headroom for a few weeks of work and not for a year.
+    # When the job reaches about two hours the answer is to split it -
+    # the flattening half and the run half are independent and would
+    # sit on two runners at once - and not to raise the ceiling again.
+    # Raising it twice would be a habit; the second raise is where a
+    # ceiling stops being a measurement and becomes a formality.
     timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
