@@ -19477,3 +19477,190 @@ visc_dTp ... too low density` (`InverseParameterization`) and a second
 The parameter rows went from 40 to 37: 27 service classes, unchanged,
 and 10 in the queue, from 13. The three jointRR\* models are still there
 as a row of 3 and two singles.
+
+## The m270 series: a file's counts, and the member of a sibling below
+
+### The m270 file counts: three names written in Rust
+
+Three outside names now have an answer here, each where its neighbours
+already had one. `ModelicaInternal_countLines` counts what Rust's
+`lines` counts, which is also what the standard library's C counts: a
+line is anything that starts, so a last line without a newline counts
+and a file ending in one gains no empty line. It is the same count
+`readLine` already read by, so the two agree on the last line of every
+file. `ModelicaInternal_getNumberOfFiles` is `read_dir().count()`,
+which leaves out `.` and `..` the way the C does.
+
+The first run showed that `countLines` alone moves nothing. Both
+`TestReadFile` and `TestStreams` read a file three ways, and the next
+wall was `readLine`'s second output: `(line, eof) := readLine(file,
+k)` had one output for two targets. The flag is what the documentation
+says it is, the line asked for lies past the count, so it is now
+written as exactly that comparison against `countLines`. The wall after
+that was `lines[3]` of `readFile(file)`, a subscript of a vector of
+strings, now read by place off the same `lines`. The three readers
+share one count and cannot part.
+
+`OXIDELICA_NO_FILE_COUNTS=1` leaves all of it unanswered, as before.
+The test counts a three-line file with no final newline and a two-file
+directory, asks for the flag at line 3 and 4, and reads the third line
+by place. It is red under the switch (`/tmp/m270/red.txt`) and green
+without it.
+
+Where the six models of the first group went:
+
+- `ModelicaTest.Utilities.TestReadFile` runs;
+- `ModelicaTest.Utilities.TestStreams` writes its own files before it
+  reads them (`Streams.print(line, file)`), and a write happens at the
+  run or not at all; the strings are settled at flattening, so it now
+  refuses on `this is line 1` as a string that holds no value;
+- `ModelicaTest.Math.TestColorMapToSvg` moved to
+  `ModelicaInternal_readDirectory`; answering that name as a probe took
+  it to `size(..., 1)` of the directory listing, and behind that the
+  function removes, writes and lists files. It is a file-system model,
+  not a count, and was left;
+- the three `impureRandom` models were probed and parked. The
+  generator keeps its state between calls, keyed by `id`, and there is
+  no place for it here. `initializeImpureRandom` puts the state in with
+  `setInternalState`, a body with no output, and the inliner drops such
+  a body as a call with nothing to say
+  (`inline_function_checks`, inlining.rs:461). At the run, the code
+  that evaluates a call is handed `EvalCtx` by shared reference, and a
+  `when` body is evaluated more than once in an event (the event
+  iteration asks the discrete definitions again each round), so a
+  generator drawn there would draw twice for one sample. The state
+  wants a home the run owns and a guarantee of one draw per firing;
+  both are a design question, not a branch. The pure half is already
+  here: `ModelicaRandom_xorshift1024star` is written in
+  `crates/oxidelica-parser/src/outside.rs`, beside xorshift64star and
+  xorshift128plus, so whoever takes this next needs a home for the
+  state, not a generator.
+
+### The m270 rod: a member's length from its declaration, parked
+
+Built, measured, and not kept: the change is parked as a patch
+(`~/oxideflow/state/m270_p2_member_shape.patch`) because it sends one
+model past a hundred gigabytes.
+
+The chain the m269 map set out had two links, both of declaration
+order. `JointRRP` writes `final parameter Real e_ia[3] =
+jointUSP.e2_ia` above `jointUSP`, and `e_b[3] = jointUSP.prismatic.e`
+two storeys down. Nothing had measured either member when the
+declaration above was taken apart, so each element was bound to the
+whole array. The member's class says the length: `Real e2_ia[3]` is
+three whatever its value comes to. The patch reads it there, down the
+path a storey at a time, only where every dimension is a number written
+out, no holder on the path is an array, replaceable, or handed a
+modifier reaching the member, and the name is not already measured
+(`OXIDELICA_NO_SIBLING_MEMBER_SHAPE=1` switches it off). Its test,
+with the rod above or below and one storey or two, came to 1.2 and 0.8
+in both orders, and was red under the switch (`/tmp/m270/red2.txt`).
+
+All five wall models outside the heavy set then flatten and refuse in
+the run half as unbalanced:
+
+- `PlanarLoops_analytic`: 3954 equations for 3978 unknowns, nothing
+  determines `body1.a_0[3]`, `body1.z_a[2..3]`, `body2.z_a[1..3]` and 91
+  more;
+- `Utilities.CylinderBase`: 2031 for 2037, nothing determines
+  `connectingRod.a_0[1..3]`, `der(connectingRod.body.Q[4])`,
+  `der(piston.body.Q[4])`, a `frame_b.R.w[3]` and 12 more;
+- `Utilities.Cylinder_analytic_CAD`, `Utilities.EngineV6_analytic`,
+  `EngineV6_analytic`: unbalanced as well.
+
+Quaternion derivatives and accelerations that nothing determines are
+the signature of the connection graph (`Connections.branch` in
+`UniversalSpherical`, `PrismaticWithLengthConstraint`,
+`RevoluteWithLengthConstraint`), which is the unbalanced family and
+parked as architecture. Six assembly users that already flattened
+(`Fourbar_analytic`, `PlanarFourbar`, `Engine1b` and the constraint
+examples) refuse the same way with the switch on and off.
+
+The sixth wall model is the giant. `Engine1b_analytic` is not in
+`scripts/heavy_models.txt`, so it belongs to the main pass, and with the
+patch the whole corpus pass was killed by the kernel twice: `memorystatus:
+killing largest compressed process ox270d [38896] 110655 MB`, then
+`[51024] 113807 MB` over the 327 models that flatten and do not run.
+The name was found by halving that set under a footprint ceiling (the
+first 148 peaked at 0.9 GB, the last 30 at 2.7 GB, the other 149 were
+stopped at 27.6 GB) and then by the model alone: with the patch, 250
+seconds and stopped at 21.5 GB. Without it, 36 seconds and 0.85 GB,
+refused at `jointRRP.e_ia[1]`. A sample of the process at 75 seconds
+has nearly every frame in `symbolic::simplify`,
+`symbolic::differentiate_at`, and the clones and drops of `Expr`
+beneath them. That is index reduction differentiating an expression
+that grows with each derivative. The patch is right about the shapes,
+and once the parameters settle the model reaches a phase with no
+ceiling, which is the case "Every phase of a run has a size" warns
+about. Before this goes in, differentiation needs a size ceiling that
+refuses by name, and that is its own series.
+
+### The m270 ceiling: resident size is not what the kernel counts
+
+`~/oxideflow/cap.sh` watches the resident size, and a process past its
+RAM is not resident. It is compressed. Over the 327 models the ceiling
+read a peak of 22.6 GB against its 24, and the kernel killed the same
+process at 113.8 GB of compressed memory. The number that counts what
+the kernel counts is `phys_footprint` (`footprint -p <pid>`), which
+includes the compressed pages. The hunt above was run under a ceiling
+on that number (`/tmp/m270/fcap.sh`), which stopped each half at the
+chosen figure, named it, and left the machine alone.
+
+### The m270 heat exchanger: a length handed as a name
+
+Reconnaissance only. `HeatExchangerSimulation` refuses on
+`HEX.pipe_1.dheights[i] = HEX.pipe_1.height_ab * HEX.pipe_1.dxs`: the
+pipe hands its base `final dheights = height_ab*dxs` and `dxs` has no
+shape there. Seventeen lines show it:
+
+```modelica
+model HX2
+  partial model Base
+    parameter Integer n = 2;
+    parameter Real dheights[n];
+    Real y = sum(dheights) * time;
+  end Base;
+  model Pipe
+    extends Base(final dheights = h * dxs);
+    parameter Real h = 2;
+    final parameter Real[n] dxs = fill(1/n, n);
+  end Pipe;
+  model Holder
+    parameter Integer nNodes = 4;
+    Pipe p(n = nNodes);
+  end Holder;
+  Holder hx(nNodes = 5);
+end HX2;
+```
+
+With `Pipe hx(n = 5)` or `Pipe hx` at the top it runs and gives 2. It
+refuses only where `n` reaches the pipe as the name of a parameter of
+the class holding it (`n = nNodes`), which is how `BasicHX` hands
+`nNodes` to both pipes. The length is measured for the `extends` in
+`collect_shapes_given` (shapes.rs) against the numbers settled under
+the pipe's own prefix, and a value handed as a name is not one of
+those yet. `BasicHX` (parameter `length`) and `WallConstProps`
+(parameter `s`) sit beside it in the queue, and were not probed; they
+may or may not be the same road.
+
+### The m270 census
+
+This census was taken with the file counts in and the rod parked
+(`/tmp/m270/census.txt`, raw in `/tmp/m270/raw.txt`) over 1034 models.
+The refused half is 116 in 51 rows, from 117 in 49; the run half is 327
+in 168 rows, identical to m269 row for row; together 443 = 1034 − 591.
+The parameter rows are 37 as before, 27 service classes and 10 in the
+queue. In the refused half, diffed row by row against
+`/tmp/m269/census.txt`:
+
+- `... in C, written outside Modelica` went from 11 to 9: `TestReadFile`
+  left for the run list, and `TestStreams` left for a row of its own;
+- `has N output(s) for N target(s)` went from 3 to 2:
+  `readRealParameterModel` had stood at `Streams.readLine` and now
+  refuses at `function Strings.scanDelimiter never assigns its output
+delimiter`, a new single;
+- new single: `this is line 1 is a String, and a String has no value
+an equation can hold` (`TestStreams`, the file it writes itself).
+
+So 117 = 116 + 1 with `TestReadFile` the one, and the two new rows are
+two models that moved one wall on.

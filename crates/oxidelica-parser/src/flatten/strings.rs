@@ -315,6 +315,24 @@ pub(super) fn text_of(
             let held = std::fs::read_to_string(&path).ok()?;
             Some(held.lines().nth(wanted - 1).unwrap_or("").to_string())
         }
+        // `readFile` answers with a vector of lines, one per line
+        // `countLines` counts, and a caller reading one of them reads
+        // it by place. The lines are the ones `readLine` gives, so
+        // the three agree on every file.
+        Expr::Index(whole, at) if at.len() == 1 && !external::file_counts_off() => match whole
+            .as_ref()
+        {
+            Expr::Call(name, args) if name == "ModelicaInternal_readFile" && !args.is_empty() => {
+                let path = text_of(&args[0], values, numbers)?;
+                let wanted = const_eval(&at[0], numbers)?;
+                if wanted < 1.0 || wanted.fract() != 0.0 {
+                    return None;
+                }
+                let held = std::fs::read_to_string(&path).ok()?;
+                held.lines().nth(wanted as usize - 1).map(str::to_string)
+            }
+            _ => None,
+        },
         Expr::Call(name, args) if name == "ModelicaInternal_readFile" && !args.is_empty() => {
             let path = text_of(&args[0], values, numbers)?;
             std::fs::read_to_string(&path).ok()

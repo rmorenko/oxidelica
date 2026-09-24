@@ -1886,6 +1886,36 @@ fn body_written_elsewhere(
                 ),
             )]));
         }
+        // `readLine` answers with the line and with whether the file
+        // had ended before it, the second through a pointer the C
+        // writes. Its documentation says what that flag is: the line
+        // asked for lies past the count of lines. So it is written as
+        // exactly that, and answered by the same count `countLines`
+        // gives, which is also how the line itself is counted.
+        if call.called == "ModelicaInternal_readLine"
+            && args.len() == 2
+            && !external::file_counts_off()
+        {
+            let mut outputs = class
+                .components
+                .iter()
+                .filter(|c| c.causality == Causality::Output);
+            let (Some(line), Some(ended)) = (outputs.next(), outputs.next()) else {
+                return Ok(Some(vec![(output.name.clone(), made)]));
+            };
+            let past = Expr::Rel(
+                RelOp::Gt,
+                Box::new(args[1].clone()),
+                Box::new(Expr::Call(
+                    "ModelicaInternal_countLines".to_string(),
+                    vec![args[0].clone()],
+                )),
+            );
+            return Ok(Some(vec![
+                (line.name.clone(), made),
+                (ended.name.clone(), past),
+            ]));
+        }
         return Ok(Some(vec![(output.name.clone(), made)]));
     }
 

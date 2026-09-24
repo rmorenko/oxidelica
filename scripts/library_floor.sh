@@ -316,7 +316,14 @@ FILES_FLOOR=2671
 # declares no inputs of its own now has its inherited ones read when
 # the resolver asks which arguments may be arrays. Nothing left the
 # flatten list.
-FLATTEN_FLOOR=917
+#
+# And flatten 918 = 917 plus ModelicaTest.Utilities.TestReadFile, a
+# runnable example, which reads a file three ways and now has the
+# count of its lines, `readLine`'s end-of-file flag and `readFile`'s
+# lines by place (/tmp/m270/off2.txt against /tmp/m270/off12.txt, one
+# binary, OXIDELICA_NO_FILE_COUNTS the only difference). Nothing left
+# the flatten list.
+FLATTEN_FLOOR=918
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -692,7 +699,10 @@ FLATTEN_FLOOR=917
 # through the water package that fills it in (/tmp/m268/on.txt against
 # /tmp/m268/off.txt, one binary). Nothing left the run list and the
 # flatten list did not move. Runnable run 548 = 547 plus the same one.
-RUN_FLOOR=590
+#
+# And run 591 = 590 plus TestReadFile, set out at `FLATTEN_FLOOR`,
+# which runs as well. Nothing left the run list.
+RUN_FLOOR=591
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -711,8 +721,11 @@ RUN_FLOOR=590
 # And runnable flatten 802 = 799 plus the three of m267 set out at
 # `FLATTEN_FLOOR`, runnable run 547 = 545 plus the two bends set out at
 # `RUN_FLOOR` (/tmp/m267/on2.txt).
-RUNNABLE_FLATTEN_FLOOR=802
-RUNNABLE_RUN_FLOOR=548
+#
+# And runnable flatten 803 = 802, runnable run 549 = 548, both plus
+# TestReadFile set out at `FLATTEN_FLOOR` (/tmp/m270/off2.txt).
+RUNNABLE_FLATTEN_FLOOR=803
+RUNNABLE_RUN_FLOOR=549
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -863,11 +876,16 @@ RUN_MS_CEILING=8000
 # 1781 million), so a later rise in the flatten half's time is to be
 # looked for here first. The one model that runs now adds 46 points and
 # 50 Newton steps.
+#
+# Refreshed from /tmp/m270/off2.txt; its off side, /tmp/m270/off12.txt,
+# printed 283567 / 94393401 / 1402995 / 32250670 / 44495461 from the
+# same binary. The file counts add 983 expansions, 64 bodies and the
+# six points of TestReadFile.
 WORK_CLASSES=283567
-WORK_EXPANSIONS=94392961
-WORK_BODIES=1402985
-WORK_POINTS=32250668
-WORK_NEWTON=44495333
+WORK_EXPANSIONS=94394384
+WORK_BODIES=1403059
+WORK_POINTS=32250676
+WORK_NEWTON=44495461
 WORK_JACOBIANS=324
 WORK_PERCENT=5
 

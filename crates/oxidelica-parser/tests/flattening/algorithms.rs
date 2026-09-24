@@ -3354,6 +3354,80 @@ fn a_line_of_a_file_is_read_here() {
     assert!(settled("past").contains('0'), "{}", settled("past"));
 }
 
+/// The counts of a file, answered here, and the two things that stand
+/// on them: `readLine`'s end-of-file flag and the lines of `readFile`.
+/// The last line has no newline after it, which is where a count and a
+/// reader that disagree would part.
+#[test]
+fn a_file_is_counted_the_way_it_is_read() {
+    let dir = std::env::temp_dir().join("oxidelica_countlines_test");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("lines.txt"), "one\ntwo\nthree").unwrap();
+    std::fs::write(dir.join("other.txt"), "").unwrap();
+    let path = dir
+        .join("lines.txt")
+        .display()
+        .to_string()
+        .replace('\\', "/");
+    let folder = dir.display().to_string().replace('\\', "/");
+    let m = parse_model(&format!(
+        "model M \
+         function countLines input String f; output Integer n; \
+           external \"C\" n = ModelicaInternal_countLines(f); end countLines; \
+         function files input String d; output Integer n; \
+           external \"C\" n = ModelicaInternal_getNumberOfFiles(d); end files; \
+         function readLine input String f; input Integer n; output String line; \
+           output Boolean eof; \
+           external \"C\" line = ModelicaInternal_readLine(f, n, eof); end readLine; \
+         function readFile input String f; output String lines[countLines(f)]; \
+           external \"C\" ModelicaInternal_readFile(f, lines, size(lines, 1)); end readFile; \
+         function len input String s; output Integer n; \
+           external \"C\" n = ModelicaStrings_length(s); end len; \
+         function ended input String f; input Integer k; output Boolean e; \
+           protected String l; algorithm (l, e) := readLine(f, k); end ended; \
+         function third input String f; output Integer n; \
+           protected String lines[3]; algorithm lines := readFile(f); \
+           n := len(lines[3]); end third; \
+         parameter Integer counted = countLines(\"{path}\"); \
+         parameter Integer held = files(\"{folder}\"); \
+         parameter Boolean atLast = ended(\"{path}\", 3); \
+         parameter Boolean pastLast = ended(\"{path}\", 4); \
+         parameter Integer lastLength = third(\"{path}\"); \
+         Real y; equation y = time; end M;"
+    ))
+    .expect("a file this compiler can count");
+    let _ = std::fs::remove_dir_all(&dir);
+    let settled = |wanted: &str| {
+        let binding = m
+            .components
+            .iter()
+            .find(|c| c.name == wanted)
+            .and_then(|c| c.binding.clone());
+        match binding {
+            Some(Expr::Number(number)) => number,
+            Some(Expr::Bool(truth)) => f64::from(u8::from(truth)),
+            // The flag is the line asked for against the count, both
+            // settled by now; the run folds the comparison.
+            Some(Expr::Rel(oxidelica_parser::ast::RelOp::Gt, left, right)) => match (*left, *right)
+            {
+                (Expr::Number(asked), Expr::Number(count)) => f64::from(u8::from(asked > count)),
+                other => panic!("`{wanted}` compared {other:?}"),
+            },
+            other => panic!("`{wanted}` came to {other:?}"),
+        }
+    };
+    assert_eq!(
+        settled("counted"),
+        3.0,
+        "a last line without a newline counts"
+    );
+    assert_eq!(settled("held"), 2.0, "both files, and neither `.` nor `..`");
+    assert_eq!(settled("atLast"), 0.0, "the third line is in the file");
+    assert_eq!(settled("pastLast"), 1.0, "the fourth is past its end");
+    assert_eq!(settled("lastLength"), 5.0, "`three`, read by place");
+}
+
 /// A function imported into a class by a deep single-name path is
 /// resolved where the modifier that calls it is written, not where it
 /// is worked out. `Body` imports `to_unit1` and writes

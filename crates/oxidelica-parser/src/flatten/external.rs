@@ -25,6 +25,12 @@ use super::*;
 /// name here has an answer somewhere; adding one without the answer
 /// would turn a clear refusal into a call that nothing resolves.
 pub(super) fn answered_here(called: &str) -> bool {
+    if matches!(
+        called,
+        "ModelicaInternal_countLines" | "ModelicaInternal_getNumberOfFiles"
+    ) {
+        return !file_counts_off();
+    }
     matches!(
         called,
         "ModelicaStrings_length"
@@ -36,6 +42,8 @@ pub(super) fn answered_here(called: &str) -> bool {
             | "ModelicaInternal_stat"
             | "ModelicaInternal_readLine"
             | "ModelicaInternal_readFile"
+            | "ModelicaInternal_countLines"
+            | "ModelicaInternal_getNumberOfFiles"
             | "ModelicaInternal_getcwd"
             | "ModelicaStrings_scanInteger"
             | "ModelicaStandardTables_CombiTable1D_minimumAbscissa"
@@ -52,6 +60,14 @@ pub(super) fn answered_here(called: &str) -> bool {
             | "ModelicaStandardTables_CombiTable2D_getValue"
             | "ModelicaStandardTables_CombiTable2D_getDerValue"
     )
+}
+
+/// Whether the file counts - `countLines`, `getNumberOfFiles`, and the
+/// end-of-file flag and lines of `readLine` and `readFile` that stand
+/// on them - are left unanswered, as they were before they were
+/// written, so that one binary measures both sides of them.
+pub(super) fn file_counts_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_FILE_COUNTS").is_some()
 }
 
 /// Refuse anything this compiler said it answers for and then did not.
@@ -183,6 +199,22 @@ pub(super) fn number_of(
                 Ok(held) if held.is_dir() => 3.0,
                 Ok(_) => 4.0,
             })
+        }
+        // How many lines a file holds, counted the way the standard
+        // library's C counts them: a line is anything that starts,
+        // so a last line with no newline after it still counts and a
+        // file ending in one does not gain an empty line. That is
+        // what `lines` does, and it is what `readLine` above counts
+        // by, so the two agree on the last line of every file.
+        ("ModelicaInternal_countLines", 1) => {
+            let held = std::fs::read_to_string(text(0)?).ok()?;
+            Some(held.lines().count() as f64)
+        }
+        // How many names a directory holds, files and directories
+        // alike. The C leaves out `.` and `..`, which Rust's listing
+        // never gives.
+        ("ModelicaInternal_getNumberOfFiles", 1) => {
+            Some(std::fs::read_dir(text(0)?).ok()?.count() as f64)
         }
         // A whole number read off the front of a string, and where it
         // ended. Two outputs in C, and what a caller wants of it here
