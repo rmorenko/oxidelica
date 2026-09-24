@@ -757,9 +757,18 @@ RUN_MS_CEILING=8000
 # binary over the corpus, run side by side on 2026-09-23
 # (/tmp/m258/corpus1.txt and corpus2.txt), printed the same six counts
 # below to the digit. A seventh, the names looked up, differed by 47 in
-# 1.2 billion between the two passes, so it is printed and not held -
-# a count that wanders cannot be a ratchet, and a ratchet that fires
-# for nothing is one somebody turns off.
+# 1.2 billion between the two passes, and was printed and not held on
+# the grounds that a count that wanders cannot be a ratchet. That was
+# the wrong comparison: the wander was set against zero and not against
+# the signal. Every count wanders somewhere; what decides is how far
+# below what it is there to catch. The names wander by about one part
+# in 37 million and caught a rise of 18% that no held count saw (m268,
+# below), about 4 600 000 to one; the expansions caught the same change
+# at 3.6% against a band of five, about 44 to one. So the names are
+# held too, under a band of their own measured from their own noise -
+# see WORK_NAMES. A ratchet that fires for nothing is still one
+# somebody turns off, which is why the band is set from a measurement
+# and wide above it.
 #
 # Five percent is wide against a count that does not move at all and
 # narrow against the doubling it is there for. Going above it is a
@@ -897,6 +906,28 @@ WORK_POINTS=32250676
 WORK_NEWTON=44495461
 WORK_JACOBIANS=324
 WORK_PERCENT=5
+# The names looked up, held to a band of their own in parts per
+# million. Measured on 2026-09-25 over one binary of 3103c80 and `.msl`
+# under this checkout, four passes one after another:
+# 1780978119, 1780978071, 1780978082, 1780978119 (/tmp/m273/on.txt,
+# n2.txt, n3.txt, n4.txt). The widest spread is 48, 0.027 per million.
+#
+# That is not the noise that matters. The count depends on where the
+# library stands on the disk, as the flattening counts do (see above),
+# and far more than it wanders: the preflight's default library path
+# printed 1781437975 (/tmp/m272/pf.txt, 258 per million above), and
+# the build machine 1782419170 and 1782419122 for 78f754f and a03ad78
+# (their library jobs, 809 per million above; that code sits 514
+# names below this one on a desk, /tmp/m272/off.txt against on.txt).
+# A band of a hundred times the run's wander, as first planned, would
+# have been 2.7 per million and red on the build machine every time.
+#
+# So the band is 2000 per million: two and a half times the widest
+# difference between two places, seventy-four thousand times the
+# wander of one place, and still ninety times narrower than the 18%
+# rise it is there to catch.
+WORK_NAMES=1780978119
+WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
@@ -980,22 +1011,29 @@ work_of() {
 }
 held() {
   local what="$1" now="$2" written="$3"
+  # A count may bring a band of its own, in parts per million, where
+  # its noise is so far below a percent that a percent would catch
+  # nothing. The rest go under WORK_PERCENT, which is 10000 per
+  # million per point. The largest product is about 1.8e9 * 1e6, far
+  # inside the shell's 9.2e18.
+  local band="${4:-$((WORK_PERCENT * 10000))}"
   if [ -z "$now" ]; then
     echo "WORK: the report did not say how many $what; the work line changed shape"
     status=1
     return
   fi
-  # Within WORK_PERCENT of the written number, in integers: now * 100
-  # against written * (100 +- percent).
-  if [ $((now * 100)) -gt $((written * (100 + WORK_PERCENT))) ] ||
-    [ $((now * 100)) -lt $((written * (100 - WORK_PERCENT))) ]; then
-    echo "WORK: $what is $now against $written written here ($(awk "BEGIN { printf \"%.3f\", $now / $written }")x), outside ${WORK_PERCENT}%"
+  # Within the band of the written number, in integers: now * 1e6
+  # against written * (1e6 +- band).
+  if [ $((now * 1000000)) -gt $((written * (1000000 + band))) ] ||
+    [ $((now * 1000000)) -lt $((written * (1000000 - band))) ]; then
+    echo "WORK: $what is $now against $written written here ($(awk "BEGIN { printf \"%.6f\", $now / $written }")x), outside $band per million"
     status=1
   fi
 }
 held "classes instantiated" "$(work_of classes)" "$WORK_CLASSES"
 held "expansions" "$(work_of expansions)" "$WORK_EXPANSIONS"
 held "bodies worked out" "$(work_of bodies)" "$WORK_BODIES"
+held "names looked up" "$(work_of names)" "$WORK_NAMES" "$WORK_NAMES_PPM"
 held "points evaluated" "$(work_of points)" "$WORK_POINTS"
 held "newton iterations" "$(work_of newton)" "$WORK_NEWTON"
 held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS"

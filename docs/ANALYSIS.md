@@ -19967,3 +19967,39 @@ wrong answer removed rather than a refusal moved: a check that fires
 for a branch not taken stops a run that is right, and the model that
 showed it, TestMatrices2b, stands behind the `dgesvd` chain parked in
 m272, whose last link this was.
+
+### The m273 probe of TestMatrices2b: the chain has an end
+
+The `dgesvd` chain of m272 (`/tmp/m272/svd_chain.patch`, four files,
+not committed) was laid over the guard above in a tree of its own and
+TestMatrices2b asked for alone. With both it runs, and `result` comes
+out 1: the test's own comparisons of the singular values against the
+reference hold. With the patch and `OXIDELICA_OLD_BRANCH_GUARD` set it
+flattens and does not run, and without the patch it refuses at
+`dgesvd` as before. So the guard was the last link, and the chain is
+five links long and ends in a model that runs and passes its own
+check. TestMatrices3 with the same patch refuses at the next family:
+`nullSpace` answers with `Z`, whose length the compiler cannot see -
+the flexible-size family, parked.
+
+The chain goes as its own series: the change in `shapes.rs` (a shape
+handed in against the declared default) reaches every class and needs
+its own pair.
+
+### The m273 names: held, with a band measured where it matters
+
+Four passes of one binary over `.msl` (`/tmp/m273/on.txt`, `n2.txt`,
+`n3.txt`, `n4.txt`) printed 1780978119, 1780978071, 1780978082 and
+1780978119 names: a spread of 48, 0.027 per million. The band planned
+from that - a hundred times the spread - would have been red on the
+build machine at every push, because the count depends on where the
+library stands far more than it wanders: the build machine printed
+1782419170 and 1782419122 for 78f754f and a03ad78, 809 per million
+above a desk on the same code, and the preflight's default path 258
+per million above. Three runs on one desk say nothing about that, and
+the build machine's log was the only instrument that could.
+
+So `held` takes an optional band in parts per million, the names get
+2000 of it, and the other six stay under the five percent. Fed the
+desk line, the build machine's line and the preflight's it passes;
+fed a rise of 18% or a fall of 0.22% it fails.
