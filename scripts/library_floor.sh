@@ -702,7 +702,13 @@ FLATTEN_FLOOR=918
 #
 # And run 591 = 590 plus TestReadFile, set out at `FLATTEN_FLOOR`,
 # which runs as well. Nothing left the run list.
-RUN_FLOOR=591
+#
+# And run 592 = 591 plus QuadratureLobatto3, whose integrand is handed
+# on to `quadStep` rather than called, and is now specialized one call
+# deeper (/tmp/m272/on.txt against /tmp/m272/off.txt, one binary). The
+# run list gained exactly that name and lost none; the flatten list did
+# not move.
+RUN_FLOOR=592
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -724,8 +730,11 @@ RUN_FLOOR=591
 #
 # And runnable flatten 803 = 802, runnable run 549 = 548, both plus
 # TestReadFile set out at `FLATTEN_FLOOR` (/tmp/m270/off2.txt).
+#
+# And runnable run 550 = 549 plus QuadratureLobatto3, a runnable
+# example, set out at `RUN_FLOOR` (/tmp/m272/on.txt).
 RUNNABLE_FLATTEN_FLOOR=803
-RUNNABLE_RUN_FLOOR=549
+RUNNABLE_RUN_FLOOR=550
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

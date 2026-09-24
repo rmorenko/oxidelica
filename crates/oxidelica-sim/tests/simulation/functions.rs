@@ -658,6 +658,42 @@ fn a_function_may_be_handed_over_with_its_inputs_filled_in() {
     );
 }
 
+/// A function handed on rather than called is specialized one call
+/// deeper, and a receiver handing it to itself calls its own copy.
+///
+/// The adaptive quadrature never calls the integrand: it hands it to
+/// `quadStep`, which calls it and hands it to itself. The copy made
+/// for the outer call left `f` standing where it was handed on, a
+/// name the copy no longer declares, and the evaluator refused with
+/// `unknown variable f`. Here `step` both calls `f` and hands it to
+/// itself twice more, so the answer is three times `3*2`.
+#[test]
+fn a_function_handed_on_is_specialized_one_call_deeper() {
+    let result = run("model M \
+           partial function PF input Real u; output Real y; end PF; \
+           function g extends PF; input Real A; algorithm y := A*u; end g; \
+           function step \
+             input PF f; input Real x; input Integer n; output Real r; \
+           algorithm \
+             if n <= 0 then r := f(x); else r := f(x) + step(f, x, n - 1); end if; \
+           end step; \
+           function outerf \
+             input PF f; input Real x; output Real r; \
+           algorithm r := step(f, x, 2); \
+           end outerf; \
+           parameter Real A = 3; \
+           final parameter Real s = outerf(function g(A = A), 2); \
+           Real z = s*time; \
+           annotation(experiment(StopTime=1)); \
+         end M;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 18.0).abs() < 1e-9,
+        "three calls of 3*2 are 18, and this said {}",
+        last[1]
+    );
+}
+
 /// A receiver whose own input was left out keeps the handed-over
 /// record's fields in their seats.
 ///

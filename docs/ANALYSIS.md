@@ -19793,3 +19793,130 @@ nothing determines HEX.pipe_N.flowModel.rhos_act[N], ...` has come,
 both `HeatExchangerSimulation`. The parameter rows are 36, 27 service
 classes and 9 in the queue, from 10: the heat exchanger has left the
 queue for the unbalanced wall. Together 116 + 327 = 443 = 1034 − 591.
+
+## The m272 series: a function handed on, and LAPACK by hand
+
+### The m272 quadrature: a function handed on is specialized one call deeper
+
+`QuadratureLobatto3` now runs. The specialization that gives a
+function-valued input a copy of its own used to rewrite only the calls
+the body writes as `f(x)`. `quadratureLobatto` never calls its
+integrand: it hands it to `quadStep`, which calls it and hands it to
+itself. In the copy, `f` stood where it was handed on, a name the copy
+no longer declares, and the evaluator refused with `unknown variable
+f`. Now a call that hands the vanished input to another function
+specializes that function with the same target and the inputs the copy
+declares filled in where the model filled them. A function that hands
+the input to itself finds its own copy's name among the ones being
+written and calls that copy rather than making another, so one name
+makes one copy and the recursion does not recurse through the
+compiler. `OXIDELICA_NO_HANDING_ON` restores the old reading.
+
+The small model `/tmp/m272/QR.mo`, kept as the test
+`a_function_handed_on_is_specialized_one_call_deeper`, hands `f` to a
+`step` that calls it and hands it to itself twice more, so it must
+come to three times `3*2`. It gives 18, and under the switch it
+refuses `unknown variable f` (`/tmp/m272/red.txt`). `QL2.mo` from m271
+gives 7 with both bodies. `QuadratureLobatto3` settles `s` at
+0.7080734182735713, and the integral of `sin(2u)` from 0 to 1 is
+`(1 - cos 2)/2` = 0.70807342.
+
+### The m272 pair
+
+One binary, the switch the only difference (`/tmp/m272/on.txt`,
+`/tmp/m272/off.txt`): 918 flatten on both sides, run 592 against 591,
+and of the runnable ones 803 against 803 and 550 against 549. The run
+lists differ in exactly one name, `QuadratureLobatto3`, and the flatten
+lists and the refusal lines of the models that did not flatten are
+identical. The only refusal line that moved is QL3's own `cannot
+evaluate parameters [s = ...quadratureLobatto...]`, which is gone. The
+five `solveOneNonlinearEquation` models (`u_min and u_max do not
+bracket`) did not move. Run 592 and runnable run 550 are the new
+floors.
+
+### The m272 LAPACK probe: dgesvd can be written here, and what stands behind it
+
+The question was whether `dgesvd` can be answered by hand the way
+`dgesv` and `dgelsy` are, or needs a crate. It can be written by hand.
+A one-sided Jacobi decomposition in about a hundred lines of
+`outside.rs` (pairs of columns turned at right angles, `V` built from
+the same turns, `U` completed by Gram-Schmidt against the unit
+vectors) takes the call laid out as `dgelsy` is: rows and columns in
+front, because thirty numbers are five rows of six or six of five.
+With it, the `dgesvd` refusal is gone from both models that stood
+there, `TestMatrices3` and `TestMatrices2b`. No test in the library
+compares a raw decomposition: every check is a residual, so a correct
+SVD with other signs passes.
+
+Neither model runs yet, and the chain behind each was walked with the
+probe rather than a link at a time. It is parked whole in
+`/tmp/m272/svd_chain.patch`, four files, not committed, because the
+pair above measured only the quadrature and a chain taken half would
+move no floor.
+
+`TestMatrices3`, one link: after `dgesvd`, `Matrices.nullSpace`
+answers `Z[size(A, 2), :]`, a flexible size decided by the rank at run
+time, and the refusal is `called where nothing could inline it ... Z,
+whose length is not one the compiler can see`. That is the flexible
+size family of `CCCVcharging`, parked.
+
+`TestMatrices2b`, four links, three of them removed in the probe:
+
+1. `dgesvd`: written here, as above.
+2. `Matrices.inv` goes through `dgetrf` and `dgetri`: both written here
+   in the probe, as partial-pivoting LU that gives LAPACK's own pivots
+   and an inverse solved column by column.
+3. `` `Bs` is given a run of 0 element(s) and 2 value(s) ``:
+   `balanceABC` declares `input Real B[size(A,1), :] = fill(0.0,
+size(A,1), 0)`, and the shape collector measured the `:` from the
+   default even though a two-column `B` was handed in, so `Bs[size(A,
+1), size(B, 2)]` had no elements. Fixed in the probe in `shapes.rs`:
+   a flexible dimension already measured from the call is not measured
+   again from the default. `/tmp/m272/BS3.mo` gives 2 with the fix and
+   refuses without it. This touches the shape collection of every
+   class, so it needs its own pair before it goes anywhere.
+4. `` unknown variable `As[1,1]` ``, raised by `print("..." +
+String(Matrices.norm(As)))`: a call standing as a statement read its
+   arguments through the array layer before the body's bindings were
+   put in, the opposite order from an assignment, so a call answered by
+   a body written here was laid out under the body's local names.
+   Fixed in the probe in `statements.rs`. `/tmp/m272/NP.mo` gives 2
+   with the fix.
+5. Where the chain stops: `assertion failed at t = 0: Optional argument
+"p" (= ?) of function "norm"`. It needs neither LAPACK nor
+   anything in the probe: `/tmp/m272/NI.mo`, twenty lines, refuses on
+   unchanged code. A walked function `if p >= Modelica.Constants.inf
+then ... elseif p >= 1.5 then ... else assert(false, ...)`, called
+   at run time from `when initial()`, fires the `else` assert with
+   `p = 2`. With the constant written as `1e308` or
+   `1.7976931348623157E+308` the same model runs and gives 6, so the
+   fault is how `Constants.inf` (through `ModelicaServices.Machine.inf`)
+   arrives in a guard of an assert inside a walked body. The same
+   function called while a parameter is settled runs. This is a family
+   of its own and the next link to take.
+
+So the answer the probe was asked for: `dgesvd` is taken by hand, no
+crate; the two models it stood before are TestMatrices3 (behind it the
+flexible-size family) and TestMatrices2b (behind it three more links,
+two of them removed in the probe, the last one the `inf` guard above).
+
+### The m271 ceiling, one line more
+
+The saving that `OXIDELICA_SHARED_DERIVATIVES` gave `Engine1b_analytic`
+came from copies and not from size: the largest expression grew from
+935 thousand nodes to 5.4 million while the footprint fell from more
+than 11 GB to 4.5 GB, and that happens only when the memory was held by
+repeated copies of the same subtree, each a separate allocation
+because `Expr` is built on `Box<Expr>`.
+
+### The m272 census
+
+Taken after the quadrature change and nothing else
+(`/tmp/m272/census.txt`, raw in `/tmp/m272/raw.txt`) over 1034 models,
+counted by the section bounds. The refused half is 116 in 51 rows,
+identical to m271. The run half is 326 in 167 rows, from 327 in 168:
+one single row is gone, `cannot evaluate parameters [s =
+Modelica.Math.Nonlinear.quadratureLobatto$...]`, and none has come. The
+parameter rows are 35, 27 service classes and 8 in the queue, from 9:
+`QuadratureLobatto3` has left the queue and runs. Together 116 + 326 =
+442 = 1034 − 592.

@@ -2412,6 +2412,35 @@ fn specialized(
     scope: &str,
     imports: &[(String, String)],
 ) -> Result<(ClassDef, Vec<Expr>), String> {
+    specialized_as(class, args, registry, scope, imports, true)
+}
+
+/// Whether a function handed on to another is left standing, as it was
+/// before. `OXIDELICA_NO_HANDING_ON` is kept so that one binary can be
+/// measured against itself over the whole library.
+fn handing_on_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_HANDING_ON").is_some()
+}
+
+thread_local! {
+    /// The copies whose bodies are being written right now, by name.
+    /// A copy that hands the function on to itself finds its own name
+    /// here and calls itself instead of being made again.
+    static MAKING: std::cell::RefCell<std::collections::HashSet<String>> =
+        std::cell::RefCell::new(std::collections::HashSet::new());
+}
+
+/// [`specialized`], saying whether the body is to be written at all.
+/// A copy already being written is asked only for the arguments its
+/// call is to be made with, and its body is left to the writer.
+fn specialized_as(
+    class: &ClassDef,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    whole: bool,
+) -> Result<(ClassDef, Vec<Expr>), String> {
     // Which argument is the function, and which input it lands on.
     let at = args
         .iter()
@@ -2588,10 +2617,81 @@ fn specialized(
     };
     copy.components.retain(|held| held.name != replaced);
     copy.components.extend(extra);
-    copy.algorithm = calls_rewritten(&class.algorithm, &replaced, &rewritten);
+    copy.algorithm = calls_rewritten(&class.algorithm, &|head, written| {
+        (head == replaced).then(|| rewritten(written))
+    });
     // A name of its own, worked out from what went into it, so the
     // same pair is specialized once however many models ask for it.
     copy.name = format!("{}${}", class.name, target.name.replace('.', "_"));
+    // The body may not call the function at all and hand it on
+    // instead: the adaptive quadrature gives `f` to `quadStep`, which
+    // calls it and hands it to itself. Left standing, `f` is a name
+    // the copy no longer declares, and the evaluator said so -
+    // `unknown variable f`. The function it is handed to is
+    // specialized the same way, one call deeper, with the inputs the
+    // copy now declares filled in where the model filled them.
+    if whole && !handing_on_off() {
+        let filled_here: Vec<Expr> = bound
+            .iter()
+            .filter_map(|held| {
+                let value = match split.get(&held.name) {
+                    Some(fields) => Expr::Array(
+                        fields
+                            .iter()
+                            .map(|field| Expr::Ref(format!("{replaced}.{}.{field}", held.name)))
+                            .collect(),
+                    ),
+                    None => {
+                        said(&held.name)?;
+                        Expr::Ref(format!("{replaced}.{}", held.name))
+                    }
+                };
+                Some(Expr::NamedArg(held.name.clone(), Box::new(value)))
+            })
+            .collect();
+        let partial = Expr::Call(
+            PARTIAL_CALL.to_string(),
+            std::iter::once(Expr::Ref(target.name.clone()))
+                .chain(filled_here)
+                .collect(),
+        );
+        let handed_on = |head: &str, written: &[Expr]| -> Option<Expr> {
+            if !written
+                .iter()
+                .any(|arg| matches!(arg, Expr::Ref(name) if *name == replaced))
+            {
+                return None;
+            }
+            let callee = lookup(registry, head, &class.name, &class.imports)?;
+            if callee.kind != ClassKind::Function {
+                return None;
+            }
+            let args: Vec<Expr> = written
+                .iter()
+                .map(|arg| match arg {
+                    Expr::Ref(name) if *name == replaced => partial.clone(),
+                    other => other.clone(),
+                })
+                .collect();
+            // A function handing itself the function it was given -
+            // `quadStep` inside `quadStep` - names the copy being
+            // made rather than making a second one, which would make
+            // a third and never stop. One name, one copy.
+            let name = format!("{}${}", callee.name, target.name.replace('.', "_"));
+            if MAKING.with(|making| making.borrow().contains(&name)) {
+                let (_, rest) =
+                    specialized_as(callee, &args, registry, scope, imports, false).ok()?;
+                return Some(Expr::Call(name, rest));
+            }
+            let (made, rest) = specialized(callee, &args, registry, scope, imports).ok()?;
+            let made_name = made.name.clone();
+            super::statements::remember_specialization(made);
+            Some(Expr::Call(made_name, rest))
+        };
+        MAKING.with(|making| making.borrow_mut().insert(copy.name.clone()));
+        copy.algorithm = calls_rewritten(&copy.algorithm, &handed_on);
+        MAKING.with(|making| making.borrow_mut().remove(&copy.name));
+    }
     // An input the call left out stands at its own default, and it
     // has to be written down rather than passed over: the fields of
     // the handed-over record are appended after every declared input,
@@ -2637,14 +2737,15 @@ fn specialized(
     Ok((copy, rest))
 }
 
-/// Every call of one name in a body, rewritten.
+/// Every call in a body that `into` has an answer for, rewritten:
+/// it is asked with the head and the arguments as written, and a call
+/// it says nothing about is left as it was.
 fn calls_rewritten(
     body: &[Statement],
-    named: &str,
-    into: &impl Fn(&[Expr]) -> Expr,
+    into: &impl Fn(&str, &[Expr]) -> Option<Expr>,
 ) -> Vec<Statement> {
-    let expr = |e: &Expr| call_rewritten(e, named, into);
-    let inner = |body: &[Statement]| calls_rewritten(body, named, into);
+    let expr = |e: &Expr| call_rewritten(e, into);
+    let inner = |body: &[Statement]| calls_rewritten(body, into);
     let rebranch = |branches: &[StatementBranch]| -> Vec<StatementBranch> {
         branches
             .iter()
@@ -2668,7 +2769,13 @@ fn calls_rewritten(
                 Statement::Assert(expr(condition), message.clone())
             }
             Statement::Call(name, args) => {
-                Statement::Call(name.clone(), args.iter().map(&expr).collect())
+                let args: Vec<Expr> = args.iter().map(&expr).collect();
+                // A call standing as a statement is a call like any
+                // other to whoever renames it.
+                match into(name, &args) {
+                    Some(Expr::Call(renamed, args)) => Statement::Call(renamed, args),
+                    _ => Statement::Call(name.clone(), args),
+                }
             }
             Statement::If(branches) => Statement::If(rebranch(branches)),
             Statement::When(branches) => Statement::When(rebranch(branches)),
@@ -2683,11 +2790,11 @@ fn calls_rewritten(
 }
 
 /// The same rewrite inside one expression.
-fn call_rewritten(expr: &Expr, named: &str, into: &impl Fn(&[Expr]) -> Expr) -> Expr {
+fn call_rewritten(expr: &Expr, into: &impl Fn(&str, &[Expr]) -> Option<Expr>) -> Expr {
     if let Expr::Call(head, args) = expr {
-        if head == named {
-            return into(args);
+        if let Some(rewritten) = into(head, args) {
+            return rewritten;
         }
     }
-    expr.map_children(&mut |held| call_rewritten(held, named, into))
+    expr.map_children(&mut |held| call_rewritten(held, into))
 }
