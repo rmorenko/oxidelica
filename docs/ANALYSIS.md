@@ -19780,3 +19780,16 @@ line. The refusal lines differ in exactly one model,
 [HEX.pipe_1.dheights[1] = ...]` off to `unbalanced model: 3627
 algebraic equation(s) for 3631 unknown(s)` on. So the floors stand,
 and the change is a wall removed, not a model won.
+
+### The m271 census
+
+Taken after the change (`/tmp/m271/census.txt`, raw in
+`/tmp/m271/raw.txt`) over 1034 models, counted by the section bounds.
+The refused half is 116 in 51 rows, identical to m270. The run half is
+327 in 168 rows, and differs from m270 in one pair of single rows:
+`cannot evaluate parameters [HEX.pipe_N.dheights[N] = ...]` is gone,
+and `unbalanced model: N algebraic equation(s) for N unknown(s);
+nothing determines HEX.pipe_N.flowModel.rhos_act[N], ...` has come,
+both `HeatExchangerSimulation`. The parameter rows are 36, 27 service
+classes and 9 in the queue, from 10: the heat exchanger has left the
+queue for the unbalanced wall. Together 116 + 327 = 443 = 1034 − 591.
