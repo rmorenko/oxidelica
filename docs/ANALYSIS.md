@@ -18729,3 +18729,179 @@ is written outside Modelica` to `OCV_SOC has 6 element(s) but its
 value has 348`, by the slice-member layer alone. Same count, a
   different wall. The flexible-size table of the battery records is
   parked with `CCCV_CellRC`.
+
+## The m265 series: the divisor wall was a vector of one
+
+The m264 census had seven models at `an array cannot be a divisor`.
+Four of them come from the trace-substance chain (`RoomCO2`,
+`RoomCO2WithControls`, `TestMultiPortTraceSubstances`, and
+`MediaTestModels.Air.MoistAir`). Brief item 2 asked separately about
+`an equation between shapes [] and [1]` in `TestSources` and
+`TestTraceSubstances`. The refusal now names its operands, and that
+showed all of these are one fault. The divisor is `R*T` in
+`p/(R*T)`, and `T` is
+`solveOneNonlinearEquation$MoistAir_T_phX_f_nonlinear(...)` with
+shape `[1]`.
+
+1. **A specialized copy spread over its array input**
+   (`OXIDELICA_SPREAD_COPIES`). `T_phX` hands Brent's method
+   `function f_nonlinear(p = p, h = h, X = X[1:nXi])`, and the copy
+   declares `Real[:] X`. The copy lives in the table of
+   specializations and not in the registry, so `expand_call` never
+   saw that it takes an array. It went down the road of an ordinary
+   scalar function and was spread over a vector of one. An array that
+   lands on an array input of a copy now goes in whole, and the call
+   is left for the walk the way any call the inliner does not take
+   is left. Reproduced in 35 lines without a medium
+   (`tests/small/a_specialized_copy_handed_an_array_input.mo`). The
+   test checks `T = 300000/1010`.
+2. **A record field whose length is a name, handed through an
+   element** (`OXIDELICA_NO_NAMED_FIELD_LENGTHS`). With layer 1
+   gone, `TestSources` and `MediaTestModels.Air.MoistAir` stopped at
+   `unknown variable state.X[1] in equation`. That refusal now quotes
+   the equation, and the equation was `pipe.flowModel.vs[1]`. Its
+   density body had `st[1].p` and `st[1].T` renamed and
+   `gasConstant`'s `state.X[1]` left alone. `shaped_record_fields`
+   measured `X[nX]` against an empty table, so the field fell out of
+   the list bound one by one. A record handed by a plain name was
+   spared because that road also binds the bare name. The length is
+   now read through the package constants, under the medium on the
+   mark where one stands. The 12-line reproduction was already red on
+   the binary from before this series, so the layer is older than
+   layer 1 and was hidden behind it.
+
+3. **A record constant read from inside its own reading**
+   (`OXIDELICA_UNGUARDED_RECORD_READS`). Layer 1 is a cost as well as
+   a gain. The first corpus pair on it did not finish: the on half
+   held one thread for half an hour with nothing printed. Hunted one
+   model at a time with a 150 s ceiling over the 211 Media and Fluid
+   models, the one that hung was
+   `SolveOneNonlinearEquation.Inverse_sh_TX`. With layer 1's switch
+   set it refuses in 31 s, and layer 2's switch changes nothing. A
+   `sample` of the stuck process showed
+   `record_argument -> class_constant_array_at -> inline_function ->
+worked_body -> record_argument` repeating without end. The mixture
+   gases' `T_hX` hands Brent's method `data = data`. Once the copy
+   took `X` whole, the call went on to be inlined, and reading the
+   record's binding asked the same question one storey down. The
+   road is `enclosing_record_argument` from m264 layer 4. A stack of
+   the records being read now stops a reading from starting again
+   inside itself, on both record roads. The inner asking answers
+   `None`, which is what it answered before either road existed. The
+   8-line reproduction
+   (`tests/small/a_record_constant_read_from_inside_its_own_reading.mo`)
+   refuses in 7 s for `referenceChoice`. Unguarded it runs past two
+   minutes. It needs the real library, so the suite has no test for
+   it. The corpus pair is the witness. The first guard was put only
+   on the medium road, and the sample showed the loop did not pass
+   through it. It did not help and was moved.
+
+The other two models past 150 s in the hunt,
+`DynamicPipeEnergyConservationCheck` (280 s) and
+`DynamicPipesAndFittings` (156 s), cost the same on the binary from
+before the series. They are dear, not stuck.
+
+The three layers were measured as one pair from one binary
+(`/tmp/ox265i`), the three switches set and then clear, with the
+heavy set left out. Off printed 908/583 and 793/541
+(`/tmp/m265/p2/off.txt`), the numbers of m264 to the digit. On
+printed 917/583 and 802/541 (`/tmp/m265/p2/on.txt`). Nine models
+joined the flatten list and none left either list. The nine are the
+four of the divisor wall, `TestSources` and `TestTraceSubstances`,
+`BranchingDynamicPipes`, and both `Inverse_sh_TX`. None runs yet, so
+no run number moved.
+
+Where the six went, probed one at a time with `--only` against
+`.msl`:
+
+| model                          | before            | after layers 1 and 2                          |
+| ------------------------------ | ----------------- | --------------------------------------------- |
+| `RoomCO2`                      | divisor           | flattens; `volume.h_start` cannot evaluate    |
+| `RoomCO2WithControls`          | divisor           | flattens; same parameter wall (by the family) |
+| `TestMultiPortTraceSubstances` | divisor           | flattens; `volume1.h_start` cannot evaluate   |
+| `MediaTestModels.Air.MoistAir` | divisor           | flattens; see the pair                        |
+| `TestSources`                  | shapes `[]`/`[1]` | flattens; unbalanced, `junction` outflows     |
+| `TestTraceSubstances`          | shapes `[]`/`[1]` | flattens; the Wagner wall at run time         |
+
+The `h_start` wall is the `h_pTX` binding the brief lists as parked
+under parameters (`nothing works out Modelica.Media.Air.MoistAir.h_pTX`).
+
+### The Wagner wall, reconnaissance only (brief item 3)
+
+`an array reached the evaluator: {-7.86, ...}` is the coefficient
+vector `a[:]` of `saturationPressureLiquid`, reaching the run-time
+evaluator. The smallest reproduction so far is a copy of `h_pTX`'s
+body, cut down and declared in a package that extends `MoistAir`
+(`/tmp/m265/w/wo1.mo`, scratch):
+
+```modelica
+p_steam_sat := saturationPressure(T);
+X_sat := min(p_steam_sat*0.62/max(100*Modelica.Constants.eps,
+  p - p_steam_sat)*(1 - X[Water]), 1.0);
+X_liquid := max(X[Water] - X_sat, 0.0);
+h := enthalpyOfWater(T)*X_liquid + X_sat;
+```
+
+The probes that do not refuse narrow it. `saturationPressure`,
+`saturationPressureLiquid` and `h_pTX`'s fragments each run alone, or
+in a walked function with a `while`. `sublimationPressureIce` or
+`saturationPressureLiquid` in place of `saturationPressure` runs. So
+does dropping `+ X_sat`, dropping the `max`, or replacing the
+`min(...max...)` of `X_sat` with a plain quotient. A model-level
+function with an `a[:]` local, and a derivative rule whose body holds
+one, both run. What is left is the spliced `saturationPressure`, whose
+rule is `saturationPressure_der` and calls both branches. It reaches
+the evaluator only when the enclosing body is large enough, and on
+`p_steam_sat` feeding both a `min` and a `max`. That points at the
+road a body takes when it is too big to inline (`NO_BOTTOM`, left
+standing for the walk). The derivative seeds of the splice then carry
+`saturationPressureLiquid_der`'s `a[:]` local whole. This is a
+suspicion from the probes, not a trace. The next step is to print the
+flat expression holding the array, and `why` does not show it yet.
+No code was written for this layer.
+
+### The m265 census
+
+Taken after the series (`/tmp/m265/c/census.txt`, raw in
+`/tmp/m265/c/raw.txt`). The refused half is 120 models (11 + 8×2 + 7
+
+- 6 + 5×2 + 4 + 3×6 + 2×11 + 26×1). The run half is 334 (27 + 20 +
+  14×2 + 11 + 7 + 6 + 5×5 + 4×3 + 3×12 + 2×14 + 134×1). Together that
+  is 454 = 1037 − 583, the same as m264: nine moved from one half to
+  the other and none moved out of the census.
+
+By family, added from the rows:
+
+- loops 99 (27 + 20 + 14 + 14 + 11 + 7 + 3 + 3), unchanged;
+- structurally singular 64, unchanged;
+- unbalanced 40 (5 + 3 + 2 + 30×1), one more: `TestSources`;
+- parameters 50 (24 "has no value" + 26 "cannot evaluate"), five
+  more: `RoomCO2`, `RoomCO2WithControls`,
+  `TestMultiPortTraceSubstances` and `BranchingDynamicPipes` on
+  `h_pTX` in `h_start`, and `SolveOneNonlinearEquation.Inverse_sh_TX`
+  on `h_min`;
+- Wagner 5 (from 3): `TestTraceSubstances` from the table below,
+  and `TestMultiPort`, which in m264 stood at `unknown variable
+state.X[1] in equation` and was carried one wall on by layer 2;
+- divisor 3 (from 7). The three left are the ones the brief excluded:
+  `TestComplexFunctions`, `TestComplexOperations`, `IdealMixing1`.
+
+Where the nine went, by name, m264 raw against m265 raw:
+
+| model                                     | m264                  | m265                                     |
+| ----------------------------------------- | --------------------- | ---------------------------------------- |
+| `RoomCO2`, `RoomCO2WithControls`          | divisor               | `volume.h_start = h_pTX(...)`            |
+| `TestMultiPortTraceSubstances`            | divisor               | `volume1.h_start = h_pTX(...)`           |
+| `MediaTestModels.Air.MoistAir`            | divisor               | `der(volume.medium.T)` is not a state    |
+| `TestSources`                             | shapes `[]`/`[1]`     | unbalanced, `junction` outflows          |
+| `TestTraceSubstances`                     | shapes `[]`/`[1]`     | Wagner                                   |
+| `BranchingDynamicPipes`                   | `size(state.X)` of [] | `pipe1.h_start = h_pTX(...)`             |
+| `ReferenceAir.Inverse_sh_TX`              | shapes `[]`/`[2]`     | at run time, `unknown variable Tsub_res` |
+| `SolveOneNonlinearEquation.Inverse_sh_TX` | shapes `[]`/`[4]`     | `h_min` cannot evaluate                  |
+
+The two `Inverse_sh_TX` are the `Th` pair the brief had parked
+(If/Call). They moved without being aimed at: they stood on the same
+fault as layer 1, a copy of Brent's method spread over its array
+input. Both still refuse, each at a wall of its own. Nothing was done
+to pull the parking back. `PumpingSystem` (`reservoir.medium.T`)
+refuses word for word as in m264.

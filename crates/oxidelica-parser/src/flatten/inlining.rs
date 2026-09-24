@@ -2083,6 +2083,16 @@ fn enclosing_record_argument(registry: &HashMap<&str, &ClassDef>, named: &str) -
         // record constant, and its name is read there.
         let (home, _) = whole.rsplit_once('.')?;
         let home = registry.get(home)?;
+        // Not from inside its own reading, for the reason the medium's
+        // road gives: a binding whose function is handed the same name
+        // asks the same question one storey down, for ever.
+        if !record_readings_unguarded()
+            && READING_RECORDS.with(|reading| reading.borrow().contains(&whole))
+        {
+            return None;
+        }
+        READING_RECORDS.with(|reading| reading.borrow_mut().push(whole.clone()));
+        let _done = RecordRead;
         let built =
             constants::class_constant_array_at(registry, &whole, &home.name, &home.imports, 0)?;
         let Expr::Call(record, args) = &built else {
@@ -2193,6 +2203,30 @@ fn bind_record_argument(
     Ok(true)
 }
 
+thread_local! {
+    /// The record constants being read by [`bare_record_constant`], so
+    /// that a reading does not start again from inside itself.
+    static READING_RECORDS: RefCell<Vec<String>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Takes the latest reading off the stack however it ends.
+struct RecordRead;
+
+impl Drop for RecordRead {
+    fn drop(&mut self) {
+        READING_RECORDS.with(|reading| {
+            reading.borrow_mut().pop();
+        });
+    }
+}
+
+/// Whether a record constant may be read again from inside its own
+/// reading, as it could before. `OXIDELICA_UNGUARDED_RECORD_READS` is
+/// kept so that one binary can be measured against itself.
+fn record_readings_unguarded() -> bool {
+    std::env::var_os("OXIDELICA_UNGUARDED_RECORD_READS").is_some()
+}
+
 /// A bare name standing for a record constant, as the record it names.
 ///
 /// Inside a medium's own functions the gas data is written `data`,
@@ -2216,13 +2250,23 @@ fn bare_record_constant(registry: &HashMap<&str, &ClassDef>, named: &str) -> Opt
     let held = with_inherited_components(medium, registry)
         .into_iter()
         .find(|c| c.name == named && c.variability == Variability::Constant)?;
-    let built = constants::class_constant_array_at(
-        registry,
-        &format!("{}.{}", medium.name, held.name),
-        &medium.name,
-        &medium.imports,
-        0,
-    )?;
+    // Not while the same record is already being read. Its binding
+    // may call a function that is handed the same bare name, and
+    // reading it again from there asked the same question one storey
+    // down, for ever: the mixture gases' `T_hX` hands Brent's method
+    // `data = data`, and the flue-gas example held a corpus pass on
+    // one model for half an hour. Inside its own reading the name
+    // answers what it answered before this road existed.
+    let key = format!("{}.{}", medium.name, held.name);
+    if !record_readings_unguarded()
+        && READING_RECORDS.with(|reading| reading.borrow().contains(&key))
+    {
+        return None;
+    }
+    READING_RECORDS.with(|reading| reading.borrow_mut().push(key.clone()));
+    let _done = RecordRead;
+    let built =
+        constants::class_constant_array_at(registry, &key, &medium.name, &medium.imports, 0)?;
     // What comes back is the constructor the binding names, whose
     // arguments are written by name and in whatever order the library
     // wrote them. The caller binds a record's fields by position, so

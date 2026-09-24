@@ -2108,3 +2108,96 @@ fn the_range_of_a_loop_in_an_algorithm_counts_a_package_constant() {
            annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;");
     assert!((last_of(&result, "s.ind") - 2.0).abs() < 1e-12);
 }
+
+/// A specialized copy handed an array on an array input answers one
+/// number, not one per element.
+///
+/// `MoistAir.T_phX` hands Brent's method `function f_nonlinear(p = p,
+/// h = h, X = X[1:nXi])`, and the copy made of it takes the mass
+/// fractions as `Real[:] X`. The copy lives outside the registry, so
+/// the call reached the road of an ordinary scalar function and was
+/// spread over a vector of one: the temperature came back as `{T}`,
+/// and a density `p/(R*T)` over it was refused for having an array as
+/// its divisor. The root of `1000 u (1 + X[1]) = 300000` at `X[1] =
+/// 0.01` is `300000/1010`, and that is the number this asks for.
+#[test]
+fn a_specialized_copy_takes_an_array_input_whole() {
+    let result = run("package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-9 loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           model M \
+             function g extends Scalar; input Real h; input Real X[:]; \
+               algorithm y := 1000*u*(1 + X[1]) - h; end g; \
+             function T_hX input Real h; input Real X[:]; output Real T; \
+               algorithm T := solve(function g(h = h, X = X[1:1]), 190, 647); end T_hX; \
+             Real Xi[1] = {0.01}; \
+             Real T; \
+             Real d; \
+           equation \
+             T = T_hX(300000, Xi); \
+             d = 1e5/(287*T); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let at = |name: &str| {
+        let column = result
+            .columns
+            .iter()
+            .position(|held| held == name)
+            .unwrap_or_else(|| panic!("no column {name} in {:?}", result.columns));
+        result.rows.last().expect("a final row")[column]
+    };
+    let expected = 300000.0 / 1010.0;
+    assert!(
+        (at("T") - expected).abs() < 1e-5,
+        "the root is {expected}, and this said {}",
+        at("T")
+    );
+    assert!((at("d") - 1e5 / (287.0 * expected)).abs() < 1e-6);
+}
+
+/// A record field whose length is a name is bound element by element
+/// when the record is an element of an array.
+///
+/// A medium's state declares `X[nX]`, and the length was measured
+/// against an empty table: `nX` answered nothing, the field fell out of
+/// the list bound one by one, and a body inlined for `st[1]` read
+/// `state.X[1]` with nothing bound to it. The name reached the flat
+/// model, which declares no `state`, and was refused there. A record
+/// handed by a plain name was spared only because that road binds the
+/// bare name as well. `287 (1 - 0.01) + 461 (0.01)` is `288.74`.
+#[test]
+fn a_record_field_with_a_named_length_is_bound_through_an_element() {
+    let result = run("model M \
+           package P \
+             constant Integer nX = 2; \
+             record S Real p; Real X[nX]; end S; \
+             function gc input S state; output Real R; \
+               algorithm R := 287*(1 - state.X[1]) + 461*state.X[1]; end gc; \
+           end P; \
+           P.S st[1](p = {1e5}, X = {{0.01, 0.99}}); \
+           Real R; \
+         equation \
+           R = P.gc(st[1]); \
+           annotation(experiment(StopTime=0.1)); \
+         end M;");
+    let column = result
+        .columns
+        .iter()
+        .position(|held| held == "R")
+        .expect("a column for R");
+    let last = result.rows.last().expect("a final row")[column];
+    assert!((last - 288.74).abs() < 1e-9, "R came to {last}");
+}

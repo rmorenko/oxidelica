@@ -91,10 +91,43 @@ pub(super) fn shaped_record_fields(
         .into_iter()
         .filter(|field| !field.dimensions.is_empty())
         .filter_map(|field| {
+            // A length written as a name is read where the record
+            // stands: a medium's state declares `X[nX]`, and `nX` is
+            // a constant of the medium. Asked of an empty table it
+            // answered nothing, the field dropped out of the list,
+            // and a body inlined for `st[1]` read `state.X[1]` with
+            // nothing bound to it - a name of the function's own
+            // carried out into the flat model, where nobody declares
+            // it. The record handed by a plain name was spared only
+            // because that road binds the bare name as well.
             let shape: Option<Vec<i64>> = field
                 .dimensions
                 .iter()
-                .map(|d| const_eval(d, &HashMap::new()).map(|n| n as i64))
+                .map(|d| {
+                    const_eval(d, &HashMap::new())
+                        .map(|n| n as i64)
+                        .or_else(|| match named_lengths_off() {
+                            true => None,
+                            // Read under the medium on the mark first,
+                            // where there is one and it descends from
+                            // the package that wrote the record: a
+                            // medium may give `nX` a value its base
+                            // left open, and the base's reading of the
+                            // same name would be a guess.
+                            false => {
+                                let package = of.name.rsplit_once('.').map(|(head, _)| head);
+                                let under = package.and_then(|package| {
+                                    super::inlining::asked_as_package(registry, package)
+                                });
+                                match under.as_deref().and_then(|under| registry.get(under)) {
+                                    Some(medium) => {
+                                        super::constants::declared_length(d, medium, registry)
+                                    }
+                                    None => super::constants::declared_length(d, of, registry),
+                                }
+                            }
+                        })
+                })
                 .collect();
             Some((field.name.clone(), shape?))
         })
@@ -426,4 +459,12 @@ fn started_by(
     // `SpecificEnergy` in the units package, and the function that
     // started the asking has never heard of either.
     started_by(&base, registry, class, depth + 1)
+}
+
+/// Whether a record field whose length is written as a name is to be
+/// left out of the fields bound one by one, as it was before.
+/// `OXIDELICA_NO_NAMED_FIELD_LENGTHS` is kept so that one binary can be
+/// measured against itself over the whole library.
+fn named_lengths_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_NAMED_FIELD_LENGTHS").is_some()
 }

@@ -2335,7 +2335,27 @@ fn check_references(
             // nothing stated on its own, not one a model wrote.
             && !(r.starts_with("der(") && r.ends_with(')'))
     }) {
-        return err(format!("unknown variable `{bad}` in equation"));
+        // Which equation holds it: a name that nothing declares is
+        // almost always one a body inlined under the wrong prefix, and
+        // the equation shows whose body it was.
+        let holder = algebraic_eqs
+            .iter()
+            .find(|(lhs, rhs)| {
+                let mut named = Vec::new();
+                lhs.collect_refs(&mut named);
+                rhs.collect_refs(&mut named);
+                named.contains(bad)
+            })
+            .map(|(lhs, rhs)| {
+                let written = format!("{lhs:?} = {rhs:?}");
+                written.chars().take(600).collect::<String>()
+            });
+        return err(match holder {
+            // In backticks, so that a census reading kinds counts
+            // one kind however many equations it was found in.
+            Some(holder) => format!("unknown variable `{bad}` in equation `{holder}`"),
+            None => format!("unknown variable `{bad}` in equation"),
+        });
     }
     Ok(())
 }

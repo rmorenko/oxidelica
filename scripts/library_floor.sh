@@ -268,7 +268,26 @@ FILES_FLOOR=2671
 #                 and TestJunctionTraceSubstances, TestMultiPort,
 #                 DynamicPipesWithTraceSubstances (the trace-substance
 #                 ports)
-FLATTEN_FLOOR=908
+#
+# Then the m265 series, measured as one pair from one binary
+# (/tmp/ox265i) with its three switches set and clear
+# (OXIDELICA_SPREAD_COPIES, _NO_NAMED_FIELD_LENGTHS,
+# _UNGUARDED_RECORD_READS). The off side printed 908/583 and 793/541
+# (/tmp/m265/p2/off.txt); the on side (/tmp/m265/p2/on.txt) printed:
+#
+#   flatten 917 = 908 above, plus nine, none lost:
+#                 Fluid.Examples.TraceSubstances.RoomCO2 and
+#                 RoomCO2WithControls, ModelicaTest.Fluid.TestComponents.
+#                 Fittings.TestMultiPortTraceSubstances, ModelicaTest.
+#                 Media.TestsWithFluid.MediaTestModels.Air.MoistAir (all
+#                 four the divisor wall), Sources.TestSources and
+#                 Sensors.TestTraceSubstances (shapes [] and [1]),
+#                 Fluid.Examples.BranchingDynamicPipes, and both
+#                 Inverse_sh_TX, of ReferenceAir and of
+#                 SolveOneNonlinearEquation (the copy of Brent's method
+#                 spread over its array input). None of the nine runs
+#                 yet, so the run floors stand.
+FLATTEN_FLOOR=917
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -636,7 +655,10 @@ RUN_FLOOR=583
 #
 # And runnable flatten 793 = 783 plus the ten, runnable run 541 = 537
 # plus the four, all of them runnable examples (/tmp/m264/on.txt).
-RUNNABLE_FLATTEN_FLOOR=793
+#
+# And runnable flatten 802 = 793 plus the nine set out at
+# `FLATTEN_FLOOR`, all runnable examples (/tmp/m265/p2/on.txt).
+RUNNABLE_FLATTEN_FLOOR=802
 RUNNABLE_RUN_FLOOR=541
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
@@ -743,10 +765,19 @@ RUN_MS_CEILING=8000
 # time (/tmp/m264/new10_time.txt). They were left in the main pass
 # rather than carved out: carving another giant was declined on
 # 2026-09-24, with the CI ceiling raised to 150 minutes instead.
-WORK_CLASSES=282397
-WORK_EXPANSIONS=92767192
-WORK_BODIES=1392637
-WORK_POINTS=32249825
+#
+# Refreshed again with the floors, from /tmp/m265/p2/on.txt. The off
+# side of the same binary printed the numbers of m264 above to the
+# digit (/tmp/m265/p2/off.txt), so the series did 0.35% more classes,
+# 0.68% more expansions, 1.26% more bodies and three more points: nine
+# models built whole that do not run yet. The flattening time per
+# model read 4162ms off and 3957ms on, over the same 1037 models from
+# the same binary run one after the other; the fall was not traced and
+# is taken for weather, not for a saving.
+WORK_CLASSES=283386
+WORK_EXPANSIONS=93401804
+WORK_BODIES=1410168
+WORK_POINTS=32249828
 WORK_NEWTON=44495092
 WORK_JACOBIANS=324
 WORK_PERCENT=5

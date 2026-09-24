@@ -1428,6 +1428,32 @@ pub(super) fn expand_call(
                 .map(&recur)
                 .collect::<Result<Vec<_>, String>>()?;
             let arrayed = values.iter().any(|value| matches!(value, Value::Array(_)));
+            // A specialized copy is not in the registry, so the lookup
+            // above never finds it and it arrives here as if it were an
+            // ordinary scalar function. It is not: Brent's method made
+            // for `T_phX` takes the mass fractions as `Real[:] X`, and
+            // spread over a vector of one it answered a temperature as
+            // a vector of one - a density `p/(R*T)` then had an array
+            // for a divisor, and a temperature an equation between
+            // shapes `[]` and `[1]`. An array landing on an input that
+            // is itself an array goes in whole, and the walk takes it
+            // whole, the way it takes any call it is left to answer.
+            if arrayed && !whole_into_copies_off() {
+                if let Some(copy) = super::statements::specialization(name) {
+                    let inputs: Vec<Component> = inlining::function_components(registry, &copy, 0)
+                        .into_iter()
+                        .filter(|held| held.causality == Causality::Input)
+                        .collect();
+                    let lands_on_an_array = inputs.iter().zip(&values).any(|(input, value)| {
+                        matches!(value, Value::Array(_)) && !input.dimensions.is_empty()
+                    });
+                    if lands_on_an_array {
+                        let handed: Vec<Expr> = values.into_iter().map(Value::into_expr).collect();
+                        let call = Expr::Call(name.to_string(), handed);
+                        return Ok(standing_call(call, &copy, registry, imports));
+                    }
+                }
+            }
             if !arrayed {
                 let scalars = values
                     .into_iter()
@@ -1571,7 +1597,16 @@ pub(super) fn combine(
             }
         }
         (BinOp::Div, _, Value::Array(_)) => {
-            Err("an array cannot be a divisor; use `./` for element by element".to_string())
+            let (mut left_items, mut right_items) = (Vec::new(), Vec::new());
+            left.flatten_into(&mut left_items);
+            right.flatten_into(&mut right_items);
+            Err(format!(
+                "an array cannot be a divisor; use `./` for element by element: \
+                 `{:?}` over `{:?}` of shape `{:?}`",
+                left_items.first(),
+                right_items.first(),
+                right.shape()
+            ))
         }
         _ => zip_values(left, right, &apply),
     }
@@ -2322,6 +2357,14 @@ fn empty_range_subscript(subscripts: &[Expr], shapes: &Shapes) -> bool {
 /// be measured against itself over the whole library.
 fn bare_records_off() -> bool {
     std::env::var_os("OXIDELICA_NO_BARE_RECORDS").is_some()
+}
+
+/// Whether a specialized copy is to be spread over an array handed to
+/// an array input, as it was before. `OXIDELICA_SPREAD_COPIES` is kept
+/// so that one binary can be measured against itself over the whole
+/// library.
+fn whole_into_copies_off() -> bool {
+    std::env::var_os("OXIDELICA_SPREAD_COPIES").is_some()
 }
 
 /// The fields of a record handed over to a specialized copy, each as
