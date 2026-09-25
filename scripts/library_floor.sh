@@ -775,7 +775,13 @@ FLATTEN_FLOOR=919
 # (/tmp/m279/on5.txt) by the same three swinging names.
 # MomentumBalanceFittings came after it, with 01e0b09, and is not in
 # this floor: the runner has not yet counted a tree that holds it.
-RUN_FLOOR=615
+#
+# And run 616 is the runner's count of b87de9e (job 108229171421 of
+# run 36182860646): 615 plus MomentumBalanceFittings. The desk counts
+# 617 on that tree (/tmp/m280/on2.txt) by the same three swinging
+# names: only the desk runs DrumBoiler and SpringWithMass, only the
+# runner runs Dimmer_RL.
+RUN_FLOOR=616
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -824,8 +830,12 @@ RUN_FLOOR=615
 #
 # And runnable run 573 is the runner's count of 385dce3: 572 plus
 # RotationalSample, a runnable example.
+#
+# And runnable run 574 is the runner's count of b87de9e (run
+# 36182860646): 573 plus MomentumBalanceFittings, a runnable example.
+# The desk counts 575 on that tree; runnable flatten is 804 on both.
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=573
+RUNNABLE_RUN_FLOOR=574
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
