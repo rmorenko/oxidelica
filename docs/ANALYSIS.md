@@ -20374,6 +20374,13 @@ records owed as well.
 
 Parked with the map and not fixed: the shift had fifty minutes left,
 and a change to how shapes travel down modifiers wants its own pair.
+Readers of a record's field count ruled out on the way, so the next
+probe starts past them: `bind_record_argument` (skips array inputs),
+the answer-shape reader at `arrays.rs` line 859 (a call's answer with
+no dimensions, not an input), and the record builder at `arrays.rs`
+line 1643 (a record written out). Still to read: `numbers_of_one`
+(`extents.rs` line 611) and its caller at `components.rs` line 1144,
+which set a value's length against the fields of one record.
 The first thing to take is the silence, not the two models: an array
 of records reaching a function input declared `[:]` with no length
 known should be refused rather than measured by its fields.
