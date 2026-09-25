@@ -21455,3 +21455,25 @@ the block has already converged. What would reach it is a start that
 lies in the right basin, or a converged block checked against the
 brackets of the searches it feeds. Written down so that the next shift
 does not build the retreat.
+
+### The did-not-converge row, by trail
+
+`Bend` (block of three, refused at t = 0 on its first solve) swings
+between two points for all fifty iterations: `from_mflow.dp` goes
++1000, -990, +1000, -990, with |f| steady at 5.7e-5 at both ends.
+`from_mflow.m_flow = dp_curvedOverall_MFLOW(..., dp ...)` in the
+`from_mflow` branch is a mass flow written as a function of the
+pressure drop that must be inverted, and its slope at the two points
+sends Newton to the other. The circling guard (four points remembered,
+a tolerance of 1e-6 relative) does not fire, because the points differ
+by about 1e-2 relative on each return. The residual there is 5.7e-5
+against a mass flow of order 1e-7 in the other column, so the scales
+of the block are also far apart. Two questions, not one, and not
+taken.
+
+`TestDensity` descends from 1.2e2 to 0.35 on its first step and then
+swings between 0.35 and 0.33 with a slow drift down, the same shape.
+`LinearColdWater` makes 150 solves and cycles three residual levels,
+1.6, 2.5e-5, 1.2e-9, which is a solve converging and the next event
+throwing it back. Different from the other two, and mapped by the
+numbers only.
