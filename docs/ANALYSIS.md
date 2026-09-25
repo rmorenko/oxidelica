@@ -21605,3 +21605,16 @@ library, so it is a definition-sized change. It needs a pair and the
 victim list, and this shift did not have the hour left for that
 honestly. Mapped with the small model named: `TestJunctionVolume`,
 states `junction.U` and `junction.m`, expected `m = 20e-6 * 3.57`.
+
+Three more members probed to close the count. `BranchingPipes16`
+converges to 31.38338452461023, the same root, so it belongs to the
+family. `DynamicPipesWithTraceSubstances` (first block at 280.0) and
+`RoomCO2WithControls` (first block at 1000.0) are refused one wall
+earlier, with NaN through a walked `solveOneNonlinearEquation` in a
+temperature or density equation. They have not reached the second
+root yet, so they are left out of the family's count until the NaN
+before it is taken. The family stands at nine traced
+(`IdealGases.Air`, `Nitrogen`, `DryAirNasa`, `IdealSteam`,
+`BranchingPipes15`, `16`, `TestJunctionVolume`, plus `17` by its
+refusal and first-on name only), and `17` is the one still to check
+by trail.
