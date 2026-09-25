@@ -2670,19 +2670,17 @@ struct Shapes<'a> {
 /// An `if` decided on a tick, written as one equation per name it
 /// assigns.
 ///
-/// Taken only where a condition reads `previous` - the one thing that
-/// makes an `if` clocked on its face - and every branch assigns the
-/// same names, each once and by name on its left. Anything else is
-/// left to the modes the compiler settles while running, as before.
-/// `if c then x = a; else x = b; end if` and `x = if c then a else b`
-/// say the same thing, and the second is an equation the partitions
-/// can lift onto the clock the `previous` asks for.
+/// Taken only where a condition reads `previous` or `firstTick` - the
+/// two things that make an `if` clocked on its face - and every branch
+/// assigns the same names, each once and by name on its left. Anything
+/// else is left to the modes the compiler settles while running, as
+/// before. `if c then x = a; else x = b; end if` and `x = if c then a
+/// else b` say the same thing, and the second is an equation the
+/// partitions can lift onto the clock the condition asks for.
 fn merged_on_a_tick(conditional: &ConditionalEquations) -> Option<Vec<EquationItem>> {
-    if !conditional
-        .conditions
-        .iter()
-        .any(|condition| mentions_call(condition, "previous"))
-    {
+    if !conditional.conditions.iter().any(|condition| {
+        mentions_call(condition, "previous") || mentions_call(condition, "firstTick")
+    }) {
         return None;
     }
     if conditional.branches.len() != conditional.conditions.len() + 1 {

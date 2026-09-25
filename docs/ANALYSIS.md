@@ -21025,5 +21025,43 @@ name for name. The expansions rise 61193 and the names looked up
 2021235, both inside the work band. The Jacobians stay at 605.
 
 Over the shift the desk goes from 607 to 615 run and 565 to 573
-runnable. The floors stay at 606 and 564 until the runner has counted
-this tree, as m278 showed the two machines can differ by a few names.
+runnable.
+
+### `firstTick` is the same `if`
+
+`RotationalSample` refused with `unknown function firstTick`.
+`BooleanChange` and `IntegerChange` write `if firstTick() then y =
+false; else y = not (u == previous(u)); end if`. The condition names
+`firstTick` and not `previous`, so the merge above left the `if` to
+the run, and `firstTick` reached the run bare. The merge now takes
+either. The smallest model (`/tmp/m279/s/ft1.mo`) gives -1 on the
+first tick and the 0.1 step of a sampled ramp on every tick after. It
+is the test `an_if_on_the_first_tick_is_decided_on_the_clock`, red
+under `OXIDELICA_NO_MERGE_CLOCKED_IF` with this refusal.
+`RotationalSample` runs. Measured as a pair from one binary
+(`/tmp/ox279y`, the off side with `OXIDELICA_NO_MERGE_CLOCKED_IF`;
+`/tmp/m279/on5.txt` against `/tmp/m279/off5.txt`): 919 flatten on both
+sides, run 613 to 616, runnable 571 to 574. The three the switch takes
+away are the three the merge carries, `TickBasedPulse`, `TickBasedSine`
+and `RotationalSample`. Against the on side of the previous pair the
+run list gains `RotationalSample` alone, and none was lost. The desk
+now counts 616 run and 574 runnable.
+
+`UniformNoiseXorshift64star` is the last Clocked model of the run half
+refusing on a name the run does not have: `unknown function previous`.
+There `previous(state64)` is the argument of a call that fills a tuple,
+`(r64, state64) = random(previous(state64))`, which the partitions do
+not lift. Mapped, not taken.
+
+### The floors of the m279 shift
+
+The floors are not moved in this shift. The desk counts 615 run and
+573 runnable on `9e6f772`, but no run of the runner has counted this
+tree. m278 showed the two machines differing by three names on a
+tree whose pair was just as clean. A floor is a promise made to the
+build machine, and it is raised to the runner's number, not the
+desk's. The eight models gained before `firstTick` were asked of the
+runner one at a time by dispatch on `9e6f772` (jobs 108172440207 to
+108172522883), and each came back as one flattened and one run. That
+is each model alone, not the count of the tree, so the floor still
+waits for a push run of the whole library.

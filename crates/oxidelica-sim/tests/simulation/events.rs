@@ -613,6 +613,22 @@ fn an_if_decided_on_a_tick_counts_on_that_tick() {
 }
 
 #[test]
+fn an_if_on_the_first_tick_is_decided_on_the_clock() {
+    // `BooleanChange` and `IntegerChange` answer `false` on the first
+    // tick and compare with `previous` after it, in an `if firstTick()`.
+    // Set aside for the modes settled while running, `firstTick` reached
+    // the run as a function nobody had. Here the first tick gives -1,
+    // and every tick after the step of a sampled ramp, 0.1.
+    let result = run("model M Clock c = Clock(0.1); Real s; Real y; \
+         equation s = sample(time, c); \
+         if firstTick() then y = -1; else y = s - previous(s); end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    assert_eq!(result.rows.first().unwrap()[y], -1.0);
+    assert!((result.rows.last().unwrap()[y] - 0.1).abs() < 1e-9);
+}
+
+#[test]
 fn a_switch_resting_on_its_threshold_is_not_lost_for_the_rest_of_the_run() {
     // A sliding mode: the state is driven towards the threshold from
     // whichever side it stands on, so the event settles exactly on it
