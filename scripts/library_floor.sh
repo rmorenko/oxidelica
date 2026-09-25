@@ -721,7 +721,15 @@ FLATTEN_FLOOR=919
 # And run 593 = 592 plus TestMatrices2b, set out at `FLATTEN_FLOOR`,
 # which runs and whose own comparisons hold. The run list gained that
 # name and lost none.
-RUN_FLOOR=593
+#
+# And run 594 = 593 plus
+# Modelica.Mechanics.MultiBody.Examples.Elementary.Surfaces, a runnable
+# example, whose colour map `ColorMaps.jet` sizes a local array by a
+# single local worked out before it, which is now handed to the arrays
+# as well (/tmp/m276/on.txt against /tmp/m276/off.txt, one binary, the
+# off side with OXIDELICA_NO_SCALAR_HANDED). The run list gained that
+# name and lost none, and the flatten list did not move.
+RUN_FLOOR=594
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -749,8 +757,11 @@ RUN_FLOOR=593
 #
 # And runnable flatten 804 = 803, runnable run 551 = 550, both plus
 # TestMatrices2b set out at `FLATTEN_FLOOR` (/tmp/m274/on.txt).
+#
+# And runnable run 552 = 551 plus Surfaces, set out at `RUN_FLOOR`
+# (/tmp/m276/on.txt).
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=551
+RUNNABLE_RUN_FLOOR=552
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

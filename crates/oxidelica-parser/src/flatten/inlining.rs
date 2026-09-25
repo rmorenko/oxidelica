@@ -517,6 +517,13 @@ fn numbers_in(expr: &Expr) -> usize {
     }
 }
 
+/// Whether a single local that came to a number is handed to the local
+/// arrays written after it. `OXIDELICA_NO_SCALAR_HANDED` closes the
+/// road, so that one binary gives both numbers.
+fn scalar_handed_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_SCALAR_HANDED").is_none()
+}
+
 /// Whether an output's declared value is left out of the body until
 /// the end, as it was before: the switch that lets one binary give
 /// both numbers.
@@ -1621,6 +1628,16 @@ fn worked_body(
                     by_element(&component.name, &bound, &mut Vec::new(), &mut elements);
                     handed.extend(elements.clone());
                     bindings.extend(elements);
+                }
+                // A single local worked out to a number is offered to the
+                // arrays as well: `Real d = 0.25; Real v[:] = d:d:1` sizes
+                // an array by it, and an array is written against what was
+                // handed, not against the singles.
+                if component.dimensions.is_empty()
+                    && matches!(bound, Expr::Number(_))
+                    && scalar_handed_open()
+                {
+                    handed.insert(component.name.clone(), bound.clone());
                 }
                 bindings.insert(component.name.clone(), bound);
             }

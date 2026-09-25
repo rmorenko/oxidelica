@@ -2020,6 +2020,27 @@ fn an_output_declared_with_a_value_holds_it_from_the_start_of_the_body() {
 }
 
 #[test]
+fn a_local_array_is_sized_by_a_single_local_worked_out_before_it() {
+    // `Colors.ColorMaps.jet` writes `Real d = ...; Real v[:] = d:d:1`:
+    // the array is written against what was handed to the arrays, and
+    // a single local was kept only among the singles, so the range
+    // carried the name `d` and had no length. A quarter up to one is
+    // four elements summing to two and a half, in every one of the
+    // eight rows the call fills.
+    let source = "model M \
+         function f input Integer n; output Real y[n]; \
+           protected Real d = 0.25; Real v[:] = 0 + d:d:1; \
+           algorithm y := fill(sum(v), n); \
+         end f; \
+         parameter Real c[8] = f(8); \
+         Real z = c[3]*(1 + time); \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+         end M;";
+    let result = run(source);
+    assert!((last_of(&result, "z") - 2.5 * 1.01).abs() < 1e-9);
+}
+
+#[test]
 fn a_table_in_matrix_brackets_is_counted_along_either_side() {
     // `hasDensity = not (size(tableDensity, 1) == 0)` is how a
     // table-based medium says it was given a table; the width is asked

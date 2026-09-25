@@ -20232,3 +20232,50 @@ seven entries (`/tmp/m275/J32.mo`): `[1,3] = 159.375`, `[4,3] = 255`,
 diff is kept in `/tmp/m275/surfaces_handed.patch` and was reverted. It
 touches how every inlined body binds its locals, so it wants the pair
 of one binary and the diff of run lists, which is a series of its own.
+
+## The m276 series: Surfaces, one link taken
+
+The m275 map named one line, and it is taken: in `worked_body` a single
+local whose binding settled to a number is put into `handed` as well as
+`bindings`, so a local array written after it - `Real d = 0.25;
+Real v[:] = 0+d:d:1`, or `Real v[b] = {i for i in 1:b}` - is written
+against the number and not against the name. `OXIDELICA_NO_SCALAR_HANDED`
+closes the road again, so that one binary gives both sides of the pair.
+
+The small witnesses, before the corpus: `/tmp/m275/p5.mo`, `p6.mo` and
+`p7.mo` run with the sums the formulas give (0.1, 0.025 and 0.1 for
+`c[3,3]*time` at t = 0.01), `/tmp/m276/J.mo` gives `jet(8)[3,3] = 255`,
+and `Surfaces` runs under `--only` against `.msl` with the road open and
+flattens without running with it closed. The test
+`a_local_array_is_sized_by_a_single_local_worked_out_before_it` checks
+the sum 2.5 as a number, and was seen red with the key set
+(`unknown function M.f`) and green without it.
+
+### The m276 pair
+
+One binary, `/tmp/m276/ox1`, the off side with
+`OXIDELICA_NO_SCALAR_HANDED=1`, both with the heavy models left out:
+
+| side | flatten | run | runnable flatten | runnable run | file                |
+| ---- | ------- | --- | ---------------- | ------------ | ------------------- |
+| off  | 919     | 593 | 804              | 551          | `/tmp/m276/off.txt` |
+| on   | 919     | 594 | 804              | 552          | `/tmp/m276/on.txt`  |
+
+Diffed both ways, the flatten lists are identical and the run lists
+differ by exactly one name,
+`Modelica.Mechanics.MultiBody.Examples.Elementary.Surfaces`, gained.
+Nothing left either list. The change touches how every inlined body
+binds its locals, and no model was demoted by it.
+
+### The m276 census
+
+`/tmp/m276/census.txt`, counted between the section markers. The
+refused half is unchanged at 115 in 51 rows, identical line for line
+with m274. The run half is 325 in 166 rows against 326 in 167: the
+single row
+`cannot evaluate parameters [pipeWithScalarField.pipe.colorMapData[N,N] = ...ColorMaps.jet...]`
+emptied, and nothing else moved. The ones went 128 to 127 and every
+larger row kept its count. The parameters without a value went 35 to
+34, 27 service classes and 7 in the queue, Surfaces having been one of
+the eight. 115 + 325 = 440 = 1034 - 594, so the model left the census
+and did not reappear at another wall.
