@@ -20544,3 +20544,21 @@ silent numbers. Parked with the map: the fix is `linspace` in
 `elements_of` plus `declared_length` reading an input's own default.
 Those are two links, and after them `TestSpecial` meets `erf` over an
 array in the walker, which is not probed yet.
+
+The chain was walked further by trying two local edits in `walk.rs`
+and then reverting them. The edits were a length read off a number the
+frame already holds, and `linspace` in `elements_of`. With both in,
+`L4` and `L3` get past `linspace`, and the three links stand in order:
+
+1. `linspace` in a local's binding, and a length given by an input's
+   default (the two edits above).
+2. `print("... Check Math.Special")`, the first statement of the body:
+   `TestSpecial` stops at `is a String` (`code.rs` line 839). The walk
+   cannot carry a String, which is the file and stream family parked
+   by m275.
+3. `Special.erf(u)` over the whole array: `L3`, which has no string
+   before it, stops at `unknown variable u`. A walked call is not
+   spread over an array argument.
+
+The second link is a parked family, so the chain was not taken. Its
+map is here, from the edits that were tried.
