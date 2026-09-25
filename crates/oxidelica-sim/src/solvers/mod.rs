@@ -1513,6 +1513,12 @@ impl CompiledModel {
                             eprintln!("jac row {i}: {row:?}");
                         }
                         eprintln!("names: {:?}", block_names());
+                        // Which equation each row is, so that a row the
+                        // matrix reads badly can be taken to `why`
+                        // rather than guessed at from its position.
+                        for (i, source) in residual_sources.iter().enumerate() {
+                            eprintln!("row {i} is `{source}`");
+                        }
                     }
                     return err(format!(
                         "singular Jacobian in algebraic loop {:?}",

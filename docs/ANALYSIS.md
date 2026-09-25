@@ -21248,3 +21248,28 @@ The desk now counts 617 run and 575 runnable on `77575f6`
 (`/tmp/m280/on2.txt`): the runner's 614, plus the three names by
 which the desk runs ahead of it (the two it runs alone less
 `Dimmer_RL`), plus `RotationalSample` and `MomentumBalanceFittings`.
+
+### The singular Jacobian row, timed
+
+The seventeen models of `singular Jacobian in algebraic loop` were
+each asked once with `OXIDELICA_NEWTON_TRAIL` (`/tmp/m280/sj_probe.txt`,
+one line per model: the time of the refusing solve and how many
+solves came before it). Fifteen are refused at t = 0, and two after
+it: `DiodeBridge2mPulse` at t = 1.7e-3 after 116 solves and
+`ThyristorBridge2mPulse_RLV` at t = 2e-4 after 568. Two are refused
+on their very first solve, `RoomCO2` and
+`TestMixingVolumesPressureStates`, so no mode change or step can have
+led them there.
+
+`RoomCO2` (`/tmp/m280/rco2.txt`) is not singular at all. Its
+Jacobian has one NaN entry, at row 11 and the column of
+`volume.medium.p`, and every other entry is ordinary: a unit
+diagonal plus one column of couplings, plainly invertible. Row 11 is
+`pipe.flowModel.states[1].T = solveOneNonlinearEquation(T_phX ...)`,
+the moist-air temperature found by an inner root search, and moving
+the pressure by the finite-difference step of 1e-3 Pa makes that
+search answer NaN. That is the lie of m215 again (a matrix called
+singular because one of its entries is not a number) in a coat that
+guard did not look under: there the whole row was NaN, here one
+cell. To see which row it is, the trail now names the equation of
+each row next to the matrix it prints.
