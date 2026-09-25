@@ -21559,3 +21559,27 @@ of a steady initial problem that is not solved first. That is the
 question to ask first next time, with `TestJunctionVolume` as the
 small model: `why junction.medium.h` and the initial equations of
 the junction.
+
+`TestJunctionVolume` asked one step further, with the block's inner
+values printed under an uncommitted switch (binary `/tmp/m280/oxg`).
+The block of one is handed `junction.medium.h = 84586.09` and
+`junction.medium.p = 84149.45`. The enthalpy at the start
+temperature of 293.15 K is 293586.64 (computed from the same NASA
+polynomial and offsets the flat equation carries), and `p_start` is
+3e5. The states the reduction chose for the junction are `junction.U`
+and `junction.m`, not `p` and `T`
+(`OXIDELICA_INIT_PROBE`: `der(junction.medium.T) = 0 ... took
+junction.U`, `der(junction.medium.p) = 0 ... took junction.m`). Their
+starts are not declared anywhere, so `h = U/m` and `p` from `m` are
+whatever the guessed `U` and `m` make them. The block then solves
+`h(T) = 84586` correctly, to a temperature of 31.38 K.
+
+So the second-root family is a state-selection question underneath:
+`p_start` and `T_start` are written on variables that did not become
+states, and the `U` and `m` that did were started from guesses. The
+steady initial equations would put the medium back at its start, but
+the refusal comes first, from a block evaluated at the guessed point.
+The next shift's first question for these eight is how a declared
+start on a medium variable that is not a state is carried to the
+state that replaced it. For `U` and `m` that is `m =
+V*d(p_start, T_start)` and `U = m*u(p_start, T_start)`.
