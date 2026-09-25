@@ -21273,3 +21273,19 @@ singular because one of its entries is not a number) in a coat that
 guard did not look under: there the whole row was NaN, here one
 cell. To see which row it is, the trail now names the equation of
 each row next to the matrix it prints.
+
+`TestMixingVolumesPressureStates` (`/tmp/m280/tmv.txt`), the other
+model refused on its first solve, is singular in earnest, and the
+printed matrix says where. Its 24 by 24 Jacobian has rank 21 (an SVD
+of the printed rows, smallest singular value 1.5e-15). The left null
+direction is row 4 alone, `mixingVolume2.medium.d =
+waterBaseProp_ph(mixingVolume2.medium.p, ...)[9]`, whose only entry
+is 5.8e-5 in the column of `mixingVolume2.medium.p`, a water density
+barely moving with pressure. The right null direction is the three
+derivatives `der(mixingVolume2.medium.h)`, `der(mixingVolume1.medium.p)`
+and `der(mixingVolume1.medium.h)`. So the pressure of the second
+volume is being solved from its own density equation, where liquid
+water hardly answers, while the energy balances that should fix it
+are spent on derivatives. That is a pairing question from index
+reduction, not a solver question, and a pressure-state vessel is the
+case the test was written to exercise.
