@@ -1361,3 +1361,87 @@ fn a_torn_unknown_has_a_derivative_by_the_theorem() {
         "{first:?}"
     );
 }
+
+/// A start written on a type is not the model saying where a variable
+/// begins, and gives way to what the model's own starts determine.
+///
+/// The fluid media declare `type Density = Real(start = 1)`, so every
+/// density in the library carries a start of one kilogram per cubic
+/// metre whatever pressure and temperature the model gave it. Read as
+/// stated, that start put a junction's mass at `V * 1` beside the
+/// equation `d = p/(R_s*T)` that says the density from the starts the
+/// model did write. The mass began at a third of itself, the enthalpy
+/// `U/m` fell 2e5 J/kg short, and the temperature block converged to
+/// a second root of the NASA polynomial at 31 K. This is that
+/// junction with the medium taken down to its ideal-gas line.
+#[test]
+fn a_start_from_a_type_gives_way_to_one_the_starts_determine() {
+    let model = parse_model(
+        "package Media type Density = Real(min = 0, nominal = 1, start = 1); end Media; \
+         model M parameter Real V = 20e-6; parameter Real R_s = 287.052537; \
+         Real p(start = 3e5); Real T(start = 293.15); Media.Density d; Real m; \
+         equation d = p / (R_s * T); m = V * d; der(m) = 0; der(T) = 0; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let index = compiled
+        .states
+        .iter()
+        .position(|had| had == "m")
+        .unwrap_or_else(|| panic!("m among {:?}", compiled.states));
+    let expected = 20e-6 * 3e5 / (287.052537 * 293.15);
+    let m = compiled.initial[index];
+    assert!(
+        (m - expected).abs() < 1e-12,
+        "m = {m}, the density's {} from its type rather than {}",
+        m / 20e-6,
+        expected / 20e-6
+    );
+}
+
+/// An initial problem solved to the floor of its arithmetic counts as
+/// solved, where the floor is set by the size of the row's terms.
+///
+/// A drum's mass balance sums terms of 3.6e5 kg, and at the exact
+/// answer its residual still wanders around 1e-7 from rounding alone.
+/// Held to an absolute 1e-10, Newton reached the point in seven steps
+/// and stood there for forty-three, and `DrumBoiler` was refused as not
+/// converging. Here the row sums terms near 1e9, where the rounding is
+/// near 1e-7 too; the start is solved to that floor and `m` is 1.1e9.
+#[test]
+fn an_initial_problem_is_solved_to_the_floor_its_terms_allow() {
+    let result = run("model R Real x(start = 0.3); Real m; \
+         equation m = 1e9 * sin(x) + 7e8 * cos(x) + 3e8 * x ^ 2; der(x) = -m * 1e-12; \
+         initial equation m = 1.1e9; \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); end R;");
+    let column = result.columns.iter().position(|c| c == "m").unwrap();
+    let m = result.rows[0][column];
+    assert!((m - 1.1e9).abs() < 1e-3, "m(0) = {m}");
+}
+
+/// A start from a type that no equation can improve on is still the
+/// start it was, and what the equations read from it is still read.
+///
+/// Leaving type starts out of what is stated is right where the model's
+/// own starts say better; where nothing does, the type's start is all
+/// there is. A heated resistor's `T_heatPort` has only its type's
+/// 288.15, and the resistance read from it is what keeps
+/// `v = R_actual * i` from being blind to `i`: without the second reading the
+/// resistance began at zero and `Analog.Examples.Resistor` was refused.
+#[test]
+fn a_start_from_a_type_still_speaks_where_nothing_says_better() {
+    let model = parse_model(
+        "package Units type Temperature = Real(start = 288.15); end Units; \
+         model M parameter Real c = 2; Units.Temperature T; Real m; \
+         equation der(m) = -m; m = c * T; end M;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let index = compiled
+        .states
+        .iter()
+        .position(|had| had == "m")
+        .unwrap_or_else(|| panic!("m among {:?}", compiled.states));
+    let m = compiled.initial[index];
+    assert!((m - 576.3).abs() < 1e-9, "m = {m}");
+}

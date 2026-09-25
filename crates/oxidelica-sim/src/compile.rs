@@ -3716,8 +3716,26 @@ pub(crate) fn compile_at(
     // What the model itself says about where things stand at the
     // start: the parameters, and every variable given a `start` that
     // can be worked out before the run.
+    //
+    // A start that came from the type is not the model speaking: `type
+    // Density = Real(start = 1)` says one kilogram per cubic metre of
+    // every density in the library, and taking that for stated put a
+    // junction's mass at `V * 1` beside the equation `d = p/(R_s*T)`
+    // that reads the density from the pressure and temperature the
+    // model did give. The mass started at a third of itself, the
+    // enthalpy `U/m` fell 2e5 J/kg short, and the temperature block
+    // converged to the second root of the NASA polynomial at 31 K. So
+    // such a start is left out of what is stated, is read from the
+    // equations like a silent one where they can say it, and is used
+    // only where they cannot.
+    let type_starts_stated = std::env::var_os("OXIDELICA_TYPE_START_STATED").is_some();
+    let taken_as_stated =
+        |component: &oxidelica_parser::Component| type_starts_stated || !component.start_from_type;
     let mut stated: HashMap<String, f64> = params.clone();
     for component in &model.components {
+        if !taken_as_stated(component) {
+            continue;
+        }
         if let Some(expr) = &component.start {
             if let Ok(value) = eval(expr, &ctx) {
                 stated.insert(component.name.clone(), value);
@@ -3812,7 +3830,25 @@ pub(crate) fn compile_at(
         // round costs a walk over every equation, so the rounds are
         // capped: the chains this is for are three or four links, and
         // a model with a chain as deep pays the walk once per link.
-        for _ in 0..4 {
+        // Twice over: first with the starts written on types left out,
+        // so that the model's own starts speak for whatever they
+        // determine; then with the type starts nothing read put back,
+        // so that a start the equations cannot determine is still the
+        // start it always was. A resistor's `T_heatPort` has only its
+        // type's 288.15 to go on, and the resistance read from it is
+        // what keeps `v = R_actual * i` from being blind to `i`.
+        let mut round = 0;
+        while round < 8 {
+            if round == 4 {
+                for component in &model.components {
+                    if taken_as_stated(component) || stated.contains_key(&component.name) {
+                        continue;
+                    }
+                    if let Some(Ok(value)) = component.start.as_ref().map(|expr| eval(expr, &ctx)) {
+                        stated.insert(component.name.clone(), value);
+                    }
+                }
+            }
             let learned_before = read_starts.len();
             for (lhs, rhs) in &algebraic_eqs {
                 named.clear();
@@ -3902,8 +3938,15 @@ pub(crate) fn compile_at(
                 }
             }
             if read_starts.len() == learned_before {
-                break;
+                // A first half that has learned all it can goes on to
+                // the second rather than spending its rounds idle.
+                match round < 4 {
+                    true => round = 4,
+                    false => break,
+                }
+                continue;
             }
+            round += 1;
         }
     }
     let algebraic_start: Vec<f64> = ordered_algs
@@ -3915,10 +3958,19 @@ pub(crate) fn compile_at(
                         .components
                         .iter()
                         .find(|c| &c.name == name)
+                        .filter(|c| taken_as_stated(c))
                         .and_then(|c| c.start.as_ref())
                         .and_then(|expr| eval(expr, &ctx).ok())
                 })
                 .or_else(|| read_starts.get(name.as_str()).copied())
+                .or_else(|| {
+                    model
+                        .components
+                        .iter()
+                        .find(|c| &c.name == name)
+                        .and_then(|c| c.start.as_ref())
+                        .and_then(|expr| eval(expr, &ctx).ok())
+                })
                 // What a declaration says about magnitude when it says
                 // nothing about where to begin. A specific enthalpy is
                 // `nominal = 1e6` and a pressure `nominal = 1e5`, both
@@ -5445,7 +5497,6 @@ impl CompiledModel {
 
         for _ in 0..50 {
             let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
-            let solved = f.iter().all(|r| r.abs() < 1e-10);
             let mut jac = vec![vec![0.0; n]; n];
             for j in 0..n {
                 let h = 1e-7 * (1.0 + y[j].abs());
@@ -5456,6 +5507,31 @@ impl CompiledModel {
                     row[j] = (fp[i] - f[i]) / h;
                 }
             }
+            // Solved means zero to within what the row can be computed
+            // to, not to within a fixed number. A drum's mass balance
+            // sums terms of 3.6e5 kg, and the rounding of that sum is
+            // near 1e-7 however exact the point is: Newton reached it
+            // in seven steps and then stood there for forty-three with
+            // the residual wandering between -1.3e-7 and -6.7e-8, and
+            // the model was refused as not converging. The size of a
+            // row's terms is what the Jacobian row times the point
+            // says it is, and a residual a trillionth of that is the
+            // arithmetic's floor rather than the equations' answer.
+            let row_scaled = std::env::var_os("OXIDELICA_INIT_ABSOLUTE_ONLY").is_none();
+            let solved = f.iter().zip(&jac).all(|(r, row)| {
+                if r.abs() < 1e-10 {
+                    return true;
+                }
+                if !row_scaled {
+                    return false;
+                }
+                let terms: f64 = row
+                    .iter()
+                    .zip(&y)
+                    .map(|(slope, at)| (slope * at).abs())
+                    .sum();
+                terms.is_finite() && r.abs() <= 1e-12 * terms
+            });
             if solved {
                 // Satisfied is not the same as determined: a singular
                 // Jacobian means the equations leave a whole family of

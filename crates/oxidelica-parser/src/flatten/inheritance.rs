@@ -329,7 +329,10 @@ pub(super) fn resolve_type(
         }
         for (name, value) in attributes {
             match name.as_str() {
-                "start" if component.start.is_none() => component.start = Some(value),
+                "start" if component.start.is_none() => {
+                    component.start = Some(value);
+                    component.start_from_type = true;
+                }
                 // The same rule as the modifier road above, which
                 // this used to contradict: reading an expression as
                 // `false` is exactly the guess the comment there

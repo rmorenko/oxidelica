@@ -21620,3 +21620,108 @@ before it is taken. `BranchingPipes17` converges to the same
 first-link binary `/tmp/m280/ox7`, `DryAirNasa` converges to the same
 31.38 K as air, and `Nitrogen` to 46.18 K, its own polynomial's
 second root.
+
+## The m281 series: a start the type wrote, read after the model's own
+
+### The change and its three parts
+
+The second-root family's root, as the m280 map left it: the start
+reader took `start = 1` of `Media.Density` for a stated start and
+put a junction's mass at `V * 1`, beside the equation `d = p/(R_s*T)`
+that reads the density from the `p_start` and `T_start` the model did
+write. Confirmed on HEAD before any change: `TestJunctionVolume`
+refused with the bracket at t = 0, `why junction.medium.d` shows
+`start: 1`.
+
+The structure now records the writer. `Component::start_from_type` is
+set where `resolve_type` hands a type alias's `start` to a
+declaration, and cleared where a modifier (on the declaration, handed
+down from above, or on the flat element) writes one. The start reader
+reads in two halves: first with the type-written starts left out of
+what is stated, so the model's own starts speak for whatever they
+determine; then, for at most four more rounds, with the type starts
+nothing read put back. `OXIDELICA_TYPE_START_STATED` restores the old
+reading.
+
+The second half was not in the first build. The pair for the first
+build (binary `/tmp/m281/ox1`, files `/tmp/m281/on1.txt` and
+`off1.txt`) came out 919/621 against 919/617, with nine gained and
+five lost. Four of the five were one mechanism: a start the type
+wrote is the only start there is for, say, a heated resistor's
+`T_heatPort` (288.15 from `ThermodynamicTemperature`), and leaving it
+out meant `R_actual` was never read, began at zero, and
+`v = R_actual * i` was blind to `i` at t = 0. `Analog.Examples.Resistor`,
+`FluidHeatFlow.Examples.WaterPump`, `PumpAndValve` and
+`TestFlowRate` were those four, and the second half gave all four
+back, probed one by one under `--only`.
+
+The fifth, `DrumBoiler`, was a different wall reached honestly. With
+the density read from the saturation curve rather than taken as 1,
+the drum's mass starts at 364248 kg rather than 300100. The
+initialisation Newton then reaches the answer in seven steps (printed
+under an uncommitted switch, binary `/tmp/m281/oxq`) and stands there
+for forty-three, its residual wandering between -1.3e-7 and -6.7e-8,
+because the row sums terms of 3.6e5 and rounding alone is near 1e-7.
+The absolute test `|r| < 1e-10` could never be met there. The fix is
+a floor per row: a residual counts as zero when it is below 1e-12 of
+the sum of `|J_ij * y_j|` over the row, which is the size of the
+terms the row adds up. `OXIDELICA_INIT_ABSOLUTE_ONLY` restores the old
+test. `DrumBoiler` runs with it.
+
+The third part is the walked body's unassigned output, from the
+queue. The Modelica specification 3.6, section 12.4.4, is plain: "If
+no binding equation is given for a non-input component the variable
+is uninitialized ... It is an error to use (or return) an
+uninitialized variable in a function." So an unassigned scalar
+output of a walked body is now a refusal naming the output
+(`OXIDELICA_UNASSIGNED_OUTPUT_ZERO` for the old zero). The three tests
+that leaned on the zero at t = 0 (`a_walked_body_carries_arrays`,
+`a_walked_body_decides_over_arrays`,
+`a_walked_body_says_what_it_cannot_carry`) now assign their output
+before the loop that may not run. That is what the language asks of
+a function whose loop may not run, and each checks the same last row
+as before. The array-element case (`walk.rs:191`) is left at zero,
+because `a_walked_body_lays_out_what_it_answers_with` asserts that
+zero on purpose and an element is a separate decision.
+
+### The pair, and the family after it
+
+One binary (`/tmp/m281/ox5`), the three keys together for the old
+half, under `CAP_GB=20`: `/tmp/m281/on2.txt` 919 flatten / 627 run
+(runnable 804 / 585), `/tmp/m281/off2.txt` 919 / 617 (804 / 575). The
+old half's run list is identical name for name to the first pair's
+(`off1_ran.lst` against `off2_ran.lst`), and 919 / 617 is the m280
+desk reference. Ten gained, none lost. Each gain was put back under
+one key at a time with `--only`: nine are the type start
+(`TestControlledPump`, `TestWaterPumpDCMotor`,
+`TestWaterPumpDefaultCV`, `TestWaterPumpDefaultLV`,
+`TestWaterPumpVariableSpeed`, `TestTemperature2`,
+`TestInitialization`, `BranchingPipes15`, `BranchingPipes16`), and
+one is the row floor (`LinearFluid.LinearColdWater`). The unassigned
+output refusal moved nothing either way, which is what a rule about a
+wrong zero should do on a corpus where no model was leaning on one.
+
+Of the eight the m280 map named, two run. The other six moved one wall
+further, not into the run list:
+
+```text
+IdealGases.Air, Nitrogen, Air.DryAirNasa, BranchingPipes17
+    the Newton direction of the medium temperature block does not
+    reduce the residual at t = 0 (a new row, not the second root)
+Water.IdealSteam
+    refused on the shortPipe `dps_fg` equation, a different wall
+TestJunctionVolume
+    starts right (d = 5.95, T = 292.65 at t = 1e-5 under bdf) and runs
+    to 1.01 under `--solver bdf`; under auto the explicit solver's
+    stage at t = 8e-6 hands the NASA search an enthalpy below 200 K
+    and the error is returned rather than taken as a rejected step,
+    because the model is not `reselectable` (dopri.rs:185)
+```
+
+The last is a solver policy question rather than a start: a stage
+evaluation that fails is a rejection only on a model whose states were
+chosen by a pivot. Mapped, not changed.
+
+Instruments that got this far without the floors moving, because the
+runner has not counted the series yet: the floors are the next
+review's, from its verdict.

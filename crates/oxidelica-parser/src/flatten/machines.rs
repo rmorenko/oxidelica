@@ -721,6 +721,7 @@ pub(super) fn blank_component() -> Component {
         modifiers: Vec::new(),
         variability: Variability::Continuous,
         start: None,
+        start_from_type: false,
         fixed: None,
         fixed_expr: None,
         unit: None,

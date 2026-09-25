@@ -427,6 +427,16 @@ pub(super) fn instantiate_components(
         };
         // An array bound - or started - as a whole hands each element
         // its own value.
+        // A start handed down from above is the model's word, whatever
+        // the type said before it.
+        let start_from_above = format!("{}.start", component.name);
+        if extra_modifiers
+            .iter()
+            .chain(overrides.iter())
+            .any(|(name, _)| name == &start_from_above)
+        {
+            component.start_from_type = false;
+        }
         let spread = |expr: &Expr, what: &str, prefixed: bool| -> Result<Vec<Expr>, String> {
             spread_over_elements(
                 expr,
@@ -1445,6 +1455,7 @@ pub(super) fn instantiate_one(
             if site.start.is_none() {
                 if let Some(value) = modifier(&format!("{}.start", component.name)) {
                     flat.start = Some(value);
+                    flat.start_from_type = false;
                 }
             }
             if let Some(value) = modifier(&format!("{}.fixed", component.name)) {

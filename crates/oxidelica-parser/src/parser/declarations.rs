@@ -201,6 +201,7 @@ impl Parser {
                 modifiers,
                 variability,
                 start,
+                start_from_type: false,
                 fixed,
                 fixed_expr,
                 unit,

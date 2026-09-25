@@ -136,6 +136,13 @@ pub struct Component {
     pub variability: Variability,
     /// The `start` attribute from the modifier: `Real x(start = 1.0)`.
     pub start: Option<Expr>,
+    /// Whether `start` came from the declared type rather than from
+    /// the declaration or a modifier: `type Density = Real(start = 1)`
+    /// gives every density a start of one whatever the model says
+    /// about its pressure and temperature. The two readings are both
+    /// true of the value, and only its writer tells them apart, so
+    /// the writer is recorded here rather than guessed at later.
+    pub start_from_type: bool,
     /// The `fixed` attribute, where the declaration wrote a literal.
     pub fixed: Option<bool>,
     /// The `fixed` attribute where what was written is an expression
