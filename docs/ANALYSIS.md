@@ -20785,3 +20785,163 @@ binary, and it is refreshed with the four models named in
 paired through its coil block, it starts its currents at 1e-12 instead
 of 1e-21, and BDF spends 5642 points where it spent 3105. The answer is
 the same. The cost falls on one model.
+
+### The Clocked five: what the probe of the m278 shift found
+
+Five Clocked models flatten and are refused at the run with
+`discrete variable ... is never assigned by a when clause` (m277
+census, `/tmp/m277/raw.txt`): `HoldWithDAeffects1`,
+`HoldWithDAeffects2` and `ClockedWith_AD_DA_Effects` name `hold1.y2`,
+and `TickBasedPulse` and `TickBasedSine` name `pulse.counter` and
+`sine.counter`. They were probed in the m278 shift and the code was
+not touched. They are two mechanisms, and neither is the one the
+message names.
+
+**`hold1.y2`: a connection read as a second assignment.**
+`Clocked.RealSignals.Sampler.HoldWithDAeffects` keeps its outputs of
+each stage as protected `RealOutput` connectors, `y2` to `y5`, and the
+first stage is `connect(u, y2)`: the block's own input handed to its
+own protected output. Both ends are connectors of the same block, seen
+from inside. In the flat model this comes out as a clocked assignment
+`hold1.u = hold1.y2` beside the one the outside connection writes,
+`hold1.u = shiftSample1.y`. So `hold1.u` is written twice and `hold1.y2`
+by nobody, and the refusal names the variable that was left over
+rather than the one that was written twice. The direction of the
+equation is what went wrong: an inside connection between an input
+and an output of the same class sets the output from the input, and
+the orientation taken here follows the connection's first argument.
+
+**`counter`: an if-equation over `previous` lost whole.**
+`Clocked.RealSignals.TickBasedSources.Sine` (and `Pulse` the same way)
+computes `counter` and `startOutput` in an `if previous(startOutput)
+then ... else ... end if` equation, both branches assigning both
+variables through `previous(counter)`. That whole if-equation is absent
+from the flat model. Nothing writes `counter`, and the refusal names it.
+The equation that reads `counter` afterwards (`y = offset + ...`)
+survives, so the loss is of the if-equation in a clocked partition and
+not of the class's equation section.
+
+Neither is measured for victims. Both are one layer each: the first is
+the orientation of an inside connection between connectors of one
+class, the second the treatment of an if-equation whose condition is a
+`previous`. They are left here as a map for the shift that takes them.
+
+### The three Jacobians that were not traced
+
+Of the 278 Jacobians the m278 series added, 275 were named model by
+model over the models that ran. The other three are in a model that
+flattens and does not run: `Machines.Examples.Transformers.Rectifier6pulse`
+takes 4 where it took 1 (`/tmp/m279/jac_rest.txt`, the same `--only`
+probe both ways on `/tmp/ox278k` over the 312 models that flatten and
+do not run). It still refuses at the Newton direction of its diode
+block, so the three are work spent before the same wall.
+
+## The m279 census, and a check that read the Jacobian's last probe
+
+### The census
+
+Taken on `c61f964` (`/tmp/m279/census.txt`, raw `/tmp/m279/raw.txt`),
+counted by the section boundaries: 115 would not flatten in 51 rows,
+312 flattened and would not run in 165 rows. Both close: 1034 - 919 =
+115 and 919 - 607 = 312. Against m277 (323 in 169 rows) the run half
+lost exactly the eleven that run now, named in `library_floor.sh` at
+`RUN_FLOOR`. No other model left the half. Eight changed their wall:
+
+| model                          | m277                                 | m279                                  |
+| ------------------------------ | ------------------------------------ | ------------------------------------- |
+| `Loops.Fourbar2`               | `X` of algebraic loop                | initialization is not square          |
+| `InitSpringConstant`           | `rev.a` fixed at 0, constraints 20.3 | initialization is not square          |
+| `IdealGasN2`                   | `medium.T` fixed at 300, 46.31       | `medium.T` fixed at 300, 300.00000301 |
+| `SMPM_CurrentSource`           | `phiMechanical` fixed at 0, 1.39     | algebraic loop did not converge       |
+| `WaterIF97`                    | `medium.h` fixed at 1e5              | initialization did not converge       |
+| `Transformers.Rectifier6pulse` | Newton direction                     | Newton direction (another residual)   |
+| `ThyristorBridge2mPulse_RLV`   | Newton direction                     | singular Jacobian                     |
+| `RollingWheel`                 | the equations of algebraic loop      | singular Jacobian                     |
+
+The first five are the m278 roads reaching a wall behind the one they
+removed. `SMPM_CurrentSource`, `WaterIF97` and `InitSpringConstant`
+were already named in the m278 chapter.
+
+The top of the run half is unchanged in kind: `the Newton direction of
+algebraic loop` at 24, of which 18 are the Fluid models parked by the
+m216 and m217 maps (a start far from any solution, and homotopy not
+the lever), and the rest are rectifiers and machines. Summed over its
+wordings the loop family is still the top of the register.
+
+### `Fourbar2`: a `fixed = false` parameter with its condition switched off
+
+`Fourbar2` now meets `initialization is not square: 1 initial
+equation(s) and 1 fixed start(s) for 3 unknown(s) (2 state(s) and 1
+parameter(s) left to it)`. The parameter is
+`universalSpherical.rodLength`, declared `fixed = false`. Its only
+condition is an initial equation under `if not computeRodLength`, and
+`Fourbar2` sets `computeRodLength = true`. What then determines the
+rod's length is the kinematic loop itself, with `j1.phi` and `j2.s`
+both `fixed = true` and both demoted: the probe (`OXIDELICA_INIT_PROBE`)
+shows `j1.phi` taking `universalSpherical.rRod_0[2]` and `j2.s` taking
+nothing. So the conditions are there, but only one of them reaches an
+unknown, and the parameter is counted as an unknown the loop's
+constraint is meant to settle. `InitSpringConstant` is the same
+arithmetic with nothing reaching (`rev.a` takes nothing, 0 conditions
+for 3 unknowns). Both are one layer: a demoted condition that should
+settle a `fixed = false` parameter through a constraint, which the
+matching of conditions to states does not follow.
+
+The layer was walked one link further, and the walk ends at walls
+already known. Two small models show it: a point on a circle of
+`parameter Real L(fixed = false)` with both coordinates `fixed = true`
+(`/tmp/m279/s/fb1.mo`), and a mass held still by a spring of
+`c(fixed = false)` with `a(fixed = true)` demoted
+(`/tmp/m279/s/fb2.mo`). Both refuse with this row. A trial rule
+(`/tmp/m279/demoted_parameter.patch`, not committed) lets a demoted
+condition that claimed no state take a `fixed = false` parameter its
+definition reads through the coarse walk. Under it both small models
+run: `fb1` keeps `x^2 + y^2 = 1` to the end, and `fb2` stays at rest.
+In the library it moves the two models one wall on and runs neither.
+`InitSpringConstant` takes `spring.c` and then meets the parked wall of
+m278, the binding `spring.spring.c = spring.c` evaluated once from the
+start (`small5`). `Fourbar2` takes `rodLength` through `j2.s` and then
+meets its m277 wall: the loop's first evaluation is NaN at every
+retried magnitude, a division by `j2.e[2] * j2.s`. So the link is real
+and the chain has two more links behind it, both parked. It was not
+taken, because it moves no model and the rule has not been measured
+for victims.
+
+### `IdealGasN2`: the check read a point the solver never converged to
+
+The census showed `initial value of medium.T is fixed at 300 but the
+constraints require 300.00000301`. The initialisation had solved it:
+the trail ends at `v=[300.0] f=[5.2e-10]`. The difference is exactly
+`1e-8 * (1 + 300)`, and with `OXIDELICA_FD_STEP` at 1e-9 and 1e-7 it
+moves to 300.000000301 and 300.0000301. So it is the step of a
+difference quotient, not a solution.
+
+`check_block_regularity` solves each block with `validate = true`,
+which after convergence builds a Jacobian by difference quotients to
+ask whether the block is determined. Each quotient writes its perturbed
+point into the slots through the residual, and the last one was left
+standing. The block's caller then read the converged value plus one
+step, and the check of the declared start refused on that. The
+running path never validates, which is why nothing else ever saw it.
+
+The repair writes the converged point back after the validation,
+behind `OXIDELICA_NO_RESTORE_VALIDATED`. The smallest model is seven
+lines (`/tmp/m279/s/fd1.mo`): `Real T(start = 300, fixed = true)`
+beside `der(U) = 0` and `U = T + 1e-3*T^3`. It refused the same way, it
+now starts at 300, and it is the test
+`a_demoted_fixed_start_is_checked_against_the_converged_block`, which
+goes red under the switch with this row's refusal. No other refusal of
+the census has the signature: of the `fixed at` rows only `IdealGasN2`
+differs from its start by one quotient step.
+
+Measured as a pair from one binary (`/tmp/ox279r`, the off side with
+`OXIDELICA_NO_RESTORE_VALIDATED`; `/tmp/m279/on.txt` against
+`/tmp/m279/off.txt`): 919 flatten on both sides, run 607 to 608,
+runnable run 565 to 566. The run lists differ by `IdealGasN2` alone,
+gained, and none was lost. The Jacobians stay at 605. The points rise
+by 37 and the Newton steps by 63, which is the one new model's own run.
+
+The floors are not moved by this commit. The desk counts 608, but the
+runner's count of this tree is not in. `m278` showed the two machines
+differing by three names, so the floor waits for the runner's number,
+as it did in m278. A floor of 606 under 608 cannot turn red.

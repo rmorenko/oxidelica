@@ -56,6 +56,14 @@ fn inner_loudness_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INNER_LOUDNESS").is_some())
 }
 
+/// Whether a validated block leaves its last perturbed point in the
+/// slots rather than the point it converged to. Off by default; the
+/// switch exists so that one binary measures the repair both ways.
+fn restore_validated_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_RESTORE_VALIDATED").is_some())
+}
+
 /// Whether to take a Newton step whose direction the line search
 /// could not make descend. Off by default; the switch exists so that
 /// the two halves of a measurement come from one binary.
@@ -1194,6 +1202,19 @@ impl CompiledModel {
                             "underdetermined algebraic loop {:?}: the equations do not determine a unique solution",
                             block_names()
                         ));
+                    }
+                    // The difference quotients above wrote each
+                    // perturbed point into the slots, block and inner
+                    // unknowns alike, and the last of them is what was
+                    // left standing: the converged value plus one step
+                    // of the quotient. A caller reading the block's
+                    // answer read that instead - a medium's `T` fixed
+                    // at 300 came back as 300.00000301, which is 300
+                    // plus 1e-8 of (1 + 300), and the check of the
+                    // declared start refused the model for it. So the
+                    // answer is written back before it is handed on.
+                    if !restore_validated_off() {
+                        residual(values, &v);
                     }
                 }
                 return Ok(());

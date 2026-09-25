@@ -275,6 +275,26 @@ fn a_demoted_fixed_start_is_solved_without_an_initial_section() {
     assert!((first[x] - 2.0).abs() < 1e-9, "x(0) = {}", first[x]);
 }
 
+/// A demoted `fixed = true` is checked against the value its block
+/// converged to, not against the last point the block's Jacobian was
+/// probed at.
+#[test]
+fn a_demoted_fixed_start_is_checked_against_the_converged_block() {
+    // `T` is solved from `U` by a block of one, and the block is
+    // validated by difference quotients after it converges. The last
+    // quotient's point, 300 + 1e-8 * 301, was left in the slot, and
+    // the check of the declared start refused `T` at 300.00000301.
+    let result = run(
+        "model M Real T(start = 300, fixed = true); Real U(start = 1); \
+         equation der(U) = 0; U = T + 1e-3*T^3; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;",
+    );
+    let first = result.rows.first().unwrap();
+    let at = |name: &str| first[result.columns.iter().position(|c| c == name).unwrap()];
+    assert!((at("T") - 300.0).abs() < 1e-9, "T(0) = {}", at("T"));
+    assert!((at("U") - 27300.0).abs() < 1e-6, "U(0) = {}", at("U"));
+}
+
 /// A demoted `fixed = true` that a simultaneous block computes still
 /// settles the state behind the block.
 #[test]
