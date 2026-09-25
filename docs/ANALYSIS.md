@@ -20118,3 +20118,117 @@ two rows and kept its number of rows:
 
 The parameter rows are 35, 27 service classes and 8 in the queue, as
 before. Together 115 + 326 = 441 = 1034 − 593.
+
+## The m275 series: three probes, three maps
+
+A shift of probes and no change to the compiler. Each probe was taken
+with `library check .msl --only` and a small model, and nothing below
+moved a count: the census and the floors stand as m274 left them.
+
+### The m275 probe of TestInternal: a file chain, parked
+
+`ModelicaTest.Utilities.TestInternal` is refused at
+`ModelicaInternal_getenv(name, convertToSlash, content, exist)`. What
+is new about it is not that it answers with a String, which the string
+layer already does for `getcwd`, `readLine`, `readFile` and
+`fullPathName`, but that one call answers with two values of two kinds,
+a String and a Boolean, both as outputs handed back through arguments.
+None of the answers in `strings.rs` is shaped like that.
+
+But `getenv` is the last link of the model and not the first to matter.
+The function `ModelicaTest.Utilities.Internal` that the model calls does
+this before it asks for the variable:
+
+1. `stat` of a directory, then `rmdir` of it if it is there;
+2. `mkdir` of it, then `stat` again and an assert that it is a
+   directory;
+3. `setWorkDirectory` to it, `getWorkDirectory`, and an assert that the
+   two agree;
+4. `rename` of the directory, then `rmdir`;
+5. `setEnvironmentVariable`, then `getEnvironmentVariable` and two
+   asserts on what came back.
+
+`mkdir`, `rmdir`, `chdir`, `rename` and `setenv` have no outputs, and
+`inline_function_checks` drops an outside call with no outputs without
+a word, on the reasoning written for `Streams.print`: there is no value
+to miss. That is true of a print and not of these. The model without
+its `getenv` (`/tmp/m275/ti.mo`) gets past flattening and dies on its
+own assert at t = 0, `FileSystem.mkdir/stat failed`, and a smaller one
+(`/tmp/m275/tw.mo`) shows `setWorkDirectory("/tmp")` followed by
+`getWorkDirectory()` answering `?`. So what stands behind `getenv` is
+five links, all of them acting on the machine, and taking them means
+deciding what a compile-time answer that changes the file system is
+allowed to do. That is the file family (`TestColorMapToSvg` at
+`readDirectory`, `TestStreams`, `TestFiles`), and the model is parked
+with it. The assert is the honest end: the silent drop cannot give a
+wrong number here, because the model checks itself.
+
+What is worth writing down beside the park is that the rule "an outside
+call with no outputs does nothing" is sound only for calls whose effect
+nothing in the model reads back. A model that wrote a file and read it
+again would read what was there before the write. No such model runs
+today, which is why nothing has shown it.
+
+### The m275 probe of WriteRealMatrixToFile: the MAT writer, parked with the file family
+
+`Modelica.Utilities.Examples.WriteRealMatrixToFile` is refused at
+`ModelicaIO_writeRealMatrix`. It is one link: the model has four calls
+in a `when initial()` and nothing else. Reading a MAT file is answered
+already, in `arrays.rs` through `table_files.rs`, which is why
+`ReadRealMatrixFromFile` runs. Writing is new: a side effect at run
+time, into a file that a second run finds already there, with `append`
+and three formats (v4, v6, v7).
+
+The family behind it in the census is small. The only other callers of
+`writeRealMatrix` in the library are `realFFTwriteToFile`, reached from
+`RealFFT1`, `RealFFT2` and the two `Rectifier*FFT` examples; all four
+are refused earlier, at the subscript of `buf` or `y_buf`, and would
+meet the writer only after that wall. So the writer stands in front of
+one model now and up to five later. Parked with the file family: where
+a written file lives and what a rerun finds are questions for a map of
+their own.
+
+### The m275 probe of Surfaces: one link, one line
+
+The m274 map put the wall of
+`Modelica.Mechanics.MultiBody.Examples.Elementary.Surfaces` at
+`ColorMaps.jet`, in a protected array whose length is decided by
+another local. Replacing `jet` with a copy whose four vectors have
+written lengths (`/tmp/m275/S1.mo`) runs the whole model, 100 steps to
+t = 0.1. So the chain is one link long; nothing stands behind
+`colorMapData`.
+
+The link narrows further than the m274 map said (`/tmp/m275/p1.mo` to
+`p8.mo`, each `f(8)` answering `y[8, 3]`):
+
+| protected locals                                | result  |
+| ----------------------------------------------- | ------- |
+| `Real v[:] = 0.25:0.25:1`                       | runs    |
+| `Real v[:] = {i for i in 1:integer(n/2)}`       | runs    |
+| `Real d = 0.25; Real v[4] = {d*i for i in 1:4}` | runs    |
+| `Integer b = integer(n/2); Real v[b]` then `:=` | runs    |
+| `Real d = 0.25; Real v[:] = 0+d:d:1`            | refused |
+| `Integer b = integer(n/2); Real v[:] = {… 1:b}` | refused |
+| `Integer b = integer(n/2); Real v[4] = {… 1:b}` | refused |
+
+The last row has a written length and is still refused, so the length
+is not the wall. The wall is a scalar local read inside the binding of
+an array local, where it bounds a range. In `worked_body`
+(`inlining.rs` near line 1573) a scalar local's binding is substituted
+from `bindings` and an array local's from `handed`, and a scalar local
+worked out to a number goes into `bindings` only. The array local's
+binding therefore still names `b`, and the range `1:b` cannot be
+expanded. Nullspace is another matter: there the length is decided by
+a rank at run time, and that wall is real.
+
+An unrecorded change of three lines puts a scalar local that settled to
+a number into `handed` as well. With it, all three refused rows run
+with the right numbers (`p1` sums to 2.5, `p3` to 10), the m274
+reproduction `J.mo` gives `jet(8)[3,3] = 255`, and `Surfaces` runs
+under `--only`. `jet(32)` was checked by hand against the formula at
+seven entries (`/tmp/m275/J32.mo`): `[1,3] = 159.375`, `[4,3] = 255`,
+`[5,2] = 31.875`, `[13,1] = 31.875`, `[13,3] = 223.125`,
+`[29,1] = 223.125` and `[32,1] = 127.5`, all as `jet` defines them. The
+diff is kept in `/tmp/m275/surfaces_handed.patch` and was reverted. It
+touches how every inlined body binds its locals, so it wants the pair
+of one binary and the diff of run lists, which is a series of its own.
