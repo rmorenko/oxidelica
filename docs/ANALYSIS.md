@@ -21509,3 +21509,23 @@ because each shares its row and its column with an entry of order
 one. That is a units question the equilibration does not reach. Not
 a wrong equation, and not taken: loosening the threshold would let
 genuinely underdetermined blocks through with it.
+
+### Two more census rows, checked against their parkings
+
+`structurally singular model: no equation determines vin.T0` (4 on
+the desk census `/tmp/m280/on2.txt`) is the pulse source's phase that
+m220 named: a `when` assigns it, reduction wants its derivative, and
+the zero that derivative is between events is the rule the charter
+parks. Unchanged.
+
+`the initialization problem is singular` (5: `AmplifierWithOpAmpDetailed`,
+`DemonstrateLightning`, the two lightning transmission lines and
+`SimpleAir`) is the row of the m233 zero-start table. Of the causes
+named there, only the tank's was cured. One more cure was tried here
+and reverted: the column scaling the running solve already uses when
+`solve_linear` refuses (switch `OX_TMP_INIT_UNITS`, binary
+`/tmp/m280/oxf`, not committed). With it, all three probed
+(`AmplifierWithOpAmpDetailed`, `DemonstrateLightning`, `SimpleAir`)
+refuse with the same sentence. So the free names are free in earnest
+at the point the initialisation stands on, and are not an artefact of
+units. Recorded so the next reader does not try it.
