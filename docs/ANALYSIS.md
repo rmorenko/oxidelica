@@ -21411,3 +21411,17 @@ with `RoomCO2` is the moist or ideal gas temperature found by an
 inner root search that the finite-difference step pushes out of its
 domain. A repair aimed at that search, and not at the matrix, would
 reach all four.
+
+The second link, walked with the same uncommitted binary: once the
+NaN cell is filled, the iteration does not head for 300 K. It takes
+`volume.medium.T` from 293.15 to 1.84 on its first step and climbs
+back by about a factor of 1.7 a step (3.5, 6.4, 11.1, 17.8, 25.4,
+30.3). The residual of row 0 falls from 1.4e6 to 2.6e3 along the
+way, so the walk counts as descending, but every point on it is below
+the 200 K floor of the NASA polynomials. The inner temperature search
+of `portInDensities` is asked for a root below its bracket and
+refuses. So the first full step is the fault, because the
+enthalpy-to-temperature slope at the start (row 0, -717) sends T far
+below the medium's range, and a damped or bounded first step is what
+the third link would be. That is a question about the medium's
+declared range (`T_min = 200`), which the solver does not read today.
