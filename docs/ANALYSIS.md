@@ -20324,3 +20324,56 @@ and 552 (`/tmp/m276/off2.txt`); on 919, 595, 804, 553
 and the run lists differ by one name gained,
 `Modelica.Media.Examples.TwoPhaseWater.TestTwoPhaseStates`. Nothing
 left either list.
+
+## The m276 probe of `imsQS.vr[1].re.re`: a size read wrong without a word
+
+The two `IMS_Start` / `IMS_Characteristics` models stop at `unknown
+variable imsQS.vr[1].re.re`. `IM_SlipRing` redeclares its power balance
+with `final powerRotor = activePower(vr, ir)`, where `vr[mr]` is an
+array of `Complex` declared further down the class, and `activePower`
+sums `v[k]*conj(i[k])` for `k in 1:size(v, 1)`. The refusal is the
+visible end of something worse, and the probe found that first.
+
+The smallest reproduction (`/tmp/m276/ap/lib/U.mo` and `S.mo`, run by
+wrappers beside them with `MODELICAPATH` set):
+
+```modelica
+record R Real a; Real b; Real c; end R;
+function fr input R v[:]; output Real y; algorithm y := v[1].b + 10*size(v,1); end fr;
+record PB Real p; end PB;
+model B PB pb; end B;
+model C9 B b(pb(p = fr(vr))); R vr[4]; equation ... end C9;
+```
+
+runs, and gives `b.pb.p = vr[1].b + 10*3`: `size(vr, 1)` reads the
+number of fields of the record, three, where the array has four
+elements. With `Complex` it reads two, which is where `vr[1].re.re`
+comes from. Nothing is refused - the number is simply wrong.
+
+| where the call stands                                     | `size(vr, 1)` |
+| --------------------------------------------------------- | ------------- |
+| `PB pb(p = fr(vr))`, one level of modifier                | 4, right      |
+| `Real p = fr(vr)` or `p = fr(vr)` in the equations        | 4, right      |
+| `R vr[4]` declared before `B b(pb(p = fr(vr)))`           | 4, right      |
+| `B b(pb(p = fr(vr)))` or `extends B(pb(...))`, `vr` after | 3, wrong      |
+| the same with `Real w[4]` in place of the records         | unbalanced    |
+
+So the wall is a modifier two levels deep naming an array of the
+holder declared after it. The sibling-shape reading in
+`components.rs` near line 1669 carries a length down only for a value
+that is a bare name (`Expr::Ref`), and a call wrapping the name is
+passed by, so the array arrives at the body with no length measured.
+Where the three comes from after that was not traced: it is the
+number of fields, but `bind_record_argument` (`inlining.rs` line 2265)
+leaves array inputs alone, so the fields are counted somewhere else.
+That is the next probe, with `U.mo` as its witness, and `V.mo` says
+the count is the fields and not a stale length: `R vr[4]` and `R vr[2]`
+both give 3, and a record of five fields gives 5. The plain
+`Real w[4]` variant fails loudly instead, which is the refusal the
+records owed as well.
+
+Parked with the map and not fixed: the shift had fifty minutes left,
+and a change to how shapes travel down modifiers wants its own pair.
+The first thing to take is the silence, not the two models: an array
+of records reaching a function input declared `[:]` with no length
+known should be refused rather than measured by its fields.
