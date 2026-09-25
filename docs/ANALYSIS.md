@@ -21613,8 +21613,7 @@ family. `DynamicPipesWithTraceSubstances` (first block at 280.0) and
 earlier, with NaN through a walked `solveOneNonlinearEquation` in a
 temperature or density equation. They have not reached the second
 root yet, so they are left out of the family's count until the NaN
-before it is taken. The family stands at nine traced
-(`IdealGases.Air`, `Nitrogen`, `DryAirNasa`, `IdealSteam`,
-`BranchingPipes15`, `16`, `TestJunctionVolume`, plus `17` by its
-refusal and first-on name only), and `17` is the one still to check
-by trail.
+before it is taken. `BranchingPipes17` converges to the same
+31.38338452461023. The family stands at eight traced by trail:
+`IdealGases.Air`, `Nitrogen`, `DryAirNasa`, `IdealSteam`,
+`BranchingPipes15`, `16`, `17` and `TestJunctionVolume`.
