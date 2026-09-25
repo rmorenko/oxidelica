@@ -20821,10 +20821,44 @@ The equation that reads `counter` afterwards (`y = offset + ...`)
 survives, so the loss is of the if-equation in a clocked partition and
 not of the class's equation section.
 
-Neither is measured for victims. Both are one layer each: the first is
-the orientation of an inside connection between connectors of one
-class, the second the treatment of an if-equation whose condition is a
-`previous`. They are left here as a map for the shift that takes them.
+Each was one layer, and both are repaired in the m279 shift.
+
+**The orientation.** A clocked equation is lifted as an assignment to
+its left side, by spelling (`assigned_by` in `clocks.rs`). So an
+alias `a = b` whose `a` is written somewhere else and whose `b` is
+written nowhere is now turned round before the lift, and `b` takes the
+clock of `a` (behind `OXIDELICA_NO_ORIENT_CLOCKED_ALIAS`). The smallest
+model is a block with `connect(u, y2)` fed from `b.u = sample(time, c)`
+(`/tmp/m279/s/h4.mo`). It refused with this row, and it now ends with
+`b.y2 = 1` and `b.y = 2`. That is the test
+`a_clocked_connection_inside_a_block_writes_the_end_nobody_else_writes`,
+red under the switch. `HoldWithDAeffects1` and `HoldWithDAeffects2`
+run. In the first, `y2` follows `u`, the limiter clips at 1.9, the
+computational delay shifts `y5` by one tick, and the output starts at
+`y_start = 0.5`, each as the block is written.
+`ClockedWith_AD_DA_Effects` goes one wall on, to `unknown variable
+seedOut[1]`, where `UniformNoise` and `SampleWithADeffects` already
+stand. Measured as a pair from one binary (`/tmp/ox279s`, the off side
+under the switch; `/tmp/m279/on2.txt` against `/tmp/m279/off2.txt`):
+919 flatten on both sides, run 608 to 610, runnable 566 to 568. The
+run lists differ by the two `HoldWithDAeffects` alone, and none was
+lost. The off side's run list is the on side of the IdealGasN2 pair
+name for name.
+
+**The `if` on a tick.** The branches of an `if` equation are set aside
+for the modes the compiler settles while running, and that layer has
+no clocks. So the `if` never reached the partitions. Where a
+condition reads `previous` and every branch assigns the same names,
+once each and by name on the left, the `if` is now written as one
+equation per name, `x = if c then a else b`, before the partitions run
+(`merged_on_a_tick` in `flatten/mod.rs`, behind
+`OXIDELICA_NO_MERGE_CLOCKED_IF`). The smallest model (`/tmp/m279/s/c1.mo`)
+counts 1, 2, resets when `go` turns at the third tick, and ends at 8.
+It is the test `an_if_decided_on_a_tick_counts_on_that_tick`, red
+under the switch. `TickBasedSine` and `TickBasedPulse` run.
+`TickBasedSine` carries its own reference, a continuous `sineRef` with
+the same frequency, phase and start, and at every tick from 0 to 1 s
+the clocked `sine.y` equals `sineRef.y` to four digits.
 
 ### The three Jacobians that were not traced
 
@@ -20945,3 +20979,51 @@ The floors are not moved by this commit. The desk counts 608, but the
 runner's count of this tree is not in. `m278` showed the two machines
 differing by three names, so the floor waits for the runner's number,
 as it did in m278. A floor of 606 under 608 cannot turn red.
+
+### An output element a branch rewrote came back without the branch
+
+The probe of the `seedOut[1]` wall, where three Clocked models stood
+(`UniformNoise`, `SampleWithADeffects`, and `ClockedWith_AD_DA_Effects`
+once its `hold1.y2` was repaired), found a wrong number behind the
+refusal. The Clocked random generator writes `seedOut[1] := rem(...)`
+and then `if seedOut[1] == 0 then seedOut[1] := 1; end if;`. When an
+`if` in a body cannot be decided, its branches are worked apart and
+merged, and an array element no statement reads afterwards is left in
+its branch: that rule was written for the working arrays of the steam
+tables. A function's output is read afterwards too, by the caller, and
+nothing said so. Where nothing was assigned before the `if`, the
+element came out as a name nothing in the flat model has, which is the
+refusal. Where something was, the branch was dropped without a word.
+The smallest model (`/tmp/m279/s/r6.mo`) has `b[1] := a - 1` and then
+`b[1] := 5` under `if b[1] > 0`. Called with `time`, it gave `z[1] = 1`
+at t = 2, where the body says 5. That is a wrong answer given where a
+right one was owed, and no refusal.
+
+The repair names the outputs of the body being worked out, and an
+element of one counts as read after the `if`. The merged condition is
+then also substituted after expansion, because `b[1] > 0` is a
+subscript before it is expanded and the name `b[1]` after, and only
+the name is bound. Both are behind `OXIDELICA_NO_OUTPUTS_READ_AFTER`.
+The test `an_output_element_a_branch_rewrites_keeps_the_branch` checks
+`z[1]` at -1 at the start and at 5 at t = 2, and under the switch it
+reads 1. `UniformNoise`, `SampleWithADeffects` and
+`ClockedWith_AD_DA_Effects` run. The first noise values of
+`UniformNoise`, 0.672061, 0.36786 and 0.604109 at 0, 0.02 and 0.04 s,
+are the Wichmann-Hill numbers for the seed `{23, 87, 187}` worked by
+hand.
+
+The two tick repairs of this section, the `if` on a tick and the
+output element, were measured as one pair from one binary
+(`/tmp/ox279v`, the off side with `OXIDELICA_NO_MERGE_CLOCKED_IF` and
+`OXIDELICA_NO_OUTPUTS_READ_AFTER`; `/tmp/m279/on4.txt` against
+`/tmp/m279/off4.txt`): 919 flatten on both sides, run 610 to 615,
+runnable 568 to 573. The run lists differ by five names, all gained:
+`TickBasedPulse`, `TickBasedSine`, `UniformNoise`,
+`SampleWithADeffects` and `ClockedWith_AD_DA_Effects`. None was lost,
+and the off side's run list is the on side of the orientation pair
+name for name. The expansions rise 61193 and the names looked up
+2021235, both inside the work band. The Jacobians stay at 605.
+
+Over the shift the desk goes from 607 to 615 run and 565 to 573
+runnable. The floors stay at 606 and 564 until the runner has counted
+this tree, as m278 showed the two machines can differ by a few names.

@@ -1033,11 +1033,53 @@ impl Drop for OutsideWhen {
 
 /// Whether a name is read after the statements given, counting what
 /// runs after every `if` these sit inside.
+///
+/// And counting whoever called: an output of the function being
+/// worked out is read when the body ends, by the caller, whatever the
+/// statements say. `seedOut[1] := 1` under `if seedOut[1] == 0` of the
+/// Clocked random generator is read by no statement after it, and was
+/// left in its branch, so the element came out as the name of a local
+/// nobody had or, where an earlier assignment stood, as that earlier
+/// value with the branch forgotten.
 fn read_after(rest: &[Statement], name: &str) -> bool {
     if read_later(rest, name, 0) {
         return true;
     }
+    if std::env::var_os("OXIDELICA_NO_OUTPUTS_READ_AFTER").is_none()
+        && OUTPUTS.with(|held| {
+            held.borrow()
+                .last()
+                .is_some_and(|outputs| outputs.iter().any(|output| output == name))
+        })
+    {
+        return true;
+    }
     AFTERWARDS.with(|held| held.borrow().iter().any(|outer| read_later(outer, name, 0)))
+}
+
+thread_local! {
+    /// The outputs of each function body being worked out, innermost
+    /// last.
+    static OUTPUTS: RefCell<Vec<Vec<String>>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Name the outputs of the body about to be worked out, and forget
+/// them again after.
+pub(super) struct BodyOutputs;
+
+impl BodyOutputs {
+    pub(super) fn naming(outputs: Vec<String>) -> BodyOutputs {
+        OUTPUTS.with(|held| held.borrow_mut().push(outputs));
+        BodyOutputs
+    }
+}
+
+impl Drop for BodyOutputs {
+    fn drop(&mut self) {
+        OUTPUTS.with(|held| {
+            held.borrow_mut().pop();
+        });
+    }
 }
 
 /// One `if` among the statements: the branch whose condition holds is
@@ -1183,7 +1225,20 @@ fn one_if_statement(
                     consts,
                     records: no_records(),
                 };
-                expand(&c, &shapes, registry, scope, imports, depth + 1)?.scalar()
+                expand(&c, &shapes, registry, scope, imports, depth + 1)?
+                    .scalar()
+                    .map(|c| {
+                        // `b[1] > 0` is a subscript before it is
+                        // expanded and the name `b[1]` after, and an
+                        // element is bound under that name. Substituted
+                        // only before, the element a branch reads was
+                        // left as a name nothing in the flat model has.
+                        if std::env::var_os("OXIDELICA_NO_OUTPUTS_READ_AFTER").is_some() {
+                            c
+                        } else {
+                            substitute_refs(&c, &before)
+                        }
+                    })
             })
             .transpose()?;
         // A branch is taken where its own condition holds and none

@@ -570,6 +570,49 @@ fn a_signal_connection_defines_the_input_rather_than_the_output() {
 }
 
 #[test]
+fn a_clocked_connection_inside_a_block_writes_the_end_nobody_else_writes() {
+    // `connect(u, y2)` inside the block joins its own input to a
+    // protected output. From inside, the input is the source, and the
+    // connection arrives as `b.u = b.y2`. Lifted onto the clock as it
+    // stood, `b.u` was written twice (by the connection and by
+    // `b.u = s` from outside) and `b.y2` by nobody.
+    let result = run(
+        "package P connector RIn = input Real; connector ROut = output Real; \
+         block B RIn u; ROut y; protected ROut y2; \
+         equation connect(u, y2); y = 2 * y2; end B; \
+         model M B b; Real s; Clock c = Clock(0.1); \
+         equation s = sample(time, c); b.u = s; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
+    );
+    let at = |name: &str| {
+        result.rows.last().unwrap()[result.columns.iter().position(|c| c == name).unwrap()]
+    };
+    // The last tick is at t = 1, so `y2` holds 1 and `y` twice that.
+    assert!((at("b.y2") - 1.0).abs() < 1e-9, "b.y2 = {}", at("b.y2"));
+    assert!((at("b.y") - 2.0).abs() < 1e-9, "b.y = {}", at("b.y"));
+}
+
+#[test]
+fn an_if_decided_on_a_tick_counts_on_that_tick() {
+    // The tick-based sources count their ticks in an `if` whose
+    // condition is `previous(go)`. Its branches were set aside for the
+    // modes settled while running, which know nothing of a clock, and
+    // `counter` was left written by nobody. Merged into one equation
+    // per name, it counts 1, 2, then `go` turns at the third tick and
+    // resets it, and from there it climbs by one a tick: ten ticks up
+    // to t = 1 leave it at 8.
+    let result = run("model M Clock c = Clock(0.1); Real s; \
+         Integer counter(start = 0); Boolean go(start = false); Real y; \
+         equation s = sample(time, c); y = s + counter; \
+         if previous(go) then counter = previous(counter) + 1; go = previous(go); \
+         else go = previous(counter) >= 2; \
+         counter = if go then 0 else previous(counter) + 1; end if; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let counter = result.columns.iter().position(|c| c == "counter").unwrap();
+    assert_eq!(result.rows.last().unwrap()[counter], 8.0);
+}
+
+#[test]
 fn a_switch_resting_on_its_threshold_is_not_lost_for_the_rest_of_the_run() {
     // A sliding mode: the state is driven towards the threshold from
     // whichever side it stands on, so the event settles exactly on it

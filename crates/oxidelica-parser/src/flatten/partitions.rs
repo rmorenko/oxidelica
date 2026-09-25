@@ -352,6 +352,46 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
         }
     }
 
+    // A clocked equation becomes an assignment to whatever it has on
+    // the left, and a `connect` has no left: `connect(u, y2)` inside a
+    // block, between its own input and a protected output, arrives as
+    // `u = y2` - which, lifted, writes `u` a second time beside the
+    // `u = shiftSample1.y` the outside connection gave it, and leaves
+    // `y2` written by nobody. What an alias assigns is the end nothing
+    // else writes, so an equality between two names whose left side
+    // is written elsewhere and whose right side is written nowhere is
+    // turned round before it is lifted, and the right side takes the
+    // clock of the name it now copies.
+    if std::env::var_os("OXIDELICA_NO_ORIENT_CLOCKED_ALIAS").is_none() {
+        let writers = |equations: &[EquationItem], name: &str| {
+            equations
+                .iter()
+                .filter(|other| matches!(&other.lhs, Expr::Ref(target) if target == name))
+                .count()
+        };
+        for index in 0..model.equations.len() {
+            let (Expr::Ref(left), Expr::Ref(right)) =
+                (&model.equations[index].lhs, &model.equations[index].rhs)
+            else {
+                continue;
+            };
+            let Some(clock) = clock_of.get(left).copied() else {
+                continue;
+            };
+            if clock_of.get(right).is_some_and(|other| *other != clock)
+                || !known_variables.contains(right)
+                || writers(&model.equations, left) < 2
+                || writers(&model.equations, right) > 0
+            {
+                continue;
+            }
+            let (left, right) = (left.clone(), right.clone());
+            clock_of.insert(right.clone(), clock);
+            model.equations[index].lhs = Expr::Ref(right);
+            model.equations[index].rhs = Expr::Ref(left);
+        }
+    }
+
     // Lift the clocked equations into one `when` per clock.
     let mut kept = Vec::new();
     let mut lifted: HashMap<usize, Vec<(String, Expr)>> = HashMap::new();

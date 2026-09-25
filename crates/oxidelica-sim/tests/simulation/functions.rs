@@ -34,6 +34,24 @@ fn evaluates_every_builtin_function() {
 }
 
 #[test]
+fn an_output_element_a_branch_rewrites_keeps_the_branch() {
+    // `b[1] := 5` under an `if` the compiler cannot decide is read by
+    // no statement after it, only by the caller. It was left in its
+    // branch, and `z[1]` came out as `time - 1` everywhere: at t = 2 it
+    // read 1 where the body says 5.
+    let result = run("package R function f input Real a; output Real b[2]; \
+         algorithm b[1] := a - 1; b[2] := a; \
+         if b[1] > 0 then b[1] := 5; end if; end f; \
+         model M Real z[2]; equation z = f(time); \
+         annotation(experiment(StopTime = 2, Interval = 0.5)); end M; end R;");
+    let z1 = result.columns.iter().position(|c| c == "z[1]").unwrap();
+    let first = result.rows.first().unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((first[z1] + 1.0).abs() < 1e-9, "z[1](0) = {}", first[z1]);
+    assert!((last[z1] - 5.0).abs() < 1e-9, "z[1](2) = {}", last[z1]);
+}
+
+#[test]
 fn a_body_nothing_could_inline_is_walked_by_the_run() {
     // Two things inlining cannot do. A function that leads back to
     // itself has no bottom to unroll to where what decides the

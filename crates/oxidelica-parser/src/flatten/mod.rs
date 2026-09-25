@@ -430,6 +430,24 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                 .truncate(model.equations.len() - branch.len());
         }
     }
+    // An `if` whose condition reads `previous` is decided on a tick,
+    // and the modes the compiler settles while running know nothing of
+    // ticks: its branches were set aside for that layer, never reached
+    // the partitions, and what they assign was left to nobody - the
+    // tick-based `Sine` and `Pulse` count their ticks in exactly such
+    // an `if`. Where every branch assigns the same names, one each,
+    // the `if` says no more than one equation per name, `x = if c then
+    // a else b`, and that is what the partitions can lift.
+    if std::env::var_os("OXIDELICA_NO_MERGE_CLOCKED_IF").is_none() {
+        let mut kept = Vec::new();
+        for conditional in acc.conditional.drain(..) {
+            match merged_on_a_tick(&conditional) {
+                Some(equations) => model.equations.extend(equations),
+                None => kept.push(conditional),
+            }
+        }
+        acc.conditional = kept;
+    }
     partitions::partition_clocks(&mut model)?;
     crate::check::verify(&model)?;
     // Each branch is still checked as it was written, against the
@@ -2647,6 +2665,78 @@ struct Shapes<'a> {
     /// Record instances in scope, by name, with the class each one is
     /// of: what tells an overloaded operator which record it is for.
     records: &'a HashMap<String, String>,
+}
+
+/// An `if` decided on a tick, written as one equation per name it
+/// assigns.
+///
+/// Taken only where a condition reads `previous` - the one thing that
+/// makes an `if` clocked on its face - and every branch assigns the
+/// same names, each once and by name on its left. Anything else is
+/// left to the modes the compiler settles while running, as before.
+/// `if c then x = a; else x = b; end if` and `x = if c then a else b`
+/// say the same thing, and the second is an equation the partitions
+/// can lift onto the clock the `previous` asks for.
+fn merged_on_a_tick(conditional: &ConditionalEquations) -> Option<Vec<EquationItem>> {
+    if !conditional
+        .conditions
+        .iter()
+        .any(|condition| mentions_call(condition, "previous"))
+    {
+        return None;
+    }
+    if conditional.branches.len() != conditional.conditions.len() + 1 {
+        return None;
+    }
+    let targets = |branch: &[EquationItem]| -> Option<Vec<String>> {
+        let mut names: Vec<String> = branch
+            .iter()
+            .map(|equation| match &equation.lhs {
+                Expr::Ref(name) => Some(name.clone()),
+                _ => None,
+            })
+            .collect::<Option<_>>()?;
+        names.sort();
+        let count = names.len();
+        names.dedup();
+        (names.len() == count).then_some(names)
+    };
+    let first = targets(&conditional.branches[0])?;
+    for branch in &conditional.branches[1..] {
+        if targets(branch)? != first {
+            return None;
+        }
+    }
+    let written = |branch: &[EquationItem], name: &str| -> Expr {
+        branch
+            .iter()
+            .find(|equation| matches!(&equation.lhs, Expr::Ref(target) if target == name))
+            .map(|equation| equation.rhs.clone())
+            .expect("every branch assigns every name")
+    };
+    let mut merged = Vec::new();
+    for name in &first {
+        let last = conditional.branches.len() - 1;
+        let mut value = written(&conditional.branches[last], name);
+        for index in (0..last).rev() {
+            value = Expr::If(
+                Box::new(conditional.conditions[index].clone()),
+                Box::new(written(&conditional.branches[index], name)),
+                Box::new(value),
+            );
+        }
+        let origin = conditional.branches[0]
+            .iter()
+            .find(|equation| matches!(&equation.lhs, Expr::Ref(target) if target == name))
+            .map(|equation| equation.origin.clone())
+            .unwrap_or_default();
+        merged.push(EquationItem {
+            lhs: Expr::Ref(name.clone()),
+            rhs: value,
+            origin,
+        });
+    }
+    Some(merged)
 }
 
 /// An equation with a `semiLinear` on one side, rewritten so that it

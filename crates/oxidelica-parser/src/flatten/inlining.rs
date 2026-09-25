@@ -1710,6 +1710,8 @@ fn worked_body(
     // The outputs are substituted on the way out; the checks are
     // taken from here on and given the same treatment.
     let _a_function = statements::OutsideWhen::body();
+    let _outputs =
+        statements::BodyOutputs::naming(outputs.iter().map(|output| output.name.clone()).collect());
     if statements::execute(
         function_body(registry, class, 0),
         &mut bindings,
