@@ -21425,3 +21425,18 @@ enthalpy-to-temperature slope at the start (row 0, -717) sends T far
 below the medium's range, and a damped or bounded first step is what
 the third link would be. That is a question about the medium's
 declared range (`T_min = 200`), which the solver does not read today.
+
+The third link is not the declared range after all. The medium's
+`Temperature` type says `min = 1`, not 200 (`Media/package.mo`,
+`type Temperature = SI.Temperature(min = 1, max = 1.e4, nominal =
+300)`). The 200 K floor belongs to the inner search's own bracket,
+`solveOneNonlinearEquation(f, 200, 6000)`, which the flat model spells
+as literals. So a first step bounded by the variable's `min` would
+still let T fall to 1 K, and the refusal would stand. What the three
+media models need is either the block started closer (the enthalpy
+residual of row 0 is 2.1e5 at the start, from `h_start`, which is
+`Medium.h_default` against a boundary at `system.T_ambient`), or a
+line search that treats an inner refusal as the edge of a domain and
+retreats from it, as the NaN retreat does. The second is the
+cheaper to try, and the next shift can start there with
+`/tmp/m280/ox7` as the first link already built.
