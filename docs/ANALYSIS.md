@@ -20582,3 +20582,206 @@ change. No model reached the guard, which agrees with the counter that
 fired nowhere on the new road. Nothing in the library ran on this
 reading, so the refusal costs nothing, and the next road that loses a
 length will say so rather than count fields.
+
+## The m278 series: a start checked but never solved, and a floor read one row too near
+
+### The column `initial value of X is fixed at N but the constraints require M`
+
+Eight live models stood in this row of the m277 census
+(`/tmp/m277/raw.txt`). The refusal is raised from one place,
+`check_block_regularity` in `compile.rs`. That runs after the
+initialisation. It computes every `fixed = true` variable that index
+reduction demoted, and compares the result with the declared start. So
+the refusal says where the check was made. It does not say why the
+initialisation left the variable elsewhere. Probed one model at a time
+with `OXIDELICA_INIT_PROBE`, the eight fall into three mechanisms and
+two walls:
+
+| model               | variable              | who fixed it | where M came from                         | mechanism      |
+| ------------------- | --------------------- | ------------ | ----------------------------------------- | -------------- |
+| IMC_Characteristics | `imcQS.gammar`        | the model    | nothing solved: no initial section        | A              |
+| IMS_Characteristics | `imsQS.gammar`        | the model    | the same, with the sign turned            | A              |
+| HeatLosses          | `springDamper1.s_rel` | the model    | the same                                  | A              |
+| SimpleLiquidWater   | `medium.T`            | the model    | the same                                  | A              |
+| ArmatureStroke      | `pmActuator.coil.i`   | the model    | a block hides the flux behind the current | B              |
+| InitSpringConstant  | `rev.a`               | the model    | A, then `spring.c` behind a binding       | A, then parked |
+| SMPM_CurrentSource  | `smpm.phiMechanical`  | the model    | B, then a loop that does not converge     | B, then a wall |
+| WaterIF97           | `medium.h`            | the model    | B, then initialisation Newton fails       | B, then a wall |
+
+In none of the eight did our own default set the fix. The model says
+`fixed = true` every time, so the guess from the m278 note, that we pin
+what the model asks us to compute, is not the mechanism.
+
+**A: no section, nothing solved.** `solve_initialization` returned at
+once when the model wrote no `initial equation`. The demoted
+declarations and the `fixed = false` parameters are conditions and
+unknowns of the initialisation just as a written section is, but they
+were never solved. They were checked afterwards against states that
+stood at their declared starts. `IMC_Characteristics` and
+`IMS_Characteristics` are one model with the sign turned (`gammar` at
+`-pi/2` and `+pi/2`), as the note expected. The smallest model is
+`Real y(start = 10, fixed = true)` with `y = x^3 + x`: it refused with
+`fixed at 10 but the constraints require 0`, and now starts at `x = 2`.
+
+**B: a condition lost to the block.** The matching of conditions to
+states follows only explicit assignments, on purpose (m235: `FreeBody`
+lost its initialisation to the coarse walk). So a demoted variable that
+a simultaneous block solves for reaches no state. `coil.i` is one: the
+coil's block computes it from the flux. The flux is then claimed by
+nothing and is pinned at its declaration. Written conditions already
+had a fallback for this, where a condition that claimed nothing is
+paired with a state claimed by nothing. Demoted conditions had none.
+They get one now, narrower than the written one. The state must be one
+that the coarse walk (through blocks) says the definition reads, so it
+is never a state from somewhere else in the model. The smallest model
+is `i + j^3 = phi` beside `j - i + 0.1 j^3 = 0` with `i(start = 2,
+fixed = true)`.
+
+**What stands behind.** `InitSpringConstant` gets past A and then
+meets an older wall, seen on the pre-change binary as well. `spring.c`
+is `fixed = false` and reaches the spring as `spring.spring.c =
+spring.c`. That binding is evaluated once, from the start, and does not
+follow the unknown. The smallest model (`/tmp/m278/small5.mo`,
+`parameter Real k = c` with `c(fixed = false)`) is refused as singular
+on both binaries. It is parked here with its map.
+`SMPM_CurrentSource` and `WaterIF97` get past B and meet Newton: an
+algebraic loop that does not converge, and an initialisation that does
+not converge in 50 iterations. They are walls of their own.
+
+The number that changed for `SMPM_CurrentSource` between eras (1.39e-64
+at m252, 1.3926056 now) fits B. The value the check computes is what
+the pinned flux gives. It was a number of rounding size while the air
+gap was read wrongly, and it became a real angle once the lengths were
+carried (m276, m277).
+
+Both roads are behind switches: `OXIDELICA_NO_INIT_WITHOUT_SECTION`
+and `OXIDELICA_NO_PAIR_LOST_DEMOTED`. Tests in `initialisation.rs`
+check a number for each road, and each goes red under its switch with
+the refusal of this row.
+
+Measured as a pair from one binary (`/tmp/ox278g`, both switches on the
+off side): 919 flatten on both sides. Run goes from 596 to 604, and
+runnable from 554 to 562 (`/tmp/m278/on.txt`, `/tmp/m278/off.txt`).
+The flatten lists are identical. The run lists differ by eight models
+that were gained, and none was lost: `ArmatureStroke`,
+`IMC_Characteristics`, `IMS_Characteristics`, `HeatLosses`,
+`SimpleLiquidWater`, and three that were not in the row. The three are
+`TestCylinder`, `MixingUnitWithContinuousControl` and
+`ComparisonPullInStroke`, which m277 had parked as witnesses of the
+same column. `TestCylinder` starts at 313.15 K where the check once
+demanded 1e-112. `MixingUnitWithContinuousControl` starts at the
+declared 301.5896.
+
+Of the 596 models that ran before, 46 now take one of the new roads (42
+without a section, 6 paired through a block, 2 both;
+`/tmp/m278/roads.txt`). Run to t = 0.05 on both sides, 45 of them agree
+to 1e-9. The 46th is `ComparisonQuasiStatic`. Its fluxes and currents
+start at 1e-17 and 1e-12 where they started at 1e-21, both zero to what
+the model means, and its end values agree to 4e-6 relative. Rounding
+noise is the only change there. Each of the eight arrivals was run at
+twice and at half its output step, and all eight pass all three
+(`/tmp/m278/edge.txt`), so none of them stands on an edge.
+
+### The floor the desk measured and the runner guards
+
+The library job of `c5a80bc` and `595fb92` went red on the floor:
+`models run is 595, and the floor is 596`, `runnable 553 against 554`.
+The runner prints its whole run list, so the difference can be named
+model by model (`/tmp/m278/ci_lib.log` against `/tmp/m277/g_on_ran.lst`).
+Three models run only on the desk: `IMS_Start`, `DrumBoiler` and
+`SpringWithMass`. Two run only on the runner: `Dimmer_RL` and
+`SMPM_Braking`. The last four were already there under the green run
+of `e1f62e5`. Two against two made the totals agree, and agreeing
+totals hid a disagreement between the two machines all along. The
+floors are measured on the desk (arm64, macOS) and guarded on the runner
+(x86_64, Linux), and nothing checked that the two machines give the
+same number. That held until one more model went the desk's way.
+
+Asked one model at a time through `workflow_dispatch` (run
+36138111327), the runner stops `IMS_Start` at `the Newton direction of
+algebraic loop ["idealCloser...` after 359 points. On the desk it
+passed, but only at its own output step. At 2e-4 and at 5e-5 the desk
+stops the same way, at t = 0.00025. So the model has no margin on
+either machine, and the last bit of libm decides which side of the edge
+each one lands on.
+
+The trail (`/tmp/m278/is_trail.txt`) names the edge. The block has 63
+unknowns and stalls at |f| = 2.8e-10. The row left standing is
+`plug_n.pin[3].v`, a node voltage near zero, at 1.96e-10 against a
+tolerance of 1e-10·(1 + |v|): twice the tolerance, and 2^-32 in size.
+Its neighbours in the block carry 3.8e6 amperes. Their rounding (8.5e-10
+per ulp) reaches the row through the inner assignments of the torn
+block. But the floor of the arithmetic from m238 measures loudness only
+along the row's own expression, and that saw 6.6e-10. The residual was
+the floor of numbers the row never read directly.
+
+In words, the illness is this. A torn block iterates on a few unknowns
+and computes the rest by assignment. Some of those assignments add and
+subtract numbers millions of times larger than their answer. The
+rounding of that large arithmetic is left behind in the small answer,
+and it travels into every row that reads it. When Newton reaches that
+floor, it has nowhere left to go, and the three-stalled-steps guard
+refuses the block. The guard exists to catch a block that really is
+stuck, and before refusing it asks whether what remains is only
+rounding. That question was asked of the row alone. The row sees a
+small voltage and small numbers, so its rounding floor comes out
+millions of times too low. So a solved block was reported as stuck.
+Whether it is reported that way depends on the last bit of the
+rounding, which is the last bit of libm, and that differs between the
+two machines. On one machine the residual lands just under the
+tolerance and the block counts as converged. On the other it lands
+twice over, and the block is refused. The desk had no way to notice,
+because on the desk the residual happened to land under at the model's
+own step: it converged there, and the floor was never asked.
+
+The repair gives loudness to the inner unknowns. Each inner assignment
+is measured as it runs, and a row that reads its slot inherits that
+loudness (`Code::loudest_carrying`, behind
+`OXIDELICA_NO_INNER_LOUDNESS`). It is asked only where a block is about
+to be refused, as before. A test in `solvers.rs` builds the
+cancellation of the m238 test one storey away, through two inner
+unknowns. It passes, and under the switch it goes red with this row's
+refusal. `IMS_Start` now runs to 1.5 s at output steps 1e-4, 2e-4 and
+5e-5, and `ims.phiMechanical` ends at 174.5606, 174.5606 and 174.5606
+(the green desk run gave 174.560586). `SMPM_Braking`, which ran only on
+the runner, now runs on the desk too. Its refusal on the desk was the
+same breed from the other side. `Dimmer_RL` stops on the desk at the
+evaluation budget, which is a different wall. `DrumBoiler` and
+`SpringWithMass` are not yet measured on the runner.
+
+### What the floors do and do not hold, and what is left open
+
+`library check` runs a model for ten of its own output steps
+(`run_a_little`, `main.rs`), not to its stop time. So "runs" on the
+floor means that a model survived ten steps. Two of the three models
+the loudness repair brought in stop later than that. Run to the stop
+time, `Polyphase.Rectifier` stops at t = 0.495 on the desk and at
+0.885 on the runner. `SMPM_Braking` stops at 0.008 on the desk and at
+0.033 on the runner. `IMC_DOL` refuses a block on the desk and goes
+through on the runner. The floor sees none of this, on either machine.
+Inside the window, all eleven arrivals and `IMS_Start` run on the
+runner too (dispatch 36143420041, each asked one at a time).
+
+For `IMS_Start` with the repair, twelve common points of the whole
+1.5 s run were compared between the machines (dispatch 36142840775).
+The quasi-static half agrees to 1e-11 of each signal's scale. The
+transient machine agrees to 1.7e-5, with `phiMechanical` at 1.5e-7.
+The desk against itself, at output step 1e-4 against 2e-4, differs by
+3.4e-5 on the same signals. So the difference between the machines is
+smaller than the integrator's own noise at a tolerance of 1e-6: one
+solution, not two.
+
+The count floors are not moved in this commit. On the desk the tree
+counts 919 flatten, 607 run, 804 runnable flatten and 565 runnable run
+(`/tmp/m278/k_on.txt`). But this series is about the runner counting
+differently, and the runner's count of this tree was not in when the
+commit was made. A floor is a minimum, and code that gives 607 against
+596 cannot turn red. So the floors wait for the runner's number from
+dispatch 36142840775, and the next shift raises them from that number.
+
+The Jacobian counter of the work floor rose from 327 to 605 on one
+binary, and it is refreshed with the four models named in
+`library_floor.sh`. The largest part is `ComparisonQuasiStatic`:
+paired through its coil block, it starts its currents at 1e-12 instead
+of 1e-21, and BDF spends 5642 points where it spent 3105. The answer is
+the same. The cost falls on one model.
