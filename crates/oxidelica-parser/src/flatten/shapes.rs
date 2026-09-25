@@ -194,6 +194,21 @@ fn collect_shapes_under(
         if component.dimensions.is_empty() {
             continue;
         }
+        // A flexible length already measured is what the caller
+        // handed in, and it outranks the declaration's default:
+        // `input Real B[n, :] = fill(0.0, n, 0)` handed two columns
+        // has two, and reading the default instead gave an output
+        // sized `size(B, 2)` no elements and two values to take.
+        let key = format!("{prefix}{}", component.name);
+        if out.contains_key(&key)
+            && component
+                .dimensions
+                .iter()
+                .any(|d| matches!(d, Expr::ColonSubscript))
+            && std::env::var_os("OXIDELICA_DEFAULT_SHAPES_WIN").is_none()
+        {
+            continue;
+        }
         // Declarations are visited in source order, so a length
         // written as `size(v, 1)` can look up a `v` already measured -
         // which is how a function's result takes the shape of its

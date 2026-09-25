@@ -233,9 +233,25 @@ pub(super) fn execute(
                     consts,
                     records: no_records(),
                 };
+                // The bindings go in before the array layer reads the
+                // arguments, the way an assignment's value is read: a
+                // call answered by a body written here - a norm through
+                // a decomposition - is laid out there in the names it
+                // was handed, and a local array of the body named
+                // after that is a name nothing else knows.
                 let values = args
                     .iter()
-                    .map(|arg| expand(arg, &shapes, registry, scope, imports, depth + 1))
+                    .map(|arg| match statement_args_late() {
+                        true => expand(arg, &shapes, registry, scope, imports, depth + 1),
+                        false => expand(
+                            &substitute_refs(arg, bindings),
+                            &shapes,
+                            registry,
+                            scope,
+                            imports,
+                            depth + 1,
+                        ),
+                    })
                     .collect::<Result<Vec<_>, String>>()?;
                 let argument_shapes: Vec<Vec<i64>> = values.iter().map(shape_i64).collect();
                 let arguments: Vec<Expr> = values
@@ -1426,4 +1442,12 @@ pub(super) fn filled_inputs(named: &str) -> Option<Vec<(String, Expr)>> {
 /// closes the road, so that one binary gives both numbers.
 fn loop_constants_open() -> bool {
     std::env::var_os("OXIDELICA_NO_LOOP_CONSTANTS").is_none()
+}
+
+/// Whether a call standing as a statement has its arguments read
+/// before the body's bindings are put in, as it did before.
+/// `OXIDELICA_STATEMENT_ARGS_LATE` is kept so that one binary gives
+/// both numbers.
+fn statement_args_late() -> bool {
+    std::env::var_os("OXIDELICA_STATEMENT_ARGS_LATE").is_some()
 }

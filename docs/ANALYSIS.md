@@ -20014,3 +20014,107 @@ The parameter rows are 35, 27 service classes and 8 in the queue, as
 before. Together 116 + 326 = 442 = 1034 − 592. The guard moved no
 refusal: the one model it frees stands behind the parked `dgesvd`
 chain, which is where the census still counts it.
+
+## The m274 series: the `dgesvd` chain taken whole
+
+### The m274 chain: three links left, one series
+
+The chain of m272 (`/tmp/m272/svd_chain.patch`), whose last link was
+the branch guard of m273, goes in as one series. Its links, each behind
+a switch of its own so that one binary gives both sides:
+
+1. `dgesvd`, `dgetrf` and `dgetri` answered here (`outside.rs`): a
+   one-sided Jacobi decomposition, partial-pivoting LU with LAPACK's
+   own pivots, and the inverse solved column by column. The call is
+   laid out as `dgelsy` is, rows and columns in front, and an output of
+   two dimensions is folded row by row out of the flat answer.
+   `OXIDELICA_NO_SVD` holds it back.
+2. A flexible length handed in outranks the input's default
+   (`shapes.rs`): `balanceABC` declares `B[size(A, 1), :] = fill(0.0,
+size(A, 1), 0)`, and a two-column `B` was measured from the default
+   as having none. `OXIDELICA_DEFAULT_SHAPES_WIN` holds it back.
+3. A call standing as a statement gets the body's bindings before the
+   array layer reads its arguments (`statements.rs`), the order an
+   assignment already used. `OXIDELICA_STATEMENT_ARGS_LATE` holds it
+   back.
+
+Each switch alone turns a small model red with its own refusal, and
+each has a test that goes red with it: the decomposition and the
+statement call in `a_singular_value_decomposition_is_answered_here`,
+the handed-in shape in
+`a_shape_handed_in_outranks_the_default_of_the_input`. The
+decomposition and the factorization are tested by numbers in
+`outside.rs`: `[3, 0; 4, 5]` has singular values √45 and √5, a rank-one
+three by two has √45 and nothing with `U` still completed to three
+orthogonal vectors, and `[1, 2; 3, 4]` factors to LAPACK's pivots and
+inverts to `[-2, 1; 3/2, -1/2]`. One older test changed its expected
+refusal: an output `w[2, 2]` of a random generator was refused for a
+shape nobody could fold, and is now folded and refused for its count,
+five numbers asked of a body that gives three.
+
+### The m274 pair
+
+One binary, `/tmp/m274/on.txt` against `/tmp/m274/off.txt`, the off
+side with all three switches set. On: 919 flatten and 593 run, 804 and
+551 runnable. Off: 918 and 592, 803 and 550, the floors of m273 to the
+digit. The lists differ by exactly one name in each half,
+`ModelicaTest.Math.TestMatrices2b`, gained; nothing left either list.
+The shape rule reaches every class, and this is the measurement that
+says it moved nothing else.
+
+The work counters moved inside their band except for what was
+written down: expansions +7399, bodies −66, points +6. The names fell
+by 1630140, 915 per million, while TestMatrices2b alone looks up 197201
+(`--only`), so the other models look up fewer; which ones was not
+traced. The written count is moved to the on side, because a fall of
+that size would have left less than half the band on a desk.
+
+### The m274 probe of Surfaces: a map, not a fix
+
+`Modelica.Mechanics.MultiBody.Examples.Elementary.Surfaces`, the top
+of the parameter queue, is refused at `compile.rs:3306` with `cannot
+evaluate parameters [pipeWithScalarField.pipe.colorMapData[1,1] =
+...ColorMaps.jet(pipeWithScalarField.pipe.n_colors), ...]`. The
+parameter is `colorMapData[n_colors, 3] = colorMap(n_colors)`, and the
+replaceable `colorMap` is `ColorMaps.jet`. The call is left standing
+for the run, and the run cannot walk it either.
+
+The model shrinks to twelve lines (`/tmp/m274/surf/J.mo`), which
+refuses the same way with `jet(8)` written as a literal, so the count
+arriving is not the fault. Bisecting the body of `jet` with small
+functions `f(n)` answering `y[n, 3]` (`/tmp/m274/surf/probe_*.mo`):
+
+- a protected `Real cm[integer(ceil(n/4))*4, 3]` sliced as `cm[1:n,
+:]` runs, so neither the length computed from the input nor the
+  slice is the wall;
+- a protected `Real v2[:] = {1, 2, 3}` runs;
+- `Real v2[:] = 0+d:d:1` with `d` another protected local refuses, and
+  so does `Real v1[:] = {i for i in 1:b}` with `b = integer(n/2)`.
+
+So the layer is a protected array of flexible length whose length is
+decided by the binding through another local of the body - a range
+stepped by a local, a comprehension bounded by one. That is the
+flexible-size family again (`CCCVcharging`, `nullSpace`), seen from a
+body evaluated before the run rather than from an output. `jet` has
+four such locals, `v1` to `v4`. Not taken here: the fix is its own
+series, and it touches the same layer the parked family stands on.
+
+### The m274 census
+
+Taken after the chain (`/tmp/m274/census.txt`, raw in
+`/tmp/m274/raw.txt`) over 1034 models, counted by the section bounds.
+The refused half is 115 in 51 rows and the run half 326 in 167. The
+run half is identical to m273 line for line. The refused half moved in
+two rows and kept its number of rows:
+
+- the `FORTRAN N` row went from 5 to 3: TestMatrices2b left it for the
+  run list, and TestMatrices3 left it for the next row (both named in
+  `/tmp/m273/raw.txt` lines 82 and 83 against `/tmp/m274/raw.txt`);
+  what stays is `dgglse` (TestMatrices), `dgees` (TestMatrices2) and
+  `dhseqr` (TestVectors), the LAPACK question still open;
+- the row of a body walked for an answer whose length cannot be seen
+  went from 2 to 3: the two `derTwoSided` models, and TestMatrices3,
+  now refused at `nullSpace`'s `Z`, the flexible-size family, parked.
+
+The parameter rows are 35, 27 service classes and 8 in the queue, as
+before. Together 115 + 326 = 441 = 1034 − 593.

@@ -1861,6 +1861,103 @@ fn a_least_squares_fit_is_answered_here() {
     );
 }
 
+/// LAPACK's singular value decomposition as the standard library
+/// declares it, a matrix whose values are known, and a body that asks
+/// it for a norm in a call standing on its own.
+const SINGULAR_VALUES: &str = "package S \
+     function dgesvd input Real A[:, :]; \
+       output Real sigma[min(size(A, 1), size(A, 2))]; \
+       output Real U[size(A, 1), size(A, 1)] = zeros(size(A, 1), size(A, 1)); \
+       output Real VT[size(A, 2), size(A, 2)] = zeros(size(A, 2), size(A, 2)); \
+       output Integer info; \
+       protected Integer m = size(A, 1); Integer n = size(A, 2); \
+       Real Awork[size(A, 1), size(A, 2)] = A; \
+       Integer lwork = max(1, 5*size(A, 1) + 5*size(A, 2)); \
+       Real work[max(1, 5*size(A, 1) + 5*size(A, 2))]; \
+       external \"FORTRAN 77\" dgesvd(\"A\", \"A\", m, n, Awork, m, sigma, U, m, VT, n, \
+         work, lwork, info); \
+     end dgesvd; \
+     function mnorm input Real A[:, :]; output Real r; \
+       protected Real s[min(size(A, 1), size(A, 2))]; Real U[size(A, 1), size(A, 1)]; \
+       Real VT[size(A, 2), size(A, 2)]; Integer info; \
+       algorithm (s, U, VT, info) := dgesvd(A); r := max(s); \
+     end mnorm; \
+     function show input Real x; algorithm assert(x > 0, \"shown\"); end show; \
+     function check output Boolean ok = false; protected Real As[2, 2]; \
+       algorithm As := [3, 0; 4, 5]; \
+       show(mnorm(As)); \
+       ok := abs(mnorm(As) - sqrt(45)) < 1e-12; \
+     end check; \
+     model M \
+       Real s[2]; Real U[2, 2]; Real VT[2, 2]; Integer info; \
+       Real t[2]; Real W[2, 2]; Real WT[3, 3]; Integer info2; \
+       Boolean ok; \
+     equation \
+       (s, U, VT, info) = dgesvd([3, 0; 4, 5]); \
+       (t, W, WT, info2) = dgesvd([0, 2, 0; 1, 0, 0]); \
+     algorithm \
+       when initial() then ok := check(); end when; \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end S;";
+
+#[test]
+fn a_singular_value_decomposition_is_answered_here() {
+    // `[3, 0; 4, 5]` has `A^T A = [25, 20; 20, 25]`, whose eigenvalues
+    // are 45 and 5: the singular values are their roots, largest first.
+    let result = run(SINGULAR_VALUES);
+    assert!((last_of(&result, "s[1]") - 45f64.sqrt()).abs() < 1e-12);
+    assert!((last_of(&result, "s[2]") - 5f64.sqrt()).abs() < 1e-12);
+    assert_eq!(last_of(&result, "info"), 0.0);
+    // The factors put back together give the matrix, whatever signs
+    // the vectors took: `A[i, j] = sum U[i, k] s[k] VT[k, j]`.
+    let a = [[3.0, 0.0], [4.0, 5.0]];
+    for (i, row) in a.iter().enumerate() {
+        for (j, want) in row.iter().enumerate() {
+            let got: f64 = (1..=2)
+                .map(|k| {
+                    last_of(&result, &format!("U[{},{k}]", i + 1))
+                        * last_of(&result, &format!("s[{k}]"))
+                        * last_of(&result, &format!("VT[{k},{}]", j + 1))
+                })
+                .sum();
+            assert!((got - want).abs() < 1e-12, "A[{i},{j}] = {got}");
+        }
+    }
+    // Wider than tall: two values, and the third right vector is the
+    // one the matrix sends to nothing.
+    assert!((last_of(&result, "t[1]") - 2.0).abs() < 1e-12);
+    assert!((last_of(&result, "t[2]") - 1.0).abs() < 1e-12);
+    assert!((last_of(&result, "WT[3,3]").abs() - 1.0).abs() < 1e-12);
+    // And the norm through it, asked for by a call standing on its
+    // own as well as by an assignment.
+    assert_eq!(last_of(&result, "ok"), 1.0);
+}
+
+/// A matrix handed to an input whose default is empty: the balancing
+/// of the standard library takes `B[size(A, 1), :] = fill(0.0,
+/// size(A, 1), 0)` and answers with `Bs[size(A, 1), size(B, 2)]`.
+const HANDED_OVER_DEFAULT: &str = "package H \
+     function scaled input Real A[:, size(A, 1)]; \
+       input Real B[size(A, 1), :] = fill(0.0, size(A, 1), 0); \
+       output Real Bs[size(A, 1), size(B, 2)]; \
+       algorithm Bs := B; Bs[1, :] := Bs[1, :]*2; \
+     end scaled; \
+     model M \
+       Real Bs[2, 2] = scaled([1, 0; 0, 1], [1, 2; 3, 4]); \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end H;";
+
+#[test]
+fn a_shape_handed_in_outranks_the_default_of_the_input() {
+    // Read from the default, `B` had no columns and neither had `Bs`,
+    // which was then handed two values for a row of nothing.
+    let result = run(HANDED_OVER_DEFAULT);
+    assert_eq!(last_of(&result, "Bs[1,2]"), 4.0);
+    assert_eq!(last_of(&result, "Bs[2,1]"), 3.0);
+}
+
 /// A medium's coefficients fitted from a table in matrix brackets, by
 /// a function its base brought into view with an import.
 const TABLE_MEDIUM: &str = "package T \

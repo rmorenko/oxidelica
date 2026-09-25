@@ -28,6 +28,9 @@ pub fn written_here(called: &str) -> bool {
             | "ModelicaRandom_xorshift1024star"
             | "dgesv"
             | "dgelsy"
+            | "dgesvd"
+            | "dgetrf"
+            | "dgetri"
     )
 }
 
@@ -63,6 +66,15 @@ pub fn shape(called: &str, given: &[usize]) -> Option<(usize, usize)> {
         // what is checked here is that the grouping is the one that
         // place writes.
         ("dgelsy", [1, 1, matrix, side, 1]) if *matrix > 0 && *side > 0 => Some((all, 0)),
+        // The two counts and the matrix; the answer's length is known
+        // where the call was laid out, as it is for the fit above.
+        ("dgesvd", [1, 1, matrix]) if *matrix > 0 => Some((all, 0)),
+        ("dgetrf", [1, 1, matrix]) if *matrix > 0 => Some((all, 0)),
+        // A square factorization and its pivots: the width is in the
+        // count, as it is for a system of equations above.
+        ("dgetri", [square, width]) if *width * *width == *square && *width > 0 => {
+            Some((all, square + 1))
+        }
         _ => None,
     }
 }
@@ -132,8 +144,261 @@ pub fn answer(called: &str, given: &[f64]) -> Option<Vec<f64>> {
             answer.push(rank as f64);
             Some(answer)
         }
+        // The counts of rows and of columns, then the matrix row by
+        // row; the singular values, the left vectors and the right
+        // vectors transposed, each row by row, and word of how it went.
+        ("dgesvd", [rows, columns, matrix @ ..]) => {
+            let (rows, columns) = (whole(*rows)?, whole(*columns)?);
+            if rows == 0 || columns == 0 || matrix.len() != rows * columns {
+                return None;
+            }
+            let (sigma, u, vt, converged) = singular_values(matrix, rows, columns);
+            let mut answer = sigma;
+            answer.extend(u);
+            answer.extend(vt);
+            answer.push(if converged { 0.0 } else { 1.0 });
+            Some(answer)
+        }
+        // The counts, then the matrix row by row; the factors in one
+        // matrix row by row, the pivots, and word of how it went.
+        ("dgetrf", [rows, columns, matrix @ ..]) => {
+            let (rows, columns) = (whole(*rows)?, whole(*columns)?);
+            if rows == 0 || columns == 0 || matrix.len() != rows * columns {
+                return None;
+            }
+            let (mut answer, pivots, info) = factorized(matrix, rows, columns);
+            answer.extend(pivots.iter().map(|at| *at as f64));
+            answer.push(info as f64);
+            Some(answer)
+        }
+        // The factors row by row and the pivots after them; the
+        // inverse row by row and word of how it went.
+        ("dgetri", _) => {
+            let width = square_and_side(given.len())?;
+            let (factors, pivots) = given.split_at(width * width);
+            let pivots: Vec<usize> = pivots.iter().map(|at| whole(*at)).collect::<Option<_>>()?;
+            Some(match inverted(factors, &pivots, width) {
+                Some(mut inverse) => {
+                    inverse.push(0.0);
+                    inverse
+                }
+                // A zero on the diagonal: LAPACK answers with where it
+                // is, and leaves the matrix as it was handed.
+                None => {
+                    let at = (0..width)
+                        .find(|k| factors[k * width + k] == 0.0)
+                        .unwrap_or(0);
+                    let mut kept = factors.to_vec();
+                    kept.push((at + 1) as f64);
+                    kept
+                }
+            })
+        }
         _ => None,
     }
+}
+
+/// How many numbers `dgetrf` answers with for a matrix of this many
+/// rows and columns: the factors, the pivots, and word of how it went.
+pub fn factorization_answers(rows: usize, columns: usize) -> usize {
+    rows * columns + rows.min(columns) + 1
+}
+
+/// The factorization `A = P L U` of a matrix given row by row, the way
+/// LAPACK's `dgetrf` writes it: `L` below the diagonal with the ones
+/// on it left unwritten, `U` on and above it, both row by row in one
+/// matrix; the pivots counted from one, each naming the row the step
+/// of that number swapped its own with; and zero, or the step whose
+/// pivot was exactly zero, counted from one.
+///
+/// Partial pivoting - the largest entry left in the column comes to
+/// the diagonal - which is the rule LAPACK follows, so the pivots are
+/// the ones it would give.
+pub fn factorized(matrix: &[f64], rows: usize, columns: usize) -> (Vec<f64>, Vec<usize>, usize) {
+    let mut a = matrix.to_vec();
+    let mut pivots = Vec::new();
+    let mut info = 0;
+    for step in 0..rows.min(columns) {
+        let pick = (step..rows)
+            .max_by(|x, y| {
+                a[x * columns + step]
+                    .abs()
+                    .partial_cmp(&a[y * columns + step].abs())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or(step);
+        pivots.push(pick + 1);
+        if a[pick * columns + step] == 0.0 {
+            if info == 0 {
+                info = step + 1;
+            }
+            continue;
+        }
+        if pick != step {
+            for c in 0..columns {
+                a.swap(step * columns + c, pick * columns + c);
+            }
+        }
+        let top = a[step * columns + step];
+        for below in step + 1..rows {
+            let share = a[below * columns + step] / top;
+            a[below * columns + step] = share;
+            for c in step + 1..columns {
+                a[below * columns + c] -= share * a[step * columns + c];
+            }
+        }
+    }
+    (a, pivots, info)
+}
+
+/// The inverse of a square matrix from its factors and pivots as
+/// [`factorized`] writes them, row by row; `None` where `U` has a zero
+/// on its diagonal.
+///
+/// Each column of the identity, its rows swapped as the pivots say, is
+/// solved through `L` downwards and `U` upwards.
+pub fn inverted(factors: &[f64], pivots: &[usize], width: usize) -> Option<Vec<f64>> {
+    if pivots.len() != width || (0..width).any(|k| factors[k * width + k] == 0.0) {
+        return None;
+    }
+    let mut inverse = vec![0.0; width * width];
+    for column in 0..width {
+        let mut x: Vec<f64> = (0..width)
+            .map(|r| f64::from(u8::from(r == column)))
+            .collect();
+        for (step, pivot) in pivots.iter().enumerate() {
+            let with = pivot.checked_sub(1).filter(|at| *at < width)?;
+            x.swap(step, with);
+        }
+        for r in 0..width {
+            let known: f64 = (0..r).map(|c| factors[r * width + c] * x[c]).sum();
+            x[r] -= known;
+        }
+        for r in (0..width).rev() {
+            let known: f64 = (r + 1..width).map(|c| factors[r * width + c] * x[c]).sum();
+            x[r] = (x[r] - known) / factors[r * width + r];
+        }
+        for (r, value) in x.into_iter().enumerate() {
+            inverse[r * width + column] = value;
+        }
+    }
+    Some(inverse)
+}
+
+/// How many numbers `dgesvd` answers with for a matrix of this many
+/// rows and columns: the singular values, the two square matrices of
+/// vectors, and word of how it went.
+pub fn singular_value_answers(rows: usize, columns: usize) -> usize {
+    rows.min(columns) + rows * rows + columns * columns + 1
+}
+
+/// The singular value decomposition `A = U S V^T` of a matrix given
+/// row by row: the singular values largest first, `U` and `V^T` each
+/// square and written row by row, and whether it converged.
+///
+/// What LAPACK's `dgesvd` answers, by a different road: one-sided
+/// Jacobi. Pairs of columns of `A` are turned against each other until
+/// every pair is at right angles, and the same turns applied to the
+/// identity build `V`. The columns' lengths are then the singular
+/// values, and each column over its length a left vector. Where there
+/// are fewer non-zero values than rows, `U` is completed by the unit
+/// vectors made orthogonal to what it already has. The signs of paired
+/// vectors may differ from LAPACK's, which every correct decomposition
+/// is free to do: the product is the same.
+pub fn singular_values(
+    matrix: &[f64],
+    rows: usize,
+    columns: usize,
+) -> (Vec<f64>, Vec<f64>, Vec<f64>, bool) {
+    // Columns, each as a vector of its own.
+    let mut w: Vec<Vec<f64>> = (0..columns)
+        .map(|c| (0..rows).map(|r| matrix[r * columns + c]).collect())
+        .collect();
+    let mut v: Vec<Vec<f64>> = (0..columns)
+        .map(|c| (0..columns).map(|r| f64::from(u8::from(r == c))).collect())
+        .collect();
+    let dot = |x: &[f64], y: &[f64]| x.iter().zip(y).map(|(a, b)| a * b).sum::<f64>();
+    let mut converged = false;
+    for _sweep in 0..100 {
+        let mut turned = false;
+        for i in 0..columns {
+            for j in i + 1..columns {
+                let alpha = dot(&w[i], &w[i]);
+                let beta = dot(&w[j], &w[j]);
+                let gamma = dot(&w[i], &w[j]);
+                if gamma == 0.0 || gamma.abs() <= f64::EPSILON * (alpha * beta).sqrt() {
+                    continue;
+                }
+                turned = true;
+                let zeta = (beta - alpha) / (2.0 * gamma);
+                let t = zeta.signum() / (zeta.abs() + (1.0 + zeta * zeta).sqrt());
+                let c = 1.0 / (1.0 + t * t).sqrt();
+                let s = c * t;
+                for pair in [&mut w, &mut v] {
+                    let (left, right) = pair.split_at_mut(j);
+                    for (a, b) in left[i].iter_mut().zip(right[0].iter_mut()) {
+                        let (x, y) = (*a, *b);
+                        *a = c * x - s * y;
+                        *b = s * x + c * y;
+                    }
+                }
+            }
+        }
+        if !turned {
+            converged = true;
+            break;
+        }
+    }
+    // Largest first, the columns of `V` following their own.
+    let lengths: Vec<f64> = w.iter().map(|column| dot(column, column).sqrt()).collect();
+    let mut order: Vec<usize> = (0..columns).collect();
+    order.sort_by(|a, b| {
+        lengths[*b]
+            .partial_cmp(&lengths[*a])
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    let kept = rows.min(columns);
+    let sigma: Vec<f64> = order[..kept].iter().map(|at| lengths[*at]).collect();
+    // The left vectors: each column over its length where it has one,
+    // then the unit vectors, every candidate made orthogonal to those
+    // already taken and kept only if something of it is left.
+    let mut u: Vec<Vec<f64>> = Vec::new();
+    let first = sigma.first().copied().unwrap_or(0.0);
+    let candidates = order[..kept]
+        .iter()
+        .filter(|at| lengths[**at] > first * f64::EPSILON * rows.max(columns) as f64)
+        .map(|at| {
+            w[*at]
+                .iter()
+                .map(|x| x / lengths[*at])
+                .collect::<Vec<f64>>()
+        })
+        .chain((0..rows).map(|k| (0..rows).map(|r| f64::from(u8::from(r == k))).collect()));
+    for mut candidate in candidates {
+        if u.len() == rows {
+            break;
+        }
+        // Twice, so what rounding left of the first pass goes too.
+        for _ in 0..2 {
+            for taken in &u {
+                let share = dot(&candidate, taken);
+                for (x, t) in candidate.iter_mut().zip(taken) {
+                    *x -= share * t;
+                }
+            }
+        }
+        let length = dot(&candidate, &candidate).sqrt();
+        if length > 1e-8 {
+            u.push(candidate.iter().map(|x| x / length).collect());
+        }
+    }
+    // Written row by row: `U[r][k]` is component `r` of vector `k`,
+    // and `V^T[k][c]` is component `c` of the `k`th right vector.
+    let u_rows: Vec<f64> = (0..rows)
+        .flat_map(|r| u.iter().map(move |column| column[r]))
+        .collect();
+    let vt_rows: Vec<f64> = order.iter().flat_map(|at| v[*at].clone()).collect();
+    (sigma, u_rows, vt_rows, converged)
 }
 
 /// How many numbers `dgelsy` answers with for a matrix of this many
@@ -552,6 +817,108 @@ mod tests {
         );
         assert_eq!(super::answer("dgelsy", &[0.0, 1.0, 0.0]), None);
         assert_eq!(super::answer("dgelsy", &[1.0]), None);
+    }
+
+    /// A decomposition whose values are known, one taller than wide and
+    /// one with a value of nothing, each put back together; and the
+    /// shapes a call is refused for.
+    #[test]
+    fn a_singular_value_decomposition_puts_the_matrix_back_together() {
+        fn rebuilt(sigma: &[f64], u: &[f64], vt: &[f64], rows: usize, columns: usize) -> Vec<f64> {
+            (0..rows * columns)
+                .map(|at| {
+                    let (i, j) = (at / columns, at % columns);
+                    (0..sigma.len())
+                        .map(|k| u[i * rows + k] * sigma[k] * vt[k * columns + j])
+                        .sum()
+                })
+                .collect()
+        }
+        fn orthogonal(q: &[f64], width: usize) -> bool {
+            (0..width).all(|a| {
+                (0..width).all(|b| {
+                    let dot: f64 = (0..width)
+                        .map(|r| q[r * width + a] * q[r * width + b])
+                        .sum();
+                    (dot - f64::from(u8::from(a == b))).abs() < 1e-12
+                })
+            })
+        }
+        // `A^T A = [25, 20; 20, 25]`: eigenvalues 45 and 5.
+        let a = [3.0, 0.0, 4.0, 5.0];
+        let (sigma, u, vt, converged) = singular_values(&a, 2, 2);
+        assert!(converged);
+        assert!((sigma[0] - 45f64.sqrt()).abs() < 1e-12, "{sigma:?}");
+        assert!((sigma[1] - 5f64.sqrt()).abs() < 1e-12, "{sigma:?}");
+        for (got, want) in rebuilt(&sigma, &u, &vt, 2, 2).iter().zip(&a) {
+            assert!((got - want).abs() < 1e-12);
+        }
+        assert!(orthogonal(&u, 2) && orthogonal(&vt, 2));
+
+        // Three rows of two, the second column twice the first: rank
+        // one, a value of nothing, and `U` still completed to a square
+        // of three orthogonal vectors.
+        let tall = [1.0, 2.0, 2.0, 4.0, 2.0, 4.0];
+        let (sigma, u, vt, _) = singular_values(&tall, 3, 2);
+        assert_eq!(sigma.len(), 2);
+        // Rank one, so the one value is the whole of the matrix's
+        // length: the root of the sum of its squares, 45.
+        assert!((sigma[0] - 45f64.sqrt()).abs() < 1e-12, "{sigma:?}");
+        assert!(sigma[1].abs() < 1e-12, "{sigma:?}");
+        assert_eq!(u.len(), 9);
+        assert!(orthogonal(&u, 3) && orthogonal(&vt, 2));
+        for (got, want) in rebuilt(&sigma, &u, &vt, 3, 2).iter().zip(&tall) {
+            assert!((got - want).abs() < 1e-12);
+        }
+
+        // Through the name: counts, matrix; values, `U`, `V^T`, word.
+        let told = answer("dgesvd", &[2.0, 2.0, 3.0, 0.0, 4.0, 5.0]).unwrap();
+        assert_eq!(told.len(), singular_value_answers(2, 2));
+        assert!((told[0] - 45f64.sqrt()).abs() < 1e-12);
+        assert_eq!(told[told.len() - 1], 0.0);
+        assert_eq!(shape("dgesvd", &[1, 1, 4]), Some((6, 0)));
+        assert_eq!(shape("dgesvd", &[1, 1, 0]), None);
+        assert_eq!(answer("dgesvd", &[2.0, 2.0, 3.0]), None);
+        assert_eq!(answer("dgesvd", &[0.0, 2.0]), None);
+        assert_eq!(answer("dgesvd", &[1.5, 2.0, 3.0, 0.0, 4.0]), None);
+    }
+
+    /// The factorization LAPACK's `dgetrf` writes, its pivots, and the
+    /// inverse `dgetri` reads back out of them.
+    #[test]
+    fn a_factorization_gives_the_inverse_back() {
+        // `[1, 2; 3, 4]`: the 3 comes to the top, `L` is `1/3` below
+        // it and `U` is `[3, 4; 0, 2/3]`.
+        let (lu, pivots, info) = factorized(&[1.0, 2.0, 3.0, 4.0], 2, 2);
+        assert_eq!((pivots.clone(), info), (vec![2, 2], 0));
+        assert!((lu[0] - 3.0).abs() < 1e-15 && (lu[1] - 4.0).abs() < 1e-15);
+        assert!((lu[2] - 1.0 / 3.0).abs() < 1e-15);
+        assert!((lu[3] - 2.0 / 3.0).abs() < 1e-15);
+        // The inverse of `[1, 2; 3, 4]` is `[-2, 1; 3/2, -1/2]`.
+        let inverse = inverted(&lu, &pivots, 2).unwrap();
+        for (got, want) in inverse.iter().zip([-2.0, 1.0, 1.5, -0.5]) {
+            assert!((got - want).abs() < 1e-12, "{inverse:?}");
+        }
+        // A singular matrix says at which step its pivot was nothing,
+        // and there is no inverse to take.
+        let (lu, pivots, info) = factorized(&[1.0, 2.0, 2.0, 4.0], 2, 2);
+        assert_eq!(info, 2);
+        assert_eq!(inverted(&lu, &pivots, 2), None);
+
+        // Through the names they are called by.
+        let told = answer("dgetrf", &[2.0, 2.0, 1.0, 2.0, 3.0, 4.0]).unwrap();
+        assert_eq!(told.len(), factorization_answers(2, 2));
+        assert_eq!(&told[4..], &[2.0, 2.0, 0.0]);
+        assert_eq!(shape("dgetrf", &[1, 1, 4]), Some((6, 0)));
+        assert_eq!(answer("dgetrf", &[2.0, 2.0, 1.0]), None);
+        let back = answer("dgetri", &told[..6]).unwrap();
+        assert_eq!(back.len(), 5);
+        assert!((back[0] + 2.0).abs() < 1e-12 && back[4] == 0.0, "{back:?}");
+        assert_eq!(shape("dgetri", &[4, 2]), Some((6, 5)));
+        assert_eq!(shape("dgetri", &[4, 3]), None);
+        // A zero on the diagonal hands the matrix back with where it is.
+        let kept = answer("dgetri", &[1.0, 2.0, 0.0, 0.0, 1.0, 2.0]).unwrap();
+        assert_eq!(kept, vec![1.0, 2.0, 0.0, 0.0, 2.0]);
     }
 
     #[test]

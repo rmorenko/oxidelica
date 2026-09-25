@@ -574,6 +574,56 @@ fn least_squares_call(
     Ok((Expr::Call("dgelsy".to_string(), given), answers))
 }
 
+/// Whether the singular value decomposition is left to whoever has
+/// LAPACK, as it was before. `OXIDELICA_NO_SVD` is kept so that one
+/// binary can be measured against itself over the whole library.
+fn singular_values_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_SVD").is_some()
+}
+
+/// A call of `dgesvd` with the counts of rows and columns written in
+/// front of the matrix, and how many numbers it answers with.
+///
+/// The same reason as the fit's: thirty numbers are five rows of six
+/// or six of five, and the decomposition of one is not the other's.
+fn singular_values_call(
+    class: &ClassDef,
+    args: &[Expr],
+    shapes: &[Vec<i64>],
+) -> Result<(Expr, usize), String> {
+    let Some([rows, columns]) = shapes.first().map(Vec::as_slice) else {
+        return Err(format!(
+            "`{}` is handed its matrix in a shape this compiler cannot read: {:?}",
+            class.name,
+            shapes.first()
+        ));
+    };
+    let (rows, columns) = (*rows as usize, *columns as usize);
+    if rows == 0 || columns == 0 || args.len() != 1 {
+        return Err(format!(
+            "`{}` is handed {} argument(s) and a matrix of {rows} by {columns}, and is \
+             written here for one matrix with something in it",
+            class.name,
+            args.len()
+        ));
+    }
+    let mut given = vec![Expr::Number(rows as f64), Expr::Number(columns as f64)];
+    given.extend(args.iter().cloned());
+    let answers = match class_called(class) {
+        "dgetrf" => crate::outside::factorization_answers(rows, columns),
+        _ => crate::outside::singular_value_answers(rows, columns),
+    };
+    Ok((Expr::Call(class_called(class).to_string(), given), answers))
+}
+
+/// The name a body written outside Modelica is called by there.
+fn class_called(class: &ClassDef) -> &str {
+    class
+        .external_call
+        .as_ref()
+        .map_or("", |call| call.called.as_str())
+}
+
 /// The outputs of a body written here, each taking its own place of
 /// what the call answers with.
 ///
@@ -607,40 +657,39 @@ fn numbered_outputs(
         // function is written in - `stateOut[nState]` of a generator -
         // or a length the call handed over - `x[size(A, 1)]` of a
         // solver - and neither is a name an environment holds.
-        let length = match output.dimensions.as_slice() {
-            [] => None,
-            [dimension] => {
-                let named = substitute_class_constants(
-                    dimension,
-                    registry,
-                    &class.name,
-                    &class.imports,
-                    &[],
-                );
-                Some(
-                    const_eval(&named, consts)
-                        .map(|length| length as i64)
-                        .or_else(|| dimension_value(&named, consts, given_shapes))
-                        .ok_or_else(|| {
-                            format!(
-                                "`{}` answers with `{}`, whose length this compiler cannot see",
-                                class.name, output.name
-                            )
-                        })? as usize,
-                )
+        // Each dimension read the same way, so a matrix of vectors -
+        // what a decomposition answers with - is its rows in order.
+        let mut lengths: Vec<usize> = Vec::new();
+        for dimension in &output.dimensions {
+            let named =
+                substitute_class_constants(dimension, registry, &class.name, &class.imports, &[]);
+            lengths.push(
+                const_eval(&named, consts)
+                    .map(|length| length as i64)
+                    .or_else(|| dimension_value(&named, consts, given_shapes))
+                    .ok_or_else(|| {
+                        format!(
+                            "`{}` answers with `{}`, whose length this compiler cannot see",
+                            class.name, output.name
+                        )
+                    })? as usize,
+            );
+        }
+        fn laid_out(lengths: &[usize], from: usize, place: &dyn Fn(usize) -> Expr) -> Expr {
+            match lengths.split_first() {
+                None => place(from),
+                Some((length, rest)) => {
+                    let each: usize = rest.iter().product();
+                    Expr::Array(
+                        (0..*length)
+                            .map(|step| laid_out(rest, from + step * each, place))
+                            .collect(),
+                    )
+                }
             }
-            _ => {
-                return Err(format!(
-                    "`{}` answers with `{}`, whose shape this compiler cannot see",
-                    class.name, output.name
-                ))
-            }
-        };
-        let said = match length {
-            None => place(taken),
-            Some(length) => Expr::Array((0..length).map(|step| place(taken + step)).collect()),
-        };
-        taken += length.unwrap_or(1);
+        }
+        let said = laid_out(&lengths, taken, &place);
+        taken += lengths.iter().product::<usize>();
         outputs.push((output.name.clone(), said));
     }
     if taken != answers {
@@ -1819,11 +1868,16 @@ fn body_written_elsewhere(
         // twelve of them are three rows of four or four of three. So
         // the call carries the two counts in front, read off the shape
         // the matrix arrived in.
-        if call.called == "dgelsy" {
-            if least_squares_off() {
+        if matches!(call.called.as_str(), "dgelsy" | "dgesvd" | "dgetrf") {
+            if (call.called == "dgelsy" && least_squares_off())
+                || (call.called != "dgelsy" && singular_values_off())
+            {
                 return Err(outside_this_language(class));
             }
-            let (made, answers) = least_squares_call(class, args, shapes)?;
+            let (made, answers) = match call.called.as_str() {
+                "dgelsy" => least_squares_call(class, args, shapes)?,
+                _ => singular_values_call(class, args, shapes)?,
+            };
             let mut given_shapes: HashMap<String, Vec<i64>> = HashMap::new();
             for (input, shape) in function_components(registry, class, 0)
                 .iter()

@@ -323,7 +323,16 @@ FILES_FLOOR=2671
 # lines by place (/tmp/m270/off2.txt against /tmp/m270/off12.txt, one
 # binary, OXIDELICA_NO_FILE_COUNTS the only difference). Nothing left
 # the flatten list.
-FLATTEN_FLOOR=918
+#
+# And flatten 919 = 918 plus ModelicaTest.Math.TestMatrices2b, a
+# runnable example, which takes the `dgesvd` chain of m272 whole: the
+# decomposition, `dgetrf` and `dgetri` answered here, a shape handed in
+# outranking an input's default, and a call standing as a statement
+# given the body's bindings before its arguments are read
+# (/tmp/m274/on.txt against /tmp/m274/off.txt, one binary, the off side
+# with OXIDELICA_NO_SVD, OXIDELICA_DEFAULT_SHAPES_WIN and
+# OXIDELICA_STATEMENT_ARGS_LATE set). Nothing left the flatten list.
+FLATTEN_FLOOR=919
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -708,7 +717,11 @@ FLATTEN_FLOOR=918
 # deeper (/tmp/m272/on.txt against /tmp/m272/off.txt, one binary). The
 # run list gained exactly that name and lost none; the flatten list did
 # not move.
-RUN_FLOOR=592
+#
+# And run 593 = 592 plus TestMatrices2b, set out at `FLATTEN_FLOOR`,
+# which runs and whose own comparisons hold. The run list gained that
+# name and lost none.
+RUN_FLOOR=593
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -733,8 +746,11 @@ RUN_FLOOR=592
 #
 # And runnable run 550 = 549 plus QuadratureLobatto3, a runnable
 # example, set out at `RUN_FLOOR` (/tmp/m272/on.txt).
-RUNNABLE_FLATTEN_FLOOR=803
-RUNNABLE_RUN_FLOOR=550
+#
+# And runnable flatten 804 = 803, runnable run 551 = 550, both plus
+# TestMatrices2b set out at `FLATTEN_FLOOR` (/tmp/m274/on.txt).
+RUNNABLE_FLATTEN_FLOOR=804
+RUNNABLE_RUN_FLOOR=551
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -899,10 +915,19 @@ RUN_MS_CEILING=8000
 # printed 283567 / 94393401 / 1402995 / 32250670 / 44495461 from the
 # same binary. The file counts add 983 expansions, 64 bodies and the
 # six points of TestReadFile.
+#
+# Refreshed from /tmp/m274/on.txt after the `dgesvd` chain; its off
+# side, /tmp/m274/off.txt, printed 283567 / 94394474 / 1403059 /
+# 32250713 / 44495461 and 1780978093 names from the same binary. The
+# expansions rose 7399 and the bodies fell 66, both far inside the
+# band; the points rose six, TestMatrices2b's. The names fell 1630140,
+# 915 per million, while TestMatrices2b alone counts 197201 of its own
+# (`--only`): the rest is the other models looking up fewer, which
+# was not traced model by model.
 WORK_CLASSES=283567
-WORK_EXPANSIONS=94394384
-WORK_BODIES=1403059
-WORK_POINTS=32250676
+WORK_EXPANSIONS=94401873
+WORK_BODIES=1402993
+WORK_POINTS=32250719
 WORK_NEWTON=44495461
 WORK_JACOBIANS=324
 WORK_PERCENT=5
@@ -926,7 +951,11 @@ WORK_PERCENT=5
 # difference between two places, seventy-four thousand times the
 # wander of one place, and still ninety times narrower than the 18%
 # rise it is there to catch.
-WORK_NAMES=1780978119
+#
+# Moved to 1779347953 from /tmp/m274/on.txt, the `dgesvd` chain; see
+# the refresh above for the fall of 915 per million, which would have
+# left the band less than half its width on the desk side.
+WORK_NAMES=1779347953
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"

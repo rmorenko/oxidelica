@@ -2364,8 +2364,11 @@ fn a_body_written_here_is_held_to_what_it_declares() {
         "{lengthless}"
     );
 
-    // An answer of more than one dimension: a body written here gives
-    // one flat list, and nothing says how to fold it into a matrix.
+    // An answer of more than one dimension is folded row by row out of
+    // the one flat list a body written here gives - what a
+    // decomposition answers with - and is still held to the count: a
+    // matrix of four and a number are five, and the generator gives
+    // three.
     let shapeless = parse_model(&format!(
         "{GENERATOR} model M function odd input Integer a[2]; output Real v; \
          output Integer w[2, 2]; \
@@ -2375,7 +2378,7 @@ fn a_body_written_here_is_held_to_what_it_declares() {
     .unwrap_err()
     .to_string();
     assert!(
-        shapeless.contains("whose shape this compiler cannot see"),
+        shapeless.contains("answers with 5 number(s), and the body written here answers with 3"),
         "{shapeless}"
     );
 
