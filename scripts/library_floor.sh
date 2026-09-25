@@ -759,7 +759,20 @@ FLATTEN_FLOOR=919
 # by exactly three names: only the desk runs DrumBoiler and
 # SpringWithMass, only the runner runs Dimmer_RL. The floor is taken
 # from the lower machine. Flatten 919 is the same on both.
-RUN_FLOOR=606
+#
+# And run 614 is the runner's count of 9e6f772 (job 108171900686 of
+# run 36165430620): 606 above plus the eight m279 won before
+# `firstTick` - IdealGasN2, HoldWithDAeffects1, HoldWithDAeffects2,
+# TickBasedPulse, TickBasedSine, UniformNoise, SampleWithADeffects and
+# ClockedWith_AD_DA_Effects - each of them in the runner's run list.
+# The desk counts 615 on the same tree (/tmp/m279/on4.txt), and the two
+# lists differ by the same three names as before: only the desk runs
+# DrumBoiler and SpringWithMass, only the runner runs Dimmer_RL.
+# RotationalSample came with 385dce3 and MomentumBalanceFittings after
+# it, and neither is in this floor: the runner has not yet counted a
+# tree that holds them, and the floor waits for the machine that
+# guards it.
+RUN_FLOOR=614
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -801,8 +814,12 @@ RUN_FLOOR=606
 # the red job of c5a80bc plus the eleven set out at `RUN_FLOOR`, all
 # runnable examples. The desk counts 565, by the same three names;
 # runnable flatten is 804 on both.
+#
+# And runnable run 572 is the runner's count of 9e6f772: 564 plus the
+# same eight set out at `RUN_FLOOR`, all runnable examples. The desk
+# counts 573 on that tree; runnable flatten is 804 on both.
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=564
+RUNNABLE_RUN_FLOOR=572
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

@@ -21065,3 +21065,186 @@ runner one at a time by dispatch on `9e6f772` (jobs 108172440207 to
 108172522883), and each came back as one flattened and one run. That
 is each model alone, not the count of the tree, so the floor still
 waits for a push run of the whole library.
+
+## The m280 series: a step retreated from, a walk carried down, and a start that fell to zero
+
+### The top of the m279 census, by name
+
+The run half of `/tmp/m279/census.txt` counts 312 in 165 rows, and
+its loop rows add to 98 models (24 + 20 + 17 + 12 + 11 + 7 + 4 + 3),
+the same 98 lines `grep '^  built' /tmp/m279/raw.txt | grep -F
+'algebraic loop'` prints. The two rows whose tails the counter cuts
+off are not one kind each, and the split below is what an `awk` over
+the raw half printed, one line per model. The row of 12 that begins
+with an equation in backquotes is two kinds: seven NaN before any
+Newton step with the fault in the arithmetic (`DoublePendulum`,
+`ThreeSprings`, both `RollingWheelSet*`, both `Heating*_NORGate`,
+`TestSharpEdgedOrifice`) and five NaN through a function the walk
+could not finish (`Essotherm650`, `Glycol47`, `RoomCO2WithControls`,
+`DynamicPipesWithTraceSubstances`, `TestValvesIncompressibleReverse`).
+The row of 11 that begins `algebraic loop [...]` is seven "solution
+on either side" (`OvervoltageProtection`, `TestSuddenExpansion`,
+`SMR_DOL`, and `SMPM_Inverter` and `SMR_Inverter` twice each,
+Electrical and FundamentalWave) and four "stepped outside the domain"
+of the hydraulic family (`BranchingPipes12`, `BranchingPipes14`,
+`SeriesPipes2`, `DynamicPipesAndFittings`).
+
+The Newton direction row of 24 is 21 Fluid and Media models, parked
+by m216/m217, and three that are not: `Rectifier6pulse`,
+`IMC_Transformer` of FundamentalWave and `SMPM_Mains` of QuasiStatic.
+The `do not mention` row of 20 is thirteen airGap machines, the
+parked chain (the seven Electrical induction machines from `IMC_DOL`
+to `IMS_Start`, `SMEE_DOL`, `SMPM_Braking`, `SMPM_VoltageSource`, the
+Transformers `IMC_Transformer`, and FundamentalWave's `IMC_DOL` and
+`IMS_Start`); the two true zero-parameter cases of m241 (`Oscillator`'s
+`T1.irc` and `GearType2`'s `bearingFriction.sa`); and five others:
+`Spice3BenchmarkDifferentialPair`, `MomentumBalanceFittings`,
+`ParallelPumpDropOut`, `TestMultiPortTraceSubstances` and
+`TestBearingConversion`. 13 + 2 + 5 = 20.
+The cheapest of the unparked was `MomentumBalanceFittings`, and it
+was taken.
+
+### `MomentumBalanceFittings`: a column lost to the size of a step
+
+`OXIDELICA_DEAD_PROBE` called both dead columns, `p_total_a` and
+`p_total_b`, "never mentioned", and yet the block's residual 1 is
+`p_total_a = port_a.p + 0.5*m_flow^2/...`, which writes it out. The
+Newton trail (`/tmp/m280/mbf_trail.txt`) says why. The block of
+twelve starts with `suddenExpansion2.m_flow` at zero, the extremum of
+every `m_flow^2` term, and its first undamped step walks `m_flow` to
+3.3e8 and the residual from 1e4 to 1.6e24. At that point a change of
+a whole unit in `p_total_a` moves a residual of 1e23 by nothing a
+double holds, so the column reads zero from near and from far, and
+the refusal was about the point the step reached rather than about
+the equations.
+
+The repair takes the step again at half the length from the footing
+it left, the same retreat the loop already makes from the edge of a
+domain, and refuses only at the starting point or once the step is a
+millionth long. The small model is `z^3 + z = x^3 + time` beside
+`sin(z) + x^3 + 1e-6*x = 1` from zero: refused before as "does not
+mention z", it now converges to `x = 0.6606515`, `z = 0.7918456`, and
+both equations hold to 1e-8. That is the test
+`a_column_lost_to_the_size_of_a_step_is_not_a_column_the_equations_lack`,
+red under `OXIDELICA_NO_SINGULAR_RETREAT`.
+
+Pair 1 (`/tmp/m280/ox2`, `/tmp/m280/on1.txt` against `off1.txt`):
+919 flatten on both sides, run 616 to 617, runnable 574 to 575. The
+diff of the run lists is `MomentumBalanceFittings` alone, and no
+model is lost. The model's numbers are physical: the lower branch
+flows from the 1.1 bar side to the 1 bar side at 29.30 kg/s, its
+total pressure falling along the flow (109782 Pa to 106972 Pa), and
+the upper branch at +57.31 kg/s uphill in static pressure, which is
+what the library's documentation says it should. The same retreat
+changed nothing for the other five `do not mention` models probed
+(`TestBearingConversion`, `ParallelPumpDropOut`,
+`Spice3BenchmarkDifferentialPair`, `SMEE_DOL`,
+`TestMultiPortTraceSubstances`), so their dead columns are not this
+kind.
+
+### `UniformNoiseXorshift64star`: one link, and a wrong number behind it
+
+The m279 map said `previous` inside a tuple call. A small model
+shows the link: `(r, st) = random(previous(st))`, with `random` an
+external function, arrives after flattening as
+`random({previous(st[1]), previous(st[2])})[k]`. `at_the_tick` in
+`clocks.rs` turns `previous` into `pre` and stops at every node it
+does not name, and an array and an element of a call's answer were
+both unnamed, so `previous` got through to the run. The repair
+carries the walk down through the rest with `map_children`. With it,
+the clocked generator draws exactly what the same generator stepped
+by a plain `when` on `pre(st)` draws, 0.1565793467523503 and then
+0.28194898396902013 from the seed {614657, 30020}. That is the test
+`previous_inside_the_arguments_of_a_tuple_call_is_the_tick_before`,
+red under `OXIDELICA_NO_TICK_WALK`.
+
+With that link taken the library model ran, and ran wrong: `state64`
+stood at {0, 0} and `r64` at 0.5 on every tick. The start of
+`state64` is `initialState(localSeed, globalSeed)`, and the discrete
+layer in `compile.rs` evaluated it with no function bodies in view,
+then took the failure for a zero through `unwrap_or(0.0)`. Handing it
+the bodies is not enough: the walk of `initialState` refuses on its
+own (`an array reached the evaluator: {localSeed, globalSeed}`),
+because the tuple filled from the external call inside its loop is
+not something the walk carries. A plain `when` shows the same zero
+(`/tmp/m280/X12.mo`), so the zero start was older than this shift
+and not something the clocked lift brought in. The walk link
+alone would have turned a refusal into a wrong number, which is the
+worst thing this compiler can do.
+
+So the discrete start that was written and could not be worked out
+is now a refusal naming it, with the bodies in view as they are for
+parameters. The test is
+`a_discrete_start_nobody_could_work_out_is_refused_rather_than_zero`,
+red under `OXIDELICA_NO_START_REFUSAL`. `UniformNoiseXorshift64star`
+stays refused, now on its real wall: a walked body that fills a tuple
+from an external call. The walk's `TupleAssign` in `walk.rs` takes
+one number per argument ("what stands here is a scalar"), and its
+`for` says outright that "a walked body holds no arrays". So
+`(r, state) := random(state)` with `state` of length two cannot be
+walked. That is not one link. It is arrays inside walked bodies, a
+layer of its own, and it is mapped here rather than taken.
+
+Pair 2 (`/tmp/m280/ox5`, `/tmp/m280/on2.txt` against `off2.txt`, the
+off side with `OXIDELICA_NO_TICK_WALK` and
+`OXIDELICA_NO_START_REFUSAL` both set): 919 flatten and 617 run on
+both sides, runnable 804 and 575 on both, and the two run lists are
+equal name for name. So the two changes cost nothing and win nothing
+by count, which is what a refusal put where a wrong number was
+waiting should do. The census rows moved: `unknown function
+previous` went from 2 to 1, and a new row `the start of the discrete
+variable uniformNoiseXorshift64star.state64[1]` holds the one that
+left. The `previous` left standing is
+`ComponentsThrottleControl.SpeedControl`, a utility block with no
+clock of its own, refused the same way on both sides. The Clocked
+`UniformNoise`, one of the ten m279 won, still runs: its seed is a
+plain `firstSeed` array and needs no walk.
+
+### Three more of the unparked loop rows, probed and mapped
+
+`Rectifier6pulse`, the one Electrical model of the Newton direction
+row, is almost converged when it is refused (`/tmp/m280/r6.txt`). At
+t = 2.15e-4 the block of 32 stands at |f| = 2.4e-10, and every row
+but one is at the floor of the arithmetic. Row 11 holds 2.44e-10
+against an unknown of 1.17, so the test `1e-10 * (1 + |v|)` asks for
+2.17e-10 and misses it by about a tenth. The line search then finds
+no descent from there. This is a tolerance question, not a wrong
+equation. Loosening a tolerance to buy a model is not a repair, so it
+is left.
+
+`LossyGearDemo2` (`/tmp/m280/lgd2.txt`) solves its block of eight
+twice at t = 0 and is refused on the third solve, after the gear's
+mode has changed. The Jacobian printed there has row 2 plus row 7
+equal to row 3 in the last column, and the unknowns are the gear's
+quadrants and `bearingFriction.sa`. This is the locked-friction mode
+family, the same shape as `GearType2`: in the mode chosen there,
+nothing pins the friction's path variable. It is a mode choice
+question and not a cheap one.
+
+`ParallelPumpDropOut` (`/tmp/m280/ppd.txt`) runs until t = 0.399,
+where the pump drops out. The mass flows then fall to 1e-12, and the
+enthalpy of `pipe1.flowPort_a` is carried by nothing, so its column
+is genuinely dead. The flow model carries enthalpy by `m_flow * h`
+with no regularisation at zero flow in the equations as the compiler
+has them. This is the zero-flow wall, and a different family from
+the step retreat above.
+
+### The floors of the m280 shift
+
+The runner counted `9e6f772` in job 108171900686 of run 36165430620,
+green: 919 flatten and 614 run, runnable 804 and 572
+(`/tmp/m280/runner9e6.log`). The desk counted 615 and 573 on the same
+tree (`/tmp/m279/on4.txt`). Diffed name for name, the two run lists
+differ by the three names that have swung between the machines since
+m278: `DrumBoiler` and `SpringWithMass` run on the desk only, and
+`Dimmer_RL` runs on the runner only. Eight of the m279 ten are in the
+runner's list; `RotationalSample` came with `385dce3`, which the
+runner was still counting when this shift closed. So the run floors
+go to the runner's 614 and 572, and flatten stays at 919 and 804 on
+both machines. No model ran alone and not in the crowd: each of the
+eight single dispatch confirmations is in the corpus list.
+
+The desk now counts 617 run and 575 runnable on `77575f6`
+(`/tmp/m280/on2.txt`): the runner's 614, plus the three names by
+which the desk runs ahead of it (the two it runs alone less
+`Dimmer_RL`), plus `RotationalSample` and `MomentumBalanceFittings`.
