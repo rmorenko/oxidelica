@@ -21303,3 +21303,31 @@ the NaN cell is the first link of a chain whose second is the start
 point. The same kind of wall parked for the Fluid Newton direction
 row in m216/m217. The experiment was reverted: a chain not walked to
 its end is not taken a link at a time.
+
+### A walked body's unassigned output answers zero, and three tests lean on it
+
+Taken from the queue (defaults that swallow a refusal) after the
+discrete start above. Of the `unwrap_or(0.0)` sites in the value
+path, `walk.rs:171` lays out every local and output of a walked body
+at zero when nothing binds it. A body whose only assignment to its
+output sits in a branch the road does not take then answers 0, and
+the model runs on it. The small model is a `while` (to make the body
+walked) followed by `if k > 100 then y := k; end if`: `x = g(time)`
+comes out 0.
+
+An output laid out as a NaN with a payload of its own, checked by
+bits after the body runs, turns that into a refusal naming the output
+("the output `y` was not assigned on the road the body took"). It
+still lets a NaN the body assigns itself, `0/0`, through as the
+answer. It also turns three existing tests red:
+`a_walked_body_carries_arrays`, `a_walked_body_decides_over_arrays`
+and `a_walked_body_says_what_it_cannot_carry`. Each guards its loop
+with `a > 0` and is called with `a = time`, so at t = 0 the loop does
+not run and the output is not assigned. Those tests have been reading
+the zero at t = 0 all along and checking only the last row.
+
+So the question is one of language policy rather than of code:
+whether an unassigned function output is an error, or its type's
+default. It was reverted unmeasured. The next shift should read the
+specification on function outputs first, then decide on the three
+tests, then measure a pair.
