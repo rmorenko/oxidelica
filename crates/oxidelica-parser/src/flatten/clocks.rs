@@ -1210,6 +1210,17 @@ pub(super) fn at_the_tick(
         Expr::And(l, r) => Expr::And(Box::new(recur(l)), Box::new(recur(r))),
         Expr::Or(l, r) => Expr::Or(Box::new(recur(l)), Box::new(recur(r))),
         Expr::If(c, a, b) => Expr::If(Box::new(recur(c)), Box::new(recur(a)), Box::new(recur(b))),
+        // And the same, further down. The walk used to stop at every
+        // node it did not name, and an array or an element of a call's
+        // answer was one: `(r64, state64) = random(previous(state64))`
+        // arrives as `random({previous(state64[1]), ...})[2]`, an
+        // element of a call whose argument is an array, and the
+        // `previous` inside was handed to the run untranslated, where
+        // it is no function at all. `UniformNoiseXorshift64star` was
+        // refused for `unknown function previous` on exactly that.
+        _ if std::env::var_os("OXIDELICA_NO_TICK_WALK").is_none() => {
+            expr.map_children(&mut |e| recur(e))
+        }
         _ => expr.clone(),
     }
 }

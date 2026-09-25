@@ -145,3 +145,37 @@ fn the_size_of_a_record_is_refused_rather_than_counted_by_its_fields() {
     assert!(why.contains("`size` of `r`"), "{why}");
     assert!(why.contains("only as one record"), "{why}");
 }
+
+#[test]
+fn a_discrete_start_nobody_could_work_out_is_refused_rather_than_zero() {
+    // `initialState(ls, 30020)` seeds a generator, and the walk of its
+    // body does not finish: the tuple filled from the external call
+    // inside the loop leaves `state` unknown. The start used to fall
+    // to zero without a word, so the model ran from {0, 0} - which is
+    // every `Xorshift64star` noise block of the library drawing 0.5
+    // on every tick. A start that was written and could not be worked
+    // out is not a start of zero, and the refusal names it.
+    let why = refused(
+        "model Z function random input Integer stateIn[2]; output Real result; \
+           output Integer stateOut[2]; \
+           external \"C\" ModelicaRandom_xorshift64star(stateIn, stateOut, result); \
+         end random; \
+         function initialState input Integer localSeed; input Integer globalSeed; \
+           output Integer state[2]; protected Real r; \
+         algorithm state := {localSeed, globalSeed}; \
+           for i in 1:10 loop (r, state) := random(state); end for; \
+         end initialState; \
+         parameter Integer ls = 614657; \
+         discrete Integer st[2](start = initialState(ls, 30020)); \
+         equation when sample(0, 0.1) then st = pre(st); end when; \
+         annotation(experiment(StopTime = 0.2, Interval = 0.1)); end Z;",
+    );
+    assert!(
+        why.contains("the start of the discrete variable `st[1]`"),
+        "{why}"
+    );
+    assert!(
+        why.contains("could not be worked out before the run"),
+        "{why}"
+    );
+}

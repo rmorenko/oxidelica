@@ -2483,7 +2483,15 @@ fn discrete_layer(
     model: &Model,
     params: &HashMap<String, f64>,
     resume: &Option<ResumePoint>,
+    programs: &HashMap<String, ClassDef>,
 ) -> Result<DiscreteLayer, SimError> {
+    // A start written as a call to a function the run walks - the
+    // seed of a random generator, `initialState(localSeed,
+    // globalSeed)` - is answered only where the bodies are in view.
+    // Without them the call answered nothing, and the start fell to
+    // the zero below without a word: every `Xorshift64star` state of
+    // the library began at {0, 0} and drew 0.5 on every tick.
+    let programs = (std::env::var_os("OXIDELICA_NO_START_PROGRAMS").is_none()).then_some(programs);
     // 1b. The discrete layer. A variable is discrete when it says so or
     // when a `when` clause assigns it: either way it keeps its value
     // between events, so the continuous part treats it as known.
@@ -2640,7 +2648,7 @@ fn discrete_layer(
                 let now = EvalCtx {
                     vars,
                     time: 0.0,
-                    programs: None,
+                    programs,
                     depth: 0,
                 };
                 if let Ok(value) = eval(&equation.rhs, &now) {
@@ -2650,6 +2658,7 @@ fn discrete_layer(
             }
         }
     }
+    let mut unworkable: Option<String> = None;
     let discrete_start: Vec<f64> = model
         .components
         .iter()
@@ -2661,22 +2670,45 @@ fn discrete_layer(
                 .copied()
                 .or_else(|| known.get(&c.name).copied())
                 .or_else(|| {
-                    c.start.as_ref().or(c.binding.as_ref()).and_then(|expr| {
-                        eval(
-                            expr,
-                            &EvalCtx {
-                                vars: params,
-                                time: 0.0,
-                                programs: None,
-                                depth: 0,
-                            },
-                        )
-                        .ok()
-                    })
+                    let expr = c.start.as_ref().or(c.binding.as_ref())?;
+                    let value = eval(
+                        expr,
+                        &EvalCtx {
+                            vars: params,
+                            time: 0.0,
+                            programs,
+                            depth: 0,
+                        },
+                    );
+                    // A start that was written and could not be
+                    // worked out is not a start of zero. It fell to
+                    // zero here without a word, and what that looks
+                    // like from outside is a model that runs: the
+                    // seed of every `Xorshift64star` generator is
+                    // `initialState(localSeed, globalSeed)`, a body
+                    // the walk cannot finish, and the generator drew
+                    // 0.5 from the state {0, 0} on every tick.
+                    if let Err(why) = &value {
+                        if unworkable.is_none()
+                            && std::env::var_os("OXIDELICA_NO_START_REFUSAL").is_none()
+                        {
+                            unworkable = Some(format!(
+                                "the start of the discrete variable `{}` is `{}`, and it \
+                                 could not be worked out before the run: {}",
+                                c.name,
+                                expr.describe(),
+                                why.0
+                            ));
+                        }
+                    }
+                    value.ok()
                 })
                 .unwrap_or(0.0)
         })
         .collect();
+    if let Some(why) = unworkable {
+        return err(why);
+    }
     Ok((discretes, discrete_start, spent, defined_here))
 }
 
@@ -3381,7 +3413,7 @@ pub(crate) fn compile_at(
     // 1b. The discrete layer: what changes only at an event, and what
     // each of those starts at.
     let (discretes, discrete_start, started_discretes, discrete_equations) =
-        discrete_layer(model, &params, &resume)?;
+        discrete_layer(model, &params, &resume, &programs)?;
 
     // Where everything stands at the point being compiled for: the
     // pivot that chooses which states to demote reads it, and so does

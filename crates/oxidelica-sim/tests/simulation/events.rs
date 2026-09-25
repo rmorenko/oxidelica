@@ -629,6 +629,33 @@ fn an_if_on_the_first_tick_is_decided_on_the_clock() {
 }
 
 #[test]
+fn previous_inside_the_arguments_of_a_tuple_call_is_the_tick_before() {
+    // `(r, st) = random(previous(st))` is how every clocked noise block
+    // of the library steps its generator. Filled into a tuple it
+    // arrives as `random({previous(st[1]), previous(st[2])})[k]`, an
+    // element of a call on an array, and the walk that turns
+    // `previous` into the value before the tick stopped at both of
+    // those, so the run met `previous` as a function nobody had. The
+    // numbers are those of the same generator stepped by a plain
+    // `when` on `pre(st)`, which drew 0.1565793467523503 and then
+    // 0.28194898396902013 from this seed.
+    let result = run("model M \
+         function random input Integer stateIn[2]; output Real result; \
+           output Integer stateOut[2]; \
+           external \"C\" ModelicaRandom_xorshift64star(stateIn, stateOut, result); \
+         end random; \
+         Clock c = Clock(0.1); Real u; Real y; Real r(start = 0); \
+         discrete Integer st[2](start = {614657, 30020}); \
+         equation u = sample(time, c); (r, st) = random(previous(st)); y = u + r; \
+         annotation(experiment(StopTime = 0.25, Interval = 0.1)); end M;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[at("r")], 0.28194898396902013);
+    assert_eq!(last[at("st[1]")], -547572939.0);
+    assert_eq!(last[at("st[2]")], -1122748525.0);
+}
+
+#[test]
 fn a_switch_resting_on_its_threshold_is_not_lost_for_the_rest_of_the_run() {
     // A sliding mode: the state is driven towards the threshold from
     // whichever side it stands on, so the event settles exactly on it
