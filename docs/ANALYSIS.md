@@ -21384,3 +21384,30 @@ their block starts `vbc` and its kin at zero, `cbc` divides at zero
 and the first residual is NaN, and a retry at 1e-6 comes back as
 infinity (the trail's second `newton 0`). What this shift adds is
 only the name of the divisor in each.
+
+### The diverged row: a NaN pivot the linear solve lets through
+
+`IdealGases.Air`, `IdealGases.Nitrogen` and `DryAirNasa` are refused
+as `algebraic loop diverged` after a single Newton step. With the step
+printed, the block of four goes from `[293.15, 1, 1, 0]` straight to
+all NaN. Its Jacobian has one NaN cell, row 3 in the column of
+`shortPipe.flowModel.m_flows[1]`, and every other entry is ordinary.
+Row 3 is `dps_fg[1] = g*dheights[1]*(if m_flows[1] > 0 then rhos[1]
+else rhos[2]) + dp_nominal/(n-1)/m_flow_nominal*m_flows[1]`, and the
+NaN comes through the density on the far branch. `solve_linear`
+lets a NaN pivot through: `a.abs() < 1e-14` is false for NaN, so the
+elimination runs on and every unknown comes out NaN. The refusal then
+says the loop diverged, when the block never took a finite step.
+
+This is the same NaN cell as `RoomCO2` in a different coat: there
+the linear solve refused the matrix as singular, here it accepted it
+and produced NaN. The backward-difference experiment of the RoomCO2
+section (binary `/tmp/m280/ox7`, not committed) moves all three
+models one wall on, to the inner `solveOneNonlinearEquation` refusing
+because its bracket does not hold the root. So the chain here is at
+least two links: the NaN cell, then a temperature search started
+outside its bracket. It is mapped, not taken. What the three share
+with `RoomCO2` is the moist or ideal gas temperature found by an
+inner root search that the finite-difference step pushes out of its
+domain. A repair aimed at that search, and not at the matrix, would
+reach all four.
