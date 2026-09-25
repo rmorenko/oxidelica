@@ -1353,6 +1353,39 @@ impl CompiledModel {
                 rescued = dv.iter().all(|x| x.is_finite());
                 rescued.then_some(dv)
             });
+            // A matrix that gives no step at a point the last step
+            // reached is first a fact about that step, and only after
+            // that a fact about the equations. A Newton step taken
+            // from the extremum of a square is a huge one - the slope
+            // there is nearly flat - and it lands where the residuals
+            // are 1e23 and more. There a column whose unknown moves by
+            // a few thousand changes nothing a double can hold, reads
+            // as exactly zero from near and from far, and the block
+            // was refused as not mentioning an unknown its equations
+            // plainly write out. `MomentumBalanceFittings` is the
+            // case the library brings: `suddenExpansion2.m_flow`
+            // starts at zero, the first step walks it to 3.3e8, and
+            // `p_total_a = port_a.p + 0.5*m_flow^2/...` was said not
+            // to mention `p_total_a`. So the step that led here is
+            // taken again, shorter, from the footing it left - the
+            // same retreat as from the edge of a domain - and the
+            // refusal below speaks only for the point a block starts
+            // from or for a step a millionth long.
+            let step =
+                if step.is_none() && std::env::var_os("OXIDELICA_NO_SINGULAR_RETREAT").is_none() {
+                    if let Some((from, dv, lambda)) = footing.take() {
+                        let lambda = lambda / 2.0;
+                        if lambda > 1e-6 {
+                            v = (0..n).map(|j| from[j] - lambda * dv[j]).collect();
+                            footing = Some((from, dv, lambda));
+                            damped = true;
+                            continue;
+                        }
+                    }
+                    None
+                } else {
+                    step
+                };
             let Some(dv) = step else {
                 // A column that is exactly zero is not a matrix that
                 // happened to come out ill conditioned: it is the

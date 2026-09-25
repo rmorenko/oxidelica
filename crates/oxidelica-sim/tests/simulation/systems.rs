@@ -592,6 +592,36 @@ fn an_algebraic_loop_that_comes_apart_says_so() {
 }
 
 #[test]
+fn a_column_lost_to_the_size_of_a_step_is_not_a_column_the_equations_lack() {
+    // `z` is written in both equations, and the block was refused as
+    // not mentioning it. From `x = 0` the slope of `x^3` is nearly
+    // flat, so Newton's first step walks `x` to a million, where
+    // `z^3 + z` is added to a residual of 1e36 and moving `z` by a
+    // whole unit changes nothing a double can hold. The column read
+    // dead from near and from far, and the refusal was about the
+    // point the step had reached rather than about the equations. The
+    // step is now taken again, shorter, and the block converges.
+    let result = run("model R Real x(start = 0); Real z(start = 0); \
+         Real s(start = 0, fixed = true); \
+         equation z * z * z + z = x ^ 3 + time; sin(z) + x ^ 3 + 1e-6 * x = 1; \
+         der(s) = x; annotation(experiment(StopTime = 1, Interval = 0.5)); end R;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    let (x, z) = (last[at("x")], last[at("z")]);
+    // Both equations hold at t = 1, which is what a right answer is.
+    assert!(
+        (z * z * z + z - (x.powi(3) + 1.0)).abs() < 1e-8,
+        "x = {x}, z = {z}"
+    );
+    assert!(
+        (z.sin() + x.powi(3) + 1e-6 * x - 1.0).abs() < 1e-8,
+        "x = {x}, z = {z}"
+    );
+    assert!((x - 0.660_651_5).abs() < 1e-6, "x = {x}");
+    assert!((z - 0.791_845_6).abs() < 1e-6, "z = {z}");
+}
+
+#[test]
 fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack_nor_an_answer() {
     // Two blocks the Jacobian cannot tell apart: in both, every entry
     // of one column is exactly zero at the values the iteration
