@@ -21238,16 +21238,22 @@ tree (`/tmp/m279/on4.txt`). Diffed name for name, the two run lists
 differ by the three names that have swung between the machines since
 m278: `DrumBoiler` and `SpringWithMass` run on the desk only, and
 `Dimmer_RL` runs on the runner only. Eight of the m279 ten are in the
-runner's list; `RotationalSample` came with `385dce3`, which the
-runner was still counting when this shift closed. So the run floors
-go to the runner's 614 and 572, and flatten stays at 919 and 804 on
-both machines. No model ran alone and not in the crowd: each of the
-eight single dispatch confirmations is in the corpus list.
+runner's list; `RotationalSample` came with `385dce3`. The runner
+counted that tree too before this shift closed, in job 108182204408
+of run 36168556508, green: 919 and 615, runnable 804 and 573
+(`/tmp/m280/runner385.log`). Its run list is 9e6f772's plus
+`RotationalSample` and nothing else, and against the desk's on that
+tree (`/tmp/m279/on5.txt`) it differs by the same three swinging
+names. So the run floors go to the runner's 615 and 573, and flatten
+stays at 919 and 804 on both machines. No model ran alone and not in
+the crowd: each of the eight single dispatch confirmations is in the
+corpus list.
 
 The desk now counts 617 run and 575 runnable on `77575f6`
-(`/tmp/m280/on2.txt`): the runner's 614, plus the three names by
-which the desk runs ahead of it (the two it runs alone less
-`Dimmer_RL`), plus `RotationalSample` and `MomentumBalanceFittings`.
+(`/tmp/m280/on2.txt`): the runner's 615, plus one for the swing (the
+desk runs `DrumBoiler` and `SpringWithMass` alone, the runner
+`Dimmer_RL` alone: two less one), plus `MomentumBalanceFittings`.
+615 + 1 + 1 = 617.
 
 ### The singular Jacobian row, timed
 
