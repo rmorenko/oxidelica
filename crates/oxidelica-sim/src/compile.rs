@@ -4576,6 +4576,9 @@ struct InitialConditionMatch {
     state_taken: Vec<Option<usize>>,
     /// Per demoted condition, the state it claimed, if any.
     demoted_claims: Vec<Option<usize>>,
+    /// How many demoted conditions were paired with a state the walk
+    /// through blocks found, which the probe of the road reports.
+    paired_through_blocks: usize,
 }
 
 impl CompiledModel {
@@ -4670,6 +4673,7 @@ impl CompiledModel {
             cond_vars.push(candidates(&touched));
         }
         let mut state_taken: Vec<Option<usize>> = vec![None; self.states.len()];
+        let mut paired_through_blocks = 0;
         for condition in 0..cond_vars.len() {
             let mut visited = vec![false; self.states.len()];
             try_match(condition, &cond_vars, &mut state_taken, &mut visited);
@@ -4723,6 +4727,40 @@ impl CompiledModel {
                 let Some(state) = orphans.next() else { break };
                 state_taken[state] = Some(condition);
             }
+            // A demoted `fixed = true` loses its state to the same
+            // coarseness: `coil.i` is what the coil's block solves for,
+            // so the walk that stops at blocks finds it reaching
+            // nothing, and the flux behind it is claimed by nothing and
+            // pinned at its declaration. The declaration is then checked
+            // against a flux that never moved, and refused for it.
+            //
+            // A demoted condition has a definition to ask, which a
+            // written one does not, so the pairing here is narrower than
+            // the one above: the state has to be one the coarse walk -
+            // blocks included - says the definition reads. Coarse enough
+            // to see through the block, and still no licence to take a
+            // state from somewhere else in the model.
+            if std::env::var_os("OXIDELICA_NO_PAIR_LOST_DEMOTED").is_none() {
+                let mut left: Vec<usize> = orphans.collect();
+                let coarse = states_behind_algebraics(&self.states, &self.algebraics, plan);
+                for (offset, (index, _)) in demoted.iter().enumerate() {
+                    let condition = initial_equations.len() + offset;
+                    if !cond_vars[condition].is_empty() || state_taken.contains(&Some(condition)) {
+                        continue;
+                    }
+                    let Some(Some(reads)) = coarse.get(*index) else {
+                        continue;
+                    };
+                    let Some(at) = left
+                        .iter()
+                        .position(|state| reads.get(*state).copied().unwrap_or(false))
+                    else {
+                        continue;
+                    };
+                    state_taken[left.remove(at)] = Some(condition);
+                    paired_through_blocks += 1;
+                }
+            }
         }
         if std::env::var_os("OXIDELICA_INIT_PROBE").is_some() {
             for (condition, reached) in cond_vars.iter().enumerate() {
@@ -4766,6 +4804,7 @@ impl CompiledModel {
         Some(InitialConditionMatch {
             state_taken,
             demoted_claims,
+            paired_through_blocks,
         })
     }
 
@@ -5080,7 +5119,10 @@ impl CompiledModel {
         unsettled: &[(String, Slot)],
         plan: &Worked<'_>,
     ) -> Result<(), SimError> {
-        if initial_equations.is_empty() {
+        if initial_equations.is_empty()
+            && (std::env::var_os("OXIDELICA_NO_INIT_WITHOUT_SECTION").is_some()
+                || (self.fixed_starts.is_empty() && unsettled.is_empty()))
+        {
             return Ok(());
         }
         // The unknowns of the initialisation are the states and the
@@ -5137,6 +5179,19 @@ impl CompiledModel {
             None => demoted_all,
         };
         let conditions = initial_equations.len() + demoted_fixed.len();
+        // Which of the two roads this initialisation took, so that a
+        // corpus pass can say which running models stand on them and a
+        // comparison of numbers can be pointed at exactly those.
+        if std::env::var_os("OXIDELICA_ROAD_PROBE").is_some() {
+            let paired = condition_match
+                .as_ref()
+                .map_or(0, |matched| matched.paired_through_blocks);
+            eprintln!(
+                "road: without-section={} paired-through-blocks={}",
+                initial_equations.is_empty(),
+                paired
+            );
+        }
         // A state no initial equation says anything about is not an
         // unknown of the initialisation: nothing in the section can
         // move it, so it stands at the start value it was given. An

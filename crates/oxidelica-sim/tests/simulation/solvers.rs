@@ -1001,6 +1001,27 @@ fn a_step_over_the_edge_of_a_domain_says_so_rather_than_naming_the_matrix() {
 }
 
 #[test]
+fn a_residual_is_judged_against_what_the_inner_unknowns_it_reads_cancelled() {
+    // The cancellation of the test below, moved one storey away: `y`
+    // is an inner unknown of the torn block, assigned from the
+    // difference of two numbers of 2^22, and the row that is left
+    // reads only `z` and `x`, both near one. The rounding of the big
+    // numbers reaches the row through `y` and `z`, and the row by
+    // itself never met anything loud - so judged against its own
+    // numbers the ulp of 2^22 it carries was a distance from the
+    // solution, and the block was refused. `IMS_Start` stands on this
+    // edge with its node voltages behind currents of 3.8e6.
+    let source = "model L Real x(start = 1.0); Real y; Real z; \
+         parameter Real big = 4.194304e6; equation \
+         y = (big + x^3) - (big + x); z = y + x; z - x = 5e-10 + 1e-30*sin(z); \
+         annotation(experiment(StopTime=0.001, Interval=0.001)); end L;";
+    let result = run(source);
+    let column = result.columns.iter().position(|c| c == "x").expect("x");
+    let x = result.rows.last().expect("a row")[column];
+    assert!((x - 1.0).abs() < 1e-6, "x = {x}");
+}
+
+#[test]
 fn a_residual_that_cancelled_inside_one_side_is_judged_against_what_it_cancelled() {
     // How large a residual has to be before it means anything is set
     // by the numbers it was subtracted from, and the convergence test

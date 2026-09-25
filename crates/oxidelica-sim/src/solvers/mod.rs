@@ -49,6 +49,13 @@ fn loudness_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_LOUDNESS_FLOOR").is_some())
 }
 
+/// The loudness floor as it stood before the inner unknowns of a torn
+/// block carried theirs into the rows that read them.
+fn inner_loudness_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INNER_LOUDNESS").is_some())
+}
+
 /// Whether to take a Newton step whose direction the line search
 /// could not make descend. Off by default; the switch exists so that
 /// the two halves of a measurement come from one binary.
@@ -774,20 +781,39 @@ impl CompiledModel {
         // How loud each equation got on the way to its residual: the
         // largest magnitude any intermediate of either side reached.
         // Asked only where a solve is about to be refused - see
-        // `Code::loudest` for why the two sides alone cannot say it.
+        // `Code::loudest_carrying` for why the two sides alone cannot say it.
         let loudness = |values: &mut [f64], v: &[f64]| -> Vec<f64> {
             for (j, &index) in block.iter().enumerate() {
                 values[self.algebraic_slots[index]] = v[j];
             }
+            // An inner unknown is as loud as the arithmetic that made
+            // it, and a row reading it inherits that: the inner
+            // assignments run in order, so each is measured with what
+            // the earlier ones carried already in hand.
+            let mut carried: HashMap<usize, f64> = HashMap::new();
+            let carry = !inner_loudness_off();
             for (var, code) in inner {
-                values[self.algebraic_slots[*var]] = code.run(values, t);
+                let slot = self.algebraic_slots[*var];
+                let mut loud = 0.0f64;
+                let value = if carry {
+                    code.loudest_carrying(values, t, &mut loud, &|s| {
+                        carried.get(&s).copied().unwrap_or(0.0)
+                    })
+                } else {
+                    code.run(values, t)
+                };
+                values[slot] = value;
+                if carry {
+                    carried.insert(slot, loud);
+                }
             }
             residuals
                 .iter()
                 .map(|(lhs, rhs)| {
                     let mut loud = 0.0f64;
-                    lhs.loudest(values, t, &mut loud);
-                    rhs.loudest(values, t, &mut loud);
+                    let from = |s: usize| carried.get(&s).copied().unwrap_or(0.0);
+                    lhs.loudest_carrying(values, t, &mut loud, &from);
+                    rhs.loudest_carrying(values, t, &mut loud, &from);
                     loud
                 })
                 .collect()

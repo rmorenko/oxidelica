@@ -724,15 +724,36 @@ impl Code {
     /// This is not on the hot path: it is asked once, where the solve
     /// is about to be refused, to ask whether what is left is a
     /// distance from the solution or the floor of the arithmetic.
-    pub(crate) fn loudest(&self, values: &[f64], time: f64, loud: &mut f64) -> f64 {
+    ///
+    /// Reading a slot also brings the loudness the value in it was
+    /// computed at. A torn block's inner unknowns are assignments run
+    /// just before the residual, and a node voltage assigned from a sum
+    /// of four-million-ampere terms carries the rounding of those terms
+    /// into every row that reads it: the row itself only ever sees the
+    /// small answer. `carried` says, per slot, how loud the arithmetic
+    /// behind its value got, and zero for a slot nothing in the block
+    /// computed.
+    pub(crate) fn loudest_carrying(
+        &self,
+        values: &[f64],
+        time: f64,
+        loud: &mut f64,
+        carried: &dyn Fn(usize) -> f64,
+    ) -> f64 {
         let worth = match self {
             Code::Const(value) => *value,
-            Code::Slot(slot) => values[*slot],
+            Code::Slot(slot) => {
+                *loud = loud.max(carried(*slot));
+                values[*slot]
+            }
             Code::Time => time,
-            Code::Neg(inner) => -inner.loudest(values, time, loud),
-            Code::Not(inner) => truth(inner.loudest(values, time, loud) == 0.0),
+            Code::Neg(inner) => -inner.loudest_carrying(values, time, loud, carried),
+            Code::Not(inner) => truth(inner.loudest_carrying(values, time, loud, carried) == 0.0),
             Code::Bin(op, l, r) => {
-                let (a, b) = (l.loudest(values, time, loud), r.loudest(values, time, loud));
+                let (a, b) = (
+                    l.loudest_carrying(values, time, loud, carried),
+                    r.loudest_carrying(values, time, loud, carried),
+                );
                 match op {
                     BinOp::Add => a + b,
                     BinOp::Sub => a - b,
@@ -742,7 +763,10 @@ impl Code {
                 }
             }
             Code::Rel(op, l, r) => {
-                let (a, b) = (l.loudest(values, time, loud), r.loudest(values, time, loud));
+                let (a, b) = (
+                    l.loudest_carrying(values, time, loud, carried),
+                    r.loudest_carrying(values, time, loud, carried),
+                );
                 truth(match op {
                     RelOp::Lt => a < b,
                     RelOp::Le => a <= b,
@@ -764,11 +788,14 @@ impl Code {
             // does not hold the equations it belongs to.
             Code::Program(_, _, _, _, _) | Code::Outside(_, _, _) => self.run(values, time),
             Code::Unary(function, argument) => {
-                let x = argument.loudest(values, time, loud);
+                let x = argument.loudest_carrying(values, time, loud, carried);
                 apply_unary(*function, x)
             }
             Code::Binary(function, l, r) => {
-                let (a, b) = (l.loudest(values, time, loud), r.loudest(values, time, loud));
+                let (a, b) = (
+                    l.loudest_carrying(values, time, loud, carried),
+                    r.loudest_carrying(values, time, loud, carried),
+                );
                 apply_binary(*function, a, b)
             }
         };

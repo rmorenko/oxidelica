@@ -964,7 +964,18 @@ WORK_EXPANSIONS=94401873
 WORK_BODIES=1402993
 WORK_POINTS=32250719
 WORK_NEWTON=44495461
-WORK_JACOBIANS=324
+# Jacobians refreshed from /tmp/m278/k_on.txt, 605, after the m278
+# series; the off side of one binary (/tmp/m278/off.txt, all three
+# switches of the series set) printed 327. 275 of the 278 are named
+# model by model (/tmp/m278/jac.txt, `--only` on each running model
+# both ways), and the other three were not traced:
+# ComparisonQuasiStatic 8 to 124 and ComparisonPullInStroke 0 to 150,
+# both on the road that pairs a demoted coil current with its flux, so
+# the currents start at 1e-12 where they started at 1e-21 and BDF
+# takes 5642 points where it took 3105 - the same answer to 4e-6, at a
+# cost in one model; SMPM_Braking 0 to 7 and IMC_DOL 1 to 3, which run
+# now. Points and Newton steps rose 0.6% and 0.9%, inside the band.
+WORK_JACOBIANS=605
 WORK_PERCENT=5
 # The names looked up, held to a band of their own in parts per
 # million. Measured on 2026-09-25 over one binary of 3103c80 and `.msl`

@@ -259,6 +259,47 @@ fn an_initial_equation_may_hold_a_derivative_anywhere_in_it() {
     assert!((last[1] - 3.0).abs() < 1e-9, "x(1) = {}", last[1]);
 }
 
+/// A `fixed = true` on a variable index reduction demoted is solved for
+/// even where the model writes no `initial equation` at all.
+#[test]
+fn a_demoted_fixed_start_is_solved_without_an_initial_section() {
+    // `y` is computed from `x`, so its declared start is a condition on
+    // `x`: `y = 10` puts `x` at 2. With no section written the
+    // initialisation used to return at once, `x` stood at zero, and the
+    // check afterwards refused the model for disagreeing with itself.
+    let result = run("model M Real x; Real y(start = 10, fixed = true); \
+         equation der(x) = -x; y = x^3 + x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;");
+    let first = result.rows.first().unwrap();
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    assert!((first[x] - 2.0).abs() < 1e-9, "x(0) = {}", first[x]);
+}
+
+/// A demoted `fixed = true` that a simultaneous block computes still
+/// settles the state behind the block.
+#[test]
+fn a_demoted_fixed_start_behind_a_block_moves_its_state() {
+    // `i` and `j` are solved together, so the walk that stops at blocks
+    // found `i` reaching no state: `phi` was claimed by nothing, pinned
+    // at zero, and `i(start = 2)` refused against it. With `i = 2`,
+    // `j + 0.1 j^3 = 2` and `phi = 2 + j^3`.
+    let result = run(
+        "model M Real phi; Real i(start = 2, fixed = true); Real j; \
+         equation der(phi) = -phi; i + j^3 = phi; j - i + 0.1*j^3 = 0; \
+         annotation(experiment(StopTime = 1, Interval = 0.5, Tolerance = 1e-10)); end M;",
+    );
+    let first = result.rows.first().unwrap();
+    let at = |name: &str| first[result.columns.iter().position(|c| c == name).unwrap()];
+    assert!((at("i") - 2.0).abs() < 1e-6, "i(0) = {}", at("i"));
+    let j = at("j");
+    assert!((j + 0.1 * j.powi(3) - 2.0).abs() < 1e-6, "j(0) = {j}");
+    assert!(
+        (at("phi") - 2.0 - j.powi(3)).abs() < 1e-6,
+        "phi(0) = {}",
+        at("phi")
+    );
+}
+
 /// A parameter written `fixed = false` takes its value from the
 /// initialisation rather than from its declaration.
 #[test]
