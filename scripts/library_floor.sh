@@ -747,7 +747,19 @@ FLATTEN_FLOOR=919
 # (/tmp/m277/on.txt against /tmp/m277/off.txt, one binary, the off
 # side with OXIDELICA_NO_WRITERS_LENGTHS_BELOW). The run list gained
 # that name and lost none, and the flatten list did not move.
-RUN_FLOOR=596
+#
+# And run 606 is the runner's count of ec6c163 (job 108096607540 of
+# run 36142840775): its 595 of the red job of c5a80bc, plus the eleven
+# models that tree brought in - the eight of the fixed-start column,
+# ArmatureStroke, IMC_Characteristics, IMS_Characteristics, HeatLosses,
+# SimpleLiquidWater, TestCylinder, MixingUnitWithContinuousControl and
+# ComparisonPullInStroke, and the three of the inner loudness,
+# SMPM_Braking, Polyphase.Rectifier and IMC_DOL. The desk counts 607
+# on the same tree (/tmp/m278/k_on.txt), and the two run lists differ
+# by exactly three names: only the desk runs DrumBoiler and
+# SpringWithMass, only the runner runs Dimmer_RL. The floor is taken
+# from the lower machine. Flatten 919 is the same on both.
+RUN_FLOOR=606
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -784,8 +796,13 @@ RUN_FLOOR=596
 #
 # And runnable run 554 = 553 plus the quasi-static IMS_Start, set out
 # at `RUN_FLOOR` (/tmp/m277/on.txt).
+#
+# And runnable run 564 is the runner's count of ec6c163: its 553 of
+# the red job of c5a80bc plus the eleven set out at `RUN_FLOOR`, all
+# runnable examples. The desk counts 565, by the same three names;
+# runnable flatten is 804 on both.
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=554
+RUNNABLE_RUN_FLOOR=564
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
