@@ -21804,3 +21804,21 @@ runs under both rules, so the small witness for the Oscillator's
 matching is still to be found. The next step is the victim list of
 reduction for `PolyphaseInductance` under both rules, not another
 corpus pass.
+
+### `TestJunctionVolume`: a failed stage as a rejected step, probed
+
+With the start right, `TestJunctionVolume` runs to 1.01 under
+`--solver bdf` and is refused under auto at t = 8e-6, where one explicit
+stage hands the NASA search an enthalpy below its 200 K bracket. The
+explicit solver takes a failed stage as a rejected step only on a
+`reselectable` model (`dopri.rs:185`). Widened to every model under an
+uncommitted switch (binary `/tmp/m281/ox7`, patch
+`/tmp/m281/stage_rejects.patch`), the model runs under `--only`. The
+corpus pair did not finish: the old half ended at 919 / 627 as the
+tree does, and the switched half stood at `read 936 of 1034 models` for
+twelve minutes with its CPU time still growing, and was stopped. The
+stall bound that ends a shrinking step (`h < stop * 5e-14`) sits on the
+reselectable path only, so a model whose stage fails at every size
+shrinks without end. Widening the rejection needs that bound widened
+with it, and the model that wedged is named by the next `--slow` run
+of the switched binary rather than guessed. Not in the tree.
