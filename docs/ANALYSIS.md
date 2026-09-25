@@ -21331,3 +21331,29 @@ whether an unassigned function output is an error, or its type's
 default. It was reverted unmeasured. The next shift should read the
 specification on function outputs first, then decide on the three
 tests, then measure a pair.
+
+The other candidates of the queue, read and sorted, none changed:
+
+```text
+compile.rs:1906   a sensitivity for choosing whom to demote; 0 means
+                  "no pull", a ranking and not a value - legitimate
+compile.rs:2464   the start environment for the pivot and for which
+                  branch of a run-time `if` holds; a start written and
+                  not worked out reads as 0 here, programs: None -
+                  suspect, same breed as the discrete start, unmeasured
+compile.rs:3304   the guess for a `fixed = false` parameter the
+                  initialisation solves; 0 is a Newton start, and the
+                  solve decides the value - legitimate as a guess
+compile.rs:3941   the algebraic start after start, equation, nominal;
+                  0 is the first guess of a Newton block - legitimate
+walk.rs:171       an unbound local or output of a walked body; for an
+                  output, the finding above - suspect, blocked on policy
+walk.rs:191       an element the body never filled; same question
+solvers:808,822   loudness carried by inner assignments; 0 is "not
+                  loud", a floor test and not a value - legitimate
+```
+
+Two of the eight are suspect and neither is taken. `compile.rs:2464`
+feeds decisions (the pivot, a branch) rather than a result, so a wrong
+zero there shows up as a different reduction, and the instrument for
+that is the victim list, not a test on a number.
