@@ -21440,3 +21440,18 @@ line search that treats an inner refusal as the edge of a domain and
 retreats from it, as the NaN retreat does. The second is the
 cheaper to try, and the next shift can start there with
 `/tmp/m280/ox7` as the first link already built.
+
+Correction to the walk above, from the full trail
+(`/tmp/m280/ig7.txt`): the iteration does not crawl and give up. It
+converges in eleven steps to `volume.medium.T = 31.38338452461023`
+with |f| = 3.4e-11. That is a genuine second root of the NASA
+enthalpy polynomial, far below the 200 K the polynomial is fitted
+for. The block answers correctly for its equations and wrongly for
+the physics, and only the inner search's bracket, downstream, notices
+and refuses. So the third link is a question about which root: a
+block converging to a value outside the range its own functions are
+valid on. A retreat from an inner refusal would not reach it, since
+the block has already converged. What would reach it is a start that
+lies in the right basin, or a converged block checked against the
+brackets of the searches it feeds. Written down so that the next shift
+does not build the retreat.
