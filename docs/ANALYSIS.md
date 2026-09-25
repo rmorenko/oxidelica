@@ -21372,4 +21372,9 @@ guards against zero, but the start guess puts `s` on the unguarded
 side of the tear. This is the divisor-at-a-zero-start family that
 `a_block_does_not_divide_by_a_state_that_starts_at_zero` answers for
 states; here the divisor is an algebraic inside the block, and the
-guard does not reach it. Mapped.
+guard does not reach it. Mapped, and it is the model m207 parked
+beside `HeatingNPN` and `HeatingPNP`. Those two are the same shape:
+their block starts `vbc` and its kin at zero, `cbc` divides at zero
+and the first residual is NaN, and a retry at 1e-6 comes back as
+infinity (the trail's second `newton 0`). What this shift adds is
+only the name of the divisor in each.
