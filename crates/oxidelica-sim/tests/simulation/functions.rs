@@ -2612,3 +2612,52 @@ fn a_check_in_a_branch_not_taken_holds_its_fire() {
         assert!((row[r] - (row[time] + 3.0)).abs() < 1e-9, "{row:?}");
     }
 }
+
+/// The three roads a modifier takes more than one level down, each
+/// naming an array of records declared after the component it lands in.
+/// `size(v, 1)` of that array is four; before, the array reached the
+/// body with no length and the answer was the number of fields of one
+/// record, three, with nothing said. So the value is `v[1].b + 10*4`,
+/// and a three in its place is the old silence.
+fn an_array_named_two_levels_down(holder: &str) -> String {
+    format!(
+        "model T \
+         record R Real a; Real b; Real c; end R; \
+         function fr input R v[:]; output Real y; \
+           algorithm y := v[1].b + 10*size(v, 1); end fr; \
+         model PB0 Real p; end PB0; \
+         model PB1 extends PB0; end PB1; \
+         model B replaceable PB0 pb; end B; \
+         model M {holder} R vr[4]; \
+           equation for i in 1:4 loop vr[i].a = i; vr[i].b = 2*i; vr[i].c = 3*i; end for; \
+         end M; \
+         M u; \
+         annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+         end T;"
+    )
+}
+
+#[test]
+fn an_array_of_records_named_two_modifiers_down_keeps_its_length() {
+    let result = run(&an_array_named_two_levels_down("B b(pb(p = fr(vr)));"));
+    assert!((last_of(&result, "u.b.pb.p") - (2.0 + 10.0 * 4.0)).abs() < 1e-9);
+}
+
+#[test]
+fn an_array_of_records_named_through_an_extends_keeps_its_length() {
+    let result = run(&an_array_named_two_levels_down(
+        "extends B(pb(p = fr(vr)));",
+    ));
+    assert!((last_of(&result, "u.pb.p") - (2.0 + 10.0 * 4.0)).abs() < 1e-9);
+}
+
+#[test]
+fn an_array_of_records_named_in_a_redeclaration_keeps_its_length() {
+    // How the slip-ring machines write their rotor power:
+    // `extends Machine(redeclare PowerBalanceIMS powerBalance(final
+    // powerRotor = activePower(vr, ir)))`.
+    let result = run(&an_array_named_two_levels_down(
+        "extends B(redeclare PB1 pb(p = fr(vr)));",
+    ));
+    assert!((last_of(&result, "u.pb.p") - (2.0 + 10.0 * 4.0)).abs() < 1e-9);
+}

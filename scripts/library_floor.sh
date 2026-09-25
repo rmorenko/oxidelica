@@ -738,7 +738,16 @@ FLATTEN_FLOOR=919
 # /tmp/m276/off2.txt, one binary, the off side with
 # OXIDELICA_NO_BARE_ENCLOSING). The run list gained that name and lost
 # none, and the flatten list did not move.
-RUN_FLOOR=595
+#
+# And run 596 = 595 plus
+# Modelica.Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.InductionMachines.IMS_Start,
+# a runnable example, whose rotor power is handed through a
+# redeclaration two levels down and now reaches its body with the
+# length of `vr` rather than the number of fields of one `Complex`
+# (/tmp/m277/on.txt against /tmp/m277/off.txt, one binary, the off
+# side with OXIDELICA_NO_WRITERS_LENGTHS_BELOW). The run list gained
+# that name and lost none, and the flatten list did not move.
+RUN_FLOOR=596
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -772,8 +781,11 @@ RUN_FLOOR=595
 #
 # And runnable run 553 = 552 plus TestTwoPhaseStates, set out at
 # `RUN_FLOOR` (/tmp/m276/on2.txt).
+#
+# And runnable run 554 = 553 plus the quasi-static IMS_Start, set out
+# at `RUN_FLOOR` (/tmp/m277/on.txt).
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=553
+RUNNABLE_RUN_FLOOR=554
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

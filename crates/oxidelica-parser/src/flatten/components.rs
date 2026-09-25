@@ -1706,6 +1706,25 @@ pub(super) fn instantiate_one(
                         .or_insert_with(|| shape.clone());
                 }
             }
+            // The writer's lengths go on down with the modifier. A value
+            // handed two levels - `B b(pb(p = fr(vr)))` - is read inside
+            // `pb`, whose view of lengths was this class's table alone,
+            // and that table knows `vr` only if `vr` happened to be
+            // declared above `b`. Otherwise the array reached the body
+            // with no length, and `size(v, 1)` of an array of records
+            // answered the number of fields of one record: a wrong
+            // number with nothing said. What the modifiers name and the
+            // level above measured is carried on, and nothing else, so
+            // the table grows by the names asked about and not by the
+            // model.
+            let reaching;
+            let below_sizes = match writers_lengths_carried(sizes, outer_sizes, &mods) {
+                Some(widened) => {
+                    reaching = widened;
+                    &reaching
+                }
+                None => sizes,
+            };
             let child_env = Env {
                 overrides: &mods,
                 redeclares,
@@ -1713,7 +1732,7 @@ pub(super) fn instantiate_one(
                 broken: &[],
                 handed_shapes: &siblings_below,
                 sizing_shapes: &handed_below,
-                outer_sizes: sizes,
+                outer_sizes: below_sizes,
                 inside_a_parameter,
             };
             // The medium the model named, held while its own body is
@@ -1902,4 +1921,56 @@ fn sibling_written_value(
         .iter()
         .find(|(modified, _)| modified == member)?;
     const_eval(written, env)
+}
+
+/// Whether a modifier handed more than one level down loses the lengths
+/// of the class that wrote it, as it did before: the switch that lets
+/// one binary give both numbers.
+fn writers_lengths_below_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_WRITERS_LENGTHS_BELOW").is_some()
+}
+
+/// `here` widened by the lengths `writer` measured for the arrays the
+/// modifiers name, where `here` has not measured them itself; `None`
+/// where nothing is to be added.
+///
+/// A value handed more than one level down is read where it lands, and
+/// the arrays it names belong to the class that wrote it. Only the
+/// names the values write, and every prefix of them - `vr` in
+/// `vr[1].re` - are looked for, so the table grows by what is asked
+/// about and not by the model. What `here` already holds stays: the
+/// value is read there, and its own entry is the nearer one.
+pub(super) fn writers_lengths_carried(
+    here: &HashMap<String, Vec<i64>>,
+    writer: &HashMap<String, Vec<i64>>,
+    mods: &[(String, Expr)],
+) -> Option<HashMap<String, Vec<i64>>> {
+    if writers_lengths_below_off() || writer.is_empty() {
+        return None;
+    }
+    let mut wanted: Vec<&str> = Vec::new();
+    for (_, value) in mods {
+        value.collect_refs(&mut wanted);
+    }
+    let mut missing: Vec<(String, Vec<i64>)> = Vec::new();
+    for name in wanted {
+        let mut head = name;
+        loop {
+            if !here.contains_key(head) && !missing.iter().any(|(known, _)| known == head) {
+                if let Some(shape) = writer.get(head) {
+                    missing.push((head.to_string(), shape.clone()));
+                }
+            }
+            match head.rfind(['.', '[']) {
+                Some(at) => head = &head[..at],
+                None => break,
+            }
+        }
+    }
+    if missing.is_empty() {
+        return None;
+    }
+    let mut widened = here.clone();
+    widened.extend(missing);
+    Some(widened)
 }

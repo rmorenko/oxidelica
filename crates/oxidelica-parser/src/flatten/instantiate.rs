@@ -788,11 +788,37 @@ fn instantiate_bases(
                 .entry(format!("{prefix}{short}"))
                 .or_insert_with(|| shape.clone());
         }
+        // The same for the lengths a value handed to the base reads
+        // further down than the base itself: `extends Machine(
+        // powerBalance(final powerRotor = activePower(vr, ir)))` is
+        // read inside `powerBalance`, which sees the lengths of the
+        // class above it and not those of this one, where `vr` is
+        // declared. Without them the array of records reached the
+        // body with no length and `size(vr, 1)` counted its fields.
+        // The value may ride inside a redeclaration as well - that is
+        // where the machine writes it - so those modifiers are read
+        // too. Nothing is gathered where this class measured nothing
+        // to carry, which is most of them.
+        let outer_widened = match handed_shapes.is_empty() {
+            true => None,
+            false => {
+                let asked: Vec<(String, Expr)> = mods
+                    .iter()
+                    .cloned()
+                    .chain(
+                        base_redeclares[..extend.redeclares.len()]
+                            .iter()
+                            .flat_map(|redeclare| redeclare.modifiers.iter().cloned()),
+                    )
+                    .collect();
+                components::writers_lengths_carried(env.outer_sizes, &handed_shapes, &asked)
+            }
+        };
         let base_env = Env {
             overrides: &mods,
             handed_shapes: &handed_shapes,
             sizing_shapes: &sizing_shapes,
-            outer_sizes: env.outer_sizes,
+            outer_sizes: outer_widened.as_ref().unwrap_or(env.outer_sizes),
             redeclares: &base_redeclares,
             inners,
             broken: &extend.broken,

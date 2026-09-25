@@ -20384,3 +20384,163 @@ which set a value's length against the fields of one record.
 The first thing to take is the silence, not the two models: an array
 of records reaching a function input declared `[:]` with no length
 known should be refused rather than measured by its fields.
+
+## The m277 series: the doubled field traced, and taken as a length
+
+The probe of m276 left one question: where the three in
+`vr[1].b + 10*3` came from. It was none of the readers the map had
+left to read. `numbers_of_one` is not on the road at all. The call
+reaches the body with no shape for `vr` (`shapes = [[]]` at
+`inline_function`), and `size(vr, 1)` is answered in the array layer
+(`arrays.rs`, the `("size", 2)` arm). There `vr` is missing from the
+table of lengths and present in the table of records, which
+`collect_records` fills for an array of records as for one record. So
+the arm at `arrays.rs` line 315 expands the name into the three fields
+of one record, and the shape of that is `[3]`. The fields became a
+length because the name had lost its length and kept its type.
+
+The length was lost one level up. A modifier two levels deep is read
+inside the grandchild, whose view of the writer's lengths
+(`outer_sizes`) was the table of the class holding the component, and
+that table holds `vr` only if `vr` was declared above the component.
+That is the row of the m276 table where declaring `vr` first gave 4.
+Three roads carry such a value, and all three dropped the length:
+
+| road                                                | before | after |
+| --------------------------------------------------- | ------ | ----- |
+| `B b(pb(p = fr(vr)))`, `vr` after (`U.mo`, `W2.mo`) | 32     | 42    |
+| `extends B(pb(p = fr(vr)))` (`E.mo`)                | 32     | 42    |
+| `extends B(redeclare PB1 pb(p = fr(vr)))` (`D.mo`)  | 32     | 42    |
+| the first with `Real vr[4]` (`X.mo`)                | unbal. | 42    |
+
+The third is how `IM_SlipRing` writes its rotor power. The witnesses
+are in `/tmp/m277/ap/`, and the model is quoted in the m276 chapter.
+
+### The road taken: the length, not the refusal
+
+Road (b) of the brief. `writers_lengths_carried` (`components.rs`)
+widens the grandchild's view by the writer's lengths, but only for the
+names the modifiers write and every prefix of them. On the component
+road it reads the component's modifiers. On the `extends` road it
+reads the `extends` modifiers and those of its redeclarations too.
+Where this class holds its own entry for a name, that entry stays. The
+old road is behind `OXIDELICA_NO_WRITERS_LENGTHS_BELOW`. Three tests in
+`functions.rs` check the number, `v[1].b + 10*4`, one per road. All
+three fail under the switch and pass without it.
+
+Road (a), the refusal, is not needed for these three. It still stands
+for any other road that brings an array of records to a `[:]` input
+with no length: the arm at line 315 cannot tell an array of records
+from one record. That is the remaining silence, and nothing measured
+this shift reaches it (see below).
+
+### How many models ran with the wrong number
+
+A temporary counter sat on both `size` arms of the array layer. It
+fired wherever the name was in the records table and not in the
+lengths table, and it printed the model. It ran over one binary
+(`/tmp/m277/ox1`) on both sides, and it is taken out again.
+
+- Old road (`/tmp/m277/off.txt`): 4 firings in 2 models,
+  `Magnetic.QuasiStatic.FundamentalWave.Examples.BasicMachines.
+InductionMachines.IMS_Start` and `IMS_Characteristics`, twice each.
+  Neither ran before this change.
+- New road (`/tmp/m277/on.txt`): 0 firings.
+
+So on this road, none of the 595 models that ran before gave a wrong
+number. The silence was real, and it stood only in front of the two
+slip-ring examples. The counter covers the one shape that got the
+fields as a length. A plain `Real` array that lost its length the same
+way ends unbalanced, which is loud, as `X.mo` shows.
+
+A second temporary counter, on the widening itself (`/tmp/m277/ox2`,
+`/tmp/m277/widened.txt`), found that it fires in 168 models, 33 of
+which run (`/tmp/m277/widened_ran.lst`). None of the 33 moved in the
+pair, but a change in their numbers would not show there. So each was
+simulated to t = 0.05 from one binary (`/tmp/m277/ox3`), on both sides
+of the switch, and the results were compared (`/tmp/m277/cmp/`):
+
+- 26 give the same result at every point and every variable, to a
+  relative 1e-9.
+- 6 stop with the same refusal, word for word, on both sides. They are
+  the thyristor and rectifier bridges, `Rectifier12pulse` and both
+  `IMC_YD`, all at a Newton wall past the check's short run.
+- 1 is `IMS_Start`, the model gained. The off side refuses at
+  `vr[1].re.re`. The on side passes the check's short run and stops at
+  a Newton wall of the switch loop before t = 0.05, which is the next
+  wall for that model and not this family.
+
+So the widening changes no number that some model already gave.
+
+### The pair
+
+One binary, `/tmp/m277/ox1`. The off side ran with
+`OXIDELICA_NO_WRITERS_LENGTHS_BELOW`.
+
+| side | flatten | run | runnable flatten | runnable run | file                |
+| ---- | ------- | --- | ---------------- | ------------ | ------------------- |
+| off  | 919     | 595 | 804              | 553          | `/tmp/m277/off.txt` |
+| on   | 919     | 596 | 804              | 554          | `/tmp/m277/on.txt`  |
+
+The flatten lists are identical. The run lists differ by one name
+gained, the quasi-static `IMS_Start`. Nothing left either list.
+`IMS_Characteristics` gets past `vr[1].re.re` and stops at the next
+wall: `initial value of imsQS.gammar is fixed at 1.5707963...`, an
+initialisation refusal of its own family and not this one.
+
+### The m277 census
+
+`/tmp/m277/census.txt`, counted between the section markers and
+compared row by row with `/tmp/m276/census.txt`. The refused half is
+unchanged at 115 in 51 rows. The run half went from 325 in 166 rows to
+323 in 169 rows, and 115 + 323 = 438 = 1034 - 596. The parameters are
+27 + 7 as before. The movement, model by model (`/tmp/m277/raw.txt`):
+
+- `unknown variable X` 7 to 4. `TestTwoPhaseStates` runs (from m276,
+  measured between its commits). `TwoPhaseWater.BaseProperties` and
+  `ExtendedProperties` leave for two new unbalanced singles, as the
+  brief expected.
+- `unknown variable X in equation X` 3 to 1. The two slip-ring
+  examples leave: `IMS_Start` runs, and `IMS_Characteristics` becomes a
+  new single, `initial value of imsQS.gammar is fixed at 1.5707963...
+but the constraints require 0`.
+
+That is three new single rows and two models fewer, which is the whole
+difference. Nothing moved that this change and the known m276 moves
+do not name.
+
+### The m277 probe of `unknown function linspace`
+
+With the list done, the census's single `unknown function` row was
+probed. The four rows of `unknown function X` are named in
+`/tmp/m277/raw.txt`. Three are parked already: `firstTick` and
+`previous` twice under Clocked, and `pre` in `AST_BatchPlant.InnerTank`,
+raised by the run's evaluator (`code.rs` line 554). The fourth is
+`ModelicaTest.Math.Random.TestSpecial`, refused at t = 0 with `unknown
+function linspace`.
+
+The smallest model that refuses the same way (`/tmp/m277/ls/L3.mo`) is
+a function called with no arguments from a `when initial()`, with a
+protected `Real u[n] = linspace(-1, 1, n)` where `n` is an input with a
+default. Its body calls `Special.erf(u)` and `print`, so it cannot be
+inlined and is left for the run to walk. The walker in `walk.rs` lays
+out a local's elements only where `declared_length` can read the
+length (a number, `size(v, k)`, or a `:` over a written list), and
+spreads the binding only through `elements_of`, which knows names,
+written lists, walked calls and elementwise operations. `linspace` is
+none of these. So the local falls through to `number_of`, and the
+evaluator refuses the call by name. The variants:
+
+| local                                 | walked? | outcome              |
+| ------------------------------------- | ------- | -------------------- |
+| `u[n] = linspace(..., n)`, n an input | yes     | `unknown function`   |
+| `u[5] = linspace(..., 5)`             | yes     | `unknown variable u` |
+| the same, body inlinable (`L5`, `L6`) | no      | right: 2.5, and -0.5 |
+
+The second row is its own finding: with the length known and the
+binding not spreadable, the walk lays each element at zero
+(`walk.rs` line 157) and then reads `u` whole. Both are refusals, not
+silent numbers. Parked with the map: the fix is `linspace` in
+`elements_of` plus `declared_length` reading an input's own default.
+Those are two links, and after them `TestSpecial` meets `erf` over an
+array in the walker, which is not probed yet.
