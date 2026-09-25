@@ -221,7 +221,7 @@ fn a_walked_body_carries_arrays() {
         "model M function power input Real v[:]; input Real i[size(v, 1)]; input Real a; \
          output Real p; \
          protected Integer rounds; \
-         algorithm rounds := 0; \
+         algorithm rounds := 0; p := 0; \
          while rounds < 1 and a > 0 loop p := v * i; rounds := rounds + 1; end while; end power; \
          Real y; equation y = power({1, 2 * time}, {3, 4}, time); \
          annotation(experiment(StopTime = 1, Interval = 1)); end M;",
@@ -251,7 +251,7 @@ fn a_walked_body_says_what_it_cannot_carry() {
     let model = parse_model(
         "model M function odd input Real v[:]; input Real a; output Real y; \
          protected Integer k; \
-         algorithm k := 0; while k < a loop y := v[k]; k := k + 1; end while; end odd; \
+         algorithm k := 0; y := 0; while k < a loop y := v[k]; k := k + 1; end while; end odd; \
          Real y; equation y = odd({1, 2}, time); \
          annotation(experiment(StopTime = 1, Interval = 1)); end M;",
     )
@@ -280,6 +280,32 @@ fn a_walked_body_says_what_it_cannot_carry() {
         .simulate()
         .expect_err("three long, given two");
     assert!(trouble.to_string().contains("was given 2"), "{trouble}");
+}
+
+/// An output the body never assigned on the road it took is refused by
+/// name rather than answered as zero: MLS 3.6 section 12.4.4 makes it
+/// an error to return an uninitialized variable from a function. The
+/// only assignment here stands in a branch `time` never reaches, and
+/// before the refusal `x` came out 0 and the model ran on it.
+#[test]
+fn a_walked_body_refuses_an_output_it_never_assigned() {
+    let model = parse_model(
+        "model M function g input Real a; output Real y; protected Integer k; \
+         algorithm k := 0; while k < a loop k := k + 1; end while; \
+         if k > 100 then y := k; end if; end g; \
+         Real x; equation x = g(time); \
+         annotation(experiment(StopTime = 1, Interval = 1)); end M;",
+    )
+    .expect("parses");
+    let trouble = compile(&model)
+        .expect("compiles")
+        .simulate()
+        .expect_err("an output the road never assigned");
+    assert!(
+        trouble.to_string().contains("the output `y`")
+            && trouble.to_string().contains("not assigned"),
+        "{trouble}"
+    );
 }
 
 #[test]
@@ -323,7 +349,7 @@ fn a_walked_body_decides_over_arrays() {
     let result = run(
         "model M function paired input Real v[:]; input Real w[size(v, 1)]; input Real a; \
          output Real y; protected Real scaled[size(v, 1)]; Integer k; \
-         algorithm k := 0; \
+         algorithm k := 0; y := 0; \
          while k < 1 and a > 0 loop scaled := v .* 2; y := scaled * w + sum(3 .* w); \
            k := k + 1; end while; end paired; \
          Real y; equation y = paired({1, 2 * time}, {3, 4}, time); \

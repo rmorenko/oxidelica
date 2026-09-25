@@ -23,6 +23,24 @@ const MAX_WALK: usize = 64;
 /// sentence beats ending with a hung process.
 const MAX_ROUNDS: usize = 10_000_000;
 
+/// What a scalar output nothing binds is laid out as before the body
+/// runs: a NaN with a payload of its own, so that one still standing
+/// after the run is known to be one the body never assigned. MLS 3.6
+/// section 12.4.4: "If no binding equation is given for a non-input
+/// component the variable is uninitialized ... It is an error to use
+/// (or return) an uninitialized variable in a function." It used to be
+/// laid out at zero, and a body whose only assignment to its output
+/// stood in a branch the road did not take answered 0 and the model
+/// ran on it.
+const UNASSIGNED: u64 = 0x7ff8_dead_0000_0001;
+
+/// Whether an unassigned output reads as zero, as it did before the
+/// refusal: `OXIDELICA_UNASSIGNED_OUTPUT_ZERO` keeps the old reading so
+/// one binary can be measured against itself.
+fn unassigned_is_zero() -> bool {
+    std::env::var_os("OXIDELICA_UNASSIGNED_OUTPUT_ZERO").is_some()
+}
+
 /// Where a walk left off: running on, out of a loop, or out of the
 /// function.
 #[derive(PartialEq)]
@@ -162,13 +180,18 @@ pub(crate) fn walk(
             }
             continue;
         }
+        let silent = if component.causality == Causality::Output && !unassigned_is_zero() {
+            f64::from_bits(UNASSIGNED)
+        } else {
+            0.0
+        };
         let start = component
             .binding
             .as_ref()
             .or(component.start.as_ref())
             .map(|expr| number_of(expr, &frame, programs, time, depth))
             .transpose()?
-            .unwrap_or(0.0);
+            .unwrap_or(silent);
         frame.numbers.insert(component.name.clone(), start);
     }
     run(&class.algorithm, &mut frame, programs, time, depth)
@@ -192,7 +215,17 @@ pub(crate) fn walk(
     let mut answer = Vec::new();
     for output in outputs {
         match frame.lengths.get(&output.name).copied() {
-            None => answer.push(want(&output.name)),
+            None => {
+                let value = want(&output.name);
+                if value.to_bits() == UNASSIGNED {
+                    return err(format!(
+                        "the output `{}` of the walked body `{name}` was not assigned \
+                         on the road the body took at t = {time}",
+                        output.name
+                    ));
+                }
+                answer.push(value);
+            }
             Some(length) => {
                 answer.extend((1..=length).map(|index| want(&format!("{}[{index}]", output.name))))
             }
