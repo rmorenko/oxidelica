@@ -21361,3 +21361,15 @@ Two of the eight read here are suspect and neither is taken. `compile.rs:2464`
 feeds decisions (the pivot, a branch) rather than a result, so a wrong
 zero there shows up as a different reduction, and the instrument for
 that is the victim list, not a test on a number.
+
+`ThreeSprings`, the first of the seven NaN-before-any-step models,
+has `spring2.lineForce.e_rel_0[1] = r_rel_0[1] / s` in a torn block
+whose tear starts at zero. `s` is `if length > s_small then length
+else s_small`, with no start of its own and no nominal, so the block
+begins it at 0 and the division by it is 0/0 before Newton has moved
+anything. The line force's `s_small` is where the equation itself
+guards against zero, but the start guess puts `s` on the unguarded
+side of the tear. This is the divisor-at-a-zero-start family that
+`a_block_does_not_divide_by_a_state_that_starts_at_zero` answers for
+states; here the divisor is an algebraic inside the block, and the
+guard does not reach it. Mapped.
