@@ -21493,18 +21493,19 @@ a win, so nothing was measured on the corpus.
 
 The FluxTubes member of the underdetermined row (the six Spice3
 members are the parked zero-resistance family) was printed with its
-matrix under an uncommitted switch. It converges at t = 0 at the
-all-zero point and is refused by the determinacy check. Its 9 by 9
-Jacobian has full rank, with a smallest singular value of 7.8e-9 against
-0.59 for the next. The near-null direction is `measuringCoil.v`
-against `excitingCoil.v` in equal parts, and the rows that carry it
-are the flux derivatives of rows 2 to 4, where `excitingCoil.v`
-enters with a coefficient of 4.1e-8 and 2.7e-8: `der(Phi) = v / N`
-with a flux of order 1e-8 per volt. The coil voltages are coupled to
-the rest of the block only through a coefficient the check's
-threshold, 1e-7 times the largest entry, reads as zero. So this is
-the units question the row and column equilibration already answers
-elsewhere, arriving at a check that scales rows and columns but then
-compares the smallest pivot with a fixed fraction of the largest
-entry. Not a wrong equation, and not taken: loosening the threshold
-would let genuinely underdetermined blocks through with it.
+matrix under an uncommitted switch, as the check holds it, after its
+own row and column scaling. It converges at t = 0 at the all-zero
+point and is refused by the determinacy check. That scaled 9 by 9
+matrix has full rank, with a smallest singular value of 7.8e-9
+against 0.59 for the next. The near-null direction is
+`measuringCoil.v` against `excitingCoil.v` in equal parts. The rows
+that carry it are the flux derivatives of rows 2 to 4, where
+`excitingCoil.v` stands at 4.1e-8 and 2.7e-8 even after scaling:
+`der(Phi) = v / N` with a flux of order 1e-8 per volt. The coil
+voltages are coupled to the rest of the block only through entries
+the check's threshold, 1e-7 times the largest entry, reads as zero.
+So equilibrating rows and columns did not bring these entries up,
+because each shares its row and its column with an entry of order
+one. That is a units question the equilibration does not reach. Not
+a wrong equation, and not taken: loosening the threshold would let
+genuinely underdetermined blocks through with it.
