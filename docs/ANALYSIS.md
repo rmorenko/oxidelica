@@ -21583,3 +21583,25 @@ The next shift's first question for these eight is how a declared
 start on a medium variable that is not a state is carried to the
 state that replaced it. For `U` and `m` that is `m =
 V*d(p_start, T_start)` and `U = m*u(p_start, T_start)`.
+
+The link below that, found with a print of the state starts
+(uncommitted, binary `/tmp/m280/oxh`): the start reader gives
+`junction.m` the value 2e-5 and `junction.U` 0.008733. With
+`fluidVolume = 20e-6` that is a density of exactly 1 and an internal
+energy of 436.6 J/kg. The density's 1 is the `start = 1` of the
+medium's `type Density` (`Media/package.mo`: `min = 0, max = 1.e5,
+nominal = 1, start = 1`), a type default rather than anything the
+model says. The reader treats a declared start as stated, so it takes
+that 1 in `m = fluidVolume * d` rather than working `d` out from
+`p_start` and `T_start` through `d = p/(R_s*T)`, the equation just
+beside it. The ideal gas at 3e5 Pa and 293 K has a density near 3.6.
+
+So the root of the second-root family is a start written on a type,
+standing in for one the model's own start values determine. The
+repair is to let a start that came from a type default give way to
+one the equations read from the model's declared starts. It changes
+what reduction and the start reader stand on for every medium in the
+library, so it is a definition-sized change. It needs a pair and the
+victim list, and this shift did not have the hour left for that
+honestly. Mapped with the small model named: `TestJunctionVolume`,
+states `junction.U` and `junction.m`, expected `m = 20e-6 * 3.57`.
