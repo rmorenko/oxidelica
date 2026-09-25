@@ -665,6 +665,12 @@ fn build_the_model(
         handed_shapes: &HashMap::new(),
         inside_a_parameter: false,
     };
+    // A model written inside a package that extends a medium - the
+    // examples of `Media.Examples.TwoPhaseWater` extend `StandardWater`
+    // and then declare their own models beside it - reads the medium's
+    // constants under that package, the way a component typed
+    // `Medium.BaseProperties` reads them under `Medium`.
+    let _asked = inlining::AskedAs::enclosing_package(top_class, registry);
     instantiate(registry, top_class, "", &env, &mut acc, 0)?;
 
     // `Connections.isRoot(frame_a.R)` is a question about the model as

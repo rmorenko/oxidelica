@@ -729,7 +729,16 @@ FLATTEN_FLOOR=919
 # as well (/tmp/m276/on.txt against /tmp/m276/off.txt, one binary, the
 # off side with OXIDELICA_NO_SCALAR_HANDED). The run list gained that
 # name and lost none, and the flatten list did not move.
-RUN_FLOOR=594
+#
+# And run 595 = 594 plus
+# Modelica.Media.Examples.TwoPhaseWater.TestTwoPhaseStates, a runnable
+# example, written inside a package that extends the water medium and
+# now read under that package, so `ph_explicit` is the medium's `true`
+# and not a name nothing declares (/tmp/m276/on2.txt against
+# /tmp/m276/off2.txt, one binary, the off side with
+# OXIDELICA_NO_BARE_ENCLOSING). The run list gained that name and lost
+# none, and the flatten list did not move.
+RUN_FLOOR=595
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -760,8 +769,11 @@ RUN_FLOOR=594
 #
 # And runnable run 552 = 551 plus Surfaces, set out at `RUN_FLOOR`
 # (/tmp/m276/on.txt).
+#
+# And runnable run 553 = 552 plus TestTwoPhaseStates, set out at
+# `RUN_FLOOR` (/tmp/m276/on2.txt).
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=552
+RUNNABLE_RUN_FLOOR=553
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and

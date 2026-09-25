@@ -2041,6 +2041,25 @@ fn a_local_array_is_sized_by_a_single_local_worked_out_before_it() {
 }
 
 #[test]
+fn a_model_written_inside_a_package_reads_what_the_package_extends_with() {
+    // `Media.Examples.TwoPhaseWater` extends the medium with `final
+    // ph_explicit = true` and declares its example models inside itself.
+    // The interface's equations ask for the constant by name, and a
+    // model reached with no dotted head had nothing holding the package
+    // that gave it a value: the run refused `unknown variable bp.flag`.
+    // Under the package, the flag is true and `x` is one more than time.
+    let source = "package P1 \
+         partial package Base constant Boolean flag; \
+           model BP Real x; equation if flag then x = 1 + time; else x = 2 + time; end if; end BP; \
+         end Base; \
+         extends Base(final flag = true); \
+         model T BP bp; annotation(experiment(StopTime = 0.01, Interval = 0.01)); end T; \
+         end P1;";
+    let result = run(source);
+    assert!((last_of(&result, "bp.x") - 1.01).abs() < 1e-9);
+}
+
+#[test]
 fn a_table_in_matrix_brackets_is_counted_along_either_side() {
     // `hasDensity = not (size(tableDensity, 1) == 0)` is how a
     // table-based medium says it was given a table; the width is asked

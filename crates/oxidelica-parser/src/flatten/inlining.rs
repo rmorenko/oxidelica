@@ -1114,6 +1114,38 @@ impl AskedAs {
         // are about to climb out of, so it is remembered here.
         AskedAs::under(&named.name)
     }
+
+    /// The package a top model is written in, where that package is
+    /// built on another.
+    ///
+    /// `Media.Examples.TwoPhaseWater` extends `StandardWater` and
+    /// declares its example models inside itself, beside a `redeclare
+    /// model extends BaseProperties`. What the medium's `extends` gave
+    /// its constants - `final ph_explicit = true` - is written on the
+    /// package, and a model reached by name alone has no dotted head
+    /// for [`AskedAs::resolving`] to keep. Held here, the equations the
+    /// model inherits from the interface read `ph_explicit` under the
+    /// medium rather than as a name nothing declares.
+    pub(super) fn enclosing_package(
+        class: &ClassDef,
+        registry: &HashMap<&str, &ClassDef>,
+    ) -> Option<AskedAs> {
+        if !bare_enclosing_open() {
+            return None;
+        }
+        let (head, _) = class.name.rsplit_once('.')?;
+        registry
+            .get(head)
+            .filter(|owner| owner.kind == ClassKind::Package && !owner.extends.is_empty())
+            .and_then(|_| AskedAs::under(head))
+    }
+}
+
+/// Whether a top model keeps the package it is written in as the name
+/// it was asked under. `OXIDELICA_NO_BARE_ENCLOSING` closes the road,
+/// so that one binary gives both numbers.
+fn bare_enclosing_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_BARE_ENCLOSING").is_none()
 }
 
 impl Drop for AskedAs {

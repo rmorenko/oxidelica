@@ -20279,3 +20279,48 @@ larger row kept its count. The parameters without a value went 35 to
 34, 27 service classes and 7 in the queue, Surfaces having been one of
 the eight. 115 + 325 = 440 = 1034 - 594, so the model left the census
 and did not reappear at another wall.
+
+## The m276 probe of `ph_explicit`: one line, where three were built
+
+With the list done early and the queue empty, the top of the census
+outside the parked families was `unknown variable ph_explicit`, three
+models of `Media.Examples.TwoPhaseWater`. That package extends
+`StandardWater` - whose own `extends` writes `final ph_explicit = true`
+
+- and declares its example models inside itself. A component typed
+  `Medium.BaseProperties` keeps `Medium` as the name its equations are
+  read under (`AskedAs::resolving`); a top model written inside the
+  package has no dotted head to keep, so the interface's equations asked
+  for `ph_explicit` with no medium standing and the name reached the run.
+
+The smallest model that refuses the same way (`/tmp/m276/ph/f.mo`,
+`F.P1.T`): a base package with `constant Boolean flag` and no value, a
+package `extends Base(flag = true)`, and a model inside it declaring
+`BP bp`. It refuses `unknown variable bp.flag`; given a default in the
+base, or named as `P5.BP` from outside, it runs.
+
+Three links were built walking the chain: a bare type name found
+through a base of the enclosing package, a `redeclare model extends`
+climbing into the base, and the top model itself. Probed one at a time
+behind switches from one binary, the third alone ran every small
+reproduction and `TestTwoPhaseStates`, so the first two were taken out
+again rather than committed: `build_the_model` holds the enclosing
+package as the asked-as name, where that package extends another.
+`OXIDELICA_NO_BARE_ENCLOSING` closes it.
+
+`TestTwoPhaseStates` run to t = 5 through a package extending
+`TwoPhaseWater` (`/tmp/m276/ph/tp.csv`) agrees at every one of the 53
+variables it shares with the same class used as a component by its
+dotted name (`/tmp/m276/ph/r3_5.csv`), which always ran: `T` 537.098 K,
+`d` 426.99, `x` 0.0277, phase 2. The other two models of the family
+now flatten past the name and stop at `unbalanced model` - they are
+`BaseProperties` with nothing fixing `p` and `h`, which is a model the
+library gives no equations for, and a refusal by right.
+
+The pair, one binary `/tmp/m276/ox2`, the off side with
+`OXIDELICA_NO_BARE_ENCLOSING=1`: off 919 flatten, 594 run, runnable 804
+and 552 (`/tmp/m276/off2.txt`); on 919, 595, 804, 553
+(`/tmp/m276/on2.txt`). Diffed both ways the flatten lists are identical
+and the run lists differ by one name gained,
+`Modelica.Media.Examples.TwoPhaseWater.TestTwoPhaseStates`. Nothing
+left either list.
