@@ -21289,3 +21289,17 @@ water hardly answers, while the energy balances that should fix it
 are spent on derivatives. That is a pairing question from index
 reduction, not a solver question, and a pressure-state vessel is the
 case the test was written to exercise.
+
+`RoomCO2` was taken one link further and then left. The NaN cell
+filled by a backward difference instead of a forward one (a step the
+other way stays inside the search's domain) gives an invertible
+matrix, and the block steps. The first step, though, takes the
+residual from 1.07e6 to 4.5e12 and the second to 3.2e29, and the
+damped iteration then crawls from 2.3e12 down to 1.85e12 over 50
+iterations and is refused as not converging. The block's start is
+far from its answer (`volume.ports_H_flow[2]` at 1000,
+`pipe.port_b.h_outflow` at 1e6, both guesses rather than values), so
+the NaN cell is the first link of a chain whose second is the start
+point. The same kind of wall parked for the Fluid Newton direction
+row in m216/m217. The experiment was reverted: a chain not walked to
+its end is not taken a link at a time.
