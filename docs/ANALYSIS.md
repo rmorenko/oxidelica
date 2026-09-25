@@ -21775,3 +21775,32 @@ before; without it the pump block's Newton hands `tsat` a pressure of
 and overshot, not a start below the triple point, so the first
 question for these seven is the step length of the block from a start
 near the answer, not the start.
+
+### The do-not-mention row: a zero coefficient, tried and parked
+
+Probed from the root `.msl` for the cheapest of the row's machines.
+`Spice3.Examples.Oscillator` is a block of one, `T1.irc`, refused as
+blind to itself. The equation matched to it is the transistor's
+`irc * p1.m_collectorResist = C.v - Cinternal`, and the collector
+resistance is `RC = 0` by default: the equation names `irc` through a
+coefficient of exactly zero. `GearType2` is the same shape by a
+different road (`bearingFriction.sa` appears only in relations and in
+branches of an `if` that the start selects away from it), and
+`Spice3BenchmarkDifferentialPair` stands one wall beyond on
+`der(Q2.vbx)`.
+
+The rule tried: the existing quench of `p * der(x)` for a parameter
+`p` worth exactly zero, widened to `p * x` for any factor. Under a
+switch, pair `/tmp/m281/on3.txt` against `off3.txt` from one binary
+(`/tmp/m281/ox6`): 627 to 623, Oscillator gained and five lost,
+`FundamentalWave` `IMC_Conveyor`, `IMC_Inverter`, `SMPM_VoltageSource`
+and the quasi-static `IMS_Start` and `PolyphaseInductance`. The first
+victim probed now stops at a Newton direction refusal in a block of
+`converter_m` fluxes and currents. Taking a name out of an equation
+is taking a definition away, and so it changes what matching and
+reduction stand on, as the note on definitions warns. Reverted, not in
+the tree. A twelve-line model with `i * Rc = v - vint` and `Rc = 0`
+runs under both rules, so the small witness for the Oscillator's
+matching is still to be found. The next step is the victim list of
+reduction for `PolyphaseInductance` under both rules, not another
+corpus pass.
