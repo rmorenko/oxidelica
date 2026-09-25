@@ -21477,3 +21477,14 @@ swings between 0.35 and 0.33 with a slow drift down, the same shape.
 1.6, 2.5e-5, 1.2e-9, which is a solve converging and the next event
 throwing it back. Different from the other two, and mapped by the
 numbers only.
+
+An experiment on the swing, reverted: counting it as circling when
+the residual has not fallen by half over two steps (switch
+`OX_TMP_SWING`, binary `/tmp/m280/oxd`, not committed) turns on the
+damped line search. With it `TestDensity` runs under `library check
+--only` (about sixty seconds) and `Bend` does not. The numbers of
+`TestDensity` could not be checked within the shift: `simulate` on
+the same model under the same switch made no visible progress in 90
+seconds of a 0.05 s run, which is a difference between the two paths
+the check does not have. A model that runs and cannot be read is not
+a win, so nothing was measured on the corpus.
