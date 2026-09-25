@@ -21725,3 +21725,53 @@ chosen by a pivot. Mapped, not changed.
 Instruments that got this far without the floors moving, because the
 runner has not counted the series yet: the floors are the next
 review's, from its verdict.
+
+### The census after the series
+
+Both halves, `/tmp/m281/census.txt` with the raw names in
+`/tmp/m281/raw.txt`, counted by section boundaries. The run half
+stands at 163 rows and 292 models, against 165 rows and 312 models in
+`/tmp/m279/census.txt`. The difference of twenty is the pair's ten
+plus the m280 series that ran between the two censuses. The loop rows
+added together are 91 over seven rows, against the 98 over eight the
+review counted before the series:
+
+```text
+                               m279   m281
+the Newton direction ...         24     19
+the equations of ... (blind)     20     18
+singular Jacobian ...            17     19
+`X` of algebraic loop ...        12     15
+algebraic loop ... (domain)      11      8
+underdetermined ...               7      7
+did not converge ...              4      5
+diverged ...                      3      -
+bracket (u_min and u_max)         5      2
+```
+
+The diverged row is empty and the bracket row fell from five to two,
+`TestJunctionVolume` and `IdealSteam` (the other two bracket names in
+the raw list, `RoomCO2WithControls` and
+`DynamicPipesWithTraceSubstances`, were never in the family and stand
+where they stood). The three diverged models moved into the Newton
+direction row, which kept its size only because traffic went both
+ways: seven names entered (the three ideal gases, `BranchingPipes17`,
+`BranchingPipes14`, `SeriesPipes2`, `TestMultiPortTraceSubstances`)
+and twelve left, five of them to the run list and seven to other walls
+by name (`PumpingSystem` to the singular Jacobian row,
+`TestWaterPumpCheckValve` to did-not-converge, `TestWaterPumpDefault`
+and `TestTemperature1` to IF97 range refusals at t = 0,
+`BranchingPipes18` to the domain row, `DynamicPipeClosingValve`,
+`SeriesPipes12` and `SeriesPipes13` to a refusal on the IF97 density
+equation). A water model refused because IF97 was asked about a
+pressure too low is the start reader now handing the water tables a
+start it reads rather than a type's 1, and whether those starts are
+right is the next question for that row.
+
+`TestWaterPumpDefault`, one probe further: under
+`OXIDELICA_TYPE_START_STATED` it stands at the Newton direction row as
+before; without it the pump block's Newton hands `tsat` a pressure of
+-97296 Pa at t = 0. That is a step the block took from a better start
+and overshot, not a start below the triple point, so the first
+question for these seven is the step length of the block from a start
+near the answer, not the start.
