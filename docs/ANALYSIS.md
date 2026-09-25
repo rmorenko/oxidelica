@@ -21514,13 +21514,15 @@ genuinely underdetermined blocks through with it.
 
 `structurally singular model: no equation determines vin.T0` (4 on
 the desk census `/tmp/m280/on2.txt`) is the pulse source's phase that
-m220 named: a `when` assigns it, reduction wants its derivative, and
+the section "Seventeen that no equation determines are two kinds"
+named: a `when` assigns it, reduction wants its derivative, and
 the zero that derivative is between events is the rule the charter
 parks. Unchanged.
 
 `the initialization problem is singular` (5: `AmplifierWithOpAmpDetailed`,
 `DemonstrateLightning`, the two lightning transmission lines and
-`SimpleAir`) is the row of the m233 zero-start table. Of the causes
+`SimpleAir`) is the row of the table in "Why eight initialisations
+come out singular". Of the causes
 named there, only the tank's was cured. One more cure was tried here
 and reverted: the column scaling the running solve already uses when
 `solve_linear` refuses (switch `OX_TMP_INIT_UNITS`, binary
