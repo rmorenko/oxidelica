@@ -21332,7 +21332,11 @@ default. It was reverted unmeasured. The next shift should read the
 specification on function outputs first, then decide on the three
 tests, then measure a pair.
 
-The other candidates of the queue, read and sorted, none changed:
+The queue named eight sites. `compile.rs:2706` is the discrete start
+taken above. The other seven, plus `compile.rs:1906`, which the queue
+did not name, were read and sorted and none changed. The table has
+seven lines for those eight sites, because `solvers:808,822` share a
+line:
 
 ```text
 compile.rs:1906   a sensitivity for choosing whom to demote; 0 means
@@ -21353,7 +21357,7 @@ solvers:808,822   loudness carried by inner assignments; 0 is "not
                   loud", a floor test and not a value - legitimate
 ```
 
-Two of the eight are suspect and neither is taken. `compile.rs:2464`
+Two of the eight read here are suspect and neither is taken. `compile.rs:2464`
 feeds decisions (the pivot, a branch) rather than a result, so a wrong
 zero there shows up as a different reduction, and the instrument for
 that is the victim list, not a test on a number.
