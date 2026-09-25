@@ -21531,3 +21531,31 @@ and reverted: the column scaling the running solve already uses when
 refuse with the same sentence. So the free names are free in earnest
 at the point the initialisation stands on, and are not an artefact of
 units. Recorded so the next reader does not try it.
+
+### The bracket row is the second-root family
+
+`The arguments u_min and u_max ... do not bracket the root` (5 on the
+desk census; by name in `/tmp/m279/raw.txt`: `IdealSteam`,
+`BranchingPipes15/16/17`, `TestJunctionVolume`,
+`DynamicPipesWithTraceSubstances`, `RoomCO2WithControls`) is the same
+family as the diverged row above, arriving without the NaN cell in
+front. Three were traced. `IdealSteam` converges its block to
+`volume.medium.T = 179.865`. `BranchingPipes15` and
+`TestJunctionVolume` converge to 31.3833845246, the same second root
+of the NASA air polynomial the ideal gases found, to every printed
+digit. Each is then refused by the inner temperature search whose
+bracket starts at 200 K. `TestJunctionVolume` is the smallest: a
+block of one, `junction.medium.T` from `h`, started at 293.15 with a
+residual of -2.09e5 J/kg. Its junction is `SteadyStateInitial`, so
+nothing fixes `h` at the start; `h` stands at whatever the plan
+reached, and the root the block finds for that `h` lies below the
+polynomial's range.
+
+So at least eight models across two census rows (three diverged,
+five bracket) share one question: why the enthalpy these blocks
+are handed is about 2e5 J/kg below the value at the start
+temperature, whether it is a start not worked out or a genuine state
+of a steady initial problem that is not solved first. That is the
+question to ask first next time, with `TestJunctionVolume` as the
+small model: `why junction.medium.h` and the initial equations of
+the junction.
