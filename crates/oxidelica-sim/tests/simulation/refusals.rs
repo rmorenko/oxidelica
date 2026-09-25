@@ -129,3 +129,19 @@ fn a_constant_a_constructor_says_nothing_about_is_refused_not_zeroed() {
         "the refusal names the field nothing gives a value to: {refusal}"
     );
 }
+
+#[test]
+fn the_size_of_a_record_is_refused_rather_than_counted_by_its_fields() {
+    // A name known only as one record spread into its fields, and
+    // `size` answered with how many there were. That is how an array
+    // of records that had lost its length gave three for four and ran.
+    // Now it is refused, and the refusal names the variable.
+    let why = parse_model(
+        "model M record R Real a; Real b; Real c; end R; \
+         R r(a = 1, b = 2, c = 3); Real y = size(r, 1) + time; end M;",
+    )
+    .expect_err("should have been refused while flattening")
+    .message;
+    assert!(why.contains("`size` of `r`"), "{why}");
+    assert!(why.contains("only as one record"), "{why}");
+}

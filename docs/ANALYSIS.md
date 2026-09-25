@@ -20562,3 +20562,23 @@ frame already holds, and `linspace` in `elements_of`. With both in,
 
 The second link is a parked family, so the chain was not taken. Its
 map is here, from the edits that were tried.
+
+### The guard: `size` of a record is refused
+
+The length now travels on the three roads found, but the arm that
+turned fields into a length still stood for any road not yet found. It
+is closed as well. `size` of a name the array layer knows only as one
+record, and not as a measured array, is now refused and names the
+variable (`fields_are_not_a_length`, `arrays.rs`). The old reading is
+behind `OXIDELICA_SIZE_OF_FIELDS`. A test in `refusals.rs` checks that
+the refusal comes and names `r`. Under the switch it fails, because the
+model flattens to `y = 3 + time`.
+
+Measured as a pair from one binary (`/tmp/m277/ox4`), with the off side
+under `OXIDELICA_SIZE_OF_FIELDS`: 919 flatten and 596 run on both sides
+(`/tmp/m277/g_on.txt`, `/tmp/m277/g_off.txt`). The flatten and run
+lists are identical, and identical to the lists after the length
+change. No model reached the guard, which agrees with the counter that
+fired nowhere on the new road. Nothing in the library ran on this
+reading, so the refusal costs nothing, and the next road that loses a
+length will say so rather than count fields.

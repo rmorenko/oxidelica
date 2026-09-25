@@ -943,6 +943,7 @@ pub(super) fn expand_call(
         }
         // How long an array is, which is a compile-time number.
         ("size", 1) => {
+            fields_are_not_a_length(&args[0], shapes)?;
             let shape = recur(&args[0])?.shape();
             Ok(Value::Array(
                 shape
@@ -952,6 +953,7 @@ pub(super) fn expand_call(
             ))
         }
         ("size", 2) => {
+            fields_are_not_a_length(&args[0], shapes)?;
             let shape = recur(&args[0])?.shape();
             let dimension = constant(&args[1])?;
             // A table block declares `table` empty and fills it from a
@@ -2797,4 +2799,31 @@ fn call_rewritten(expr: &Expr, into: &impl Fn(&str, &[Expr]) -> Option<Expr>) ->
         }
     }
     expr.map_children(&mut |held| call_rewritten(held, into))
+}
+
+/// Refuses `size` of a name this layer knows only as a record.
+///
+/// Such a name spreads into the fields of one record, so its shape is
+/// the number of fields. That number was answered as the length of an
+/// array: an array of records that had lost its length on the way down
+/// a modifier gave `size(vr, 1)` as three for a record of three, and a
+/// `Complex` as two. The model ran with a wrong number and nothing was
+/// said. A record is not an array either, so `size` of one is owed a
+/// refusal, and one that names the variable. `OXIDELICA_SIZE_OF_FIELDS`
+/// brings the old reading back so one binary can give both numbers.
+fn fields_are_not_a_length(arg: &Expr, shapes: &Shapes) -> Result<(), String> {
+    let Expr::Ref(name) = arg else {
+        return Ok(());
+    };
+    if shapes.sizes.contains_key(name)
+        || !shapes.records.contains_key(name)
+        || std::env::var_os("OXIDELICA_SIZE_OF_FIELDS").is_some()
+    {
+        return Ok(());
+    }
+    Err(format!(
+        "`size` of `{name}`, which is known here only as one record of `{}` and not as an \
+         array with a length",
+        shapes.records[name]
+    ))
 }
