@@ -355,7 +355,15 @@ FILES_FLOOR=2671
 # registers DFFREG, DFFREGL, DFFREGSRH, DFFREGSRL, DLATREG, DLATREGL,
 # DLATREGSRH and DLATREGSRL, whose loop is left on a flag. The desk
 # counts the same 944 on that tree (/tmp/m287/new.txt).
-FLATTEN_FLOOR=944
+#
+# And flatten 948 is the runner's count of d0a39b4 (job 108464947025 of
+# run 36263962445, /tmp/m289/runner_d0a.log), which covers eed1ce0,
+# 3bc838b and 06fc779, d0a39b4 being prose on top of them: 944 plus the
+# three BackSample examples, whose clocks can never tick at one instant,
+# and LinearColdWater, whose constant array is now read under the
+# medium. The desk counts the same 948 on that tree
+# (/tmp/m288/sub_new.txt).
+FLATTEN_FLOOR=948
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -837,7 +845,11 @@ FLATTEN_FLOOR=944
 # And run 651 is the runner's count of 307a790 (job 108441560249):
 # 643 plus the eight registers set out at `FLATTEN_FLOOR`, all of which
 # run. The desk counts 651 on the same tree (/tmp/m287/new.txt).
-RUN_FLOOR=651
+#
+# And run 655 is the runner's count of d0a39b4 (job 108464947025): 651
+# plus the four set out at `FLATTEN_FLOOR`, all of which run. The desk
+# counts 655 on the same tree (/tmp/m288/sub_new.txt).
+RUN_FLOOR=655
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -913,8 +925,13 @@ RUN_FLOOR=651
 # And runnable flatten 828 = 820 plus the eight registers, runnable run
 # 609 = 601 plus the same eight: the runner's count of 307a790, the
 # same as the desk's (/tmp/m287/new.txt).
-RUNNABLE_FLATTEN_FLOOR=828
-RUNNABLE_RUN_FLOOR=609
+#
+# And runnable flatten 832 = 828 plus the four set out at
+# `FLATTEN_FLOOR`, runnable run 613 = 609 plus the same four: the
+# runner's count of d0a39b4, the same as the desk's
+# (/tmp/m288/sub_new.txt).
+RUNNABLE_FLATTEN_FLOOR=832
+RUNNABLE_RUN_FLOOR=613
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
