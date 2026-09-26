@@ -22850,3 +22850,206 @@ names it is already exact. It was found with less than an hour of the
 shift left, so it is left as a map. The sibling row, "an array of 11
 written out" (three `ReferenceAir` tests), is refused at the same line
 and was not probed.
+
+## The m289 series: the named-argument chain, and a table of cells handed one value
+
+### The m288 verdicts and floors
+
+Both runs of the m288 series finished green: 36263826496 on c61fff2,
+which carries every code commit of the series, and 36263962445 on
+d0a39b4, the same with prose. The library job of the second (job
+108464947025, `/tmp/m289/runner_d0a.log`) counted 948 flatten and 655
+run, runnable 832 and 613, every file read: the desk's numbers exactly
+(`/tmp/m288/sub_new.txt`). The four floors go up by the four models the
+series won, the three `BackSample` examples and `LinearColdWater`. The
+names looked up came to 1783868420, 808 per million above the reference
+set on the desk, inside the band of 2000.
+
+### The m289 census
+
+Taken at the start of the shift on the tree that carries the whole m288
+series (`/tmp/m289/census.txt`, raw in `/tmp/m289/raw.txt`), counted
+between the section markers: refused 86 in 48 rows, flattened and not
+run 293 in 158 rows. The expectation was 86 in 47 and 293 unchanged.
+The sums hold; the rows do not, and both differences are named here.
+
+Refused half, against m288 (90 in 50), model by model from the raw
+lists:
+
+- the three `BackSample` models (Boolean, Integer, Real signals) left
+  the "partitions read each other's values within one tick" row, which
+  is gone;
+- `LinearColdWater` left the one-model "cannot add `X` (N) and `X`
+  (m.kg-N.sN)" row;
+- `MixIdealGasAir`, `FlueGas` and `MixtureGases` left "subscript N is
+  outside an array of N" and now stand at "an equation between shapes []
+  and [N]: `medium.R_s = medium.data.R_s*medium.X[1]`". The census
+  folds names into `X` and numbers into `N` but keeps an instance
+  prefix, so the family lands in three rows by wording: `medium.R_s`
+  (2), `mediumN.R_s` (2) and `volume.medium.R_s` (1). With the one
+  model the row held before, the family is five: the three that moved,
+  the one already there, and `SimpleNaturalGasFixedComposition`, which
+  moved into it from "an equation between shapes [N] and [N]". That
+  last move is the extra row: one wall one storey further on, not a new
+  wall.
+
+Run half, 293 on both sides, 158 rows against 160. Four models changed
+the wall they stand at, and three rows emptied into rows that already
+existed:
+
+- `TransformerTestbench` and `IMC_Transformer` left two one-model
+  "structurally singular" rows and now stop at "unknown variable
+  `c1.re` in equation ...", which grew from one to four (with
+  `TestComplexFunctions` and `TestComplexOperations`, the ComplexMath
+  pair of m288). One layer: an operator of an operator record applied
+  to a local record.
+- `CascodeCircuit` left "underdetermined algebraic loop" (7 to 6) and
+  stops at "unknown variable `int_f.m_corDepCap`".
+- `TestRegRoot2ZeroDerivative` changed wording inside the singular
+  family: from "cannot differentiate a call of several arguments" to
+  "cannot differentiate function `abs`".
+
+The four are the eed1ce0 to 06fc779 series taking these models one wall
+further; none of them ran before and none runs now.
+
+### The named-argument row: seven links, two models short
+
+The row "subscripts and arrays survive flattening only as scalars: `X`,
+a named argument" held `R134a1`, `R134a2` and `TestCheckValve`. The map
+of m288 named one link, and there were seven. Each was reproduced by a
+model of a dozen lines in `/tmp/m289/sub/` before it was touched, each
+is behind a key of its own, and each has a test that checks a number.
+
+1. A call left standing in the flat model kept its named argument
+   (`na.mo`). `put_named_arguments_in_place` gives every call of the
+   flat model the reordering carried bodies already had, before
+   `programs_used`. Key `OXIDELICA_NO_FLAT_NAMED_ORDER`. This alone
+   runs `TestCheckValve`.
+2. A record local written `sat(psat = p, Tsat = 0)` in a body had the
+   field read as a name nothing bound (`r.mo`). The field is bound to
+   the body's input where everything it reads is already bound. Key
+   `OXIDELICA_NO_RECORD_LOCALS_FROM_INPUTS`.
+3. The same local handed whole to a walked call, `bubbleEnthalpy(sat)`,
+   reached the run as the bare name `sat` (`r2.mo`). The local is
+   bound as the list of its fields, in the order the hand-over road
+   writes them, but never for a local the body writes to: bound before
+   the body runs, a later `sat.psat :=` would leave the whole at the
+   old value. That was a silent wrong number in the first build of this
+   link (`w.mo`: 7 where 43 is right), caught before any measurement
+   and held by `a_record_local_the_body_writes_is_not_bound_whole`,
+   which reads 7 without the guard.
+4. A walked body's own table, `constant Real hl_coef[:, :] = {...}`,
+   was laid into the frame as nothing (`t.mo`). `declared_table` lays
+   out a table of plain numbers row by row. Key
+   `OXIDELICA_NO_WALKED_TABLES`.
+5. A row of that table cut and handed on, `hl_coef[int, 1:4]`, reached
+   the evaluator whole (`s2.mo`). `elements_of` reads a slice with one
+   range or `:` axis. Key `OXIDELICA_NO_WALKED_SLICES`.
+6. `scalar(size(breaks))` in the interval search was never folded in a
+   walk (`u.mo`). Same key.
+7. `setSat_T`, written once in `PartialTwoPhaseMedium`, calls
+   `saturationPressure`, and carried out to the walk it resolves under
+   the interface: the partial base with no body, whose output nothing
+   assigns (`v.mo`, eighteen lines). This is not one line. A body is
+   carried under the name of the class that wrote it, and the medium
+   it was reached through is gone by then: `programs_used` keys bodies
+   by their registry name, and two media reaching the same base
+   function would need two copies. That is the architecture of the
+   carried road, the same `AskedAs` question the inlining road already
+   answers, and it is where the R134a pair stops.
+
+`TestCheckValve` runs. `R134a1` and `R134a2` stand at link 7.
+
+### The reference-air row: four links, two models run
+
+"an array of 11 written out" (`ReferenceAir_dT`, `_pT`, `_ph`) is the
+sibling the m288 map named and did not probe. One model per medium
+function (`/tmp/m289/ra/gen.sh`) found the first link, and dropping
+declarations from the whole test found the rest:
+
+1. `thermalConductivity` hands a polynomial `{b[5], b[4], ..., b[1]}`,
+   the body's own constants written out as a list; each element reached
+   the run as a subscript nobody resolved (`x.mo`). A list argument of
+   a walked call now has each element read by the frame. Same key as
+   the slices. The air's conductivity comes to 0.02625 W/(m K) at
+   298.15 K, which is the reference value.
+2. `specificEnthalpy_dT` builds its answer from
+   `h_props_dT(d, T, airBaseProp_dT(d, T))`; the auxiliary record reaches the run
+   written out and read at a number, `{d, T, R_s, ...}[5]`, and
+   `events.rs` refused the list. A list written out and read at whole
+   numbers is now the element (`picked`). Key
+   `OXIDELICA_NO_LITERAL_INDEX`.
+3. `setState_dTX` builds its state with the record's constructor, the
+   field `h` given as `specificEnthalpy_dT(d, T)`, and the call inside
+   the named argument kept its bare name. `qualified_in` now
+   walks into a named argument. Key `OXIDELICA_NO_NAMED_VALUES`.
+4. The constructor itself reached the walk as a function nobody had
+   heard of (`c.mo`). A record constructor in a carried body is written
+   out as its fields. Key `OXIDELICA_NO_WALKED_CONSTRUCTORS`.
+
+`ReferenceAir_pT` and `ReferenceAir_ph` run. `ReferenceAir_dT` stops
+at `unknown variable dT_explicit`: `specificEntropy` is written in
+`Air_Base` and reads the medium's constant, and carried to the walk
+without the medium it cannot. That is the same wall as link 7 of the
+R134a chain, reached from the other side: two families of the run half
+now wait on one architectural question, how a carried body keeps the
+medium it was asked through.
+
+### A partial function nobody wrote is named as that
+
+The `dynamicViscosity` row (4) refused honestly and named the wrong
+thing: an empty `State` said an argument was missing, a `State` with a
+field said the output was never assigned (`/tmp/m288/a.mo`, `b.mo`).
+The cause is a `partial` function with no body that no redeclaration
+filled. That is now what the refusal says: "function `X` is partial and
+nothing redeclared it with a body". Key
+`OXIDELICA_NO_UNWRITTEN_PARTIAL`. No count moves; the census rows
+"function `X` is missing its argument `X`" and "`X` never assigns its
+output `X`" lose these models to the new wording, and m290 should read
+that as a rename rather than as movement.
+
+### A table of cells handed one value: a silent wrong number
+
+Probing the battery row ("`OCV_SOC` has 6 element(s) but its value has
+348") found something worse than the row. A table of components with a
+modifier written over the table, `One cell[2, 2](cd = {{a0, b0}, {b0,
+a0}})`, gave every cell the record's defaults (`/tmp/m289/sub/bat6.mo`:
+`y = 1` in all four cells, where 2, 5, 5, 2 are right). The same with a
+plain parameter (`bat8.mo`) was refused rather than wrong. The HEAD
+binary gives the same wrong numbers; this is old.
+
+`array_element` cuts a modifier along the outer axis only, and a list
+of two rows is not as long as four cells, so the whole table was handed
+to each cell and read by its record fields as nothing. A table of
+components now takes the modifier an axis at a time; an axis the value
+cannot be cut along leaves the old road to decide. Key
+`OXIDELICA_NO_PER_AXIS_MODIFIERS`; the test
+`a_table_of_components_takes_its_modifier_cell_by_cell` reads 1 without
+it.
+
+In the standard library the only two-dimensional component array with
+a modifier not written `each` is the battery stack's
+`cell[stackData.Ns, stackData.Np](cellData = stackData.cellData)`. The
+stacks still refuse one step earlier, where the record array
+`stackData.cellData` itself is built by a comprehension and its matrix
+field measured whole (the 6 against 348 of the row); that next link is
+mapped and not taken.
+
+### The pair, three ways from one binary
+
+One binary (`/tmp/ox289n`), three passes over the library without the
+carved-out giants. Every key closed (`/tmp/m289/off.txt`): 948 flatten
+and 655 run, runnable 832 and 613, the m288 desk count line for line.
+Every key open (`/tmp/m289/on.txt`): 948 and 658, runnable 832 and 616.
+The run lists differ by `TestCheckValve`, `ReferenceAir_pT` and
+`ReferenceAir_ph` and by nothing else in either direction; the flatten
+lists are identical. Every key open but the per-axis modifier
+(`/tmp/m289/noaxis.txt`) is identical by name to every key open: that
+fix corrects a value and moves no model. Because several of these links
+change what a walked body reads, the Fluid and Media models that run were
+run one at a time both ways and their final points compared
+(`/tmp/m289/cmp/out.txt`). The comparison is slow beside the preflight,
+and at the push 35 of the 76 had been compared: 35 the same, 0
+different. The rest is left running and its file is where to look.
+
+The floors wait for the runner's count of this series.
