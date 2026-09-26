@@ -579,6 +579,49 @@ pub(super) fn instantiate_components(
                         sizes.is_empty() || component.each_modifiers.iter().any(|e| e == name);
                     let value = if spread_whole {
                         value
+                    } else if sizes.len() > 1 && per_axis_modifiers_open() {
+                        // A table of components takes its modifier a
+                        // row and then a column at a time: `cell[Ns,
+                        // Np](cellData = stackData.cellData)` hands the
+                        // cell at `[2, 1]` the entry at `[2, 1]`. Cut
+                        // along the outer axis alone, a list of rows
+                        // was never as long as the six cells, and every
+                        // cell was handed the whole table - which its
+                        // record fields then read as nothing and fell
+                        // back to their defaults, silently. An axis
+                        // the value cannot be cut along - a scalar that
+                        // spreads, a name nothing measures - leaves the
+                        // old road to decide, so nothing is read out of
+                        // a seat the value does not have.
+                        let at = index_tuples(&sizes)[position].clone();
+                        let mut cut = Some(value.clone());
+                        for (axis, index) in at.iter().enumerate() {
+                            let Some(before) = cut else { break };
+                            let after = array_element(
+                                &before,
+                                (*index - 1) as usize,
+                                sizes[axis] as usize,
+                                &sizes_here,
+                                &local_consts,
+                                registry,
+                                scope,
+                                imports,
+                            );
+                            cut = (after != before).then_some(after);
+                        }
+                        match cut {
+                            Some(element) => element,
+                            None => array_element(
+                                &value,
+                                position,
+                                element_count,
+                                &sizes_here,
+                                &local_consts,
+                                registry,
+                                scope,
+                                imports,
+                            ),
+                        }
                     } else {
                         array_element(
                             &value,
@@ -2014,4 +2057,11 @@ pub(super) fn writers_lengths_carried(
     let mut widened = here.clone();
     widened.extend(missing);
     Some(widened)
+}
+
+/// Whether a table of components takes an array modifier one element
+/// per cell. `OXIDELICA_NO_PER_AXIS_MODIFIERS` cuts along the outer axis
+/// alone, as before, so that one binary gives both numbers.
+fn per_axis_modifiers_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_PER_AXIS_MODIFIERS").is_none()
 }

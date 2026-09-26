@@ -1400,6 +1400,13 @@ fn inline_body(
     answer
 }
 
+/// Whether a partial function nobody redeclared is refused as that.
+/// `OXIDELICA_NO_UNWRITTEN_PARTIAL` gives the old refusals back, so that
+/// one binary gives both registers.
+fn unwritten_partial_named() -> bool {
+    std::env::var_os("OXIDELICA_NO_UNWRITTEN_PARTIAL").is_none()
+}
+
 /// The same, worked out rather than remembered.
 fn worked_body(
     class: &ClassDef,
@@ -1418,6 +1425,25 @@ fn worked_body(
     // answered there rather than walked.
     if let Some(answer) = body_written_elsewhere(class, args, shapes, consts, registry)? {
         return Ok(answer);
+    }
+    // A function its base left `partial` and nothing redeclared is a
+    // place kept for a body that never came. Refused as that, by name:
+    // what it used to hear depended on what the call happened to hand
+    // over - an empty state said an argument was missing, a full one
+    // said an output was never assigned - and neither named the cause.
+    if unwritten_partial_named()
+        && class.partial
+        && !class.external
+        && class.external_call.is_none()
+        && function_body(registry, class, 0).is_empty()
+        && function_components(registry, class, 0)
+            .iter()
+            .all(|held| held.causality != Causality::Output || held.binding.is_none())
+    {
+        return Err(format!(
+            "function `{}` is partial and nothing redeclared it with a body",
+            class.name
+        ));
     }
 
     // What a function takes and answers with may be written in a base
@@ -2438,6 +2464,13 @@ fn bare_record_constant(registry: &HashMap<&str, &ClassDef>, named: &str) -> Opt
     Some(Expr::Array(fields))
 }
 
+/// Whether a record local's field given by the body's inputs is bound
+/// to what the inputs were handed. `OXIDELICA_NO_RECORD_LOCALS_FROM_INPUTS`
+/// binds numbers only, so that one binary gives both numbers.
+fn record_locals_from_inputs_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_RECORD_LOCALS_FROM_INPUTS").is_none()
+}
+
 /// The fields of a record-typed argument that are single numbers.
 ///
 /// A field with dimensions is left out: what a caller handed over
@@ -2479,12 +2512,13 @@ fn record_locals_as_declared(
         };
         let mut known: HashMap<String, f64> = HashMap::new();
         for field in record_fields::record_components(registry, record, 0) {
-            let value = local
+            let modified = local
                 .modifiers
                 .iter()
                 .find(|(name, _)| name == &field.name)
-                .map(|(_, value)| value.clone())
-                .or(field.binding.clone());
+                .map(|(_, value)| value.clone());
+            let from_the_local = modified.is_some();
+            let value = modified.or(field.binding.clone());
             let Some(value) = value else { continue };
             let whole = format!("{}.{}", local.name, field.name);
             if bindings.contains_key(&whole) {
@@ -2495,6 +2529,19 @@ fn record_locals_as_declared(
                     if let Some(number) = const_eval(&value, &known) {
                         known.insert(field.name.clone(), number);
                         bindings.insert(whole, Expr::Number(number));
+                    } else if from_the_local && record_locals_from_inputs_open() {
+                        // A local written `sat(psat = p, Tsat = 0)` is
+                        // given its field by the body's own input, which
+                        // is no number but is bound by now. Only where
+                        // every name the value reads is one already
+                        // bound: a name of the body not bound yet is a
+                        // local, and its value is not known here.
+                        let mut read = Vec::new();
+                        value.collect_refs(&mut read);
+                        if read.iter().all(|name| bindings.contains_key(*name)) {
+                            let bound = substitute_refs(&value, bindings);
+                            bindings.insert(whole, bound);
+                        }
                     }
                 }
                 false => {
@@ -2519,7 +2566,51 @@ fn record_locals_as_declared(
                 }
             }
         }
+        // A local whose every field is bound by now is a record the
+        // body may hand on whole - `bubbleEnthalpy(sat)` - and a call
+        // left for the walk takes a record as its fields, in the order
+        // the hand-over road writes them. Bound under the bare name
+        // too, or `sat` left the body as a name nobody declares. Never
+        // for a local the body writes to: bound whole before the body
+        // runs, a later `sat.psat :=` would leave the whole standing at
+        // the old value, and that is a wrong number.
+        if record_locals_from_inputs_open()
+            && !bindings.contains_key(&local.name)
+            && !writes_to(&class.algorithm, &local.name)
+        {
+            let fields = record_fields::handed_record_fields(registry, record);
+            let values: Option<Vec<Expr>> = fields
+                .iter()
+                .map(|field| bindings.get(&format!("{}.{field}", local.name)).cloned())
+                .collect();
+            if let Some(values) = values.filter(|values| !values.is_empty()) {
+                bindings.insert(local.name.clone(), Expr::Array(values));
+            }
+        }
     }
+}
+
+/// Whether any statement of a body assigns `name` or a field of it.
+fn writes_to(body: &[Statement], name: &str) -> bool {
+    let hit = |target: &str| {
+        target == name
+            || target
+                .strip_prefix(name)
+                .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('['))
+    };
+    body.iter().any(|statement| match statement {
+        Statement::Assign(target, _, _) => hit(target),
+        Statement::TupleAssign(targets, _) => {
+            targets.iter().flatten().any(|(target, _)| hit(target))
+        }
+        Statement::If(branches) | Statement::When(branches) => {
+            branches.iter().any(|branch| writes_to(&branch.body, name))
+        }
+        Statement::For(_, _, inner) | Statement::While(_, inner) => writes_to(inner, name),
+        // A call on its own has no outputs taken, and the rest write
+        // nothing.
+        Statement::Call(..) | Statement::Assert(..) | Statement::Break | Statement::Return => false,
+    })
 }
 
 /// Every element of a value written out as a list, under the name it

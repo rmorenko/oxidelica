@@ -2901,3 +2901,173 @@ fn a_callers_local_named_like_the_callees_input_is_substituted_once() {
     assert_eq!(last_of(&result, "a"), -1.0);
     assert_eq!(last_of(&result, "b"), 15.0);
 }
+
+/// A loop the model decides keeps a body from being inlined, so each of
+/// these is walked by the run - the road the R134a medium takes.
+const WALKED: &str = "protected Real s; algorithm s := p; \
+     while s > 100 loop s := s/2; end while;";
+
+/// A named argument to a call left standing in the flat model reaches
+/// the walk in the seat the callee declares. The walk binds by position,
+/// and the name used to reach it whole and be refused as a subscript.
+#[test]
+fn a_named_argument_of_a_flat_call_is_seated_for_the_walk() {
+    let result = run(&format!(
+        "model M function f input Real p; input Real q = 2; output Real y; \
+           {WALKED} y := s + q; end f; \
+         Real x = f(p = 1 + time); Real z = f(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    // At t = 1 the input is 2, and the default `q` adds 2.
+    assert_eq!(last_of(&result, "x"), 4.0);
+    assert_eq!(last_of(&result, "z"), 4.0);
+}
+
+/// A record local declared `sat(psat = p, Tsat = 0)` takes its field
+/// from the body's input and goes whole to a walked call as its fields.
+#[test]
+fn a_record_local_given_by_an_input_reaches_a_walked_call() {
+    let result = run("model M record Sat Real psat; Real Tsat; end Sat; \
+         function hl input Sat sat; output Real y; protected Real s; \
+           algorithm y := 2*sat.psat + sat.Tsat; s := y; \
+           while s > 100 loop s := s/2; end while; end hl; \
+         function g input Real p; output Real y; \
+           protected Sat sat(psat = p, Tsat = 3); Real h = hl(sat); \
+           algorithm y := h; end g; \
+         Real x = g(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    assert_eq!(last_of(&result, "x"), 7.0);
+}
+
+/// A walked body's table of constants is laid into its frame, its rows
+/// can be cut and handed on, and a grid is measured by
+/// `scalar(size(b))` - how the R134a splines are evaluated.
+#[test]
+fn a_walked_body_reads_a_row_of_its_own_table() {
+    let result = run(&format!(
+        "model M function ev input Real x; input Real c[4]; output Real y; \
+           algorithm y := c[1] + x*(c[2] + x*(c[3] + x*c[4])); end ev; \
+         function fi input Real x; input Real[:] b; output Integer i; \
+           protected Integer n = scalar(size(b)) - 1; \
+           algorithm i := 1; while i < n and x >= b[i + 1] loop i := i + 1; end while; end fi; \
+         function g input Real p; output Real y; \
+           protected constant Real k[:, :] = {{{{1, 2, 3, 4}}, {{5, 6, 7, 8}}}}; \
+           constant Real br[:] = {{0, 1.5, 3}}; Integer i; \
+           {WALKED} i := fi(p, br); y := ev(p, k[i, 1:4]) + k[i, 2]; end g; \
+         Real x = g(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    // At p = 2 the second row: 5 + 12 + 28 + 64 = 109, and k[2, 2] = 6.
+    assert_eq!(last_of(&result, "x"), 115.0);
+}
+
+/// A record local the body writes to is not bound whole before the body
+/// runs: the whole would keep the value its declaration gave, and the
+/// walked call would read the old field. Refusing is allowed; the old
+/// field's 7 is not.
+#[test]
+fn a_record_local_the_body_writes_is_not_bound_whole() {
+    let source = "model M record Sat Real psat; Real Tsat; end Sat; \
+         function hl input Sat sat; output Real y; protected Real s; \
+           algorithm y := 2*sat.psat + sat.Tsat; s := y; \
+           while s > 100 loop s := s/2; end while; end hl; \
+         function g input Real p; output Real y; \
+           protected Sat sat(psat = p, Tsat = 3); \
+           algorithm sat.psat := 10*p; y := hl(sat); end g; \
+         Real x = g(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;";
+    let answer = compile(&parse_model(source).unwrap())
+        .map_err(|e| e.to_string())
+        .and_then(|model| model.simulate().map_err(|e| e.to_string()));
+    if let Ok(result) = answer {
+        assert_eq!(last_of(&result, "x"), 43.0);
+    }
+}
+
+/// A walked body builds its record with the record's constructor, the
+/// value of one field a call to another walked body - how the reference
+/// air writes `ThermodynamicState(d = d, T = T, h = specificEnthalpy_dT(d,
+/// T), ...)`. The constructor is written out as the fields and the call
+/// inside the named argument is named the way the run knows it.
+#[test]
+fn a_walked_body_builds_its_record_with_the_constructor() {
+    let result = run(&format!(
+        "model M record St Real d; Real h; end St; \
+         function hh input Real p; output Real h; {WALKED} h := 3*s; end hh; \
+         function mk input Real p; output St state; {WALKED} \
+           state := St(d = s, h = hh(s)); end mk; \
+         St st = mk(1.2 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    assert!((last_of(&result, "st.d") - 2.2).abs() < 1e-12);
+    assert!((last_of(&result, "st.h") - 6.6).abs() < 1e-12);
+}
+
+/// A list of a body's own constants written out as an argument - the
+/// reference air hands a polynomial `{b[5], b[4], ..., b[1]}` - has each
+/// element read from the frame.
+#[test]
+fn a_walked_body_hands_on_a_list_of_its_constants() {
+    let result = run(&format!(
+        "model M function ev input Real[:] c; input Real u; output Real y; \
+           algorithm y := 0; for j in 1:size(c, 1) loop y := y*u + c[j]; end for; end ev; \
+         function g input Real p; output Real y; \
+           protected final constant Real[3] b = {{1, 2, 3}}; {WALKED} \
+           y := ev({{b[3], b[2], b[1]}}, s); end g; \
+         Real x = g(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    // 3*4 + 2*2 + 1 at s = 2.
+    assert_eq!(last_of(&result, "x"), 17.0);
+}
+
+/// A call written as the value of a named argument inside a walked body
+/// is a call all the same, and is named the way the run knows it: left
+/// under the bare name it was written with, the walk had never heard of
+/// it.
+#[test]
+fn a_call_inside_a_named_argument_of_a_walked_body_is_known() {
+    let result = run(&format!(
+        "model M package P \
+           function hh input Real p; output Real h; {WALKED} h := 3*s; end hh; \
+           function add input Real p; input Real b; output Real y; {WALKED} y := s + b; end add; \
+           function g input Real p; output Real y; {WALKED} y := add(p = s, b = hh(s)); end g; \
+         end P; \
+         Real x = P.g(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;"
+    ));
+    // 2 + 3*2 at t = 1.
+    assert_eq!(last_of(&result, "x"), 8.0);
+}
+
+/// A table of components takes an array modifier one entry per cell.
+/// Cut along the outer axis alone, a list of rows was never as long as
+/// the four cells, every cell was handed the whole table, and each
+/// record field fell back to its default: 1 everywhere, silently.
+#[test]
+fn a_table_of_components_takes_its_modifier_cell_by_cell() {
+    let result = run("model M record Cell parameter Real Q = 1; end Cell; \
+         model One parameter Cell cd; Real y = cd.Q * time; end One; \
+         parameter Cell a0(Q = 2); parameter Cell b0(Q = 5); \
+         One cell[2, 2](cd = {{a0, b0}, {b0, a0}}); \
+         model Two parameter Real q = 1; Real y = q * time; end Two; \
+         Two plain[2, 2](q = {{2, 5}, {5, 2}}); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    for (name, want) in [
+        ("[1,1]", 2.0),
+        ("[1,2]", 5.0),
+        ("[2,1]", 5.0),
+        ("[2,2]", 2.0),
+    ] {
+        assert_eq!(
+            last_of(&result, &format!("cell{name}.y")),
+            want,
+            "cell{name}"
+        );
+        assert_eq!(
+            last_of(&result, &format!("plain{name}.y")),
+            want,
+            "plain{name}"
+        );
+    }
+}

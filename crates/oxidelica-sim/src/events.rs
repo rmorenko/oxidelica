@@ -180,6 +180,20 @@ impl EventRewrite<'_> {
                 Box::new(self.expr(a)?),
                 Box::new(self.expr(b)?),
             ),
+            // `{a, b, c}[2]`: a list written out and read at a number
+            // is the element at that number, whatever the list is. A
+            // record handed over as its fields and read by one of them
+            // arrives this way - the reference air's Helmholtz record,
+            // eleven fields, read as `f.tau` - and nothing before the
+            // run had taken the element out.
+            Expr::Index(base, subscripts)
+                if literal_index_open() && matches!(base.as_ref(), Expr::Array(_)) =>
+            {
+                match picked(base, subscripts) {
+                    Some(element) => self.expr(element)?,
+                    None => Expr::Index(Box::new(self.expr(base)?), subscripts.clone()),
+                }
+            }
             // `f(x)[2]` of a body the run walks: the call is looked
             // through and the subscript kept, since it says which
             // number of the answer this is.
@@ -552,5 +566,54 @@ impl CompiledModel {
             }
         }
         Ok(outcome)
+    }
+}
+
+/// Whether a list written out and read at a number is taken as the
+/// element there. `OXIDELICA_NO_LITERAL_INDEX` leaves it as written, so
+/// that one binary gives both numbers.
+fn literal_index_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_LITERAL_INDEX").is_none()
+}
+
+/// The element a list written out is read at, where every subscript is
+/// a whole number inside the list. Anything else - a subscript the run
+/// decides, one past the end - is `None`, and the list stays for the
+/// refusal that names it.
+fn picked<'a>(base: &'a Expr, subscripts: &[Expr]) -> Option<&'a Expr> {
+    let mut at = base;
+    for subscript in subscripts {
+        let Expr::Array(items) = at else {
+            return None;
+        };
+        let Expr::Number(index) = subscript else {
+            return None;
+        };
+        if index.fract() != 0.0 || *index < 1.0 {
+            return None;
+        }
+        at = items.get(*index as usize - 1)?;
+    }
+    Some(at)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A list written out and read at a whole number gives the element
+    /// there, a table read at two gives the element of the row, and a
+    /// subscript outside the list or not a number gives nothing - so the
+    /// list stays for the refusal that names it.
+    #[test]
+    fn a_list_read_at_a_number_is_its_element() {
+        let n = |x: f64| Expr::Number(x);
+        let list = Expr::Array(vec![Expr::Ref("a".into()), Expr::Ref("b".into())]);
+        assert_eq!(picked(&list, &[n(2.0)]), Some(&Expr::Ref("b".into())));
+        assert_eq!(picked(&list, &[n(3.0)]), None);
+        assert_eq!(picked(&list, &[n(1.5)]), None);
+        assert_eq!(picked(&list, &[Expr::Ref("i".into())]), None);
+        let table = Expr::Array(vec![list.clone(), Expr::Array(vec![n(5.0), n(6.0)])]);
+        assert_eq!(picked(&table, &[n(2.0), n(1.0)]), Some(&n(5.0)));
     }
 }

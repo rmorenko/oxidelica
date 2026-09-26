@@ -179,3 +179,27 @@ fn a_discrete_start_nobody_could_work_out_is_refused_rather_than_zero() {
         "{why}"
     );
 }
+
+/// A partial function nobody redeclared is refused as that, whatever
+/// the call hands it. The refusal used to follow the argument: an empty
+/// record said the argument was missing, a record with a field said the
+/// output was never assigned, and neither named the cause.
+#[test]
+fn a_partial_function_nobody_wrote_is_named_as_that() {
+    for field in ["", "Real T = 1;"] {
+        let why = parse_model(&format!(
+            "model M partial package Base \
+               replaceable record State {field} end State; \
+               replaceable partial function visc input State state; output Real eta; end visc; \
+             end Base; \
+             package Medium = Base; Medium.State state; Real eta = Medium.visc(state); \
+             annotation(experiment(StopTime = 0.01)); end M;"
+        ))
+        .expect_err("a body nobody wrote is refused")
+        .message;
+        assert!(
+            why.contains("`M.Base.visc` is partial and nothing redeclared it with a body"),
+            "{why}"
+        );
+    }
+}

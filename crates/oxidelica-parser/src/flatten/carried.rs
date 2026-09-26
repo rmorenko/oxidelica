@@ -426,6 +426,99 @@ fn qualified_calls(
         .collect()
 }
 
+/// Whether a call left standing in the flat model has its named
+/// arguments put in the seats its callee declares.
+/// `OXIDELICA_NO_FLAT_NAMED_ORDER` leaves them named, so that one
+/// binary gives both numbers.
+fn flat_named_order_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_FLAT_NAMED_ORDER").is_none()
+}
+
+/// Every call the flat model still makes, with its named arguments put
+/// in the seats the callee declares.
+///
+/// The walk binds what it is handed by position, and a body carried out
+/// to it already had its own calls reordered by [`qualified_in`]. A call
+/// standing in the flat model's own equations never went through that
+/// road: `f(p = 1 + time)` reached the run with the name still on its
+/// argument, and the run refused it as a subscript it could not carry.
+/// The R134a media and the check valve test stopped there. A call whose
+/// names do not fit the callee is left exactly as it was, for whatever
+/// reads it next to refuse by name.
+pub(super) fn put_named_arguments_in_place(model: &mut Model, registry: &HashMap<&str, &ClassDef>) {
+    if !flat_named_order_open() {
+        return;
+    }
+    fn seat(expr: &Expr, registry: &HashMap<&str, &ClassDef>) -> Expr {
+        let below = expr.map_children(&mut |child| seat(child, registry));
+        let Expr::Call(name, args) = below else {
+            return below;
+        };
+        if !args.iter().any(|arg| matches!(arg, Expr::NamedArg(..))) {
+            return Expr::Call(name, args);
+        }
+        // The flat model names what it calls the way the registry knows
+        // it: flattening qualified it on the way out.
+        match lookup(registry, &name, "", &[]).filter(|class| class.kind == ClassKind::Function) {
+            Some(class) => {
+                let args = in_declared_order(class, registry, args);
+                Expr::Call(name, args)
+            }
+            None => Expr::Call(name, args),
+        }
+    }
+    let mut fix = |expr: &mut Expr| *expr = seat(expr, registry);
+    for equation in model
+        .equations
+        .iter_mut()
+        .chain(model.initial_equations.iter_mut())
+    {
+        fix(&mut equation.lhs);
+        fix(&mut equation.rhs);
+    }
+    for (condition, _) in &mut model.asserts {
+        fix(condition);
+    }
+    for conditional in &mut model.conditional {
+        conditional.conditions.iter_mut().for_each(&mut fix);
+        for branch in &mut conditional.branches {
+            for equation in branch {
+                fix(&mut equation.lhs);
+                fix(&mut equation.rhs);
+            }
+        }
+    }
+    for clause in &mut model.when_clauses {
+        for branch in &mut clause.branches {
+            fix(&mut branch.condition);
+            for action in &mut branch.actions {
+                match action {
+                    WhenAction::Assign(_, value)
+                    | WhenAction::Reinit(_, value)
+                    | WhenAction::TupleAssign(_, value)
+                    | WhenAction::Assert(value, _) => fix(value),
+                    WhenAction::Call(name, args) => {
+                        if let Expr::Call(_, seated) =
+                            seat(&Expr::Call(name.clone(), args.clone()), registry)
+                        {
+                            *args = seated;
+                        }
+                    }
+                    WhenAction::Terminate(_) | WhenAction::Loop(_) | WhenAction::Choice(_) => {}
+                }
+            }
+        }
+    }
+    for component in &mut model.components {
+        for written in [&mut component.binding, &mut component.start]
+            .into_iter()
+            .flatten()
+        {
+            fix(written);
+        }
+    }
+}
+
 /// A call's arguments in the order the callee declares its inputs.
 ///
 /// What comes back has no `NamedArg` left in it where every name was
@@ -569,32 +662,13 @@ fn qualified_in(
 ) -> Expr {
     let recur = |inner: &Expr| qualified_in(inner, registry, scope, imports);
     match expr {
-        Expr::Call(name, args) => {
-            let of = lookup(registry, name, scope, imports)
-                .filter(|class| class.kind == ClassKind::Function);
-            let named = of
-                .map(|class| class.name.clone())
-                .unwrap_or_else(|| name.clone());
-            let args: Vec<Expr> = args.iter().map(recur).collect();
-            let args = match of {
-                Some(class) => records_spelled_out(class, registry, scope, imports, args),
-                None => args,
-            };
-            // A named argument is put in the seat the callee declares
-            // it in. The walk binds what it is handed by position -
-            // the frame is a list of inputs, and the name a call wrote
-            // is nothing to it - so `h_T(data = data, T = u)`, which
-            // is how every ideal gas reads its NASA coefficients, gave
-            // the walk `data` where `T` was declared and left `data`
-            // itself standing as a name the run never heard of. The
-            // inlining road already does this reordering; a body
-            // carried out to the walk never had it.
-            let args = match of {
-                Some(class) => in_declared_order(class, registry, args),
-                None => args,
-            };
-            Expr::Call(named, args)
+        Expr::Call(name, args) if record_constructors_open() => {
+            if let Some(fields) = constructed_record(name, args, registry, scope, imports) {
+                return Expr::Array(fields.iter().map(recur).collect());
+            }
+            qualified_call(name, args, registry, scope, imports)
         }
+        Expr::Call(name, args) => qualified_call(name, args, registry, scope, imports),
         Expr::Neg(inner) => Expr::Neg(Box::new(recur(inner))),
         Expr::Not(inner) => Expr::Not(Box::new(recur(inner))),
         Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(recur(l)), Box::new(recur(r))),
@@ -608,8 +682,123 @@ fn qualified_in(
             Box::new(recur(b)),
         ),
         Expr::Array(items) => Expr::Array(items.iter().map(recur).collect()),
+        // A call written as a named argument is a call all the same:
+        // the reference air builds its state as `ThermodynamicState(h =
+        // specificEnthalpy_dT(d, T), ...)`, and passed over here the
+        // call reached the walk under the bare name it was written with.
+        Expr::NamedArg(name, value) if named_values_open() => {
+            Expr::NamedArg(name.clone(), Box::new(recur(value)))
+        }
         _ => expr.clone(),
     }
+}
+
+/// Whether a call inside a named argument of a carried body is named the
+/// way the registry knows it. `OXIDELICA_NO_NAMED_VALUES` leaves it as
+/// written, so that one binary gives both numbers.
+fn named_values_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_NAMED_VALUES").is_none()
+}
+
+/// Whether a record built by its constructor inside a carried body is
+/// written out as its fields. `OXIDELICA_NO_WALKED_CONSTRUCTORS` leaves
+/// the call, so that one binary gives both numbers.
+fn record_constructors_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_WALKED_CONSTRUCTORS").is_none()
+}
+
+/// A call to a user function named the way the registry knows it, with
+/// its arguments in the seats the callee declares.
+fn qualified_call(
+    name: &str,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Expr {
+    let of =
+        lookup(registry, name, scope, imports).filter(|class| class.kind == ClassKind::Function);
+    let named = of
+        .map(|class| class.name.clone())
+        .unwrap_or_else(|| name.to_string());
+    let args: Vec<Expr> = args
+        .iter()
+        .map(|arg| qualified_in(arg, registry, scope, imports))
+        .collect();
+    let args = match of {
+        Some(class) => records_spelled_out(class, registry, scope, imports, args),
+        None => args,
+    };
+    // A named argument is put in the seat the callee declares it in.
+    // The walk binds what it is handed by position - the frame is a
+    // list of inputs, and the name a call wrote is nothing to it - so
+    // `h_T(data = data, T = u)`, which is how every ideal gas reads its
+    // NASA coefficients, gave the walk `data` where `T` was declared and
+    // left `data` itself standing as a name the run never heard of. The
+    // inlining road already does this reordering; a body carried out to
+    // the walk never had it.
+    let args = match of {
+        Some(class) => in_declared_order(class, registry, args),
+        None => args,
+    };
+    Expr::Call(named, args)
+}
+
+/// The fields a record constructor call in a carried body builds, in
+/// the order the walk holds a record: `ThermodynamicState(d = d, T = T,
+/// h = ..., p = ...)` becomes the list of its fields. The walk holds a
+/// record as an array and knows nothing of constructors, so the call
+/// used to reach it as a function nobody had heard of. Only a record of
+/// plain numbers every field of which the call gives or the declaration
+/// binds; anything else is left as the call it was.
+fn constructed_record(
+    name: &str,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Option<Vec<Expr>> {
+    let record =
+        lookup(registry, name, scope, imports).filter(|of| of.kind == ClassKind::Record)?;
+    let fields = record_fields::record_components(registry, record, 0);
+    let members = record_fields::handed_record_fields(registry, record);
+    if fields.len() != members.len()
+        || fields.iter().any(|field| !field.dimensions.is_empty())
+        || !record.components.iter().all(|member| {
+            reduces_to_primitive(registry, &member.type_name, &record.name, &record.imports)
+        })
+    {
+        return None;
+    }
+    let at = args
+        .iter()
+        .position(|arg| matches!(arg, Expr::NamedArg(..)))
+        .unwrap_or(args.len());
+    if args[at..]
+        .iter()
+        .any(|arg| !matches!(arg, Expr::NamedArg(..)))
+        || at > fields.len()
+    {
+        return None;
+    }
+    let mut out: Vec<Option<Expr>> = vec![None; fields.len()];
+    for (seat, arg) in args[..at].iter().enumerate() {
+        out[seat] = Some(arg.clone());
+    }
+    for arg in &args[at..] {
+        let Expr::NamedArg(given, value) = arg else {
+            return None;
+        };
+        let seat = fields.iter().position(|field| &field.name == given)?;
+        if out[seat].is_some() {
+            return None;
+        }
+        out[seat] = Some((**value).clone());
+    }
+    out.into_iter()
+        .zip(&fields)
+        .map(|(held, field)| held.or_else(|| field.binding.clone()))
+        .collect()
 }
 
 /// Whether a record constant of an enclosing package, handed by its

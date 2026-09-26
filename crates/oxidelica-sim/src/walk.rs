@@ -180,6 +180,27 @@ pub(crate) fn walk(
             }
             continue;
         }
+        if let Some(table) = declared_table(component) {
+            let (shape, numbers) = table;
+            let mut at = vec![1usize; shape.len()];
+            for number in numbers {
+                let subscripts: Vec<String> = at.iter().map(|index| index.to_string()).collect();
+                frame.numbers.insert(
+                    format!("{}[{}]", component.name, subscripts.join(",")),
+                    number,
+                );
+                for axis in (0..shape.len()).rev() {
+                    at[axis] += 1;
+                    if at[axis] <= shape[axis] {
+                        break;
+                    }
+                    at[axis] = 1;
+                }
+            }
+            frame.lengths.insert(component.name.clone(), shape[0]);
+            frame.shapes.insert(component.name.clone(), shape);
+            continue;
+        }
         let silent = if component.causality == Causality::Output && !unassigned_is_zero() {
             f64::from_bits(UNASSIGNED)
         } else {
@@ -300,6 +321,62 @@ struct Frame {
     /// Every dimension of an array of more than one, kept beside the
     /// first: `size(table, 2)` reads the second here.
     shapes: HashMap<String, Vec<usize>>,
+}
+
+/// A table a body declares with its numbers written out - `constant
+/// Real hl_coef[:, :] = {{...}, ...}`, the spline coefficients of the
+/// R134a saturation curves - as its shape and its numbers, rows one
+/// after another. Only a table of two or more dimensions whose every
+/// row is as long as the first and whose every element is a plain
+/// number: anything else is left for the ordinary layout to refuse.
+/// Laid out with nothing, such a table reached the evaluator whole at
+/// the first element the body read.
+fn declared_table(component: &Component) -> Option<(Vec<usize>, Vec<f64>)> {
+    if component.dimensions.len() < 2 || std::env::var_os("OXIDELICA_NO_WALKED_TABLES").is_some() {
+        return None;
+    }
+    fn gather(expr: &Expr, shape: &mut Vec<usize>, depth: usize, out: &mut Vec<f64>) -> Option<()> {
+        match expr {
+            Expr::Number(number) if depth == shape.len() => {
+                out.push(*number);
+                Some(())
+            }
+            Expr::Neg(inner) if depth == shape.len() => match inner.as_ref() {
+                Expr::Number(number) => {
+                    out.push(-number);
+                    Some(())
+                }
+                _ => None,
+            },
+            Expr::Array(items) if depth < shape.len() => {
+                if shape[depth] == 0 {
+                    shape[depth] = items.len();
+                }
+                if shape[depth] != items.len() || items.is_empty() {
+                    return None;
+                }
+                items
+                    .iter()
+                    .try_for_each(|item| gather(item, shape, depth + 1, out))
+            }
+            _ => None,
+        }
+    }
+    let written = component.binding.as_ref().or(component.start.as_ref())?;
+    // A dimension written as a number holds the table to it; one written
+    // `:` takes the length of what is written out.
+    let mut shape: Vec<usize> = component
+        .dimensions
+        .iter()
+        .map(|dimension| match dimension {
+            Expr::Number(length) if *length >= 1.0 => Some(*length as usize),
+            Expr::ColonSubscript => Some(0),
+            _ => None,
+        })
+        .collect::<Option<_>>()?;
+    let mut numbers = Vec::new();
+    gather(written, &mut shape, 0, &mut numbers)?;
+    Some((shape, numbers))
 }
 
 /// How long a declaration is, where it says so in numbers the body
@@ -434,6 +511,25 @@ fn to_scalar(
             })?;
             Expr::Number(length as f64)
         }
+        // `scalar(size(breaks))`: the length of a list, the one
+        // element of the one-element array `size` of a vector is.
+        // The R134a interval search counts its grid this way, and the
+        // flattener's fold of `scalar` never saw a body left to walk.
+        Expr::Call(name, args) if name == "scalar" && args.len() == 1 && walked_slices_open() => {
+            let length = match &args[0] {
+                Expr::Call(size, inner) if size == "size" && inner.len() == 1 => match &inner[0] {
+                    Expr::Ref(of) if frame.shapes.get(of).is_none_or(|shape| shape.len() == 1) => {
+                        frame.lengths.get(of).copied()
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            match length {
+                Some(length) => Expr::Number(length as f64),
+                None => Expr::Call(name.clone(), vec![recur(&args[0])?]),
+            }
+        }
         // A fold over an array is the fold over its elements.
         Expr::Call(name, args)
             if matches!(name.as_str(), "sum" | "product" | "min" | "max") && args.len() == 1 =>
@@ -494,6 +590,36 @@ fn to_scalar(
                                 .map(|index| Expr::Ref(format!("{held}[{index}]")))
                                 .collect(),
                         ))
+                    }
+                    // A list written out of the body's own elements -
+                    // `{b[5], b[4], b[3], b[2], b[1]}`, how the reference
+                    // air hands a polynomial its coefficients - has each
+                    // element read by the frame, a row at a time where
+                    // it is a table. Left as written, `b[5]` reached the
+                    // evaluator as a subscript nobody had resolved.
+                    Expr::Array(_) if walked_slices_open() => {
+                        fn each(
+                            item: &Expr,
+                            recur: &dyn Fn(&Expr) -> Result<Expr, SimError>,
+                        ) -> Result<Expr, SimError> {
+                            match item {
+                                Expr::Array(items) => Ok(Expr::Array(
+                                    items
+                                        .iter()
+                                        .map(|inner| each(inner, recur))
+                                        .collect::<Result<Vec<_>, SimError>>()?,
+                                )),
+                                one => recur(one),
+                            }
+                        }
+                        each(arg, &recur)
+                    }
+                    // A slice of a table goes over as its elements too.
+                    Expr::Index(..) if walked_slices_open() => {
+                        match elements_of(arg, frame, programs, time, depth)? {
+                            Some(items) => Ok(Expr::Array(items)),
+                            None => recur(arg),
+                        }
                     }
                     _ => recur(arg),
                 })
@@ -629,8 +755,81 @@ fn elements_of(
                 _ => None,
             }
         }
+        // `hl_coef[int, 1:4]`: one row of a table the body holds,
+        // picked by a subscript the body decides and cut by a range -
+        // how every R134a spline hands its four coefficients to the
+        // evaluator. One axis is a range or `:`, the others single
+        // numbers; the elements are the names the frame holds them by.
+        Expr::Index(base, subscripts) if walked_slices_open() => {
+            let Expr::Ref(name) = base.as_ref() else {
+                return Ok(None);
+            };
+            let Some(shape) = frame
+                .shapes
+                .get(name)
+                .cloned()
+                .or_else(|| frame.lengths.get(name).map(|length| vec![*length]))
+            else {
+                return Ok(None);
+            };
+            if shape.len() != subscripts.len() {
+                return Ok(None);
+            }
+            let cut = |axis: usize, subscript: &Expr| -> Result<Option<Vec<i64>>, SimError> {
+                Ok(match subscript {
+                    Expr::ColonSubscript => Some((1..=shape[axis] as i64).collect()),
+                    Expr::Range(from, None, to) => {
+                        let from = index_of(from, frame, programs, time, depth)?;
+                        let to = index_of(to, frame, programs, time, depth)?;
+                        Some((from..=to).collect())
+                    }
+                    _ => None,
+                })
+            };
+            let mut open: Option<(usize, Vec<i64>)> = None;
+            let mut fixed: Vec<Option<i64>> = Vec::new();
+            for (axis, subscript) in subscripts.iter().enumerate() {
+                match cut(axis, subscript)? {
+                    Some(range) if open.is_none() => {
+                        open = Some((axis, range));
+                        fixed.push(None);
+                    }
+                    Some(_) => return Ok(None),
+                    None => fixed.push(Some(index_of(subscript, frame, programs, time, depth)?)),
+                }
+            }
+            let Some((axis, range)) = open else {
+                return Ok(None);
+            };
+            if range.iter().any(|at| *at < 1 || *at as usize > shape[axis]) {
+                return err(format!(
+                    "`{name}` is cut outside its {} element(s) on axis {}",
+                    shape[axis],
+                    axis + 1
+                ));
+            }
+            Some(
+                range
+                    .into_iter()
+                    .map(|at| {
+                        let indices: Vec<String> = fixed
+                            .iter()
+                            .map(|index| index.unwrap_or(at).to_string())
+                            .collect();
+                        Expr::Ref(format!("{name}[{}]", indices.join(",")))
+                    })
+                    .collect(),
+            )
+        }
         _ => None,
     })
+}
+
+/// Whether a walk reads a slice of a table as its elements.
+/// `OXIDELICA_NO_WALKED_SLICES` leaves the slice whole, so that one
+/// binary gives both numbers.
+fn walked_slices_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_WALKED_SLICES").is_none()
 }
 
 /// A fold written out: `sum` of nothing is nothing, of one is itself.

@@ -496,6 +496,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // Whatever calls are still standing in the flat model are calls
     // nothing could inline. The bodies behind them travel with the
     // model, so the run can walk them for itself.
+    carried::put_named_arguments_in_place(&mut model, &registry);
     model.functions = carried::programs_used(&model, &registry)?;
     report_the_size(&model);
     Ok(model)
