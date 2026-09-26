@@ -54,6 +54,9 @@ pub struct Redeclare {
     pub type_name: String,
     /// Modifiers applied to the new type.
     pub modifiers: Vec<(String, Expr)>,
+    /// Which of those modifiers were written `each`: on a redeclared
+    /// array they reach every element whole rather than a slice apiece.
+    pub each_modifiers: Vec<String>,
     /// Whether this replaces a class alias rather than a component:
     /// `redeclare package Medium = Oil` swaps what the name `Medium`
     /// stands for inside the class that declared it replaceable.

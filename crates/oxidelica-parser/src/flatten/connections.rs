@@ -159,6 +159,51 @@ pub(super) fn expand_buses(
             }
         }
     }
+    // The connections that join one bus to another, with the side each
+    // end stands on: what a member of the pool is joined along.
+    let mut direct: Vec<(String, bool, String, bool)> = acc
+        .connects
+        .iter()
+        .filter(|(a, _, b, _)| index.contains_key(a.as_str()) && index.contains_key(b.as_str()))
+        .cloned()
+        .collect();
+    // Two buses joined join the buses they hold, name for name: a
+    // stack's bus holds a bus per cell, and `connect(stack.stackBus,
+    // transcription.stackBus)` says that the cell buses on either side
+    // are one - which a pool keyed by the outer buses alone never
+    // heard, so what the cells put on their buses never reached the
+    // block that reads them.
+    if bus_sides_open() {
+        let mut at = 0;
+        while at < direct.len() {
+            let (a, side_a, b, side_b) = direct[at].clone();
+            for held in &buses {
+                let Some(rest) = held.strip_prefix(&format!("{a}.")) else {
+                    continue;
+                };
+                let other = format!("{b}.{rest}");
+                if !index.contains_key(other.as_str()) {
+                    continue;
+                }
+                let known = direct
+                    .iter()
+                    .any(|(x, _, y, _)| (x == held && y == &other) || (x == &other && y == held));
+                if !known {
+                    direct.push((held.clone(), side_a, other, side_b));
+                }
+            }
+            at += 1;
+        }
+        for (a, _, b, _) in &direct {
+            let (ra, rb) = (
+                root(&mut parent, index[a.as_str()]),
+                root(&mut parent, index[b.as_str()]),
+            );
+            if ra != rb {
+                parent[ra] = rb;
+            }
+        }
+    }
     let mut groups: HashMap<usize, Vec<String>> = HashMap::new();
     for (i, bus) in buses.iter().enumerate() {
         let group = root(&mut parent, i);
@@ -222,9 +267,32 @@ pub(super) fn expand_buses(
                 instantiate(registry, class, &format!("{path}."), &env, acc, 0)?;
                 acc.connectors.insert(path.clone(), class_name.clone());
             }
-            // Matching members of joined buses are connected.
-            for path in &paths[1..] {
-                fresh.push((paths[0].clone(), false, path.clone(), false));
+            // Matching members of joined buses are connected - along
+            // the connections that joined the buses, each end on the
+            // side of the class boundary its bus was joined from. A
+            // star from the first bus with both ends called inside put
+            // a bus that is a port of the class writing the `connect`
+            // in its set twice, once from each side, and the set stated
+            // the same equality twice: every battery stack's cell bus
+            // was one equation over for each signal it carries.
+            match bus_sides_open() {
+                true => {
+                    for (a, side_a, b, side_b) in &direct {
+                        if root(&mut parent, index[a.as_str()]) == group {
+                            fresh.push((
+                                format!("{a}.{member}"),
+                                *side_a,
+                                format!("{b}.{member}"),
+                                *side_b,
+                            ));
+                        }
+                    }
+                }
+                false => {
+                    for path in &paths[1..] {
+                        fresh.push((paths[0].clone(), false, path.clone(), false));
+                    }
+                }
             }
             progress = true;
         }
@@ -294,6 +362,14 @@ pub(super) fn expand_buses(
         }
     }
     Ok(())
+}
+
+/// Whether the members of joined buses are joined along the bus
+/// connections with their sides. `OXIDELICA_NO_BUS_SIDES` joins them in
+/// a star from the first bus, all inside, as before, so that one binary
+/// gives both numbers.
+fn bus_sides_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_BUS_SIDES").is_none()
 }
 
 /// Whether an expression names exactly this variable.

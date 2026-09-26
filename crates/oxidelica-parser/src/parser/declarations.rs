@@ -397,8 +397,9 @@ impl Parser {
             // declaration goes. The pumps of the standard library ask
             // for their characteristics this way.
             let mut modifiers = Vec::new();
+            let mut each_modifiers = Vec::new();
             if self.peek() == &Token::LParen {
-                modifiers = self.modifier_list()?.0;
+                (modifiers, _, each_modifiers, _) = self.modifier_list()?;
             }
             if self.peek() == &Token::ConstrainedBy {
                 self.bump();
@@ -412,15 +413,17 @@ impl Parser {
                 name,
                 type_name: target,
                 modifiers,
+                each_modifiers,
                 class_level: true,
             });
         }
         let type_name = self.dotted_name("redeclared type")?;
         let name = self.ident("redeclared component name")?;
-        let modifiers = if self.peek() == &Token::LParen {
-            self.modifier_list()?.0
+        let (modifiers, each_modifiers) = if self.peek() == &Token::LParen {
+            let (modifiers, _, each_modifiers, _) = self.modifier_list()?;
+            (modifiers, each_modifiers)
         } else {
-            Vec::new()
+            (Vec::new(), Vec::new())
         };
         if self.peek() == &Token::ConstrainedBy {
             self.bump();
@@ -434,6 +437,7 @@ impl Parser {
             name,
             type_name,
             modifiers,
+            each_modifiers,
             class_level: false,
         })
     }

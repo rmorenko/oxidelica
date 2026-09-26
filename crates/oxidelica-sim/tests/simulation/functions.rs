@@ -3071,3 +3071,70 @@ fn a_table_of_components_takes_its_modifier_cell_by_cell() {
         );
     }
 }
+
+#[test]
+fn a_redeclared_array_of_components_takes_the_redeclarations_modifier_element_by_element() {
+    // The battery stacks replace their cells in an `extends` and write
+    // the cell data again on the replacement. Handed whole, that
+    // modifier outranked each cell's slice and the table of records
+    // was refused as the wrong length; `each` still spreads it whole.
+    let result = run("model M record Cd parameter Real Q = 1; \
+         parameter Real T[:, 2] = [0, 0.5; 1, 1]; end Cd; \
+         model Base parameter Cd cd; parameter Real g = 0; \
+         Real y = cd.Q + cd.T[2, 2] + g; end Base; \
+         model Cell extends Base; end Cell; \
+         model Stk parameter Cd cds[2]; replaceable Base cell[2](cd = cds); end Stk; \
+         model Stk2 extends Stk(redeclare Cell cell(cd = cds, each g = 10)); end Stk2; \
+         parameter Cd a(Q = 2, T = [0, 0.1; 0.5, 0.6; 1, 1]); \
+         parameter Cd b(Q = 5, T = [0, 0.2; 0.5, 0.7; 1, 1]); \
+         Stk2 st(cds = {a, b}); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    assert_eq!(last_of(&result, "st.cell[1].y"), 12.6);
+    assert_eq!(last_of(&result, "st.cell[2].y"), 15.7);
+}
+
+#[test]
+fn a_bus_array_joined_inside_a_component_states_each_signal_once() {
+    // Joined from inside its own class, a bus that is a port of that
+    // class stood in its set from both sides and stated every signal
+    // twice: one equation over per signal of every cell of a stack.
+    let result = run(
+        "model M connector Ro = output Real; connector Ri = input Real; \
+         expandable connector Cb Real v; end Cb; \
+         expandable connector Sb Cb cellBus[2, 1]; end Sb; \
+         block C parameter Real k = 1; Cb cellBus; \
+         Ro v = k * time; \
+         equation connect(v, cellBus.v); end C; \
+         model Stk C cell[2, 1](k = {{2}, {3}}); Sb stackBus; \
+         equation connect(cell.cellBus, stackBus.cellBus); end Stk; \
+         Stk st; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    assert_eq!(last_of(&result, "st.stackBus.cellBus[1,1].v"), 2.0);
+    assert_eq!(last_of(&result, "st.stackBus.cellBus[2,1].v"), 3.0);
+}
+
+#[test]
+fn two_buses_joined_join_the_buses_they_hold() {
+    // `connect(stack.stackBus, transcription.stackBus)` makes the cell
+    // buses on either side one; without that the block reading them
+    // was handed nothing and its gains were left undetermined.
+    let result = run(
+        "model M connector Ro = output Real; connector Ri = input Real; \
+         expandable connector Cb Real v; end Cb; \
+         expandable connector Sb Cb cellBus[2]; end Sb; \
+         block C parameter Real k = 1; Cb cellBus; \
+         Ro v = k * time; \
+         equation connect(v, cellBus.v); end C; \
+         model Stk C cell[2](k = {2, 5}); Sb stackBus; \
+         equation connect(cell.cellBus, stackBus.cellBus); end Stk; \
+         block Gain parameter Real k = 1; Ri u; Ro y; equation y = k * u; end Gain; \
+         block T Sb stackBus; Gain g[2](each k = 3); \
+         equation connect(g.u, stackBus.cellBus.v); end T; \
+         Stk st; T t; \
+         equation connect(st.stackBus, t.stackBus); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;",
+    );
+    assert_eq!(last_of(&result, "t.g[1].y"), 6.0);
+    assert_eq!(last_of(&result, "t.g[2].y"), 15.0);
+}

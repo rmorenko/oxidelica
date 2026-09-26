@@ -298,11 +298,13 @@ pub(super) fn instantiate_components(
         // A redeclaration from above replaces the type; its modifiers
         // come first so they win over the original declaration's.
         let mut extra_modifiers = Vec::new();
+        let mut redeclared_each: Vec<String> = Vec::new();
         let mut child_redeclares = Vec::new();
         if let Some(redeclare) = redeclares.iter().find(|r| r.name == component.name) {
             check_redeclare(registry, class, &component, redeclare)?;
             component.type_name = redeclare.type_name.clone();
             extra_modifiers.extend(redeclare.modifiers.iter().cloned());
+            redeclared_each.extend(redeclare.each_modifiers.iter().cloned());
         }
         // Redeclarations aimed at a component of this child travel on,
         // with the child's name stripped off the front.
@@ -547,6 +549,66 @@ pub(super) fn instantiate_components(
         // the redeclarations, the values, the starts, the connector -
         // and handing all eleven to a stage would say less than
         // leaving them where they were worked out.
+        // One element's slice of a modifier written over the whole
+        // array, a table taken an axis at a time.
+        let slice = |value: &Expr, position: usize| -> Expr {
+            if sizes.len() > 1 && per_axis_modifiers_open() {
+                // A table of components takes its modifier a
+                // row and then a column at a time: `cell[Ns,
+                // Np](cellData = stackData.cellData)` hands the
+                // cell at `[2, 1]` the entry at `[2, 1]`. Cut
+                // along the outer axis alone, a list of rows
+                // was never as long as the six cells, and every
+                // cell was handed the whole table - which its
+                // record fields then read as nothing and fell
+                // back to their defaults, silently. An axis
+                // the value cannot be cut along - a scalar that
+                // spreads, a name nothing measures - leaves the
+                // old road to decide, so nothing is read out of
+                // a seat the value does not have.
+                let at = index_tuples(&sizes)[position].clone();
+                let mut cut = Some(value.clone());
+                for (axis, index) in at.iter().enumerate() {
+                    let Some(before) = cut else { break };
+                    let after = array_element(
+                        &before,
+                        (*index - 1) as usize,
+                        sizes[axis] as usize,
+                        &sizes_here,
+                        &local_consts,
+                        registry,
+                        scope,
+                        imports,
+                    );
+                    cut = (after != before).then_some(after);
+                }
+                match cut {
+                    Some(element) => element,
+                    None => array_element(
+                        value,
+                        position,
+                        element_count,
+                        &sizes_here,
+                        &local_consts,
+                        registry,
+                        scope,
+                        imports,
+                    ),
+                }
+            } else {
+                array_element(
+                    value,
+                    position,
+                    element_count,
+                    &sizes_here,
+                    &local_consts,
+                    registry,
+                    scope,
+                    imports,
+                )
+            }
+        };
+        let extra_each: Vec<String> = redeclared_each;
         for (position, local_name) in element_names.iter().enumerate() {
             let flat_name = format!("{prefix}{local_name}");
             // This element's own modifiers: each value substituted and
@@ -577,72 +639,37 @@ pub(super) fn instantiate_components(
                     // with `m = 1`.
                     let spread_whole =
                         sizes.is_empty() || component.each_modifiers.iter().any(|e| e == name);
-                    let value = if spread_whole {
-                        value
-                    } else if sizes.len() > 1 && per_axis_modifiers_open() {
-                        // A table of components takes its modifier a
-                        // row and then a column at a time: `cell[Ns,
-                        // Np](cellData = stackData.cellData)` hands the
-                        // cell at `[2, 1]` the entry at `[2, 1]`. Cut
-                        // along the outer axis alone, a list of rows
-                        // was never as long as the six cells, and every
-                        // cell was handed the whole table - which its
-                        // record fields then read as nothing and fell
-                        // back to their defaults, silently. An axis
-                        // the value cannot be cut along - a scalar that
-                        // spreads, a name nothing measures - leaves the
-                        // old road to decide, so nothing is read out of
-                        // a seat the value does not have.
-                        let at = index_tuples(&sizes)[position].clone();
-                        let mut cut = Some(value.clone());
-                        for (axis, index) in at.iter().enumerate() {
-                            let Some(before) = cut else { break };
-                            let after = array_element(
-                                &before,
-                                (*index - 1) as usize,
-                                sizes[axis] as usize,
-                                &sizes_here,
-                                &local_consts,
-                                registry,
-                                scope,
-                                imports,
-                            );
-                            cut = (after != before).then_some(after);
-                        }
-                        match cut {
-                            Some(element) => element,
-                            None => array_element(
-                                &value,
-                                position,
-                                element_count,
-                                &sizes_here,
-                                &local_consts,
-                                registry,
-                                scope,
-                                imports,
-                            ),
-                        }
-                    } else {
-                        array_element(
-                            &value,
-                            position,
-                            element_count,
-                            &sizes_here,
-                            &local_consts,
-                            registry,
-                            scope,
-                            imports,
-                        )
+                    let value = match spread_whole {
+                        true => value,
+                        false => slice(&value, position),
                     };
                     (name.clone(), value)
                 })
                 .chain(fields_given.get(position).into_iter().flatten().cloned())
                 .collect();
+            // A redeclaration's own modifiers are cut the same way. The
+            // stacks of the battery library replace their table of
+            // cells in an `extends` and write the cell data again on
+            // the replacement - `redeclare Cell cell(cellData =
+            // stackData.cellData)` - and handed whole, that modifier
+            // outranked the slice the declaration gave each cell, so
+            // every cell was handed the whole table of records.
+            let element_extra: Vec<(String, Expr)> =
+                match sizes.is_empty() || !redeclare_slices_open() {
+                    true => extra_modifiers.clone(),
+                    false => extra_modifiers
+                        .iter()
+                        .map(|(name, value)| match extra_each.iter().any(|e| e == name) {
+                            true => (name.clone(), value.clone()),
+                            false => (name.clone(), slice(value, position)),
+                        })
+                        .collect(),
+                };
             let site = Site {
                 component: &component,
                 local_name,
                 flat_name: &flat_name,
-                extra_modifiers: &extra_modifiers,
+                extra_modifiers: &element_extra,
                 modifiers: &element_modifiers,
                 redeclares: &child_redeclares,
                 binding: element_bindings.as_ref().map(|items| &items[position]),
@@ -2064,4 +2091,12 @@ pub(super) fn writers_lengths_carried(
 /// alone, as before, so that one binary gives both numbers.
 fn per_axis_modifiers_open() -> bool {
     std::env::var_os("OXIDELICA_NO_PER_AXIS_MODIFIERS").is_none()
+}
+
+/// Whether a redeclared array of components takes the redeclaration's
+/// own modifiers one element apiece. `OXIDELICA_NO_REDECLARE_SLICES`
+/// hands each element the whole value, as before, so that one binary
+/// gives both numbers.
+fn redeclare_slices_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_REDECLARE_SLICES").is_none()
 }

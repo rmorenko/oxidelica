@@ -162,6 +162,7 @@ pub(super) fn qualify_redeclare(
         name: redeclare.name.clone(),
         type_name: target.name.clone(),
         class_level: redeclare.class_level,
+        each_modifiers: redeclare.each_modifiers.clone(),
         modifiers: redeclare
             .modifiers
             .iter()

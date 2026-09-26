@@ -339,6 +339,7 @@ fn settle_naming<'a>(
                 name: component.name.clone(),
                 type_name: component.type_name.clone(),
                 modifiers: component.modifiers.clone(),
+                each_modifiers: component.each_modifiers.clone(),
                 class_level: false,
             },
             registry,
@@ -368,6 +369,7 @@ fn settle_naming<'a>(
             // it: `redeclare function f = g(a = 1)` fills in one of
             // `g`'s inputs and leaves the rest to the call.
             modifiers: alias.modifiers.clone(),
+            each_modifiers: Vec::new(),
             class_level: true,
         });
     }
