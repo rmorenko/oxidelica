@@ -22504,8 +22504,8 @@ are two: the single `motor.smpm.inertiaRotor` row of
 ActuatorWithNoise, and a row of two step size underflows without the
 state re-selection note, which is the two `*Properties`. The Newton
 row goes from 21 to 22 with DryAir1, and MotorWithCurrentControl
-joins the `voltageQuasiRMSSensor` singular row, which goes from 1 to
-2. Rows 160 = 160 and models 290 + 4 - 1 = 293, both as printed.
+joins the `voltageQuasiRMSSensor` singular row, which goes from one
+to two. Rows 160 = 160 and models 290 + 4 - 1 = 293, both as printed.
 
 ### The DFF and DLAT row, taken
 
@@ -22576,3 +22576,24 @@ behind the wall all four call `realFFT`, which calls
 `Internal.rawRealFFT`, which is `ModelicaFFT_kiss_fftr` in C. That is
 the family of the parked external-C row, and the four stand or fall
 with the answer to that question rather than with the subscript.
+
+### The m287 pair, and the floors
+
+One binary (`/tmp/m287/ox_a`), the two sides one after the other: the
+old with `OXIDELICA_NO_LOOP_EXIT` set, the new with nothing
+(`/tmp/m287/old.txt`, `/tmp/m287/new.txt`). Flatten 936 to 944, run
+643 to 651, runnable 820 to 828 and 601 to 609. Diffed both ways, the
+flatten and run lists each gain the eight registers and lose nothing.
+
+The names looked up went from 1781541757 to 1786972232, 3048 per
+million, which is past the 2000 band; the rise is the eight models
+now flattening, and the reference moves to the new side with the
+arithmetic written beside it. The other work counts moved inside
+their bands.
+
+The floors raised in this series are the runner's count of the m286
+series: the library job of 563c39f printed 2671, 936, 643, runnable
+820 and 601, the desk's own numbers on that tree, so there was no
+lower of the two to take. The eight registers are not in any floor:
+the runner has not counted them yet, and the raise to 944 and 651 is
+in the queue.

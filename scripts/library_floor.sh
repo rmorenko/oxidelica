@@ -1123,7 +1123,16 @@ WORK_PERCENT=5
 # 36206714158) printed 1782930267, 2013 per million above 1779347953
 # and so red with every floor held. Against the new reference the
 # build machine stands 809 per million above and the desk at zero.
-WORK_NAMES=1781489445
+#
+# Moved to 1786972232 from /tmp/m287/new.txt, the m287 loop exit. One
+# binary printed 1781541757 with OXIDELICA_NO_LOOP_EXIT set
+# (/tmp/m287/old.txt) and 1786972232 without it, 3048 per million up, and
+# the flatten lists differ by the eight DFF and DLAT registers alone:
+# measured one at a time, the two DFFREGSR take 1.6 million names each,
+# the two DLATREGSR 1.1 million and the four plain ones 0.2 million,
+# where each had cost 0.12 million to refuse. That is the rise, bought
+# with eight models, and the old reference would have been red on it.
+WORK_NAMES=1786972232
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
