@@ -914,6 +914,7 @@ impl CompiledModel {
         let mut footing: Option<(Vec<f64>, Vec<f64>, f64)> = None;
         for iteration in 0..50 {
             oxidelica_parser::work::tick(oxidelica_parser::work::Step::Newton);
+            self.count_newton(t)?;
             let parts = residual_parts(values, &v);
             let f: Vec<f64> = parts.iter().map(|(lhs, rhs)| lhs - rhs).collect();
             if newton_trail() {
@@ -1725,7 +1726,7 @@ impl CompiledModel {
     /// method, re-selecting the states and continuing whenever the
     /// current selection stalls the run.
     pub fn simulate(&self) -> Result<SimResult, SimError> {
-        let mut outcome = self.run_segment()?;
+        let mut outcome = self.run_segment_counted()?;
         let mut merged: Option<SimResult> = None;
         let mut reselections = 0usize;
         let mut mode_changes = 0usize;
@@ -1786,10 +1787,52 @@ impl CompiledModel {
                         Some(merged) => append_segment(merged, stall.partial),
                         None => stall.partial,
                     });
-                    outcome = next.run_segment()?;
+                    outcome = next.run_segment_counted()?;
                 }
             }
         }
+    }
+
+    /// A segment, with the most Newton work any one of its output
+    /// intervals held printed afterwards where the instrument asks for
+    /// it. Printed whichever way the segment ended, since the models
+    /// that end in a refusal are the half the ceiling is chosen for.
+    fn run_segment_counted(&self) -> Result<AdaptiveOutcome, SimError> {
+        let outcome = self.run_segment();
+        if std::env::var_os("OXIDELICA_NEWTON_PEAK").is_some() {
+            let (held, at) = self.newton_peak.get();
+            eprintln!("newton-peak {held} at t = {at} in {}", self.name);
+        }
+        outcome
+    }
+
+    /// Count one Newton iteration against the output interval `t`
+    /// falls in, and refuse once the interval has held more than the
+    /// ceiling allows.
+    fn count_newton(&self, t: f64) -> Result<(), SimError> {
+        let window = self.step.max(1e-12);
+        let (mut start, mut held) = self.newton_window.get();
+        if !matches!(
+            (t - start).partial_cmp(&window),
+            Some(std::cmp::Ordering::Less)
+        ) {
+            start = t;
+            held = 0;
+        }
+        held += 1;
+        self.newton_window.set((start, held));
+        if held > self.newton_peak.get().0 {
+            self.newton_peak.set((held, start));
+        }
+        let most = self.max_newton_one_interval;
+        if held > most {
+            return err(format!(
+                "`{}` spent more than {most} Newton iterations between t = {start} and t = {t}, \
+                 one output interval",
+                self.name
+            ));
+        }
+        Ok(())
     }
 
     /// One integration attempt with the selected method; a stall comes

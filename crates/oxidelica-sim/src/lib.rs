@@ -380,6 +380,16 @@ pub struct CompiledModel {
     pub max_events_one_interval: usize,
     /// See [`CompiledModel::max_events_one_interval`].
     pub max_rows: usize,
+    /// How many Newton iterations one output interval may hold before
+    /// the run is refused. See [`MAX_NEWTON_ONE_INTERVAL`].
+    pub max_newton_one_interval: usize,
+    /// Where the current output interval of Newton work began, and
+    /// how many iterations it has held so far. Only the run touches
+    /// it, and a run has the model to itself.
+    newton_window: std::cell::Cell<(f64, usize)>,
+    /// The most Newton iterations any one output interval has held in
+    /// this segment, for the instrument that chooses the ceiling.
+    newton_peak: std::cell::Cell<(usize, f64)>,
 }
 
 /// What the adaptive solver came back with: either the finished run, or
@@ -552,6 +562,21 @@ const MAX_EVENTS_ONE_INTERVAL: usize = 10_000;
 /// than a simulation, and a refusal naming the model beats a machine
 /// out of memory with nothing said.
 const MAX_ROWS: usize = 2_000_000;
+
+/// How many Newton iterations one output interval may hold.
+///
+/// Unbounded by default, because measured no count can be one. The
+/// model this ceiling was built for, `BranchingPipes1` under the wide
+/// stage rejection, is not dear in iterations: its whole refusal
+/// takes 221 of them, at 0.37 s each, because every one walks the
+/// water formulation. Models that run hold far more in a single
+/// interval - `ControlledTanks` 453996, `Polyphase.Examples.Rectifier`
+/// 72315 - so a ceiling low enough to stop the one costs 42 of the
+/// others at 500 and 63 at 221 (`/tmp/m285/peaks_tagged.txt`). What
+/// the wedge spends is the price of one iteration, and a count of
+/// iterations cannot see a price. The knob stays so a probe can set
+/// it, and `OXIDELICA_NEWTON_PEAK` prints what each segment held.
+const MAX_NEWTON_ONE_INTERVAL: usize = usize::MAX;
 
 /// The ceilings in force, which the environment may raise for a run
 /// that genuinely wants them.

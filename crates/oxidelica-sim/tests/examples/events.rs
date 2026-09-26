@@ -427,3 +427,33 @@ fn a_when_at_the_start_sees_the_definitions_settled() {
     let last = out.rows.last().expect("the run has a row");
     assert_eq!(last[kept], 3.0, "the clause stored a half-built value");
 }
+
+/// A model whose every point solves a small nonlinear loop, so that
+/// the Newton work of one output interval is what a ceiling on it
+/// counts.
+fn a_loop_under_a_newton_ceiling(most: usize) -> Result<(), oxidelica_sim::SimError> {
+    let mut compiled = compile(
+        &oxidelica_parser::parse_model(
+            "model Cubic Real x(start = 1); Real y(start = 1); \
+             equation der(x) = -y; y^3 + y = x; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end Cubic;",
+        )
+        .unwrap(),
+    )
+    .expect("the model compiles");
+    compiled.max_newton_one_interval = most;
+    compiled.simulate().map(|_| ())
+}
+
+#[test]
+fn newton_work_past_its_ceiling_names_the_model_and_the_interval() {
+    // Unbounded, the loop converges at every point and the run ends.
+    a_loop_under_a_newton_ceiling(usize::MAX).expect("the loop solves");
+    // Held to three iterations in an interval, the first interval
+    // that needs more is refused, and the refusal says whose work it
+    // was, how much, and where in the run it stood.
+    let why = a_loop_under_a_newton_ceiling(3).unwrap_err().to_string();
+    assert!(why.contains("Cubic"), "{why}");
+    assert!(why.contains("more than 3 Newton iterations"), "{why}");
+    assert!(why.contains("t = "), "{why}");
+}

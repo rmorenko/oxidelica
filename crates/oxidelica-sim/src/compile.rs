@@ -4505,6 +4505,12 @@ pub(crate) fn compile_at(
             MAX_EVENTS_ONE_INTERVAL,
         ),
         max_rows: ceiling("OXIDELICA_MAX_ROWS", MAX_ROWS),
+        max_newton_one_interval: ceiling(
+            "OXIDELICA_MAX_NEWTON_ONE_INTERVAL",
+            MAX_NEWTON_ONE_INTERVAL,
+        ),
+        newton_window: std::cell::Cell::new((f64::NAN, 0)),
+        newton_peak: std::cell::Cell::new((0, f64::NAN)),
     };
     // States the model pins down itself: `fixed = true` says the start
     // value is an initial condition, not a guess Newton may move.
