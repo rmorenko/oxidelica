@@ -22790,8 +22790,12 @@ running models reached.
 The two ComplexMath tests still refuse, one link further on and on a
 fault this series did not make: `c1/Complex(0, 2)` inside a body
 reaches the flat model as the bare `c1` with zeros where its fields
-belong (`/tmp/m288/sub/cg.mo`, the same on HEAD). That link is the
-next one for the row.
+belong (`/tmp/m288/sub/cg.mo`, the same on HEAD). It is not the
+division: `zz*w` and `zz*Complex(0, 2)` with `zz` and `w` locals of the
+body fail the same way (`/tmp/m288/sub/cr.mo`, `cq.mo`), on HEAD as on
+the series' binary. An operator of an operator record applied to a
+body's own record local is the layer, and that link is the next one
+for the row.
 
 ### The ce66aca verdict: red on the clock alone
 
