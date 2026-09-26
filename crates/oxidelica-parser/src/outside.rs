@@ -19,6 +19,15 @@
 //! [`EXTERNAL.md`](../../../docs/EXTERNAL.md) says how this is meant to
 //! grow, and why the sandbox that will run the rest is not this.
 
+/// Whether a body written here folds as it did before it learned to
+/// take a matrix row by row where flattening folds it, and before the
+/// decomposition learned to leave a column of rounding alone.
+/// `OXIDELICA_OLD_OUTSIDE_FOLD` turns both back, so that one binary
+/// gives both numbers.
+pub fn old_outside_fold() -> bool {
+    std::env::var_os("OXIDELICA_OLD_OUTSIDE_FOLD").is_some()
+}
+
 /// Whether a body of this name is one written here.
 pub fn written_here(called: &str) -> bool {
     matches!(
@@ -318,6 +327,17 @@ pub fn singular_values(
         .map(|c| (0..columns).map(|r| f64::from(u8::from(r == c))).collect())
         .collect();
     let dot = |x: &[f64], y: &[f64]| x.iter().zip(y).map(|(a, b)| a * b).sum::<f64>();
+    // A column turned down to rounding has nothing left to be at right
+    // angles with: a matrix of less than full rank leaves as many such
+    // columns as it lacks rank, and turning one against another is
+    // rounding turned against rounding, which never settles. So a pair
+    // with a column that small is not turned. The mark is the square of
+    // what rounding leaves of the whole matrix, with room for the
+    // number of terms each product adds up.
+    let total: f64 = matrix.iter().map(|x| x * x).sum();
+    let spread = (f64::EPSILON * rows.max(columns) as f64).powi(2);
+    let negligible = total * spread;
+    let old = old_outside_fold();
     let mut converged = false;
     for _sweep in 0..100 {
         let mut turned = false;
@@ -327,6 +347,9 @@ pub fn singular_values(
                 let beta = dot(&w[j], &w[j]);
                 let gamma = dot(&w[i], &w[j]);
                 if gamma == 0.0 || gamma.abs() <= f64::EPSILON * (alpha * beta).sqrt() {
+                    continue;
+                }
+                if !old && (alpha <= negligible || beta <= negligible) {
                     continue;
                 }
                 turned = true;
@@ -881,6 +904,38 @@ mod tests {
         assert_eq!(answer("dgesvd", &[2.0, 2.0, 3.0]), None);
         assert_eq!(answer("dgesvd", &[0.0, 2.0]), None);
         assert_eq!(answer("dgesvd", &[1.5, 2.0, 3.0, 0.0, 4.0]), None);
+    }
+
+    /// A wide matrix of less than full rank converges, and the right
+    /// vectors past its rank are its null space.
+    #[test]
+    fn a_rank_deficient_matrix_is_decomposed_to_convergence() {
+        // `[B, B]` of a 3 by 3 `B`: six columns, rank three, so three
+        // columns are turned down to nothing, and nothing turned
+        // against nothing is rounding turned against rounding. The
+        // test library asks this of `nullSpace` over `[A1, A1]`.
+        let b = [4.0, -1.0, 2.0, 0.5, 3.0, -2.0, 1.0, 1.5, 5.0];
+        let matrix: Vec<f64> = (0..3)
+            .flat_map(|r| (0..6).map(move |c| b[r * 3 + c % 3]))
+            .collect();
+        let (sigma, u, vt, converged) = singular_values(&matrix, 3, 6);
+        assert!(converged, "a matrix of rank three did not converge");
+        assert_eq!(sigma.len(), 3);
+        assert!(sigma[2] > 1e-3, "the three kept values are not zero");
+        for (at, want) in matrix.iter().enumerate() {
+            let (i, j) = (at / 6, at % 6);
+            let got: f64 = (0..3)
+                .map(|k| u[i * 3 + k] * sigma[k] * vt[k * 6 + j])
+                .sum();
+            assert!((got - want).abs() < 1e-12, "{got} against {want}");
+        }
+        // The last three rows of `V^T` span the null space.
+        for k in 3..6 {
+            for r in 0..3 {
+                let product: f64 = (0..6).map(|c| matrix[r * 6 + c] * vt[k * 6 + c]).sum();
+                assert!(product.abs() < 1e-12, "A v = {product}");
+            }
+        }
     }
 
     /// The factorization LAPACK's `dgetrf` writes, its pivots, and the

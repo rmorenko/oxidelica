@@ -1978,6 +1978,48 @@ fn a_singular_value_decomposition_is_answered_here() {
     assert_eq!(last_of(&result, "ok"), 1.0);
 }
 
+/// A rank worked out by a `while` over the singular values of a matrix
+/// written in a body, the way `nullSpace` works out its own, and a
+/// decomposition of a wide matrix of less than full rank.
+const RANK_BY_SINGULAR_VALUES: &str = "package R \
+     function dgesvd input Real A[:, :]; \
+       output Real sigma[min(size(A, 1), size(A, 2))]; \
+       output Real U[size(A, 1), size(A, 1)] = zeros(size(A, 1), size(A, 1)); \
+       output Real VT[size(A, 2), size(A, 2)] = zeros(size(A, 2), size(A, 2)); \
+       output Integer info; \
+       protected Integer m = size(A, 1); Integer n = size(A, 2); \
+       Real Awork[size(A, 1), size(A, 2)] = A; \
+       Integer lwork = max(1, 5*size(A, 1) + 5*size(A, 2)); \
+       Real work[max(1, 5*size(A, 1) + 5*size(A, 2))]; \
+       external \"FORTRAN 77\" dgesvd(\"A\", \"A\", m, n, Awork, m, sigma, U, m, VT, n, \
+         work, lwork, info); \
+     end dgesvd; \
+     function rank input Real A[:, :]; output Integer r; output Integer info; \
+       protected Real s[2]; Real U[2, 2]; Real VT[4, 4]; Integer i = 2; \
+       algorithm (s, U, VT, info) := dgesvd(A); r := 0; \
+       while i > 0 loop if s[i] > 1e-10 then r := i; i := 0; end if; i := i - 1; \
+       end while; \
+     end rank; \
+     function check output Integer r; output Integer info; \
+       protected Real A[2, 4] = [1, 2, 1, 2; 2, 4, 2, 4]; \
+       algorithm (r, info) := rank(A); \
+     end check; \
+     model M Integer r; Integer info; \
+     algorithm when initial() then (r, info) := check(); end when; \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end R;";
+
+#[test]
+fn a_rank_is_worked_out_of_the_singular_values_of_a_written_matrix() {
+    // `[1, 2, 1, 2; 2, 4, 2, 4]` is one row twice over: rank one, and
+    // the decomposition converges although three of its four columns
+    // are turned down to rounding.
+    let result = run(RANK_BY_SINGULAR_VALUES);
+    assert_eq!(last_of(&result, "r"), 1.0);
+    assert_eq!(last_of(&result, "info"), 0.0);
+}
+
 /// A matrix handed to an input whose default is empty: the balancing
 /// of the standard library takes `B[size(A, 1), :] = fill(0.0,
 /// size(A, 1), 0)` and answers with `Bs[size(A, 1), size(B, 2)]`.

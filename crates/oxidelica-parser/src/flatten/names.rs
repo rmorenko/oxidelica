@@ -194,6 +194,27 @@ fn flat_numbers(expr: &Expr, env: &HashMap<String, f64>, out: &mut Vec<f64>) -> 
     Some(())
 }
 
+/// The numbers of an argument handed to a body written here, laid out
+/// the way the body takes them: a scalar as itself, a list element by
+/// element, a matrix row by row. `OXIDELICA_OLD_OUTSIDE_FOLD` reads
+/// one list deep only, as before, so one binary gives both numbers.
+fn laid_flat(arg: &Expr, env: &HashMap<String, f64>, given: &mut Vec<f64>) -> Option<()> {
+    match arg {
+        Expr::Array(items) if crate::outside::old_outside_fold() => {
+            for item in items {
+                given.push(const_eval(item, env)?);
+            }
+        }
+        Expr::Array(items) => {
+            for item in items {
+                laid_flat(item, env, given)?;
+            }
+        }
+        one => given.push(const_eval(one, env)?),
+    }
+    Some(())
+}
+
 /// Evaluate a compile-time constant expression (array dimensions, loop
 /// bounds, subscripts). Only the arithmetic that can appear there is
 /// supported; anything else means the value is not constant.
@@ -249,14 +270,12 @@ pub(crate) fn const_eval(expr: &Expr, env: &HashMap<String, f64>) -> Option<f64>
             };
             let mut given = Vec::new();
             for arg in args {
-                match arg {
-                    Expr::Array(items) => {
-                        for item in items {
-                            given.push(const_eval(item, env)?);
-                        }
-                    }
-                    one => given.push(const_eval(one, env)?),
-                }
+                // A matrix is handed as a list of rows, each a list of
+                // numbers, and the body takes it row by row: `dgesvd`
+                // over `[1, 0, 0; 0, 1, 0]` is two lists deep, and
+                // reading only the outer one asked `const_eval` for a
+                // row, which is not a number.
+                laid_flat(arg, env, &mut given)?;
             }
             let which = const_eval(which, env)?;
             let place = (which as usize).checked_sub(1)?;
