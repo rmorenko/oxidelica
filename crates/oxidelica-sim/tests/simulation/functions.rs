@@ -2877,7 +2877,7 @@ fn a_constant_array_the_medium_gives_is_the_one_its_models_read() {
 
 /// A body that hands a record built from its input to another body,
 /// called from a body whose own local has the input's name.
-const NAMESAKE_THROUGH_TWO_BODIES: &str = "package ND \
+const NAMESAKE_THROUGH_TWO_BODIES: &str = "package Namesake \
      record R Real re; Real im; end R; \
      function swap input R c1; output R c2; algorithm c2 := R(-c1.im, c1.re); end swap; \
      function wrap input R c1; output R c2; algorithm c2 := swap(R(c1.re + 10, c1.im)); end wrap; \
@@ -2886,7 +2886,7 @@ const NAMESAKE_THROUGH_TWO_BODIES: &str = "package ND \
        algorithm c1 := R(x, 1); res := wrap(c1); re := res.re; im := res.im; end f; \
      model M Real a; Real b; equation (a, b) = f(5); \
        annotation(experiment(StopTime = 0, Interval = 0.1)); end M; \
-     end ND;";
+     end Namesake;";
 
 #[test]
 fn a_callers_local_named_like_the_callees_input_is_substituted_once() {
