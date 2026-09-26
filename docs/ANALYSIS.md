@@ -22350,3 +22350,120 @@ refuse as a ratchet because it is weather. So the wide stage rejection
 has no bound that the compiler's own counts can give it, and deciding
 it is a question of whether one walking model is an acceptable price
 for three that run.
+
+## The m286 series: the Noise eight, and a walk that could not draw
+
+### What the probe found
+
+Eight examples of `Modelica.Blocks.Examples.Noise` refused with one
+sentence: `Xorshift64star.random` is called where nothing could inline
+it, and "answers with 2 things, of which `stateOut` is an array: the run
+lays the answers end to end, and cannot say where one of unknown length
+leaves off". The length is not unknown. `random` declares
+`output Integer stateOut[nState]`, and `nState` is a constant of its
+package; `walkable` already counted such a length as one the compiler
+can see for a body with a single output, and the branch for several
+outputs never asked.
+
+Lifting that refusal alone let `UniformNoise` run, and the run was
+wrong: every state stood at zero and every draw was 0.5, the numbers
+the notes already name as the signature of a generator seeded from
+nothing. The chain behind it, walked to its end on a twelve-line model
+before anything was kept:
+
+1. The carried copy of a body kept `state[nState]` as the name. The
+   walk's frame has never heard of a package constant, laid the output
+   out as one number, and `state := {localSeed, globalSeed}` reached
+   the evaluator as an array. Taken: a length that is a package
+   constant is written as its number in the carried copy
+   (`OXIDELICA_NO_PACKAGE_LENGTHS`).
+2. `initialState` calls `random` ten times, and `random` is
+   `external "C"`. The walk ran its empty algorithm and answered with
+   outputs nobody assigned. Taken: a walked body whose external name is
+   one written here in Rust answers with the Rust answer
+   (`OXIDELICA_NO_WALKED_OUTSIDE`). And the walk's tuple assignment
+   handed every argument over as one number and gave every target one
+   number, so `(r, state) := random(state)` could not carry a state.
+   Taken: an array argument goes over whole, and an array target takes
+   as many places as it is long (`OXIDELICA_NO_WALKED_TUPLE_ARRAYS`).
+3. The refusal itself, and the places of a standing answer. The
+   flattener numbered the places of a walked answer one per output,
+   which is right only while every output is a scalar; a number
+   followed by a state of two is places 1, then 2 and 3. Taken:
+   `walkable` lets a mixed answer through when every array in it has
+   a length the compiler can see, and the places are counted by length
+   (`OXIDELICA_NO_MIXED_ANSWERS`).
+4. The longer generators seed their state through
+   `initialStateWithXorshift64star`, which fills `state[i:i+1] := aux`
+   in a loop. Folded while flattening, that leaves `{random(..)[2],
+random(..)[3]}[1]`, and the evaluator knew a subscript only on a
+   call. `s[3]` and `s[4]` of every `Xorshift128plus` block fell to
+   zero, found by the probe that turned the swallowed error in the
+   discrete starts into a refusal for one run. Taken: a list asked for
+   one place is that item (`OXIDELICA_NO_LIST_SUBSCRIPT`).
+
+Every link has a test that checks numbers against xorshift64* worked
+out independently of this compiler, and each test goes red under its
+own key. On `UniformNoise` the first draw of `uniformNoise1` is
+0.39672479222959134 and the next 0.6070844924877201, with the four
+state words matching the same independent reckoning.
+
+### What became of the eight
+
+Measured one at a time from the root, with `--only`:
+
+- run: `UniformNoise`, `AutomaticSeed`, `Distributions`,
+  `DrydenContinuousTurbulence`;
+- flatten and stop at a wall behind: `UniformNoiseProperties` and
+  `NormalNoiseProperties` stop at "step size underflow at t = 0". Both
+  measure a running mean and variance whose right-hand side is
+  `(u - mu)/(time - t_0)`, at a tolerance of 1e-9. That is the solver,
+  not the generator. `ActuatorWithNoise` and
+  `Utilities.Parts.MotorWithCurrentControl` stop at "structurally
+  singular", the second on a quasi-RMS voltage sensor's plug current,
+  which is the machine family and has nothing to do with noise.
+
+One wall found along the way was not taken. A small model shaped like
+`initialStateWithXorshift64star`, with `output Integer[nState] state`
+sized by an input and called through a wrapper that passes
+`size(state, 1)`, is refused as "an initial equation between shapes
+that do not match". The library's own spelling of it does not meet
+this wall, so it stays a note.
+
+### The DFF and DLAT row, mapped and not taken
+
+Eight models, `Digital.Examples.DFFREG`, `DFFREGL`, `DFFREGSRH`,
+`DFFREGSRL` and the four `DLATREG` twins, refuse with "a branch holding
+`break` or `return` needs a condition the compiler can decide" (rows 35
+to 42 of `/tmp/m284c/raw.txt`). The `break` is in the algorithm of
+`Digital.Registers.DFFR` and its siblings, inside `for i in 1:n`, under
+`if clock_flag == 0 then break` and
+`if next_assign_val[i] == ... then break`. Both conditions are discrete
+values the model settles at an event, so no flattening can decide them,
+and the refusal is honest. The loop itself unrolls, since `n` is a
+parameter. What an unrolled loop lacks is a record that it was left:
+a flag set where `break` stands, with every statement of the later
+rounds guarded by its negation. That is a change to `execute` in
+`statements.rs`, which is where a model's algorithm is turned into
+bindings, and it is not a small one: each assignment after the flag
+becomes a choice between the value it would have written and the value
+already standing. Left as a map, as the brief asked.
+
+### The m286 pair
+
+One binary, the two sides one after the other: the old side with all
+five keys set, then the new side with none (`/tmp/m286/old.txt`,
+`/tmp/m286/new.txt`). Flatten 928 to 936, run 638 to 643, runnable 813
+to 820 and 596 to 601. Diffed both ways, no model left either list.
+The eight above came into the flattened list, and five came into the
+run list: the four named above and
+`Clocked.Examples.Elementary.RealSignals.UniformNoiseXorshift64star`,
+which seeds a generator in a `when initial()` through the same walked
+`initialState`. Its first draw, 0.698959362134558 from state
+{179407653, 1483008893}, is the eleventh xorshift64* draw from
+{614657, 30020} worked out independently, the same number the test
+checks.
+
+The floors are not raised in this commit. The rule is that a floor
+rises only to what the runner's library job prints, and that number
+does not exist yet. The raise is in the queue.

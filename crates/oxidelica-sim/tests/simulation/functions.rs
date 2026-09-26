@@ -2747,3 +2747,102 @@ fn an_array_of_records_named_in_a_redeclaration_keeps_its_length() {
     ));
     assert!((last_of(&result, "u.pb.p") - (2.0 + 10.0 * 4.0)).abs() < 1e-9);
 }
+
+/// The generator of the standard library, as its own package writes
+/// it: a draw is `external "C"`, and the first state is built by a
+/// Modelica loop that draws ten times. Shared by the tests below.
+const XORSHIFT64STAR: &str = "function random input Integer stateIn[2]; output Real result; \
+       output Integer stateOut[2]; \
+       external \"C\" ModelicaRandom_xorshift64star(stateIn, stateOut, result); \
+     end random; \
+     function initialState input Integer localSeed; input Integer globalSeed; \
+       output Integer state[2]; protected Real r; \
+     algorithm state := {localSeed, globalSeed}; \
+       for i in 1:10 loop (r, state) := random(state); end for; \
+     end initialState;";
+
+#[test]
+fn a_walked_body_answers_an_external_call_written_here() {
+    // `initialState` cannot be written out where the seed is settled
+    // only at the start of the run, so it is walked - and the body it
+    // calls ten times has no statements at all, only `external "C"`.
+    // The walk used to lay out that body's outputs, run no statements
+    // and answer with them unassigned, and the start fell to zero, or
+    // it refused. The answer is ten draws of xorshift64* from {614657,
+    // 30020}, worked out independently of this compiler.
+    let result = run(&format!(
+        "model W {XORSHIFT64STAR} \
+         parameter Integer ls(fixed = false); \
+         discrete Integer st[2](start = initialState(ls, 30020)); \
+         initial equation ls = 614657; \
+         equation when sample(0, 0.1) then st = pre(st); end when; \
+         annotation(experiment(StopTime = 0.2, Interval = 0.1)); end W;"
+    ));
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    assert_eq!(first[at("st[1]")], 427651634.0);
+    assert_eq!(first[at("st[2]")], 603884885.0);
+}
+
+#[test]
+fn a_walked_answer_of_a_number_and_an_array_fills_both_targets() {
+    // `(r, s) = random(pre(s))` where `random` is itself walked: a
+    // number and then an array of two, laid end to end. Walking such a
+    // body was refused outright, as a mixture of shapes nobody could
+    // take apart - but the array's length is written in the
+    // declaration, so every reader knows where the number ends and the
+    // array starts. Each place is checked against the draw after the
+    // ten that seeded the state.
+    let result = run(&format!(
+        "model T {XORSHIFT64STAR} \
+         function step input Integer s[2]; output Real r; output Integer next[2]; \
+           protected Integer k; \
+         algorithm k := 0; next := s; r := 0; \
+           while k < 1 loop (r, next) := random(next); k := k + 1; end while; \
+         end step; \
+         parameter Integer ls(fixed = false); \
+         discrete Integer s[2](start = initialState(ls, 30020)); \
+         discrete Real r(start = 0); \
+         initial equation ls = 614657; \
+         equation when sample(0.05, 1) then (r, s) = step(pre(s)); end when; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.1)); end T;"
+    ));
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[at("s[1]")], 179407653.0);
+    assert_eq!(last[at("s[2]")], 1483008893.0);
+    assert!(
+        (last[at("r")] - 0.698959362134558).abs() < 1e-15,
+        "{}",
+        last[at("r")]
+    );
+}
+
+#[test]
+fn a_walked_body_reads_a_length_its_package_states() {
+    // The library's generators declare `state[nState]`, with `nState` a
+    // constant of their package. The walk's frame has never heard of a
+    // package's constants, so a length carried as the name laid the
+    // output out as one number and the first state reached the
+    // evaluator as the array `{localSeed, globalSeed}`. The numbers are
+    // the same ten draws as above.
+    let result = run("package G constant Integer nState = 2; \
+         function random input Integer stateIn[nState]; output Real result; \
+           output Integer stateOut[nState]; \
+           external \"C\" ModelicaRandom_xorshift64star(stateIn, stateOut, result); \
+         end random; \
+         function initialState input Integer localSeed; input Integer globalSeed; \
+           output Integer state[nState]; protected Real r; \
+         algorithm state := {localSeed, globalSeed}; \
+           for i in 1:10 loop (r, state) := random(state); end for; \
+         end initialState; end G; \
+         model P parameter Integer ls(fixed = false); \
+         discrete Integer st[2](start = G.initialState(ls, 30020)); \
+         initial equation ls = 614657; \
+         equation when sample(0, 0.1) then st = pre(st); end when; \
+         annotation(experiment(StopTime = 0.2, Interval = 0.1)); end P;");
+    let at = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let first = &result.rows[0];
+    assert_eq!(first[at("st[1]")], 427651634.0);
+    assert_eq!(first[at("st[2]")], 603884885.0);
+}

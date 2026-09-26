@@ -148,25 +148,25 @@ fn the_size_of_a_record_is_refused_rather_than_counted_by_its_fields() {
 
 #[test]
 fn a_discrete_start_nobody_could_work_out_is_refused_rather_than_zero() {
-    // `initialState(ls, 30020)` seeds a generator, and the walk of its
-    // body does not finish: the tuple filled from the external call
-    // inside the loop leaves `state` unknown. The start used to fall
-    // to zero without a word, so the model ran from {0, 0} - which is
-    // every `Xorshift64star` noise block of the library drawing 0.5
-    // on every tick. A start that was written and could not be worked
-    // out is not a start of zero, and the refusal names it.
+    // A discrete start is a call the walk has to finish before the run,
+    // and this one cannot: the body's own check, inside a loop only the
+    // run can decide, fails for the seed it is handed. The start used to fall to zero without a word, so the
+    // model ran from {0, 0} - which was every `Xorshift64star` noise
+    // block of the library drawing 0.5 on every tick, back when the
+    // walk could not finish their seeding. A start that was written
+    // and could not be worked out is not a start of zero, and the
+    // refusal names it.
     let why = refused(
-        "model Z function random input Integer stateIn[2]; output Real result; \
-           output Integer stateOut[2]; \
-           external \"C\" ModelicaRandom_xorshift64star(stateIn, stateOut, result); \
-         end random; \
-         function initialState input Integer localSeed; input Integer globalSeed; \
-           output Integer state[2]; protected Real r; \
-         algorithm state := {localSeed, globalSeed}; \
-           for i in 1:10 loop (r, state) := random(state); end for; \
+        "model Z function initialState input Integer localSeed; input Integer globalSeed; \
+           output Integer state[2]; \
+           protected Integer k; \
+         algorithm k := localSeed; \
+           while k < 0 loop assert(k > -5, \"the seed must be positive\"); k := k + 1; end while; \
+           state := {k, globalSeed}; \
          end initialState; \
-         parameter Integer ls = 614657; \
+         parameter Integer ls(fixed = false); \
          discrete Integer st[2](start = initialState(ls, 30020)); \
+         initial equation ls = -614657; \
          equation when sample(0, 0.1) then st = pre(st); end when; \
          annotation(experiment(StopTime = 0.2, Interval = 0.1)); end Z;",
     );

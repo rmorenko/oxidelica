@@ -194,6 +194,14 @@ pub(crate) fn walk(
             .unwrap_or(silent);
         frame.numbers.insert(component.name.clone(), start);
     }
+    // A body written outside Modelica and again here in Rust has no
+    // statements to walk: its answer is the Rust one. The generators of
+    // the standard library build their first state in a Modelica loop
+    // that calls `random` ten times, and `random` is `external "C"`.
+    // Walked as statements it answered with outputs nobody assigned.
+    if let Some(answer) = outside_answer(class, args, shapes)? {
+        return Ok(answer);
+    }
     run(&class.algorithm, &mut frame, programs, time, depth)
         .map_err(|SimError(why)| SimError(inside_body(why, name)))?;
     // The answer, in the order the flat model asks for it: one number
@@ -232,6 +240,50 @@ pub(crate) fn walk(
         }
     }
     Ok(answer)
+}
+
+/// What a body written outside Modelica answers, where it is one of
+/// those written again here. `None` for every other body, which is
+/// walked as its statements say.
+///
+/// The Rust answer is the outputs in the order Modelica declared them,
+/// laid end to end - which is also how a walk lays out its answer, so
+/// the caller cannot tell the two apart. Only a shape the Rust side
+/// takes whole is answered here: the solvers that want their counts
+/// handed in front are laid out by the compiler where the call is
+/// made, and a walk that met one would have to guess them.
+fn outside_answer(
+    class: &ClassDef,
+    args: &[f64],
+    shapes: &[Vec<usize>],
+) -> Result<Option<Vec<f64>>, SimError> {
+    let Some(call) = class.external_call.as_ref().filter(|call| {
+        class.external
+            && oxidelica_parser::outside::written_here(&call.called)
+            && std::env::var_os("OXIDELICA_NO_WALKED_OUTSIDE").is_none()
+    }) else {
+        return Ok(None);
+    };
+    let handed: Vec<usize> = shapes
+        .iter()
+        .map(|shape| shape.iter().product::<usize>().max(1))
+        .collect();
+    let answer = match oxidelica_parser::outside::shape(&call.called, &handed) {
+        Some((takes, answers)) if takes == args.len() && answers > 0 => {
+            oxidelica_parser::outside::answer(&call.called, args)
+                .filter(|answer| answer.len() == answers)
+        }
+        _ => None,
+    };
+    answer.map(Some).ok_or_else(|| {
+        SimError(format!(
+            "`{}` is written here, and a walk cannot hand it {} argument(s) of {} number(s) \
+             in all",
+            call.called,
+            handed.len(),
+            args.len()
+        ))
+    })
 }
 
 /// What a body carries while it is walked: numbers by name, and how
@@ -795,24 +847,91 @@ fn run(
                     );
                 };
                 let mut given = Vec::new();
+                let mut shapes: Vec<Vec<usize>> = Vec::new();
                 for arg in args {
-                    given.push(number_of(arg, frame, programs, time, depth)?);
+                    // An array goes over as its elements, under the
+                    // length the callee reads it by: the generators
+                    // write `(r, state) := random(state)`, and a state
+                    // read as one number was an array reaching the
+                    // evaluator.
+                    let spread = match arg {
+                        Expr::Ref(inner)
+                            if frame.lengths.contains_key(inner) && tuple_arrays_open() =>
+                        {
+                            elements_of(arg, frame, programs, time, depth)?
+                        }
+                        Expr::Array(_) | Expr::Range(..) if tuple_arrays_open() => {
+                            elements_of(arg, frame, programs, time, depth)?
+                        }
+                        _ => None,
+                    };
+                    match spread {
+                        Some(items) => {
+                            for item in &items {
+                                given.push(number_of(item, frame, programs, time, depth)?);
+                            }
+                            shapes.push(vec![items.len()]);
+                        }
+                        None => {
+                            given.push(number_of(arg, frame, programs, time, depth)?);
+                            shapes.push(Vec::new());
+                        }
+                    }
                 }
-                // One number per argument: what stands here is a
-                // scalar, and an array argument would say how many.
-                let shapes: Vec<Vec<usize>> = vec![Vec::new(); given.len()];
                 let answer = walk(programs, name, &given, &shapes, time, depth + 1)?;
-                if answer.len() < targets.len() {
-                    return err(format!(
-                        "`{name}` answers with {} thing(s), and {} were asked for",
-                        answer.len(),
-                        targets.len()
-                    ));
-                }
-                for (target, worth) in targets.iter().zip(answer) {
+                // The answer is the outputs laid end to end, an array
+                // output as its elements. A target that is a whole
+                // array takes as many numbers as it is long; every
+                // other target takes one. A hole takes the length of
+                // the output in its place, which only the callee knows.
+                let outputs: Vec<&Component> = programs
+                    .get(name.as_str())
+                    .map(|class| {
+                        class
+                            .components
+                            .iter()
+                            .filter(|c| c.causality == Causality::Output)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let mut at = 0;
+                for (place, target) in targets.iter().enumerate() {
+                    let length = match target {
+                        Some((named, subscripts))
+                            if subscripts.is_empty() && tuple_arrays_open() =>
+                        {
+                            frame.lengths.get(named).copied()
+                        }
+                        Some(_) => None,
+                        None => outputs.get(place).and_then(|output| {
+                            match output.dimensions.as_slice() {
+                                [Expr::Number(length)] if tuple_arrays_open() => {
+                                    Some(*length as usize)
+                                }
+                                _ => None,
+                            }
+                        }),
+                    };
+                    let take = length.unwrap_or(1);
+                    if at + take > answer.len() {
+                        return err(format!(
+                            "`{name}` answers with {} number(s), and {} target(s) asked \
+                             for more",
+                            answer.len(),
+                            targets.len()
+                        ));
+                    }
+                    let worths = &answer[at..at + take];
+                    at += take;
                     let Some((named, subscripts)) = target else {
                         continue;
                     };
+                    if let Some(length) = length {
+                        for (index, worth) in (1..=length).zip(worths) {
+                            frame.numbers.insert(format!("{named}[{index}]"), *worth);
+                        }
+                        continue;
+                    }
                     let mut held = named.clone();
                     if !subscripts.is_empty() {
                         let mut indices = Vec::new();
@@ -823,7 +942,7 @@ fn run(
                         }
                         held = format!("{named}[{}]", indices.join(","));
                     }
-                    frame.numbers.insert(held, worth);
+                    frame.numbers.insert(held, worths[0]);
                 }
             }
             Statement::When(_) => {
@@ -873,4 +992,13 @@ fn loop_over(
             "a `for` in a walked body runs over a range or a set written out, not {other:?}"
         )),
     }
+}
+
+/// Whether a tuple assignment inside a walked body hands an array
+/// argument over whole and lets an array target take its elements.
+/// `OXIDELICA_NO_WALKED_TUPLE_ARRAYS` keeps the old reading, one
+/// number per argument and per target, so that one binary gives both
+/// numbers.
+fn tuple_arrays_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_WALKED_TUPLE_ARRAYS").is_none()
 }

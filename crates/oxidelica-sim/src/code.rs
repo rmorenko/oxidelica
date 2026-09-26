@@ -237,6 +237,26 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
         // drawing ten numbers from a seed, so this is a parameter
         // rather than anything the run works out.
         Expr::Index(base, subscripts) => {
+            // `{a, b}[k]`: a list written out and asked for one place of
+            // it. Folding a call to a body written here leaves exactly
+            // this - the generator's state built in a loop comes out as
+            // `{random(...)[2], random(...)[3]}[1]` - and it is the
+            // k-th item, worked out alone.
+            if let (Expr::Array(items), [which]) = (base.as_ref(), subscripts.as_slice()) {
+                if std::env::var_os("OXIDELICA_NO_LIST_SUBSCRIPT").is_none() {
+                    let place = eval(which, ctx)?;
+                    let item = (place.fract() == 0.0 && place >= 1.0)
+                        .then(|| items.get(place as usize - 1))
+                        .flatten();
+                    return match item {
+                        Some(item) => eval(item, ctx),
+                        None => err(format!(
+                            "a list of {} was asked for place {place}",
+                            items.len()
+                        )),
+                    };
+                }
+            }
             if let (Expr::Call(called, args), [which]) = (base.as_ref(), subscripts.as_slice()) {
                 if oxidelica_parser::outside::written_here(called) {
                     // However the declaration grouped them, what the
@@ -1216,5 +1236,46 @@ mod outside_places {
         );
         let why = eval(&elsewhere, &ctx).unwrap_err().0;
         assert!(why.contains("unresolved array subscript"), "{why}");
+    }
+
+    /// `{a, b}[k]` is the k-th item. Folding the standard library's
+    /// `initialStateWithXorshift64star` leaves exactly this: the state
+    /// past the first pair is `state[i:i+1] := aux` in a loop, and
+    /// written out it is a list of two draws asked for one place. The
+    /// evaluator knew subscripts only on calls, and the two elements
+    /// past the first pair of every longer generator fell to zero.
+    /// The numbers are the eleventh draw from {614657, 30020}, worked
+    /// out independently of this compiler.
+    #[test]
+    fn a_list_asked_for_one_place_is_that_item() {
+        let ctx = EvalCtx {
+            vars: &HashMap::new(),
+            time: 0.0,
+            programs: None,
+            depth: 0,
+        };
+        let draw = |place: f64| {
+            Expr::Index(
+                Box::new(Expr::Call(
+                    "ModelicaRandom_xorshift64star".to_string(),
+                    vec![Expr::Array(vec![
+                        Expr::Number(427651634.0),
+                        Expr::Number(603884885.0),
+                    ])],
+                )),
+                vec![Expr::Number(place)],
+            )
+        };
+        let list = |place: f64| {
+            Expr::Index(
+                Box::new(Expr::Array(vec![draw(2.0), draw(3.0)])),
+                vec![Expr::Number(place)],
+            )
+        };
+        assert_eq!(eval(&list(1.0), &ctx).unwrap(), 179407653.0);
+        assert_eq!(eval(&list(2.0), &ctx).unwrap(), 1483008893.0);
+        let why = eval(&list(3.0), &ctx).unwrap_err().0;
+        assert!(why.contains("a list of 2 was asked for place 3"), "{why}");
+        assert!(eval(&list(0.5), &ctx).is_err());
     }
 }

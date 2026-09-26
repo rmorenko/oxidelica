@@ -2589,18 +2589,43 @@ pub(super) fn carried_by_the_run(arguments: &[Expr]) -> bool {
     })
 }
 
-/// The names a function answers with, in the order it declared them:
-/// what a call left standing has to be indexed by, since the run lays
-/// the answer out in that order and nothing else says where each one
-/// is.
-pub(super) fn declared_outputs(
+/// Each output of a body the run walks, as the places of the walk's
+/// answer it reads: what a call left standing has to be indexed by,
+/// since the run lays the answer out in the declared order and nothing
+/// else says where each one is.
+///
+/// The walk lays its outputs end to end, an array output as its
+/// elements, so a scalar after an array of two starts at place four
+/// rather than two. A scalar output is one place; an array output of a
+/// length the compiler can see is that many, written out as a list.
+/// Counting one place per output was right only while every output
+/// was a scalar, which `walkable` used to insist on.
+pub(super) fn walked_outputs(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,
-) -> Vec<String> {
+    standing: &Expr,
+) -> Vec<(String, Expr)> {
+    let place = |at: usize| Expr::Index(Box::new(standing.clone()), vec![Expr::Number(at as f64)]);
+    // Under `OXIDELICA_NO_MIXED_ANSWERS` every output is one place, as
+    // it was: `walkable` then lets no array through beside another
+    // output, so the old count is the whole of the old behaviour.
+    let length = |held: &Component| {
+        super::carried::settled_length(held, class, registry)
+            .filter(|_| std::env::var_os("OXIDELICA_NO_MIXED_ANSWERS").is_none())
+    };
+    let mut next = 1;
     with_inherited_components(class, registry)
         .into_iter()
         .filter(|held| held.causality == Causality::Output)
-        .map(|held| held.name)
+        .map(|held| {
+            let spread = length(&held);
+            let worth = match spread {
+                Some(length) => Expr::Array((next..next + length).map(place).collect()),
+                None => place(next),
+            };
+            next += spread.unwrap_or(1);
+            (held.name, worth)
+        })
         .collect()
 }
 

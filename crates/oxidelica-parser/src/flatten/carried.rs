@@ -167,6 +167,28 @@ pub(super) fn programs_used(
                     substitute_class_constants(written, registry, &class.name, &class.imports, &[]);
             }
         }
+        // And a length written as a constant of the package is written
+        // as the number it is. `walkable` already counts `state[nState]`
+        // as a length the compiler can see; carried as the name, the
+        // walk's frame had never heard of `nState`, laid the output out
+        // as one number, and the generator's first state reached the
+        // evaluator as the array `{localSeed, globalSeed}`.
+        if package_lengths_open() {
+            for held in &mut carried.components {
+                for dimension in &mut held.dimensions {
+                    let named = substitute_class_constants(
+                        dimension,
+                        registry,
+                        &class.name,
+                        &class.imports,
+                        &[],
+                    );
+                    if let Some(length) = const_eval(&named, &HashMap::new()) {
+                        *dimension = Expr::Number(length);
+                    }
+                }
+            }
+        }
         let renamed = records_as_arrays(&mut carried, registry);
         // A local's binding reads a record input the way a statement
         // does, and has to be spelled the way the walk's frame holds it.
@@ -739,6 +761,38 @@ pub(super) fn gather_calls(
     }
 }
 
+/// Whether a body answering with several things, one an array of a
+/// length the compiler can see, is walked. `OXIDELICA_NO_MIXED_ANSWERS`
+/// refuses it as before, so that one binary gives both numbers.
+fn mixed_answers_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_MIXED_ANSWERS").is_none()
+}
+
+/// The length of a one-dimensional output, where it is a number or a
+/// constant of the package the function belongs to. `None` for a
+/// scalar, for more than one dimension, and for a length only the call
+/// could say.
+pub(super) fn settled_length(
+    component: &Component,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<usize> {
+    let [only] = component.dimensions.as_slice() else {
+        return None;
+    };
+    let named = substitute_class_constants(only, registry, &class.name, &class.imports, &[]);
+    const_eval(&named, &HashMap::new())
+        .filter(|length| *length >= 0.0 && length.fract() == 0.0)
+        .map(|length| length as usize)
+}
+
+/// Whether a carried body's lengths written as package constants are
+/// written as numbers. `OXIDELICA_NO_PACKAGE_LENGTHS` leaves them as
+/// names, so that one binary gives both numbers.
+fn package_lengths_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_PACKAGE_LENGTHS").is_none()
+}
+
 /// Whether a call inside a list or a named argument is gathered with
 /// the body that writes it. `OXIDELICA_NO_CARRIED_ARRAY_CALLS` closes
 /// the road, so that one binary gives both numbers.
@@ -896,7 +950,17 @@ pub(super) fn walkable(
         }
         1 => {}
         several => {
-            if let Some(spread) = outputs.iter().find(|c| !c.dimensions.is_empty()) {
+            // An array among them is carried when its length is one the
+            // compiler can see: the answer is then laid end to end at
+            // lengths every reader knows, and each output starts where
+            // the ones before it leave off. `random` answers with a
+            // number and `stateOut[nState]`, and `nState` is a constant
+            // of the package.
+            let unseen = outputs.iter().find(|c| {
+                !c.dimensions.is_empty()
+                    && (!mixed_answers_open() || settled_length(c, class, registry).is_none())
+            });
+            if let Some(spread) = unseen {
                 return Err(format!(
                     "`{}` is called where nothing could inline it, so the run walks its \
                      body - and it answers with {several} things, of which `{}` is an \

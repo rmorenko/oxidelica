@@ -3525,18 +3525,19 @@ fn a_length_a_package_states_is_a_length_the_answer_has() {
          equation n = integer(time) + 1; v = Own.spin(n); \
          y = v[1] * time; end M;"
     );
-    // Both readings refuse, and which refusal comes back is the
-    // whole of the difference: read as one number, the equation
-    // handing the answer to two names is refused for shapes that do
-    // not match, and the run's own limit further on is never reached.
-    // Measured red against the old reading before this was written.
-    let said = parse_model(source).unwrap_err().to_string();
-    assert!(
-        !said.contains("an equation between shapes"),
-        "the answer holds the two the package states: {said}"
-    );
-    assert!(
-        said.contains("lays the answers end to end"),
-        "the shapes agree, and what is left is the run's own limit: {said}"
-    );
+    // Read as one number, the equation handing the answer to two
+    // names was refused for shapes that did not match. Past that, the
+    // walk of `Gen.random` - a number and a state of `nState` - used to
+    // be refused as a mixture of shapes; its length is the package's,
+    // so it is walked now, and the model flattens with each name given
+    // its own place of the standing answer.
+    let m = parse_model(source).expect("the answer holds the two the package states");
+    let said = format!("{:?}", m.equations);
+    assert!(!said.contains("an equation between shapes"), "{said}");
+    for place in ["[Number(1.0)]", "[Number(2.0)]"] {
+        assert!(
+            said.contains(place),
+            "no place {place} of the answer: {said}"
+        );
+    }
 }

@@ -132,19 +132,7 @@ pub(super) fn execute(
                         // body up by its full path, and what was written here
                         // is whatever the call site spelled.
                         let standing = Expr::Call(function.name.clone(), arguments.clone());
-                        inlining::declared_outputs(function, registry)
-                            .into_iter()
-                            .enumerate()
-                            .map(|(at, named)| {
-                                (
-                                    named,
-                                    Expr::Index(
-                                        Box::new(standing.clone()),
-                                        vec![Expr::Number(at as f64 + 1.0)],
-                                    ),
-                                )
-                            })
-                            .collect()
+                        inlining::walked_outputs(function, registry, &standing)
                     }
                     Err(why) => return Err(why),
                 };
