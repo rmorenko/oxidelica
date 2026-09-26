@@ -2875,3 +2875,29 @@ fn a_constant_array_the_medium_gives_is_the_one_its_models_read() {
     assert_eq!(last_of(&result, "medium.q[2]"), 0.232);
 }
 
+/// A body that hands a record built from its input to another body,
+/// called from a body whose own local has the input's name.
+const NAMESAKE_THROUGH_TWO_BODIES: &str = "package ND \
+     record R Real re; Real im; end R; \
+     function swap input R c1; output R c2; algorithm c2 := R(-c1.im, c1.re); end swap; \
+     function wrap input R c1; output R c2; algorithm c2 := swap(R(c1.re + 10, c1.im)); end wrap; \
+     function f input Real x; output Real re; output Real im; \
+       protected R c1; R res; \
+       algorithm c1 := R(x, 1); res := wrap(c1); re := res.re; im := res.im; end f; \
+     model M Real a; Real b; equation (a, b) = f(5); \
+       annotation(experiment(StopTime = 0, Interval = 0.1)); end M; \
+     end ND;";
+
+#[test]
+fn a_callers_local_named_like_the_callees_input_is_substituted_once() {
+    // `wrap` binds its `c1.re` to the caller's `c1.re`, hands `swap`
+    // the record `R(c1.re + 10, c1.im)`, and gets back `c1.re + 10`
+    // in the caller's spelling. Substituted a second time the caller's
+    // `c1.re` was taken for `wrap`'s own and the ten was added twice:
+    // 25 where 15 is right. The complex `cos` of the standard library
+    // is written this way and answered `0.199 - 0.310i` for `cos(1 +
+    // i)`, which is `0.834 - 0.989i`.
+    let result = run(NAMESAKE_THROUGH_TWO_BODIES);
+    assert_eq!(last_of(&result, "a"), -1.0);
+    assert_eq!(last_of(&result, "b"), 15.0);
+}

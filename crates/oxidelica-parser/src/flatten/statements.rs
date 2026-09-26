@@ -622,11 +622,30 @@ fn one_assignment(
         consts,
         records: &in_view,
     };
+    // The names the value holds once the bindings are in: each is
+    // either one no binding speaks for, or one a binding put there -
+    // the caller's own spelling. Neither is this body's to substitute
+    // again.
+    let mut settled: HashSet<String> = HashSet::new();
+    if !resubstitute_all() {
+        super::algorithms::walk_expr(&value, &mut |node| {
+            if let Expr::Ref(name) = node {
+                settled.insert(name.clone());
+            }
+        });
+    }
     let value = expand(&value, &shapes, registry, scope, imports, depth + 1)?.into_expr();
     // Expansion turns `p[i - 1]` into the element's own name,
     // which may itself be bound by an earlier statement - so
-    // the bindings are applied once more.
-    let value = substitute_refs(&value, bindings);
+    // the bindings are applied once more, to the names expansion
+    // made and to no other. Applied to all, a body whose input
+    // shares its name with the caller's local substituted twice:
+    // `swap` called on `R(c1.re + 10, c1.im)` from a body whose own
+    // input is `c1` bound `c1.re` to `c1.re + 10`, found the caller's
+    // `c1.re` in its answer, and added the ten again. The complex
+    // `cos` of the standard library is written exactly so, and
+    // answered `0.199 - 0.310i` for `cos(1 + i)` without a word.
+    let value = substitute_refs_but(&value, bindings, &settled);
     // A name bound whole and then written into element by
     // element - `a := zeros(3, 3); a[1, 1] := 5` - has to
     // be taken apart first, or what it was bound to whole
@@ -1716,4 +1735,24 @@ fn loop_constants_open() -> bool {
 /// both numbers.
 fn statement_args_late() -> bool {
     std::env::var_os("OXIDELICA_STATEMENT_ARGS_LATE").is_some()
+}
+
+/// [`substitute_refs`], leaving alone the names in `settled`.
+fn substitute_refs_but(
+    expr: &Expr,
+    map: &HashMap<String, Expr>,
+    settled: &HashSet<String>,
+) -> Expr {
+    match expr {
+        Expr::Ref(name) if settled.contains(name) => expr.clone(),
+        Expr::Ref(name) => map.get(name).cloned().unwrap_or_else(|| expr.clone()),
+        _ => expr.map_children(&mut |child| substitute_refs_but(child, map, settled)),
+    }
+}
+
+/// `OXIDELICA_RESUBSTITUTE_ALL=1` applies a body's bindings a second
+/// time to every name after expansion, as before, so that one binary
+/// can be measured both ways.
+fn resubstitute_all() -> bool {
+    std::env::var_os("OXIDELICA_RESUBSTITUTE_ALL").is_some()
 }

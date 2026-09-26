@@ -22639,3 +22639,188 @@ project does not make.
 Both families decide which variables are states and what a condition
 on a non-state means, which is the ground the brief keeps for line B
 and for index reduction. Left as a map.
+
+## The m288 series: two silent numbers, and a clock circle that was not one
+
+### The m287 verdicts and floors
+
+Run 36255558366 on 307a790, which covers 8c110ff, finished green on
+all six jobs. Its library job (108441560249, `/tmp/m288/runner307.log`)
+printed 2671 files, 944 flatten and 651 run, runnable 828 and 609: the
+desk's five numbers on that tree (`/tmp/m287/new.txt`), so there is no
+lower of the two to take and no model to name between the machines.
+ce66aca is prose alone, so this is the count of the whole m287 series,
+and the four floors that move go to it. The runner's names looked up,
+1788413123, stood 806 per million above the reference and inside the
+band. Run 36255800294 on ce66aca was still going when this series
+closed.
+
+### The m287 census, read
+
+`/tmp/m288/census.txt`, four sections, counted between the section
+markers. The flatten half is 90 models in 50 rows, against 98 in 51
+in `/tmp/m286/census.txt`: the row of eight, "a branch holding
+`break` or `return` needs a condition", went whole. The named diff of
+the raw halves (`/tmp/m286/raw.txt` against `/tmp/m288/raw.txt`) takes
+exactly `DFFREG`, `DFFREGL`, `DFFREGSRH`, `DFFREGSRL`, `DLATREG`,
+`DLATREGL`, `DLATREGSRH` and `DLATREGSRL` out and puts nothing in. The
+run half is 293 models in 160 rows and identical to m286 line for
+line, so all eight registers that arrived also run.
+
+### `dynamicViscosity is missing its argument`: an honest refusal
+
+The four models of the row are not examples of anything.
+`TestAllProperties.PartialMediumFunctions` and the three
+`IncompleteMedia.PartialMediumFunctionsFor*` are the bases the real
+tests extend with `redeclare package Medium = ...`, and each leaves
+`Medium = Modelica.Media.Interfaces.PartialMedium`: no `experiment`
+annotation, no `Example` icon. They are sampled only because their
+names hold `.Test`. What they call, `Medium.dynamicViscosity(state)`,
+is a `replaceable partial function` of the interface with no
+algorithm, and the interface's `ThermodynamicState` declares no
+fields. So the call hands an empty record to a function with no body,
+and no tool can run that. The subclasses show the other side:
+`IncompleteMedia.Glycol47` flattens and `TestAllProperties.DryAirNasa`
+runs.
+
+What is wrong is the wording. With an empty state the refusal says the
+argument is missing (the empty record binds no field); give the state
+one field and the same call says `never assigns its output`
+(`/tmp/m288/a.mo`, `/tmp/m288/b.mo`). Neither says that the function
+is partial and has no body. The honest fix is a refusal that says so,
+and it moves no model. Left as a map.
+
+### The clocked BackSample three: taken
+
+`Clocked.Examples.Elementary.{Boolean,Integer,Real}Signals.BackSample`
+refused with "the partitions of this model read each other's values
+within one tick". The chain is `sample` on a 20 ms clock, then
+`shiftSample(4, 3)`, then `backSample(4, 3)` of that. The shifted
+clock ticks at `k + 4/3` root intervals and the one sampled back at
+`k + 4/3 - 4/3`, which is back on the root grid. The partition order
+refused because each reads the other. But the two grids never meet:
+their shifts differ by 4/3 and their common step is 1, so no instant
+has both, and there is nothing to order.
+
+`ClockSpec::may_tick_with` answers that from the exact fractions the
+clocks are already kept in: two clocks of one periodic root tick
+together only if their shifts differ by a whole number of the step
+both rates count in. Anything else (two roots, an event clock, a clock
+still being worked out) is taken to tick together, so the order is
+still asked for there. A real circle at one instant, `a` reading
+`subSample(b)` and `b` reading `superSample(a)`, is still refused, and
+a test holds that.
+
+Small model `/tmp/m288/bs.mo`, test
+`clocks_that_never_tick_together_owe_each_other_no_order`: the held
+output of the clock sampled back is 7 (its start) until 0.04, then
+0.02, the value the shifted clock took at 0.0267, and 0.06 at the end.
+Red under `OXIDELICA_ORDER_CLOCKS_NEVER_TOGETHER=1`, green without.
+One binary (`/tmp/ox288b`) both ways (`/tmp/m288/old.txt`,
+`/tmp/m288/new.txt`): flatten 944 to 947, run 651 to 654, runnable 828
+to 831 and 609 to 612. Diffed both ways, the three BackSample examples
+enter both lists and nothing leaves either.
+
+### A medium's constant array read from inside its own models
+
+The row "subscript 2 is outside an array of 1" (`MixIdealGasAir`,
+`FlueGas`, `Media.Examples.MixtureGases`) comes down to a silent wrong
+number, twenty-four lines without the library (`/tmp/m288/sub/g1.mo`).
+`CombustionAir` extends the mixture interface with `reference_X =
+{0.768, 0.232}`. `BaseProperties` is written inside the interface, and
+a declaration there that reads `reference_X` got the interface's
+`fill(1/nX, nX)` with the medium's `nX`: `{1, 1}`, a composition
+summing to two. Scalars were right (the scalar road asks the medium on
+the mark first), and so was the same array read from outside the
+medium. The array road asked by scope only.
+
+`enclosing_constant_array` now asks the medium on the mark before the
+interface, as the scalar road does. The test
+`a_constant_array_the_medium_gives_is_the_one_its_models_read` reads
+0.768 and 0.232; under `OXIDELICA_INTERFACE_ARRAY=1` it reads 1.0.
+One binary (`/tmp/ox288c`) both ways (`/tmp/m288/arr_old.txt`,
+`arr_new.txt`): 947 and 654 on both sides, both lists identical by
+name. Because the change is to a value, the 22 Media models that run
+were also run one at a time both ways and their final points compared
+(`/tmp/m288/cmp/out2.txt`): all 22 the same. No count moves. The change
+is the number the list now holds.
+
+The three models do not run yet. Behind the wrong list stands the
+second link, `R_s = data.R_s*X`: a field read across a constant array
+of records inside a model (`/tmp/m288/sub/k.mo`, fifteen lines, no
+medium at all), which is refused as a scalar against a list. That is
+the row `IdealGasN2Mix` already stands in, and the three join it.
+
+### The complex functions: a body's bindings applied twice
+
+The row "an array cannot be a divisor" (`TestComplexFunctions`,
+`TestComplexOperations`, `Pipes.IdealMixing1`) turned up a second
+silent number. `Modelica.ComplexMath.cos(Complex(1, 1))` called inside
+a function body answered `0.199 - 0.310i`. The right value is
+`0.834 - 0.989i`, and the same call in an equation gave it. Renaming
+the caller's local from `c1` to anything else put it right, and a
+library-free model shows the mechanism (`/tmp/m288/sub/nd.mo`): `f`
+has a local `c1`, calls `wrap(c1)`, whose own input is also `c1`, and
+`wrap` hands `swap` the record `R(c1.re + 10, c1.im)`. The answer came
+back 25 where 15 is right.
+
+The assignment in a walked body substitutes its bindings, expands the
+value through the array layer, and substitutes again so that the
+element names expansion made are bound too. The second pass applied to
+every name. After the first, the value is already in the caller's
+spelling, and the caller's `c1.re` is spelled the same as `wrap`'s
+bound `c1.re`, so it was replaced a second time and the ten was added
+twice. The second pass now leaves alone every name the value held
+before expansion. `a_callers_local_named_like_the_callees_input_is_substituted_once`
+reads 15; under `OXIDELICA_RESUBSTITUTE_ALL=1` it reads 25.
+
+One binary (`/tmp/ox288d`) both ways (`/tmp/m288/sub_old.txt`,
+`sub_new.txt`): flatten 947 to 948, run 654 to 655, runnable 831 to 832
+and 612 to 613. The one is `TestAllProperties.LinearColdWater`, which
+was refused for adding two quantities of different units: the doubled
+substitution had put `state.T` into its own expression a second time.
+Nothing left either list. The names looked up fell 2333 per million,
+since the second pass no longer walks every name of every value again.
+Because the change is to values, the 67 running models of ComplexMath,
+Media, QuasiStatic, Spice3 and Magnetic were also run one at a time
+both ways and their final points compared (`/tmp/m288/cmp/out3.txt`):
+all 67 the same. The silent number was in bodies that none of the
+running models reached.
+
+The two ComplexMath tests still refuse, one link further on and on a
+fault this series did not make: `c1/Complex(0, 2)` inside a body
+reaches the flat model as the bare `c1` with zeros where its fields
+belong (`/tmp/m288/sub/cg.mo`, the same on HEAD). That link is the
+next one for the row.
+
+### The ce66aca verdict: red on the clock alone
+
+Run 36255800294 on ce66aca finished red, and only the library job, and
+that only on its time: 8141ms per model running against a ceiling of
+8000, all five counts held (`/tmp/m288/runnerce6.log`). ce66aca is
+307a790 with prose added, and 307a790's job printed 5975ms: one code,
+36% apart. The dearest of the twelve runs before them was 8327ms. The
+running ceiling goes to 12000, where the flattening one stands, and
+the arithmetic is written beside it.
+
+### The rest of the flatten half, probed
+
+- "`X` is partial and cannot be instantiated as `X`" (3):
+  `FixedAmbient`, `FixedMassFlowRate` and `PortVolume` are parts in
+  `Media.Examples.Utilities` with `Medium = PartialMedium`. The
+  `.Examples.` filter picks them up. An honest refusal, like the
+  `dynamicViscosity` row.
+- "`X` has N element(s) but its value has N" (3): the battery stacks
+  build `cellData[Ns, Np]` by a comprehension choosing between two
+  records, and `OCV_SOC` of one cell (29 by 2) is measured against the
+  whole matrix of cells, 348 = 58 times six cells.
+  `SMPM_ResistiveBraking` is the same shape, 6 against 18. This is a
+  record array built by a comprehension, one layer, not mapped further.
+- "the trip count of a loop is not settled here" (2):
+  `Vectors.interpolate` searches its table with a `while` on `xi`,
+  and `xi` is `time`. It wants a loop walked at run time rather than
+  unrolled, which is the walked-body road and larger than a shift's
+  end.
+- "subscript N is outside an array of N" (3) and "an array cannot be a
+  divisor" (3) are set out above: each yielded a silent wrong number,
+  both fixed, and each row's models now stand one link further on.
