@@ -152,6 +152,24 @@ pub(super) fn resolve_tables(
     }
 }
 
+/// How a table's constructor asked a comma-separated file to be read.
+///
+/// Only `_init3` says, and it says it last: a delimiter and a count of
+/// header lines. Either one not settled to a plain value leaves the
+/// table unread rather than read the default way.
+fn csv_asked(made: &str, args: &[Expr]) -> Option<super::table_files::Csv> {
+    if !made.ends_with("_init3") {
+        return Some(super::table_files::Csv::default());
+    }
+    let [.., delimiter, header_lines] = args else {
+        return None;
+    };
+    let (Expr::Str(delimiter), Expr::Number(header_lines)) = (delimiter, header_lines) else {
+        return None;
+    };
+    super::table_files::Csv::asked(Some(delimiter.clone()), Some(*header_lines))
+}
+
 /// The table behind a handle, where the handle is a one-dimensional
 /// table built from a matrix written in the model.
 ///
@@ -198,7 +216,20 @@ fn read_table(built: &Expr, numbers: &HashMap<String, f64>) -> Option<Table> {
     // everywhere.
     let rows = match file.as_str() {
         "NoName" => matrix(&args[2], numbers)?,
-        path => match super::table_files::table_in_file(path, named) {
+        // `_init3` hands over how a comma-separated file is laid out
+        // as its last two arguments, the delimiter and then how many
+        // header lines to pass over. An older constructor says
+        // nothing, and the defaults are what it meant.
+        // The layout only matters to a comma-separated file: any other
+        // is read the same whatever the constructor said about commas.
+        path => match super::table_files::table_in_file_as(
+            path,
+            named,
+            &match super::table_files::is_csv(path) {
+                true => csv_asked(made, args)?,
+                false => super::table_files::Csv::default(),
+            },
+        ) {
             Ok(rows) => rows,
             // A file that cannot be read leaves the call standing, and
             // the model says so by the name of the function it could

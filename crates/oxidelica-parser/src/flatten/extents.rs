@@ -680,6 +680,7 @@ pub(super) fn size_of_a_table_in_a_file(
     axis: usize,
     text_of: impl Fn(&str) -> Option<String>,
     truth_of: impl Fn(&str) -> Option<bool>,
+    count_of: impl Fn(&str) -> Option<f64>,
 ) -> Option<i64> {
     if axis != 0 {
         return None;
@@ -700,8 +701,16 @@ pub(super) fn size_of_a_table_in_a_file(
         return None;
     }
     let file = text_of("fileName")?;
-    let named = text_of("tableName")?;
-    let rows = super::table_files::table_in_file(&file, &named).ok()?;
+    // A comma-separated file holds one table with no name, and a model
+    // reading one has no reason to name it: the block's default name is
+    // not among what was handed down, and asking for it here sent the
+    // measurement back to the empty declaration - one column where the
+    // file has two.
+    let named =
+        text_of("tableName").or_else(|| super::table_files::is_csv(&file).then(String::new))?;
+    // A comma-separated file is read as the block said to read it.
+    let csv = super::table_files::Csv::asked(text_of("delimiter"), count_of("nHeaderLines"))?;
+    let rows = super::table_files::table_in_file_as(&file, &named, &csv).ok()?;
     let shape = match *which as usize {
         1 => rows.len(),
         2 => rows.first()?.len(),

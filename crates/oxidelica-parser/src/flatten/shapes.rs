@@ -290,11 +290,18 @@ fn collect_shapes_under(
                                     _ => None,
                                 })
                             };
+                            let handed_count = |wanted: &str| {
+                                handed.iter().find_map(|(name, given)| match given {
+                                    Expr::Number(count) if name == wanted => Some(*count),
+                                    _ => None,
+                                })
+                            };
                             if let Some(length) = super::extents::size_of_a_table_in_a_file(
                                 binding,
                                 axis,
                                 handed_text,
                                 handed_truth,
+                                handed_count,
                             ) {
                                 return Some(length);
                             }

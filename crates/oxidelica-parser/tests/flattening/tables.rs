@@ -1992,3 +1992,195 @@ fn a_matlab_file_says_what_it_cannot_give() {
     assert!(why.contains("not little-endian"), "{why}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A range over an empty matrix is as long as its bounds say.
+#[test]
+fn a_range_over_an_empty_matrix_is_measured_by_its_bounds() {
+    // `columns[:] = 2:size(table, 2)` is how every table block says
+    // which columns it reads, and a table with no rows yet is
+    // `fill(0.0, 0, 2)` - two wide and nothing to read the width from
+    // by expanding it. The bounds say one, and one it is.
+    let m = parse_model(
+        "model M parameter Real table[:, :] = fill(0.0, 0, 3); \
+         parameter Integer columns[:] = 2:size(table, 2); \
+         Real y[size(columns, 1)]; \
+         equation y = fill(time, size(columns, 1)); end M;",
+    )
+    .expect("the range is measured by its bounds");
+    let columns: Vec<_> = m
+        .components
+        .iter()
+        .filter(|c| c.name.starts_with("columns["))
+        .collect();
+    assert_eq!(columns.len(), 2);
+    assert_eq!(
+        m.components
+            .iter()
+            .filter(|c| c.name.starts_with("y["))
+            .count(),
+        2
+    );
+}
+
+/// A comma-separated file is read as the block asks it to be.
+#[test]
+fn a_comma_separated_table_is_read_past_its_header() {
+    use oxidelica_parser::{read_table_file_as, Csv};
+    let dir = std::env::temp_dir().join("oxidelica_csv_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("rows.csv");
+    std::fs::write(
+        &file,
+        "time,value,other\n0.0,4.5,104.5\n1.0,5.25, 105.25\r\n",
+    )
+    .unwrap();
+    let path = file.display().to_string();
+    let asked = Csv::asked(Some(",".into()), Some(1.0)).unwrap();
+    let rows = read_table_file_as(&path, "ignored", &asked).unwrap();
+    assert_eq!(rows, vec![vec![0.0, 4.5, 104.5], vec![1.0, 5.25, 105.25]]);
+    // Without the header passed over, the header is a line of words
+    // where numbers belong, and it is refused by its line.
+    let why = read_table_file_as(&path, "ignored", &Csv::default()).unwrap_err();
+    assert!(why.contains("line 1") && why.contains("`time`"), "{why}");
+    // A delimiter of more than one character is what the library's own
+    // reader refuses, and so is not read some other way.
+    assert_eq!(Csv::asked(Some(";;".into()), None), None);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// One level 5 matrix element: flags of the class given, the
+/// dimensions, the name, and whatever follows the name.
+fn level_five_element(class: u32, dims: &[u32], name: &str, rest: &[u8]) -> Vec<u8> {
+    let pad = |bytes: &mut Vec<u8>| bytes.resize(bytes.len().div_ceil(8) * 8, 0);
+    let mut body = Vec::new();
+    body.extend_from_slice(&6u32.to_le_bytes());
+    body.extend_from_slice(&8u32.to_le_bytes());
+    body.extend_from_slice(&class.to_le_bytes());
+    body.extend_from_slice(&0u32.to_le_bytes());
+    body.extend_from_slice(&5u32.to_le_bytes());
+    body.extend_from_slice(&((dims.len() * 4) as u32).to_le_bytes());
+    for held in dims {
+        body.extend_from_slice(&held.to_le_bytes());
+    }
+    pad(&mut body);
+    body.extend_from_slice(&1u32.to_le_bytes());
+    body.extend_from_slice(&(name.len() as u32).to_le_bytes());
+    body.extend_from_slice(name.as_bytes());
+    pad(&mut body);
+    body.extend_from_slice(rest);
+    let mut element = Vec::new();
+    element.extend_from_slice(&14u32.to_le_bytes());
+    element.extend_from_slice(&(body.len() as u32).to_le_bytes());
+    element.extend_from_slice(&body);
+    element
+}
+
+/// A two-by-two matrix of doubles, 1 2 / 3 4, as a level 5 element.
+fn level_five_doubles(name: &str, numbers: [f64; 4]) -> Vec<u8> {
+    let mut rest = Vec::new();
+    rest.extend_from_slice(&9u32.to_le_bytes());
+    rest.extend_from_slice(&32u32.to_le_bytes());
+    // Column-major on the file.
+    for at in [0, 2, 1, 3] {
+        rest.extend_from_slice(&numbers[at].to_le_bytes());
+    }
+    level_five_element(6, &[2, 2], name, &rest)
+}
+
+/// The header every level 5 file starts with.
+fn level_five_header() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(b"MATLAB 5.0 MAT-file, written by a test");
+    bytes.resize(124, b' ');
+    bytes.extend_from_slice(&[0x00, 0x01]);
+    bytes.extend_from_slice(b"IM");
+    bytes
+}
+
+/// A table kept in a field of a structure is read by its dotted name.
+#[test]
+fn a_table_in_a_matlab_structure_is_read_by_its_dotted_name() {
+    // `s.s.tab1` names the field `tab1` of the field `s` of the
+    // variable `s`; the standard library's own test files keep tables
+    // so. A structure's element gives the length of every field name,
+    // the names end to end, then one matrix per field.
+    let structure = |name: &str, fields: &[(&str, Vec<u8>)]| {
+        let mut rest = Vec::new();
+        rest.extend_from_slice(&(5u32 | (4 << 16)).to_le_bytes());
+        rest.extend_from_slice(&8u32.to_le_bytes());
+        let mut names = Vec::new();
+        for (field, _) in fields {
+            let mut held = field.as_bytes().to_vec();
+            held.resize(8, 0);
+            names.extend(held);
+        }
+        rest.extend_from_slice(&1u32.to_le_bytes());
+        rest.extend_from_slice(&(names.len() as u32).to_le_bytes());
+        rest.extend(names);
+        for (_, element) in fields {
+            rest.extend_from_slice(element);
+        }
+        level_five_element(2, &[1, 1], name, &rest)
+    };
+    let inner = structure(
+        "",
+        &[("tab1", level_five_doubles("", [5.0, 6.0, 7.0, 8.0]))],
+    );
+    let outer = structure(
+        "s",
+        &[
+            ("tab1", level_five_doubles("", [1.0, 2.0, 3.0, 4.0])),
+            ("s", inner),
+        ],
+    );
+    let dir = std::env::temp_dir().join("oxidelica_mat5_struct");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("held.mat");
+    let mut bytes = level_five_header();
+    bytes.extend(outer);
+    std::fs::write(&file, &bytes).unwrap();
+    let path = file.display().to_string();
+    assert_eq!(
+        read_table_file(&path, "s.tab1").unwrap(),
+        vec![vec![1.0, 2.0], vec![3.0, 4.0]]
+    );
+    assert_eq!(
+        read_table_file(&path, "s.s.tab1").unwrap(),
+        vec![vec![5.0, 6.0], vec![7.0, 8.0]]
+    );
+    let why = read_table_file(&path, "s.absent").unwrap_err();
+    assert!(why.contains("no field `absent`"), "{why}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// Compressed elements follow one another with no padding between.
+#[test]
+fn compressed_matlab_elements_are_read_one_after_another() {
+    // MATLAB writes each deflated element straight after the last,
+    // unpadded; a reader that rounds up to eight lands inside the next
+    // stream and sees only the first table in the file.
+    use std::io::Write;
+    let packed = |element: Vec<u8>| {
+        let mut packer =
+            flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        packer.write_all(&element).unwrap();
+        let stream = packer.finish().unwrap();
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&15u32.to_le_bytes());
+        bytes.extend_from_slice(&(stream.len() as u32).to_le_bytes());
+        bytes.extend(stream);
+        bytes
+    };
+    let mut bytes = level_five_header();
+    let first = packed(level_five_doubles("first", [1.0, 2.0, 3.0, 4.0]));
+    assert_ne!(first.len() % 8, 0, "the test needs an unpadded stream");
+    bytes.extend(first);
+    bytes.extend(packed(level_five_doubles("second", [5.0, 6.0, 7.0, 8.0])));
+    let dir = std::env::temp_dir().join("oxidelica_mat5_unpadded");
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = dir.join("two.mat");
+    std::fs::write(&file, &bytes).unwrap();
+    let rows = read_table_file(&file.display().to_string(), "second").unwrap();
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(rows, vec![vec![5.0, 6.0], vec![7.0, 8.0]]);
+}

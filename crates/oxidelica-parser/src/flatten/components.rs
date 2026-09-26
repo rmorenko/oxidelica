@@ -683,9 +683,10 @@ fn measure_dimensions(
                     let text_of = |wanted: &str| in_view.get(wanted).cloned();
                     let truth_of =
                         |wanted: &str| local_consts.get(wanted).map(|value| *value != 0.0);
-                    if let Some(length) =
-                        extents::size_of_a_table_in_a_file(binding, axis, text_of, truth_of)
-                    {
+                    let count_of = |wanted: &str| local_consts.get(wanted).copied();
+                    if let Some(length) = extents::size_of_a_table_in_a_file(
+                        binding, axis, text_of, truth_of, count_of,
+                    ) {
                         return Some(length);
                     }
                     if let Some(length) = flexible_size(binding, axis, registry, scope, imports) {
@@ -733,6 +734,23 @@ fn measure_dimensions(
                     // range this way, and a road that measures one
                     // declaration two ways is a road that will
                     // disagree with itself.
+                    // So the range is measured by its bounds before it
+                    // is expanded: `2:size(table, 2)` over a table that
+                    // is `fill(0.0, 0, 2)` until a file fills it has a
+                    // length of one and no rows to expand, and asking
+                    // the expansion for its shape answered nothing. A
+                    // table said to be on a file is not measured this
+                    // way: its declaration is a placeholder, and the
+                    // file, read above or not at all, is the width.
+                    if !super::table_files::old_file_tables()
+                        && truth_of("tableOnFile") != Some(true)
+                    {
+                        if let Some(length) =
+                            shapes::range_length(&binding, axis, local_consts, sizes_here)
+                        {
+                            return Some(length);
+                        }
+                    }
                     // A measurement is not the model asking for a
                     // value, so nothing it works out is kept.
                     let mark = checks_mark();

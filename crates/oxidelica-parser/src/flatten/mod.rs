@@ -72,6 +72,8 @@ type ExpandHere<'a> = dyn Fn(&Expr, &HashMap<String, f64>) -> Result<Value, Stri
 pub(crate) use arrays::deep_matrix_open;
 pub(crate) use names::const_eval;
 pub use table_files::table_in_file as read_table_file;
+pub use table_files::table_in_file_as as read_table_file_as;
+pub use table_files::Csv;
 
 use algorithms::*;
 use arrays::*;

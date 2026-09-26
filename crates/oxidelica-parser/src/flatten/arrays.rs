@@ -976,7 +976,13 @@ pub(super) fn expand_call(
                     if name == "table" || name.ends_with(".table"));
                 if asks_a_table && truth_of("tableOnFile") == Some(true) {
                     if let (Some(file), Some(named)) = (text_of("fileName"), text_of("tableName")) {
-                        if let Ok(rows) = super::table_files::table_in_file(&file, &named) {
+                        let csv = super::table_files::Csv::asked(
+                            text_of("delimiter"),
+                            shapes.consts.get("nHeaderLines").copied(),
+                        );
+                        let read = csv
+                            .map(|csv| super::table_files::table_in_file_as(&file, &named, &csv));
+                        if let Some(Ok(rows)) = read {
                             let length = match dimension {
                                 1 => Some(rows.len()),
                                 2 => rows.first().map(|row| row.len()),
@@ -989,22 +995,51 @@ pub(super) fn expand_call(
                     }
                 }
             }
-            let length = shape.get((dimension - 1).max(0) as usize).ok_or_else(|| {
-                if std::env::var("OXSZ").is_ok() {
-                    let mut named: Vec<&String> = shapes.sizes.keys().collect();
-                    named.sort();
-                    eprintln!(
-                        "SZ {:?} scope={scope} known={:?}\n{}",
-                        args[0],
-                        &named[..named.len().min(12)],
-                        std::backtrace::Backtrace::force_capture()
-                    );
+            // An empty array has no first element to read the rest of
+            // its shape from: `fill(0.0, 0, 2)` expands to a list of no
+            // rows, and its width of two lives only in the table of
+            // measured sizes, where the declaration put it. Not for a
+            // table on a file, though: there the declaration is only a
+            // placeholder, the file is the width, and a file that did
+            // not answer above leaves the width unknown.
+            let on_file = shapes
+                .consts
+                .get("tableOnFile")
+                .is_some_and(|value| *value != 0.0);
+            let declared = match &args[0] {
+                Expr::Ref(name)
+                    if shape.first() == Some(&0)
+                        && !on_file
+                        && !super::table_files::old_file_tables() =>
+                {
+                    shapes
+                        .sizes
+                        .get(name.as_str())
+                        .filter(|sizes| sizes.first() == Some(&0))
+                        .and_then(|sizes| sizes.get((dimension - 1).max(0) as usize))
+                        .map(|length| *length as usize)
                 }
-                format!(
-                    "size(..., {dimension}): {} is of shape {shape:?}",
-                    crate::flatten::names::sketch(&args[0])
-                )
-            })?;
+                _ => None,
+            };
+            let length = shape
+                .get((dimension - 1).max(0) as usize)
+                .or(declared.as_ref())
+                .ok_or_else(|| {
+                    if std::env::var("OXSZ").is_ok() {
+                        let mut named: Vec<&String> = shapes.sizes.keys().collect();
+                        named.sort();
+                        eprintln!(
+                            "SZ {:?} scope={scope} known={:?}\n{}",
+                            args[0],
+                            &named[..named.len().min(12)],
+                            std::backtrace::Backtrace::force_capture()
+                        );
+                    }
+                    format!(
+                        "size(..., {dimension}): {} is of shape {shape:?}",
+                        crate::flatten::names::sketch(&args[0])
+                    )
+                })?;
             Ok(Value::Scalar(Expr::Number(*length as f64)))
         }
         // Reductions.

@@ -332,7 +332,17 @@ FILES_FLOOR=2671
 # (/tmp/m274/on.txt against /tmp/m274/off.txt, one binary, the off side
 # with OXIDELICA_NO_SVD, OXIDELICA_DEFAULT_SHAPES_WIN and
 # OXIDELICA_STATEMENT_ARGS_LATE set). Nothing left the flatten list.
-FLATTEN_FLOOR=919
+#
+# And flatten 928 = 919 plus nine tables read from files, from
+# /tmp/m284/on.txt against /tmp/m284/off.txt (one binary,
+# OXIDELICA_OLD_FILE_TABLES the only difference): CombiTable1Ds.Test35,
+# CombiTable1Dv.Test35 and CombiTimeTable.Test89 read a comma-separated
+# file, CombiTimeTable.Test80 and Test81 a field of a MATLAB structure,
+# CombiTable2Ds.Test12 and CombiTable2Dv.Test12 a compressed version 7
+# file, CombiTable2Ds.Test32 and CombiTable2Dv.Test32 a comma-separated
+# grid. All nine are runnable examples and all nine run. Nothing left
+# the flatten list.
+FLATTEN_FLOOR=928
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -798,7 +808,13 @@ FLATTEN_FLOOR=919
 # differ by the same two swinging names and no other: only the desk
 # runs SpringWithMass, only the runner runs Dimmer_RL
 # (/tmp/m284/d_ran.txt against r_ran.txt).
-RUN_FLOOR=629
+#
+# And run 638 = 629 plus the nine tables set out at `FLATTEN_FLOOR`,
+# each of them in the run list of /tmp/m284/on.txt and none in that of
+# /tmp/m284/off.txt; nothing left the run list. They are the desk's
+# count, and the runner has not counted them yet: they read files and
+# no solver is in their way, so nothing swings between the machines.
+RUN_FLOOR=638
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -862,8 +878,11 @@ RUN_FLOOR=629
 # 108304685526 of run 36206714158), the same as the desk's
 # (/tmp/m282/on4.txt): the two m282 won are runnable examples.
 # Runnable flatten is 804 on both.
-RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=587
+#
+# And runnable flatten 813 and runnable run 596 are both nine above,
+# the tables set out at `FLATTEN_FLOOR` (/tmp/m284/on.txt).
+RUNNABLE_FLATTEN_FLOOR=813
+RUNNABLE_RUN_FLOOR=596
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
