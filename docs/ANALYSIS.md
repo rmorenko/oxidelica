@@ -22210,3 +22210,120 @@ two emptied table rows (7 and 6 before) kept their `usertab` pair and
 two other models each, and `TestMatrices3` left the row of bodies the
 walk cannot carry (3 to 2) for a row of its own, the `dgesvd` of an
 empty matrix. The run half is identical in rows and in models.
+
+## The m285 series: a Newton budget measured and not taken
+
+### The runner's verdict on the m283 floors
+
+Run 36214714325 (for 44d15c8) finished green in all six jobs. The
+library job took 84 minutes against 90 and 91 for the two green runs
+before it, with 928 flatten and 638 run, runnable 813 and 596, exactly
+the floors. Flattening cost 7130 ms per model against 8227 and 8057
+before, so the nine tables read from files did not make the job
+dearer. Names looked up came to 1782971033 against the 1781489445
+written here, 832 per million, inside the band of 2000.
+
+### Why the stage-rejection wedge is not a Newton count
+
+The m282 map said `BranchingPipes1` under the widened stage rejection
+(`X_STAGE_REJECTS`) sits inside one attempt of a step, and that the
+bound it needs is a budget on the Newton work of one step. Probed
+again on today's tree, the first half does not hold. Without the
+switch the model refuses in 83 s of run time after 95 points and 221
+Newton iterations (`/tmp/m285/bp1_base.txt`), which is 0.37 s per
+iteration. With the switch and the Newton trail
+(`/tmp/m285/bp1_ox7trail.txt`), in 220 s the run went from t = 0 to
+t = 2.5e-4, converging in three or four iterations at each point. The
+digits of t that converge on 2.42637590344e-4 are the 40-point
+bisection of an event, one Newton solve per point, not a step creeping
+toward a wall. The model is not wedged. It walks toward a stop time of
+5 s at a price per iteration that makes the walk days long.
+
+To see whether a count could still separate it, every Newton
+iteration was counted against the output interval it fell in, the
+same unit the event ceiling uses, and each segment printed its peak
+(`OXIDELICA_NEWTON_PEAK`, `/tmp/m285/peak.txt`, binary `/tmp/m285/ox1`
+with no ceiling). The 662 models that reached Newton give
+`/tmp/m285/peaks_tagged.txt`. Of the 214 that run, the median peak is
+63, the 90th percentile 973, the 99th 15484, and the top is
+`ControlledTanks` at 453996 in one interval, then
+`Polyphase.Examples.Rectifier` at 72315. `BranchingPipes1` peaks at
+221. A ceiling at 221 would refuse 63 models that run, at 500 it
+would refuse 42, at 1000 22, and only 453996 refuses none - about 47
+hours of `BranchingPipes1` at its price. So there is no number to
+choose. A budget in iterations measures the wrong thing, since what
+the wedge spends is the price of each iteration.
+
+The count stays in the tree as an instrument with the ceiling off by
+default (`OXIDELICA_MAX_NEWTON_ONE_INTERVAL`), with a test that
+refuses a small nonlinear loop at three iterations and checks that the
+refusal names the model, the count and t. The pass that measured the
+peaks is the pure-move check: 928 flatten and 638 run, both lists
+identical to the name to m284 (`/tmp/m284/on2_*.txt`). A bound that
+would fit is on time or on walked work per interval, and choosing
+one is a decision for Roman, not for this shift.
+
+### The price of the wide stage rejection
+
+The pair was taken from the one binary: off is the peak pass above,
+on is `X_STAGE_REJECTS` with `BranchingPipes1` left out by name
+(`/tmp/m285/without_bp1.txt`, the heavy list plus that one), since
+its fate under the switch is known. On gives 927 flatten and 641 run
+over 1033 models (`/tmp/m285/ox7on.txt`). The flatten list differs
+from off only by the model left out, and the run list only by three
+gains and no losses:
+
+- `DiodeBridge2mPulse`, which refused on a singular Jacobian in the
+  loop of the ideal diodes;
+- `TestJunctionVolume`, which refused at t = 8e-6 on the u_min/u_max
+  bracket;
+- `TestWaterPumpCheckValve`, which refused on 50 Newton iterations in
+  the pump's loop.
+
+So the wide rule costs no model that runs today and wins three, and
+its whole price is one model that stops refusing in 83 s and walks
+instead. It is not in the tree. Whether to take it with an exclusion,
+with a time bound, or not at all is for the review.
+
+### Two rows at the top of the flatten half, mapped
+
+"a branch holding `break` or `return` needs a condition the compiler
+can decide" (8, the `DFFREG`/`DLATREG` family of
+`Electrical.Digital.Examples`). The refusal is raised at
+`flatten/statements.rs:1147`. The `break` sits inside a `for` loop in
+the algorithm section of the models `Digital.Registers.DFFR` and
+`DFFSR`, not in a function, and its conditions read `clock_flag` and
+`reset_flag`, discrete variables set at run time. The walk that leaves
+a function call standing for the run has nothing to stand in for
+here, because a model's algorithm is unrolled symbolically and there
+is no call to leave. The layer is a model algorithm with run-time
+control flow, a separate thing from the walked function bodies.
+
+"`X` is called where nothing could inline it ... answers with N
+things, of which `X` is an array" (8, the `Blocks.Examples.Noise`
+family). The refusal is raised at `flatten/carried.rs:899`, the check
+of what a walked body may answer, before the walk in `walk.rs` is
+reached at all, so it is not the `TupleAssign` layer the m284 mark
+suspected. The body is `Xorshift64star.random`, which is `external
+"C"`, and `outside.rs` already answers it in Rust (the value first,
+then the two halves of the state). The call that reaches the walk is
+one whose arguments are not settled at flattening. The layer is the
+run's way of carrying an outside body's answer of mixed shape, which
+the flattener folds and the run does not yet take.
+
+### DynamicPipesWithTraceSubstances, measured
+
+Run alone under the Newton trail with a 16 GB cap
+(`/tmp/m285/dp_trail.txt`), it reached its floor line this time: 98 s
+to flatten, 261 s to run, 339 points and 885 Newton iterations, all at
+t = 0, and a peak of 0.3 GB. The refusal is the Newton direction of
+the block of `pipe2.mediums[1].T` and its neighbours. Of the 90 rows
+of the block, 78 are on the floor. The 12 that are not come in three
+groups of four, one per segment: a row at about 1e-9 against a
+loudest term near 1e-5, two rows at 1e-30 against 1e-26, and one at
+2e-7 against 3e2. The first three rows of each group are about 1e-4 of
+their loudest term and the fourth about 6e-10, which is 2.6 to 5.7
+million ulps. That is a solve that stalled in the trace-substance rows
+of each segment, not one standing on the arithmetic's floor, the same
+reading as `TestTemperature1` in m284. The four slow models of m282
+are now all measured.
