@@ -2433,39 +2433,60 @@ fn values_at_this_point(
     discretes: &[String],
     discrete_start: &[f64],
     resume: &Option<ResumePoint>,
-) -> HashMap<String, f64> {
+    programs: &HashMap<String, ClassDef>,
+) -> Result<HashMap<String, f64>, SimError> {
     let resumed = |name: &str| -> Option<f64> {
         resume
             .as_ref()
             .and_then(|point| point.values.get(name))
             .copied()
     };
+    // The old reading - no bodies in view, and a start that could not
+    // be worked out taken as zero - kept behind a switch so that one
+    // binary measures both.
+    let silent = std::env::var_os("OXIDELICA_SILENT_PIVOT_START").is_some();
+    let ctx = EvalCtx {
+        vars: params,
+        time: 0.0,
+        programs: (!silent).then_some(programs),
+        depth: 0,
+    };
     let mut env = params.clone();
     for (name, value) in discretes.iter().zip(discrete_start) {
         env.insert(name.clone(), resumed(name).unwrap_or(*value));
     }
     for component in &model.components {
-        if component.variability == Variability::Continuous {
-            let value = resumed(&component.name)
-                .or_else(|| {
-                    component.start.as_ref().and_then(|expr| {
-                        eval(
-                            expr,
-                            &EvalCtx {
-                                vars: params,
-                                time: 0.0,
-                                programs: None,
-                                depth: 0,
-                            },
-                        )
-                        .ok()
-                    })
-                })
-                .unwrap_or(0.0);
-            env.insert(component.name.clone(), value);
+        if component.variability != Variability::Continuous {
+            continue;
         }
+        let value = match (resumed(&component.name), component.start.as_ref()) {
+            (Some(value), _) => value,
+            // A start that was written and could not be worked out is
+            // not a start of zero. The pivot and the branches of a
+            // run-time `if` are chosen from these numbers, so a zero
+            // here decides the model's structure from a value nobody
+            // wrote: the flux tube transformers carried
+            // `transformer.HStart[1]` as a subscript nothing expanded,
+            // and every core read 0 here without a word.
+            (None, Some(expr)) => match (eval(expr, &ctx), silent) {
+                (Ok(value), _) => value,
+                (Err(_), true) => 0.0,
+                (Err(why), false) => {
+                    return err(format!(
+                        "the start of `{}` is `{}`, and it could not be worked out \
+                         before the run: {}",
+                        component.name,
+                        expr.describe(),
+                        why.0
+                    ))
+                }
+            },
+            // No start written: zero is what the language says it is.
+            (None, None) => 0.0,
+        };
+        env.insert(component.name.clone(), value);
     }
-    env
+    Ok(env)
 }
 
 /// The discrete variables of a model, and the value each one starts
@@ -3424,7 +3445,14 @@ pub(crate) fn compile_at(
             .and_then(|point| point.values.get(name))
             .copied()
     };
-    let start_env = values_at_this_point(model, &params, &discretes, &discrete_start, &resume);
+    let start_env = values_at_this_point(
+        model,
+        &params,
+        &discretes,
+        &discrete_start,
+        &resume,
+        &programs,
+    )?;
 
     // The event built-ins become references the evaluator can look up.
     // A Boolean or an Integer is discrete-valued by its type, whatever

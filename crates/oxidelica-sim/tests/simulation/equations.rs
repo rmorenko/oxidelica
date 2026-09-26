@@ -143,10 +143,10 @@ fn compile_error_paths() {
     assert!(
         compile_err("model M Real x; equation x = 1; q = 2; end M;").contains("unknown variable")
     );
-    // Error in a start expression.
+    // Error in a start expression, named where it is first read.
     assert!(
         compile_err("model M Real x(start = q); equation der(x) = 1; end M;")
-            .contains("start of x")
+            .contains("the start of `x` is `q`")
     );
 }
 
