@@ -709,6 +709,11 @@ impl Walked {
     pub(crate) fn complaint(&self) -> Option<String> {
         self.trouble.lock().ok().and_then(|mut held| held.take())
     }
+
+    /// Whether a walk has failed and nobody has read why yet.
+    pub(crate) fn troubled(&self) -> bool {
+        self.trouble.lock().is_ok_and(|held| held.is_some())
+    }
 }
 
 struct SlotTable {

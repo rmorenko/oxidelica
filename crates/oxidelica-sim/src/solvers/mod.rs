@@ -56,6 +56,14 @@ fn inner_loudness_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INNER_LOUDNESS").is_some())
 }
 
+/// Whether a converged block keeps the reason a walk left behind on a
+/// trial point it stepped away from. Off by default; the switch keeps
+/// both halves of a measurement in one binary.
+fn stale_complaints_kept() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_KEEP_STALE_COMPLAINT").is_some())
+}
+
 /// Whether a validated block leaves its last perturbed point in the
 /// slots rather than the point it converged to. Off by default; the
 /// switch exists so that one binary measures the repair both ways.
@@ -679,6 +687,40 @@ impl CompiledModel {
     /// alone entirely: the first attempt is the start it was handed,
     /// and the rest of the list is never reached.
     pub(crate) fn solve_implicit_block(
+        &self,
+        t: f64,
+        values: &mut [f64],
+        stage: &AlgStage,
+        alg_guess: &mut [f64],
+        validate: bool,
+    ) -> Result<(), SimError> {
+        // A walk that failed on a trial point leaves its reason behind,
+        // and a block that then converges has walked past it: the
+        // point the reason was about is not the point handed on.
+        // `TestWaterPumpDefault` took its first Newton step to a
+        // pressure of -97296 Pa, `tsat` refused that pressure, the
+        // step was halved back and the block converged at 142613 Pa
+        // six steps later - and the run was stopped at t = 0 by the
+        // refusal of the discarded step. What a block converged past
+        // is dropped; what stood before the block is not its to drop,
+        // and what the converged point itself raises is kept: the block
+        // is asked once more from where it landed, which converges at
+        // once, and whatever that asking leaves behind is the truth
+        // about the answer handed on. Only a block that left a reason
+        // pays for the second asking.
+        let troubled_before = self.walked.troubled();
+        let solved = self.solve_implicit_block_tried(t, values, stage, alg_guess, validate);
+        if solved.is_ok()
+            && !troubled_before
+            && !stale_complaints_kept()
+            && self.walked.complaint().is_some()
+        {
+            return self.solve_implicit_block_from(t, values, stage, alg_guess, validate, None);
+        }
+        solved
+    }
+
+    fn solve_implicit_block_tried(
         &self,
         t: f64,
         values: &mut [f64],

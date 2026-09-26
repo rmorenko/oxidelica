@@ -997,6 +997,43 @@ fn a_function_that_refused_inside_a_loop_says_why() {
     );
 }
 
+/// A walk that refused on a trial point Newton stepped away from is
+/// not a refusal of the answer the block converged to.
+///
+/// `TestWaterPumpDefault` took its first step from the start to a
+/// pressure below zero, `tsat` refused it, the step was halved back
+/// and the block converged - and the run stopped at t = 0 on the
+/// reason the discarded step left behind. Here `log(p)` = 0.5 from
+/// p = 10 steps to p = -8.03 first, where the assert fires; the root
+/// is e^0.5.
+#[test]
+fn a_refusal_left_by_a_discarded_newton_step_does_not_stop_the_run() {
+    let model = parse_model(
+        "model S \
+           function g \
+             input Real p; output Real y; \
+             protected Real a; \
+             algorithm \
+               assert(p > 0, \"g: p must be positive\"); \
+               a := p; \
+               while a < 10.0 loop a := a + 1.0; end while; \
+               y := log(p); \
+           end g; \
+           Real x(start = 10); Real s(start = 0, fixed = true); \
+         equation g(x) = 0.5; der(s) = x; \
+         annotation(experiment(StopTime = 0.1, Interval = 0.05)); end S;",
+    )
+    .unwrap();
+    let result = compile(&model)
+        .expect("the model compiles")
+        .simulate()
+        .expect("the converged point is inside the assert");
+    let at = result.columns.iter().position(|c| c == "x").unwrap();
+    for row in &result.rows {
+        assert!((row[at] - 0.5f64.exp()).abs() < 1e-8, "x = {}", row[at]);
+    }
+}
+
 /// A model refusing in prose has its whole sentence carried, and the
 /// numbers in it filled in.
 ///
