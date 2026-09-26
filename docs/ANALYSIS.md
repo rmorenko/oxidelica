@@ -22198,3 +22198,15 @@ that stalled, not one that reached the arithmetic's floor.
 seven minutes of processor time under the trail, repeating the same
 three-step solve at t = 0. It was stopped so as not to share the
 machine with the preflight, and is not measured.
+
+### The m284 census
+
+`/tmp/m284c/census.txt`, raw names in `/tmp/m284c/raw.txt`, taken on
+the pushed tree and counted by section boundaries: would not flatten
+52 rows over 106 models, flattened and would not run 160 rows over 290. Against m283 (51/115 and 160/290) the flatten half lost nine
+models, and the names that left are exactly the nine tables of the
+series above. No name arrived. The rows rose by one, not fell: the
+two emptied table rows (7 and 6 before) kept their `usertab` pair and
+two other models each, and `TestMatrices3` left the row of bodies the
+walk cannot carry (3 to 2) for a row of its own, the `dgesvd` of an
+empty matrix. The run half is identical in rows and in models.
