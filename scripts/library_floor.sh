@@ -790,7 +790,15 @@ FLATTEN_FLOOR=919
 # same tree (/tmp/m281/on2.txt), and the two run lists differ by two
 # names: only the desk runs SpringWithMass, only the runner runs
 # Dimmer_RL (/tmp/m282/d_ran.txt against r_ran.txt).
-RUN_FLOOR=627
+#
+# And run 629 is the runner's count of 473a9bb (job 108304685526 of
+# run 36206714158, /tmp/m284/runner.log): 627 plus the two m282 won,
+# TestWaterPumpDefault and InverseParameterization. The desk counts
+# 629 on the same code (/tmp/m282/on4.txt), and the two run lists
+# differ by the same two swinging names and no other: only the desk
+# runs SpringWithMass, only the runner runs Dimmer_RL
+# (/tmp/m284/d_ran.txt against r_ran.txt).
+RUN_FLOOR=629
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -849,8 +857,13 @@ RUN_FLOOR=627
 # (/tmp/m281/on2.txt): the eleven set out at `RUN_FLOOR` are all
 # runnable examples, and the two swinging names cancel. Runnable
 # flatten is 804 on both.
+#
+# And runnable run 587 is the runner's count of 473a9bb (job
+# 108304685526 of run 36206714158), the same as the desk's
+# (/tmp/m282/on4.txt): the two m282 won are runnable examples.
+# Runnable flatten is 804 on both.
 RUNNABLE_FLATTEN_FLOOR=804
-RUNNABLE_RUN_FLOOR=585
+RUNNABLE_RUN_FLOOR=587
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
@@ -1066,7 +1079,15 @@ WORK_PERCENT=5
 # Moved to 1779347953 from /tmp/m274/on.txt, the `dgesvd` chain; see
 # the refresh above for the fall of 915 per million, which would have
 # left the band less than half its width on the desk side.
-WORK_NAMES=1779347953
+#
+# Moved to 1781489445 from /tmp/m284/off.txt, a desk pass over the
+# code of 473a9bb. The reference had stood since m274 while the
+# series after it each added a few hundred names per million, and the
+# build machine's library job for 473a9bb (job 108304685526 of run
+# 36206714158) printed 1782930267, 2013 per million above 1779347953
+# and so red with every floor held. Against the new reference the
+# build machine stands 809 per million above and the desk at zero.
+WORK_NAMES=1781489445
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
