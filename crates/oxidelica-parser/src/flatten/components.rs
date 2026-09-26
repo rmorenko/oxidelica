@@ -1446,7 +1446,8 @@ pub(super) fn instantiate_one(
                 if let Some(reach) = reach.as_ref() {
                     shapes.sizes = reach;
                 }
-                expand(&worked, &shapes, registry, scope, imports, 0).and_then(|value| value.scalar())
+                expand(&worked, &shapes, registry, scope, imports, 0)
+                    .and_then(|value| value.scalar())
             };
             if let Some(value) = modifier(local_name) {
                 flat.binding = Some(work_out(&value).unwrap_or(value));
