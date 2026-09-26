@@ -21980,10 +21980,11 @@ whole: exactly two left and none arrived. They are
 `ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpDefault`,
 the two the m282 chapter gained. There is no third name.
 
-The rows moved more than the models did. Four single-model rows and
-one row of two emptied (the IF97 region error, `tsat` at too low a
-pressure, `visc_dTp` at too low a density, and the u_min/u_max bracket
-at 2), the bracket row came back at 1, and the Newton direction row
+The rows moved more than the models did. Three single-model rows
+emptied (the IF97 region error, `tsat` at too low a pressure,
+`visc_dTp` at too low a density), which is the fall from 163 rows to
+160, the u_min/u_max bracket row went from 2 to 1, and the Newton
+direction row
 went from 19 to 21 models (20 to 22 lines of the raw file that
 carry the words, the extra line being the ranking line at the head of
 the raw file, which quotes them too). The two new names in that row are
@@ -22121,3 +22122,79 @@ floors. The fifth is not: 0.012 against 1.85, while the iterates of
 |f| moves between 0.012 and 0.032 without falling. That is Newton
 cycling on the flow through the pump as the flow falls toward zero,
 not arithmetic. Only a measurement, nothing in the tree.
+
+### `nullSpace`: the shape was never the wall
+
+The m284 note guessed that `ModelicaTest.Math.TestMatrices3` refuses
+because the second dimension of `Z[size(A, 2), :]` is decided by the
+body, and that the target of the assignment should lend its shape.
+The probe says otherwise. `Matrices3` is a function whose body the
+compiler inlines, and `nullSpace` is refused for its `:` only because
+the attempt to inline it failed first and sent it to the walk, which
+cannot carry a matrix of unknown width. So the question is why the
+inlining failed, and it failed in two places. Each was found on a
+model of a few lines (`/tmp/m284/ns`), and the refusal the corpus
+prints was the message of the fallback, not of the fault.
+
+1. The rank is found by a `while` over the singular values. Inlined,
+   its condition holds `dgesvd` called on the written matrix, which is
+   a body written here in Rust and folds once its arguments are
+   numbers. The fold took each argument one list deep, and a matrix is
+   two: `[1, 0, 0; 0, 1, 0]` handed `const_eval` a row, which is not a
+   number, the condition stayed undecided, and the `while` refused.
+   The fold now lays a matrix out row by row.
+2. With the fold reached, `[A1, A1]` (5 by 10, rank 5) did not
+   converge. One-sided Jacobi turns five columns down to rounding, and
+   turning rounding against rounding never settles, so a hundred
+   sweeps ran out and the model's own `assert(info == 0)` fired. A pair
+   with a column smaller than what rounding leaves of the whole matrix
+   is now left alone. The unit test
+   `a_rank_deficient_matrix_is_decomposed_to_convergence` checks a
+   3 by 6 matrix of rank three: it converges, it rebuilds to 1e-12,
+   and the three right vectors past the rank are its null space.
+
+Both are behind `OXIDELICA_OLD_OUTSIDE_FOLD`, and both tests are red
+under it. With the two, the non-empty half of `Matrices3`, written as
+a model of its own, gives a nullity of 5 and `norm(A5*X5, 1)` =
+4.15e-14 against the model's own bound of 1e-13.
+
+The model still refuses, on its last three lines:
+`(Xn, n) := Matrices.nullSpace(N)` with `N = fill(0, 0, 0)`. That edge
+was walked four links further on a scratch patch
+(`/tmp/m284/nullspace_full.patch`, not in the tree): the shape of an
+empty argument read from its declaration at the call, `size(A, 2)`
+read from the shapes before `A` is substituted in a condition and in
+a local's binding, the same at the call inside a tuple, and a
+`transpose` of an empty matrix. Each link moved the refusal one line
+down the body. The next would be `V[:, rank + 1:size(A, 2)]` over a
+`V` that is `{}`. They are one family: a value with no elements
+carries no inner axes, since `Value::shape` reads them off the first
+element, and every reader of an empty matrix meets that loss on its
+own. Patching readers one at a time is the chain that has no end, and
+the fix is for the empty value to carry its shape. That is parked
+with this map.
+
+The two links were measured as a pair from one binary (`/tmp/ox220n`),
+`/tmp/m284/off2.txt` under `OXIDELICA_OLD_OUTSIDE_FOLD` against
+`/tmp/m284/on2.txt` without it: 928 flatten and 638 run both ways
+(runnable 813 and 596), both lists identical to the name. No model
+moved, and none was lost. Of the refusal rows, one moved:
+`TestMatrices3` left "`nullSpace` is called where nothing could inline
+it" and now stands on "`dgesvd` is handed its matrix in a shape this
+compiler cannot read", the empty edge above. The links are kept
+though the count did not move, because the chain behind them is mapped
+to its end and the rest is parked with a reason. Names looked up rose
+from 1781530166 to 1781533852, 2 per million.
+
+### The two new Newton names, one probe each
+
+`TestTemperature1` (`/tmp/m284/tt1_trail.txt`) refuses on the block of
+`volume1.medium.p` at t = 0. Its Newton steps go from 0.2 up to 4.6e5,
+back down to 2.83, and then stand at 1.3e-4 for three steps. The floor
+line puts the residual at 1e-5 to 1.3e-4 in rows whose loudest term is
+between 3e2 and 1e3, where the floor is near 1e-13. That is a solve
+that stalled, not one that reached the arithmetic's floor.
+`DynamicPipesWithTraceSubstances` did not reach its floor line in
+seven minutes of processor time under the trail, repeating the same
+three-step solve at t = 0. It was stopped so as not to share the
+machine with the preflight, and is not measured.
