@@ -381,7 +381,7 @@ pub struct CompiledModel {
     /// See [`CompiledModel::max_events_one_interval`].
     pub max_rows: usize,
     /// How many Newton iterations one output interval may hold before
-    /// the run is refused. See [`MAX_NEWTON_ONE_INTERVAL`].
+    /// the run is refused. See `MAX_NEWTON_ONE_INTERVAL`.
     pub max_newton_one_interval: usize,
     /// Where the current output interval of Newton work began, and
     /// how many iterations it has held so far. Only the run touches

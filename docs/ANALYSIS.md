@@ -22247,9 +22247,10 @@ with no ceiling). The 662 models that reached Newton give
 `/tmp/m285/peaks_tagged.txt`. Of the 214 that run, the median peak is
 63, the 90th percentile 973, the 99th 15484, and the top is
 `ControlledTanks` at 453996 in one interval, then
-`Polyphase.Examples.Rectifier` at 72315. `BranchingPipes1` peaks at
-221. A ceiling at 221 would refuse 63 models that run, at 500 it
-would refuse 42, at 1000 22, and only 453996 refuses none - about 47
+`Polyphase.Examples.Rectifier` at 72315. The peak of `BranchingPipes1`
+is 221 iterations. A ceiling there would refuse 63 models that run,
+one at 500 would refuse 42, one at 1000 would refuse 22, and only
+453996 refuses none - about 47
 hours of `BranchingPipes1` at its price. So there is no number to
 choose. A budget in iterations measures the wrong thing, since what
 the wedge spends is the price of each iteration.
