@@ -22468,3 +22468,111 @@ checks.
 The floors are not raised in this commit. The rule is that a floor
 rises only to what the runner's library job prints, and that number
 does not exist yet. The raise is in the queue.
+
+## The m287 series: a loop left on a condition the run decides
+
+### The m286 census, read
+
+`/tmp/m286/census.txt`, four sections, counted between the section
+markers. The flatten half is 98 models in 51 rows, against 106 in 52
+in `/tmp/m284c/census.txt`: the row of eight Noise examples went and
+nothing else moved. The run half is 293 models in 160 rows, against
+290 in 160. The named diff of the raw halves (`/tmp/m284c/raw.txt`
+against `/tmp/m286/raw.txt`) accounts for both:
+
+- `Clocked.Examples.Elementary.RealSignals.UniformNoiseXorshift64star`
+  left the run half: it runs.
+- `Blocks.Examples.Noise.ActuatorWithNoise` and
+  `Noise.Utilities.Parts.MotorWithCurrentControl` came into the run
+  half as structurally singular, and `NormalNoiseProperties` and
+  `UniformNoiseProperties` as a step size underflow at t = 0.
+- `AutomaticSeed`, `Distributions`, `DrydenContinuousTurbulence` and
+  `UniformNoise` left the flatten half and do not appear in the run
+  half: they run, as the m286 pair said.
+
+One more line moved that the expectation did not name:
+`Media.Examples.ReferenceAir.DryAir1` stays in the run half but at a
+different wall. It stood at "cannot evaluate parameters [h_start =
+...]" and now stands at "the Newton direction of algebraic loop
+[volume.medium.p, ...] does not reduce". The count of the run half
+does not see it, since one row gave one model to another.
+
+The rows stay 160 by two going and two coming, read off the run
+section of both files. Gone are two singles: the `h_start` row DryAir1
+left, and the discrete-start row of UniformNoiseXorshift64star. Come
+are two: the single `motor.smpm.inertiaRotor` row of
+ActuatorWithNoise, and a row of two step size underflows without the
+state re-selection note, which is the two `*Properties`. The Newton
+row goes from 21 to 22 with DryAir1, and MotorWithCurrentControl
+joins the `voltageQuasiRMSSensor` singular row, which goes from 1 to
+2. Rows 160 = 160 and models 290 + 4 - 1 = 293, both as printed.
+
+### The DFF and DLAT row, taken
+
+The eight registers refused because a `break` inside `for i in 1:n`
+stood under a condition only the run can settle, and an unrolled loop
+had nothing to remember that it was left. `execute` now tries the loop
+the old way first, and only where that refuses with the leaving
+refusal, outside a function body, runs it again with a flag: the
+`break` becomes the flag going up, what follows it in the round is
+guarded by the flag being down, and every later round is guarded the
+same way. Each assignment behind the flag comes out as the choice
+between what it writes and what stands, the choice an `if` on an
+undecidable condition already makes. The flag is carried as
+`standing or raised this round` rather than as the merged `if`, which
+would name the standing flag twice a round and double with every
+round. A function body keeps its road: one that leaves on a condition
+only the run knows is walked, as before.
+
+That took the eight one wall further, to "`nextstate[1]` is assigned
+in one branch only and has no value before the `if`". `DFFR` writes
+`nextstate[i]` under `if change(clock) or change(reset)` and reads the
+whole array after it. An element of a discrete array written that way
+now enters the section holding `pre` of itself, which is what a
+discrete variable of an algorithm starts from - asked only where
+nothing above answered, since an array had no start there at all, so
+a model that ran before reads what it read. Tried first ahead of the
+type's start for every discrete name, the rule sent DFFREG into the
+expression depth ceiling on `dFFREG.dFFR.clock`, and was narrowed
+back.
+
+`OXIDELICA_NO_LOOP_EXIT` closes both, so one binary gives both sides.
+Two tests check numbers, not flattening: a loop of three rounds left
+at the `m`th, `total` 10, 30, 60 worked out by hand, refused under
+the key; and a register of three left early, which keeps 11 across a
+tick where the loop is left at once and takes 31 on the next.
+
+The registers themselves were checked against their truth tables by
+hand, with logic values as the library numbers them (1 U, 2 X, 3 0,
+4 1, 6 W). `DFFREG` (n = 2, tHL 5, tLH 6, S_X01): reset high at 1
+gives 0 in both bits, out at 6 after the fall delay; the rising edge
+at 7 latches {1, H as 1}; the edge at 10 latches bit 2 as X; the edge
+at 15 latches bit 1 as 0 after data_0 fell at 12; the outputs follow
+at 13, 16 and 20 by the delays. `DLATREG`: reset at 1 gives 0, the
+latch opens at 10 and passes W as X on bit 1, then 1 at 15 and 1 at
+16 on bit 2, holds after it closes at 18, and the reset at 20 clears
+both to 0 by 22. `DFFREGSRH`: set at 5 gives 1 in both, the edge at
+10 latches W as X and 0. Every transition in all three matches.
+
+The four set-reset twins are dear: `DFFREGSRH` and `DFFREGSRL` take
+16 seconds each to build, the `DLATREGSR*` pair 5, against 2 and 0.3
+for the plain registers. The `DFFSR` algorithm has eight branches per
+bit, three of them leaving, and the guarded rounds nest them. Named
+here so the next timing that finds them does not take them for a
+regression.
+
+### The subscript row, mapped and not taken
+
+Four models, `Blocks.Examples.Rectifier6pulseFFT`,
+`Rectifier12pulseFFT` and `Math.FastFourierTransform.Examples.RealFFT1`
+and `RealFFT2`, refuse with "the subscript of `buf` (or `y_buf`) must
+be a whole number the compiler can see". All four fill a buffer inside
+a `when sample(...)`: `buf[iTick] := u` with `iTick := pre(iTick) + 1`,
+a discrete index the compiler cannot know. Twelve lines reproduce it
+(`/tmp/m287/S.mo`). An assignment to an element named by a run-time
+index would need the same answer as the loop above, a choice over
+every element, and that is buildable. But it would move no model:
+behind the wall all four call `realFFT`, which calls
+`Internal.rawRealFFT`, which is `ModelicaFFT_kiss_fftr` in C. That is
+the family of the parked external-C row, and the four stand or fall
+with the answer to that question rather than with the subscript.

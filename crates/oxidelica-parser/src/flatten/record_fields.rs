@@ -357,6 +357,67 @@ pub(super) fn starts_at(
     })
 }
 
+/// Whether `name` - a variable or one element of it - is declared by
+/// the model `scope` as one that only changes at events: `discrete`
+/// outright, or an `Integer`, a `Boolean` or an enumeration, which are
+/// discrete whatever they are called. Not an input, which the section
+/// does not own.
+pub(super) fn held_between_events(
+    name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+) -> bool {
+    let Some(class) = registry.get(scope) else {
+        return false;
+    };
+    if class.kind != ClassKind::Model {
+        return false;
+    }
+    let root = name.split(['[', '.']).next().unwrap_or(name);
+    let Some(declared) = class.components.iter().find(|c| c.name == root) else {
+        return false;
+    };
+    if declared.causality == Causality::Input || name[root.len()..].contains('.') {
+        return false;
+    }
+    if declared.variability == Variability::Discrete {
+        return true;
+    }
+    discrete_type(&declared.type_name, registry, class, 0)
+}
+
+/// Whether a type is followed through its bases to one that is
+/// discrete by nature.
+fn discrete_type(
+    type_name: &str,
+    registry: &HashMap<&str, &ClassDef>,
+    within: &ClassDef,
+    depth: usize,
+) -> bool {
+    if depth > 32 {
+        return false;
+    }
+    match type_name {
+        "Integer" | "Boolean" => return true,
+        "Real" | "String" => return false,
+        _ => {}
+    }
+    let Some(class) = lookup(registry, type_name, &within.name, &within.imports) else {
+        return false;
+    };
+    if !class.enumeration.is_empty() {
+        return true;
+    }
+    let base = match &class.alias_of {
+        Some((base, _)) => base.clone(),
+        None => match class.extends.first() {
+            Some(first) => first.base.clone(),
+            None => return false,
+        },
+    };
+    discrete_type(&base, registry, class, depth + 1)
+}
+
 /// The `start` a record's own declaration writes on the field `name`
 /// names, where there is one. `None` where the field is reached but
 /// says nothing about its start, and where it cannot be reached at all.

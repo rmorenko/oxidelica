@@ -1294,3 +1294,93 @@ fn a_flag_settled_inside_a_loop_stays_a_flag() {
         stderr(&refused)
     );
 }
+
+/// The value of `name` in the last row the run wrote at `time`.
+fn at_time(csv: &str, name: &str, time: f64) -> f64 {
+    let mut lines = csv.lines();
+    let header: Vec<&str> = lines.next().unwrap().split(',').collect();
+    let at = header.iter().position(|column| *column == name).unwrap();
+    lines
+        .map(|line| line.split(',').collect::<Vec<&str>>())
+        .rfind(|row| (row[0].parse::<f64>().unwrap() - time).abs() < 1e-9)
+        .map(|row| row[at].parse().unwrap())
+        .unwrap()
+}
+
+/// A `for` left by a `break` only the run can decide.
+///
+/// The loop unrolls, its range being a number, and a flag remembers
+/// where it was left: every later round is written as a choice between
+/// what it assigns and what stands. `m` counts the ticks, so the loop
+/// runs `m` rounds of three - worked out by hand, `total` is 10, then
+/// 10 + 20, then 10 + 20 + 30. `OXIDELICA_NO_LOOP_EXIT` gives back the
+/// refusal, so the same binary shows both sides.
+#[test]
+fn a_loop_left_on_a_condition_the_run_decides_is_written_out_with_a_flag() {
+    let file = TempFile::new(
+        "loop_exit.mo",
+        "model B discrete Integer m(start = 0); Integer y[3]; Integer total; \
+         equation when sample(0, 1) then m = pre(m) + 1; end when; \
+         algorithm for i in 1:3 loop y[i] := 0; end for; total := 0; \
+         for i in 1:3 loop if i > m then break; end if; \
+         y[i] := 10 * i; total := total + y[i]; end for; end B;",
+    );
+    let run = |off: bool| {
+        let mut command = bin();
+        if off {
+            command.env("OXIDELICA_NO_LOOP_EXIT", "1");
+        }
+        command
+            .args(["simulate", file.path(), "--stop", "2.5", "--dt", "0.5"])
+            .output()
+            .unwrap()
+    };
+    let out = run(false);
+    assert!(out.status.success(), "{}", stderr(&out));
+    let csv = stdout(&out);
+    assert_eq!(at_time(&csv, "total", 0.5), 10.0);
+    assert_eq!(at_time(&csv, "total", 1.5), 30.0);
+    assert_eq!(at_time(&csv, "total", 2.5), 60.0);
+    assert_eq!(at_time(&csv, "y[3]", 1.5), 0.0);
+    assert_eq!(at_time(&csv, "y[3]", 2.5), 30.0);
+    let refused = run(true);
+    assert!(!refused.status.success());
+    assert!(
+        stderr(&refused).contains("needs a condition the compiler can decide"),
+        "{}",
+        stderr(&refused)
+    );
+}
+
+/// A register written the way `Digital.Registers.DFFR` is written: a
+/// loop over a discrete array under `if change(...)`, left early on a
+/// bit the run decides. An element the section does not write on an
+/// event keeps what it held, `pre` of itself - the start of its type
+/// would have the register forget its contents. Worked out by hand:
+/// at the first tick `d` is {1, 0, 1}, so only `ns[1]` takes 11; at
+/// the second it is {0, 1, 1} and the loop is left at once, so 11
+/// stays; at the third `ns[1]` takes 31. `ns[3]` is never reached.
+#[test]
+fn a_register_left_early_keeps_what_it_held() {
+    let file = TempFile::new(
+        "register_exit.mo",
+        "model R discrete Integer k(start = 0); Integer d[3]; \
+         Integer ns[3](each start = 0); Integer held[3]; \
+         equation when sample(0, 1) then k = pre(k) + 1; end when; \
+         d = {mod(k, 2), mod(k + 1, 2), 1}; \
+         algorithm if change(k) then for i in 1:3 loop \
+         if d[i] == 0 then break; end if; ns[i] := 10 * k + i; end for; end if; \
+         held := ns; end R;",
+    );
+    let out = bin()
+        .args(["simulate", file.path(), "--stop", "2.5", "--dt", "0.5"])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+    let csv = stdout(&out);
+    assert_eq!(at_time(&csv, "held[1]", 0.5), 11.0);
+    assert_eq!(at_time(&csv, "held[1]", 1.5), 11.0);
+    assert_eq!(at_time(&csv, "held[1]", 2.5), 31.0);
+    assert_eq!(at_time(&csv, "held[2]", 2.5), 0.0);
+    assert_eq!(at_time(&csv, "held[3]", 2.5), 0.0);
+}

@@ -294,33 +294,48 @@ pub(super) fn execute(
                     }
                     None => implied_statement_range(body, variable, sizes)?,
                 };
-                for index in values {
-                    bindings.insert(variable.clone(), Expr::Number(index));
-                    let flow = execute(
-                        body,
-                        bindings,
-                        assigned,
-                        asserts,
-                        consts,
-                        sizes,
-                        registry,
-                        scope,
-                        imports,
-                        depth + 1,
-                        fold,
-                    )?;
-                    match flow {
-                        Flow::Normal => {}
-                        Flow::Break => break,
-                        Flow::Return => {
-                            bindings.remove(variable);
-                            assigned.retain(|name| name != variable);
-                            return Ok(Flow::Return);
-                        }
+                // A loop left by a `break` the compiler cannot decide is
+                // run a second time with a flag that remembers the
+                // leaving - but only where the plain run refused, so a
+                // loop that was written out before is written out the
+                // same way now. Not in a function body: a body that
+                // leaves on a condition only the run knows is walked
+                // by the run, and that road stands as it was.
+                let may_leave = loop_exit_open() && !in_function_body() && breaks_here(body);
+                let before = may_leave.then(|| {
+                    (
+                        bindings.clone(),
+                        assigned.clone(),
+                        asserts.len(),
+                        algorithms::checks_mark(),
+                    )
+                });
+                let plain = unrolled(
+                    variable, &values, body, bindings, assigned, asserts, consts, sizes, registry,
+                    scope, imports, depth, fold,
+                );
+                let flow = match (plain, before) {
+                    (Err(why), Some((b, a, mark, checks)))
+                        if why.contains(UNDECIDABLE_LEAVING) =>
+                    {
+                        *bindings = b;
+                        *assigned = a;
+                        asserts.truncate(mark);
+                        algorithms::checks_rewind(checks);
+                        let _after = Afterwards::holding(&statements[at + 1..]);
+                        let _again = Afterwards::holding(body);
+                        unrolled_with_exit(
+                            variable, &values, body, bindings, assigned, asserts, consts, sizes,
+                            registry, scope, imports, depth, fold,
+                        )?
                     }
-                }
+                    (plain, _) => plain?,
+                };
                 bindings.remove(variable);
                 assigned.retain(|name| name != variable);
+                if flow == Flow::Return {
+                    return Ok(Flow::Return);
+                }
             }
             Statement::While(condition, body) => {
                 let mut rounds = 0;
@@ -374,6 +389,197 @@ pub(super) fn execute(
         }
     }
     Ok(Flow::Normal)
+}
+
+/// A `for` unrolled round by round, a `break` ending it where the
+/// condition above the `break` is one the compiler can decide.
+///
+/// `Flow::Return` where the body left the function, `Flow::Normal`
+/// otherwise: the loop consumes its own `break`.
+#[allow(clippy::too_many_arguments)]
+fn unrolled(
+    variable: &str,
+    values: &[f64],
+    body: &[Statement],
+    bindings: &mut HashMap<String, Expr>,
+    assigned: &mut Vec<String>,
+    asserts: &mut Vec<(Expr, String)>,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+    fold: bool,
+) -> Result<Flow, String> {
+    for &index in values {
+        bindings.insert(variable.to_string(), Expr::Number(index));
+        match execute(
+            body,
+            bindings,
+            assigned,
+            asserts,
+            consts,
+            sizes,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+            fold,
+        )? {
+            Flow::Normal => {}
+            Flow::Break => break,
+            Flow::Return => return Ok(Flow::Return),
+        }
+    }
+    Ok(Flow::Normal)
+}
+
+/// A `for` unrolled with a flag that remembers whether it was left.
+///
+/// Unrolling writes each round out after the one before, and a `break`
+/// whose condition only the run can settle leaves nothing to stop the
+/// later rounds with. So the `break` becomes the flag going up, what
+/// follows it in the round is guarded by the flag being down, and so
+/// is every later round. Each assignment behind the flag then comes out
+/// as a choice between the value it writes and the value standing - the
+/// same choice an `if` on an undecidable condition already makes.
+///
+/// The flag is carried as `standing or raised this round`, not as the
+/// `if` the merge writes: that `if` names the standing flag twice, and
+/// a flag named twice a round is a value that doubles with every round.
+#[allow(clippy::too_many_arguments)]
+fn unrolled_with_exit(
+    variable: &str,
+    values: &[f64],
+    body: &[Statement],
+    bindings: &mut HashMap<String, Expr>,
+    assigned: &mut Vec<String>,
+    asserts: &mut Vec<(Expr, String)>,
+    consts: &HashMap<String, f64>,
+    sizes: &HashMap<String, Vec<i64>>,
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+    fold: bool,
+) -> Result<Flow, String> {
+    // A name no model can write, one per nesting, so a loop inside a
+    // loop has its own.
+    let flag = format!("$left{depth}");
+    let flagged = exit_flagged(body, &flag);
+    let lower = Statement::Assign(flag.clone(), vec![], Expr::Bool(false));
+    let mut round = vec![lower];
+    round.extend(flagged.iter().cloned());
+    let guarded = [Statement::If(vec![StatementBranch {
+        condition: Some(Expr::Not(Box::new(Expr::Ref(flag.clone())))),
+        body: round,
+    }])];
+    bindings.insert(flag.clone(), Expr::Bool(false));
+    let mut flow = Flow::Normal;
+    for &index in values {
+        bindings.insert(variable.to_string(), Expr::Number(index));
+        let standing = bindings.get(&flag).cloned().unwrap_or(Expr::Bool(false));
+        let settled = settled_condition(
+            &standing, bindings, consts, sizes, registry, scope, imports, depth,
+        );
+        let this_round: &[Statement] = match settled {
+            Some(left) if left != 0.0 => break,
+            Some(_) => &flagged,
+            None => &guarded,
+        };
+        let done = execute(
+            this_round,
+            bindings,
+            assigned,
+            asserts,
+            consts,
+            sizes,
+            registry,
+            scope,
+            imports,
+            depth + 1,
+            fold,
+        )?;
+        if settled.is_none() {
+            if let Some(Expr::If(_, raised, otherwise)) = bindings.get(&flag) {
+                if **otherwise == standing {
+                    let carried = Expr::Or(Box::new(standing), raised.clone());
+                    bindings.insert(flag.clone(), carried);
+                }
+            }
+        }
+        if done == Flow::Return {
+            flow = Flow::Return;
+            break;
+        }
+    }
+    bindings.remove(&flag);
+    assigned.retain(|name| *name != flag);
+    Ok(flow)
+}
+
+/// The body of a loop with its own `break`s turned into a flag going
+/// up, and whatever follows a statement that may raise it guarded by
+/// the flag being down. A loop inside is left alone: its `break`s are
+/// its own.
+fn exit_flagged(statements: &[Statement], flag: &str) -> Vec<Statement> {
+    let mut out = Vec::new();
+    for (at, statement) in statements.iter().enumerate() {
+        match statement {
+            Statement::Break => {
+                out.push(Statement::Assign(
+                    flag.to_string(),
+                    vec![],
+                    Expr::Bool(true),
+                ));
+                return out;
+            }
+            Statement::If(branches) if branches.iter().any(|b| breaks_here(&b.body)) => {
+                out.push(Statement::If(
+                    branches
+                        .iter()
+                        .map(|branch| StatementBranch {
+                            condition: branch.condition.clone(),
+                            body: exit_flagged(&branch.body, flag),
+                        })
+                        .collect(),
+                ));
+                let rest = exit_flagged(&statements[at + 1..], flag);
+                if !rest.is_empty() {
+                    out.push(Statement::If(vec![StatementBranch {
+                        condition: Some(Expr::Not(Box::new(Expr::Ref(flag.to_string())))),
+                        body: rest,
+                    }]));
+                }
+                return out;
+            }
+            other => out.push(other.clone()),
+        }
+    }
+    out
+}
+
+/// Whether statements hold a `break` that leaves the loop they stand
+/// in, rather than one inside a loop of their own.
+fn breaks_here(statements: &[Statement]) -> bool {
+    statements.iter().any(|statement| match statement {
+        Statement::Break => true,
+        Statement::If(branches) => branches.iter().any(|b| breaks_here(&b.body)),
+        _ => false,
+    })
+}
+
+/// Whether the statements being worked out are a function's body.
+fn in_function_body() -> bool {
+    OUTPUTS.with(|held| !held.borrow().is_empty())
+}
+
+/// Whether a loop left on a condition the compiler cannot decide is
+/// written out with a flag. `OXIDELICA_NO_LOOP_EXIT` keeps the old
+/// refusal, so that one binary gives both numbers.
+fn loop_exit_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_LOOP_EXIT").is_none()
 }
 
 /// One assignment among the statements: what the right-hand side comes
@@ -1354,7 +1560,24 @@ fn one_if_statement(
             if inside_when() && !name.contains('[') {
                 return Some(Expr::Call("pre".to_string(), vec![Expr::Ref(name.clone())]));
             }
-            let start = record_fields::starts_at(&name, registry, scope)?;
+            let Some(start) = record_fields::starts_at(&name, registry, scope) else {
+                // An element of a discrete array in the algorithm of a
+                // model, outside any function: it enters the section
+                // holding `pre` of itself, which is what the language
+                // says a discrete variable of an algorithm starts from.
+                // Asked only where nothing above answered - an array
+                // has no start here at all - so what ran before reads
+                // what it read. `Digital.Registers.DFFR` writes
+                // `nextstate[i]` under `if change(clock) or
+                // change(reset)` and reads the whole array after it.
+                if loop_exit_open()
+                    && !in_function_body()
+                    && record_fields::held_between_events(&name, registry, scope)
+                {
+                    return Some(Expr::Call("pre".to_string(), vec![Expr::Ref(name.clone())]));
+                }
+                return None;
+            };
             // A flag costs nothing to give a start to: it
             // decides a branch rather than being folded
             // into arithmetic, so it cannot grow the value
