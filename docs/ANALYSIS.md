@@ -21952,8 +21952,13 @@ puts 8008 of 8221 samples in `dopri::adaptive`, then `eval_point`,
 then `solve_implicit_block`, and the walked medium bodies under it.
 So the explicit solver takes the failing stage as a rejected step and
 tries again, and every try pays a full Newton solve of a water block.
-The non-reselectable path does have a floor (`h < stop * 1e-14`
-underflows), so the wedge is dear steps rather than steps with no
-end. Whether `h` is still falling toward that floor or `t` is creeping
-forward is the next question, and it needs `t` and `h` printed at each
-rejection, not another corpus pass. Not in the tree.
+The rejections were then printed with `t` and `h` (a print on the same
+patch, `/tmp/m282/ox7t`, `X_REJECT_TRAIL`, `/tmp/m282/rejects.txt`).
+In 200 s there were two, both at t = 0: `h` fell to 2e-4 and then to
+4e-5, and then nothing more was printed. The run is neither creeping
+in `t` nor falling toward the underflow floor in `h`. It is inside one
+attempt, with the stage evaluations of a single step spending minutes
+in the walked water bodies of the block, where the model without the
+switch gives up after the first failed stage. The bound that widening
+the rejection needs is therefore a budget on the Newton work of one
+step, not a floor on `h`. Not in the tree.
