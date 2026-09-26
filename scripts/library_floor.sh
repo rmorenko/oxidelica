@@ -923,7 +923,15 @@ UNREAD_CEILING=0
 # Milliseconds per model that reached each half. See the note above
 # for why these are the build machine's numbers and not a desk's.
 FLATTEN_MS_CEILING=12000
-RUN_MS_CEILING=8000
+# Raised from 8000 after it fired on weather. ce66aca is 307a790 with a
+# chapter of prose added, and the two library jobs printed 5975ms and
+# 8141ms per model running (jobs 108441560249 and 108442231140,
+# /tmp/m288/runner307.log and runnerce6.log): 36% apart over one code,
+# and the second red. The dearest of the twelve runs before them was
+# 8327ms (run 36208575512). 8327 with a 36% spread above it is 11325,
+# so the ceiling goes to 12000, the flattening one's: still under half
+# of the factor of five this trap was set for.
+RUN_MS_CEILING=12000
 
 # The work the check did, counted in steps rather than seconds, and
 # held to within five percent of what is written here either way.
@@ -1147,7 +1155,19 @@ WORK_PERCENT=5
 # the two DLATREGSR 1.1 million and the four plain ones 0.2 million,
 # where each had cost 0.12 million to refuse. That is the rise, bought
 # with eight models, and the old reference would have been red on it.
-WORK_NAMES=1786972232
+#
+# Moved to 1782427540 from /tmp/m288/sub_new.txt, the m288 series. Two
+# of its three changes moved the count, each measured on one binary
+# both ways: reading a medium's constant array under the medium first
+# took 1786972150 to 1786595989 (/tmp/m288/arr_old.txt, arr_new.txt,
+# 210 per million down, the flatten and run lists identical), and
+# substituting a body's bindings once rather than twice took
+# 1786595982 to 1782427540 (/tmp/m288/sub_old.txt, sub_new.txt, 2333
+# per million down, with LinearColdWater added to both lists). Fewer
+# names looked up for more models: the second pass was walking every
+# name of every assignment's value again. Together 2543 per million
+# below the old reference, which would have been red on the fall.
+WORK_NAMES=1782427540
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
