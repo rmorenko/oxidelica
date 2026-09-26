@@ -22328,3 +22328,25 @@ million ulps. That is a solve that stalled in the trace-substance rows
 of each segment, not one standing on the arithmetic's floor, the same
 reading as `TestTemperature1` in m284. The four slow models of m282
 are now all measured.
+
+### Nor a count of walked work
+
+If the wedge is the price of an iteration, the next unit to try is the
+work of the walked bodies, which is where the price is paid. A probe
+outside the tree (`/tmp/m285/walk_peak_probe.patch`, binary
+`/tmp/m285/ox2`) counted every statement the run walks and printed,
+per segment, the most any one output interval held
+(`/tmp/m285/walk.txt`, `/tmp/m285/walk_tagged.txt`). The pass came out
+at 928 flatten and 638 run, the run list identical to the name.
+`BranchingPipes1` holds 109239227 walked statements in the interval
+at t = 0, about 484000 per Newton iteration. It is not the top.
+`DynamicPipeEnergyConservationCheck`, which runs and which these
+notes keep in the main pass because it checks an answer, holds 151124907. `MomentumBalanceFittings` holds 44465800 and
+`TestWaterPumpDCMotorHeatTransfer` 32620131, and both run. A ceiling
+under 109 million refuses at least one running model, and one above
+it does not stop `BranchingPipes1`. So walked work does not separate
+it either. What is left is wall time per interval, which the notes
+refuse as a ratchet because it is weather. So the wide stage rejection
+has no bound that the compiler's own counts can give it, and deciding
+it is a question of whether one walking model is an acceptable price
+for three that run.
