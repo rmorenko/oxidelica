@@ -849,7 +849,13 @@ FLATTEN_FLOOR=948
 # And run 655 is the runner's count of d0a39b4 (job 108464947025): 651
 # plus the four set out at `FLATTEN_FLOOR`, all of which run. The desk
 # counts 655 on the same tree (/tmp/m288/sub_new.txt).
-RUN_FLOOR=655
+#
+# And run 658 is the runner's count of 8ce586b (job 108489002796 of run
+# 36272505121), which carries the code of e3b8651: 655 plus
+# TestCheckValve, ReferenceAir_pT and ReferenceAir_ph, the three of
+# m289 that run. The desk counts 658 on the same tree
+# (/tmp/m289/on.txt), and flatten stays 948 on both.
+RUN_FLOOR=658
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -930,8 +936,12 @@ RUN_FLOOR=655
 # `FLATTEN_FLOOR`, runnable run 613 = 609 plus the same four: the
 # runner's count of d0a39b4, the same as the desk's
 # (/tmp/m288/sub_new.txt).
+#
+# And runnable run 616 = 613 plus the same three set out at
+# `RUN_FLOOR`, all runnable examples; runnable flatten stays 832. The
+# runner's count of 8ce586b, the same as the desk's (/tmp/m289/on.txt).
 RUNNABLE_FLATTEN_FLOOR=832
-RUNNABLE_RUN_FLOOR=613
+RUNNABLE_RUN_FLOOR=616
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
