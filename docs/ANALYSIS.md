@@ -21926,3 +21926,34 @@ without (`off4.txt`, `on4.txt`). It is 629 to 629, runnable 587 to
 `on.txt` of the pair above. No model in the library stands on the
 zero once the start modifier is worked out, and none is refused by
 name for a start it cannot work out.
+
+### The model that wedged the stage-rejection pair
+
+The m281 chapter left the widened stage rejection
+(`/tmp/m281/stage_rejects.patch`, binary `/tmp/m281/ox7`,
+`X_STAGE_REJECTS`) with a pair that stood at `read 936 of 1034` for
+twelve minutes, and asked for the model by name. It was found one
+model at a time instead of by `--slow`: each of the 290 models that
+flatten and do not run on today's tree (`/tmp/m282/norun.txt`) was run
+alone under `--only` with the switch and a 90 s alarm
+(`/tmp/m282/wedge.txt`). Five reached the alarm. Run again with 400 s
+both with and without the switch (`/tmp/m282/long.txt`), four came
+out the same either way: `HeatingSystem` (170 s, a subscript that
+cannot be differentiated), `DynamicPipesAndFittings` (160 s, singular
+Jacobian), `DynamicPipesWithTraceSubstances` (181 s, the u_min/u_max
+bracket) and `BranchingPipes12` (259 s, 50 Newton iterations). They
+are slow, and the switch has nothing to do with it.
+
+The fifth is the one: `ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes1`
+refuses in 125 s without the switch (the Newton direction on the
+block of `pipe1.mediums[1].p`), and with it has not finished at
+400 s. A ten-second stack sample at 100 s (`/tmp/m282/bp1.sample`)
+puts 8008 of 8221 samples in `dopri::adaptive`, then `eval_point`,
+then `solve_implicit_block`, and the walked medium bodies under it.
+So the explicit solver takes the failing stage as a rejected step and
+tries again, and every try pays a full Newton solve of a water block.
+The non-reselectable path does have a floor (`h < stop * 1e-14`
+underflows), so the wedge is dear steps rather than steps with no
+end. Whether `h` is still falling toward that floor or `t` is creeping
+forward is the next question, and it needs `t` and `h` printed at each
+rejection, not another corpus pass. Not in the tree.
