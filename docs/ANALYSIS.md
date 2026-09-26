@@ -21962,3 +21962,162 @@ in the walked water bodies of the block, where the model without the
 switch gives up after the first failed stage. The bound that widening
 the rejection needs is therefore a budget on the Newton work of one
 step, not a floor on `h`. Not in the tree.
+
+## The m283 census, and tables read from files
+
+### The census, by section
+
+`/tmp/m283/census.txt`, raw names in `/tmp/m283/raw.txt`, counted by
+section boundaries: would not flatten 51 rows over 115 models,
+flattened and would not run 160 rows over 290. Against the m281
+census (`/tmp/m281/census.txt`, 51/115 and 163/292) the flatten half
+is identical to the name, and the run half lost two models and three
+rows.
+
+The run half's names, `built` lines of the two raw files diffed
+whole: exactly two left and none arrived. They are
+`Modelica.Fluid.Examples.InverseParameterization` and
+`ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpDefault`,
+the two the m282 chapter gained. There is no third name.
+
+The rows moved more than the models did. Four single-model rows and
+one row of two emptied (the IF97 region error, `tsat` at too low a
+pressure, `visc_dTp` at too low a density, and the u_min/u_max bracket
+at 2), the bracket row came back at 1, and the Newton direction row
+went from 19 to 21 models (20 to 22 lines of the raw file that
+carry the words, the extra line being the ranking line at the head of
+the raw file, which quotes them too). The two new names in that row are
+`ModelicaTest.Fluid.TestComponents.Pipes.DynamicPipesWithTraceSubstances`,
+which in m281 stood on the u_min/u_max bracket at t = 0, and
+`ModelicaTest.Fluid.TestComponents.Sensors.TestTemperature1`, which
+stood on the IF97 region error at t = 0. Both refusals were the
+reason a discarded Newton step left behind, and the m282 repair that
+drops such a reason once the block converges took both of them to a
+Newton wall of their own. The other nineteen names in the row are
+the same as in m281.
+
+A count of 116 against the section sum of 115 was reported for
+`/tmp/m283/n283.txt`, the per-name list of the flatten half. Read
+again, the file holds 115 lines, 115 distinct names, every line two
+tab-separated fields, and it ends in a newline, so there is no
+duplicate and no broken line. The file was last written at 03:58:42,
+the moment the shift was cut off, so the 116 was most likely read
+while it was still being written. The instrument agrees with the
+section sum.
+
+### Tables on files: the chain behind `t_new.columns`
+
+The chapter "An empty array cannot say how wide it is" named seven
+models behind one refusal about `t_new.columns`, built a declared-size
+fallback, measured it at zero and reverted it. The m283 shift walked
+the chain to its end instead. There were two links the earlier map did
+not name, and the length of the range was never one of them.
+
+1. `fill(0.0, 0, 2)` expands to a list with no rows, and its width of
+   two lived only in the declaration. `size(table, 2)` now reads the
+   declared shape where the expansion is empty, and
+   `2:size(table, 2)` is measured by its bounds before it is
+   expanded. Neither applies to a table said to be on a file: there
+   the declaration is a placeholder, and a first build that let it
+   answer measured a false width of one from `fill(0, 0, 2)`. The
+   guard on `tableOnFile` was put in before that number could stand.
+2. With the width known, the table is read from its file, and the
+   reader did not know three of the files the tests use:
+   comma-separated files (`test1D.csv`, read with the block's own
+   `delimiter` and `nHeaderLines`, a CSV holding one table with no
+   name), fields of a MATLAB structure named by a dotted path
+   (`s.tab1`, `s.s.tab1`), and the compressed elements of version 7,
+   which are not padded to eight bytes. A reader that rounded up
+   landed inside the next stream and saw one table where the file
+   holds three.
+
+The CSV layout is asked of the constructor only where the file is a
+CSV. A constructor that says nothing about commas reads any other
+file as before. The first form asked every `_init3` for the two
+trailing arguments and left a text-file table unread where a shorter
+constructor was used, which one of the existing tests caught.
+
+Everything new is behind `OXIDELICA_OLD_FILE_TABLES`. Under it the
+four new tests (`a_range_over_an_empty_matrix_is_measured_by_its_bounds`,
+`a_comma_separated_table_is_read_past_its_header`,
+`a_table_in_a_matlab_structure_is_read_by_its_dotted_name`,
+`compressed_matlab_elements_are_read_one_after_another`) go red, and
+the five models go back to the `t_new.columns` refusal.
+
+Probed one at a time from `.msl` with the tree's binary
+(`/tmp/ox220b`): `CombiTable1Ds.Test35`, `CombiTable1Dv.Test35`,
+`CombiTimeTable.Test80`, `Test81` and `Test89` flatten and run. The
+two `usertab` models do not reach a C function. They still refuse on
+`t_new.columns`, exactly as on the tree before the series
+(`/tmp/ox220head`), because they say `tableOnFile = true` with a table name and no file
+name: the table is meant to come from `usertab.c`, compiled in beside
+`mydummyfunc`. Nothing on this road can read its width, so the
+placeholder is all there is, and the file guard rightly keeps the
+placeholder from answering. The expectation that they would name
+`mydummyfunc` was wrong: the width is the wall in front of it.
+
+### The pair, and four more than were expected
+
+One binary (`/tmp/ox220b`), `CAP_GB=20`, the heavy models carved out
+as in the floor script: `/tmp/m284/off.txt` under
+`OXIDELICA_OLD_FILE_TABLES` gave 919 flatten / 629 run (runnable
+804 / 587), the numbers of m282's `on4.txt` with the run list identical
+to the name. `/tmp/m284/on.txt` without it gave 928 / 638 (runnable
+813 / 596). Both lists, diffed whole: nine names arrived and none
+left, and every one of the nine runs.
+
+Five are the ones the plan named. The other four are
+`CombiTable2Ds.Test12`, `CombiTable2Dv.Test12` (`akima2D` from the
+compressed version 7 file) and `CombiTable2Ds.Test32`,
+`CombiTable2Dv.Test32` (a grid from `test2D.csv` with `;` between the
+numbers). In m283 they refused on `ModelicaStandardTables_CombiTable2D_getValue`,
+the name that stands where a file could not be read, which is a
+refusal that does not say which reader failed. So the census had them
+in a different row from the seven, and nobody counted them in.
+
+Every one of the nine is checked by a number and not by flattening,
+because the test library states the same table several ways. Run
+over the first second: `CombiTable2Ds.Test12` (version 7) and `Test32`
+(CSV) write a file identical byte for byte to `Test11` (version 6)
+and `Test31` (a text file), and all four end at `t_new.y = 54.64`.
+`CombiTable1Ds.Test35` and `CombiTable1Dv.Test35` (CSV) are identical
+to their `Test33` (text file with a byte order mark), and
+`CombiTimeTable.Test89` (CSV) to `Test84`. `CombiTimeTable.Test80`
+(version 6, `s.tab1` and `s.s.tab1`) is identical to `Test81` (the
+same fields from version 7). The scratch models are in `/tmp/m284/w`.
+
+The work line moved by less than the band notices: names looked up
+1781489445 to 1781530166, 23 per million, the nine models' own work.
+
+### Two floor lines, read
+
+The m282 chapter left two refusals with a question: is what the
+Newton solve leaves the floor of the arithmetic, or a distance from
+the root? `OXIDELICA_NEWTON_TRAIL` prints the answer the solver asks
+for just before it refuses, the residual row by row beside the
+loudest number each row met. A row is on the floor when its residual
+is within four ulps of that number.
+
+The quasi-static `PolyphaseInductance` runs on today's tree (48
+Newton lines, `/tmp/m284/qs_trail.txt`). It refuses only under the
+widened zero-coefficient rule, taken from the m282 binary
+`/tmp/m282/oxv` (`/tmp/m284/qs_wide.txt`). There the block of
+`converter_m.Phi.re` stands at t = 0 with |f| = 1.03e-9 through
+steps 18 to 20 without moving. Its rows hold 3.7e-10 against a
+loudness of 358, where the floor is 4 x 2.2e-16 x 358 = 3.2e-13. The
+residual is a thousand times the floor. The solve lands on the same
+point as the narrow rule (the first three unknowns agree to nine digits or better) and cannot close the last 1e-9, so this is a block the wide
+rule made worse conditioned rather than one that settled on its
+floor.
+
+`TestWaterPumpDefault` over its own experiment (StopTime 10,
+`/tmp/m284/pump_sim.txt`) stops at t = 5.887, not 5.875 as last
+recorded. The refusal is "did not converge in 50 Newton iterations"
+on `pump.medium.p`, `pump.rho`, `pump.port_a.m_flow`,
+`pump.port_b.h_outflow` and `Valve.state_a.d`. Four rows are at 1e-10
+to 1e-7 against loudnesses of 1e3 and 1e6, near enough to their
+floors. The fifth is not: 0.012 against 1.85, while the iterates of
+`m_flow` swing between 0.0114 and 0.0116 from step to step and
+|f| moves between 0.012 and 0.032 without falling. That is Newton
+cycling on the flow through the pump as the flow falls toward zero,
+not arithmetic. Only a measurement, nothing in the tree.
