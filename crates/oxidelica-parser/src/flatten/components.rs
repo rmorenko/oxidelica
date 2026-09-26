@@ -1398,15 +1398,15 @@ pub(super) fn instantiate_one(
                     .find(|(n, _)| n == target)
                     .map(|(_, e)| e.clone())
             };
-            if let Some(value) = modifier(local_name) {
-                // A modifier arrives written in the terms of the class
-                // that supplied it, so it is not prefixed again - but
-                // it still has to be worked out. Left as it stands, a
-                // call inside it is never inlined, and a value that
-                // came down an `extends` is a call the parameters
-                // cannot evaluate: the machines say what their
-                // nominal voltage is that way, through a function of
-                // the resistance and the brush drop.
+            // A modifier arrives written in the terms of the class
+            // that supplied it, so it is not prefixed again - but
+            // it still has to be worked out. Left as it stands, a
+            // call inside it is never inlined, and a value that
+            // came down an `extends` is a call the parameters
+            // cannot evaluate: the machines say what their
+            // nominal voltage is that way, through a function of
+            // the resistance and the brush drop.
+            let work_out = |value: &Expr| -> Result<Expr, String> {
                 let no_loop_vars = HashMap::new();
                 // A value handed down may name an array of the class
                 // that wrote it - `Root r(s = anyTrue(suspend.reset))`
@@ -1421,7 +1421,7 @@ pub(super) fn instantiate_one(
                     consts: local_consts,
                     records: no_records(),
                 };
-                let worked = substitute_class_constants(&value, registry, scope, imports, &[]);
+                let worked = substitute_class_constants(value, registry, scope, imports, &[]);
                 // The writer's own lengths go in with this class's
                 // from the start rather than after a refusal. A
                 // reduction over an array nothing here has measured
@@ -1446,15 +1446,26 @@ pub(super) fn instantiate_one(
                 if let Some(reach) = reach.as_ref() {
                     shapes.sizes = reach;
                 }
-                let worked = expand(&worked, &shapes, registry, scope, imports, 0)
-                    .and_then(|value| value.scalar());
-                flat.binding = Some(worked.unwrap_or(value));
+                expand(&worked, &shapes, registry, scope, imports, 0).and_then(|value| value.scalar())
+            };
+            if let Some(value) = modifier(local_name) {
+                flat.binding = Some(work_out(&value).unwrap_or(value));
             }
             // On an array the start has already been handed out
-            // element by element; this is the scalar case.
+            // element by element; this is the scalar case. A start
+            // handed down is worked out the way a value is: taken as
+            // written, `core1(H(start = HStart[1]))` kept the subscript
+            // on a name the flat model holds only element by element,
+            // and every reader of the start refused it or, where the
+            // refusal was swallowed, read it as zero.
             if site.start.is_none() {
                 if let Some(value) = modifier(&format!("{}.start", component.name)) {
-                    flat.start = Some(value);
+                    flat.start = Some(
+                        match std::env::var_os("OXIDELICA_RAW_START_MODIFIER").is_none() {
+                            true => work_out(&value).unwrap_or(value),
+                            false => value,
+                        },
+                    );
                     flat.start_from_type = false;
                 }
             }

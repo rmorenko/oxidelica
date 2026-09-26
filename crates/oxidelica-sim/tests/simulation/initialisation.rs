@@ -1445,3 +1445,38 @@ fn a_start_from_a_type_still_speaks_where_nothing_says_better() {
     let m = compiled.initial[index];
     assert!((m - 576.3).abs() < 1e-9, "m = {m}");
 }
+
+/// A start handed down as a modifier on a subcomponent is worked out in
+/// the terms of the class that wrote it, the way a value is.
+///
+/// The hysteresis transformers of the flux tube library start each core
+/// as `core1(H(start = HStart[1]))`. The start was taken as written, so
+/// the flat model carried `t.HStart[1]` as a subscript on a name it
+/// holds only element by element: the state's own start refused it, and
+/// the values the pivot reads fell to zero without a word.
+#[test]
+fn a_start_modifier_subscripting_a_parameter_array_is_worked_out() {
+    let model = parse_model(
+        "model B \
+           model Core Real H; equation der(H) = -H; end Core; \
+           model T \
+             parameter Real HStart[2] = {0, 0}; \
+             Core core1(H(start = HStart[1], fixed = true)); \
+             Core core2(H(start = HStart[2], fixed = true)); \
+           end T; \
+           T t(HStart = {0.5, 2}); \
+         end B;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let start = |name: &str| {
+        let index = compiled
+            .states
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
+        compiled.initial[index]
+    };
+    assert_eq!(start("t.core1.H"), 0.5);
+    assert_eq!(start("t.core2.H"), 2.0);
+}
