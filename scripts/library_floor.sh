@@ -342,7 +342,13 @@ FILES_FLOOR=2671
 # file, CombiTable2Ds.Test32 and CombiTable2Dv.Test32 a comma-separated
 # grid. All nine are runnable examples and all nine run. Nothing left
 # the flatten list.
-FLATTEN_FLOOR=928
+#
+# And flatten 936 is the runner's count of 563c39f (job 108413191618 of
+# run 36245267382, /tmp/m287/runner.log), which covers af2249e as
+# well: 928 plus the eight Noise examples of m286 whose walked body
+# could not draw. The desk counts the same 936 on that tree
+# (/tmp/m286/new.txt), so there is no lower of the two to take.
+FLATTEN_FLOOR=936
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -814,7 +820,13 @@ FLATTEN_FLOOR=928
 # /tmp/m284/off.txt; nothing left the run list. They are the desk's
 # count, and the runner has not counted them yet: they read files and
 # no solver is in their way, so nothing swings between the machines.
-RUN_FLOOR=638
+#
+# And run 643 is the runner's count of 563c39f (job 108413191618 of
+# run 36245267382): 638 plus AutomaticSeed, Distributions,
+# DrydenContinuousTurbulence, UniformNoise and
+# UniformNoiseXorshift64star, the five of m286 that run. The desk
+# counts 643 on the same tree (/tmp/m286/new.txt).
+RUN_FLOOR=643
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -881,8 +893,13 @@ RUN_FLOOR=638
 #
 # And runnable flatten 813 and runnable run 596 are both nine above,
 # the tables set out at `FLATTEN_FLOOR` (/tmp/m284/on.txt).
-RUNNABLE_FLATTEN_FLOOR=813
-RUNNABLE_RUN_FLOOR=596
+#
+# And runnable flatten 820 = 813 plus seven of the eight Noise examples
+# set out at `FLATTEN_FLOOR`, runnable run 601 = 596 plus the five set
+# out at `RUN_FLOOR`: the runner's count of 563c39f, the same as the
+# desk's on that tree (/tmp/m286/new.txt).
+RUNNABLE_FLATTEN_FLOOR=820
+RUNNABLE_RUN_FLOOR=601
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
