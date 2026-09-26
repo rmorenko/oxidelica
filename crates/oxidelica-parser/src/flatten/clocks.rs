@@ -73,6 +73,24 @@ impl Ratio {
     fn is_negative(self) -> bool {
         self.num < 0
     }
+
+    /// Whether this is a whole multiple of `step`, which is not zero.
+    fn is_multiple_of(self, step: Ratio) -> bool {
+        let num = i128::from(self.num) * i128::from(step.den);
+        let den = i128::from(self.den) * i128::from(step.num);
+        num % den == 0
+    }
+
+    /// The largest fraction both are whole multiples of: `2/3` and `1/2`
+    /// are both counted in sixths. Neither is zero.
+    fn common_step(self, other: Ratio) -> Result<Ratio, String> {
+        let den = i128::from(self.den) * i128::from(other.den);
+        let num = gcd(
+            i128::from(self.num) * i128::from(other.den),
+            i128::from(other.num) * i128::from(self.den),
+        );
+        Ratio::new(num, den)
+    }
 }
 
 /// Greatest common divisor, for keeping a fraction in lowest terms.
@@ -286,6 +304,32 @@ impl ClockSpec {
             _ => false,
         };
         roots && self.solver == other.solver
+    }
+
+    /// Whether some tick of this clock may fall at the same instant as
+    /// some tick of the other.
+    ///
+    /// Only two clocks sampled from one periodic root can be told apart
+    /// for certain: their ticks sit at `shift + k * rate` root intervals,
+    /// and two such grids meet only where the shifts differ by a whole
+    /// number of the step both rates are counted in. A `backSample`
+    /// behind a `shiftSample` of four thirds lands back on the root,
+    /// while the shifted clock sits a third of an interval off it for
+    /// ever. Anything else - two roots, a condition, a clock still to be
+    /// worked out - may tick together, which is the answer that asks
+    /// for an order rather than the one that drops it.
+    pub(super) fn may_tick_with(&self, other: &ClockSpec) -> bool {
+        match (&self.root, &other.root) {
+            (Root::Every(_, mine), Root::Every(_, theirs)) if mine == theirs => {
+                let apart = self.shift.plus(other.shift.negated());
+                let step = self.rate.common_step(other.rate);
+                match (apart, step) {
+                    (Ok(apart), Ok(step)) if step.num != 0 => apart.is_multiple_of(step),
+                    _ => true,
+                }
+            }
+            _ => true,
+        }
     }
 
     /// The same clock ticking `factor` times more slowly, its first
@@ -883,9 +927,18 @@ pub(super) fn work_out(
 /// partition placed before the one defining what it reads would take
 /// the value from the tick before - which is not what `subSample` and
 /// `superSample` mean.
+///
+/// Two clocks that never tick at one instant owe each other no order:
+/// whichever fires reads what the other last left, and there is no
+/// instant at which the other could have gone first. `backSample`
+/// behind a `shiftSample` reads the shifted clock from a clock a third
+/// of an interval off it, and the shifted clock reads back again - a
+/// circle on paper, and none at any instant of the run.
 pub(super) fn in_partition_order(
     lifted: &HashMap<usize, Vec<(String, Expr)>>,
+    clocks_of: &Clocks,
 ) -> Result<Vec<usize>, String> {
+    let apart_is_honoured = std::env::var_os("OXIDELICA_ORDER_CLOCKS_NEVER_TOGETHER").is_none();
     let mut clocks: Vec<usize> = lifted.keys().copied().collect();
     clocks.sort_unstable();
     let mut placed: Vec<usize> = Vec::new();
@@ -901,6 +954,8 @@ pub(super) fn in_partition_order(
             !clocks.iter().any(|other| {
                 other != clock
                     && !placed.contains(other)
+                    && (!apart_is_honoured
+                        || clocks_of.spec(*clock).may_tick_with(clocks_of.spec(*other)))
                     && lifted[other]
                         .iter()
                         .any(|(target, _)| named.contains(&target.as_str()))

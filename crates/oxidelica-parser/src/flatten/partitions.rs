@@ -467,7 +467,7 @@ pub(super) fn partition_clocks(model: &mut Model) -> Result<(), String> {
     for (name, clock, _) in &bookkeeping {
         clock_of.insert(name.clone(), *clock);
     }
-    for clock in in_partition_order(&lifted)? {
+    for clock in in_partition_order(&lifted, &clocks)? {
         let mut actions = lifted.remove(&clock).expect("the order names each once");
         let spec = clocks.spec(clock).clone();
         let counter = counter_name(clock);

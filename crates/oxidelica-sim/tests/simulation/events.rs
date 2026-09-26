@@ -827,3 +827,54 @@ fn a_when_over_a_vector_named_whole_fires_on_each_element() {
         assert!((y - 2.0).abs() < 1e-12, "{section}: {y}");
     }
 }
+
+#[test]
+fn clocks_that_never_tick_together_owe_each_other_no_order() {
+    // The clocked library's `BackSample` example: a clock shifted four
+    // thirds of an interval late, and a `backSample` of it that lands
+    // back on the root's grid. Each reads the other, which is a circle
+    // on paper and none at any instant, since the two never fire at
+    // once. The shifted clock ticks at 0.02/3 past each base tick from
+    // 0.02667 on, and the one sampled back from it at 0.04, 0.06, 0.08.
+    let result = run("model M Clock c = Clock(0.02); \
+         Real x; Real y1(start = 7); Real y2; Real h1; Real h2; \
+         equation x = sample(time, c); \
+         y1 = shiftSample(x, 4, 3); \
+         y2 = backSample(y1, 4, 3); \
+         h1 = hold(y1); h2 = hold(y2); \
+         annotation(experiment(StopTime = 0.09, Interval = 0.001)); end M;");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let at = |time: f64, name: &str| {
+        let row = result
+            .rows
+            .iter()
+            .rev()
+            .find(|row| row[0] <= time + 1e-12)
+            .unwrap();
+        row[index(name)]
+    };
+    // Before the shifted clock's first tick both hold the start; the
+    // clock sampled back first fires at 0.04 on the value 0.02 the
+    // shifted one took at 0.02667.
+    assert_eq!(at(0.026, "h1"), 7.0);
+    assert!((at(0.03, "h1") - 0.02).abs() < 1e-12);
+    assert_eq!(at(0.039, "h2"), 7.0);
+    assert!((at(0.041, "h2") - 0.02).abs() < 1e-12);
+    assert!((at(0.09, "h2") - 0.06).abs() < 1e-12);
+}
+
+#[test]
+fn partitions_reading_each_other_at_one_instant_are_still_refused() {
+    let message = parse_model(
+        "model M Clock c = Clock(0.1); Real a; Real b; \
+         equation a = sample(time, c) + subSample(b, 2); \
+         b = superSample(a, 2) + 1; \
+         annotation(experiment(StopTime = 0.3, Interval = 0.1)); end M;",
+    )
+    .expect_err("a circle at one instant has no order")
+    .message;
+    assert!(
+        message.contains("read each other's values within one tick"),
+        "{message}"
+    );
+}
