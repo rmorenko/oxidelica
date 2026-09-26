@@ -2846,3 +2846,32 @@ fn a_walked_body_reads_a_length_its_package_states() {
     assert_eq!(first[at("st[1]")], 427651634.0);
     assert_eq!(first[at("st[2]")], 603884885.0);
 }
+
+/// A medium that gives its own composition, and a model of the
+/// interface reading it from inside.
+const MEDIUM_ARRAY_INSIDE: &str = "package G \
+     partial package Base \
+       constant Integer nS = 1; constant Integer nX = nS; \
+       constant Real r[nX] = fill(1/nX, nX); \
+       replaceable model BP Real q[nX] = r; end BP; \
+     end Base; \
+     package Mix extends Base(nS = 2, r = {0.768, 0.232}); end Mix; \
+     model M \
+       package Medium = Mix; \
+       Medium.BP medium; \
+       annotation(experiment(StopTime = 0.01, Interval = 0.01)); \
+     end M; \
+     end G;";
+
+#[test]
+fn a_constant_array_the_medium_gives_is_the_one_its_models_read() {
+    // `CombustionAir` extends the mixture interface with `reference_X =
+    // {0.768, 0.232}`, and `BaseProperties` is written inside the
+    // interface. Read by scope alone the list was the interface's
+    // `fill(1/nX, nX)` with the medium's length - `{1, 1}`, a
+    // composition summing to two, and no word said about it.
+    let result = run(MEDIUM_ARRAY_INSIDE);
+    assert_eq!(last_of(&result, "medium.q[1]"), 0.768);
+    assert_eq!(last_of(&result, "medium.q[2]"), 0.232);
+}
+

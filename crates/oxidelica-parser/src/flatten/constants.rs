@@ -1458,6 +1458,24 @@ fn enclosing_constant_array(
             .get(prefix)
             .filter(|owner| owner.kind == ClassKind::Package)
         {
+            // The medium on the mark before the interface, as the
+            // scalar road already does it: `extends Base(reference_X =
+            // {0.768, 0.232})` in the medium and `fill(1/nX, nX)` in the
+            // interface are one name, and a model written inside the
+            // interface - `BaseProperties` - read the interface's list
+            // with the medium's length, which was `{1, 1}` without a
+            // word where the combustion air said otherwise.
+            if !interface_array_kept() {
+                if let Some(under) = super::inlining::asked_as_package(registry, &owner.name) {
+                    if let Some(medium) = registry.get(under.as_str()) {
+                        if let Some(answer) =
+                            constant_array_of_package(registry, medium, name, depth + 1)
+                        {
+                            return Some(answer);
+                        }
+                    }
+                }
+            }
             if let Some(answer) = constant_array_of_package(registry, owner, name, depth) {
                 return Some(answer);
             }
@@ -2672,6 +2690,13 @@ fn asked_as_constant(
 /// one binary can give both numbers.
 fn interface_digit_kept() -> bool {
     std::env::var_os("OXIDELICA_INTERFACE_DIGIT").is_some()
+}
+
+/// `OXIDELICA_INTERFACE_ARRAY=1` reads a constant array by scope alone
+/// again, the interface's list before the medium's, so that one binary
+/// can be measured both ways.
+fn interface_array_kept() -> bool {
+    std::env::var_os("OXIDELICA_INTERFACE_ARRAY").is_some()
 }
 
 #[cfg(test)]
