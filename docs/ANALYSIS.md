@@ -22395,8 +22395,9 @@ before anything was kept:
    (`OXIDELICA_NO_MIXED_ANSWERS`).
 4. The longer generators seed their state through
    `initialStateWithXorshift64star`, which fills `state[i:i+1] := aux`
-   in a loop. Folded while flattening, that leaves `{random(..)[2],
-random(..)[3]}[1]`, and the evaluator knew a subscript only on a
+   in a loop. Folded while flattening, that leaves a list of two draws
+   asked for one place, `{random(..)[2], random(..)[3]}[1]`, and the
+   evaluator knew a subscript only on a
    call. `s[3]` and `s[4]` of every `Xorshift128plus` block fell to
    zero, found by the probe that turned the swallowed error in the
    discrete starts into a refusal for one run. Taken: a list asked for
