@@ -22568,7 +22568,7 @@ Four models, `Blocks.Examples.Rectifier6pulseFFT`,
 and `RealFFT2`, refuse with "the subscript of `buf` (or `y_buf`) must
 be a whole number the compiler can see". All four fill a buffer inside
 a `when sample(...)`: `buf[iTick] := u` with `iTick := pre(iTick) + 1`,
-a discrete index the compiler cannot know. Twelve lines reproduce it
+a discrete index the compiler cannot know. Thirteen lines reproduce it
 (`/tmp/m287/S.mo`). An assignment to an element named by a run-time
 index would need the same answer as the loop above, a choice over
 every element, and that is buildable. But it would move no model:
@@ -22597,3 +22597,45 @@ series: the library job of 563c39f printed 2671, 936, 643, runnable
 lower of the two to take. The eight registers are not in any floor:
 the runner has not counted them yet, and the raise to 944 and 651 is
 in the queue.
+
+### The initialization row, mapped and not taken
+
+With the list done and time left, the top of the run half that the
+brief does not rule out was probed: "initialization is not square",
+five models (`/tmp/m286/raw.txt`). The five are two families, not one,
+and each has a small model that refuses the same way.
+
+The first is a fixed start on a variable that is not a state. In
+`MultiBody.Examples.Elementary.InitSpringConstant` the spring constant
+is `c(fixed = false)`, to be worked out at the start, and the three
+conditions for it are `phi`, `w` and `a` of the joint all fixed. The
+refusal counts two fixed starts, `rev.phi` and `rev.w`: `rev.a` is
+declared `fixed = true` (`oxidelica why` says so) but it is an
+algebraic variable, `rev.a = der(rev.w)`, and a fixed start there is
+dropped rather than made an initial equation. Two conditions for
+three unknowns. `Loops.Fourbar2` is the same shape: `j2.s(fixed =
+true)` on a prismatic joint whose position is not the state chosen,
+so the count has one fixed start where the model wrote two. Eleven
+lines reproduce it (`/tmp/m287/I.mo`): a parameter with `fixed =
+false` and a fixed start on an acceleration.
+
+The second is more initial equations than states. `Machines.Examples.
+InductionMachines.IMC_Initialize` writes six (`wMechanical = wSync`,
+`i_0_s = 0`, and four derivatives of the rotor and stator currents
+set to zero) for five states; `Fluid.Examples.NonCircularPipes` gets
+eight for six from `FixedInitial` on two dynamic pipes, and
+`Analog.Examples.Lines.CompareLineTrunks` sixty for fifty-seven.
+Written by hand these systems are square in a tool that keeps the
+zero-sequence current and the pipe's end states as states; here index
+reduction or alias removal has taken those out and left their initial
+equations behind. `i_0_s = 0` is the witness: it pins a variable the
+equations already fix through `spacePhasorS.zero.i`. The small model
+`/tmp/m287/O.mo` is the textbook case of an initial equation on a
+variable that is not a state, and it refuses the same way; whether
+IMC's extra equation is redundant or contradicts is the question a fix
+would have to answer, and dropping one silently is the guess this
+project does not make.
+
+Both families decide which variables are states and what a condition
+on a non-state means, which is the ground the brief keeps for line B
+and for index reduction. Left as a map.
