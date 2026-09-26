@@ -348,7 +348,14 @@ FILES_FLOOR=2671
 # well: 928 plus the eight Noise examples of m286 whose walked body
 # could not draw. The desk counts the same 936 on that tree
 # (/tmp/m286/new.txt), so there is no lower of the two to take.
-FLATTEN_FLOOR=936
+#
+# And flatten 944 is the runner's count of 307a790 (job 108441560249 of
+# run 36255558366, /tmp/m288/runner307.log), which covers 8c110ff and,
+# ce66aca being prose alone, the whole m287 series: 936 plus the eight
+# registers DFFREG, DFFREGL, DFFREGSRH, DFFREGSRL, DLATREG, DLATREGL,
+# DLATREGSRH and DLATREGSRL, whose loop is left on a flag. The desk
+# counts the same 944 on that tree (/tmp/m287/new.txt).
+FLATTEN_FLOOR=944
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -826,7 +833,11 @@ FLATTEN_FLOOR=936
 # DrydenContinuousTurbulence, UniformNoise and
 # UniformNoiseXorshift64star, the five of m286 that run. The desk
 # counts 643 on the same tree (/tmp/m286/new.txt).
-RUN_FLOOR=643
+#
+# And run 651 is the runner's count of 307a790 (job 108441560249):
+# 643 plus the eight registers set out at `FLATTEN_FLOOR`, all of which
+# run. The desk counts 651 on the same tree (/tmp/m287/new.txt).
+RUN_FLOOR=651
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -898,8 +909,12 @@ RUN_FLOOR=643
 # set out at `FLATTEN_FLOOR`, runnable run 601 = 596 plus the five set
 # out at `RUN_FLOOR`: the runner's count of 563c39f, the same as the
 # desk's on that tree (/tmp/m286/new.txt).
-RUNNABLE_FLATTEN_FLOOR=820
-RUNNABLE_RUN_FLOOR=601
+#
+# And runnable flatten 828 = 820 plus the eight registers, runnable run
+# 609 = 601 plus the same eight: the runner's count of 307a790, the
+# same as the desk's (/tmp/m287/new.txt).
+RUNNABLE_FLATTEN_FLOOR=828
+RUNNABLE_RUN_FLOOR=609
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
