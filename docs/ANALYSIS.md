@@ -21822,3 +21822,107 @@ reselectable path only, so a model whose stage fails at every size
 shrinks without end. Widening the rejection needs that bound widened
 with it, and the model that wedged is named by the next `--slow` run
 of the switched binary rather than guessed. Not in the tree.
+
+## The m282 series: a refusal remembered past the step that made it
+
+### The pump was not overshooting
+
+The m281 chapter left `TestWaterPumpDefault` at a Newton step that
+handed `tsat` a pressure of -97296 Pa at t = 0, and read it as a step
+length to be shortened. The trail (`OXIDELICA_NEWTON_TRAIL`,
+`/tmp/m282/pump_trail.txt`) says otherwise. Step 1 does land at
+-97296 Pa with a NaN residual. Step 2 is taken back to 301352 Pa,
+and steps 3 to 7 converge to 142613 Pa with |f| = 1.8e-10. The block
+solved. What stopped the run was the reason `tsat` left behind on the
+discarded step: a walked body cannot raise, so it leaves its reason in
+`Walked::trouble` and answers NaN, and `eval_point` read that reason
+out after the block had converged past it.
+
+The repair is in `solve_implicit_block`. A block that converges drops
+what it left behind and asks itself once more from where it landed,
+which converges at once, so whatever the converged point itself
+raises is kept. A reason that stood before the block is not the
+block's to drop. The small witness is `S.mo` in the test
+`a_refusal_left_by_a_discarded_newton_step_does_not_stop_the_run`:
+`log(p) = 0.5` from p = 10 steps to -8.03 first, where an `assert`
+fires, and the root is e^0.5. The test is red under
+`OXIDELICA_KEEP_STALE_COMPLAINT`. A control with the assert at
+`p > 5`, where there is no root inside it, still refuses, on the
+Newton direction.
+
+### The pivot's start, read as zero
+
+`values_at_this_point` read each start with no function bodies in
+view and took a failure as zero. It was probed over the whole corpus
+under a print on the failure (`/tmp/m282/probe.txt`). There were 24
+failures, all on the flux tube hysteresis transformers, and all the
+same shape: `core1(H(start = HStart[1]))` kept its subscript through
+flattening. The value modifier of a subcomponent was worked out in
+the writer's terms (constants substituted, arrays expanded, scalar
+taken), but the start modifier was taken as written. The small
+witness is `B.mo`, now the test
+`a_start_modifier_subscripting_a_parameter_array_is_worked_out`, red
+under `OXIDELICA_RAW_START_MODIFIER`. The transformers still refuse,
+on their own walls (`ThreePhaseTransformerWithRectifier` on a
+structural singularity at `der(B)`, `SinglePhaseTransformerWithHysteresis2`
+on `der()` outside a state equation), and no `PIVOT_PROBE` line fires
+on them now.
+
+With that source gone, the reading itself was made honest: bodies in
+view, and a start that cannot be worked out refused by name rather
+than taken as zero, red under `OXIDELICA_SILENT_PIVOT_START`.
+
+### The m282 pair
+
+Pair from one binary (`/tmp/m282/ox3`), off with both of the first
+two switches (`off.txt`), on with neither (`on.txt`): run 627 to 629,
+runnable 585 to 587, flatten list identical to the name, no model
+lost. The two gained are `TestWaterPumpDefault` and
+`InverseParameterization`. Each of them stops under
+`OXIDELICA_KEEP_STALE_COMPLAINT` alone and runs under
+`OXIDELICA_RAW_START_MODIFIER` alone, so both belong to the stale
+refusal, and the start modifier wins nothing and costs nothing.
+`TestWaterPumpDefault` stands at 142613 Pa and 1.4597 kg/s through its
+first second. Run over its own experiment, it stops at t = 5.875 on a
+Newton direction refusal in the pump block, as the downstream ramp
+lifts the sink. That is a later wall and a separate question.
+
+### The zero coefficient, victims counted
+
+The m281 chapter parked the widened zero-coefficient rule (a factor
+worth exactly zero quenches `p * x`, not only `p * der(x)`) at five
+victims, and named the victim list of reduction as the next step. It
+was taken as a measurement only, not into the tree, from one binary
+built from `/tmp/m281/zero_factor.patch` with a print of each
+demoted state (`/tmp/m282/oxv`, `X_VICTIMS`). The narrow rule is
+`OXIDELICA_NO_ZERO_FACTOR`.
+
+The note calls it `PolyphaseInductance`, and there are two. The
+`FundamentalWave` one runs under both rules, with the same five
+victims. The quasi-static one runs narrow and refuses wide, and its
+twenty victims (all `reference.gamma` of the plugs and ports) are the
+same list in the same order under both. So reduction chose the same
+states. The loss is past it: a block of the converter's fluxes and
+currents at t = 0 that stops at |f| = 1.03e-9 with "the Newton
+direction does not reduce the residual", after 126 Newton lines
+against 48 narrow. `IMC_Conveyor` is different: its victims do move,
+the narrow list demoting `aimc.stator.zeroInductor.i0` and
+`mass.v`, the wide one the two `Phi` parts of
+`singlePhaseElectroMagneticConverter[2]`. So the five do not fall
+for one reason. One (`IMC_Conveyor`) changes which states it keeps.
+One (QS `PolyphaseInductance`) keeps them and leaves a block on the
+floor of its arithmetic. The Spice3 `Oscillator` gain holds (refused
+narrow as blind to `T1.irc`, runs wide). `IMC_Inverter`,
+`SMPM_VoltageSource` (structural singularity) and `IMS_Start`
+(Newton direction on the `idealCloser` block) were checked for their
+refusal only, not for victims. Still parked.
+
+### The pivot's reading, paired
+
+The honest reading of `values_at_this_point` was measured on its own
+pair from `/tmp/m282/ox4`, with `OXIDELICA_SILENT_PIVOT_START` against
+without (`off4.txt`, `on4.txt`). It is 629 to 629, runnable 587 to
+587, and the flatten and run lists are identical to the name and to
+`on.txt` of the pair above. No model in the library stands on the
+zero once the start modifier is worked out, and none is refused by
+name for a start it cannot work out.

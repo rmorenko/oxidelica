@@ -259,6 +259,22 @@ Guessing is worse than refusing. A value quietly defaulted to zero is
 a wrong answer presented as a right one, and every one of those found
 so far had been silently wrong for a long time.
 
+So `unwrap_or(0.0)` does not stand in the path of a value. Where an
+evaluation can fail, the failure is either a refusal naming what
+failed, or a `NaN` that a later reader turns into one - never a zero.
+The idiom has cost the project three wrong answers found one at a
+time. A discrete start nobody could work out drew 0.5 from every
+`Xorshift64star` generator on every tick. A walked body's unassigned
+output answered 0. A start written as `core1(H(start = HStart[1]))`
+kept its subscript through flattening, and the values the pivot reads
+took it as zero without a word. At the time of writing, `crates/`
+holds 16 `unwrap_or(0.0)` against one `unwrap_or(f64::NAN)`. Some of
+those are honest: the start time of an experiment that names none,
+the depth axis of a plot that has two. Each one that is not honest is
+a zero waiting for a model to lean on it. A new one is written only
+with a comment saying why zero is the value and not the absence of
+one.
+
 A number has a unit and a boundary. Saying what a family counts, say
 what the count is of - models, rows of the register, lines of output,
 occurrences in a file - and over which set it was taken. Five times
