@@ -22828,3 +22828,25 @@ the arithmetic is written beside it.
 - "subscript N is outside an array of N" (3) and "an array cannot be a
   divisor" (3) are set out above: each yielded a silent wrong number,
   both fixed, and each row's models now stand one link further on.
+
+### The run half's named-argument row, mapped and not taken
+
+"subscripts and arrays survive flattening only as scalars: `X = ...`,
+a named argument" holds three models (`Media.Examples.R134a.R134a1`,
+`R134a2`, `Fluid.TestComponents.Valves.TestCheckValve`). Fifteen lines
+reproduce it (`/tmp/m288/sub/na.mo`): a function whose `while` has to
+be walked at run time, called from an equation as `f(p = 1 + time)`,
+is refused, and the same call written `f(1 + time)` runs. R134a writes
+`sat.Tsat = saturationTemperature(p=p)` in its `BaseProperties`.
+
+The layer is one place. `in_declared_order` in `carried.rs` puts named
+arguments in the seats the callee declares, but it is reached only
+through `qualified_in`, which rewrites the bodies carried out to the
+walk. A call left standing in the flat model's own equations keeps its
+`NamedArg`, and the run's expression rewriter (`events.rs:199`)
+refuses it. The likely fix is the same reordering applied to the flat
+model's calls before `programs_used`: one link, and the refusal that
+names it is already exact. It was found with less than an hour of the
+shift left, so it is left as a map. The sibling row, "an array of 11
+written out" (three `ReferenceAir` tests), is refused at the same line
+and was not probed.
