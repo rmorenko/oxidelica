@@ -23070,9 +23070,11 @@ million above the reference, inside the band of 2000, so the reference
 stays.
 
 The comparison of final points left running at the m289 push
-(`/tmp/m289/cmp/out.txt`) stood at 51 of 76 when this shift closed: 50 the same, 1 different. The one `DIFF` is
-`TestCheckValve`, which refused with the keys closed and runs with them
-open: the model the series won, not two numbers that disagree.
+(`/tmp/m289/cmp/out.txt`) ran to its end during this shift: 76 models,
+73 the same and 3 different. The three are `TestCheckValve`,
+`ReferenceAir_pT` and `ReferenceAir_ph`, each refused with the keys
+closed and running with them open - the models the series won, not two
+numbers that disagree. No model that ran both ways changed its answer.
 
 ### The m290 census
 
