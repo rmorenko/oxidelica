@@ -24063,3 +24063,60 @@ laid out nobody in the library reaches the refusal, so what it guards
 now is the next zero, not a present one. `Z1.mo` and `A1.mo`, whose
 `Y = massToMoleFractions(X, MM)` is still not laid out, refuse naming
 `Y` rather than answering on zeros.
+
+### The census after the m295 series
+
+A fresh census (`/tmp/m295/census.txt`, raw half `/tmp/m295/raw.txt`)
+against the one of m293 (`/tmp/m293/census.txt`), each counted inside
+its section boundaries: would not flatten 75 in 42 rows on both sides,
+flattened and would not run 297 in 158 rows before and 294 in 158
+rows after. The three the run half lost are `TestOnly.FlueGas`,
+`IdealGasN2Mix` and `MixIdealGasAir`, the mixtures of b910fdd, which
+run. The rows did not change in number, but seventeen models changed
+their refusal (the per-model join of the two raw halves), and the
+rows that mean one thing have to be added before the counts are read:
+
+- The string row, `"X" is a String, and a String has no value a step
+can carry`, went from 2 to nothing. Its two went further:
+  `IdealMixing1` into the loops, a flow model's `vs[2]` NaN at the
+  start because a function it calls answered NaN, and
+  `SimpleNaturalGasFixedComposition` to the `der(volume.medium.T)`
+  row (3 to 4), which is where the other natural gas models already
+  stood.
+- `unknown variable X in equation X` (6 to 1) and `at t = N.N: unknown
+variable X` (3 to 4) read as one family: 9 to 5. `FlueGasSixComponents`
+  moved from the first to the second (`MMX[1]` in an equation to `X`
+  at the run), and both quasi-static transformers, `TransformerTestbench`
+  and `IMC_Transformer`, left `c1.re` for a structurally singular
+  `der(...reference.gamma)`, a row of one each. The other two of the
+  six are the three mixtures that run.
+- `Inverse_sh_TX` left `cannot evaluate parameters [s_min = ...]` for
+  `an array reached the evaluator: {X[1], ..., X[4]}, standing in
+massToMoleFractions(X, data.MM) of the walked body`. That is the nX
+  bridge the question asked about, now named at the run: the local of
+  the same breed as `nn` whose value is a call returning an array,
+  which the walk hands to the evaluator whole. It is the next place a
+  walked body stands on an array it cannot lay out.
+- Four water pipes moved inside the loop family:
+  `DynamicPipeClosingValve`, `SeriesPipes13` and `SeriesPipes2` left
+  a NaN density or a Newton direction for `initialization did not
+converge in 50 Newton iterations` (1 to 4 with the one that was
+  there), and the Newton-direction row went 22 to 21, the `X of
+algebraic loop` row 17 to 16. `LumpedPipeInitialization` stays
+  unbalanced with a different list. `--only` on the first two with
+  the binary before the series (`/tmp/m295/ox1`) and after it
+  (`ox3`), and on `SeriesPipes13` with the binary of the laying out
+  alone (`ox2`), puts the move at the laying out of `array(...)`: the
+  viscosity those pipes read is a hundred times what it was, their
+  friction with it, and the loop that failed one way at the start now
+  fails another. None of them ran before and none runs now, so the
+  lists did not move.
+
+Added up, the families that moved are the strings (2 to 0, both into
+existing rows), the unknown variables (9 to 5, three running and two
+to structural singularity), and the loops and initialization rows
+together (109 to 110, the one more being `IdealMixing1` from the
+strings, the rest reshuffled by the real viscosity). What the zero
+used to hide in the water pipes is not a model that runs but a loop
+that fails differently, which is what a correct number underneath an
+unfinished solver should look like.
