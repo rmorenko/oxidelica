@@ -24310,5 +24310,56 @@ one table that keys a carried body by (body, package asked under),
 filled wherever a call is left standing or handed over. The price for
 the library as it stands is one model, and that model has at least
 one more wall (link 3) behind this one, so no count moves until link
-3 falls as well. The probe did not reach the whole corpus and is not
-measured there.
+3 falls as well. The whole-library pair of the probe is at the end of
+the next section, and it costs nine models.
+
+### Link 3 and the slice row share a layer
+
+Two more probes, each behind a switch of its own and neither in the
+tree (`/tmp/m296/walk_vector_probe.patch`,
+`/tmp/m296/walk_list_index_probe.patch`, copies in
+`~/oxideflow/state/`), took link 3 and the `1:N` row apart.
+
+- `OX_WALK_VECTOR` calls a walked body once per element where a list
+  lands on a scalar input, which is how Modelica vectorises a call.
+  `V4.mo` (`sum(f(c, s))` with `c` a package list of numbers) goes
+  from `unknown variable a` to `y = 8`, the right number. `V3.mo`
+  (the same over a list of records, the shape `Inverse_sh_TX` needs)
+  does not move: the list reaches the walk as record constructors
+  `{D(a = 1, b = 2), ...}`, not as numbers.
+- `OX_WALK_LIST_INDEX` lets the walk subscript a list written out.
+  `S1.mo` (a package list sliced as `c[1:n]`) moves from `only a name
+is subscripted` to the slice `1:2` reaching the evaluator, where
+  `S3` already stood. `V3b.mo` (the records taken one at a time as
+  `data[1]`) moves to `unknown function D`.
+
+Both roads end at the same place. A package constant array reaches a
+walked body as the literal it was written as, and the walk knows only
+names it laid out itself. A list of numbers can be subscripted, but a
+slice of it or a list of records cannot. So the three `TableBased`
+models and link 3 of `Inverse_sh_TX` are one layer. That layer is
+worth four models to probe, where link 2 is worth one. The likely
+shape is to lay a package constant array out in the frame as a local
+is laid out (elements by name, records by fields, as
+`records_as_arrays` already does for inputs) rather than to teach the
+walk three more forms of literal.
+
+The link 2 probe was also taken over the library as a pair from one
+binary (`/tmp/m296/ox8`, three threads each under a 16 GB ceiling,
+peak 13.0 GB; `/tmp/m296/p/{off,on}.txt`, lists `*_flat.lst` and
+`*_ran.lst`). Flatten stays at 961. Run goes from 664 to 655 and the
+runnable run from 622 to 613. That is nine victims and no gain:
+`Inverse_sh_T`, `PressureLoss.Orifice`, `NewFittings.Bends.CurvedBend`
+and `EdgedBend`, `Orifices.ThickEdgedOrifice`, `BranchingPipes15` and
+`16`, and `TestAllProperties.CO2` and `DryAirNasa`. `DryAirNasa`
+shows why: its `T_h` hands `f_nonlinear` with `data` as a filled-in
+argument, and the copy renamed under the medium passes `data` on as
+a name nobody declares (`unknown variable data` in the specialized
+call). The probe renames the body and not the arguments that were
+spelled against the old name, so in its present form it is wrong
+rather than narrow. The `off` half ran 664 where the pair above ran 665. The difference is `MultiBody.Examples.Elementary.SpringWithMass`,
+refused in `off` by an algebraic loop and running under `--only` with
+the same binary. The two binaries differ only by code behind a switch
+that was off, so this is taken as the loop being sensitive to running
+beside a second pass, not as a change. It is named here so that the
+next pair can check it.
