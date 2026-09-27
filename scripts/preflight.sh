@@ -21,9 +21,13 @@
 #            change is still moving they are noise; run the whole thing
 #            before the push.
 #
-# The library directory defaults to where `library add` puts it. Where
-# there is none the floor check says so and is skipped rather than
-# failing: the floors are about a library this machine may not have.
+# The library directory defaults to `.msl` at the root of the tree,
+# which is where every honest measurement of this project was taken,
+# and after that to where `library add` puts it. Where there is none
+# the floor check says so and is skipped rather than failing: the
+# floors are about a library this machine may not have. A skipped step
+# is named in the summary, and the summary then says what was checked
+# rather than claiming everything was.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 
@@ -38,7 +42,11 @@ for argument in "$@"; do
 done
 
 if [ -z "$library" ]; then
-  library="${XDG_DATA_HOME:-$HOME/.local/share}/oxidelica/libraries/Modelica"
+  if [ -d .msl ]; then
+    library=".msl"
+  else
+    library="${XDG_DATA_HOME:-$HOME/.local/share}/oxidelica/libraries/Modelica"
+  fi
 fi
 
 # Every failure is reported at the end rather than stopping the run.
@@ -147,11 +155,20 @@ if [ "$quick" -eq 0 ]; then
 fi
 
 printf '\n\033[1m== summary ==\033[0m\n'
+unchecked=0
 for name in "${skipped[@]:-}"; do
-  [ -n "$name" ] && printf '\033[33munchecked\033[0m: %s\n' "$name"
+  if [ -n "$name" ]; then
+    printf '\033[33munchecked\033[0m: %s\n' "$name"
+    unchecked=$((unchecked + 1))
+  fi
 done
 if [ "${#failures[@]}" -eq 0 ]; then
-  if [ "$quick" -eq 1 ]; then
+  # A summary that says more than was measured is the quiet number this
+  # project hunts in the compiler: "everything passes" printed under a
+  # step that never ran reads exactly like a full pass.
+  if [ "$unchecked" -gt 0 ]; then
+    printf '\033[32meverything checked here passes\033[0m; %d step(s) unchecked above - CI decides those\n' "$unchecked"
+  elif [ "$quick" -eq 1 ]; then
     printf '\033[32mthe fast checks pass\033[0m - run without --quick before pushing\n'
   else
     printf '\033[32meverything CI checks on one platform passes\033[0m\n'
