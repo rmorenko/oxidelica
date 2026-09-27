@@ -371,7 +371,15 @@ FILES_FLOOR=2671
 # The desk counts the same 957 on that tree (/tmp/m291/on.txt). The run
 # lists of the two differ by the two names known to swing, Dimmer_RL on
 # the runner and SpringWithMass on the desk, and are 658 on both.
-FLATTEN_FLOOR=957
+#
+# And flatten 959 is the runner's count of 61a974c (job 108616432147 of
+# run 36318060838, /tmp/m293/runner61a.log), which carries the m292
+# series of 9d0a598: 957 plus BatchPlant_StandardWater and
+# TestWaterPumpNPSH, whose modifier calls are now read under the
+# writer's medium. The desk counts the same 959 on that tree
+# (/tmp/m292/e/on.txt, /tmp/m293/p/on.txt). The runner's log names only
+# the models that run, so the flatten lists were compared by count.
+FLATTEN_FLOOR=959
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -863,7 +871,14 @@ FLATTEN_FLOOR=957
 # TestCheckValve, ReferenceAir_pT and ReferenceAir_ph, the three of
 # m289 that run. The desk counts 658 on the same tree
 # (/tmp/m289/on.txt), and flatten stays 948 on both.
-RUN_FLOOR=658
+#
+# And run 662 is the runner's count of 61a974c (job 108616432147,
+# /tmp/m293/runner61a.log): 658 plus TestWaterPumpNPSH,
+# AST_BatchPlant.Test.TankWithEmptyingPipe1, AST_BatchPlant.Test.TwoTanks
+# and Polyphase.Examples.TestSensors, the four of the m292 series that
+# run. The desk counts 662 (/tmp/m293/p/on.txt); the two lists differ
+# by Dimmer_RL on the runner and SpringWithMass on the desk, as before.
+RUN_FLOOR=662
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -953,8 +968,13 @@ RUN_FLOOR=658
 # mixtures set out at `FLATTEN_FLOOR`, all runnable examples: the
 # runner's count of 0cabdad (/tmp/m292/runner0cab.log), the same as
 # the desk's (/tmp/m291/on.txt). Runnable run stays 616 on both.
-RUNNABLE_FLATTEN_FLOOR=841
-RUNNABLE_RUN_FLOOR=616
+#
+# And runnable flatten 843 = 841 plus BatchPlant_StandardWater and
+# TestWaterPumpNPSH, runnable run 620 = 616 plus the four set out at
+# `RUN_FLOOR`, all runnable examples: the runner's count of 61a974c
+# (/tmp/m293/runner61a.log), the same as the desk's (/tmp/m293/p/on.txt).
+RUNNABLE_FLATTEN_FLOOR=843
+RUNNABLE_RUN_FLOOR=620
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
