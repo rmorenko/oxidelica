@@ -669,6 +669,22 @@ fn elements_of(
                 .map(|item| to_scalar(item, frame, programs, time, depth))
                 .collect::<Result<Vec<_>, SimError>>()?,
         ),
+        // `array(0.5132047, 0.3205656, ...)` is the constructor written
+        // out as a call, and for arguments that are single numbers it
+        // is the same list as braces: the forty-two coefficients of the
+        // water's viscosity in `visc_dTp` are written this way. An
+        // argument that is itself an array would build a table, a new
+        // axis in front, which is not a list and is left alone.
+        Expr::Call(name, args) if name == "array" && !args.is_empty() => {
+            let mut items = Vec::new();
+            for arg in args {
+                if elements_of(arg, frame, programs, time, depth)?.is_some() {
+                    return Ok(None);
+                }
+                items.push(to_scalar(arg, frame, programs, time, depth)?);
+            }
+            Some(items)
+        }
         // A whole record answered by a call - `f := Basic.Helmholtz(d,
         // T)`, where `f` is a `HelmholtzDerivs` the walk holds as an
         // array of its fields, or `nDerivs := Helmholtz_pT(f)`, which

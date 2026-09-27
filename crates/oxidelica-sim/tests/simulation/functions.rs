@@ -3362,3 +3362,20 @@ fn a_record_handed_to_a_walked_body_goes_without_its_text() {
     );
     assert!(why.contains("d.name"), "{why}");
 }
+
+#[test]
+fn a_constant_written_as_array_call_is_laid_out_in_a_walked_body() {
+    // `constant Real[42] nn = array(0.5132047, ...)` is how the water's
+    // viscosity writes its coefficients, and the walk laid a binding it
+    // could not read as zeros: the viscosity of water at 25 C came out
+    // at 9.9e-6 where it is 8.9e-4. The loop keeps `w` from inlining.
+    let result = run("package P \
+         function w input Real x; output Real y; \
+         protected constant Real[3] nn = array(0.5, 0.25, 2.0); Real s = 0; \
+         algorithm while s < x loop s := s + 0.25; end while; \
+         y := s * (nn[1] + nn[2] + nn[3]); end w; \
+         model M Real y = w(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    // 2 * (0.5 + 0.25 + 2) at the end.
+    assert_eq!(last_of(&result, "y"), 5.5);
+}
