@@ -834,9 +834,16 @@ fn standing_call(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,
     imports: &[(String, String)],
-) -> Value {
+) -> Result<Value, String> {
     let inherited = inlining::function_components(registry, class, 0);
     let answer = inherited.iter().find(|c| c.causality == Causality::Output);
+    // A length taken from an input and not readable where the call
+    // stands is refused, naming the output: answered as one number the
+    // walk's first element would land on every name the model has.
+    let sized_by_input = answer.is_some_and(|answer| {
+        size_of_input_open()
+            && matches!(answer.dimensions.as_slice(), [Expr::Call(size, _)] if size == "size")
+    });
     let length = answer.and_then(|answer| match answer.dimensions.as_slice() {
         [Expr::Number(length)] => Some(*length as i64),
         // A length written as a name rather than a digit is a length
@@ -850,6 +857,14 @@ fn standing_call(
         // looked up there and nowhere else - a length guessed from a
         // name the function does not own would be a shape said
         // wrongly, which is a shape said wrongly everywhere below.
+        // `Y[size(X, 1)]`: as long as what the call hands to `X`. The
+        // walk lays the answer out by the length of the list it was
+        // given, so the model has to take the same number of elements;
+        // answering as one number put the first element on every name.
+        [Expr::Call(size, of)] if size == "size" && size_of_input_open() => {
+            length_handed_in(&call, of, &inherited)
+                .or_else(|| constants::declared_length(&answer.dimensions[0], class, registry))
+        }
         [only] if !matches!(only, Expr::Number(_)) => {
             constants::declared_length(only, class, registry)
         }
@@ -861,7 +876,15 @@ fn standing_call(
             .filter(|members| *members > 0),
         _ => None,
     });
-    match length {
+    Ok(match length {
+        None if sized_by_input => {
+            return Err(format!(
+                "`{}` is walked by the run and answers with `{}`, whose length is the size \
+                 of an input the call does not hand in as a list",
+                class.name,
+                answer.map_or("", |answer| answer.name.as_str())
+            ))
+        }
         None => Value::Scalar(call),
         Some(length) => Value::Array(
             (1..=length)
@@ -873,6 +896,33 @@ fn standing_call(
                 })
                 .collect(),
         ),
+    })
+}
+
+/// Whether an output written `Y[size(X, 1)]` is walked and taken at the
+/// length handed to `X`. `OXIDELICA_NO_SIZE_OF_INPUT` keeps the old
+/// refusal, so that one binary gives both numbers.
+pub(super) fn size_of_input_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_SIZE_OF_INPUT").is_none()
+}
+
+/// The length of the list a call hands to the input `size(of[0], 1)`
+/// names, where the call writes its arguments in order and that one is
+/// a list. `None` for anything else, which leaves the length unseen.
+fn length_handed_in(call: &Expr, of: &[Expr], components: &[Component]) -> Option<i64> {
+    let (Expr::Call(_, args), [Expr::Ref(input), Expr::Number(axis)]) = (call, of) else {
+        return None;
+    };
+    if *axis != 1.0 || args.iter().any(|arg| matches!(arg, Expr::NamedArg(..))) {
+        return None;
+    }
+    let at = components
+        .iter()
+        .filter(|c| c.causality == Causality::Input)
+        .position(|c| &c.name == input)?;
+    match args.get(at)? {
+        Expr::Array(items) => Some(items.len() as i64),
+        _ => None,
     }
 }
 
@@ -1426,7 +1476,7 @@ pub(super) fn expand_call(
                         // was taken for one answering with a record of
                         // as many members as the input had - so a
                         // density came back as a state of two.
-                        return Ok(standing_call(result, class, registry, imports));
+                        return standing_call(result, class, registry, imports);
                     }
                     // What the inlining built has to be read once more,
                     // since a body written in arrays answers with one.
@@ -1452,7 +1502,7 @@ pub(super) fn expand_call(
                             // saying it is a scalar would be a shape
                             // that lies.
                             let standing = Expr::Call(class.name.clone(), arguments);
-                            Ok(standing_call(standing, class, registry, imports))
+                            standing_call(standing, class, registry, imports)
                         }
                         answered => answered,
                     };
@@ -1487,7 +1537,7 @@ pub(super) fn expand_call(
                     if lands_on_an_array {
                         let handed: Vec<Expr> = values.into_iter().map(Value::into_expr).collect();
                         let call = Expr::Call(name.to_string(), handed);
-                        return Ok(standing_call(call, &copy, registry, imports));
+                        return standing_call(call, &copy, registry, imports);
                     }
                 }
             }

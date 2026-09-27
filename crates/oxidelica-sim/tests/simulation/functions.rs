@@ -3386,15 +3386,51 @@ fn a_local_array_the_walk_cannot_lay_out_is_refused_not_zero() {
     // the run was never handed laid `Y` out as zeros, and answered as
     // though every element were nothing: `y = 0` where the body gives
     // `2 * (0.5/2 + 0.5/4) = 0.75`. The loop keeps `w` from inlining.
+    // `toY` answers with `Y[n]`, a length only its call could say,
+    // which the walk still cannot carry; one answering `Y[size(X, 1)]`
+    // is carried now and has a test of its own below.
     let why = run_err(
         "package P \
+         function toY input Real X[:]; input Real MM[:]; input Integer n; output Real Y[n]; \
+         algorithm for i in 1:n loop Y[i] := X[i] / MM[i]; end for; end toY; \
+         function w input Real x; input Real X[2]; output Real y; \
+         protected Real[2] Y = toY(X, {2, 4}, 2); Real s = 0; \
+         algorithm while s < x loop s := s + 0.25; end while; y := s * (Y[1] + Y[2]); end w; \
+         model M Real y = w(1 + time, {0.5, 0.5}); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
+    );
+    assert!(why.contains("`Y`") && why.contains("`P.w`"), "{why}");
+}
+
+#[test]
+fn a_walked_answer_as_long_as_its_input_is_taken_element_by_element() {
+    // `Y[size(X, 1)]` is how a medium's mass-to-mole conversion writes
+    // its answer, and such a body was refused a walk for a length the
+    // compiler could not see. Let through with nothing more, the call
+    // was taken for one number and every element of the model read the
+    // walk's first: `Y[2] = 0.5` where the body gives `0.3 / 5 * 2 =
+    // 0.12`. The loop keeps `toY` from inlining.
+    let result = run("package P \
+         function toY input Real x; input Real X[:]; input Real MM[:]; \
+         output Real Y[size(X, 1)]; protected Real s = 0; \
+         algorithm while s < x loop s := s + 0.25; end while; \
+         for i in 1:size(X, 1) loop Y[i] := s * X[i] / MM[i]; end for; end toY; \
+         model M Real Y[2] = toY(1 + time, {0.5, 0.3}, {2, 5}); Real y = Y[1] + Y[2]; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    // 2 * {0.5 / 2, 0.3 / 5} at the end.
+    assert_eq!(last_of(&result, "Y[1]"), 0.5);
+    assert!((last_of(&result, "Y[2]") - 0.12).abs() < 1e-12);
+    assert!((last_of(&result, "y") - 0.62).abs() < 1e-12);
+    // And the same body bound on a local of another walked one, which
+    // used to be the local refused for having no layout.
+    let local = run("package P \
          function toY input Real X[:]; input Real MM[:]; output Real Y[size(X, 1)]; \
          algorithm for i in 1:size(X, 1) loop Y[i] := X[i] / MM[i]; end for; end toY; \
          function w input Real x; input Real X[2]; output Real y; \
          protected Real[2] Y = toY(X, {2, 4}); Real s = 0; \
          algorithm while s < x loop s := s + 0.25; end while; y := s * (Y[1] + Y[2]); end w; \
          model M Real y = w(1 + time, {0.5, 0.5}); \
-         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
-    );
-    assert!(why.contains("`Y`") && why.contains("`P.w`"), "{why}");
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    // 2 * (0.5 / 2 + 0.5 / 4) at the end.
+    assert_eq!(last_of(&local, "y"), 0.75);
 }

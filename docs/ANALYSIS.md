@@ -24175,3 +24175,140 @@ linspace`, joining `TestSpecial` there (a row of 1 to 3).
 `data.MM`. The patch is not in the tree: it raises flatten by two,
 which is worth taking with its own test and the runner's count, and a
 shift with a quarter of an hour left is not where to do that.
+
+## m296: a walked answer as long as its input, and the three places a name is lost
+
+### The first link, taken with the length the call hands in
+
+The m295 probe let a body answering `Y[size(X, 1)]` through
+`walkable` and nothing more. Taken as it was, it gives a wrong number
+rather than a refusal: the call site still read the output as one
+number, since `standing_call` knew a length only as a digit or a
+package constant, so the model's `Y[2] = toY(...)` read the walk's
+first element on every name. `Z1b.mo` (`X = {0.5, 0.3}`, `MM = {2,
+5}`) came out `Y = {0.5, 0.5}` where the body gives `{0.5, 0.12}`,
+and m295's `Z1` hid it because its two elements were equal. The same
+body with `Y[2]` written out was right, which is what named the
+layer.
+
+So the length is now read where the call stands: `size(X, 1)` of an
+input is the length of the list the call hands to that input
+(`length_handed_in`). Where the call hands something the flattener
+cannot measure there, the output is refused by name rather than
+answered as one number. `OXIDELICA_NO_SIZE_OF_INPUT` keeps the old
+refusal in `walkable`, so one binary measures both. Small models
+(`/tmp/m296/Z1*.mo`): `Z1b` gives `{0.5, 0.12}`, `Z1g` gives the same
+for a parameter handed in, `W = {1, 0.8}` for a time-varying list and
+`toY(...)[2] = 0.12` and `sum(toY(...)) = 0.62` for the other two
+spellings. The new test `a_walked_answer_as_long_as_its_input_is_...`
+is red under the switch. The m294 test of the refusal that replaced
+the silent zero used the very shape this carries now, so it went red
+here too, correctly: its body is carried and answers `0.75`. It now
+stands on `Y[n]`, a length given by an integer input, which the walk
+still cannot lay out, and it is still red under
+`OXIDELICA_LOCAL_ARRAY_ZERO`. The `0.75` it used to refuse is now
+checked as an answer in the new test.
+
+The pair was run from one binary (`/tmp/m296/ox3`) over `.msl`,
+`off` under `OXIDELICA_NO_SIZE_OF_INPUT` and `on` the default
+(`/tmp/m296/q/{off,on}.txt`, lists `*_flat.lst` and `*_ran.lst`,
+registers `offr.txt` and `onr.txt`). Flatten went from 959 to 961 and
+run stayed at 665. The runnable subset went from 843 to 845 flatten
+and stayed at 623 run. Both lists were diffed both ways and nothing
+was lost. The two that arrive are
+`ModelicaTest.Math.Random.TestDistributions` and
+`TestTruncatedDistributions`, which is the m295
+probe's reading model for model. The register moves the way m295's
+did: the `derTwoSided ... whose length is not one the compiler can
+see` row (2) empties, and the two stop at the run on `unknown function
+linspace`, which grows from 1 to 3 beside `TestSpecial`. Their run
+wall is `linspace` and not anything about the walk. `Inverse_sh_TX`
+moves from `an array reached the evaluator: {X[1], ...}` to `unknown
+variable data.MM`, the second link below. The `on` register is
+identical line for line to m295's `on` register
+(`/tmp/m295/q/onr.txt`), so the refusal added for a length the call
+cannot hand in fires on no model of the library. The floors are not
+moved in this commit. They wait for the runner's count.
+
+### Who stands behind the bridge, by name
+
+Counted from the run half of the m295 raw census
+(`/tmp/m295/raw.txt`, lines 103 to 397, the section `of the 959 that
+flatten, 665 run`), not from the whole file:
+
+| model                                             | row                                                         | wall                     |
+| ------------------------------------------------- | ----------------------------------------------------------- | ------------------------ |
+| `Media...InverseIncompressible_sh_T`              | array reached the evaluator, `1:2`                          | slice of a package array |
+| `ModelicaTest...IncompleteMedia.Essotherm650`     | the same                                                    | the same                 |
+| `ModelicaTest...IncompleteMedia.Glycol47`         | the same                                                    | the same                 |
+| `Media...SolveOneNonlinearEquation.Inverse_sh_TX` | `{X[1], ...}` standing in `massToMoleFractions(X, data.MM)` | the nX bridge            |
+
+Four models on the two rows, as the m295 reading said, but they are
+two walls and not one. The three on `1:N` are the `TableBased`
+media's `s_T`, which writes `integralValue(poly_Cp[1:npol], T, T0)`:
+a slice of a package array handed to another body. `S3.mo` (a
+package `constant Real c[:] = mk(1)`, `ev(c[1:n], 2)` inside a
+walked body) refuses with the same words. With `c` written out as a
+literal list (`S1.mo`) it stops one step earlier, on `only a name is
+subscripted in a walked body`. No modifier and no inherited name is
+involved: this is a third wall, the walk not reading a slice of a
+constant array.
+
+`data.` or `massToMole` in the refusal: three models in the run half,
+one in the flatten half (`TestWallFriction`, depth). Of the three,
+only `Inverse_sh_TX` is the bridge. `TestPressureLossDerivatives`
+(cannot differentiate `regRoot2_utility`) and `TestSharpEdgedOrifice`
+(a NaN loop) name a `data.` field only because their component is
+called `data`. So the bridge (package data given by a modifier and
+read by a walked body) holds one model in the library today.
+
+### The second link, probed: three places a name is lost
+
+The link 2 map of m295 put the loss in one place, the body carried
+under its writer's name. A probe behind `OX_ASKED_CARRY` (kept at
+`/tmp/m296/p1_plus_probe.patch` and
+`~/oxideflow/state/asked_carry_probe_m296.patch`, not in the tree)
+took it place by place, and there are three:
+
+1. The call left standing. `B4.Base.w` called as `Med.w` stands in
+   the flat model as `B4.Base.w`. Carried as a copy named under the
+   package on the `AskedAs` mark (`B4.Med.w`), with `gather_calls`
+   taking the copy from the specialization table before it asks
+   `lookup`, whose answer for an inherited name is the base. `B4`
+   goes from `unknown variable data.MM` to `y = 0.75`, the right
+   number.
+2. What a carried copy calls. `B8.mo` reads `data.MM` one call deeper,
+   in an `h` that `w` calls, and the first place alone leaves it
+   where it was: the callee is gathered under `Base`. Renaming each
+   call in the carried copy whose owner the copy's package (or one
+   enclosing it) extends gives `B8` its `0.75`.
+3. A function handed to another. `Inverse_sh_TX` never reaches the
+   first two places: its `T_psX` hands `f_nonlinear` to
+   `solveOneNonlinearEquation`, and the specialized copy is named
+   `...$Modelica_Media_IdealGases_Common_MixtureGasNasa_T_psX_f_nonlinear`,
+   after the base. `B9.mo` is `B3` with `data` given by a modifier,
+   and it refuses the same way. Resolving the handed target under the
+   mark gives `B9` `T = 29.333`, the same as `B3`.
+
+With all three, `Inverse_sh_TX` (`--only` from `.msl`) leaves
+`data.MM` and stops one link on: `an array reached the evaluator:
+s0_T({DataRecord(...), ...}, T)` standing in `sum(s0_T(data, T) .*
+X)`, a scalar function taken over an array of records inside a walked
+body. `V3.mo` is that made small and refuses with the same words
+without any modifier, so it is a wall of its own. The copies the
+probe printed (`h_TX`, `s_TX`, `specificEntropyOfpTX`,
+`massToMoleFractions`, both `f_nonlinear`, all under
+`FlueGasLambdaOnePlus`) show the renaming reaching the whole call
+graph of the medium.
+
+So the road is narrow in kind but not in place: every place is one
+more reader of the same `AskedAs` mark and the specialization table,
+and none of them moves how carrying works. It is three places, and the
+second one guesses an owner by walking up the package path, which is
+the kind of spelling test AGENTS.md warns about. The honest shape is
+one table that keys a carried body by (body, package asked under),
+filled wherever a call is left standing or handed over. The price for
+the library as it stands is one model, and that model has at least
+one more wall (link 3) behind this one, so no count moves until link
+3 falls as well. The probe did not reach the whole corpus and is not
+measured there.

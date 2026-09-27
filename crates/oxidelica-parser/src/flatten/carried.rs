@@ -1062,6 +1062,14 @@ pub(super) fn gather_calls_in_statements(
     }
 }
 
+/// Whether `class` declares `name` as one of its own inputs.
+fn is_input(class: &ClassDef, name: &str) -> bool {
+    class
+        .components
+        .iter()
+        .any(|c| c.name == name && c.causality == Causality::Input)
+}
+
 /// What a body the run walks may be made of. The run carries numbers,
 /// so anything shaped otherwise is refused here rather than left to
 /// fail at the first step.
@@ -1093,8 +1101,18 @@ pub(super) fn walkable(
                 [only] => settled(only),
                 _ => false,
             };
+            // A length written as the size of an input is one the
+            // call site settles: `Y[size(X, 1)]` is as long as the `X`
+            // the model hands in, and the model names every element of
+            // that. The compositions of a medium answer this way, and
+            // the call site takes the length from the list it hands in.
+            let of_an_input = matches!(
+                component.dimensions.as_slice(),
+                [Expr::Call(size, args)] if size == "size" && args.len() == 2
+                    && matches!(&args[0], Expr::Ref(of) if is_input(class, of))
+            ) && super::arrays::size_of_input_open();
             let [Expr::Number(_)] = component.dimensions.as_slice() else {
-                if settled_length {
+                if settled_length || of_an_input {
                     continue;
                 }
                 return Err(format!(
