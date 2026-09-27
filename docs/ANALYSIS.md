@@ -23558,3 +23558,52 @@ moves, which is what a correctness fix with a scalar test is allowed
 to do. The expansions counted 38 more and the names 1269 more, inside
 their bands. What the pair cannot show is a number that changed inside
 a model that runs either way; that is what the two tests are for.
+
+### The m293 census
+
+Taken on f4607e7 (`/tmp/m293/census.txt`, raw names in
+`/tmp/m293/raw.txt`), counted between the section heads. Would not
+flatten: 75 models in 42 rows, against 84 in 46 for m291. Flattened and
+would not run: 297 models in 158 rows, against 292 in 155. The run half
+says 959 flatten and 662 run, the same as the m293 pair.
+
+Nine models left the refused half. `TestWaterPumpNPSH` left the census
+altogether and runs. Eight flatten now and meet the run half:
+`BatchPlant_StandardWater`, `Media.Examples.MixtureGases`,
+`IdealMixing1`, `FlueGasSixComponents`, `TestOnly.FlueGas`,
+`IdealGasN2Mix`, `MixIdealGasAir` and
+`SimpleNaturalGasFixedComposition`. The rows they emptied are the
+three `R_s` shape rows (5), two of the seven partial functions, one
+of the three array divisors and the one subscripted component. Out of
+the run half went `TestSensors`, `TankWithEmptyingPipe1` and
+`TwoTanks`, which run.
+
+Where the eight arrived is the new work, and it folds into three
+families rather than the six rows the counter prints:
+
+- A mixture's molar masses, 4 models. `FlueGasSixComponents`,
+  `IdealGasN2Mix` and `MixIdealGasAir` stop at `unknown variable
+MMX[1]` in the entropy equation, and `TestOnly.FlueGas` at `nothing
+gives a value to Medium.data.MM` for `MMx[1..4]`. The same array of
+  records read one field across, on the run side this time. Top of
+  the queue by size, and the neighbour of the m292 series.
+- A String carried into the run, 2 models: `IdealMixing1` on `"N2"`,
+  `SimpleNaturalGasFixedComposition` on `"CH4"`. A new row.
+- `MixtureGases` joins `TestPressureLossDerivatives` and
+  `TestRegRoot2Derivatives` at `cannot differentiate a call of several
+arguments`, now 4 with `TestRegRoot2ZeroDerivative`, which moved
+  there from `cannot differentiate function abs`.
+  `BatchPlant_StandardWater` meets the `Wb_flow` wall set out above.
+
+The rest moved inside the run half: the three `TanksWithEmptyingPipe`
+tests went from `unbalanced ... portsData_height` to Newton that does
+not converge, with `SimpleAir` beside them, so the loop row went 5 to
+8; `OneTank` went from the same unbalanced row to an assertion on the
+medium's temperature range; `BranchingDynamicPipes` from `mXis` to
+`der(pipe1.mediums[1].T)` not being a state; `InnerTank` from `unknown
+function pre` to an unbalanced model; `Inverse_sh_TX` from `h_min` to
+`s_min`, one parameter further along the same function. Summed by
+family the run half reads: algebraic loops 99 in 7 rows (96 in 7),
+structurally singular 66 in 55 (65 in 54), unbalanced 39 in 36 (45 in
+38), unknown variables 11 in 3 (8 in 3), parameters 10 in 8 (9 in 7).
+The loops remain the largest family and the least taken apart.
