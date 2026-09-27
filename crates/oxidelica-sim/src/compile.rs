@@ -2412,7 +2412,11 @@ fn settle_modes(
     for conditional in &model.conditional {
         let mut taken = conditional.branches.len() - 1;
         for (index, condition) in conditional.conditions.iter().enumerate() {
-            if eval(condition, &start_ctx)? != 0.0 {
+            let condition = match pre_in_modes_refused() {
+                true => condition.clone(),
+                false => pre_as_now(condition),
+            };
+            if eval(&condition, &start_ctx)? != 0.0 {
                 taken = index;
                 break;
             }
@@ -5660,4 +5664,28 @@ fn reciprocal_solution(
         return None;
     }
     crate::symbolic::solve_reciprocal_known(lhs, rhs, name, known)
+}
+
+/// A mode condition as it reads where a mode is chosen: `pre(x)` is `x`.
+///
+/// A mode is settled where the run starts or where an event has
+/// finished iterating, and at both points what a variable was before
+/// the event and what it is are one number - at the start because the
+/// start is what `pre` reads there, after an event because the
+/// iteration stops only when nothing moves. A tank writes `if
+/// pre(ports_m_flow_out[i]) then ports[i].m_flow = 0; ...`, and asked
+/// as it stood the condition was a call the evaluator had never heard
+/// of. The run still watches the condition as written, `$pre` and all.
+fn pre_as_now(condition: &Expr) -> Expr {
+    match condition {
+        Expr::Call(name, args) if name == "pre" && args.len() == 1 => args[0].clone(),
+        other => other.map_children(&mut |child| pre_as_now(child)),
+    }
+}
+
+/// Whether a mode condition naming `pre` is asked as written, and
+/// refused, as it was before. `OXIDELICA_PRE_IN_MODES_OFF` keeps the
+/// old reading, so that one binary gives both numbers.
+fn pre_in_modes_refused() -> bool {
+    std::env::var_os("OXIDELICA_PRE_IN_MODES_OFF").is_some()
 }

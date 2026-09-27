@@ -619,6 +619,10 @@ pub struct ForEquation {
     pub range: Option<Expr>,
     /// Equations and nested loops of the body.
     pub body: Vec<ForBody>,
+    /// Whether it was written in an `initial equation` section, in
+    /// which case what the loop holds says where the run begins rather
+    /// than what holds throughout it. Only the outermost loop says so.
+    pub initial: bool,
 }
 
 /// One branch of an `if` equation.

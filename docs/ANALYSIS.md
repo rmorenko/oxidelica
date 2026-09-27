@@ -23402,3 +23402,115 @@ unbalanced, "nothing determines y_buf[1], ..., y_buf[4]", although an
 algorithm that assigns an element of an array defines the whole of it
 and the other elements hold their values. Two links, both mapped, no
 change made.
+
+## The m292 series: a modifier's call read under the writer's medium, and the three walls behind it
+
+### The floors, to the runner's count
+
+The library job of 0cabdad (job 108591424474 of run 36309091249,
+`/tmp/m292/runner0cab.log`) counted 957 flatten and 658 run, runnable
+841 and 616, the desk's numbers of `/tmp/m291/on.txt`. The run lists
+differ by the two names known to swing, `Dimmer_RL` on the runner and
+`SpringWithMass` on the desk. The flatten floors go to 957 and 841 in a
+commit of their own, before the series.
+
+### The chain, walked to its end
+
+The m291 map named one link: `Mon monitoring(redeclare package Medium
+= W2, final u = Medium.f(time))` written in a pump whose medium is `W`
+gave `u = 5` where `2` was meant (`p10.mo`, 24 lines). Walked with the
+two fluid models that stood on it, the chain has four links and ends
+at a wall of another family.
+
+1. A dotted call in a site modifier is now resolved in the writer's
+   scope, head only. `resolve_call_names` in `flatten/components.rs`
+   had resolved only undotted heads. The first form tried resolved the
+   whole name, which lands `Medium.density` on the base that writes the
+   body, `PartialSimpleMedium`, and nine fluid models that ran stopped
+   at `unknown variable d_const`: the constants the medium gave the
+   base were names nothing declared (`/tmp/m292/attr.txt`, every victim
+   run back to that key alone). Resolving the head and leaving the
+   rest to be read through it gives all nine back. Key
+   `OXIDELICA_CALLS_IN_COMPONENT`, tests on `u = 2` and on `u = 3`
+   through a base constant.
+2. What came down from the site now outranks what an `extends`
+   redeclares (`flatten/instantiate.rs`). `PumpMonitoringNPSH` extends
+   its base with `redeclare replaceable package Medium =
+PartialTwoPhaseMedium`, which only narrows; read first, it won over
+   the pump's `redeclare package Medium = Medium`, and the state the
+   base declares took the interface's fields, so `state_in.d` was a
+   name nothing declared. Reduced to 22 lines (`/tmp/m292/p14/L5.mo`):
+   the field `d` of the site's medium was lost without a word. Key
+   `OXIDELICA_EXTENDS_REDECLARE_FIRST`, test on `m.s.d = 4`.
+3. A `for` in an `initial equation` section is now initial. The parser
+   marked an `if` there and not a loop, so `for i in 1:2 loop x[i] = i;
+end for;` became two running equations and a ten-line model was
+   refused as unbalanced. The tank of the batch plant writes its
+   `pre(aboveLevel[i])` start that way. Key
+   `OXIDELICA_INITIAL_LOOPS_RUN`, test on `x[1] = exp(-1)` at the end.
+4. A mode condition naming `pre` is asked as if `pre(x)` were `x` where
+   a mode is chosen (`sim/compile.rs`, `settle_modes`): at the start and
+   after an event has settled the two are one number. `if
+pre(ports_m_flow_out[i]) then` was refused as `unknown function
+pre`. The run still watches the condition as written. Key
+   `OXIDELICA_PRE_IN_MODES_OFF`, test on a 16-line switch.
+
+Behind the fourth, `BatchPlant_StandardWater` flattens and is refused
+as unbalanced, 2190 equations for 2199 unknowns, "nothing determines
+`B1.Wb_flow`" and the top-port enthalpy flows, where `B1.Wb_flow =
+-(B1.p_ambient * der(B1.V))` stands in the flat model and `V` is
+algebraic. That is matching and index reduction, not the family of the
+chain, and it is parked there.
+
+### The pair over the library
+
+One binary (`/tmp/ox292e`), without the carved-out giants. With the four
+keys set (`/tmp/m292/e/off.txt`): 957 flatten and 658 run, runnable 841
+and 616, the flatten and run lists identical to `/tmp/m291/on.txt` name
+for name. Without them (`/tmp/m292/e/on.txt`): 959 and 662, runnable 843
+and 620. Flatten gains `BatchPlant_StandardWater` and
+`TestWaterPumpNPSH`, loses nothing. Run gains `TestWaterPumpNPSH`,
+`AST_BatchPlant.Test.TankWithEmptyingPipe1`, `AST_BatchPlant.Test.TwoTanks`
+and `Polyphase.Examples.TestSensors`, loses nothing. The row "partial
+and nothing redeclared" loses its two named models, as the m291 map
+said it would.
+
+The names count rose 69045 per million, and one model owns it:
+`BatchPlant_StandardWater` looked up 20293435 names refused and
+139993983 flattened (`/tmp/m292/bp_off.txt`, `bp_on.txt`), 119700548 of
+the 123182079. The reference moves to the open count. The flatten and
+run floors do not: they wait for the runner's count of this series.
+
+### The subscript row, the chain behind it
+
+The m291 map held two links. Walked with a probe (every change local,
+reverted, `OX_PROBE_ARR`), it has four, and the last is another family.
+
+1. A subscript read from a discrete variable at run time, `y_buf[iTick]
+:= y` inside a `when`, is refused in `flatten/statements.rs` at the
+   element's name. Written on the probe as one guarded assignment per
+   element, `y_buf[k] := if iTick == k then y else pre(y_buf[k])`, the
+   13-line `F.mo` runs and gives `0, 0.25, 0.5, 0.75`.
+2. What a `when` of an algorithm assigns to one element leaves the
+   others undetermined (`K.mo`, 8 lines): the siblings are never said
+   to hold. On the probe they are given `pre` of themselves.
+3. An array element assigned under an `if` inside a `when` is lost
+   (`K2.mo`): the `if` merge skips an array that nothing after it
+   reads, a rule written for function bodies, and the fallback for a
+   branch that says nothing gives `pre` only to a name without a
+   subscript.
+4. The condition of an `if` in an algorithm is substituted twice.
+   This one is a silent wrong number on HEAD and needs no array at
+   all: `N.mo`, 12 lines, `n := n + 1; if n == 2 then y := time; end
+if;` inside a `when` sampling every 0.25 gives `y = 0` at the end,
+   where the answer is `0.25`. The flat model reads `if ((n + 1) + 1)
+== 2`. With `pre(iTick)` the same fault is refused as `pre() takes a
+variable`. Substituting only the element names a second time
+   leaves `(n + 1) == 2` and still gives 0, so a second fault stands
+   under it in how a `when`'s actions read one another.
+
+On the probe the four FFT examples stop at "an expression did not come
+to an end here, nested deeper than the compiler follows": the buffer's
+`if` chains are expanded again inside `realFFT`. That is the depth
+family. The chain is parked with its map. Link 4 is a correctness
+defect and wants a series of its own with `N.mo` as the test.

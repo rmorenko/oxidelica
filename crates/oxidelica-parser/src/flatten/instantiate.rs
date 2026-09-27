@@ -668,7 +668,25 @@ fn instantiate_bases(
                 &[],
             )?);
         }
-        base_redeclares.extend(redeclares.iter().cloned());
+        let own_redeclares = base_redeclares.clone();
+        // What came down from the site outranks what this `extends`
+        // says, as any modification from outside outranks the one
+        // written inside: a pump hands its monitor `redeclare package
+        // Medium = Medium`, and the monitor's `extends Base(redeclare
+        // replaceable package Medium = PartialTwoPhaseMedium)` only
+        // narrows what may be put there. Read first, the narrowing
+        // won, and the state the base declares took the interface's
+        // fields - the density a monitor reads was a name nothing
+        // declared. The reader takes the first of a name, so the
+        // site's go first. `OXIDELICA_EXTENDS_REDECLARE_FIRST` keeps
+        // the old order for measuring one binary against itself.
+        match extends_redeclare_first() {
+            true => base_redeclares.extend(redeclares.iter().cloned()),
+            false => {
+                base_redeclares = redeclares.to_vec();
+                base_redeclares.extend(own_redeclares.iter().cloned());
+            }
+        }
         // What the values handed down name, measured here where those
         // names still mean something.
         let mut handed_shapes: HashMap<String, Vec<i64>> = HashMap::new();
@@ -808,7 +826,7 @@ fn instantiate_bases(
                     .iter()
                     .cloned()
                     .chain(
-                        base_redeclares[..extend.redeclares.len()]
+                        own_redeclares
                             .iter()
                             .flat_map(|redeclare| redeclare.modifiers.iter().cloned()),
                     )
@@ -1531,4 +1549,11 @@ where
 /// gives both numbers.
 fn handed_names_open() -> bool {
     std::env::var_os("OXIDELICA_NO_HANDED_NAMES").is_none()
+}
+
+/// Whether what an `extends` redeclares is read before what came down
+/// from the site, as it was before. `OXIDELICA_EXTENDS_REDECLARE_FIRST`
+/// keeps the old order, so that one binary gives both numbers.
+fn extends_redeclare_first() -> bool {
+    std::env::var_os("OXIDELICA_EXTENDS_REDECLARE_FIRST").is_some()
 }

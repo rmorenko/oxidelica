@@ -3192,3 +3192,91 @@ fn a_constant_of_a_base_package_is_read_in_the_terms_of_the_package_that_wrote_i
          annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
     assert!((last_of(&result, "T") - 50.5).abs() < 1e-6);
 }
+
+#[test]
+fn a_call_written_in_a_modifier_means_the_writers_medium() {
+    // A pump writes its monitor as `Mon monitoring(redeclare package
+    // Medium = W2, final u = Medium.f(time))`: the call is the pump's,
+    // and the pump's medium is `W`, where `f` doubles. Read where the
+    // monitor stands it met the monitor's medium, which multiplies by
+    // five, and the model ran with the wrong number and no word.
+    let result = run("package L \
+         partial package PM replaceable partial function f input Real x; output Real y; end f; end PM; \
+         package W extends PM; redeclare function extends f algorithm y := 2*x; end f; end W; \
+         package W2 extends PM; redeclare function extends f algorithm y := 5*x; end f; end W2; \
+         model Mon replaceable package Medium = PM; input Real u; Real w = Medium.f(1); end Mon; \
+         model Pump replaceable package Medium = PM; \
+         Mon monitoring(redeclare package Medium = W2, final u = Medium.f(time)); end Pump; \
+         model M Pump pump(redeclare package Medium = W); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end L;");
+    assert_eq!(last_of(&result, "pump.monitoring.u"), 2.0);
+    assert_eq!(last_of(&result, "pump.monitoring.w"), 5.0);
+}
+
+#[test]
+fn a_package_redeclared_at_the_site_outranks_the_one_an_extends_narrows_to() {
+    // A monitor extends its base with `redeclare replaceable package
+    // Medium = PM2`, which only narrows what may stand there; the pump
+    // that holds it hands down `redeclare package Medium = W`. Read in
+    // the other order the state the base declares took the narrowed
+    // package's fields, and the density `W` adds was lost.
+    let result = run("package L \
+         partial package PM replaceable record State end State; end PM; \
+         partial package PM2 extends PM; \
+         redeclare replaceable record extends State Integer phase; end State; end PM2; \
+         package W extends PM2; redeclare record extends State Real d; end State; end W; \
+         model Base replaceable package Medium = PM; Medium.State s; end Base; \
+         model Mon extends Base(redeclare replaceable package Medium = PM2); end Mon; \
+         model M Mon m(redeclare package Medium = W, s(d = 3 + time, phase = 1)); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end L;");
+    assert_eq!(last_of(&result, "m.s.d"), 4.0);
+    assert_eq!(last_of(&result, "m.s.phase"), 1.0);
+}
+
+#[test]
+fn a_loop_in_an_initial_equation_section_says_where_the_run_begins() {
+    // A tank writes `for i in 1:nPorts loop pre(aboveLevel[i]) = ...;
+    // end for;` under `initial equation`. Read as a running loop, what
+    // it held joined the model's equations, and a model with two states
+    // started from `x[i] = i` was refused as having equations left over.
+    let result = run(
+        "model U Real x[2]; initial equation for i in 1:2 loop x[i] = i; end for; \
+         equation der(x) = -x; annotation(experiment(StopTime = 1, Interval = 0.5)); end U;",
+    );
+    assert!((last_of(&result, "x[1]") - (-1.0f64).exp()).abs() < 1e-4);
+    assert!((last_of(&result, "x[2]") - 2.0 * (-1.0f64).exp()).abs() < 1e-4);
+}
+
+#[test]
+fn a_mode_chosen_on_what_a_switch_was_is_chosen_at_the_start() {
+    // A tank's port writes `if pre(ports_m_flow_out[i]) then m_flow = 0;
+    // else p = p_ambient; end if;`. Where a mode is chosen what a
+    // variable was and what it is are one number, and the condition
+    // asked as written was a call the evaluator had never heard of.
+    let result = run(
+        "model V Boolean out(start = false, fixed = true); Real m; Real p; \
+         Real x(start = 1, fixed = true); \
+         equation der(x) = -m; out = (pre(out) and not p > 0) or m < -1e-6; \
+         if pre(out) then m = 0; else p = x - 0.5; end if; p + m = x; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end V;",
+    );
+    assert!((last_of(&result, "m") - 0.5).abs() < 1e-9);
+    assert!((last_of(&result, "x") - 0.5).abs() < 1e-9);
+}
+
+#[test]
+fn a_call_in_a_modifier_reads_the_constants_its_medium_gave_the_base() {
+    // Resolved whole, `Medium.f` landed on the base that writes the
+    // body, and the constant the medium gave that base was a name
+    // nothing declared. Only the head is the writer's to resolve.
+    let result = run("package L \
+         partial package PM constant Real d_const; \
+         function f input Real x; output Real y; algorithm y := d_const*x; end f; end PM; \
+         package W extends PM(d_const = 3); end W; \
+         model Mon replaceable package Medium = PM; input Real u; end Mon; \
+         model Pump replaceable package Medium = PM; \
+         Mon monitoring(redeclare package Medium = Medium, final u = Medium.f(time)); end Pump; \
+         model M Pump pump(redeclare package Medium = W); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end L;");
+    assert_eq!(last_of(&result, "pump.monitoring.u"), 3.0);
+}

@@ -590,6 +590,7 @@ fn flatten_if_equations<'a>(
             take_checks(call, acc)?;
         }
         for loop_eq in &branch.loops {
+            let boundary = acc.equations.len();
             unroll(
                 loop_eq,
                 &HashMap::new(),
@@ -603,6 +604,12 @@ fn flatten_if_equations<'a>(
                 imports,
                 acc,
             )?;
+            // A loop inside an initial `if` is as initial as the rest
+            // of the branch.
+            if if_equation.initial && !initial_loops_run() {
+                let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
+                acc.initial_equations.extend(written);
+            }
         }
         for equation in &branch.equations {
             if tuple_equation(equation, acc)? {
@@ -1311,6 +1318,7 @@ pub(super) fn flatten_equations(
 
     // `for` equations are unrolled: the loop variable is a constant.
     for loop_eq in &class.for_equations {
+        let boundary = acc.equations.len();
         unroll(
             loop_eq,
             &HashMap::new(),
@@ -1324,6 +1332,10 @@ pub(super) fn flatten_equations(
             imports,
             acc,
         )?;
+        if loop_eq.initial && !initial_loops_run() {
+            let written: Vec<EquationItem> = acc.equations.drain(boundary..).collect();
+            acc.initial_equations.extend(written);
+        }
     }
 
     // What a branch the compiler picked says about events joins what
@@ -1549,4 +1561,11 @@ fn when_conditions(condition: &Expr, expand_here: &ExpandHere<'_>) -> Result<Vec
         true => Ok(vec![value.scalar()?]),
         false => Ok(conditions),
     }
+}
+
+/// Whether a loop written in an `initial equation` section is read as
+/// a running one, as it was before. `OXIDELICA_INITIAL_LOOPS_RUN` keeps
+/// the old reading, so that one binary gives both numbers.
+fn initial_loops_run() -> bool {
+    std::env::var_os("OXIDELICA_INITIAL_LOOPS_RUN").is_some()
 }

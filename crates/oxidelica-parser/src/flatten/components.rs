@@ -1900,8 +1900,40 @@ fn resolve_call_names(
                 _ => mapped,
             }
         }
+        // A dotted head is resolved here too when its first part is a
+        // class the writer can see: `Medium.f(time)` written by a pump
+        // means the pump's medium, and read later it met the medium of
+        // the component it was handed to, which may be another one
+        // entirely - a silent wrong number, `u = 5` where `2` was
+        // meant. A head that is a component is left alone, since the
+        // call reaches an instance and not a package.
+        Expr::Call(name, args) if !calls_in_component() && !name.starts_with('.') => {
+            // Only the head is resolved, and the rest is left to be
+            // read through it: `Medium.density` taken whole lands on
+            // the base where the body is written, `PartialSimpleMedium`,
+            // and the constants the medium gave that base - `d_const` -
+            // were names nothing declared. Nine fluid models stopped
+            // running that way while the pump's monitor was mended.
+            let Some((head, rest)) = name.split_once('.') else {
+                return mapped;
+            };
+            match lookup(registry, head, scope, imports) {
+                Some(found) if found.name != head => {
+                    Expr::Call(format!("{}.{rest}", found.name), args.clone())
+                }
+                _ => mapped,
+            }
+        }
         _ => mapped,
     }
+}
+
+/// Whether a dotted call in a modifier is left to be read where the
+/// component is, as it was before. `OXIDELICA_CALLS_IN_COMPONENT` is
+/// kept so that one binary can be measured against itself over the
+/// whole library.
+fn calls_in_component() -> bool {
+    std::env::var_os("OXIDELICA_CALLS_IN_COMPONENT").is_some()
 }
 
 /// Whether a name declared twice over is written out twice, as it was

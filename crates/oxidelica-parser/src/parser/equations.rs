@@ -179,6 +179,7 @@ impl Parser {
                     Some(inner) => vec![ForBody::Nested(inner)],
                     None => std::mem::take(&mut body),
                 },
+                initial: false,
             });
         }
         Ok(built.expect("a loop has at least one index"))

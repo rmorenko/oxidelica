@@ -1207,7 +1207,16 @@ WORK_PERCENT=5
 # names looked up for more models: the second pass was walking every
 # name of every assignment's value again. Together 2543 per million
 # below the old reference, which would have been red on the fall.
-WORK_NAMES=1782427540
+#
+# Moved to 1907264675 from /tmp/m292/e/on.txt, the m292 series. One
+# binary printed 1784082596 with its four keys set (/tmp/m292/e/off.txt,
+# lists identical to m291 name for name) and 1907264675 without them,
+# 69045 per million up. BatchPlant_StandardWater alone accounts for
+# 119700548 of the 123182079: refused, it looked up 20293435 names, and
+# flattened 139993983 (/tmp/m292/bp_off.txt, bp_on.txt). The rest is
+# TestWaterPumpNPSH, which now runs. The rise is bought with a model
+# that flattens, and the old reference would have been red on it.
+WORK_NAMES=1907264675
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"

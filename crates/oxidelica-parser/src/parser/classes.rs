@@ -324,7 +324,15 @@ impl Parser {
                     algorithm.extend(self.statements()?);
                 }
                 Token::For => {
-                    for_equations.push(self.for_equation()?);
+                    // A loop in an `initial equation` section is read
+                    // as the `if` there is: what it holds joins the
+                    // initial equations. Read as an ordinary loop, a
+                    // tank's `pre(aboveLevel[i]) = level_start >= ...`
+                    // became an equation of the running model, and the
+                    // model had equations nothing was left for.
+                    let mut written = self.for_equation()?;
+                    written.initial = in_initial;
+                    for_equations.push(written);
                 }
                 // An `if` written in an `initial equation` section
                 // says where the run begins rather than what holds
