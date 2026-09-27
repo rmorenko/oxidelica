@@ -1136,11 +1136,21 @@ RUN_MS_CEILING=12000
 # 915 per million, while TestMatrices2b alone counts 197201 of its own
 # (`--only`): the rest is the other models looking up fewer, which
 # was not traced model by model.
-WORK_CLASSES=283567
-WORK_EXPANSIONS=94401873
-WORK_BODIES=1402993
-WORK_POINTS=32250719
-WORK_NEWTON=44495461
+#
+# Refreshed from /tmp/m292/e/on.txt, the m292 series; its off side,
+# /tmp/m292/e/off.txt, printed 285496 / 95078516 / 1406275 / 32446799 /
+# 44912614 from the same binary, the lists of m291 name for name. The
+# expansions rose 11.1% and the bodies 9.9%, and one model owns them:
+# BatchPlant_StandardWater counted 12074718 expansions and 159644
+# bodies flattened against 2063004 and 23598 refused
+# (/tmp/m292/bp_on.txt, bp_off.txt), 10011714 of the 10276799 and
+# 136046 of the 139883. The four that now run add 252 points and 1350
+# Newton steps.
+WORK_CLASSES=287278
+WORK_EXPANSIONS=105355315
+WORK_BODIES=1546158
+WORK_POINTS=32447051
+WORK_NEWTON=44913964
 # Jacobians refreshed from /tmp/m278/k_on.txt, 605, after the m278
 # series; the off side of one binary (/tmp/m278/off.txt, all three
 # switches of the series set) printed 327. 275 of the 278 are named

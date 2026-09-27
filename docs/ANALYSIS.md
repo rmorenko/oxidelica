@@ -23414,7 +23414,7 @@ differ by the two names known to swing, `Dimmer_RL` on the runner and
 `SpringWithMass` on the desk. The flatten floors go to 957 and 841 in a
 commit of their own, before the series.
 
-### The chain, walked to its end
+### The modifier chain, walked to its end
 
 The m291 map named one link: `Mon monitoring(redeclare package Medium
 = W2, final u = Medium.f(time))` written in a pump whose medium is `W`
@@ -23462,7 +23462,7 @@ as unbalanced, 2190 equations for 2199 unknowns, "nothing determines
 algebraic. That is matching and index reduction, not the family of the
 chain, and it is parked there.
 
-### The pair over the library
+### The m292 pair over the library
 
 One binary (`/tmp/ox292e`), without the carved-out giants. With the four
 keys set (`/tmp/m292/e/off.txt`): 957 flatten and 658 run, runnable 841
