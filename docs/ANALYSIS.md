@@ -23953,3 +23953,54 @@ the fault: it is the local array bound by an array-valued call inside
 a body the walk carries, and the `nX` and `X` refusals of the two
 corpus models are how that same local looks from further out. This is
 where the next shift's probe starts.
+
+## m294: a local array the walk cannot lay out is not a row of zeros
+
+Shrinking the `T_psX` link above turned up a wrong number where a
+refusal was owed. `/tmp/m294/Z1.mo`, fourteen lines: a walked body
+declares `protected Real[2] Y = toY(X, {2, 4})`, where `toY` answers
+with an array of `size(X, 1)` and so is carried only as an optional
+body the walk may never have. The walk could not lay the binding out
+element by element, and `walk.rs` then filled each element with
+`0.0`: the model ran and answered `y = 0` where the body gives
+`2 * (0.5/2 + 0.5/4) = 0.75`. The same zero stands behind the nested
+entropy of `A1.mo`, where the bracket `[0, 100]` of a solver read the
+same residual at both ends and was refused as having no sign change.
+It was there before this shift (`/tmp/ox294a`, built from 33d1a17,
+gives the same `0`).
+
+Refused at the declaration (`/tmp/ox294d`) it cost thirty-one models,
+all of them water: `region_ph` of IF97 declares `constant Real[5] n =
+data.n` and never reads it on the roads those models take
+(`/tmp/m294/z/off.txt` against `on.txt`, flatten identical, run 665 to
+634). A value nobody reads is not a wrong number, so the refusal moved
+to where the number is used, in a second patch (not in the tree, see
+below): the elements of such a local laid out as NaN, which is what a
+missing value is, and a walked body whose answer comes out NaN while
+it holds one refused naming the local. Under that patch `Z1.mo` and
+`A1.mo` refuse naming `Y`, and `DrumBoiler` and `TestValveLinear` run
+as before. `OXIDELICA_LOCAL_ARRAY_ZERO=1` keeps the old zero, and the
+patch's test is red under it.
+
+Laid out as NaN, with the refusal where the number is used
+(`/tmp/ox294f`), the pair (`/tmp/m294/y/off.txt` under the key,
+`on.txt` without) gives flatten 959 in both, lists identical, and run
+665 to 659. The six are not a cost to be traded against. They are six
+models that were running on a wrong number: `TestTwoPhaseStates`
+names it outright, `the walked body IF97_Utilities...visc_dTp answers
+with a value that is not a number, and it declares nn`, and `nn` is
+`constant Real[42] nn = array(0.5132047, ...)`, the coefficients of
+the IAPWS viscosity, which `visc_dTp` reads in `Psi1 := Psi1 + nn[i +
+j*6]*...`. The walk cannot lay out `array(...)` and put zeros there,
+so every walked water viscosity has been computed with those 42
+coefficients at zero. The six: `InverseParameterization`,
+`DynamicPipeEnergyConservationCheck` (both through `mu_nominal`),
+`TestTwoPhaseStates`, `TestCheckValve`, `IncompleteMedia.WaterIF97_pT`
+and `WaterIF97_ph`.
+
+The patch is left uncommitted (`/tmp/m294/silent_zero.patch`, worktree `/tmp/m294/wt`): a change that lowers the
+run floor by six goes to the review, not into the tree at the end of a
+shift. The fix it asks for is the other half: let the walk lay out
+`array(...)` of numbers, which gives `visc_dTp` its coefficients back
+and should bring the six back running on the right number. Then the
+refusal can go in with no victims.
