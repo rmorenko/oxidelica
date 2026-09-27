@@ -23053,3 +23053,227 @@ and at the push 35 of the 76 had been compared: 35 the same, 0
 different. The rest is left running and its file is where to look.
 
 The floors wait for the runner's count of this series.
+
+## The m290 series: the battery stacks one storey up, and a mixture's records parked on their price
+
+### The m289 verdict and the comparison left running
+
+Run 36272505121 on 8ce586b, which carries the code of e3b8651 and the
+floors of 559526f, finished green on all six jobs. Its library job
+(108489002796, `/tmp/m290/runner_8ce.log`) counted 2671 files read, 948
+flatten and 658 run, runnable 832 and 616 - the desk's count of the
+m289 series exactly (`/tmp/m289/on.txt`). Run goes up 655 + 3 and
+runnable run 613 + 3, the three being `TestCheckValve`,
+`ReferenceAir_pT` and `ReferenceAir_ph`; flatten and runnable flatten
+stay where they were. The names looked up came to 1783203697, 435 per
+million above the reference, inside the band of 2000, so the reference
+stays.
+
+The comparison of final points left running at the m289 push
+(`/tmp/m289/cmp/out.txt`) stood at 51 of 76 when this shift closed: 50 the same, 1 different. The one `DIFF` is
+`TestCheckValve`, which refused with the keys closed and runs with them
+open: the model the series won, not two numbers that disagree.
+
+### The m290 census
+
+Taken at the start of the shift on 8ce586b (`/tmp/m290/census.txt`, raw
+in `/tmp/m290/raw.txt`), counted between the section markers: refused
+86 in 46 rows, flattened and not run 290 in 155 rows. Against m289 (86
+in 48, 293 in 158) the refused models are the same to the last name,
+and three left the run half: `TestCheckValve`, `ReferenceAir_pT` and
+`ReferenceAir_ph`, nothing else in either direction.
+
+The rows moved more than the models, and every move is a model changing
+its words rather than its place:
+
+- seven refusals were renamed into the new row "function `X` is partial
+  and nothing redeclared it with a body" (7): the four of "is missing
+  its argument" (`PartialMediumFunctions` and its three
+  `IncompleteMedia` siblings, all `dynamicViscosity`), both of "never
+  assigns `X` of its output" (`BatchPlant_StandardWater`,
+  `TestWaterPumpNPSH`, both `setState_phX`), and the single "answers
+  with `X`, which declares no fields" (`TankWithTopPorts`,
+  `setState_pTX`). None of the four rows keeps a model;
+- the "named argument" row (3) emptied: `TestCheckValve` runs, and
+  `R134a1` and `R134a2` stand now on "`X` of algebraic loop" (15 to
+  17), where the loop is NaN because `PartialTwoPhaseMedium.saturation
+Pressure` was walked without the medium that called it;
+- the "array of 11 written out" row (3) emptied: `ReferenceAir_pT` and
+  `_ph` run, and `ReferenceAir_dT` stands on "at t = N.N: unknown
+  variable `X`" (`dT_explicit`);
+- the two `R134a_setState_pTX` models left "an array reached the
+  evaluator" for "unknown function `X`" (`phaseBoundaryAssert`, a body
+  with no outputs called as a statement), and `R134a_setState_phX` left
+  "unknown variable `X` in equation" for "unknown variable `X`"
+  (`id.a[1]`) - together the 1+1 of m289 became 3+3 and the 4 of
+  "in equation" became 3.
+
+### The battery stacks, a chain of four
+
+The m289 map put the stacks' wall at the comprehension that builds
+`stackData.cellData`. It is not there: `StackData` built alone reads
+every cell right (`/tmp/m290/sub/s1.mo`, 0.728 as by hand). Shrinking
+`CCCV_Stack` found the chain instead.
+
+1. **A redeclaration's own modifier on an array of components.**
+   `BatteryStacksWithSensors.Stack` replaces its table of cells in an
+   `extends` and writes the cell data again on the replacement,
+   `redeclare Cell cell(cellData = stackData.cellData)`. The modifiers
+   of a redeclaration were handed to every element whole and outranked
+   the slice the declaration gave each cell, so each cell was handed
+   the whole table - the 6 against 348 of the row. They are now cut an
+   element at a time by the same road the declaration's own modifiers
+   take, and `each` on a redeclaration is kept by the parser so that it
+   still spreads. Key `OXIDELICA_NO_REDECLARE_SLICES`; test
+   `a_redeclared_array_of_components_takes_the_redeclarations_modifier_element_by_element`
+   (12.6 and 15.7, refused with the key).
+2. **A bus that is a port of the class joining it.** The matching
+   members of joined buses were joined in a star from the first bus,
+   every end called inside. A cell's `cellBus` is a port of the cell
+   and was put in its set from both sides, so every signal was stated
+   twice - six equations over per cell. Members are now joined along
+   the connections that joined the buses, each end on the side it was
+   joined from.
+3. **Two buses joined join the buses they hold.**
+   `connect(stack.stackBus, busTranscription.stackBus)` makes the cell
+   buses on either side one, and a pool keyed by the outer buses never
+   heard it: the transcription's gains read nothing. Nested buses are
+   now joined name for name. Links 2 and 3 are one layer under one key,
+   `OXIDELICA_NO_BUS_SIDES`; tests
+   `a_bus_array_joined_inside_a_component_states_each_signal_once` and
+   `two_buses_joined_join_the_buses_they_hold` (6 and 15, refused with
+   the key).
+4. **A singular loop, not taken.** With links 1 to 3, `CCCV_Stack`
+   flattens and stops at "singular Jacobian in algebraic loop", which
+   appears the moment `BusTranscription` is connected to a running
+   stack (`/tmp/m290/sub/s16.mo`, 14 lines; the stack with a charger
+   and no transcription runs). Loops and singular Jacobians are line B,
+   which the brief keeps closed, so the chain stops here with the map.
+
+`CCCV_StackRC` passes links 1 to 3 and stands on "Parameters of
+RC-elements undefined!", the wall `CCCV_CellRC` already stands on.
+`ShowImpedance` is untouched: its `impedance.cellData.OCV_SOC` is a
+flexible size read through a different road.
+
+### A field read across a package's array of records, taken and parked
+
+The "array cannot be a divisor" row (3) is two families. The two
+`ComplexMath` tests divide complex numbers inside a function body:
+`ComplexMath.tan` is `sin(c1)/cos(c1)`, and in a body the `/` between
+two calls that answer with a `Complex` is not sent to the record's
+operator, where at the level of a model it is (`/tmp/m290/sub/cs.mo`
+runs, 0.271753 as `cmath.tan(1+1j)`; `cr.mo`, the same division in a
+function, is refused). Beside it `cq.mo`, a body `z := x / y` over two
+`Complex` inputs, is refused as "0 algebraic equations for 2 unknowns",
+which says nothing of the division. Both are mapped and left.
+
+`IdealMixing1` is a mixture of ideal gases, whose density is
+`p/((X*data.R_s)*T)`: `data` is the medium's constant array of records,
+and `data.R_s` came out a bare name, one number over six mass
+fractions. `data[2].R_s` was always read. Two links were built and
+tested (`/tmp/m290/mixture_commit.patch`, with the cheaper gate in
+`/tmp/m290/mixture_uncommitted.patch`):
+
+1. a field taken over a package's constant array of records becomes
+   the list of that field, one per record, only where every record
+   answers; `fluidConstants[:].molarMass` goes the same road
+   (`OXIDELICA_NO_RECORD_ARRAY_FIELDS`; small model `dm4.mo` 0.001198
+   as by hand, refused with the key);
+2. a gathered constant's own binding is spelled in the terms of the
+   class that wrote it, as an `extends` modifier already was: the base
+   writes `referenceChoice = ReferenceEnthalpy.ZeroAt0K` through an
+   import only it has, and under the mixture the head meant nothing
+   (`OXIDELICA_NO_WRITER_SPELLING`; `dg.mo` 50.5, refused with the key).
+
+Together they flatten seven mixture models (`MixtureGases`,
+`IdealMixing1`, `FlueGasSixComponents`, `FlueGas`, `IdealGasN2Mix`,
+`MixIdealGasAir`, `SimpleNaturalGasFixedComposition`) and run none, and
+over the whole library they cost 7.7% more names looked up - 1781762669
+to 1918547416 on one binary (`/tmp/m290/f_off.txt`, `f_on.txt`), where
+the seven themselves account for 12 million of the 137. On a sample of
+every twelfth flattening model (`/tmp/m290/spread.txt`, 79 models) the
+first link alone is the price, 193.8 million to 214.7 million; the
+second costs nothing. Asking first whether the package declares the
+head as a constant array at all took the sample only to 211.5 million,
+and model by model the excess is small everywhere (`BasicHX` pays 1.4
+million, the next forty-five under 63 thousand each,
+`/tmp/m290/per.txt`) - so most of it is paid in a process that has
+already flattened other models, which a model run alone does not show.
+Where exactly is not found. A change that makes every model dearer to
+open seven that still do not run is not shipped; the patch is parked
+with this measurement, and the next step is the per-model deltas run
+in one process in order, to find which asking the cache stops
+absorbing.
+
+Behind the two links the chain goes on: in `IdealMixing1` the string
+`"N2"` reaches a step, three of the others read `MMX[1]` in a walked
+body, `FlueGas` cannot evaluate `Medium.data.MM`, and `MixtureGases`
+cannot differentiate a walked call.
+
+### The wall of the medium, measured
+
+The m289 wall is a body written in a medium's interface - `Partial
+TwoPhaseMedium.saturationPressure`, `Air_Base.specificEntropy` - carried
+to the walk without the medium it was called through. On the m290
+census it holds three models and no more: `R134a1` and `R134a2`
+(through `saturationPressure`, row "`X` of algebraic loop") and
+`ReferenceAir_dT` (`dT_explicit`, a constant only the medium gives,
+row "at t = N.N: unknown variable `X`"). The neighbouring Media rows
+were read model by model and are other walls: `phaseBoundaryAssert` is
+a body with no outputs called as a statement, which the gathering skips
+on purpose; `Tsub_res` is a function local to a function; `id.a[1]` is
+a record field of a walked body. The eleven raw lines that name an
+`Interfaces.Partial...` class are the seven renamed partial functions,
+three `BaseProperties` refused honestly as partial, and one `if`
+without `else` - none of them this wall.
+
+Where the body is keyed: `carried::programs_used` (flatten `mod.rs`
+at the end of `flatten`) gathers every call standing in the flat model
+by the registry name of the class that wrote the body, and the run puts
+them in one table by that name (`compile.rs`, `programs`). While
+flattening, `inlining::AskedAs` holds the name a body was asked under,
+and `function_asked_under` and the constant readers use it to answer
+from the medium; nothing of the mark survives into the carried body,
+because the carried body is one per registry name.
+
+Three ways to close it, for the decision rather than for this shift:
+
+- **Key the carried body by the pair (body, asked-as package).** A body
+  reached under two media becomes two bodies, each with a name the flat
+  model can call. Cost: every carried call has to be renamed where it
+  stands, and a medium's whole family of calls is duplicated once per
+  medium in a model. How many media one model of the corpus reaches a
+  body under was not counted this shift; that count is the price of
+  this option and should be taken before choosing it. Closes all three
+  models, and is the general answer.
+- **Copy a carried body onto the medium at the moment it is carried.**
+  Where the call was made under a mark, the body is taken from
+  `function_asked_under` and its constants settled under the mark
+  before it is filed. The same number of copies as the first, done in
+  one place (`programs_used`) rather than at every call site, but it
+  needs the mark at the call, which the flat model no longer holds -
+  so it has to be written onto the call when the call is left standing.
+- **Settle the medium's constants into the body's frame.** Only
+  `ReferenceAir_dT` fails for a constant; the two `R134a` fail for a
+  function (`saturationPressure` is replaceable and has no body in the
+  interface). This closes one model of three and leaves the other two.
+
+### The pair, both ways and without the mixtures
+
+One binary carrying every key of the shift (`/tmp/ox290f`), both ways
+over the library without the carved-out giants. Every key closed
+(`/tmp/m290/f_off.txt`): 948 flatten and 658 run, runnable 832 and 616,
+the m289 desk count line for line. Every key open (`f_on.txt`): 957
+and 658, runnable 841 and 616. The flatten lists differ by nine names
+and by nothing else in either direction, the run lists not at all.
+Model by model under `--only`, the two stacks move with
+`OXIDELICA_NO_REDECLARE_SLICES` and the seven mixtures with
+`OXIDELICA_NO_RECORD_ARRAY_FIELDS`. What is pushed is the stacks' two
+layers alone; the tree without the mixtures was counted by the
+preflight at 2671 files, 950 flatten and 658 run, runnable 834 and 616,
+with 1782468141 names looked up - 23 per million above the reference:
+the two layers of the stacks cost nothing measurable
+(`/tmp/m290/preflight.txt`).
+
+The floors do not move for the stacks: flatten is a desk count until
+the runner has counted it, and no run number moves at all.
