@@ -23386,3 +23386,19 @@ there. `Medium.f` has a dot, is left as written, and is read later
 where `Medium` is the component's own alias. The first link to try is
 resolving a dotted head whose first part is a package alias of the
 writer; whether the chain ends there is for the series.
+
+### The subscript row, probed
+
+The next row down, "the subscript of `X` must be a whole number the
+compiler can see" (4), is one family: `RealFFT1`, `RealFFT2` and the
+two rectifier FFT examples fill a buffer inside a `when` of an
+algorithm, `y_buf[iTick] := y`, where `iTick` counts the ticks. Reduced
+to 13 lines (`/tmp/m291s/fft/F.mo`) the refusal is the same, with or
+without the `if` that guards the index (`a/F.mo`): a subscript read
+from a discrete variable at run time is not something the flattener
+can carry. Behind it stands a second fault, seen by writing the
+subscript as the constant `1` (`b/F.mo`): the model is then refused as
+unbalanced, "nothing determines y_buf[1], ..., y_buf[4]", although an
+algorithm that assigns an element of an array defines the whole of it
+and the other elements hold their values. Two links, both mapped, no
+change made.
