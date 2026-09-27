@@ -23709,5 +23709,24 @@ still written `-a`. In the equation the negation is applied first
 (`Complex.'-'.negate` then `real` of `{-a.re, -a.im}`). So the
 modifier road hands a function its record argument before the
 record's operator is applied, and the body then reads the input's
-fields under the body's own name. That is where the next shift starts,
-with `D1.mo` as the test: the answer is `-3`.
+fields under the body's own name.
+
+The road is `work_out` in `flatten/components.rs`, which reads a
+modifier handed down with no table of records at all, where a
+declaration's own value is read with the table of every path built so
+far. Given that table, `D1.mo` gives `-3`, `C3.mo` gives `-28` as the
+equation does, and both machine models move on to `structurally
+singular model: ... der(transformer.l2sigma.plug_p.reference.gamma)
+... constrains no state`, the reference angle of the quasi-static
+connectors, which is a wall of its own and joins the rows of that kind
+already in the census. `OXIDELICA_NO_MODIFIER_RECORDS=1` reads the
+modifier with no table, as before, and the test in
+`tests/simulation/functions.rs` checks the number (`2`) and is red
+under it.
+
+The pair for the modifier's record table, one binary (`/tmp/ox293c`),
+without the carved-out giants: with the key set
+(`/tmp/m293/w/off.txt`) and without (`/tmp/m293/w/on.txt`) it is 959
+flatten and 662 run, runnable 843 and 620, with identical lists in both
+directions. The two machine models move from one refusal to the next,
+as the map says, and nothing else moves; the names counted 336 more.

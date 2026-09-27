@@ -1503,11 +1503,24 @@ pub(super) fn instantiate_one(
                 // in view only for reading a modifier: taken into the
                 // table this class builds, they would also spread a
                 // value over elements it was never meant for.
+                // And the records every path built so far is, the
+                // table a declaration's own value is read with: a
+                // modifier `power2 = real(-i2[j])` names the writer's
+                // `Complex` components, and read with no table the
+                // negation was never the record's own, the body took
+                // `-i2[j]` for a plain number and came back naming its
+                // input's field, `c1.re`, which nothing declares.
+                // `OXIDELICA_NO_MODIFIER_RECORDS=1` reads it with no
+                // table, as before.
+                let records = match std::env::var_os("OXIDELICA_NO_MODIFIER_RECORDS") {
+                    Some(_) => no_records(),
+                    None => records_so_far,
+                };
                 let mut shapes = Shapes {
                     sizes,
                     loop_vars: &no_loop_vars,
                     consts: local_consts,
-                    records: no_records(),
+                    records,
                 };
                 let worked = substitute_class_constants(value, registry, scope, imports, &[]);
                 // The writer's own lengths go in with this class's

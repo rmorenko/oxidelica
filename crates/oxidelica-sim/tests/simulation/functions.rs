@@ -3164,6 +3164,31 @@ fn a_field_read_across_a_packages_array_of_records_is_one_value_per_record() {
 }
 
 #[test]
+fn a_record_operator_in_a_modifier_of_a_field_is_the_records_own() {
+    // The quasi-static machines state their power balance as a
+    // modifier, `powerBalance(power2 = real(v2[j]*conj(-i2[j])))`.
+    // Worked out with no table of records, the negation and the
+    // product were not the record's own operators, the body took the
+    // operand for a number and came back naming its own input's field,
+    // `c.re`, which nothing declares. The same formula written as an
+    // equation was always right.
+    let result = run("operator record C Real re; Real im; \
+         encapsulated operator '-' \
+         function negate input C a; output C c; algorithm c := C(-a.re, -a.im); end negate; \
+         end '-'; \
+         encapsulated operator function '*' input C a; input C b; output C c; \
+         algorithm c := C(a.re * b.re - a.im * b.im, a.re * b.im + a.im * b.re); \
+         end '*'; end C; \
+         function re input C c; output Real r; algorithm r := c.re; end re; \
+         model M record PB Real power; end PB; \
+         C v(re = 1 + time, im = 2); C i(re = 3, im = 4); \
+         PB pb(power = re(v * (-i))); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    // (2 + 2i) * (-3 - 4i) = -6 + 8 - 8i - 6i, whose real part is 2.
+    assert_eq!(last_of(&result, "pb.power"), 2.0);
+}
+
+#[test]
 fn a_constant_written_as_a_field_across_records_is_that_list() {
     // An ideal-gas mixture declares `constant MolarMass[nX] MMX =
     // data[:].MM` and its entropy reads `MMX[i]` inside the package.
