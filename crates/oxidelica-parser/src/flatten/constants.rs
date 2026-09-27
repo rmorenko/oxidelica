@@ -660,6 +660,16 @@ fn gather_package_constants<'a>(
                 .clone()
                 .or_else(|| component.start.clone())
                 .or_else(|| written_by_modifiers(registry, class, component));
+            // Spelled in the terms of the class that wrote it, the way
+            // an `extends` modifier already is: `referenceChoice =
+            // ReferenceEnthalpy.ZeroAt0K` names an enumeration its own
+            // package imported, and settled under a mixture extending
+            // that package the head meant nothing and the constant was
+            // left a bare name in every body that defaulted to it.
+            let binding = match writer_spelling_open() {
+                true => binding.map(|value| written_whole(registry, class, &value)),
+                false => binding,
+            };
             // A declaration of this level outranks what this level's
             // own `extends` said - but only where it says something.
             // `constant SpecificEnthalpy reference_h` in a medium's
@@ -1162,6 +1172,7 @@ fn substitute_at(
                         // rather than the name.
                         class_constant_binding_at(registry, name, scope, imports, depth)
                     })
+                    .or_else(|| field_over_record_array(registry, name, scope, depth))
                     .unwrap_or_else(|| expr.clone()),
             }
         }
@@ -1404,6 +1415,22 @@ fn substitute_at(
                 }
                 _ => Expr::Call(name.clone(), args),
             }
+        }
+        // The same field over the whole array, written with the slice
+        // spelled out: `fluidConstants[:].molarMass` of a mixture.
+        Expr::Member(base, field)
+            if matches!(base.as_ref(), Expr::Index(of, subscripts)
+                if matches!(of.as_ref(), Expr::Ref(head) if !head.contains('.'))
+                    && matches!(subscripts.as_slice(), [Expr::ColonSubscript])) =>
+        {
+            let Expr::Index(of, _) = base.as_ref() else {
+                unreachable!("matched above")
+            };
+            let Expr::Ref(head) = of.as_ref() else {
+                unreachable!("matched above")
+            };
+            field_over_record_array(registry, &format!("{head}.{field}"), scope, depth)
+                .unwrap_or_else(|| expr.map_children(&mut |child| recur(child)))
         }
         _ => expr.map_children(&mut |child| recur(child)),
     }
@@ -2130,6 +2157,155 @@ fn constant_of_package(
     const_eval(&settled, &known)
 }
 
+/// One field read across a package's constant array of records: the
+/// field of every element, in order.
+///
+/// A mixture of ideal gases keeps a record per component, `constant
+/// DataRecord data[:]`, and its density is `p/((X*data.R_s)*T)` - the
+/// mass fractions against the gas constants, one apiece. `data[2].R_s`
+/// was always read; `data.R_s` was a bare name, which the arithmetic
+/// took for one number over an array of mass fractions and refused as
+/// a divisor of the wrong shape. Answered only where every element is
+/// a record whose field comes to a number, so a half-read list never
+/// stands in for the whole one. `OXIDELICA_NO_RECORD_ARRAY_FIELDS`
+/// leaves the name bare, as before, so that one binary gives both
+/// numbers.
+fn field_over_record_array(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    depth: usize,
+) -> Option<Expr> {
+    if std::env::var_os("OXIDELICA_NO_RECORD_ARRAY_FIELDS").is_some() || depth > MAX_CONSTANT_DEPTH
+    {
+        return None;
+    }
+    // A bare head only: a path is a class's, and that road is taken above.
+    let (head, field) = name.split_once('.')?;
+    if field.contains('.') || head.contains('[') {
+        return None;
+    }
+    let mut prefix = scope;
+    loop {
+        // The free question first: this is asked of every dotted name
+        // nothing else answered, and gathering a package's constants is
+        // dear. Only a package that declares the head as a constant
+        // array, itself or through a base, can hold one - a medium
+        // inherits its `data[:]` from the mixture it extends - so every
+        // other package is passed by without a gathering.
+        //
+        // What a package declares through its bases does not change
+        // while one registry stands, and walking the bases is itself a
+        // round of lookups: asked afresh of every dotted name, it was
+        // 2.5 million walks and three million names on one
+        // `BranchingPipes18`, none of which found anything. So the
+        // package's constant arrays are named once per registry.
+        let declares = |owner: &&&ClassDef| {
+            constant_arrays_of(registry, owner, |names| {
+                names.iter().any(|name| name == head)
+            })
+        };
+        if let Some(owner) = registry
+            .get(prefix)
+            .filter(|owner| owner.kind == ClassKind::Package)
+            .filter(declares)
+        {
+            let medium = super::inlining::asked_as_package(registry, &owner.name)
+                .and_then(|under| registry.get(under.as_str()).copied());
+            for package in medium.into_iter().chain(std::iter::once(*owner)) {
+                let mut constants = Vec::new();
+                gather_package_constants(registry, package, 0, &mut constants);
+                let Some((_, binding)) = constants.iter().find(|(known, _)| known == head) else {
+                    continue;
+                };
+                let Some(Expr::Array(items)) = binding else {
+                    continue;
+                };
+                let mut values = Vec::with_capacity(items.len());
+                for item in items {
+                    let value = match item {
+                        Expr::Ref(element) => class_constant_at(
+                            registry,
+                            &format!("{element}.{field}"),
+                            &package.name,
+                            &package.imports,
+                            depth + 1,
+                        ),
+                        Expr::Call(_, args) => args.iter().find_map(|arg| match arg {
+                            Expr::NamedArg(named, value) if named == field => {
+                                const_eval(value, &HashMap::new())
+                            }
+                            _ => None,
+                        }),
+                        _ => None,
+                    }?;
+                    values.push(Expr::Number(value));
+                }
+                return Some(Expr::Array(values));
+            }
+        }
+        prefix = prefix.rsplit_once('.')?.0;
+    }
+}
+
+thread_local! {
+    /// The constant arrays each package declares, its own and its
+    /// bases', by package, for as long as one registry stands.
+    pub(super) static CONSTANT_ARRAYS: RefCell<HashMap<String, std::rc::Rc<Vec<String>>>> =
+        RefCell::new(HashMap::new());
+}
+
+/// Hand the names of the constant arrays a package declares, itself or
+/// through a base, to `ask`.
+///
+/// Keyed by the package alone, which is bounded by the registry: the
+/// answer depends on nothing but the package and what it extends, and
+/// both stand still while the registry does. Outside a standing
+/// registry nothing is remembered.
+fn constant_arrays_of<T>(
+    registry: &HashMap<&str, &ClassDef>,
+    owner: &ClassDef,
+    ask: impl FnOnce(&[String]) -> T,
+) -> T {
+    let is_array =
+        |held: &Component| held.variability == Variability::Constant && !held.dimensions.is_empty();
+    // What a class writes for itself is among what it inherits, the
+    // way a declaration replaces a base's of the same name.
+    let work_out = || -> Vec<String> {
+        let named = |held: &Component| is_array(held).then(|| held.name.clone());
+        match owner.extends.is_empty() {
+            true => owner.components.iter().filter_map(named).collect(),
+            false => super::inlining::with_inherited_components(owner, registry)
+                .iter()
+                .filter_map(named)
+                .collect(),
+        }
+    };
+    if !super::lookup::REGISTRY_STANDS.with(|stands| stands.get()) {
+        return ask(&work_out());
+    }
+    let known = CONSTANT_ARRAYS.with(|held| held.borrow().get(owner.name.as_str()).cloned());
+    let names = match known {
+        Some(names) => names,
+        None => {
+            let names = std::rc::Rc::new(work_out());
+            CONSTANT_ARRAYS.with(|held| {
+                held.borrow_mut()
+                    .insert(owner.name.clone(), std::rc::Rc::clone(&names))
+            });
+            names
+        }
+    };
+    ask(&names)
+}
+
+/// Whether a gathered constant's own binding is spelled in the terms of
+/// the class that wrote it. `OXIDELICA_NO_WRITER_SPELLING` leaves it as
+/// written, as before, so that one binary gives both numbers.
+fn writer_spelling_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_WRITER_SPELLING").is_none()
+}
+
 /// Whether a package's own constants are to be left out of the walk
 /// for a bare name. `OXIDELICA_NO_OWN_SIBLINGS` is kept so that one
 /// binary can be measured against itself over the whole library.
@@ -2773,5 +2949,46 @@ mod lists {
             call,
             Expr::Call("zeros".into(), vec![n(2.0)])
         )));
+    }
+}
+
+#[cfg(test)]
+mod record_array_fields {
+    use super::*;
+
+    /// A dotted name nothing else answered is asked whether it is a
+    /// field over a package's constant array of records, and the asking
+    /// walks the package's bases to find out what arrays it holds. That
+    /// walk is a round of lookups, and made afresh for every name it
+    /// cost the library 7.7% more names looked up than the whole of the
+    /// rest of the work: 2.5 million askings on one `BranchingPipes18`,
+    /// not one of which found an array. While a registry stands, the
+    /// second asking about the same package costs no lookup at all.
+    #[test]
+    fn a_packages_constant_arrays_are_worked_out_once_while_the_registry_stands() {
+        let classes = crate::parser::parse_file(
+            "package L \
+               partial package Base constant Real v[2] = {1, 2}; end Base; \
+               partial package Mid extends Base; constant Real j = 3; end Mid; \
+               package P extends Mid; end P; \
+             end L;",
+        )
+        .unwrap();
+        let registry: HashMap<&str, &ClassDef> =
+            classes.iter().map(|c| (c.name.as_str(), c)).collect();
+        let _standing = super::super::lookup::StandingNames::open();
+        let asked = || super::super::lookup::counts().0;
+        let before = asked();
+        assert_eq!(field_over_record_array(&registry, "r.a", "L.P", 0), None);
+        let first = asked() - before;
+        assert!(first > 0, "the first asking walks the bases");
+        let before = asked();
+        assert_eq!(field_over_record_array(&registry, "r.b", "L.P", 0), None);
+        assert_eq!(asked() - before, 0, "the second asking is remembered");
+        // And what is remembered is the arrays the bases declare, so a
+        // head the package does hold is still recognised.
+        assert!(constant_arrays_of(&registry, registry["L.P"], |names| {
+            names.iter().any(|name| name == "v")
+        }));
     }
 }

@@ -3138,3 +3138,57 @@ fn two_buses_joined_join_the_buses_they_hold() {
     assert_eq!(last_of(&result, "t.g[1].y"), 6.0);
     assert_eq!(last_of(&result, "t.g[2].y"), 15.0);
 }
+#[test]
+fn a_field_read_across_a_packages_array_of_records_is_one_value_per_record() {
+    // A mixture of ideal gases keeps a record per gas and asks for
+    // `data.R_s` against its mass fractions; left a bare name it was
+    // one number over two fractions, refused as a divisor of the wrong
+    // shape. The slice spelled out, `data[:].R_s`, is the same list.
+    let result = run("model M record D Real R_s; end D; \
+         package Data constant D A(R_s = 287); constant D B(R_s = 461); end Data; \
+         partial package Base constant D data[:]; \
+         function f input Real X[:]; output Real d; \
+         algorithm d := 1 / (X * data.R_s); end f; \
+         function g input Real X[:]; output Real d; \
+         algorithm d := X * data[:].R_s; end g; end Base; \
+         package Med extends Base(data = {Data.A, Data.B}); end Med; \
+         Real d = Med.f({0.25, 0.75} * (1 + time)); \
+         Real e = Med.g({0.25, 0.75}); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let d = last_of(&result, "d");
+    assert!(
+        (d - 1.0 / (2.0 * (0.25 * 287.0 + 0.75 * 461.0))).abs() < 1e-12,
+        "{d}"
+    );
+    assert_eq!(last_of(&result, "e"), 0.25 * 287.0 + 0.75 * 461.0);
+}
+
+#[test]
+fn a_constant_of_a_base_package_is_read_in_the_terms_of_the_package_that_wrote_it() {
+    // A mixture's `T_hX` defaults an input to `referenceChoice`, which
+    // its base package writes as `ReferenceEnthalpy.ZeroAt0K` through
+    // an import only that base has. Settled under the mixture, the
+    // head meant nothing, and the call handed to the solver carried
+    // `referenceChoice` as a name nothing declares.
+    let result = run("package P \
+         package Choices type Choice = enumeration(A, B, C); end Choices; \
+         partial function Scalar input Real u; output Real y; end Scalar; \
+         function solve input Scalar f; input Real lo; input Real hi; output Real x; \
+         protected Real mid; Real step; \
+         algorithm x := lo; step := hi - lo; \
+         while abs(step) > 1e-9 loop step := step/2; mid := x + step; \
+         if f(mid) < 0 then x := mid; end if; end while; end solve; \
+         partial package Base import P.Choices.Choice; \
+         constant Choice ref = Choice.B; \
+         function h_T input Real T; input Choice c; output Real h; \
+         algorithm h := if c == Choice.B then 2 * T else T; end h_T; \
+         function T_h input Real h; input Choice refChoice = ref; output Real T; \
+         protected function g extends Scalar; input Real h; input Choice refChoice; \
+         algorithm y := h_T(u, refChoice) - h; end g; \
+         algorithm T := solve(function g(h = h, refChoice = refChoice), 0, 1000); end T_h; \
+         end Base; \
+         package Med extends Base; end Med; \
+         model M Real T = Med.T_h(100 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    assert!((last_of(&result, "T") - 50.5).abs() < 1e-6);
+}

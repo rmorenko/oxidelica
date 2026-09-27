@@ -23279,3 +23279,102 @@ the two layers of the stacks cost nothing measurable
 
 The floors do not move for the stacks: flatten is a desk count until
 the runner has counted it, and no run number moves at all.
+
+## The m291 series: the mixtures' price found in one model, and a modifier read under the wrong medium
+
+### The m291 census
+
+`/tmp/m291/census.txt`, taken on the tree of 82e6206 before any change,
+added by the section boundaries: would not flatten 84 in 46 rows, would
+not run 292 in 155 rows. Against m290 (86 in 46, 290 in 155) the only
+movement is the two battery stacks `CCCV_Stack` and `CCCV_StackRC`,
+which left "`X` has N element(s) but its value has N" (3 to 1) for
+"singular Jacobian in algebraic loop" (19 to 20) and "Parameters of
+RC-elements undefined!" (1 to 2): the m290 series pushed after its
+census was taken, one storey up as recorded there.
+
+### Where the mixtures paid 7.7%
+
+The m290 guess was a price paid across the process rather than in any
+model, because the per-model table (`/tmp/m290/per.txt`) showed nothing
+large. That table was taken over the models of a list that was not the
+sample the excess was measured on. Printed model by model inside one
+process, the first link alone on one binary (`/tmp/ox291a`,
+`/tmp/m291p/on.txt`, `off.txt`, one thread) put the excess of the 79
+model sample in four models: `DynamicPipeEnergyConservationCheck` 11.5
+million, `BranchingPipes18` 3.1 million, `BasicHX` 1.5 million,
+`TestWaterPumpDCMotorHeatTransfer` 0.9 million. `BranchingPipes18` run
+alone pays the same 3.06 million, so nothing accumulates across the
+process; the guess was wrong and the models were simply missing from
+the table.
+
+A counter placed in `field_over_record_array` named the asking:
+`BranchingPipes18` asked 2.47 million times whether a package declares
+the head as a constant array, the asking walked the package's bases
+through `with_inherited_components` every time, which is 3.05 million
+names looked up, and not one asking found an array. The writer's
+spelling of a gathered constant cost 12.7 thousand. The "free
+question" of m290 was free only for a package with no bases; a medium
+has a chain of them.
+
+What a package declares through its bases does not move while one
+registry stands, so the constant arrays of each package are now worked
+out once per registry and held beside the other answers `StandingNames`
+brackets. `BranchingPipes18` comes to 24578895 names, against 24566118
+with the reading closed and 27626819 before. A twelve-line model with a
+function reading `r.a` twenty times inside a package three bases deep
+(`/tmp/m291s/lib`) shows the same shape: 268 names open, 228 closed, 230
+open with the fix, and the gap grew with the depth of the chain (424
+against 324 at five bases). The unit test asks the same package twice
+under a standing registry and expects no lookup the second time; it is
+red with the cache taken out.
+
+On the sample of 79 (`/tmp/m291p/d_on.txt`, `d_off.txt`, `/tmp/ox291d`)
+the change open costs 194208900 names against 193830096 closed, 0.20%,
+where it cost 10.8% before.
+
+### The partial-function row, probed
+
+The row "function `X` is partial and nothing redeclared it with a body"
+holds 7 models in m291. Five of them are templates that name the
+interface as their medium and are meant to be extended:
+`PartialMediumFunctions` and the three `IncompleteMedia` models, whose
+`Medium` is `PartialMedium` itself, and `TankWithTopPorts`, a base
+class of the batch plant. Their refusal is honest.
+
+The other two, `BatchPlant_StandardWater` and `TestWaterPumpNPSH`, are
+the same fault, and it is a silent wrong number where the medium is
+not partial. A pump writes its monitor as `Monitoring
+monitoring(redeclare package Medium = Medium, final state_in =
+Medium.setState_phX(...))`, and the monitor chosen,
+`PumpMonitoringNPSH`, extends its base with `redeclare replaceable
+package Medium = PartialTwoPhaseMedium`. The call in the modifier is
+written by the pump and means the pump's medium; it is resolved as the
+monitor's, which is the partial interface, and refused.
+
+Reduced to 24 lines (`/tmp/m291s/p10/L.mo`): two media `W` (`f = 2x`)
+and `W2` (`f = 5x`), a component `Mon monitoring(redeclare package
+Medium = W2, final u = Medium.f(time))` inside a class whose own
+`Medium` is `W`. The answer should be `u = 2`; the compiler on
+82e6206 gives `u = 5`, the component's medium, without a word. A
+constant read the same way (`Medium.k*time`, `p11`) comes out right,
+so the fault is in how a call named through a package alias is resolved
+in a modifier, not in the modifier's scope as a whole. Mapped, not
+taken: this is a correctness defect, and it wants its own series with
+this model as the test.
+
+### The pair over the library
+
+One binary (`/tmp/ox291d`), both ways, one after the other, without the
+carved-out giants. Both mixture keys closed (`/tmp/m291/off.txt`): 950
+flatten and 658 run, runnable 834 and 616, 1781971053 names. Open
+(`on.txt`): 957 and 658, runnable 841 and 616, 1784082571 names. The
+flatten lists differ by the seven mixtures and nothing else in either
+direction, the run lists not at all. The seven cost 1185 names per
+million, where before the cache they cost 77 thousand; the open count
+stands 929 per million above the reference of 1782427540, inside its
+band of 2000, so the reference is not moved.
+
+The floors do not move: flatten 957 and runnable flatten 841 are the
+desk's count, and a floor is raised only to the runner's number. The
+raise waits in the queue for the library job of this commit.
