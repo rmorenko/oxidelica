@@ -24120,3 +24120,58 @@ strings, the rest reshuffled by the real viscosity). What the zero
 used to hide in the water pipes is not a model that runs but a loop
 that fails differently, which is what a correct number underneath an
 unfinished solver should look like.
+
+### The nX bridge, walked two links
+
+`Inverse_sh_TX` names the next array a walked body cannot lay out:
+`Real[nX] Y = massToMoleFractions(X, data.MM)` in the `f_nonlinear`
+that `MixtureGasNasa.T_psX` hands its solver. `Z1.mo` of m294 is the
+same thing made small, and it has two links, both reproduced small.
+
+1. `walkable` refuses to carry a body whose output length is not a
+   number or a package constant, and `toY` answers with `Y[size(X,
+1)]`. The call then stays uncarried, the local stays unlaid, and
+   the refusal of the previous section names it. With `Y[2]` written
+   instead, `Z1` gives the right `0.75` (`/tmp/m295/Z2.mo`). A probe
+   behind a switch (`OX_SIZE_OF_INPUT`, patch kept at
+   `/tmp/m295/size_of_input.patch`, not in the tree) lets a length
+   written as `size` of an input through, since the walk already lays
+   such an output out from the frame (`declared_length`). Under it
+   `Z1` gives 0.75 and `A1` 26.667, both the right numbers, and
+   `Inverse_sh_TX` moves one link on.
+2. `unknown variable data.MM`. `/tmp/m295/B4.mo` is the smallest
+   model that shows it: a package `Base` declaring `constant D[:]
+data;`, a walked body in `Base` reading `data.MM`, and `package Med
+extends Base(data = {D(MM = 2), D(MM = 4)})`. With `data` given in
+   `Base` itself (`B1.mo`, `B3.mo`) it runs and is right; given as a
+   modifier of the extending package it is lost. An inlined body sees
+   the modifier (`B6.mo`, `z = 8`), and a walked one does not: the
+   refusal names the body `B4.Base.w`, so the body is carried under
+   the name of the class that wrote it rather than `B4.Med.w`, and
+   its constants are looked up where it was written. `gather_calls`
+   resolves each call with `lookup` and files the class it finds,
+   which for an inherited function is the base. `B7.mo`, the same
+   model with `data[2].MM` read directly, stops a step earlier with
+   an unresolved subscript on the record array.
+
+The second link is the naming invariant of AGENTS.md seen from the
+walk: what survives flattening carries the flat model's names, and a
+body carried under its writer's name keeps its writer's constants.
+Fixing it means carrying a copy of an inherited body per package that
+extends it with modifiers, as the specialized copies already are for
+a function handed another function. That is a change to how bodies
+are carried, not a local fix, so it is left here as a map.
+
+The first link was measured as a pair from one binary over the whole
+library (`/tmp/m295/q/off.txt` without the switch, `on.txt` with it):
+flatten 959 to 961, run 665 and 665, runnable 843 to 845 flatten and
+623 run, nothing lost from either list. The two that flatten are
+`ModelicaTest.Math.Random.TestDistributions` and
+`TestTruncatedDistributions`, which left `derTwoSided is called where
+nothing could inline it ... whose length is not one the compiler can
+see` (a row of 2, now empty) and stop at the run on `unknown function
+linspace`, joining `TestSpecial` there (a row of 1 to 3).
+`Inverse_sh_TX` moves from the array reaching the evaluator to
+`data.MM`. The patch is not in the tree: it raises flatten by two,
+which is worth taking with its own test and the runner's count, and a
+shift with a quarter of an hour left is not where to do that.
