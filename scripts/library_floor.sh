@@ -363,7 +363,15 @@ FILES_FLOOR=2671
 # and LinearColdWater, whose constant array is now read under the
 # medium. The desk counts the same 948 on that tree
 # (/tmp/m288/sub_new.txt).
-FLATTEN_FLOOR=948
+#
+# And flatten 957 is the runner's count of 0cabdad (job 108591424474 of
+# run 36309091249, /tmp/m292/runner0cab.log): 948 plus the two CCCV
+# stacks of the m290 series (eee4fe9, 82e6206) and the seven mixtures
+# of 5a12a7b, whose field is read across a medium's array of records.
+# The desk counts the same 957 on that tree (/tmp/m291/on.txt). The run
+# lists of the two differ by the two names known to swing, Dimmer_RL on
+# the runner and SpringWithMass on the desk, and are 658 on both.
+FLATTEN_FLOOR=957
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -940,7 +948,12 @@ RUN_FLOOR=658
 # And runnable run 616 = 613 plus the same three set out at
 # `RUN_FLOOR`, all runnable examples; runnable flatten stays 832. The
 # runner's count of 8ce586b, the same as the desk's (/tmp/m289/on.txt).
-RUNNABLE_FLATTEN_FLOOR=832
+#
+# And runnable flatten 841 = 832 plus the same two stacks and seven
+# mixtures set out at `FLATTEN_FLOOR`, all runnable examples: the
+# runner's count of 0cabdad (/tmp/m292/runner0cab.log), the same as
+# the desk's (/tmp/m291/on.txt). Runnable run stays 616 on both.
+RUNNABLE_FLATTEN_FLOOR=841
 RUNNABLE_RUN_FLOOR=616
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
