@@ -23687,3 +23687,27 @@ killed a corpus pass by memory on two Fluid base classes. That makes
 the next step a decision rather than a fix: which bodies may go deeper
 and under what bound, or handing a standing call only what the walk
 can carry. This goes to the review with the map.
+
+### A record operator in a modifier of a record field, probed
+
+The `unknown variable c1.re` row, two quasi-static machine models
+(`QuasiStatic.Machines.Examples.TransformerTestbench`,
+`IMC_Transformer`), comes from `powerBalance(final power2 =
+sum({real(v2[j]*conj(-i2[j])) for j in 1:m}))`. It shrinks to `D1.mo`
+(`/tmp/m293/c/`, nine lines): `PB pb(power2 = real(-a))` with `a` a
+`Complex` refuses as `unknown variable c.re`. The same formula as an
+equation (`E5.mo`) or as a binding of a plain variable (`E1.mo`) gives
+`-3`. Any record operator in that place leaks the same way: `a + a`,
+`abs(-a)`, a user function of a `Complex` (`F1`-`F3`). A record built
+outright, `Complex(3, 4)` (`F4`), does not. The host being a model
+rather than a record (`F5`) changes nothing.
+
+A probe (reverted) at the body's record table shows the table does
+hold `a`, but the call reaches `inline_function` from
+`components::instantiate_one` through `expand_call` with its argument
+still written `-a`. In the equation the negation is applied first
+(`Complex.'-'.negate` then `real` of `{-a.re, -a.im}`). So the
+modifier road hands a function its record argument before the
+record's operator is applied, and the body then reads the input's
+fields under the body's own name. That is where the next shift starts,
+with `D1.mo` as the test: the answer is `-3`.
