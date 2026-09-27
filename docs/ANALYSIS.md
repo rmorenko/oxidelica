@@ -23730,3 +23730,205 @@ without the carved-out giants: with the key set
 flatten and 662 run, runnable 843 and 620, with identical lists in both
 directions. The two machine models move from one refusal to the next,
 as the map says, and nothing else moves; the names counted 336 more.
+
+## m294: a record's text is left out of a walked body's arguments
+
+The String row the m293 map stood on the depth ceiling was probed from
+the other road: what a standing call hands the run. `R5.mo`
+(`/tmp/m293/s/`, seven lines, `N2AsMix.h_TX`) leaves
+`Modelica.Media.IdealGases.Common.Functions.h_T` standing, and a probe
+at `compile_call` in `crates/oxidelica-sim/src/code.rs` (reverted)
+printed both halves of the meeting:
+
+- the call hands `data` as the record's fields in declared order,
+  written out: `{"N2", 0.0280134, 0.0, 309498.45, 1000.0, {seven
+alow}, {two blow}, {seven ahigh}, {two bhigh}, R/MM}`, twenty-four
+  leaves;
+- the body was carried out to the walk with `data` laid out as
+  `Real data[23]` by `handed_record_fields`, which leaves text out, and
+  reads it only by number: `data[4]` for `Tlimit`, `data[23]` for
+  `R_s`, and so on. The name has no seat in the body at all.
+
+So the body reads only numbers, and the argument is one String longer
+than the seats it goes into. The fix is on the call side: where a
+record argument written out holds text and its numbers alone come to
+exactly the length the input declares, the numbers are handed in
+order. Where the counts do not agree nothing is guessed, and the old
+refusal stands. A body that does read the name (`if d.name == "N2"`,
+`/tmp/m294/S5.mo`) is refused as `unknown variable d.name`, since the
+laying out gave it no element. `OXIDELICA_STANDING_STRINGS_REFUSED=1`
+keeps the old reading. The test in `tests/simulation/functions.rs`
+checks `19` for a walked body and the refusal naming `d.name`, and is
+red under the key.
+
+The numbers were checked against an independent road, not only for
+running. `R5.mo` gives `311421.8489818447` at the start, identical to
+every digit to `h_T` of `SingleGasesData.N2` called directly, which
+inlines (`/tmp/m294/R6.mo`). `IdealGasN2Mix` against the same model
+with the single-gas `N2` medium (`/tmp/m294/W1.mo`, `W2.mo`): T, h,
+u, cp, cv, gamma and a agree to every printed digit, s to 1.6e-9
+relative. `MixIdealGasAir`'s `medium.h` at 1200 K is
+`1223891.473316`, and `0.2*h_T(N2) + 0.8*h_T(O2)` inlined gives the
+same (`/tmp/m294/HC.mo`).
+
+What `--only` shows of the six models the map expected
+(`/tmp/m294/only6.txt`): `TestOnly.FlueGas`, `TestOnly.IdealGasN2Mix`
+and `TestOnly.MixIdealGasAir` run. The other three are at the next
+wall. `IdealMixing1` stops at the pipe friction equation
+`pipeFriction1.flowModel.vs[2]`, `FlueGasSixComponents` at `unknown
+variable X` at run time, and `SimpleNaturalGasFixedComposition` at
+`der(volume.medium.T)` not being a state, which joins the three rows
+of that kind already in the census.
+
+### The top row of the loops, folded by owner
+
+`the Newton direction of algebraic loop ... does not reduce the
+residual`, 22 models in the m293 census, folded from `/tmp/m293/raw.txt`
+by the size of the block, the time and the residual it stopped at
+(`/tmp/m294/newton22.txt`). Nothing was changed; the trails are
+`OXIDELICA_NEWTON_TRAIL=1` under `--only`, one binary (`/tmp/ox294b`).
+
+By library, 18 are Fluid or Media tests with fluid (8
+`TestPipesAndValves`, 5 `TestComponents`, 5 `TestsWithFluid`), and 4
+are machines and one reference-air example. The residual each stopped
+at splits the row into two halves that have nothing in common:
+
+1. **Stopped on the edge of the tolerance, 6 models.** `Rectifier6pulse`
+   (2.4e-10), `IMC_Transformer` (1.1e-9), `BranchingPipes2` (4.5e-9),
+   `DynamicPipesWithTraceSubstances` (4.7e-7), `TestTemperature1`
+   (1.3e-4), `SMPM_Mains` (1.8e-4). Newton has converged for every
+   purpose, and the step it asks for next buys nothing because there
+   is nothing left to buy. What refuses is the pair of tests that
+   would have let it go, and each fails on a different row.
+   `Rectifier6pulse` (`/tmp/m294/trail_r6.txt`): row 11 holds 2.4e-10
+   against a loudness of 73 (1.5e4 ulp) and a value of 1.2, so it
+   passes neither the absolute test `1e-10 * (1 + |v|)` nor the floor
+   `4 ulp` of the loudest term. `IMC_Transformer`
+   (`/tmp/m294/trail_imc.txt`): row 12 fails the absolute test at
+   2.3e-10 but stands on the floor, and row 38 at 4.8e-34 passes the
+   absolute test but not the floor. Each row is admitted by one of the
+   two tests, but `converged` asks the first of every row and
+   `on_arithmetic_floor` asks the second of every row, and neither
+   asks either of each row. `SMPM_Mains` (`/tmp/m294/trail_smpm.txt`)
+   is not of this kind after all: row 7 holds 1.8e-4 against a
+   loudness of 9.4e3, which is a real residual.
+2. **Stepped over the edge of the medium from the start, 16 models,
+   all at t = 0.** The residuals are 1e1 to 1.5e6, and every trail
+   taken shows the same first step. `TestWaterPumpStorage` and
+   `TestWaterPumpPowerCharacteristic` start well (|f| 0.53 and 0.52,
+   pump pressure 7.0e5). Newton's full step goes to a pressure below
+   zero, where water answers NaN. The retreat halves the step back to
+   the first point that is a number, `p = 1.2e5` with |f| 20.7, forty
+   times worse than the start, because the retreat asks only that the
+   point be finite and not that it be better. From there the line
+   search crawls down to a hollow at 16.4 and stops.
+   `SeriesPipes2` and `WaterIF97_ph` spend 13 and 16 iterations on
+   NaN before a finite point, then crawl the same way. `BranchingPipes17`,
+   a one-unknown block in `junctionVolume.medium.T` of `DryAirNasa`,
+   steps T from 289 to 3.7e8 and then to -1.7e12.
+
+So the answer to the question of the map: not a scatter of numerics
+but two families, each with one shared link. The first is a question
+of the convergence test, and it is narrower than its six. A probe
+(reverted, `/tmp/ox294probe`, `OX_PROBE_ROW_OR`) let
+`on_arithmetic_floor` admit each row by either test. `IMC_Transformer`
+then moved to `underdetermined algebraic loop`, the next wall.
+`Rectifier6pulse` and `BranchingPipes2` did not move, since row 11 of
+the rectifier passes neither test, so its residual is a real one of
+1.5e4 ulp and not a question of which test is asked. So the first
+family is one model deep, and it is behind a wall of its own. The
+second is the retreat from an edge taking a point worse than the one
+it left, and the Fluid models are its ground. Neither is a flattening
+wall. Both are in the run, and the second changes what every block in
+the library does, so it is a change to be measured with the whole
+library and its victims before it is a fix. A second probe (reverted,
+`/tmp/ox294probe2`, `OX_PROBE_RETREAT`) went on halving the retreat
+while the finite point was worse than the start of the step. On
+`TestWaterPumpStorage` (`/tmp/m294/tr_pump_b.txt`) the block no longer
+lands at 20.7. It comes back to 0.52 in five steps and then crawls at
+a sixty-fourth of the step, 0.53 to 0.48 over eleven iterations, and
+is refused the same way. The two pumps and `SeriesPipes2` do not move.
+So the retreat is where the damage shows and not where it starts: the
+Newton direction from a good start already points off the edge of the
+water and along a hollow, and a better retreat walks the same hollow
+from a better place. What is left for the review is the direction
+itself (the Jacobian at t = 0 of the water blocks, or a start that
+lies inside the domain), which is a question for the initial values of
+Fluid and not a small rule of the solver.
+
+The other loop rows, folded by library the same way from the m293 raw
+list: `singular Jacobian` 20 (Magnetic.FundamentalWave 7, the rest in
+ones and twos across machines, converters and Fluid); `the equations
+of algebraic loop ... do not mention` 18 (Electrical.Machines 11);
+`X of algebraic loop` 17 (MultiBody 4, Fluid and Media 3 each,
+NaN at t = 0 before any Newton step); `did not converge` 8 (Fluid 6);
+`algebraic loop` 8 (machines 5, solutions on either side);
+`underdetermined` 6 (Spice3 5). So the loops are not one family: the
+machines own the `do not mention` row and most of the singular one,
+Fluid owns the Newton-direction and the did-not-converge rows, and
+Spice3 owns the underdetermined one. The machine rows are the next
+fold worth a probe, since eleven of eighteen in one library is the
+shape a shared link leaves.
+
+Folded one level further, the machine row is narrower still: nine of
+its eighteen are induction machines dead on the same pair,
+`airGap.i_sr[1]` and `squirrelCageR.spacePhasor_r.v_[1]` (or
+`lrsigma.v_[1]` for the slip-ring machine), all at t = 0. That is the
+family already mapped under "The matching may prefer to multiply":
+`i_ss = RotationMatrix*i_sr` solved for `i_sr` through `-sin(gamma)`,
+and `gamma` is zero at rest. Whatever is done with it is done for
+nine at once, and the notes above record why it has not been done yet.
+
+The `singular Jacobian` row (20) folds the same way into three
+shapes. Seven `Magnetic.FundamentalWave` synchronous machines share a
+block that opens on `airGap.V_mss.im` and `airGap.Phi_ss.re`, the
+fundamental wave's own air gap; two `Electrical.Machines` `SMEE`
+models open on `airGap.i_sr[1]`, the rotor-angle family above.
+Five rectifiers (polyphase, two bridges, `SMEE_Rectifier`,
+quasi-static `Rectifier`) open on ideal-diode or thyristor `s`
+variables, whose Jacobian is singular where a switch sits on its
+knee. The remaining six are single: a battery stack, `RollingWheel`,
+`LossyGearDemo2`, and three Fluid models. So the machines appear in
+three loop rows under two links (the rotor angle at rest, and the
+fundamental-wave air gap), and the fundamental-wave air gap of seven
+is the next probe worth taking.
+
+A trail of `FundamentalWave...SMEE_DOL` (`/tmp/m294/tr_smee.txt`)
+shows what the seven share. The block of 22 is refused at t = 0 with
+|f| = 3.9e15, and its Jacobian has two rows, 2 and 21, that read only
+columns 1 and 2 (`airGap.Phi_ss.re` and the rotor converter's current)
+with coefficients of 1e16 to 1e22 in the same ratio, 7695.3 in both.
+Row 2 is the rotor converter's `V_m.im` equation, row 21 the
+derivative of the air gap's rotor-frame `V_mrr.im + V_msr.im` against
+`Phi_rr.im`. Two equations on one combination: the matrix is singular
+by structure and not by values, and the coefficients that large say
+the two came through a division by something near zero on the way,
+which is the same shape as the rotor angle at rest. That is a
+hypothesis for the probe that takes it, not a finding.
+
+`FlueGasSixComponents`, one of the three the change moved to a new
+wall, shrinks to `/tmp/m294/XH.mo` (six lines): the same mixture's
+`isentropicEnthalpy(2*p, state, exact=true)` refuses as `unknown
+variable nX` at t = 0 (`code.rs:174`, the evaluator), and without
+`exact=true` it runs (`XH2.mo`, `h_is = 367715.8`). The exact branch
+goes through `T_psX`, which hands `solveOneNonlinearEquation` the
+nested `f_nonlinear` with `input MassFraction[nX] X`. So the size of
+an input of a function written inside another is left as the
+package's name `nX` and reaches the walk unresolved. That is the next
+link of this model's chain and a family of its own: a name surviving
+into the run in the terms of the class that wrote it, not the flat
+model's, which is the invariant the notes on naming state.
+
+### The m294 pair over the library
+
+One binary (`/tmp/ox294b`), without the carved-out giants: with
+`OXIDELICA_STANDING_STRINGS_REFUSED=1` (`/tmp/m294/p/off.txt`) it is
+959 flatten and 662 run, runnable 843 and 620; without it
+(`/tmp/m294/p/on.txt`) 959 flatten and 665 run, runnable 843 and 623.
+The flatten lists are identical in both directions, and the run lists
+differ by exactly three, all gained: `TestOnly.FlueGas`,
+`TestOnly.IdealGasN2Mix` and `TestOnly.MixIdealGasAir`. No model is
+lost. The names counted 1908372029 against 1908372041, the same work.
+The floors are left where they are until the runner's number confirms
+the three, as the review asked. The raise to 665 and 623 goes to the
+queue.

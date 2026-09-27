@@ -3329,3 +3329,36 @@ fn a_call_in_a_modifier_reads_the_constants_its_medium_gave_the_base() {
          annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end L;");
     assert_eq!(last_of(&result, "pump.monitoring.u"), 3.0);
 }
+
+#[test]
+fn a_record_handed_to_a_walked_body_goes_without_its_text() {
+    // A medium's gas record names its gas beside its constants, and
+    // `h_T` is walked rather than inlined. The body lays the record out
+    // as its numbers alone, and the call handed it the name among them,
+    // so every mixture asking a gas for its enthalpy stopped at `"N2"`
+    // being a String. The loop keeps `f` from being inlined.
+    let result = run("package P \
+         record D String name; Real a; Real b[2]; end D; \
+         package Data constant D gas(name = \"N2\", a = 2, b = {3, 5}); end Data; \
+         function f input D d; input Real x; output Real y; \
+         protected Real s = 0; \
+         algorithm while s < x loop s := s + 0.25; end while; \
+         y := d.a * s + d.b[1] * d.b[2]; end f; \
+         model M Real y = f(Data.gas, 1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    // 2 * 2 + 3 * 5 at the end.
+    assert_eq!(last_of(&result, "y"), 19.0);
+    // A body that asks the name has no seat for it, and says which.
+    let why = run_err(
+        "package P \
+         record D String name; Real a; Real b[2]; end D; \
+         package Data constant D gas(name = \"N2\", a = 2, b = {3, 5}); end Data; \
+         function f input D d; input Real x; output Real y; \
+         protected Real s = 0; \
+         algorithm while s < x loop s := s + 0.25; end while; \
+         y := d.a * s; if d.name == \"N2\" then y := y + 1000; end if; end f; \
+         model M Real y = f(Data.gas, 1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
+    );
+    assert!(why.contains("d.name"), "{why}");
+}

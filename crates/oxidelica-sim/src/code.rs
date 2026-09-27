@@ -1002,7 +1002,26 @@ impl SlotTable {
             // elements, and how many there were is kept so the body can
             // put them back together under the name it knows.
             let (mut given, mut lengths) = (Vec::new(), Vec::new());
-            for arg in args {
+            let class = &self.walked.programs[name];
+            for (position, arg) in args.iter().enumerate() {
+                // A record handed whole reaches the body laid out as
+                // its numbers under one length, `data[1]` to `data[23]`,
+                // and the laying out leaves its text behind: a medium's
+                // record names its gas beside the constants, and the
+                // body has no seat for the name. The argument still
+                // carries it, among the fields in declared order, so
+                // where the numbers alone come to exactly the length
+                // the body declares, the text is what has no seat and
+                // the numbers are handed in order. A body that reads
+                // the name has no element for it either, and refuses
+                // that name as nothing's.
+                if let Some(numbers) = record_numbers(class, position, arg) {
+                    for number in &numbers {
+                        given.push(self.compile(number)?);
+                    }
+                    lengths.push(vec![numbers.len()]);
+                    continue;
+                }
                 match arg {
                     Expr::Array(items) => {
                         // Rows of equal length are a table and go over
@@ -1116,6 +1135,41 @@ impl SlotTable {
         }
         err(format!("unknown function `{name}`"))
     }
+}
+
+/// Whether a record's text handed to a body the run walks is refused,
+/// as it was before the numbers were handed without it:
+/// `OXIDELICA_STANDING_STRINGS_REFUSED` keeps the old reading so one
+/// binary can be measured against itself.
+fn standing_strings_refused() -> bool {
+    std::env::var_os("OXIDELICA_STANDING_STRINGS_REFUSED").is_some()
+}
+
+/// The numbers of a record argument written out with text among its
+/// fields, where the numbers alone are exactly as many as the input at
+/// `position` declares. Nothing where the argument holds no text, or
+/// the count does not agree: then no seat is being guessed at.
+fn record_numbers<'a>(class: &ClassDef, position: usize, arg: &'a Expr) -> Option<Vec<&'a Expr>> {
+    if standing_strings_refused() || !matches!(arg, Expr::Array(_)) {
+        return None;
+    }
+    let all = leaves(arg);
+    if !all.iter().any(|leaf| matches!(leaf, Expr::Str(_))) {
+        return None;
+    }
+    let input = class
+        .components
+        .iter()
+        .filter(|component| component.causality == Causality::Input)
+        .nth(position)?;
+    let [Expr::Number(declared)] = input.dimensions.as_slice() else {
+        return None;
+    };
+    let numbers: Vec<&Expr> = all
+        .into_iter()
+        .filter(|leaf| !matches!(leaf, Expr::Str(_)))
+        .collect();
+    (numbers.len() as f64 == *declared).then_some(numbers)
 }
 
 #[cfg(test)]
