@@ -23607,3 +23607,51 @@ family the run half reads: algebraic loops 99 in 7 rows (96 in 7),
 structurally singular 66 in 55 (65 in 54), unbalanced 39 in 36 (45 in
 38), unknown variables 11 in 3 (8 in 3), parameters 10 in 8 (9 in 7).
 The loops remain the largest family and the least taken apart.
+
+### The molar masses of a mixture, walked
+
+The top of the new work above, taken with a probe on small models
+first (`/tmp/m293/s/`), every change behind a key.
+
+1. `constant MolarMass[nX] MMX = data[:].MM` of `MixtureGasNasa`,
+   named plainly inside the package's own functions, is turned away
+   by the cheap gate of the array road in `flatten/constants.rs`,
+   which asks for a list or a way of building one before it
+   substitutes. A field read across a record array is a list, and the
+   substitution behind the gate already reads it; the gate now lets it
+   through. `M.mo`, 20 lines, gives `0.75` where it refused `MMX[1]`.
+   `OXIDELICA_NO_FIELD_ARRAY_CONSTANTS=1` keeps the old gate.
+2. `parameter MolarMass[4] MMx = Medium.data.MM` in `FlueGas` names
+   the same field with the medium in front. The record-array road
+   answers only a bare head; the path is now resolved where it was
+   written and the field asked of the package it names. `F.mo` gives
+   `4` where it refused `nothing gives a value to Medium.data.MM`.
+   `OXIDELICA_NO_FIELD_ARRAY_PATHS=1` keeps the old reading.
+3. Behind both, all four models stop at `"N2" is a String, and a
+String has no value a step can carry`. `R5.mo`, seven lines, calls
+   `N2AsMix.h_TX` and refuses the same way; `h_T` called directly on
+   the gas's record inlines and runs. A probe on the places a call is
+   left standing (`inlining.rs`, reverted) says `h_T` stands because
+   its body `did not come to an end here, nested deeper than the
+compiler follows`, and a standing call carries its record argument
+   whole, the gas's name among the numbers. That is the depth family,
+   the same wall the subscript row stopped at, and the same one
+   `IdealMixing1` and `SimpleNaturalGasFixedComposition` meet through
+   `specificEnthalpy_pTX` and `from_degC`. The chain stops there.
+
+So links 1 and 2 move no model on their own: the four go from one
+refusal to the String row. The test in `tests/simulation/functions.rs`
+checks both numbers and is red under either key. Two things would
+take the third wall: letting the depth ceiling through for this body,
+which is the family the m292 map parked, or handing a standing call
+only the numeric fields of a record it takes, which is a change to
+what the walk is handed.
+
+The pair over the library for links 1 and 2, one binary
+(`/tmp/ox293b`), without the carved-out giants: with both keys set
+(`/tmp/m293/q/off.txt`) and without (`/tmp/m293/q/on.txt`) it is 959
+flatten and 662 run, runnable 843 and 620, with identical lists in both
+directions. The names counted 1105701 more, 579 per million of the
+reference, inside the band of 2000; the runner already counts about 750
+per million above the desk for the same code (`/tmp/m293/runner61a.log`),
+so the two together leave room of about 650.

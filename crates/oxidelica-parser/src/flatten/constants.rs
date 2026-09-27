@@ -1173,6 +1173,9 @@ fn substitute_at(
                         class_constant_binding_at(registry, name, scope, imports, depth)
                     })
                     .or_else(|| field_over_record_array(registry, name, scope, depth))
+                    .or_else(|| {
+                        field_over_record_array_by_path(registry, name, scope, imports, depth)
+                    })
                     .unwrap_or_else(|| expr.clone()),
             }
         }
@@ -1575,6 +1578,7 @@ fn constant_array_of_package(
         && !a_matrix(&binding)
         && !builds_an_array(&binding)
         && !chooses_an_array(&binding)
+        && !reads_a_field_across(&binding)
     {
         return None;
     }
@@ -1676,6 +1680,30 @@ fn gathering_settled(
 /// gathering settles their arguments. A widening: what answered before
 /// answers the same, and what answered nothing may now answer an
 /// array.
+/// Whether a binding reads one field across a constant array of
+/// records: `MMX = data[:].MM`, or `data.MM` without the slice. That is
+/// a list as much as one written out, and the substitution below reads
+/// it through [`field_over_record_array`] - but the cheap gate in front
+/// of it asked only for lists and the ways of building one, so an
+/// ideal-gas mixture's `MMX`, named plainly inside its own functions,
+/// was turned away and reached the run as `MMX[1]`, which nothing
+/// declares. The same constant named by its path was always read.
+/// `OXIDELICA_NO_FIELD_ARRAY_CONSTANTS=1` turns it away as before.
+fn reads_a_field_across(binding: &Expr) -> bool {
+    if std::env::var_os("OXIDELICA_NO_FIELD_ARRAY_CONSTANTS").is_some() {
+        return false;
+    }
+    match binding {
+        Expr::Member(base, _) => matches!(base.as_ref(), Expr::Index(of, subscripts)
+            if matches!(of.as_ref(), Expr::Ref(head) if !head.contains('.'))
+                && matches!(subscripts.as_slice(), [Expr::ColonSubscript])),
+        Expr::Ref(name) => name
+            .split_once('.')
+            .is_some_and(|(head, field)| !field.contains('.') && !head.contains('[')),
+        _ => false,
+    }
+}
+
 /// Whether a binding says how to build an array rather than what is
 /// in one. Asked before the owner's gathering is worked out, which is
 /// dear.
@@ -2246,6 +2274,37 @@ fn field_over_record_array(
         }
         prefix = prefix.rsplit_once('.')?.0;
     }
+}
+
+/// [`field_over_record_array`] for a record array named with the
+/// package in front: `Medium.data.MM` in a model's parameter, where
+/// the bare road answers only `data.MM` written inside the package.
+/// The path is resolved where it was written, and the field is then
+/// asked of the package it names, which is the medium the model chose
+/// rather than the interface. `FlueGas` of the media tests declares
+/// `parameter MolarMass[4] MMx = Medium.data.MM` and was refused as
+/// `nothing gives a value to Medium.data.MM`.
+/// `OXIDELICA_NO_FIELD_ARRAY_PATHS=1` leaves the name bare, as before.
+fn field_over_record_array_by_path(
+    registry: &HashMap<&str, &ClassDef>,
+    name: &str,
+    scope: &str,
+    imports: &[(String, String)],
+    depth: usize,
+) -> Option<Expr> {
+    if std::env::var_os("OXIDELICA_NO_FIELD_ARRAY_PATHS").is_some() {
+        return None;
+    }
+    let (qualified, field) = name.rsplit_once('.')?;
+    let (path, head) = qualified.rsplit_once('.')?;
+    if head.contains('[') || path.contains('[') {
+        return None;
+    }
+    let package = lookup(registry, path, scope, imports)?;
+    if package.kind != ClassKind::Package {
+        return None;
+    }
+    field_over_record_array(registry, &format!("{head}.{field}"), &package.name, depth)
 }
 
 thread_local! {

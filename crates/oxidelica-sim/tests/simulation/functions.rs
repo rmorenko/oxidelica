@@ -3164,6 +3164,30 @@ fn a_field_read_across_a_packages_array_of_records_is_one_value_per_record() {
 }
 
 #[test]
+fn a_constant_written_as_a_field_across_records_is_that_list() {
+    // An ideal-gas mixture declares `constant MolarMass[nX] MMX =
+    // data[:].MM` and its entropy reads `MMX[i]` inside the package.
+    // The constant's binding was neither a list nor a way of building
+    // one, so it was turned away and the run met `MMX[1]`, which
+    // nothing declares. And a model names the same field with the
+    // medium in front, `parameter Real MMx[2] = Medium.data.MM`, which
+    // was refused as nothing giving a value to `Medium.data.MM`.
+    let result = run("model M record D Real MM; end D; \
+         package Data constant D A(MM = 2); constant D B(MM = 4); end Data; \
+         partial package Base constant D data[:]; constant Real MMX[2] = data[:].MM; \
+         function f input Real X[2]; output Real s; \
+         algorithm s := sum(X[i] / MMX[i] for i in 1:2); end f; end Base; \
+         package Med extends Base(data = {Data.A, Data.B}); end Med; \
+         package Medium = Med; \
+         parameter Real MMx[2] = Medium.data.MM; \
+         Real s = Med.f({1, 1}) * (1 + time); \
+         Real m = MMx[2] * (1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    assert_eq!(last_of(&result, "s"), 2.0 * 0.75);
+    assert_eq!(last_of(&result, "m"), 2.0 * 4.0);
+}
+
+#[test]
 fn a_constant_of_a_base_package_is_read_in_the_terms_of_the_package_that_wrote_it() {
     // A mixture's `T_hX` defaults an input to `referenceChoice`, which
     // its base package writes as `ReferenceEnthalpy.ZeroAt0K` through
