@@ -23378,3 +23378,11 @@ band of 2000, so the reference is not moved.
 The floors do not move: flatten 957 and runnable flatten 841 are the
 desk's count, and a floor is raised only to the runner's number. The
 raise waits in the queue for the library job of this commit.
+
+The layer is named. A call in a site modifier is resolved to its full
+name while the writer is still the scope, by `resolve_call_names` in
+`flatten/components.rs`, but only a head with no dot in it is resolved
+there. `Medium.f` has a dot, is left as written, and is read later
+where `Medium` is the component's own alias. The first link to try is
+resolving a dotted head whose first part is a package alias of the
+writer; whether the chain ends there is for the series.
