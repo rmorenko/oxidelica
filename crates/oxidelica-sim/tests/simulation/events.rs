@@ -878,3 +878,52 @@ fn partitions_reading_each_other_at_one_instant_are_still_refused() {
         "{message}"
     );
 }
+
+/// The actions of a `when` in an algorithm read one another in the
+/// order they are written: `n := n + 1` is what the `if` below it
+/// sees. The flattener had substituted `n` into the condition twice,
+/// reading `(n + 1) + 1 == 2`, and the actions it handed out were
+/// written in the world the body was entered with while the event
+/// carried them out one after another, so the `if` saw the new `n`
+/// and added one to it again. The run went on and answered `y = 0`.
+#[test]
+fn a_when_in_an_algorithm_reads_what_it_just_assigned() {
+    let result = run(
+        "model N Integer n(start = 0, fixed = true); Real y(start = 0, fixed = true); \
+         algorithm when sample(0, 0.25) then n := n + 1; \
+         if n == 2 then y := time; end if; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.25)); end N;",
+    );
+    let at = |what: &str| result.columns.iter().position(|c| c == what).expect(what);
+    let (n, y) = (at("n"), at("y"));
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[n], 5.0, "five ticks over [0, 1]");
+    assert!(
+        (last[y] - 0.25).abs() < 1e-12,
+        "the second tick is at 0.25, y = {}",
+        last[y]
+    );
+    // And not before it: at the first tick `n` comes to 1.
+    let first = &result.rows[0];
+    assert_eq!(first[y], 0.0, "y after the first tick");
+}
+
+/// The same with the value from before the event written out: the
+/// condition was substituted into as `pre(pre(iTick) + 1)`, and the
+/// run refused it as `pre()` of an expression.
+#[test]
+fn a_when_in_an_algorithm_reads_pre_once() {
+    let result = run(
+        "model L Integer iTick(start = 0, fixed = true); Real y(start = 0, fixed = true); \
+         algorithm when sample(0, 0.25) then iTick := pre(iTick) + 1; \
+         if iTick >= 3 then y := time; end if; end when; \
+         annotation(experiment(StopTime = 0.6, Interval = 0.25)); end L;",
+    );
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[y] - 0.5).abs() < 1e-12,
+        "the third tick is at 0.5, y = {}",
+        last[y]
+    );
+}

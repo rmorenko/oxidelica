@@ -1427,6 +1427,20 @@ fn one_if_statement(
             .map(|c| {
                 let c = substitute_class_constants(c, registry, scope, imports, &[]);
                 let c = substitute_refs(&c, &before);
+                // The names the condition holds once the bindings are
+                // in are not this body's to substitute again - the
+                // same rule `one_assignment` keeps for a value. Applied
+                // to all of them, `n := n + 1; if n == 2` read
+                // `(n + 1) + 1 == 2`, and `pre(n) + 1` became
+                // `pre(pre(n) + 1)`.
+                let mut settled: HashSet<String> = HashSet::new();
+                if !resubstitute_condition() {
+                    super::algorithms::walk_expr(&c, &mut |node| {
+                        if let Expr::Ref(name) = node {
+                            settled.insert(name.clone());
+                        }
+                    });
+                }
                 // The condition has to come to one truth,
                 // but may be written over arrays to get
                 // there: `if Q*Q_guess >= 0` asks which of
@@ -1449,7 +1463,7 @@ fn one_if_statement(
                         if std::env::var_os("OXIDELICA_NO_OUTPUTS_READ_AFTER").is_some() {
                             c
                         } else {
-                            substitute_refs(&c, &before)
+                            substitute_refs_but(&c, &before, &settled)
                         }
                     })
             })
@@ -1755,4 +1769,11 @@ fn substitute_refs_but(
 /// can be measured both ways.
 fn resubstitute_all() -> bool {
     std::env::var_os("OXIDELICA_RESUBSTITUTE_ALL").is_some()
+}
+
+/// `OXIDELICA_RESUBSTITUTE_CONDITION=1` applies a branch's bindings a
+/// second time to every name of an `if` condition after expansion, as
+/// before, so that one binary can be measured both ways.
+fn resubstitute_condition() -> bool {
+    std::env::var_os("OXIDELICA_RESUBSTITUTE_CONDITION").is_some()
 }

@@ -23514,3 +23514,47 @@ to an end here, nested deeper than the compiler follows": the buffer's
 `if` chains are expanded again inside `realFFT`. That is the depth
 family. The chain is parked with its map. Link 4 is a correctness
 defect and wants a series of its own with `N.mo` as the test.
+
+## m293: a `when` in an algorithm reads what it just assigned
+
+Link 4 of the subscript row, walked to its end on `N.mo` with every
+change behind a key. It is two faults, one standing on the other, and
+neither needs an array.
+
+1. The condition of an `if` among statements is substituted twice
+   (`flatten/statements.rs`, the branch loop of the `if`). Before
+   expansion the branch's bindings are put in whole, and after it
+   they were put in again to catch the element names expansion
+   makes. That second pass reached every name, so `n := n + 1; if n
+== 2` read `((n + 1) + 1) == 2`, and `iTick := pre(iTick) + 1`
+   gave `pre(pre(iTick) + 1)`, which the run refuses as `pre()` of an
+   expression. The second pass now leaves alone the names the first
+   one produced, the rule `one_assignment` already keeps for a value.
+   `OXIDELICA_RESUBSTITUTE_CONDITION=1` keeps the old reading.
+2. With the condition right, `(n + 1) == 2`, the answer was still 0.
+   The body of a `when` is executed symbolically from the world it
+   was entered with, so every value it hands out reads a name it
+   assigns as that name held before the event. The event
+   (`oxidelica-sim/src/events.rs`, the `Assign` action) carries the
+   actions out one after another, each seeing what the one before it
+   wrote. So `y` read the `n` just raised and added one again, and the
+   branch fired a tick early, at `t = 0`, giving `y = 0`. The lift in
+   `flatten/equations.rs` now writes every name the body assigns as
+   `pre` of itself in the values it hands out, which says the same
+   thing in both readings. `OXIDELICA_WHEN_READS_IN_ORDER=1` keeps the
+   old one.
+
+On both, `N.mo` answers `y = 0.25` and the scalar `L.mo`, which
+refused as `pre() takes a variable`, runs and answers `y = 1.0`. The
+two tests in `tests/simulation/events.rs` check the numbers: the one
+for `N` is red under either key, the one for `L` under the first.
+
+The pair over the library, one binary (`/tmp/ox293a`), without the
+carved-out giants: with both keys set (`/tmp/m293/p/off.txt`) and
+without (`/tmp/m293/p/on.txt`) it is 959 flatten and 662 run, runnable
+843 and 620, and the flatten and run lists are identical name for name
+in both directions, and identical to `/tmp/m292/e/on.txt`. No model
+moves, which is what a correctness fix with a scalar test is allowed
+to do. The expansions counted 38 more and the names 1269 more, inside
+their bands. What the pair cannot show is a number that changed inside
+a model that runs either way; that is what the two tests are for.

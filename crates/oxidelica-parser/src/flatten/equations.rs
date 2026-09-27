@@ -161,6 +161,20 @@ fn run_algorithm_sections(
                     acc.asserts.push((resolve_here(&condition)?, message));
                 }
                 let mut actions = Vec::new();
+                // What the run gave each name is written in the world
+                // the body was entered with, where a name it assigns
+                // still holds what it held before the event. The
+                // actions are carried out one after another, each
+                // seeing what the one before it wrote, so a name read
+                // that way has to say so: `n := n + 1; if n == 2 then
+                // y := time` came out as `n = n + 1` and a `y` whose
+                // `n` was the entry value, then read as the one just
+                // assigned, and the branch fired one tick early.
+                let entered: HashSet<&str> = if when_reads_in_order() {
+                    HashSet::new()
+                } else {
+                    order.iter().map(String::as_str).collect()
+                };
                 for target in &order {
                     // Every name the run put in the order it also gave
                     // a value; there is nothing to say about one that
@@ -168,9 +182,10 @@ fn run_algorithm_sections(
                     let Some(value) = written.get(target) else {
                         continue;
                     };
+                    let value = as_entered(value, &entered);
                     actions.push(WhenAction::Assign(
                         flat_name(target, prefix, outers),
-                        resolve_here(value)?,
+                        resolve_here(&value)?,
                     ));
                 }
                 let condition = branch
@@ -1536,6 +1551,27 @@ fn answered_with(expr: &Expr, answer: &dyn Fn(&Expr) -> Option<Expr>) -> Expr {
         return told;
     }
     expr.map_children(&mut |child| answered_with(child, answer))
+}
+
+/// A value worked out in the world a `when` body was entered with,
+/// written so that it still says that when the actions are carried out
+/// one after another: every name the body assigns is read as `pre` of
+/// itself. A `pre` already written is left as it stands.
+fn as_entered(value: &Expr, entered: &HashSet<&str>) -> Expr {
+    match value {
+        Expr::Ref(name) if entered.contains(name.as_str()) => {
+            Expr::Call("pre".to_string(), vec![value.clone()])
+        }
+        Expr::Call(name, _) if name == "pre" => value.clone(),
+        _ => value.map_children(&mut |child| as_entered(child, entered)),
+    }
+}
+
+/// `OXIDELICA_WHEN_READS_IN_ORDER=1` leaves the names a `when` body
+/// assigns bare in the values it hands out, as before, so that one
+/// binary can be measured both ways.
+fn when_reads_in_order() -> bool {
+    std::env::var_os("OXIDELICA_WHEN_READS_IN_ORDER").is_some()
 }
 
 /// The conditions a `when` branch stands for once its condition is
