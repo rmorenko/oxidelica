@@ -3379,3 +3379,22 @@ fn a_constant_written_as_array_call_is_laid_out_in_a_walked_body() {
     // 2 * (0.5 + 0.25 + 2) at the end.
     assert_eq!(last_of(&result, "y"), 5.5);
 }
+
+#[test]
+fn a_local_array_the_walk_cannot_lay_out_is_refused_not_zero() {
+    // A walked body declaring `Real[2] Y = toY(X, MM)` on a function
+    // the run was never handed laid `Y` out as zeros, and answered as
+    // though every element were nothing: `y = 0` where the body gives
+    // `2 * (0.5/2 + 0.5/4) = 0.75`. The loop keeps `w` from inlining.
+    let why = run_err(
+        "package P \
+         function toY input Real X[:]; input Real MM[:]; output Real Y[size(X, 1)]; \
+         algorithm for i in 1:size(X, 1) loop Y[i] := X[i] / MM[i]; end for; end toY; \
+         function w input Real x; input Real X[2]; output Real y; \
+         protected Real[2] Y = toY(X, {2, 4}); Real s = 0; \
+         algorithm while s < x loop s := s + 0.25; end while; y := s * (Y[1] + Y[2]); end w; \
+         model M Real y = w(1 + time, {0.5, 0.5}); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
+    );
+    assert!(why.contains("`Y`") && why.contains("`P.w`"), "{why}");
+}

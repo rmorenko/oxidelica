@@ -24004,3 +24004,62 @@ shift. The fix it asks for is the other half: let the walk lay out
 `array(...)` of numbers, which gives `visc_dTp` its coefficients back
 and should bring the six back running on the right number. Then the
 refusal can go in with no victims.
+
+## m295: the walk reads `array(...)`, and the water's viscosity comes back
+
+The chapter above left two halves: the walk could not lay out
+`constant Real[42] nn = array(...)` and put zeros there, and the patch
+refusing that zero cost six models because it was the only thing
+holding them up. The order was the laying out first, then the refusal.
+
+### Reading `array(...)` of numbers
+
+`elements_of` knew braces and not the call. The smallest model that
+shows it (`/tmp/m295/AR.mo`) is a walked body with `protected constant
+Real[3] nn = array(0.5, 0.25, 2.0)` and a loop to keep it from being
+inlined: it answered `y = 0` at the start where the body gives
+`2 * 2.75 = 5.5` at the end. `array(...)` of single numbers is now the
+same list as braces; an argument that is itself an array would build
+a table with a new axis in front and is left alone.
+
+The witness is the number, since the lists were not expected to move.
+Water at 298.15 K and one bar through `WaterIF97_pT` (`/tmp/m295/V.mo`):
+
+```text
+before  eta = 9.873e-6 Pa s    (only the leading term of visc_dTp)
+after   eta = 8.9008e-4 Pa s   (IAPWS: 890.0 uPa s)
+```
+
+`InverseParameterization`, one of the six, carried
+`pipe1.flowModel.mus[2] = 9.73e-6` before and `1.0010e-3` after, water
+at 20 C being 1.002e-3 (`/tmp/m295/ip1.csv`, `ip2.csv`). Its pressures
+did not move at the final point, since there the flow is set and the
+pipe's drop is small beside the orifice's. The thermal conductivity,
+whose `cond_dTp` writes its thirty coefficients the same way, read
+0.6075 W/(m K) before and after: that road was not walked.
+
+The pair, one binary each side of the change over the whole library
+(`/tmp/m295/p/ox1.txt` before, `ox2.txt` after): flatten 959 and 959,
+run 665 and 665, runnable 843 / 623 on both, and both lists identical
+line for line. Nothing moved but the number, which is what a fix to a
+value that was already being used should look like.
+
+### The refusal instead of the zero, now with nothing standing on it
+
+With `array(...)` read, the second half of m294 went in as it was
+written there: a local whose written value the walk cannot lay out
+stands at NaN, and a walked body answering NaN while it holds one is
+refused naming the local. `OXIDELICA_LOCAL_ARRAY_ZERO=1` keeps the old
+zero, and the test of it (`Z1.mo` made small) is red under the key.
+
+Its pair from one binary over the whole library
+(`/tmp/m295/p/ox3zero.txt` under the key, `ox3.txt` without): flatten
+959 and 959, run 665 and 665, runnable 843 / 623 on both, both lists
+identical, and the refusal register identical line for line but for
+the time. The phrase `answers with a value that is not a number`
+appears nowhere in the library's refusals. In m294 the same patch cost
+six models, and all six were `visc_dTp`'s `nn`; with the coefficients
+laid out nobody in the library reaches the refusal, so what it guards
+now is the next zero, not a present one. `Z1.mo` and `A1.mo`, whose
+`Y = massToMoleFractions(X, MM)` is still not laid out, refuse naming
+`Y` rather than answering on zeros.

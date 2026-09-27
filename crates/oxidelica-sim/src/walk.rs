@@ -41,6 +41,14 @@ fn unassigned_is_zero() -> bool {
     std::env::var_os("OXIDELICA_UNASSIGNED_OUTPUT_ZERO").is_some()
 }
 
+/// Whether a local array whose written value the walk cannot lay out
+/// stands at zero, as it did before that was refused:
+/// `OXIDELICA_LOCAL_ARRAY_ZERO` keeps the old reading so one binary can
+/// be measured against itself.
+fn local_arrays_zero() -> bool {
+    std::env::var_os("OXIDELICA_LOCAL_ARRAY_ZERO").is_some()
+}
+
 /// Where a walk left off: running on, out of a loop, or out of the
 /// function.
 #[derive(PartialEq)]
@@ -94,6 +102,10 @@ pub(crate) fn walk(
     // under its own name, `v[1]`, `v[2]` - and how long it is is kept
     // beside it, since that is what `size` and a loop over it ask for.
     let mut frame = Frame::default();
+    // Locals whose written value the walk could not lay out, and which
+    // stand at NaN for it: an answer that comes out NaN with any of
+    // these in the frame is refused naming them.
+    let mut unlaid: Vec<String> = Vec::new();
     let mut taken = 0;
     for (input, shape) in inputs.iter().zip(shapes) {
         match shape.as_slice() {
@@ -167,12 +179,33 @@ pub(crate) fn walk(
                 .map(|expr| elements_of(expr, &frame, programs, time, depth))
                 .transpose()?
                 .flatten();
+            // A declaration that writes a value the walk could not lay
+            // out is a value missing, not a zero. `Real[nX] Y =
+            // massToMoleFractions(X, MM)` bound on a body the run was
+            // never handed came to nothing element by element, and the
+            // entropy that read it answered as though every mole
+            // fraction were zero, with no word said. Refused at once it
+            // cost thirty-one water models whose `region_ph` declares
+            // `constant Real[5] n = data.n` and never reads it, so the
+            // elements are laid out as NaN instead, and a body whose
+            // answer comes out NaN with such a local in its frame is
+            // refused below, naming it. A body that never reads it is
+            // untouched.
+            let written = component.binding.as_ref().or(component.start.as_ref());
+            let missing = if written.is_some() && !local_arrays_zero() {
+                f64::NAN
+            } else {
+                0.0
+            };
+            if missing.is_nan() && !matches!(&laid, Some(items) if items.len() == length) {
+                unlaid.push(component.name.clone());
+            }
             for index in 1..=length {
                 let worth = match &laid {
                     Some(items) if items.len() == length => {
                         number_of(&items[index - 1], &frame, programs, time, depth)?
                     }
-                    _ => 0.0,
+                    _ => missing,
                 };
                 frame
                     .numbers
@@ -259,6 +292,17 @@ pub(crate) fn walk(
                 answer.extend((1..=length).map(|index| want(&format!("{}[{index}]", output.name))))
             }
         }
+    }
+    if !unlaid.is_empty() && answer.iter().any(|value| value.is_nan()) {
+        return err(format!(
+            "the walked body `{name}` answers with a value that is not a number, and it \
+             declares {} with a value the walk cannot lay out element by element",
+            unlaid
+                .iter()
+                .map(|local| format!("`{local}`"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
     }
     Ok(answer)
 }
