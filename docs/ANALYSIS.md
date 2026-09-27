@@ -23501,7 +23501,7 @@ reverted, `OX_PROBE_ARR`), it has four, and the last is another family.
    subscript.
 4. The condition of an `if` in an algorithm is substituted twice.
    This one is a silent wrong number on HEAD and needs no array at
-   all: `N.mo`, 12 lines, `n := n + 1; if n == 2 then y := time; end
+   all: `N.mo` (`~/oxideflow/state/m292/N.mo`), 12 lines, `n := n + 1; if n == 2 then y := time; end
 if;` inside a `when` sampling every 0.25 gives `y = 0` at the end,
    where the answer is `0.25`. The flat model reads `if ((n + 1) + 1)
 == 2`. With `pre(iTick)` the same fault is refused as `pre() takes a
