@@ -23655,3 +23655,35 @@ directions. The names counted 1105701 more, 579 per million of the
 reference, inside the band of 2000; the runner already counts about 750
 per million above the desk for the same code (`/tmp/m293/runner61a.log`),
 so the two together leave room of about 650.
+
+### Derivatives of calls of several arguments, probed
+
+The next family of the census, four models, probed on `G.mo`
+(`/tmp/m293/r/G.mo`, ten lines: `y = regRoot2(x, 0.01, 1, 0); yd =
+der(y)`), which refuses exactly as `TestRegRoot2ZeroDerivative` does.
+Nothing was changed; the probe binaries are `/tmp/oxdepth293` and
+`/tmp/oxdepth293b`, with the depth ceiling read from `OX_DEPTH` at the
+three places that raise the depth refusal (`arrays.rs` expand,
+`statements.rs` execute, `names.rs` resolve).
+
+- `regRoot2` and `evaluatePoly3_derivativeAtZero` are left standing
+  because their bodies are `nested deeper than the compiler follows`,
+  and a call left standing has no derivative. So this row is the depth
+  family as well, and so is the String row: `h_T` stands for the same
+  reason and carries the gas's name into the run.
+- At a ceiling of 48 or more, `G.mo` and `TestRegRoot2ZeroDerivative`
+  unroll and move on to `cannot differentiate function abs`, the
+  derivative of `abs` that the notes above decided about on purpose.
+  `TestRegRoot2Derivatives` and `MixtureGases` do not move. Resident
+  size stayed at 164 to 197 MB for each of these one at a time.
+- At 48 and at 96, `h_T` still stands, now on `subscripts did not
+come to an end here` (`arrays.rs:731`), a fourth place with the
+  same ceiling. `specificEnthalpy_pTX` stands on its own circle.
+
+So three rows of the census (the String, the calls of several
+arguments, and the molar masses behind them) are one family: the
+depth ceiling. The notes above record that 48 on expression nesting
+killed a corpus pass by memory on two Fluid base classes. That makes
+the next step a decision rather than a fix: which bodies may go deeper
+and under what bound, or handing a standing call only what the walk
+can carry. This goes to the review with the map.
