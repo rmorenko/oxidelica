@@ -878,7 +878,14 @@ FLATTEN_FLOOR=959
 # and Polyphase.Examples.TestSensors, the four of the m292 series that
 # run. The desk counts 662 (/tmp/m293/p/on.txt); the two lists differ
 # by Dimmer_RL on the runner and SpringWithMass on the desk, as before.
-RUN_FLOOR=662
+#
+# And run 665 is the runner's count of 82f6834, which carries the code
+# of b910fdd (job 108663101910 of run 36334661929,
+# /tmp/m295/runner8a0.log): 662 plus TestOnly.FlueGas, IdealGasN2Mix
+# and MixIdealGasAir, the three mixtures that were handed a record's
+# text in a walked body. The desk counts 665 on the same code
+# (/tmp/m295/p/ox1.txt), and flatten stays 959 on both.
+RUN_FLOOR=665
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -973,8 +980,13 @@ RUN_FLOOR=662
 # TestWaterPumpNPSH, runnable run 620 = 616 plus the four set out at
 # `RUN_FLOOR`, all runnable examples: the runner's count of 61a974c
 # (/tmp/m293/runner61a.log), the same as the desk's (/tmp/m293/p/on.txt).
+#
+# And runnable run 623 = 620 plus the same three set out at
+# `RUN_FLOOR`, all runnable examples; runnable flatten stays 843. The
+# runner's count of 82f6834 (/tmp/m295/runner8a0.log), the same as the
+# desk's (/tmp/m295/p/ox1.txt).
 RUNNABLE_FLATTEN_FLOOR=843
-RUNNABLE_RUN_FLOOR=620
+RUNNABLE_RUN_FLOOR=623
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
