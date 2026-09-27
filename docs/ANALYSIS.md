@@ -23932,3 +23932,24 @@ lost. The names counted 1908372029 against 1908372041, the same work.
 The floors are left where they are until the runner's number confirms
 the three, as the review asked. The raise to 665 and 623 goes to the
 queue.
+
+`IdealMixing1`, the second of the three at a new wall, stands on the
+same kind of link: its pipe friction block is `NaN at t = 0, before
+any Newton step, because a function it calls could not be walked:
+unknown variable X`. So two of the three models this change moved
+now stop on a name of the writing class reaching the walk (`nX` in
+`XH.mo`, `X` here), and that is the next family worth a probe.
+
+Shrunk one step further, the family shows two faces of the same body.
+`T_psX` of the same mixture called directly (`/tmp/m294/XT.mo`, five
+lines) refuses as `an array reached the evaluator: {X[1], ..., X[6]}`
+standing in `massToMoleFractions(X, data.MM)` of the walked
+`T_psX.f_nonlinear`: the entropy it calls is inlined into the nested
+function, and that entropy declares a local `Real[nX] Y =
+massToMoleFractions(X, data.MM)`, an array bound by a call that
+answers with an array. A synthetic nested solver over `X[nX]` with a
+scalar body (`/tmp/m294/N1.mo`) runs, so the size `nX` alone is not
+the fault: it is the local array bound by an array-valued call inside
+a body the walk carries, and the `nX` and `X` refusals of the two
+corpus models are how that same local looks from further out. This is
+where the next shift's probe starts.
