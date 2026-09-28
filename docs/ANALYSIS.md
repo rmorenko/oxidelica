@@ -25149,3 +25149,32 @@ run, and the damper is not the cure for the first of them. Both
 switches are probes; the next plan decides whether the parameters are
 settled first as a rule, which is a different compiler and wants its
 own pair.
+
+### The `dgelsy` wall, not yet made small
+
+The three `TableBased` models now stop at a walked body handed
+`Index(Call("dgelsy", ...))`: `poly_Cp`, which the medium binds on
+`Polynomials.fitting(...)`, arrives at the walk as the least-squares
+call written out and subscripted, where the walk takes only a name
+under a subscript (`to_scalar`, `walk.rs`). Three small models that
+bind a constant of the medium on a `fitting` built over `dgelsy`
+(`/tmp/m302/T7.mo`, read by element; `T8.mo`, by the slice `c[1:2]`
+handed to a walked `ev`; `T9.mo`, whole) do not reproduce it. They stop
+at `unknown variable c[1]`, `an array reached the evaluator: 1:2` and
+`unknown variable c`, and give the same words under
+`OXIDELICA_NO_CARRIED_MARK`: in them the gate finds nothing the medium
+settles to a number, so no pair is made and the constant never reaches
+the walk. What the library has and these do not is a body the gate
+does carry (`s_T` reads `TinK` and `T0`, which the medium settles), so
+the next small model wants a settled constant beside the fitted one.
+That is the start of the map for the literal layer, which is alive and
+one storey on.
+
+Adding a constant the medium does settle, `k`, makes the gate carry
+the body as a pair (`T10.mo`, `T11.mo`), and still the wall is not the
+library's: `T10` stops at `1:2` in `T10.Base.w@T10.Med`, and `T11`, the
+element read, at `unknown variable c[1]` with the pair where the key
+gives `unknown variable k`. So the pair moves `k` and not `c`. The
+library's `s_T` slices by `npol`, a constant of its own package, and
+the fitted array reaches the walk written out only there; the next
+small model takes that shape rather than a literal `1:2`.
