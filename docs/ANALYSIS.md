@@ -25124,3 +25124,28 @@ No model arrived, which the section above explains: every model this
 step moved (`Inverse_sh_TX` and the three `TableBased`) moved to a
 wall behind it, not past it. With no arrivals the census of m299
 stands, and none was taken.
+
+### Why `SeriesPipes1` takes the wrong direction
+
+A second probe named the sixteen unknowns of that first outer step
+(`/tmp/m302/sp_names.txt`, same patch). Ten are states. The other six
+are parameters left to the initialisation, `dp_nominal` and
+`dp_small` of the three pipes' flow models (`fixed = false`,
+`start = 1`), whose initial equations make them about 20061 and 1.0.
+The Newton step moves them by -20060, and the same linearisation,
+taken where every `dp_nominal` is 1, sends `pipe3.Us[1]` by +477241.
+The states are stepped on a Jacobian taken twenty thousand times away
+from where the parameters will be.
+
+A third switch in the same patch (`OX_PARAMS_FIRST`) lets the first
+outer step move only the parameters and hold the states. Without the
+damper, `SeriesPipes1` gets through the initialisation for the first
+time and stops at the same block wall at t = 0.0008 instead of t = 0,
+from |f| = 4.4e4 (`/tmp/m302/sp_pf.txt`). With the damper as well,
+the initialisation does not converge in 50 steps
+(`/tmp/m302/sp_pfd.txt`). So the model has two walls in series, the
+start of parameters left to the initialisation and a block of the
+run, and the damper is not the cure for the first of them. Both
+switches are probes; the next plan decides whether the parameters are
+settled first as a rule, which is a different compiler and wants its
+own pair.
