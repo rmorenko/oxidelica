@@ -906,7 +906,16 @@ FLATTEN_FLOOR=961
 # refused at its algebraic loop while two passes shared the machine,
 # though it runs on its own. The runner has Dimmer_RL and not
 # SpringWithMass, as before. Flatten stays 961 on both.
-RUN_FLOOR=667
+#
+# And run 668 is where the runner and the desk now agree. 667 was the
+# desk's lower count while two passes shared the machine; the desk now
+# counts 668 on both halves of the pair of e44cd03 (/tmp/m302/on.txt,
+# off.txt), and the runner counts 668 in the scheduled job
+# 108946559041 of run 36427973736 on 3a4b9a6
+# (/tmp/m303/runner_job.log). The two lists differ by the swing alone:
+# Dimmer_RL on the runner, SpringWithMass on the desk. Flatten stays
+# 961 on both.
+RUN_FLOOR=668
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1017,8 +1026,12 @@ RUN_FLOOR=667
 # less SpringWithMass, the lower of the runner's 626
 # (/tmp/m299/ci_lib_full.log) and the desk's 625 (/tmp/m299/on2.txt);
 # runnable flatten stays 845 on both.
+#
+# And runnable run 626 is the same agreement as run 668 above: the
+# runner's 626 in job 108946559041 (/tmp/m303/runner_job.log) and the
+# desk's 626 on both halves of /tmp/m302; runnable flatten stays 845.
 RUNNABLE_FLATTEN_FLOOR=845
-RUNNABLE_RUN_FLOOR=625
+RUNNABLE_RUN_FLOOR=626
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
