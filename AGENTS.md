@@ -218,6 +218,18 @@ Editing a note counts. The Markdown is held to a style, and a commit
 that only touches `AGENTS.md` can turn the build red exactly as a
 commit touching the compiler can.
 
+A corpus pair may stand in for the library step of preflight, and
+only on three conditions, each of them checkable: the pair was taken
+with one binary built from the final tree; nothing that the step
+measures - compiler, scripts, floors - changed after it; and the
+mark that claims the substitution names the files of both halves.
+A pair like that is the same measurement made minutes earlier, and
+repeating it buys forty minutes of nothing. The substitution covers
+the library step alone - the linters, the coverage and the prose
+still run. A substitution missing any of the three conditions is
+not a judgement but a skipped step, and the summary already refuses
+to call a skipped step a pass.
+
 ## Finding out why a model will not run
 
 `oxidelica why <model> <variable>` says where a variable's value was
