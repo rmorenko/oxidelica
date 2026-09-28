@@ -1526,7 +1526,21 @@ pub(super) fn expand_call(
             // shapes `[]` and `[1]`. An array landing on an input that
             // is itself an array goes in whole, and the walk takes it
             // whole, the way it takes any call it is left to answer.
+            // A copy carried under its medium is not in the registry
+            // either, and is the same case: the body behind the pair
+            // takes its lists whole. Read as an ordinary call it was
+            // spread over the mass fractions, and `setState_psX` of the
+            // flue gas came back as three states where the model wanted
+            // one - the model that no longer flattened once the callees
+            // of a copy became copies of their own.
             if arrayed && !whole_into_copies_off() {
+                if let Some(body) = super::carried::carried_pair(name)
+                    .and_then(|(body, _)| registry.get(body.as_str()).copied())
+                {
+                    let handed: Vec<Expr> = values.into_iter().map(Value::into_expr).collect();
+                    let call = Expr::Call(name.to_string(), handed);
+                    return standing_call(call, body, registry, imports);
+                }
                 if let Some(copy) = super::statements::specialization(name) {
                     let inputs: Vec<Component> = inlining::function_components(registry, &copy, 0)
                         .into_iter()
@@ -3096,7 +3110,7 @@ fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, mediu
         });
     }
     let _digits = super::constants::SettlingParameter::now();
-    names.into_iter().any(|named| {
+    let reads_here = names.into_iter().any(|named| {
         let written = Expr::Ref(named.to_string());
         let read = |under: &str| {
             let _mark = inlining::AskedAs::under(under);
@@ -3110,6 +3124,40 @@ fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, mediu
         };
         let asked = read(medium);
         settled(&asked) && asked != read("")
+    });
+    if reads_here {
+        return true;
+    }
+    // And what it calls on the medium's line, however far down: a copy
+    // calls its callees under the pair's name only where they are copies
+    // themselves, and one that reads the medium reached through one that
+    // does not would be walked under the name that wrote it. B8 of the
+    // m299 chapter: `w` reads nothing of the medium and calls `h`, whose
+    // local is bound on `data.MM`.
+    let mut calls = Vec::new();
+    super::carried::gather_calls_in_statements(
+        &class.algorithm,
+        registry,
+        &class.name,
+        &class.imports,
+        &mut calls,
+    );
+    for component in &class.components {
+        for written in [&component.binding, &component.start].into_iter().flatten() {
+            super::carried::gather_calls(
+                written,
+                registry,
+                &class.name,
+                &class.imports,
+                &mut calls,
+            );
+        }
+    }
+    calls.into_iter().any(|called| {
+        registry.get(called.as_str()).is_some_and(|callee| {
+            super::carried::on_the_line(callee, registry, medium)
+                && reads_its_medium(callee, registry, medium)
+        })
     })
 }
 
@@ -3123,8 +3171,8 @@ fn misread_below(
     itself_carried: bool,
 ) -> Option<String> {
     let mut seen: Vec<String> = Vec::new();
-    let mut wanted = vec![class.name.clone()];
-    while let Some(name) = wanted.pop() {
+    let mut wanted = vec![(class.name.clone(), itself_carried)];
+    while let Some((name, carried_itself)) = wanted.pop() {
         if seen.contains(&name) || seen.len() > MAX_DEPTH * 8 {
             continue;
         }
@@ -3133,8 +3181,8 @@ fn misread_below(
             continue;
         };
         // A body carried under its medium reads the medium's values
-        // itself; what is left to ask is what it calls.
-        let carried_itself = itself_carried && body.name == class.name;
+        // itself; what is left to ask is what it calls. So does a body
+        // a carried copy calls as a copy of its own.
         let own: Vec<String> = inlining::function_components(registry, body, 0)
             .into_iter()
             .map(|component| component.name)
@@ -3219,7 +3267,16 @@ fn misread_below(
         for written in bindings {
             super::carried::gather_calls(written, registry, &body.name, &body.imports, &mut calls);
         }
-        wanted.extend(calls);
+        // A copy calls a callee under the pair where the callee is a
+        // copy too, and such a callee reads the medium itself. A body
+        // called under the name that wrote it calls every callee so.
+        wanted.extend(calls.into_iter().map(|called| {
+            let paired = carried_itself
+                && registry.get(called.as_str()).is_some_and(|callee| {
+                    super::carried::paired_under(callee, registry, mark).is_some()
+                });
+            (called, paired)
+        }));
     }
     None
 }

@@ -3474,23 +3474,26 @@ fn a_walked_body_reads_the_medium_s_constant_it_was_asked_under() {
     );
 }
 
-/// The constant read one call further down is still refused: the copy
-/// carries the body it was asked for under the medium, and what that
-/// body calls is carried as before, under the name that wrote it.
+/// The constant read one call further down: the copy carried under the
+/// medium calls `h` as a copy of its own, so `h` reads the medium's
+/// `k = 2` and `Med.w` walks to `h(2) = 4`. Held back to the name that
+/// wrote it, the call is refused naming the constant of the callee, as
+/// it was before the copies reached one call down.
 #[test]
-fn a_walked_body_whose_callee_would_read_the_base_s_constant_is_refused() {
-    let why = parse_model(
-        "package P partial package Base constant Real k = 1; \
+fn a_walked_body_s_callee_reads_the_medium_s_constant() {
+    const SOURCE: &str = "package P partial package Base constant Real k = 1; \
            function h input Real x; output Real y; algorithm y := x * k; end h; \
            function w input Real x; output Real y; protected Real s = 0; \
            algorithm while s < x loop s := s + 0.25; end while; y := h(s); end w; \
          end Base; \
          package Med extends Base(k = 2); end Med; \
          model M Real y = Med.w(1 + time); \
-           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
-    )
-    .expect_err("a callee that would read the base's constant is refused")
-    .message;
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;";
+    assert_eq!(last_of(&run(SOURCE), "y"), 4.0);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = parse_model(SOURCE)
+        .expect_err("held back, a callee that would read the base's constant is refused")
+        .message;
     assert!(
         why.contains(
             "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
@@ -3591,6 +3594,80 @@ fn a_walked_body_reads_the_medium_s_list_in_a_binding() {
     let _held = oxidelica_parser::hold_back_carried_mark_here();
     let why = run_err(SOURCE);
     assert!(why.contains("unknown variable `data.MM`"), "{why}");
+}
+
+/// The same list read one call further down: the walked `w` reads
+/// nothing of the medium itself and calls `h`, whose local is bound on
+/// `data.MM`. A copy carried under the medium called `h` under the name
+/// that wrote it, and the walk met `data.MM` as a name nobody declares.
+/// The copy now calls `h` as a copy of its own, and `y = 0.75` as in
+/// the one-storey shape; held back, the old refusal stands.
+#[test]
+fn a_walked_body_s_callee_reads_the_medium_s_list() {
+    const SOURCE: &str = "package B8 \
+         record D Real MM; end D; \
+         function toY input Real X[:]; input Real MM[:]; output Real Y[size(X, 1)]; \
+         algorithm for i in 1:size(X, 1) loop Y[i] := X[i] / MM[i]; end for; end toY; \
+         partial package Base \
+           constant Integer nX = 2; \
+           constant D[:] data; \
+           function h input Real X[nX]; output Real y; \
+           protected Real[nX] Y = toY(X, data.MM); \
+           algorithm y := Y[1] + Y[2]; \
+           end h; \
+           function w input Real x; input Real X[nX]; output Real y; \
+           protected Real s = 0; \
+           algorithm \
+             while s < x loop s := s + 0.25; end while; \
+             y := s * h(X); \
+           end w; \
+         end Base; \
+         package Med extends Base(data = {D(MM = 2), D(MM = 4)}); end Med; \
+         model M \
+           Real y = Med.w(1 + time, {0.5, 0.5}); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); \
+         end M; \
+       end B8;";
+    assert_eq!(last_of(&run(SOURCE), "y"), 0.75);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = run_err(SOURCE);
+    assert!(why.contains("unknown variable `data.MM`"), "{why}");
+}
+
+/// A pair of copies handed a list, inside a body the inliner writes out:
+/// `o` inlines to `h(st(x, X))`, and both are carried under the medium.
+/// A copy is not in the registry, so the list handed to `st` was spread
+/// over it element by element like any unknown call, and `h` came back
+/// as two answers where the model wanted one. The flue gas of the media
+/// tests stopped flattening that way the moment the callees of a copy
+/// became copies of their own. The body behind the pair takes the list
+/// whole: `q` stops at 1 (`2 * 0.5`), `y = 1 * 2 + 0.5 = 2.5` at t = 0,
+/// and 4.5 at the end.
+#[test]
+fn a_carried_copy_handed_a_list_takes_it_whole() {
+    const SOURCE: &str = "package B11 \
+         record S Real a; Real b; end S; \
+         partial package Base \
+           constant Real k = 1; \
+           function st input Real x; input Real X[2]; output S s; \
+           protected Real q = 0; \
+           algorithm while q < x loop q := q + 0.25; end while; \
+             s := S(a = q * k * X[1], b = X[2]); \
+           end st; \
+           function o input Real x; input Real X[2]; output Real y; \
+           algorithm y := h(st(x, X)); end o; \
+           function h input S s; output Real y; \
+           protected Real q = 0; \
+           algorithm while q < s.a loop q := q + 0.25; end while; y := q * k + s.b; \
+           end h; \
+         end Base; \
+         package Med extends Base(k = 2); end Med; \
+         model M \
+           Real y = Med.o(1 + time, {0.5, 0.5}); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); \
+         end M; \
+       end B11;";
+    assert_eq!(last_of(&run(SOURCE), "y"), 4.5);
 }
 
 /// A medium's Boolean and list read in a walked body's statement: `inK`

@@ -137,6 +137,9 @@ pub(super) fn programs_used(
         let pair = carried_pair(&name);
         let marked = pair.as_ref().and_then(|(_, medium)| AskedAs::under(medium));
         let digits = pair.as_ref().map(|_| SettlingParameter::now());
+        // And the calls the copy makes are named under its medium, so a
+        // callee the medium changes is called as a copy of its own.
+        let copy = PreparingCopy::under(pair.as_ref().map(|(_, medium)| medium.as_str()));
         let class = match registry.get(name.as_str()) {
             Some(held) => *held,
             None => match pair
@@ -248,11 +251,13 @@ pub(super) fn programs_used(
         );
         carried.name = name.clone();
         out.push(carried);
-        // What the copy calls is gathered as any body's is: under the
-        // writer's name and with no medium standing, which is what the
-        // bodies it calls are carried under today.
+        // What the copy calls is gathered with no medium standing, under
+        // the writer's name, and then named the way the copy's
+        // statements name it: under the pair where the callee is a copy
+        // of its own.
         drop(digits);
         drop(marked);
+        drop(copy);
         let mut calls = Vec::new();
         // What a local's binding calls is called by the body as much as
         // what a statement calls. `dp_curvedOverall_DP` works out its
@@ -293,6 +298,19 @@ pub(super) fn programs_used(
                 optional.insert(called.clone());
             }
             calls.push(called);
+        }
+        if let Some((_, medium)) = &pair {
+            for called in &mut calls {
+                let Some(callee) = registry.get(called.as_str()).copied() else {
+                    continue;
+                };
+                if let Some(paired) = paired_under(callee, registry, medium) {
+                    if optional.remove(called.as_str()) {
+                        optional.insert(paired.clone());
+                    }
+                    *called = paired;
+                }
+            }
         }
         // What an optional body calls is wanted only as much as it is:
         // a generator nothing asks for asks in turn for nothing.
@@ -390,16 +408,87 @@ pub(super) fn carried_under_mark(
     }
     let (package, _) = class.name.rsplit_once('.')?;
     let medium = asked_as_package(registry, package)?;
-    if !super::arrays::reads_its_medium(class, registry, &medium) {
+    paired_under(class, registry, &medium)
+}
+
+/// The name a body is carried under when a copy carried under `medium`
+/// calls it: the pair's, where the medium stands on the line of the
+/// package that wrote the body and changes something the body reads,
+/// and nothing otherwise.
+///
+/// The same question [`carried_under_mark`] asks of a call left standing
+/// in the flat model, asked of what a copy calls. A copy prepared under
+/// its medium used to call its callees under the names that wrote them,
+/// so a constant of the medium read one call further down reached the
+/// walk as the base's number or as a name nobody declares: `Med.w`
+/// calling `h`, which binds a local on `data.MM`, stopped at `unknown
+/// variable data.MM`. Whether the medium is a relative is asked of the
+/// registry's shape, never of the spelling of the path.
+pub(super) fn paired_under(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    medium: &str,
+) -> Option<String> {
+    if !carried_mark_open() || !on_the_line(class, registry, medium) {
+        return None;
+    }
+    if !super::arrays::reads_its_medium(class, registry, medium) {
         return None;
     }
     let name = format!("{}@{medium}", class.name);
     PAIRS.with(|pairs| {
         pairs
             .borrow_mut()
-            .insert(name.clone(), (class.name.clone(), medium))
+            .insert(name.clone(), (class.name.clone(), medium.to_string()))
     });
     Some(name)
+}
+
+/// Whether a function is written in a package `medium` extends, however
+/// many steps away, and not in the medium itself: the only bodies a
+/// medium can make read differently. Asked of the registry's shape, not
+/// of the spelling of the path.
+pub(super) fn on_the_line(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    medium: &str,
+) -> bool {
+    class.kind == ClassKind::Function
+        && class.name.rsplit_once('.').is_some_and(|(package, _)| {
+            package != medium && super::inlining::descends_from(registry, medium, package)
+        })
+}
+
+thread_local! {
+    /// The medium the copy being prepared was carried under, where one
+    /// is: what the calls it makes are named under.
+    static COPY_MEDIUM: std::cell::RefCell<Option<String>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Name the calls a copy makes under its medium until dropped.
+struct PreparingCopy(Option<String>);
+
+impl PreparingCopy {
+    fn under(medium: Option<&str>) -> Self {
+        PreparingCopy(COPY_MEDIUM.with(|held| held.replace(medium.map(str::to_string))))
+    }
+}
+
+impl Drop for PreparingCopy {
+    fn drop(&mut self) {
+        let before = self.0.take();
+        COPY_MEDIUM.with(|held| *held.borrow_mut() = before);
+    }
+}
+
+/// A call made by the copy being prepared, under the pair's name where
+/// the callee is paired under the copy's medium.
+fn named_in_copy(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> String {
+    COPY_MEDIUM
+        .with(|held| held.borrow().clone())
+        .and_then(|medium| paired_under(class, registry, &medium))
+        .unwrap_or_else(|| class.name.clone())
 }
 
 /// Whether the calls a local's binding makes are named the way the
@@ -522,7 +611,7 @@ fn qualified_calls(
             }
             Statement::Call(name, args) => Statement::Call(
                 lookup(registry, name, scope, imports)
-                    .map(|class| class.name.clone())
+                    .map(|class| named_in_copy(class, registry))
                     .unwrap_or_else(|| name.clone()),
                 args.iter().map(&expr).collect(),
             ),
@@ -833,7 +922,7 @@ fn qualified_call(
     let of =
         lookup(registry, name, scope, imports).filter(|class| class.kind == ClassKind::Function);
     let named = of
-        .map(|class| class.name.clone())
+        .map(|class| named_in_copy(class, registry))
         .unwrap_or_else(|| name.to_string());
     let args: Vec<Expr> = args
         .iter()

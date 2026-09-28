@@ -24849,3 +24849,165 @@ four read, two (`DryAir1`, `Rectifier6pulse`) are a block nearly flat
 along one unknown and are one mechanism. The next shift should read
 the rest of the 21 the same way, one trail each, and group by mechanism
 before choosing work. The loop code was not touched.
+
+## m301: step 2 of the gate series, the callees of a carried copy
+
+### What step 2 changed
+
+Step 1 carried a walked body as a copy of its own where the medium it
+was asked under changes what it reads. What the copy called was still
+carried under the name that wrote it, so a constant of the medium read
+one call further down reached the walk as a name nobody declares.
+`B8` of m299 is that shape: `w` reads nothing of the medium and calls
+`h`, whose local is bound on `data.MM`, and it stopped at `unknown
+variable data.MM`.
+
+Three pieces, all behind the same `OXIDELICA_NO_CARRIED_MARK`:
+
+- `paired_under` in `carried.rs` asks of any function and any medium
+  whether the function is carried as a pair: the medium must descend
+  from the package that wrote the body (`on_the_line`, asked with
+  `descends_from`, never of the spelling of the path) and the gate
+  must say the medium changes what the body reads. `carried_under_mark`
+  is now that question with the medium taken from the mark.
+- The gate `reads_its_medium` answers yes also where a callee on the
+  medium's line answers yes, however far down. Without that, `w` in
+  `B8` reads nothing of the medium itself and would never have become
+  a copy for its callee to be paired under.
+- While the collector prepares a copy, `qualified_call` and the call
+  statements name each callee through `paired_under` under the copy's
+  medium, and the collector files what the copy calls under the same
+  names, so the paired callee is carried as a copy of its own.
+
+The guard `misread_below` follows the same road: a callee that a
+carried copy calls as a pair reads the medium itself, and is not
+asked about. The flag travels down the chain rather than being true
+for the first body alone.
+
+### The ladder of step 2
+
+| model | step 1                     | step 2   | predicted |
+| ----- | -------------------------- | -------- | --------- |
+| `B8`  | `data.MM`                  | y = 0.75 | moves     |
+| `B4`  | y = 0.75                   | y = 0.75 | stays     |
+| `T2`  | y = 16                     | y = 16   | stays     |
+| `K1`  | y = 4                      | y = 4    | stays     |
+| `K2`  | refused, `k` of `P.Base.h` | y = 4    | moves     |
+| `R2`  | y = 4                      | y = 4    | stays     |
+
+`K2`, the guard's own test of a constant read one call down, turns
+from a refusal into the medium's number, 4, which the inlined twin of
+m299 also gives. Its test now asks for 4 and keeps the old refusal
+under the key. `B8` has a test of its own; both go red under the key.
+`R2` did not overflow the stack: the gate asks each body once per
+medium and does not ask from inside its own answer, and the transitive
+question goes through the same door. `D1` stops at `unknown variable
+X` with the key and without, so this step does not touch it.
+
+### The first pair found a victim, and the victim shrank to fifteen lines
+
+The first binary, `/tmp/m301/ox`, ran the half with the copies
+(`/tmp/m301/on.txt`): 960 flatten and 668 run, against 961 and 668 in
+the m300 pair. The run list was identical to m300's. One model left
+the flatten list: `ModelicaTest.Media.TestAllProperties.FlueGasSixComponents`.
+Asked alone with `--only` from the root, the same binary flattened it
+with the key and refused it without: an array of shape `[3]` used
+where a scalar is expected, beginning with a call to
+`MixtureGasNasa.specificEnthalpy@...FlueGasSixComponents` of
+`setState_psX@...FlueGasSixComponents`. The half without the key was
+stopped: the victim was already named, and a second half of a binary
+about to be replaced measures nothing.
+
+The shape is a body the inliner writes out whose statements call two
+copies, one handing its answer to the other, with a list among the
+arguments. `B11` (`~/oxideflow/state/B11.mo`) is it in fifteen lines:
+`o` inlines to `h(st(x, X))`, both are carried under the medium, and
+the m300 binary refuses it with the same words, so the fault was
+waiting before this step and step 2 is what first led a library model
+to it. A copy is not in the registry, and the array expansion in
+`arrays.rs` treated a call it could not look up as an ordinary one,
+spreading the list over it element by element. Specialized copies
+already had a door for this, taking a list whole into a copy whose
+input is a list. A carried pair now goes through the same door, with
+the body behind the pair read for its answer's shape. `B11` then gives
+4.5, the flue gas flattens again and stops at the same `unknown
+variable X` with and without the key, and the test
+`a_carried_copy_handed_a_list_takes_it_whole` holds the number.
+
+### The pair of step 2
+
+One binary, `/tmp/m301/ox2`, built from the final tree, with and
+without the key, `--without scripts/heavy_models.txt`, files
+`/tmp/m301/on2.txt` and `/tmp/m301/off2.txt`: 961 flatten and 668 run
+on both sides, runnable 845 and 626. The flatten and run lists are
+identical both ways, and identical to both halves of the m300 pair.
+The register below `of the 961 that flatten` is identical line for
+line, 435 lines each. All nine models the fable probe of m296 lost
+run in both halves, and the flue gas of the first pair flattens in
+both. No model came and none went, as the series said in advance.
+
+Names looked up: 1916834780 with the copies and 1913669766 without,
+1654 per million apart. Against the reference of 1916826359 the half
+with the copies is 4 per million up, inside the band of 2000, so
+`WORK_NAMES` is left where it is. Flattening took 7389 ms a model
+with the copies and 7442 without. The preflight ran beside the first
+half, so neither time is a quiet desk's.
+
+### Two models of the Newton row, traced to the end
+
+The m300 chapter left `SeriesPipes1` and `IdealGases.Air` (the
+`DryAirNasa` test of `ModelicaTest.Media.TestsWithFluid`) standing at
+t = 0 with a residual of 1.2e3 and 2e4, and none of its three
+mechanisms visible in them. Both were traced with two probes that are
+not in the tree: the block's rows printed on its first iteration, and
+the initialisation's own Newton step printed beside the blocks' trail
+(`~/oxideflow/state/init_trail_probe_m301.patch`; the trails are
+`/tmp/m301/iga3.txt` and `/tmp/m301/sp1.txt`).
+
+It is one mechanism, and a fourth one: the block does not fail on its
+own. It fails inside the initialisation's Newton in
+`solve_initialization` (`compile.rs`), which takes the full step and
+has no damping, no line search and no retreat. The blocks called for
+each residual of that outer iteration converge. Then the outer step
+moves the states far past anything physical, and the block solved at
+the new point starts from a residual it cannot come back from.
+
+- `IdealGases.Air`: the outer unknowns are `volume.U` and
+  `volume.m`, at 25218.5 and 0.1204, with residuals 695.7 and 1.08e6.
+  The step is -110342 and -0.833, so the mass goes from
+  0.12 to 0.95 kg in 0.1 m³, a density of 9.5 where 1.2 is right.
+  The block is then asked for `volume.medium.T` at that point.
+  Row 3, the pipe's `dps_fg`, holds 7.0e5 against 3.9e-4, and the
+  iteration walks `T` down to 202 K with the residual stuck at 2.06e4.
+  That is the refusal.
+- `SeriesPipes1`: sixteen outer unknowns, residuals up to 2.0e4. The
+  step sends one unknown by +477241 and another by -20060. At the new
+  point the water block reads `pipe3.mediums[1].d` as -153.7, where
+  every other density of the block is 998. The block then stops at
+  |f| = 1.15e3 with a step bought only below 1.5e-5.
+
+So what these two refuse is the outer iteration, not the block the
+refusal names. The same message wearing a different layer is what
+the counter cannot see, and it is one more reason the row is not a
+family. Two small models show it on the present tree
+(`~/oxideflow/state/N1.mo`, `N2.mo`):
+
+- `N1`: `der(x) = atan(3 - x)` with `der(x) = 0` initially and
+  `x(start = 0)`. The answer is x = 3. The refusal calls the
+  initialisation singular, saying its equations do not pin down `x`,
+  which is false. The parked probe prints the iterates
+  (`/tmp/m301/n1trail.txt`): 0, 12.49, -121.0, 23908.9, and a step of
+  8.98e8 after that. Each full step overshoots the root further, into
+  where `atan` is flat, and the slope there is what reads as singular.
+- `N2`: `y*y + y = x + 1`, `der(x) = atan(4 - y)`, steady start from
+  `x = 0.5`. The answer is y = 4, x = 19. The refusal is that the
+  algebraic loop `y` did not converge in 50 Newton iterations: the
+  block inside the initialisation, after an undamped outer step.
+
+Both are the shape of a series for the loops, and not of a fix taken
+here: the shift was told not to touch the Newton code. The likely cure is
+to give the outer iteration the line search the block iteration
+already has (`footing`, `lambda`, a retreat on a non-finite
+residual). It changes which point every steady-start model begins
+from, so it is to be measured as a different compiler, with the pair
+and the diff of run lists.
