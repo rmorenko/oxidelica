@@ -25212,3 +25212,17 @@ comes to. The next step is to have that constant folded to its value
 before it goes into the copy (the fold already answers `dgelsy`, per
 `a_least_squares_fit_is_answered_here`), with `S3` and `S4` as its
 small models.
+
+A probe of that fold (`~/oxideflow/state/fold_outside_probe_m302.patch`,
+behind `OX_FOLD_OUTSIDE`, not in the tree) folds a subscripted answer
+of a body written here to its number while a walked copy is prepared,
+where everything it is handed is a number. `S4` then runs: at one
+second, h = 2e4 gives Ts = 278.759863, and `h_T` of that temperature
+called forward (`S5.mo`) gives 19999.998, the asked value to the
+precision of the printed digits. `S3` goes one wall on: the fitted
+`poly_Cp` is now a list of three numbers, and the walk is handed it
+sliced, `poly_Cp[1:npol]`, where it takes only a name under a
+subscript. That is the literal layer of m296 in its original form, a
+list reaching the walk as a literal, now with nothing else in front of
+it. The fold wants a pair of its own before it goes in, and the slice
+of a literal is the link behind it.
