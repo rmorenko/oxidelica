@@ -3434,3 +3434,45 @@ fn a_walked_answer_as_long_as_its_input_is_taken_element_by_element() {
     // 2 * (0.5 / 2 + 0.5 / 4) at the end.
     assert_eq!(last_of(&local, "y"), 0.75);
 }
+
+/// A body a medium's package inherits, left for the run to walk, used to
+/// read the constants of the package that wrote it rather than those of
+/// the medium it was called under: `Med.w` with `Med` extending
+/// `Base(k = 2)` came to `s * 1`, with not a word said, where the same
+/// body inlined gives `s * 2`. The walk is not yet told which medium it
+/// is under, so the call is refused naming the constant and both
+/// values - here and when the constant is read one call further down.
+#[test]
+fn a_walked_body_that_would_read_its_base_s_constant_over_the_medium_s_is_refused() {
+    let source = |body: &str| {
+        format!(
+            "package P partial package Base constant Real k = 1; \
+               function h input Real x; output Real y; algorithm y := x * k; end h; \
+               function w input Real x; output Real y; protected Real s = 0; \
+               algorithm while s < x loop s := s + 0.25; end while; y := {body}; end w; \
+             end Base; \
+             package Med extends Base(k = 2); end Med; \
+             model M Real y = Med.w(1 + time); \
+               annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;"
+        )
+    };
+    for (body, reader) in [("s * k", "P.Base.w"), ("h(s)", "P.Base.h")] {
+        let why = parse_model(&source(body))
+            .expect_err("a walk that would read the base's constant is refused")
+            .message;
+        assert!(
+            why.contains(&format!(
+                "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
+                 `k` of `{reader}` as 1 where `P.Med` makes it 2"
+            )),
+            "{why}"
+        );
+    }
+    // The same body the inliner can write out reads the medium's 2.
+    let inlined = run("package P partial package Base constant Real k = 1; \
+           function w input Real x; output Real y; algorithm y := x * k; end w; end Base; \
+         package Med extends Base(k = 2); end Med; \
+         model M Real y = Med.w(1 + time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    assert_eq!(last_of(&inlined, "y"), 4.0);
+}

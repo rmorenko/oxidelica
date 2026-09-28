@@ -2912,3 +2912,169 @@ fn fields_are_not_a_length(arg: &Expr, shapes: &Shapes) -> Result<(), String> {
         shapes.records[name]
     ))
 }
+
+/// Whether a call left standing is walked as it was before, reading
+/// the constants of the package that wrote the body whatever medium it
+/// was asked under. `OXIDELICA_WALKED_MEDIUM_CONSTANTS_UNCHECKED` keeps
+/// that, so that one binary gives both numbers.
+fn walked_medium_constants_checked() -> bool {
+    std::env::var_os("OXIDELICA_WALKED_MEDIUM_CONSTANTS_UNCHECKED").is_none()
+}
+
+thread_local! {
+    /// What [`constant_the_walk_misreads`] found, by body and by the
+    /// medium it was asked under. Held for as long as one registry
+    /// stands and cleared with it.
+    pub(super) static MISREAD: std::cell::RefCell<HashMap<(String, String), Option<String>>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// A constant a body left for the run to walk would read wrongly.
+///
+/// A call left standing is carried to the walk under the name of the
+/// class that wrote it, and the walk settles the body's constants
+/// there. Asked under a medium that gave one of them another value -
+/// `package Med extends Base(k = 2)` and `Med.w(x)` with `w` written in
+/// `Base` - the walk read the base's `k = 1` and answered with it,
+/// without a word, where the same body inlined gave the medium's 2.
+/// Until the walk is told which medium a body was asked under, such a
+/// call is refused here, naming the constant and both of its values.
+/// The bodies the walk reaches from this one are asked as well, since
+/// the constant may be read one call further down.
+///
+/// Only a constant that comes to a number both ways. One that the walk
+/// cannot settle at all is refused by the walk as a name it does not
+/// know, which is loud already; this is for the case that is not.
+pub(super) fn constant_the_walk_misreads(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<String> {
+    if !walked_medium_constants_checked() {
+        return None;
+    }
+    let mark = inlining::asked_as_mark();
+    if mark.is_empty() {
+        return None;
+    }
+    let stands = super::lookup::REGISTRY_STANDS.with(|stands| stands.get());
+    let key = (class.name.clone(), mark.clone());
+    if stands {
+        if let Some(found) = MISREAD.with(|held| held.borrow().get(&key).cloned()) {
+            return found;
+        }
+    }
+    let found = misread_below(class, registry, &mark);
+    if stands {
+        MISREAD.with(|held| held.borrow_mut().insert(key, found.clone()));
+    }
+    found
+}
+
+/// The search behind [`constant_the_walk_misreads`]: the body and every
+/// body it calls, each name that is not the body's own settled under
+/// the mark and without it.
+fn misread_below(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    mark: &str,
+) -> Option<String> {
+    let mut seen: Vec<String> = Vec::new();
+    let mut wanted = vec![class.name.clone()];
+    while let Some(name) = wanted.pop() {
+        if seen.contains(&name) || seen.len() > MAX_DEPTH * 8 {
+            continue;
+        }
+        seen.push(name.clone());
+        let Some(body) = registry.get(name.as_str()).copied() else {
+            continue;
+        };
+        let own: Vec<String> = inlining::function_components(registry, body, 0)
+            .into_iter()
+            .map(|component| component.name)
+            .collect();
+        let held: Vec<&str> = own.iter().map(String::as_str).collect();
+        let mut exprs = Vec::new();
+        statement_exprs(&body.algorithm, &mut exprs);
+        let mut names: Vec<&str> = Vec::new();
+        for expr in &exprs {
+            expr.for_each(&mut |inner| {
+                if let Expr::Ref(named) = inner {
+                    let head = named.split('.').next().unwrap_or(named);
+                    if !held.contains(&head) && !names.contains(&named.as_str()) {
+                        names.push(named.as_str());
+                    }
+                }
+            });
+        }
+        for named in names {
+            let written = Expr::Ref(named.to_string());
+            let asked = constants::substitute_class_constants(
+                &written,
+                registry,
+                &body.name,
+                &body.imports,
+                &held,
+            );
+            let walked = {
+                let _unmarked = inlining::AskedAs::under("");
+                constants::substitute_class_constants(
+                    &written,
+                    registry,
+                    &body.name,
+                    &body.imports,
+                    &held,
+                )
+            };
+            if let (Expr::Number(asked), Expr::Number(walked)) = (&asked, &walked) {
+                if asked != walked {
+                    return Some(format!(
+                        "`{}` is left for the run to walk under `{mark}`, and the walk would read \
+                         `{named}` of `{}` as {walked} where `{mark}` makes it {asked}",
+                        class.name, body.name
+                    ));
+                }
+            }
+        }
+        let mut calls = Vec::new();
+        super::carried::gather_calls_in_statements(
+            &body.algorithm,
+            registry,
+            &body.name,
+            &body.imports,
+            &mut calls,
+        );
+        wanted.extend(calls);
+    }
+    None
+}
+
+/// Every expression a run of statements holds, conditions and
+/// subscripts included.
+fn statement_exprs<'a>(body: &'a [Statement], out: &mut Vec<&'a Expr>) {
+    for statement in body {
+        match statement {
+            Statement::Assign(_, subscripts, value) => {
+                out.extend(subscripts);
+                out.push(value);
+            }
+            Statement::TupleAssign(_, value) => out.push(value),
+            Statement::Assert(condition, _) => out.push(condition),
+            Statement::Call(_, args) => out.extend(args),
+            Statement::If(branches) | Statement::When(branches) => {
+                for branch in branches {
+                    out.extend(&branch.condition);
+                    statement_exprs(&branch.body, out);
+                }
+            }
+            Statement::For(_, range, inner) => {
+                out.extend(range);
+                statement_exprs(inner, out);
+            }
+            Statement::While(condition, inner) => {
+                out.push(condition);
+                statement_exprs(inner, out);
+            }
+            Statement::Break | Statement::Return => {}
+        }
+    }
+}

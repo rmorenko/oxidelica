@@ -39,10 +39,20 @@ pub(super) fn inline_function(
     // its own count. What is nested this deep did not come to an end
     // by inlining, so the call is left standing and the run walks it.
     if algorithms::INLINING.with(|deep| deep.get()) > algorithms::MAX_NESTED_CALLS {
+        if let Some(why) = super::arrays::constant_the_walk_misreads(class, registry) {
+            return Err(why);
+        }
         return Ok(Expr::Call(class.name.clone(), args.to_vec()));
     }
     let _nested = algorithms::Nested::deeper();
-    let standing = || Ok(Expr::Call(class.name.clone(), args.to_vec()));
+    // A call left standing is walked under the name of the class that
+    // wrote it, and one whose constants the medium it was asked under
+    // gives other values would be walked to a wrong number: refused
+    // here instead, naming the constant.
+    let standing = || match super::arrays::constant_the_walk_misreads(class, registry) {
+        Some(why) => Err(why),
+        None => Ok(Expr::Call(class.name.clone(), args.to_vec())),
+    };
     // Where a body leads back to itself the unrolling is a try rather
     // than a demand: the walk is waiting behind it, so anything the
     // inliner will not do - a loop it cannot unroll, a shape it cannot

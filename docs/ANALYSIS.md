@@ -24363,3 +24363,92 @@ the same binary. The two binaries differ only by code behind a switch
 that was off, so this is taken as the loop being sensitive to running
 beside a second pass, not as a change. It is named here so that the
 next pair can check it.
+
+## m297: the literal layer walked to its end, and a walk that read the wrong medium
+
+### The `1:N` chain, walked whole
+
+The m296 map put the three `TableBased` models and link 3 of
+`Inverse_sh_TX` on one layer, a package constant array reaching the
+walk as a literal. Walked to its end, the chain of the three tables
+does not stay on that layer. `s_T` is carried to the walk as
+`integralValue(poly_Cp[1:2], T, 273.15)` inside `if TinK then ...`,
+and both `poly_Cp` and `TinK` arrive as bare names: `poly_Cp` is not
+a literal at all but `Polynomials.fitting(tableHeatCapacity[:, 1],
+...)`, and `TinK` is given only by the medium's `extends
+TableBased(TinK = false, ...)`. A probe that let the slice through
+(kept local, not in the tree) moved all three models, `--only` from
+`.msl`, from `1:2` to `unknown variable poly_Cp`. Small models in
+`/tmp/m297`:
+
+- `T1.mo`, the shape made small (a medium giving `tab` and `inK`,
+  `c = mk(tab)`, `ev(c[1:n], 2)` in a walked body): the row's own
+  words, `an array reached the evaluator: 1:2`.
+- `T5.mo`, the same with no modifier at all and `ev(c, 3)` without a
+  slice: `unknown variable c`. A package constant array bound on a
+  call is not handed to the walk even whole.
+- `T2.mo`, the list written out and passed whole: `unknown variable inK`.
+  A constant only the medium gives is link 2 again.
+
+So the chain is slice, then a constant array bound on a call, then
+link 2, and link 2 is parked. Taking the slice alone would move no
+model and was not taken. The row stays at three.
+
+### A walked body read the constants of the package that wrote it
+
+On the way down the chain a small model gave a wrong number rather
+than a refusal. `K1.mo`: `package Med extends Base(k = 2)`, and
+`Med.w(x)` where `w`, written in `Base`, loops (so it is walked) and
+answers `s * k`. The run gave `y = 2` at the end where the right
+answer is 4. The same body without the loop (`K2.mo`) is inlined and
+gives 4. `K3.mo` reads `k` one call further down, in an `h` that `w`
+calls, and gives the same wrong 2. The call is left standing under the
+name of the class that wrote it, and the carried body has its
+constants settled there, so the walk reads `Base`'s `k = 1`. This is
+the mechanism of link 2 seen from the other side: where the base has
+no value the walk refuses (`unknown variable data.MM`), and where it
+has one it answers with it without a word.
+
+Until the walk is told which medium it runs under, such a call is now
+refused where it is left standing (`constant_the_walk_misreads`,
+asked from `inline_function` wherever it gives up and leaves the call
+for the run). Every name the body and the bodies it calls read,
+other than their own, is settled twice, under the `AskedAs` mark and
+without it, and two different numbers are refused by name:
+`` `K1.Base.w` is left for the run to walk under `K1.Med`, and the walk
+would read `k` of `K1.Base.w` as 1 where `K1.Med` makes it 2 ``. The
+answer is kept per (body, mark) inside the `StandingNames` bracket.
+`OXIDELICA_WALKED_MEDIUM_CONSTANTS_UNCHECKED` gives the old number.
+The test is red under that switch.
+
+A probe that only printed the difference was run over the library
+first (`/tmp/m297/div.txt`, stopped by hand at 936 of 1034 to free
+the machine; distinct lines in `/tmp/m297/div_bang.txt`). It found 8
+names in 2 bodies, and none of them was a number against another
+number: `setState_psX` under `FlueGasSixComponents` (`nX`,
+`reference_X`) and `setState_phX` under `LinearWater_pT_Ambient`
+(`reference_p`, `reference_T`, and four constants bound on calls to
+the water tables) settle under the mark and stay names without it,
+which the walk refuses loudly already. So the library did not lean
+on the wrong number as far as that probe saw, and the guard is
+expected to move nothing. The pair below says whether it did.
+
+The pair was run from one binary (`/tmp/m297/ox3`, four threads each
+under a 20 GB ceiling, peak 8.4 GB; `/tmp/m297/q/{off,on}.txt`, lists
+`*_flat.lst` and `*_ran.lst`), `off` under the switch and `on` the
+default, over `.msl` without the heavy models. Both give flatten 961
+and run 665, runnable 845 and 623. The flatten lists and the run
+lists are identical in both directions, and every line of the two
+reports outside timings and the ceiling's own line is identical too.
+The new refusal fires on no model of the library. So the guard costs
+nothing today and turns a silent wrong number into a named refusal
+the day a model reaches that shape, which link 2 would otherwise
+invite: carrying a body under the medium's name is exactly what makes
+the constants of the two packages differ in the walk.
+
+`MultiBody.Examples.Elementary.SpringWithMass` runs in both halves of
+this pair. It fell out of one half of the m296 probe pair and ran
+under `--only`, and the runner's list of 50b0413 has it missing where
+the desk has it, with `Dimmer_RL` the other way round. Taken together
+it swings between runs rather than between binaries, which is noise
+of the kind the floors already name, not a finding.
