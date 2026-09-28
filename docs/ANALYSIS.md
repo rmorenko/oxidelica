@@ -25444,3 +25444,88 @@ made. It is a candidate for a series of its own, with `X4` as the test
 and `Test87`/`Test88` as the models it is expected to move; whether
 they then run depends on the modified Akima smoothness behind it, which
 `TT3` shows is already answered.
+
+### The array handed down an `extends` clause, in the tree
+
+`spread_over_elements` cuts a binding written as one name into that
+name's elements when the name is known to be an array of the same
+length. It asked only `handed_shapes`, the arrays of the class above
+that handed values down, and `c` of `extends Base(b(t = c))` is an
+array of the class writing the clause: its shape sits in
+`sizing_shapes` and nowhere else. So `b.t[1]` and `b.t[2]` were each
+bound to `c` whole, and `c` is not a name of the flat model. The
+lookup now falls back to `sizing_shapes`;
+`OXIDELICA_NO_SIZING_SHAPES_FALLBACK` keeps the old road from the same
+binary, and the test (`X4`, `b.y = 3` at one second) holds it back to
+see the old refusal.
+
+The neighbours of `X4`, measured once after the change: `X6` (`c`
+declared after the `extends`) and `X8` (`c` a parameter) run with
+`b.y = 3`, mended in passing. `X10` (`b(t = c * 1)`) still refuses with
+`nothing gives a value to c`: the term-wise road,
+`over_handed_elements`, reads `handed_shapes` alone as the whole-name
+road did. `why X4.mo b.t` still answers `declared: nowhere`, since `b.t`
+is an array and the flat model holds only its elements. Neither was
+taken: each is its own piece of work.
+
+The subset pair that placed the change covered 236 models that flatten
+and all 73 that do not, 309 in all: 236/225 without, 238/227 with,
+`Test87` and `Test88` arriving in both halves and none leaving.
+
+The whole-library pair of f999f45, one binary (`/tmp/m305/off.txt`,
+`on.txt`): without the fallback, 961 flatten and 671 run, the two
+lists identical name by name to the last series' pair
+(`/tmp/m303/on.txt`); with it, 963 and 673, 847 and 631 of them
+runnable. `Test87` and `Test88` arrive in both halves and nothing
+leaves. The subset had covered every model that did not flatten, so 963
+was already known; 673 was a lower bound, since the subset held only a
+quarter of the models that flatten, and the rest brought no one more.
+The names counter reads 1916711190 against 1916826359, 60 ppm under.
+
+### The impure random generator: the models compare numbers
+
+Three models stop at `ModelicaRandom_impureRandom_xorshift1024star`:
+`Modelica.Blocks.Examples.Noise.ImpureGenerator`,
+`Modelica.Blocks.Examples.Noise.Utilities.ImpureRandom` (the block,
+counted as a model by the example filter) and
+`ModelicaTest.Math.Random.TestRandomIntegers`. The question was whether
+they check statistics or numbers. Both examples carry a
+`comparisonSignals.txt` in the library's reference tree:
+`ImpureGenerator` compares `impureRandom_y`, and `TestRandomIntegers`
+compares `y`, `cnt[1..3]`, `avg`, the two bounds and `samples`. Only the
+assertions inside `TestRandomIntegers` are statistical (three sigma on
+each count); the reference comparison is value by value. So an answer
+that gives a good random sequence but not the sequence the C library
+gives is a wrong number in the sense of this project, and the choice of
+road is a question for the owner rather than for a shift.
+
+What the order of calls depends on: in all three a single impure call
+sits in a `when` clause (`{initial(), sample(...)}` in the block,
+`sample(0, 0.001)` in the test), and the fourth model on the same
+generator, `GenerateRandomNumbers`, calls `impureRandom` and then
+`impureRandomInteger` in one algorithm. So the order is written in the
+text and survives flattening as long as algorithm order does. The
+arithmetic is already in the tree (`outside.rs`, `xorshift1024star`
+over the 33-element state that `initializeImpureRandom` builds), and
+the `id` is only for sorting. The two roads remain as recorded: a
+global state in the simulator, which makes the first impure answer
+and gives up running models in parallel, or lowering the call into a
+discrete state of 33 integers per model while flattening, which takes
+no state from the simulator but fixes the order of calls at flattening.
+No change was made.
+
+`mydummyfunc` of the table tests is a C stub the tests write for
+themselves. Answering it would mean inventing behaviour nobody
+specified, so it is not taken.
+
+### The census after the X4 pair
+
+`/tmp/m305/census.txt`, taken on f999f45 and counted between the
+section marks: 71 models in 40 rows would not flatten, against 73 in
+41 (`/tmp/m303/census.txt`); 290 in 157 rows flattened and would not
+run, the same count in the same number of rows. Both agree with the
+pair, 1034 − 963 = 71 and 963 − 673 = 290. The row that emptied is the
+one of the two models refused as written outside Modelica with a table
+in the model, which were `Test87` and `Test88`: they passed from the
+first wall straight through to running, so the run half neither
+gained nor lost a row.
