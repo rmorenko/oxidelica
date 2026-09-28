@@ -1302,7 +1302,17 @@ WORK_PERCENT=5
 # m298 walk adds 36 names on the desk (1914710565 off, 1914710601 on).
 # Against the new reference the build machine for 006e952 stands 203
 # per million below.
-WORK_NAMES=1914710601
+#
+# Moved to 1916826359 from /tmp/m300/on.txt, step 1 of the gate series.
+# One binary printed 1913669702 with `OXIDELICA_NO_CARRIED_MARK` set
+# (/tmp/m300/off.txt) and 1916826359 without it, 1650 per million up,
+# with the flatten and run lists identical both ways and the register
+# identical line for line. The rise is the gate asking each body left
+# standing under a medium whether that medium changes what it reads.
+# The new reference is 1105 per million above the old one, inside the
+# band, and is moved so the band is spent on what comes next rather
+# than on this.
+WORK_NAMES=1916826359
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
