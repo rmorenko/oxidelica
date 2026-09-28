@@ -49,6 +49,14 @@ fn local_arrays_zero() -> bool {
     std::env::var_os("OXIDELICA_LOCAL_ARRAY_ZERO").is_some()
 }
 
+/// Whether a walk lays out a local sized by a number it holds and
+/// bound by `linspace`. `OXIDELICA_NO_WALKED_LINSPACE` keeps the old
+/// reading, which left both to the evaluator, so one binary can be
+/// measured against itself.
+fn walked_linspace_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_WALKED_LINSPACE").is_none()
+}
+
 /// Where a walk left off: running on, out of a loop, or out of the
 /// function.
 #[derive(PartialEq)]
@@ -436,6 +444,17 @@ fn declared_length(component: &Component, frame: &Frame) -> Option<usize> {
             let Expr::Ref(of) = &args[0] else { return None };
             frame.lengths.get(of).copied()
         }
+        // `Real u[nPoints]`, where `nPoints` is an input the caller
+        // handed in or left at its default: both are laid in the frame
+        // before the locals, in the order they were declared, so the
+        // length is a number the body already holds. Only a whole
+        // number is a length; anything else is left to be refused.
+        Expr::Ref(of) if walked_linspace_open() => frame
+            .numbers
+            .get(of)
+            .copied()
+            .filter(|length| length.fract() == 0.0 && *length >= 0.0)
+            .map(|length| length as usize),
         // `Real a[:] = {-7.86, 1.84, ...}`: a length of `:` is the length
         // of what the declaration writes out. Without it the whole
         // literal was taken for one number, and the water's saturation
@@ -729,6 +748,146 @@ fn elements_of(
             }
             Some(items)
         }
+        // `linspace(x1, x2, n)`: n points from x1 to x2, evenly spaced,
+        // the ends included. The random-number tests of the standard
+        // library bind every local grid this way. Fewer than two
+        // points is what the language forbids, and it is refused as the
+        // flattener refuses it.
+        Expr::Call(name, args)
+            if name == "linspace" && args.len() == 3 && walked_linspace_open() =>
+        {
+            let from = number_of(&args[0], frame, programs, time, depth)?;
+            let to = number_of(&args[1], frame, programs, time, depth)?;
+            let count = number_of(&args[2], frame, programs, time, depth)?;
+            if count.fract() != 0.0 || count < 2.0 {
+                return err(format!(
+                    "linspace needs a whole number of at least two points, got {count}"
+                ));
+            }
+            let count = count as usize;
+            Some(
+                (0..count)
+                    .map(|at| Expr::Number(from + (to - from) * at as f64 / (count - 1) as f64))
+                    .collect(),
+            )
+        }
+        // `ones(n)`, `zeros(n)` and `fill(x, n)`: a list of one number
+        // n times over.
+        Expr::Call(name, args)
+            if walked_linspace_open()
+                && matches!(
+                    (name.as_str(), args.len()),
+                    ("ones", 1) | ("zeros", 1) | ("fill", 2)
+                ) =>
+        {
+            let (worth, count) = match name.as_str() {
+                "ones" => (Expr::Number(1.0), &args[0]),
+                "zeros" => (Expr::Number(0.0), &args[0]),
+                _ => (to_scalar(&args[0], frame, programs, time, depth)?, &args[1]),
+            };
+            let count = number_of(count, frame, programs, time, depth)?;
+            if count.fract() != 0.0 || count < 0.0 {
+                return err(format!("`{name}` asked for {count} elements"));
+            }
+            Some(vec![worth; count as usize])
+        }
+        // `y1 - y3` of two arrays the body holds: one difference per
+        // element, and the same for a sum. The language adds and
+        // subtracts arrays only of one length, so anything else is
+        // left to be refused where it stands.
+        Expr::Bin(op @ (BinOp::Add | BinOp::Sub), a, b)
+            if walked_linspace_open() && holds_a_list(a, frame) && holds_a_list(b, frame) =>
+        {
+            match (
+                elements_of(a, frame, programs, time, depth)?,
+                elements_of(b, frame, programs, time, depth)?,
+            ) {
+                (Some(left), Some(right)) if left.len() == right.len() => Some(
+                    left.into_iter()
+                        .zip(right)
+                        .map(|(a, b)| Expr::Bin(*op, Box::new(a), Box::new(b)))
+                        .collect(),
+                ),
+                _ => None,
+            }
+        }
+        // `2*u` and `u/2`: a number and an array, the number going
+        // with every element. Two arrays multiplied are a scalar
+        // product and not a list, and that is `to_scalar`'s to write.
+        Expr::Bin(op @ (BinOp::Mul | BinOp::Div), a, b)
+            if walked_linspace_open() && (holds_a_list(a, frame) || holds_a_list(b, frame)) =>
+        {
+            let list = |side: &Expr| -> Result<Option<Vec<Expr>>, SimError> {
+                if holds_a_list(side, frame) {
+                    elements_of(side, frame, programs, time, depth)
+                } else {
+                    Ok(None)
+                }
+            };
+            match (list(a)?, list(b)?) {
+                (None, Some(right)) if *op == BinOp::Mul => {
+                    let one = to_scalar(a, frame, programs, time, depth)?;
+                    Some(
+                        right
+                            .into_iter()
+                            .map(|item| Expr::Bin(*op, Box::new(one.clone()), Box::new(item)))
+                            .collect(),
+                    )
+                }
+                (Some(left), None) => {
+                    let one = to_scalar(b, frame, programs, time, depth)?;
+                    Some(
+                        left.into_iter()
+                            .map(|item| Expr::Bin(*op, Box::new(item), Box::new(one.clone())))
+                            .collect(),
+                    )
+                }
+                _ => None,
+            }
+        }
+        // `-u` and `abs(y1 - y3)` of an array: the same, element by
+        // element.
+        Expr::Neg(inner) if walked_linspace_open() && holds_a_list(inner, frame) => {
+            elements_of(inner, frame, programs, time, depth)?.map(|items| {
+                items
+                    .into_iter()
+                    .map(|item| Expr::Neg(Box::new(item)))
+                    .collect()
+            })
+        }
+        // So is a built-in of one number, `sin(u3)` over the array: the
+        // language applies it element by element.
+        Expr::Call(name, args)
+            if args.len() == 1
+                && walked_linspace_open()
+                && holds_a_list(&args[0], frame)
+                && !programs.contains_key(name)
+                && matches!(
+                    name.as_str(),
+                    "abs"
+                        | "sign"
+                        | "sqrt"
+                        | "sin"
+                        | "cos"
+                        | "tan"
+                        | "asin"
+                        | "acos"
+                        | "atan"
+                        | "sinh"
+                        | "cosh"
+                        | "tanh"
+                        | "exp"
+                        | "log"
+                        | "log10"
+                ) =>
+        {
+            elements_of(&args[0], frame, programs, time, depth)?.map(|items| {
+                items
+                    .into_iter()
+                    .map(|item| Expr::Call(name.clone(), vec![item]))
+                    .collect()
+            })
+        }
         // A whole record answered by a call - `f := Basic.Helmholtz(d,
         // T)`, where `f` is a `HelmholtzDerivs` the walk holds as an
         // array of its fields, or `nDerivs := Helmholtz_pT(f)`, which
@@ -739,6 +898,17 @@ fn elements_of(
         // an array is sent as its elements, under the shape the callee
         // reads it by.
         Expr::Call(name, args) if programs.contains_key(name) => {
+            // `erf(u)` of an array `u`, where `erf` takes one number:
+            // the language calls it once per element and the answer is
+            // the list of those. Sent whole, the callee's scalar `u`
+            // was laid out as `u[1]`, `u[2]`, ... and its first read of
+            // `u` named nothing. Only where every argument at a scalar
+            // input that holds a list holds one of the same length.
+            if walked_linspace_open() && args.iter().any(|arg| holds_a_list(arg, frame)) {
+                if let Some(items) = vectorised(name, args, frame, programs, time, depth)? {
+                    return Ok(Some(items));
+                }
+            }
             let mut given = Vec::new();
             let mut shapes = Vec::new();
             for arg in args {
@@ -883,6 +1053,116 @@ fn elements_of(
         }
         _ => None,
     })
+}
+
+/// Whether an expression could stand for a list, read off its writing
+/// alone: a name the frame holds as an array, a slice, a list written
+/// out, or a constructor of one. It asks nothing of a walked body.
+///
+/// The arms of `elements_of` that write an operation out element by
+/// element ask this first. Asking `elements_of` of both sides instead
+/// walks every call beneath to learn whether it answers with a list,
+/// and `to_scalar` then walks the same calls again for the number: one
+/// repeat per storey, which the water tables, a call inside a call
+/// inside a call, turned into a corpus pass that did not end.
+fn holds_a_list(expr: &Expr, frame: &Frame) -> bool {
+    match expr {
+        Expr::Ref(name) => frame.lengths.contains_key(name),
+        Expr::Array(_) => true,
+        Expr::Index(_, subscripts) => subscripts
+            .iter()
+            .any(|subscript| matches!(subscript, Expr::ColonSubscript | Expr::Range(..))),
+        Expr::Call(name, args) => {
+            matches!(
+                name.as_str(),
+                "linspace" | "ones" | "zeros" | "fill" | "array"
+            ) || args.iter().any(|arg| holds_a_list(arg, frame))
+        }
+        Expr::Bin(_, a, b) | Expr::Elementwise(_, a, b) => {
+            holds_a_list(a, frame) || holds_a_list(b, frame)
+        }
+        Expr::Neg(inner) => holds_a_list(inner, frame),
+        _ => false,
+    }
+}
+
+/// A call of a body that takes plain numbers, handed a list at one or
+/// more of them: the answer is the body called once per element, the
+/// other arguments going with every call. `None` wherever that is not
+/// the shape - a body taking an array or a record, one answering with
+/// more than one number, a named argument, lists of two lengths, or no
+/// list at all - and the call is then read as it always was.
+fn vectorised(
+    name: &str,
+    args: &[Expr],
+    frame: &Frame,
+    programs: &HashMap<String, ClassDef>,
+    time: f64,
+    depth: usize,
+) -> Result<Option<Vec<Expr>>, SimError> {
+    let Some(class) = programs.get(name) else {
+        return Ok(None);
+    };
+    let plain = |component: &Component| {
+        component.dimensions.is_empty()
+            && matches!(component.type_name.as_str(), "Real" | "Integer" | "Boolean")
+    };
+    let inputs: Vec<&Component> = class
+        .components
+        .iter()
+        .filter(|component| component.causality == Causality::Input)
+        .collect();
+    let outputs: Vec<&Component> = class
+        .components
+        .iter()
+        .filter(|component| component.causality == Causality::Output)
+        .collect();
+    if args.len() > inputs.len()
+        || !inputs.iter().all(|input| plain(input))
+        || !matches!(outputs.as_slice(), [one] if plain(one))
+        || args.iter().any(|arg| matches!(arg, Expr::NamedArg(..)))
+    {
+        return Ok(None);
+    }
+    let mut spread: Vec<Option<Vec<Expr>>> = Vec::new();
+    for arg in args {
+        spread.push(elements_of(arg, frame, programs, time, depth)?);
+    }
+    let lengths: Vec<usize> = spread.iter().flatten().map(Vec::len).collect();
+    let Some(&length) = lengths.first() else {
+        return Ok(None);
+    };
+    if lengths.iter().any(|other| *other != length) {
+        return Ok(None);
+    }
+    let mut fixed = Vec::new();
+    for (arg, items) in args.iter().zip(&spread) {
+        fixed.push(match items {
+            Some(_) => None,
+            None => Some(number_of(arg, frame, programs, time, depth)?),
+        });
+    }
+    let shapes = vec![Vec::new(); args.len()];
+    let mut answer = Vec::with_capacity(length);
+    for at in 0..length {
+        let mut given = Vec::with_capacity(args.len());
+        for (items, one) in spread.iter().zip(&fixed) {
+            given.push(match (items, one) {
+                (Some(items), _) => number_of(&items[at], frame, programs, time, depth)?,
+                (None, Some(one)) => *one,
+                (None, None) => unreachable!("an argument is either spread or fixed"),
+            });
+        }
+        let value = walk(programs, name, &given, &shapes, time, depth + 1)?;
+        let [value] = value.as_slice() else {
+            return err(format!(
+                "`{name}` answered with {} numbers where one was declared",
+                value.len()
+            ));
+        };
+        answer.push(Expr::Number(*value));
+    }
+    Ok(Some(answer))
 }
 
 /// Whether a walk reads a slice of a table as its elements.
@@ -1032,6 +1312,13 @@ fn run(
             {
                 return err(prose(&args[0], frame, programs, time, depth));
             }
+            // `Streams.print(text)` writes a line on a terminal, and
+            // there is none here and no value to miss: inlining and the
+            // carrying of bodies already take it for nothing, and the
+            // walk does the same. Read as a number, its String argument
+            // refused the whole body at its first line.
+            Statement::Call(name, _)
+                if name == "Modelica.Utilities.Streams.print" && walked_linspace_open() => {}
             // A call on its own: nothing takes its outputs, so it is
             // walked for the checks its body makes and for nothing
             // else. Reading its value is what runs those checks.

@@ -3476,3 +3476,97 @@ fn a_walked_body_that_would_read_its_base_s_constant_over_the_medium_s_is_refuse
            annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
     assert_eq!(last_of(&inlined, "y"), 4.0);
 }
+
+/// A walked body that lays its grid out with `linspace` and reads it
+/// back through the array operations the random-number tests of the
+/// standard library write: a length given by an input's default, a
+/// `print` of a sentence, `2*u - ones(n)`, `abs` and `max` over the
+/// result, and a walked body of one number called over the whole grid.
+///
+/// `linspace(-1, 1, 5)` is -1, -0.5, 0, 0.5, 1. Doubled and less one it
+/// is -3, -2, -1, 0, 1, whose largest magnitude is 3. The squares of
+/// the grid add to 1 + 0.25 + 0 + 0.25 + 1 = 2.5. So the answer is 5.5
+/// at every point; before, the walk refused `linspace` by name.
+#[test]
+fn a_walked_body_lays_out_a_linspace_grid_and_reads_it_whole() {
+    let result = run("package Modelica package Utilities package Streams \
+           function print input String s; external \"C\" ModelicaStreams_print(s); end print; \
+         end Streams; end Utilities; end Modelica; \
+         model M \
+           function sq input Real x; output Real y; protected Integer k; \
+             algorithm k := 0; y := 0; while k < 1 loop y := x * x; k := k + 1; end while; \
+           end sq; \
+           function grid input Real a; input Integer n = 5; output Real y; \
+             protected Real u[n] = linspace(-1, 1, n); Real w[n]; Real s[n]; Integer k; \
+             algorithm \
+               Modelica.Utilities.Streams.print(\"grid of \" + String(n)); \
+               k := 0; while k < 1 and a > -1 loop k := k + 1; end while; \
+               w := 2 * u - ones(n); \
+               s := sq(u); \
+               y := max(abs(w)) + sum(s); \
+           end grid; \
+           Real y; equation y = grid(time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    for row in &result.rows {
+        assert!((row[y] - 5.5).abs() < 1e-12, "y = {}", row[y]);
+    }
+}
+
+/// A grid of fewer than two points is what the language forbids, and
+/// a walk that meets one says so rather than laying out something.
+#[test]
+fn a_walked_linspace_of_one_point_is_refused() {
+    let source = "model M \
+           function grid input Real a; input Integer n = 1; output Real y; \
+             protected Real u[n] = linspace(0, 1, n); Integer k; \
+             algorithm k := 0; while k < 1 and a > -1 loop k := k + 1; end while; \
+               y := sum(u); \
+           end grid; \
+           Real y; equation y = grid(time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M;";
+    let why = match compile(&parse_model(source).unwrap()) {
+        Err(error) => error.to_string(),
+        Ok(compiled) => compiled.simulate().unwrap_err().to_string(),
+    };
+    assert!(
+        why.contains("linspace needs a whole number of at least two points, got 1"),
+        "{why}"
+    );
+}
+
+/// The rest of what a walked body writes over a whole array, each
+/// checked against the number worked out by hand on the grid
+/// `linspace(0, 2, 3)` = 0, 1, 2:
+///
+/// - `u / 2 + fill(1, n)` is 1, 1.5, 2, and its sum 4.5;
+/// - `-u + zeros(n)` is 0, -1, -2, whose smallest is -2;
+/// - `sin(u)` adds to sin 1 + sin 2;
+/// - `twice(u, 3)`, a walked body of two numbers called over the grid
+///   with the second held, is 0, 3, 6, and its largest is 6.
+///
+/// So the answer is 4.5 - 2 + sin 1 + sin 2 + 6.
+#[test]
+fn a_walked_body_works_elementwise_over_a_linspace_grid() {
+    let result = run("model M \
+           function twice input Real x; input Real k; output Real y; protected Integer j; \
+             algorithm j := 0; y := 0; while j < 1 loop y := x * k; j := j + 1; end while; \
+           end twice; \
+           function grid input Real a; input Integer n = 3; output Real y; \
+             protected Real u[n] = linspace(0, 2, n); Real h[n]; Real m[n]; Real t[n]; \
+             Integer k; \
+             algorithm \
+               k := 0; while k < 1 and a > -1 loop k := k + 1; end while; \
+               h := u / 2 + fill(1, n); \
+               m := -u + zeros(n); \
+               t := twice(u, 3); \
+               y := sum(h) + min(m) + sum(sin(u)) + max(t); \
+           end grid; \
+           Real y; equation y = grid(time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M;");
+    let y = result.columns.iter().position(|c| c == "y").unwrap();
+    let expected = 4.5 - 2.0 + 1f64.sin() + 2f64.sin() + 6.0;
+    for row in &result.rows {
+        assert!((row[y] - expected).abs() < 1e-12, "y = {}", row[y]);
+    }
+}

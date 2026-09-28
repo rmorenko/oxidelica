@@ -24452,3 +24452,163 @@ under `--only`, and the runner's list of 50b0413 has it missing where
 the desk has it, with `Dimmer_RL` the other way round. Taken together
 it swings between runs rather than between binaries, which is noise
 of the kind the floors already name, not a finding.
+
+## m298: the random-number tests walk their grids
+
+### Where the three stood
+
+The census row `unknown function linspace` had grown from one model
+to three: `ModelicaTest.Math.Random.TestSpecial`, now joined by
+`TestDistributions` and `TestTruncatedDistributions` (register
+`/tmp/m297/q/onr.txt`). Each is a `when initial()` that calls one
+function of the test package. The function declares its grids as
+`protected Real u[nPoints] = linspace(...)`, with `nPoints` an input
+that defaults to 1000, and the body is too big to inline, so it is
+left to the run to walk. Asked with `--only` from `.msl` on 006e952
+(`/tmp/m298/ox`), all three stood at `unknown function linspace` at
+t = 0.
+
+The m277 map had two links in front of `TestSpecial`: `linspace` in
+`elements_of`, and a length read from an input's default. After those
+it expected a `print` with a String, the file family parked by m275,
+and `erf` over an array. Twenty series have gone through the walk
+since then, so the chain was walked again with the probe. Each edit
+was kept local until the models either ran or met something outside
+the family. The small models are in `/tmp/m298/s`.
+
+### The chain, link by link
+
+1. `linspace(x1, x2, n)` in a local's binding. `elements_of` now lays
+   it out as n evenly spaced numbers, with the ends included, and
+   refuses fewer than two points as the flattener does.
+2. `Real u[nPoints]` with `nPoints` an input. `declared_length` reads
+   a length off a whole number that the frame already holds. Inputs
+   are laid into the frame before the locals, so a default is there
+   by then. With these two, `/tmp/m277/ls/L.mo` gives 2.5 as before,
+   and the three models move to `is a String` (`code.rs:158`).
+3. `print("\n... Check Math.Distributions")`, the first statement.
+   This is not the m275 family. That family is an outside call whose
+   effect the model reads back. A print has no effect anybody reads,
+   and inlining (`inline_function_checks`) and the carrying of bodies
+   (`carried.rs`, `gather_calls`) already treat it as doing nothing.
+   Only the walk read the statement as a number. It now passes over
+   `Modelica.Utilities.Streams.print` by its resolved name. The size
+   of the grid decides whether the body is walked at all: at n = 20
+   `F20.mo` is inlined and runs, while at n = 40 `F40.mo` is walked
+   and refused. That is why the small models of m277 had not shown
+   this link.
+4. Arithmetic over whole arrays. `y1 - y3` of two arrays, `-u`,
+   `abs(...)` of an array, `2*u` and `u/2` fell through `elements_of`
+   and reached the evaluator as `unknown variable u` or `an array
+reached the evaluator` (D4, D5, J1 to J4). `elements_of` now writes
+   out a sum or difference of two lists of one length, a number times
+   or over a list, and negation. It also applies a built-in of one
+   number, element by element: `abs`, `sign`, `sqrt`, the circular
+   and hyperbolic functions, `exp`, `log`, `log10`. It refuses a name
+   the model defines for itself, so somebody's own `sin` is not taken
+   for the built-in.
+5. A walked body of plain numbers called over an array:
+   `Special.erf(u)` or `Uniform.density(u0, -1, 2)`. The whole array
+   went over to a scalar input. The callee laid it out as `u[1]`,
+   `u[2]` and so on, and then its first read of `u` named nothing
+   (`S14.mo`). Modelica calls such a body once per element, and so
+   does the walk now (`vectorised`, `walk.rs`). It does so only where
+   every input and the one output are plain numbers, no argument is
+   named, and every list handed in has the same length. Anything else
+   is read as it was before. `S16.mo` gives `sum(erf(u0))` over 40
+   points as 12.433188, and Python's `math.erf` gives
+   12.433187867737582.
+6. `ones(n)`, `zeros(n)`, `fill(x, n)` as a list, and `sin(u3)` over an
+   array. `TestSpecial` writes `ones(nPoints) - Special.erf(u)` and
+   `sin(u3)./u3`, and the two Random tests need neither.
+
+After these links, all three models run under `--only`. Each body
+checks itself with asserts down to `1e-14`. They include
+`Uniform.cumulative` against `quantile`, `erf` against `erfInv`, and
+the density against the two-sided difference quotient of the
+cumulative. So running to the end means those checks held on 1000
+points, and the numbers were not merely produced. The chain had no
+parked family in it. The `print` that m277 took for one is a
+different case.
+
+### A pass that did not end, and what it cost to learn
+
+The first pair (`/tmp/m298/ox9`, `/tmp/m298/q`) did not finish. The
+old half ran as 006e952 does: flatten 961, run 665, runnable 845 and 623. The new half stopped counting at 728 of 1034 and was still using
+all its processor time an hour later. Sampling the process
+(`sample`) put it inside `walk::elements_of` and `walk::to_scalar`,
+calling each other. The reason is in the arms of links 4 and 5. To
+learn whether each side of a `+`, `*`, `-` or a call was a list, they
+asked `elements_of` about it, and that walks every call below the
+side. When the answer was no, `to_scalar` walked the same calls again
+to get the number. That is one repeat per storey of nesting. Bodies
+that are a call inside a call inside a call made the repeats multiply
+until the pass could not end. The half was stopped by hand.
+
+The arms now ask a cheaper question first (`holds_a_list`). From the
+writing alone, it asks whether an expression could stand for a list:
+a name the frame holds as an array, a slice, a written list, or a
+constructor. It walks no body. An expression with none of these in it
+is read exactly as before the change. The small models and the tests
+give the same numbers with the check in place. The pair was run again
+with it (`/tmp/m298/ox11`, `/tmp/m298/q2`).
+
+The second pair finished with both halves level, 2510 s against 2535
+s to the 936th model. Its numbers, from `/tmp/m298/q2/{on,off}.txt`:
+flatten 961 on both sides, run 665 without the change and 668 with it,
+runnable 845 flatten on both sides and 623 against 626 run. The
+flatten lists are identical. The run lists differ only by
+`ModelicaTest.Math.Random.TestDistributions`, `TestSpecial` and
+`TestTruncatedDistributions`, all three new in the run list, and
+nothing is lost in either direction. The registers
+(`/tmp/m298/q2/{offr,onr}.txt`) differ by the `unknown function
+linspace` row (3) and nothing else. The old half is identical to the
+m297 lists (`/tmp/m297/q/*_flat.lst`, `*_ran.lst`). The peak was 8.7
+GB with the change and 10.0 GB without it. The floors were not moved
+in this shift. The arrival waits for the runner's number.
+
+`OXIDELICA_NO_WALKED_LINSPACE` keeps the old reading of all six links,
+so one binary gives both halves of a pair. Two tests in
+`functions.rs` check a number worked out by hand: 5.5 on
+`linspace(-1, 1, 5)`, and `4.5 - 2 + sin 1 + sin 2 + 6` on
+`linspace(0, 2, 3)`. Both were seen red under the switch
+(`unknown function linspace`). A third test checks that a grid of one
+point is refused by name.
+
+### The answer on link 2, checked where it could be checked
+
+The consultation on link 2 of the bridge (the last section of the
+question document) came back during the shift, and nothing from it
+went into the tree. Its claims that a small model can settle were
+checked on 006e952 (`/tmp/m298/ox`):
+
+- The guard of m297 has a blind spot, and the answer named it.
+  `misread_below` (`arrays.rs`) collects names only from a body's
+  statements. The preparation in `carried.rs` also settles the
+  bindings of locals, and it carries the calls in those bindings by a
+  road of its own. A twin of `K1` that reads the constant through
+  `protected Real a = k` and then `y := s * a` (`/tmp/m298/s/K1b.mo`)
+  gives a silent y = 2 where 4 is right, and the guard says nothing.
+  `K1` itself is refused as m297 left it. This is the wrong number the
+  guard was written to stop, reached one declaration away. A probe
+  that adds the locals' bindings and their calls to the sweep refuses
+  `K1b` by name (``the walk would read `k` of `K1b.Base.w` as 1 where
+`K1b.Med` makes it 2``), still refuses `K1`, and leaves `B4b` at
+  0.75. The probe is in `/tmp/m298/guard_bindings.patch`. It is not in
+  the tree, because it wants a corpus pair of its own and the machine
+  was already running this shift's pair.
+- The small models of the bridge stand where the answer says: `B8` and
+  `B9` at `unknown variable data.MM`, and `T2` at `unknown variable
+inK`. `B4b` gives 0.75 today, and `B4c` stops at `unresolved array
+subscript on Index(Ref("data"), ...)`. The walk changes above move
+  none of them.
+- The patch `asked_carry_probe_m296.patch` no longer applies to the
+  tree (`arrays.rs` and `carried.rs` have moved). The two walk probes
+  of m296 still apply. The walk-vector probe covered the same ground
+  as link 5 above, from the other side, for a body handed a list
+  where it takes a number.
+
+The rest of the answer is a proposal for a series and not a claim a
+small model can test: a table of pairs beside `SPECIALIZED`, the
+preparation run under the raised mark with the author's name, and the
+paired key minted last. It goes to the next plan as written.
