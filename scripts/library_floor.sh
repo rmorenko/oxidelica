@@ -895,7 +895,18 @@ FLATTEN_FLOOR=961
 # and MixIdealGasAir, the three mixtures that were handed a record's
 # text in a walked body. The desk counts 665 on the same code
 # (/tmp/m295/p/ox1.txt), and flatten stays 959 on both.
-RUN_FLOOR=665
+#
+# And run 667 is the lower of two counts of the linspace series of
+# 2599b60. The runner's count of 21dc0aa (job 108790150900 of run
+# 36378836704, /tmp/m299/ci_lib_full.log) is 668: 665 plus
+# ModelicaTest.Math.Random.TestSpecial, TestDistributions and
+# TestTruncatedDistributions, whose wall was `unknown function
+# linspace`. The desk's pair of 86c8d93 (/tmp/m299/on2.txt, off2.txt)
+# counts 667 on both halves: the same three, with SpringWithMass
+# refused at its algebraic loop while two passes shared the machine,
+# though it runs on its own. The runner has Dimmer_RL and not
+# SpringWithMass, as before. Flatten stays 961 on both.
+RUN_FLOOR=667
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1001,8 +1012,13 @@ RUN_FLOOR=665
 # `FLATTEN_FLOOR`; runnable run stays 623. The runner's count of
 # 50b0413 (/tmp/m297/runner.log), the same as the desk's
 # (/tmp/m296/pffull.txt).
+#
+# And runnable run 625 = 623 plus the three set out at `RUN_FLOOR` and
+# less SpringWithMass, the lower of the runner's 626
+# (/tmp/m299/ci_lib_full.log) and the desk's 625 (/tmp/m299/on2.txt);
+# runnable flatten stays 845 on both.
 RUNNABLE_FLATTEN_FLOOR=845
-RUNNABLE_RUN_FLOOR=623
+RUNNABLE_RUN_FLOOR=625
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
