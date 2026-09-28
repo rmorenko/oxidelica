@@ -24734,3 +24734,111 @@ a whole number the compiler can see. The top of the run half is the
 algebraic loops: 21 at the Newton direction, 20 singular Jacobians, 18
 at the equations of a loop, 16 at one of its variables, and 8 that did
 not converge.
+
+## m300: step 1 of the gate series, a walked body carried under its medium
+
+### What changed
+
+A call nothing could inline stands in the flat model and the run walks
+the body. Until now the body was carried under the name of the class
+that wrote it and prepared with no medium on the mark, so a body
+written in `Base` and called as `Med.w` read `Base`'s constants. Step
+1 of the series the fable answer laid out (`QUESTION_FOR_FABLE.md`,
+"Answer to (4): the series") carries such a body as a copy of its own.
+Both doors of `standing()` in `inlining.rs` go through one function,
+`left_standing`, which asks a gate, `reads_its_medium` in `arrays.rs`.
+The gate answers yes where the medium on the mark settles a name the
+body reads, in its statements or its locals' bindings, to a number, a
+Boolean or a list of those, and without the mark the same name comes to
+something else. The call is then renamed `{body}@{medium}` and the pair
+is kept in a table, `PAIRS` in `carried.rs`. Nothing reads the pair
+back out of the spelling. The collector prepares the copy under the
+writer's own name, so every lookup finds a class the registry knows,
+with the medium raised on the mark and in the digits a parameter's road
+takes. It renames the copy last.
+
+The gate counts a list as numbers, which is the correction the census
+of step 0 made to the fable answer: the one family of such bodies in
+the library reads `reference_X`, a list, and a gate comparing scalars
+would have been blind to all of it. The gate asks each body once per
+medium while a registry stands, and does not ask again from inside its
+own answer. The first build did, and overflowed the stack on the
+seventeen-line `R2` of m299, the same way the guard once did.
+
+What the copy calls is still carried under the writer's name, so a
+constant read one call further down (`K2`, `B8`) is still refused by
+the guard, or still meets `unknown variable data.MM`. That is step 2.
+`OXIDELICA_NO_CARRIED_MARK`, or `hold_back_carried_mark_here` on one
+thread, carries every body under the writer's name as before.
+
+### The ladder, checked against the predictions
+
+| model | before           | step 1                           | predicted |
+| ----- | ---------------- | -------------------------------- | --------- |
+| `B4`  | `data.MM`        | y = 0.75                         | moves     |
+| `T2`  | `inK`            | y = 16 (inlined twin 16)         | moves     |
+| `B8`  | `data.MM`        | `data.MM`                        | stays     |
+| `K1`  | refused, `k`     | y = 4                            | moves     |
+| `K1b` | refused, `k`     | y = 4                            | moves     |
+| `K2`  | refused, `k` (h) | refused, `k` of `P.Base.h`       | stays     |
+| `R2`  | refused, `k`     | y = 4 (`a = k = 2`, `s` stops 2) | moves     |
+
+`B8` staying where it was confirms the fable answer's reading of the
+collector, `carried.rs`, which files `h` under the base. So step 2 is
+not redundant. Each of the five number tests goes red under the key.
+
+### The pair of step 1
+
+One binary, `/tmp/m300/ox`, with and without the key,
+`--without scripts/heavy_models.txt`, files `/tmp/m300/on.txt` and
+`/tmp/m300/off.txt`: 961 flatten and 668 run on both sides, runnable
+845 and 626, the flatten and run lists identical both ways, and the
+register below `of the 961 that flatten` identical line for line (435
+lines each). All nine models the fable probe of m296 lost run in both
+halves. Against the m299 pair the one model gained is `SpringWithMass`,
+which swings between passes and is in both halves of this one. No
+model came and none went, as the series said in advance: models come
+only at the third link and past the literal layer.
+
+Names looked up: 1916826359 with the copy and 1913669702 without, 1650
+per million apart, the price of the gate. The reference moves to the
+first. Flattening took 8417 ms a model with the copy and 7431 with the
+key set. The two halves ran one after the other, the first of them
+beside another `--slow` pass on the same desk, and m299 took 5839.
+Which part of the difference is the neighbour and which the gate is
+not measured here. Both stand under the ceiling of 12000, and the pass
+time wants its own look on a quiet machine.
+
+### The top of the run register, probed: the Newton direction
+
+The row `the Newton direction of algebraic loop` holds 21 models in the
+m299 census (`/tmp/m299/raw.txt`). Three were run one at a time from the
+root `.msl` with `OXIDELICA_NEWTON_TRAIL` (`/tmp/m300/dry1t.txt`,
+`/tmp/m300/bp17.txt`), and they are three different mechanisms, not one
+family:
+
+- `Media.Examples.ReferenceAir.DryAir1` solves its loop at t = 0 to a
+  residual of 2e-6, then fails on the first step at t = 2e-4. The fifth
+  unknown, `ambient.port.h`, walks from 1e6 to -3.8e5 to 1.9e9 while
+  the residual stays at 1e-6: the block is nearly flat along it. The
+  one equation naming it is the ambient's `port.H_flow =
+semiLinear(port.m_flow, port.h, medium.h)`, whose value does not
+  depend on `port.h` while the flow is not positive.
+- `ModelicaTest.Fluid.TestPipesAndValves.BranchingPipes17` fails on a
+  block of one unknown, `junctionVolume.medium.T`, at t = 0. The block
+  before it put `junctionVolume.medium.p` at 1035.7 Pa where its start
+  is 1e5, and the residual of the `T` block then stays at 1.5609e6
+  while `T` runs from 289 to -1.7e12. The equation is flat in `T`
+  there. The wall is upstream: the pressure the preceding block
+  settled.
+- `ModelicaTest.Fluid.TestComponents.Machines.TestWaterPumpStorage`
+  descends honestly but ever more slowly (the line search cuts to
+  3e-5, then 1.5e-5) on `pump.medium.p` and `pump.V_flow_single`,
+  with the second residual stuck at 16.42. The pump's `head` is a
+  piecewise polynomial in `V_flow_single` built with `dgesv`, and the
+  iteration sits on a kink or a flat piece of it.
+
+So the row is a count of the same symptom rather than a family. The
+next shift should read the rest of the 21 the same way, one trail
+each, and group by mechanism before choosing work. The loop code was
+not touched.
