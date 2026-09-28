@@ -25226,3 +25226,12 @@ subscript. That is the literal layer of m296 in its original form, a
 list reaching the walk as a literal, now with nothing else in front of
 it. The fold wants a pair of its own before it goes in, and the slice
 of a literal is the link behind it.
+
+Under the same probe, `--only` from `.msl`: `InverseIncompressible_sh_T`
+stops at the slice of the folded list, as `S3` does. `Glycol47` and
+`Essotherm650` leave the NaN at t = 0 behind (the walked body now
+answers) and stop at the block wall, the Newton direction of the loop
+`volume.ports[2].m_flow`, `volume.medium.p`, ... not reducing the
+residual from |f| = 1.8e4 and 9.2e3 at t = 0: the same family as the
+initialisation walls of `Air` and `SeriesPipes1` above. So the fold
+buys one wall on each of the three, and none of them runs yet.
