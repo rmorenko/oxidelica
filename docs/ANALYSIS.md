@@ -25247,3 +25247,16 @@ norm bought on one row, and the iterate drifts toward three times the
 physical density. Its cure is not the damper either: the mass row is
 scaled a thousand times above the energy row, and the norm the damper
 compares is dominated by it without moving it.
+
+The fold was paired on the media and incompressible-valve models of
+the flattened list, 55 of them without `WaterIF97` (list
+`/tmp/m302/media_run.lst`, one binary `/tmp/m302/oxf`, `on` under
+`OX_FOLD_OUTSIDE` in `/tmp/m302/fold_on.txt`, `off` in
+`fold_off.txt`). The flatten lists are identical. The run lists differ
+by one model arriving and none leaving:
+`TestValvesIncompressibleReverse`, whose `V2.state_b.T` is the
+Essotherm650 `T_ph` inverse through the handed-target pair step 3
+made, and which stops at that call without the fold. So the fold is
+the first model this series can buy, and the next plan has a
+candidate with a witness (`S4`, 278.76 checked against `h_T`) and a
+subset pair behind it. A whole-library pair is what it still needs.
