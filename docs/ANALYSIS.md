@@ -24612,3 +24612,19 @@ The rest of the answer is a proposal for a series and not a claim a
 small model can test: a table of pairs beside `SPECIALIZED`, the
 preparation run under the raised mark with the author's name, and the
 paired key minted last. It goes to the next plan as written.
+
+### Item 0: the library job for 006e952, and the names it counted
+
+The library job for 006e952 (run 36366920031) went red with every
+floor held. The line that fired was the band on names looked up:
+1914321460 against a reference of 1907264675, which is 3700 per
+million above it with a band of 2000. The m297 pair had printed the
+cause without anyone reading it as one. With the guard switched off
+it counted 1910204761 names (`/tmp/m297/q/off.txt`), and with the
+guard on it counted 1914710562 (`on.txt`), 2359 per million up with
+the lists identical. The guard settles every name of a standing body
+twice, and the reference was left where it was. The reference now
+stands at the m298 desk count, 1914710601 (`/tmp/m298/q2/on.txt`).
+Replaying the runner's own report of 006e952 through
+`library_floor.sh` with a stub binary passes at 203 per million
+below it.
