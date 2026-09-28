@@ -639,6 +639,8 @@ impl StandingNames {
         super::constants::REFUSED_MINT.with(|held| held.borrow_mut().clear());
         super::constants::CONSTANT_ARRAYS.with(|held| held.borrow_mut().clear());
         super::arrays::MISREAD.with(|held| held.borrow_mut().clear());
+        super::arrays::READS_MEDIUM.with(|held| held.borrow_mut().clear());
+        super::carried::forget_pairs();
         REGISTRY_STANDS.with(|stands| stands.set(true));
         StandingNames
     }
@@ -651,6 +653,7 @@ impl Drop for StandingNames {
         super::constants::NAMED.with(|named| named.borrow_mut().clear());
         super::constants::CONSTANT_ARRAYS.with(|held| held.borrow_mut().clear());
         super::arrays::MISREAD.with(|held| held.borrow_mut().clear());
+        super::arrays::READS_MEDIUM.with(|held| held.borrow_mut().clear());
     }
 }
 

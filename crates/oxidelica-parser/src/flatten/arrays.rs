@@ -1463,7 +1463,8 @@ pub(super) fn expand_call(
                     // standing here is a number - and one that would
                     // answer otherwise is refused where the body is
                     // gathered, by name.
-                    if matches!(&result, Expr::Call(called, _) if called == &class.name) {
+                    if matches!(&result, Expr::Call(called, _) if inlining::stands_for(called, class))
+                    {
                         // A call left standing is walked, and a walk
                         // may answer with several numbers. The model
                         // takes them one at a time, by the subscript
@@ -2953,9 +2954,10 @@ thread_local! {
     /// stands and cleared with it.
     /// The bodies [`constant_the_walk_misreads`] is in the middle of
     /// asking about, by body and medium, innermost last.
-    static ASKING: std::cell::RefCell<Vec<(String, String)>> =
+    static ASKING: std::cell::RefCell<Vec<(String, String, bool)>> =
         const { std::cell::RefCell::new(Vec::new()) };
-    pub(super) static MISREAD: std::cell::RefCell<HashMap<(String, String), Option<String>>> =
+    #[allow(clippy::type_complexity)]
+    pub(super) static MISREAD: std::cell::RefCell<HashMap<(String, String, bool), Option<String>>> =
         std::cell::RefCell::new(HashMap::new());
 }
 
@@ -2978,6 +2980,7 @@ thread_local! {
 pub(super) fn constant_the_walk_misreads(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,
+    itself_carried: bool,
 ) -> Option<String> {
     if !walked_medium_constants_checked() {
         return None;
@@ -2987,7 +2990,7 @@ pub(super) fn constant_the_walk_misreads(
         return None;
     }
     let stands = super::lookup::REGISTRY_STANDS.with(|stands| stands.get());
-    let key = (class.name.clone(), mark.clone());
+    let key = (class.name.clone(), mark.clone(), itself_carried);
     if stands {
         if let Some(found) = MISREAD.with(|held| held.borrow().get(&key).cloned()) {
             return found;
@@ -3000,12 +3003,114 @@ pub(super) fn constant_the_walk_misreads(
         return None;
     }
     ASKING.with(|asking| asking.borrow_mut().push(key.clone()));
-    let found = misread_below(class, registry, &mark);
+    let found = misread_below(class, registry, &mark, itself_carried);
     ASKING.with(|asking| asking.borrow_mut().pop());
     if stands {
         MISREAD.with(|held| held.borrow_mut().insert(key, found.clone()));
     }
     found
+}
+
+/// Whether a body asked under `medium` reads, in its own statements or
+/// its locals' bindings, a name the medium settles to another value than
+/// the body's own package does - a number, a Boolean or a list of those
+/// under the medium, against a different one or a bare name without it.
+///
+/// The question behind [`super::carried::carried_under_mark`]: such a
+/// body walked under the name of the class that wrote it reads the
+/// wrong value or none. Asked in the digits a parameter's road takes,
+/// since that is the form the copy will be prepared in, and a list
+/// counts as numbers: the one family of such bodies the library holds
+/// reads `reference_X`, which is a list.
+pub(super) fn reads_its_medium(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    medium: &str,
+) -> bool {
+    let stands = super::lookup::REGISTRY_STANDS.with(|stands| stands.get());
+    let key = (class.name.clone(), medium.to_string());
+    if stands {
+        if let Some(found) = READS_MEDIUM.with(|held| held.borrow().get(&key).copied()) {
+            return found;
+        }
+    }
+    // Settling a local's binding may inline a call to this same body
+    // under the same medium, which asks this again: the question
+    // already being answered one storey up is not asked twice, the way
+    // the guard does not ask its own twice.
+    if GATING.with(|gating| gating.borrow().contains(&key)) {
+        return false;
+    }
+    GATING.with(|gating| gating.borrow_mut().push(key.clone()));
+    let found = medium_read_here(class, registry, medium);
+    GATING.with(|gating| gating.borrow_mut().pop());
+    if stands {
+        READS_MEDIUM.with(|held| held.borrow_mut().insert(key, found));
+    }
+    found
+}
+
+thread_local! {
+    /// The bodies [`reads_its_medium`] is in the middle of asking about,
+    /// by body and medium, innermost last.
+    static GATING: std::cell::RefCell<Vec<(String, String)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+    /// What [`reads_its_medium`] found, by body and medium, for as long
+    /// as one registry stands.
+    pub(super) static READS_MEDIUM: std::cell::RefCell<HashMap<(String, String), bool>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// The search behind [`reads_its_medium`].
+fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, medium: &str) -> bool {
+    fn settled(expr: &Expr) -> bool {
+        match expr {
+            Expr::Number(_) | Expr::Bool(_) => true,
+            Expr::Array(items) => items.iter().all(settled),
+            _ => false,
+        }
+    }
+    let own: Vec<String> = inlining::function_components(registry, class, 0)
+        .into_iter()
+        .map(|component| component.name)
+        .collect();
+    let held: Vec<&str> = own.iter().map(String::as_str).collect();
+    let mut exprs = Vec::new();
+    statement_exprs(&class.algorithm, &mut exprs);
+    exprs.extend(
+        class
+            .components
+            .iter()
+            .flat_map(|component| [&component.binding, &component.start])
+            .flatten(),
+    );
+    let mut names: Vec<&str> = Vec::new();
+    for expr in &exprs {
+        expr.for_each(&mut |inner| {
+            if let Expr::Ref(named) = inner {
+                let head = named.split('.').next().unwrap_or(named);
+                if !held.contains(&head) && !names.contains(&named.as_str()) {
+                    names.push(named.as_str());
+                }
+            }
+        });
+    }
+    let _digits = super::constants::SettlingParameter::now();
+    names.into_iter().any(|named| {
+        let written = Expr::Ref(named.to_string());
+        let read = |under: &str| {
+            let _mark = inlining::AskedAs::under(under);
+            constants::substitute_class_constants(
+                &written,
+                registry,
+                &class.name,
+                &class.imports,
+                &held,
+            )
+        };
+        let asked = read(medium);
+        settled(&asked) && asked != read("")
+    })
 }
 
 /// The search behind [`constant_the_walk_misreads`]: the body and every
@@ -3015,6 +3120,7 @@ fn misread_below(
     class: &ClassDef,
     registry: &HashMap<&str, &ClassDef>,
     mark: &str,
+    itself_carried: bool,
 ) -> Option<String> {
     let mut seen: Vec<String> = Vec::new();
     let mut wanted = vec![class.name.clone()];
@@ -3026,6 +3132,9 @@ fn misread_below(
         let Some(body) = registry.get(name.as_str()).copied() else {
             continue;
         };
+        // A body carried under its medium reads the medium's values
+        // itself; what is left to ask is what it calls.
+        let carried_itself = itself_carried && body.name == class.name;
         let own: Vec<String> = inlining::function_components(registry, body, 0)
             .into_iter()
             .map(|component| component.name)
@@ -3057,6 +3166,9 @@ fn misread_below(
                     }
                 }
             });
+        }
+        if carried_itself {
+            names.clear();
         }
         for named in names {
             let written = Expr::Ref(named.to_string());

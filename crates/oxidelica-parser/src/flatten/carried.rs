@@ -128,14 +128,29 @@ pub(super) fn programs_used(
         // this model out of a function that was handed another
         // function, and it lives where such copies are kept.
         let made;
+        // A copy carried under a medium is the body that wrote it,
+        // prepared with the medium standing on the mark - and in the
+        // digits a parameter's road takes, since the walk's frame
+        // knows no minted name. Everything below reads the registry
+        // under the writer's own name, which is the one it knows; the
+        // copy takes the name the flat model calls it by last.
+        let pair = carried_pair(&name);
+        let marked = pair.as_ref().and_then(|(_, medium)| AskedAs::under(medium));
+        let digits = pair.as_ref().map(|_| SettlingParameter::now());
         let class = match registry.get(name.as_str()) {
             Some(held) => *held,
-            None => match super::statements::specialization(&name) {
-                Some(copy) => {
-                    made = copy;
-                    &made
-                }
-                None => continue,
+            None => match pair
+                .as_ref()
+                .and_then(|(body, _)| registry.get(body.as_str()))
+            {
+                Some(held) => *held,
+                None => match super::statements::specialization(&name) {
+                    Some(copy) => {
+                        made = copy;
+                        &made
+                    }
+                    None => continue,
+                },
             },
         };
         // A body no equation asked for is taken if it can be had and
@@ -231,7 +246,13 @@ pub(super) fn programs_used(
             &renamed,
             &held,
         );
+        carried.name = name.clone();
         out.push(carried);
+        // What the copy calls is gathered as any body's is: under the
+        // writer's name and with no medium standing, which is what the
+        // bodies it calls are carried under today.
+        drop(digits);
+        drop(marked);
         let mut calls = Vec::new();
         // What a local's binding calls is called by the body as much as
         // what a statement calls. `dp_curvedOverall_DP` works out its
@@ -288,6 +309,97 @@ pub(super) fn programs_used(
 /// bindings as they were written, so that one binary gives both numbers.
 fn local_record_fields_open() -> bool {
     std::env::var_os("OXIDELICA_NO_LOCAL_RECORD_FIELDS").is_none()
+}
+
+/// Whether a body left standing under a medium that changes what it
+/// reads is carried as a copy of its own, prepared under that medium.
+/// `OXIDELICA_NO_CARRIED_MARK` carries every body under the name of the
+/// class that wrote it, as before, so that one binary gives both
+/// numbers.
+fn carried_mark_open() -> bool {
+    !CARRIED_MARK_HELD.with(std::cell::Cell::get)
+        && std::env::var_os("OXIDELICA_NO_CARRIED_MARK").is_none()
+}
+
+thread_local! {
+    /// Whether this thread asked for bodies to be carried under the
+    /// name that wrote them, whatever medium they were asked under -
+    /// what a test does to see the refusal the copy replaces.
+    static CARRIED_MARK_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Carry every body left standing under the name that wrote it, on this
+/// thread, until the guard is dropped. The environment switch is one
+/// for the whole process; a test running beside others needs one of
+/// its own.
+pub fn hold_back_carried_mark_here() -> CarriedMarkGuard {
+    CARRIED_MARK_HELD.with(|held| held.set(true));
+    CarriedMarkGuard(())
+}
+
+/// Puts the carried mark back where it was.
+pub struct CarriedMarkGuard(());
+
+impl Drop for CarriedMarkGuard {
+    fn drop(&mut self) {
+        CARRIED_MARK_HELD.with(|held| held.set(false));
+    }
+}
+
+thread_local! {
+    /// The copies carried under a medium, by the name the flat model
+    /// calls them: the body that wrote them and the medium they were
+    /// asked under. The name is made from the pair, and nothing reads
+    /// the pair back out of its spelling - it is looked up here.
+    static PAIRS: std::cell::RefCell<HashMap<String, (String, String)>> =
+        std::cell::RefCell::new(HashMap::new());
+}
+
+/// Forget every pair: the names belong to one flattening, and the next
+/// may be of another library.
+pub(super) fn forget_pairs() {
+    PAIRS.with(|pairs| pairs.borrow_mut().clear());
+}
+
+/// The body and the medium behind a name [`carried_under_mark`] made.
+pub(super) fn carried_pair(name: &str) -> Option<(String, String)> {
+    PAIRS.with(|pairs| pairs.borrow().get(name).cloned())
+}
+
+/// The name a call left standing is carried under, where the medium it
+/// was asked under gives something the body reads another value.
+///
+/// A body left for the run is walked with what its preparation settled,
+/// and the preparation used to run with no medium in sight: `Med.w`
+/// with `w` written in `Base` read `Base`'s constants, and one the
+/// medium gave a value to reached the walk as a name nobody declares or
+/// as the base's number. So such a body is carried as a copy of its
+/// own, prepared under the medium, and the call names that copy. The
+/// name is the flat model's own; the pair behind it is kept in a table
+/// rather than spelled out for a later reader to take apart.
+///
+/// Only where the medium changes something the body reads to a number,
+/// a Boolean or a list of those: a body the medium changes nothing in
+/// is carried exactly as before, under the name that wrote it.
+pub(super) fn carried_under_mark(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<String> {
+    if !carried_mark_open() {
+        return None;
+    }
+    let (package, _) = class.name.rsplit_once('.')?;
+    let medium = asked_as_package(registry, package)?;
+    if !super::arrays::reads_its_medium(class, registry, &medium) {
+        return None;
+    }
+    let name = format!("{}@{medium}", class.name);
+    PAIRS.with(|pairs| {
+        pairs
+            .borrow_mut()
+            .insert(name.clone(), (class.name.clone(), medium))
+    });
+    Some(name)
 }
 
 /// Whether the calls a local's binding makes are named the way the
@@ -459,7 +571,9 @@ pub(super) fn put_named_arguments_in_place(model: &mut Model, registry: &HashMap
         }
         // The flat model names what it calls the way the registry knows
         // it: flattening qualified it on the way out.
-        match lookup(registry, &name, "", &[]).filter(|class| class.kind == ClassKind::Function) {
+        let written = carried_pair(&name).map_or_else(|| name.clone(), |(body, _)| body);
+        match lookup(registry, &written, "", &[]).filter(|class| class.kind == ClassKind::Function)
+        {
             Some(class) => {
                 let args = in_declared_order(class, registry, args);
                 Expr::Call(name, args)
@@ -902,7 +1016,8 @@ pub(super) fn gather_calls(
         // A specialized copy is named after what went into it and is
         // not in the registry: it was made for this model out of a
         // function handed another function.
-        } else if super::statements::specialization(name).is_some() {
+        } else if super::statements::specialization(name).is_some() || carried_pair(name).is_some()
+        {
             out.push(name.clone());
         }
     }

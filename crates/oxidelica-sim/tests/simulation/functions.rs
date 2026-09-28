@@ -3439,35 +3439,21 @@ fn a_walked_answer_as_long_as_its_input_is_taken_element_by_element() {
 /// read the constants of the package that wrote it rather than those of
 /// the medium it was called under: `Med.w` with `Med` extending
 /// `Base(k = 2)` came to `s * 1`, with not a word said, where the same
-/// body inlined gives `s * 2`. The walk is not yet told which medium it
-/// is under, so the call is refused naming the constant and both
-/// values - here and when the constant is read one call further down.
+/// body inlined gives `s * 2`. Such a body is now carried as a copy of
+/// its own, prepared under the medium, and walks to the medium's 4.
+/// Held back to the name that wrote it, the call is refused naming the
+/// constant and both values, as it was before the copy.
 #[test]
-fn a_walked_body_that_would_read_its_base_s_constant_over_the_medium_s_is_refused() {
-    let source = |body: &str| {
-        format!(
-            "package P partial package Base constant Real k = 1; \
-               function h input Real x; output Real y; algorithm y := x * k; end h; \
-               function w input Real x; output Real y; protected Real s = 0; \
-               algorithm while s < x loop s := s + 0.25; end while; y := {body}; end w; \
-             end Base; \
-             package Med extends Base(k = 2); end Med; \
-             model M Real y = Med.w(1 + time); \
-               annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;"
-        )
-    };
-    for (body, reader) in [("s * k", "P.Base.w"), ("h(s)", "P.Base.h")] {
-        let why = parse_model(&source(body))
-            .expect_err("a walk that would read the base's constant is refused")
-            .message;
-        assert!(
-            why.contains(&format!(
-                "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
-                 `k` of `{reader}` as 1 where `P.Med` makes it 2"
-            )),
-            "{why}"
-        );
-    }
+fn a_walked_body_reads_the_medium_s_constant_it_was_asked_under() {
+    const SOURCE: &str = "package P partial package Base constant Real k = 1; \
+           function w input Real x; output Real y; protected Real s = 0; \
+           algorithm while s < x loop s := s + 0.25; end while; y := s * k; end w; \
+         end Base; \
+         package Med extends Base(k = 2); end Med; \
+         model M Real y = Med.w(1 + time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;";
+    // 2 * 2 at the end: `s` stops at the first quarter past 2.
+    assert_eq!(last_of(&run(SOURCE), "y"), 4.0);
     // The same body the inliner can write out reads the medium's 2.
     let inlined = run("package P partial package Base constant Real k = 1; \
            function w input Real x; output Real y; algorithm y := x * k; end w; end Base; \
@@ -3475,27 +3461,64 @@ fn a_walked_body_that_would_read_its_base_s_constant_over_the_medium_s_is_refuse
          model M Real y = Med.w(1 + time); \
            annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
     assert_eq!(last_of(&inlined, "y"), 4.0);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = parse_model(SOURCE)
+        .expect_err("held back, the walk that would read the base's constant is refused")
+        .message;
+    assert!(
+        why.contains(
+            "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
+             `k` of `P.Base.w` as 1 where `P.Med` makes it 2"
+        ),
+        "{why}"
+    );
 }
 
-/// The same misreading through a local's binding rather than a
-/// statement: `protected Real a = k` is prepared by the walk as the
-/// statements are, under the name of the package that wrote the body,
-/// so `Med.w` ran to `y = 2` where the medium's `k = 2` makes it 4.
-/// Asked only about the statements, the guard saw `s * a` and nothing
-/// of `k`, and the wrong number went out without a word.
+/// The constant read one call further down is still refused: the copy
+/// carries the body it was asked for under the medium, and what that
+/// body calls is carried as before, under the name that wrote it.
 #[test]
-fn a_walked_body_that_would_read_its_base_s_constant_in_a_binding_is_refused() {
+fn a_walked_body_whose_callee_would_read_the_base_s_constant_is_refused() {
     let why = parse_model(
         "package P partial package Base constant Real k = 1; \
-           function w input Real x; output Real y; protected Real s = 0; Real a = k; \
-           algorithm while s < x loop s := s + 0.25; end while; y := s * a; end w; \
+           function h input Real x; output Real y; algorithm y := x * k; end h; \
+           function w input Real x; output Real y; protected Real s = 0; \
+           algorithm while s < x loop s := s + 0.25; end while; y := h(s); end w; \
          end Base; \
          package Med extends Base(k = 2); end Med; \
          model M Real y = Med.w(1 + time); \
            annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
     )
-    .expect_err("a walk that would read the base's constant in a binding is refused")
+    .expect_err("a callee that would read the base's constant is refused")
     .message;
+    assert!(
+        why.contains(
+            "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
+             `k` of `P.Base.h` as 1 where `P.Med` makes it 2"
+        ),
+        "{why}"
+    );
+}
+
+/// The same reading through a local's binding rather than a statement:
+/// `protected Real a = k` is prepared by the walk as the statements are,
+/// so under the name of the package that wrote the body `Med.w` ran to
+/// `y = 2` where the medium's `k = 2` makes it 4. Carried under the
+/// medium it reads 4; held back to the writer's name it is refused.
+#[test]
+fn a_walked_body_reads_the_medium_s_constant_in_a_binding() {
+    const SOURCE: &str = "package P partial package Base constant Real k = 1; \
+           function w input Real x; output Real y; protected Real s = 0; Real a = k; \
+           algorithm while s < x loop s := s + 0.25; end while; y := s * a; end w; \
+         end Base; \
+         package Med extends Base(k = 2); end Med; \
+         model M Real y = Med.w(1 + time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;";
+    assert_eq!(last_of(&run(SOURCE), "y"), 4.0);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = parse_model(SOURCE)
+        .expect_err("held back, the binding's constant is refused")
+        .message;
     assert!(
         why.contains(
             "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
@@ -3507,29 +3530,106 @@ fn a_walked_body_that_would_read_its_base_s_constant_in_a_binding_is_refused() {
 
 /// A binding that names a constant the body itself defines: settling
 /// `a = if x > 10 then r else k` reaches `r = w(0.5)`, which inlines `w`
-/// under the same medium and asks the guard about `w` again. Asked
-/// again from inside its own answer, the guard went round until the
-/// stack gave out - `Modelica.Fluid.Examples.HeatingSystem` took the
-/// whole corpus pass down this way. The question already being
-/// answered is not asked twice, and `k` is still refused by name.
+/// under the same medium and asks about `w` again. Asked again from
+/// inside its own answer, the guard went round until the stack gave
+/// out, and `Modelica.Fluid.Examples.HeatingSystem` took the whole
+/// corpus pass down this way. The question whether to carry the body
+/// under its medium did the same. Each is asked once; the body walks to
+/// the medium's 4 (`a = k = 2`, and `s` stops at 2), and held back to
+/// the writer's name it refuses `k` by name.
 #[test]
 fn a_binding_that_leads_back_to_its_own_body_is_asked_once() {
-    let why = parse_model(
-        "package P partial package Base constant Real k = 1; constant Real r = w(0.5); \
+    const SOURCE: &str = "package P partial package Base constant Real k = 1; \
+           constant Real r = w(0.5); \
            function w input Real x; output Real y; protected Real s = 0; \
              Real a = if x > 10 then r else k; \
            algorithm while s < x loop s := s + 0.25; end while; y := s * a; end w; \
          end Base; \
          package Med extends Base(k = 2); end Med; \
          model M Real y = Med.w(1 + time); \
-           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
-    )
-    .expect_err("the binding's constant is refused, not recursed into")
-    .message;
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;";
+    assert_eq!(last_of(&run(SOURCE), "y"), 4.0);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = parse_model(SOURCE)
+        .expect_err("the binding's constant is refused, not recursed into")
+        .message;
     assert!(
         why.contains("the walk would read `k` of `P.Base.w` as 1 where `P.Med` makes it 2"),
         "{why}"
     );
+}
+
+/// A medium's list, read by a walked body through a local's binding: the
+/// shape of `reference_X` in the standard library, and the one family of
+/// such bodies it holds. `data.MM` is `{2, 4}` under the medium and
+/// nothing at all under the base, which declares `data` without a value,
+/// so the walk met a name nobody declares. Carried under the medium,
+/// `Y = {0.5/2, 0.5/4}` and `y = 2 * 0.375 = 0.75`.
+#[test]
+fn a_walked_body_reads_the_medium_s_list_in_a_binding() {
+    const SOURCE: &str = "package B4 \
+         record D Real MM; end D; \
+         function toY input Real X[:]; input Real MM[:]; output Real Y[size(X, 1)]; \
+         algorithm for i in 1:size(X, 1) loop Y[i] := X[i] / MM[i]; end for; end toY; \
+         partial package Base \
+           constant Integer nX = 2; \
+           constant D[:] data; \
+           function w input Real x; input Real X[nX]; output Real y; \
+           protected Real s = 0; Real[nX] Y = toY(X, data.MM); \
+           algorithm \
+             while s < x loop s := s + 0.25; end while; \
+             y := s * (Y[1] + Y[2]); \
+           end w; \
+         end Base; \
+         package Med extends Base(data = {D(MM = 2), D(MM = 4)}); end Med; \
+         model M \
+           Real y = Med.w(1 + time, {0.5, 0.5}); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); \
+         end M; \
+       end B4;";
+    assert_eq!(last_of(&run(SOURCE), "y"), 0.75);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = run_err(SOURCE);
+    assert!(why.contains("unknown variable `data.MM`"), "{why}");
+}
+
+/// A medium's Boolean and list read in a walked body's statement: `inK`
+/// chooses a branch and `tab` is a polynomial, and neither has a value
+/// in the base. Carried under the medium, `ev({1, 5}, 3) = 8` and
+/// `y = 2 * 8 = 16` at the end; the inlined twin without the loop
+/// gives the same `x * 8` for `x = 2`.
+#[test]
+fn a_walked_body_reads_the_medium_s_boolean_and_list() {
+    let source = |body: &str| {
+        format!(
+            "package T2 \
+               function ev input Real p[:]; input Real x; output Real y; \
+               algorithm y := 0; for i in 1:size(p, 1) loop y := y * x + p[i]; end for; end ev; \
+               partial package Base \
+                 constant Boolean inK; \
+                 constant Real tab[:]; \
+                 function w input Real x; output Real y; \
+                 {body} \
+                 end w; \
+               end Base; \
+               package Med extends Base(inK = false, tab = {{1, 5}}); end Med; \
+               model M \
+                 Real y = Med.w(1 + time); \
+                 annotation(experiment(StopTime = 1, Interval = 0.5)); \
+               end M; \
+             end T2;"
+        )
+    };
+    let walked = source(
+        "protected Real s = 0; algorithm while s < x loop s := s + 0.25; end while; \
+         y := s * (if inK then ev(tab, 2) else ev(tab, 3));",
+    );
+    assert_eq!(last_of(&run(&walked), "y"), 16.0);
+    let inlined = source("algorithm y := x * (if inK then ev(tab, 2) else ev(tab, 3));");
+    assert_eq!(last_of(&run(&inlined), "y"), 16.0);
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = run_err(&walked);
+    assert!(why.contains("unknown variable `inK`"), "{why}");
 }
 
 /// A walked body that lays its grid out with `linspace` and reads it

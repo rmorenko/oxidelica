@@ -9,6 +9,34 @@ use super::shapes::*;
 use super::*;
 use std::cell::RefCell;
 
+/// A call nothing could inline, left standing for the run to walk: under
+/// the name of a copy of its own where the medium it was asked under
+/// changes what the body reads, and under the name that wrote it
+/// otherwise. Refused, naming the constant, where a body it calls would
+/// still read its base's value over the medium's.
+fn left_standing(
+    class: &ClassDef,
+    args: &[Expr],
+    registry: &HashMap<&str, &ClassDef>,
+) -> Result<Expr, String> {
+    let carried = super::carried::carried_under_mark(class, registry);
+    if let Some(why) = super::arrays::constant_the_walk_misreads(class, registry, carried.is_some())
+    {
+        return Err(why);
+    }
+    Ok(Expr::Call(
+        carried.unwrap_or_else(|| class.name.clone()),
+        args.to_vec(),
+    ))
+}
+
+/// Whether a call is `class` left standing, under its own name or under
+/// the name of a copy [`left_standing`] carried it as.
+pub(super) fn stands_for(called: &str, class: &ClassDef) -> bool {
+    called == class.name
+        || super::carried::carried_pair(called).is_some_and(|(body, _)| body == class.name)
+}
+
 /// Inline a function call: arguments are bound to the inputs, the
 /// algorithm's assignments are substituted in order, and the output
 /// expression replaces the call.
@@ -39,20 +67,15 @@ pub(super) fn inline_function(
     // its own count. What is nested this deep did not come to an end
     // by inlining, so the call is left standing and the run walks it.
     if algorithms::INLINING.with(|deep| deep.get()) > algorithms::MAX_NESTED_CALLS {
-        if let Some(why) = super::arrays::constant_the_walk_misreads(class, registry) {
-            return Err(why);
-        }
-        return Ok(Expr::Call(class.name.clone(), args.to_vec()));
+        return left_standing(class, args, registry);
     }
     let _nested = algorithms::Nested::deeper();
     // A call left standing is walked under the name of the class that
-    // wrote it, and one whose constants the medium it was asked under
-    // gives other values would be walked to a wrong number: refused
-    // here instead, naming the constant.
-    let standing = || match super::arrays::constant_the_walk_misreads(class, registry) {
-        Some(why) => Err(why),
-        None => Ok(Expr::Call(class.name.clone(), args.to_vec())),
-    };
+    // wrote it, unless the medium it was asked under changes what the
+    // body reads - then under a copy of its own, prepared under that
+    // medium. What the bodies it calls would misread is refused here,
+    // naming the constant.
+    let standing = || left_standing(class, args, registry);
     // Where a body leads back to itself the unrolling is a try rather
     // than a demand: the walk is waiting behind it, so anything the
     // inliner will not do - a loop it cannot unroll, a shape it cannot
