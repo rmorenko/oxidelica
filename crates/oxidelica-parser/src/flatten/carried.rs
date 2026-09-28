@@ -364,6 +364,73 @@ impl Drop for CarriedMarkGuard {
     }
 }
 
+/// Whether a walked body's statements have the answers written here
+/// folded to their numbers, and a written list sliced by numbers cut to
+/// the slice, before the walk. `OXIDELICA_NO_FOLD_OUTSIDE` leaves them
+/// as they were written, so that one binary gives both numbers.
+fn fold_outside_open() -> bool {
+    !FOLD_OUTSIDE_HELD.with(std::cell::Cell::get)
+        && std::env::var_os("OXIDELICA_NO_FOLD_OUTSIDE").is_none()
+}
+
+thread_local! {
+    /// Whether this thread asked for the fold to be held back - what a
+    /// test does to see the refusal the fold replaces.
+    static FOLD_OUTSIDE_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Leave a walked body's answers and slices as written, on this thread,
+/// until the guard is dropped.
+pub fn hold_back_fold_outside_here() -> FoldOutsideGuard {
+    FOLD_OUTSIDE_HELD.with(|held| held.set(true));
+    FoldOutsideGuard(())
+}
+
+/// Puts the fold back where it was.
+pub struct FoldOutsideGuard(());
+
+impl Drop for FoldOutsideGuard {
+    fn drop(&mut self) {
+        FOLD_OUTSIDE_HELD.with(|held| held.set(false));
+    }
+}
+
+/// An element of an answer this compiler writes itself - `dgelsy` and
+/// its neighbours - handed nothing but numbers is folded to its number,
+/// and a written list sliced by a range of numbers is cut to the slice.
+/// A walked body subscripts only names: a fit a medium makes of its
+/// table reached the walk as `dgelsy(...)[1]`, and the slice by the
+/// package's `npol` as `{...}[1:npol]`, and the walk refused both,
+/// though each is a number or a list of numbers the moment it is read.
+/// An answer that is not wholly numbers is left for the walk, and a
+/// slice outside the list is left for the walk to refuse by name.
+fn fold_outside(e: &Expr) -> Expr {
+    if let Expr::Index(base, _) = e {
+        if let Expr::Call(called, _) = base.as_ref() {
+            if crate::outside::written_here(called) {
+                if let Some(value) = const_eval(e, &HashMap::new()) {
+                    return Expr::Number(value);
+                }
+            }
+        }
+    }
+    let below = e.map_children(&mut |child| fold_outside(child));
+    if let Expr::Index(base, subs) = &below {
+        if let (Expr::Array(items), [Expr::Range(a, None, b)]) = (base.as_ref(), subs.as_slice()) {
+            let env = HashMap::new();
+            if let (Some(a), Some(b)) = (const_eval(a, &env), const_eval(b, &env)) {
+                if a.fract() == 0.0 && b.fract() == 0.0 && a >= 1.0 && b >= 0.0 {
+                    let (a, b) = (a as usize, b as usize);
+                    if b <= items.len() && a <= b + 1 {
+                        return Expr::Array(items[a - 1..b].to_vec());
+                    }
+                }
+            }
+        }
+    }
+    below
+}
+
 thread_local! {
     /// The copies carried under a medium, by the name the flat model
     /// calls them: the body that wrote them and the medium they were
@@ -629,6 +696,11 @@ fn qualified_calls(
     let expr = |e: &Expr| {
         let e = substitute_scalar_class_constants(e, registry, scope, imports);
         let e = substitute_class_constants(&e, registry, scope, imports, &shadow);
+        let e = if fold_outside_open() {
+            fold_outside(&e)
+        } else {
+            e
+        };
         let e = subscripts_spelled_out(&e, renamed);
         substitute_refs(&qualified_in(&e, registry, scope, imports), renamed)
     };

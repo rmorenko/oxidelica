@@ -3681,6 +3681,105 @@ fn a_function_handed_over_reads_the_medium_it_was_asked_under() {
     assert!(why.contains("unknown variable `data.MM`"), "{why}");
 }
 
+/// The inverse of a medium fitted by least squares, in the shape of
+/// `TableBased`: `poly` is bound on `fitting` over `dgelsy`, and `T_h`
+/// hands `g`, which reads `h_T`, to a solver that bisects and so is
+/// walked. `h_T` reads `poly` either sliced by the package's `npol` or
+/// whole, as `s_T` and `h_T` of the library do.
+fn fitted_inverse(read: &str) -> String {
+    format!(
+        "package G \
+         function dgelsy_vec input Real A[:, :]; input Real b[size(A, 1)]; input Real rcond = 0.0; \
+           output Real x[max(size(A, 1), size(A, 2))] = cat(1, b, zeros(max(nrow, ncol) - nrow)); \
+           output Integer info; output Integer rank; \
+           protected Integer nrow = size(A, 1); Integer ncol = size(A, 2); Integer nrhs = 1; \
+           Integer nx = max(nrow, ncol); Integer lwork = 10; Real work[10]; \
+           Real Awork[size(A, 1), size(A, 2)] = A; Integer jpvt[size(A, 2)] = zeros(ncol); \
+           external \"FORTRAN 77\" dgelsy(nrow, ncol, nrhs, Awork, nrow, x, nx, jpvt, rcond, \
+             rank, work, lwork, info); \
+         end dgelsy_vec; \
+         function leastSquares input Real A[:, :]; input Real b[size(A, 1)]; \
+           output Real x[size(A, 2)]; protected Integer info; Integer rank; \
+           Real xx[max(size(A, 1), size(A, 2))]; \
+           algorithm (xx, info, rank) := dgelsy_vec(A, b, 1e-13); x := xx[1:size(A, 2)]; \
+         end leastSquares; \
+         function fitting input Real u[:]; input Real y[size(u, 1)]; input Integer n; \
+           output Real p[n + 1]; protected Real V[size(u, 1), n + 1]; \
+           algorithm V[:, n + 1] := ones(size(u, 1)); \
+           for j in n:-1:1 loop V[:, j] := {{u[i] * V[i, j + 1] for i in 1:size(u, 1)}}; end for; \
+           p := leastSquares(V, y); \
+         end fitting; \
+         function integralValue input Real p[:]; input Real u_high; input Real u_low = 0; \
+           output Real integral = 0.0; protected Integer n = size(p, 1); Real y_low = 0; \
+         algorithm \
+           for j in 1:n loop \
+             integral := u_high * (p[j] / (n - j + 1) + integral); \
+             y_low := u_low * (p[j] / (n - j + 1) + y_low); \
+           end for; \
+           integral := integral - y_low; \
+         end integralValue; \
+         partial function Scalar input Real u; output Real y; end Scalar; \
+         function solve input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected Real mid; Real step; \
+         algorithm \
+           x := lo; step := hi - lo; \
+           while abs(step) > 1e-10 loop \
+             step := step / 2; mid := x + step; \
+             if f(mid) < 0 then x := mid; end if; \
+           end while; \
+         end solve; \
+         partial package Base \
+           constant Real T0 = 1; \
+           constant Integer npol = 2; \
+           constant Real table[:, 2]; \
+           constant Boolean has = not (size(table, 1) == 0); \
+           final constant Real poly[:] = if has then fitting(table[:, 1], table[:, 2], npol) \
+             else zeros(npol + 1); \
+           function h_T input Real T; output Real h; \
+           algorithm h := integralValue({read}, T, T0); \
+           end h_T; \
+           function T_h input Real h; output Real T; \
+           protected \
+             function g extends Scalar; input Real h; \
+             algorithm y := h_T(u) - h; end g; \
+           algorithm T := solve(function g(h = h), 0, 100); \
+           end T_h; \
+         end Base; \
+         package Med extends Base(T0 = 0, table = [0, 1; 1, 3; 2, 6; 3, 10]); end Med; \
+         model M \
+           Real T = Med.T_h(10 + 10 * time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); \
+         end M; \
+       end G;"
+    )
+}
+
+/// The table is fitted exactly by `0.5 u^2 + 1.5 u + 1`. The answer of
+/// `dgelsy` reached the walk written out and subscripted, and a walked
+/// body subscripts only names; the slice by `npol` reached it as a list
+/// written out and sliced. Folded to its numbers and cut to the slice,
+/// the list is read: at one second `h = 20`, and the root of
+/// `0.25 T^2 + 1.5 T = 20` (the slice drops the constant) is 6.433981, the
+/// root of `T^3/6 + 0.75 T^2 + T = 20` (the whole) 3.513432. Held back,
+/// both stop at the old refusal.
+#[test]
+fn a_fitted_medium_s_inverse_reads_the_fit_as_numbers() {
+    let sliced = fitted_inverse("poly[1:npol]");
+    let whole = fitted_inverse("poly");
+    let t = last_of(&run(&sliced), "T");
+    assert!((t - (-6.0 + 356f64.sqrt()) / 2.0).abs() < 1e-6, "{t}");
+    let t = last_of(&run(&whole), "T");
+    assert!((t - 3.513_431_535_149_114).abs() < 1e-6, "{t}");
+    let _held = oxidelica_parser::hold_back_fold_outside_here();
+    for source in [&sliced, &whole] {
+        let why = run_err(source);
+        assert!(
+            why.contains("only a name is subscripted in a walked body"),
+            "{why}"
+        );
+    }
+}
+
 /// A pair of copies handed a list, inside a body the inliner writes out:
 /// `o` inlines to `h(st(x, X))`, and both are carried under the medium.
 /// A copy is not in the registry, so the list handed to `st` was spread

@@ -60,7 +60,9 @@ mod tables;
 #[cfg(test)]
 mod tests;
 
-pub use carried::{hold_back_carried_mark_here, CarriedMarkGuard};
+pub use carried::{
+    hold_back_carried_mark_here, hold_back_fold_outside_here, CarriedMarkGuard, FoldOutsideGuard,
+};
 pub use constants::{hold_back_enclosing_mint_here, EnclosingMintGuard};
 pub use lookup::{
     counts as name_counts, hold_back_components_here, hold_back_table_media_here,
