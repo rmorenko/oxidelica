@@ -915,7 +915,16 @@ FLATTEN_FLOOR=961
 # (/tmp/m303/runner_job.log). The two lists differ by the swing alone:
 # Dimmer_RL on the runner, SpringWithMass on the desk. Flatten stays
 # 961 on both.
-RUN_FLOOR=668
+#
+# And run 671 = 668 plus InverseIncompressible_sh_T,
+# TestValvesIncompressibleReverse and IncompleteMedia.Glycol47, the
+# three that the fold and the slice of 5f435c3 brought to run. The
+# runner counts 671 in job 109072163529 of run 36464829405 on 5f435c3
+# (/tmp/m305/runner_job.log), and the desk 671 on the pair of the same
+# code (/tmp/m303/on.txt). The two lists differ by the swing alone:
+# Dimmer_RL on the runner, SpringWithMass on the desk. Flatten stays
+# 961 on both.
+RUN_FLOOR=671
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1030,8 +1039,13 @@ RUN_FLOOR=668
 # And runnable run 626 is the same agreement as run 668 above: the
 # runner's 626 in job 108946559041 (/tmp/m303/runner_job.log) and the
 # desk's 626 on both halves of /tmp/m302; runnable flatten stays 845.
+#
+# And runnable run 629 = 626 plus the same three set out at
+# `RUN_FLOOR`, all runnable examples: the runner's 629 in job
+# 109072163529 (/tmp/m305/runner_job.log) and the desk's 629
+# (/tmp/m303/on.txt); runnable flatten stays 845.
 RUNNABLE_FLATTEN_FLOOR=845
-RUNNABLE_RUN_FLOOR=626
+RUNNABLE_RUN_FLOOR=629
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
