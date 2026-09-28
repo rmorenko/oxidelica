@@ -1274,7 +1274,19 @@ WORK_PERCENT=5
 # flattened 139993983 (/tmp/m292/bp_off.txt, bp_on.txt). The rest is
 # TestWaterPumpNPSH, which now runs. The rise is bought with a model
 # that flattens, and the old reference would have been red on it.
-WORK_NAMES=1907264675
+#
+# Moved to 1914710601 from /tmp/m298/q2/on.txt, the m298 pair. The
+# guard of 006e952 asks every name of a body left standing twice, under
+# the medium and without it, and the reference was not moved with it:
+# one binary of m297 printed 1910204761 with the guard switched off
+# (/tmp/m297/q/off.txt) and 1914710562 with it on (/tmp/m297/q/on.txt),
+# 2359 per million up with the lists identical, and the build machine's
+# library job for 006e952 (run 36366920031) printed 1914321460, 3700 per
+# million above the old reference and so red with every floor held. The
+# m298 walk adds 36 names on the desk (1914710565 off, 1914710601 on).
+# Against the new reference the build machine for 006e952 stands 203
+# per million below.
+WORK_NAMES=1914710601
 WORK_NAMES_PPM=2000
 
 directory="${1:?usage: library_floor.sh <library directory>}"
