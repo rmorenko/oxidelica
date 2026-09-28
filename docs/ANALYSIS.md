@@ -24720,3 +24720,17 @@ the series will still see them, and should count arrays as numbers
 when they choose. Fifteen more models that flatten and do not run carry
 the same prints (`BranchingDynamicPipes`, `HeatingSystem`, both
 `Inverse_sh_TX`, the trace-substance tests and others).
+
+### The register after the linspace series
+
+The census of 86c8d93 (`/tmp/m299/census.txt`, counted between the
+section markers): 73 models in 41 rows would not flatten, and 293 in
+157 rows flattened and would not run. That is 1034 - 961 and 961 - 668,
+so on this pass `SpringWithMass` ran. The row `unknown function
+linspace` is gone from the run half. The top of the flatten half is
+nine external C functions the compiler has none of its own for, five
+partial functions nothing redeclared, and four subscripts that are not
+a whole number the compiler can see. The top of the run half is the
+algebraic loops: 21 at the Newton direction, 20 singular Jacobians, 18
+at the equations of a loop, 16 at one of its variables, and 8 that did
+not converge.
