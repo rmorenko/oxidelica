@@ -25178,3 +25178,13 @@ gives `unknown variable k`. So the pair moves `k` and not `c`. The
 library's `s_T` slices by `npol`, a constant of its own package, and
 the fitted array reaches the walk written out only there; the next
 small model takes that shape rather than a literal `1:2`.
+
+Two more shapes, the same day: a slice by a package constant
+(`T12.mo`, `c[1:npol]` with `npol = size(c, 1) - 1`) stops at `1:npol`
+in the pair, and a callee that slices the fitted array (`T13.mo`,
+`sT` with `c[1:size(c, 1)]`) stops at `1:size(c, 1)` with the pair
+and with the key alike. Neither reaches `dgelsy` in the walk. The
+library's route to that call is still unmade small, and the next map
+starts by shrinking `InverseIncompressible_sh_T` itself rather than
+growing another synthetic model, as AGENTS.md says for exactly this
+case.
