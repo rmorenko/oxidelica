@@ -25287,3 +25287,128 @@ arriving and none leaving - `InverseIncompressible_sh_T`,
 `TestAllProperties.IncompleteMedia.Glycol47`. That is the literal
 layer's first measured payment, and the whole-library pair of the
 probe patch is the next plan's first item.
+
+### The fold and the slice, in the tree
+
+The two switches of the probe went into `qualified_calls` as one
+step: while a walked copy is prepared, an element of an answer this
+compiler writes itself (`dgelsy` and its neighbours) handed nothing
+but numbers is folded to its number, and a written list sliced by a
+range of numbers is cut to the slice. `OXIDELICA_NO_FOLD_OUTSIDE`
+gives the old road from the same binary, and
+`hold_back_fold_outside_here` gives it to a test.
+
+The library's shape was made small this time, where `T7` to `T13`
+had not made it: what the synthetic models lacked was the `if` of
+`TableBased`, `poly_Cp = if hasHeatCapacity then fitting(...) else
+zeros(...)`. Bound on `fitting` alone (`/tmp/m304/G1.mo`), the
+walk stops at `1:2` in `h_T@G1.Med` on both roads; bound under the `if`
+(`G2`, `G3`, `G4`), it does, with the library's own words. `G3` reads
+the fit sliced by `npol` and `G4` reads it whole, the shapes of `s_T`
+and `h_T`, and the test
+`a_fitted_medium_s_inverse_reads_the_fit_as_numbers` takes both: the
+table is fitted exactly by `0.5 u^2 + 1.5 u + 1`, so the roots at one
+second are 6.433981 and 3.513432 by hand, and held back both stop at
+`only a name is subscripted in a walked body`. The library's `S3` and
+`S4` give Ts = 289.1025 and 278.7599 on the new road.
+
+Shift 239 was cut off seven minutes in, while the whole-library pair
+it had started was running; the pair lived through it and is read
+below.
+
+### The whole-library pair of the fold and the slice
+
+One binary built from the final tree (`/tmp/m303/ox`), the main pass
+without the heavy models, `on` in `/tmp/m303/on.txt` and `off` under
+`OXIDELICA_NO_FOLD_OUTSIDE` in `/tmp/m303/off.txt`. `off` is the m302
+pair's `off` name for name: 961 flatten and 668 run, runnable 845 and
+626, and the run half's work line 32448769 points, 44917072 newton,
+606 jacobians to the digit. `on` flattens the same 961 and runs 671,
+runnable 629: three arrive and none leave,
+`InverseIncompressible_sh_T`, `TestValvesIncompressibleReverse` and
+`TestAllProperties.IncompleteMedia.Glycol47`, the three of the subset
+pair. The names counter is 1916711093 on `on`, 60 ppm under the floor's
+1916826359 and inside its band.
+
+### The census after the pair
+
+`refusals.sh .msl both` on the final tree (`/tmp/m303/census.txt`, raw
+halves in `/tmp/m303/raw.txt`), against m299 (`/tmp/m299/census.txt`),
+counted between the section headers. Would not flatten: 73 in 41 rows
+on both, which is 1034 - 961. Flattened and would not run: 290 in 157
+rows against 293 in 157, and 290 is 961 - 671. The raw halves name
+every mover:
+
+- the row `an array reached the evaluator: 1:N` (3) is empty:
+  `InverseIncompressible_sh_T` and `IncompleteMedia.Glycol47` run, and
+  `IncompleteMedia.Essotherm650` moves to the `Pr` bound, which takes
+  `went above its max` from 1 to 2;
+- `TestValvesIncompressibleReverse` leaves the residual row of an
+  algebraic loop and runs;
+- `TestsWithFluid...Incompressible.Glycol47` and `Essotherm650` leave
+  the same residual row for `the Newton direction` (21 to 23), so that
+  row goes 16 to 13 with the valve;
+- `Inverse_sh_TX` leaves `unknown variable` (5 to 4) for a row of its
+  own, `an array reached the evaluator: sN_T(data[i], T) * X[i] for i
+in ...`: the array of records in a walked sum, link 3 of m296, now
+  first in its way.
+
+### Where `Essotherm650` stands, with the fold
+
+Under the binary of the pair (`/tmp/m303/ox`, `--only` from `.msl`,
+`/tmp/m304/ess_*.txt`), the two `Essotherm650` models stand at two
+different walls, neither of them the fold's.
+`TestsWithFluid.MediaTestModels.Incompressible.Essotherm650` is where
+m302 left it, the Newton direction of the loop `volume.ports[2].m_flow`,
+`volume.medium.p`, ... at t = 0: the initialisation family of `Air`
+and `SeriesPipes1`, which this plan leaves alone.
+`TestAllProperties.IncompleteMedia.Essotherm650` now evaluates every
+property and stops at `Pr went above its max of 100000` at t = 0. The
+number is honest: at the reference 25 degC the viscosity fitted to the
+medium's own table (1917 at 20 degC, 424 at 40 degC) is 1345.5, with
+cp = 1863.9 and lambda = 0.1284, so Pr = 1.95e7 (`/tmp/m304/EB.mo`,
+which prints the three). `Media.PrandtlNumber` declares `max = 1e5`, so
+the wall is the library's data meeting the library's bound, and whether
+a violated `max` stops a run or is reported is a policy question for
+its own plan, not a link of this series.
+
+### The root on the edge of the bracket, made small
+
+The refusal of `InverseIncompressible_sh_T` at exactly t = 1 is made
+small without the library (`/tmp/m304/E1.mo`): a state `s1` ramped by
+`der(s1) = if time < 1.0 then s_max - s_min else 0.0` from `s(T_min)`,
+and `Ts` the inverse of `s` over the bracket `[T_min, T_max]` by a
+walked solver that tests the bracket first, as
+`solveOneNonlinearEquation` does. It stops at t = 1 with
+`fb = -4.4e-16`, one rounding below zero. Widened to `T_max + 0.05`
+(`E5`), it runs, and the accepted point at t = 1 has `s1 - s_max =
+-4.2e-6` (`E3`): the accepted state is below the upper end, not above
+it. So what the bracket test refuses is not the point written out but
+an evaluation the run makes on its way to it, at the step that lands on
+the `time < 1.0` event, where the ramp has been carried one rounding
+past `s_max`. A slope of `0.999999` of the ramp (`E2`) runs.
+
+Run past the end of the ramp, the same model says which evaluation it
+is. With `StopTime = 1.5` (`E7`) it stops at t = 1.3 with
+`fb = -0.616`, and `0.3 (s_max - s_min)` is 0.616: the walk was handed
+the ramp carried on past t = 1 in its old mode, which is a trial step
+over the `time < 1.0` event that the run would have rejected and
+located, had the walked body inside it not refused first. The refusal
+at exactly t = 1 is the same trial by one rounding. So the next plan's
+question is what a walked body's refusal inside a step that is about
+to be rejected should do, not the bracket of the library's solver.
+
+The ramp itself shows a second fault beside it, and this one is a
+wrong number rather than a refusal. `E10`, `der(s1) = if time < 1.0
+then 1 else 0` from zero, ends at s1 = 0.9999989 with `StopTime = 1`
+and at 0.9998994 with `StopTime = 1.5` (`E11`), where the answer is 1:
+the switch of a condition on `time` alone is located to a tolerance
+rather than landed on, and the state stops short by up to 1e-4. That
+is a time event, known before the step is taken, and belongs in the
+queue on its own. The shortfall depends on the solver (`E11`,
+`--solver`): dopri45 ends at 0.999899, bdf at 0.999999, and rk4 at
+0.916667, a twelfth short. A condition on `time` alone is not
+scheduled at all (`next_time_event` in `events.rs` reads only
+`sample`), so each solver meets it as a state event and loses a
+different amount of the ramp past it. The next plan's small model is
+`E11` itself, with the answer 1 known by hand.
