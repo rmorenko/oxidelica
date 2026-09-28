@@ -25011,3 +25011,116 @@ already has (`footing`, `lambda`, a retreat on a non-finite
 residual). It changes which point every steady-start model begins
 from, so it is to be measured as a different compiler, with the pair
 and the diff of run lists.
+
+## m302: step 3 of the gate series, a function handed over
+
+### What the hand-over lost
+
+Steps 1 and 2 carried a walked body, and what that body calls, as a
+copy of its own under the medium it was asked under. The third place
+the medium was lost is a function handed to another. `B9.mo`
+(`~/oxideflow/state/B9.mo`) is `T_s`, written in a base, handing its
+own protected `g` to `solveOneNonlinearEquation`; `g` binds a local on
+`toY(X, data.MM)`, and `data` is given only by the medium's modifier.
+The copy made of the solver for the hand-over (`specialized_as`,
+`arrays.rs`) called `g` under the name that wrote it, so the walk met
+`data.MM` as a name nobody declares. It stood there with the carried
+mark and without it.
+
+The target of the hand-over is now asked the same question a call left
+standing is asked (`handed_under_mark`, `carried.rs`): where the
+medium on the mark extends the package that wrote the target, and the
+target reads something the medium changes (the same gate,
+`reads_its_medium`), the copy calls the pair's name and not the
+writer's, and the copy's own `$` name is made from that pair, so two
+media over one base make two copies. The target is usually written
+inside the function that hands it (`T_s.g`), so the package is the
+nearest enclosing class the registry holds as a package, asked of the
+registry and not of the spelling. The collector of steps 1 and 2 does
+the rest: the pair is prepared under its medium with no new road.
+
+`B9` gives T = 29.333 at one second (`11 / 0.375`), and under
+`OXIDELICA_NO_CARRIED_MARK` stops at `unknown variable data.MM` as it
+did. The test (`a_function_handed_over_reads_the_medium_it_was_asked_under`)
+is B9 with the library's Brent replaced by a bisection, and goes red
+without the change. The traps stand where they stood: `B4` and `B8`
+0.75, `T2` 16, `K1` and `K1b` 4, `R2` 4, `R1` 80, `B10` and `B11` 4.5.
+
+### What moved behind it, `--only` from `.msl`
+
+- `Inverse_sh_TX` leaves `data.MM` for the words the answer on the
+  series predicted: `an array reached the evaluator:
+s0_T(data[i], T) * X[i] for i in 1:size(X, 1)`, standing in the
+  `sum` of the moist air's entropy. That is `V3` of m296, link 3,
+  a wall of its own.
+- The three `TableBased` models moved too, which nobody predicted.
+  `InverseIncompressible_sh_T` went from `an array reached the
+evaluator: 1:2` in `TableBased.s_T`, and `Glycol47` and
+  `Essotherm650` from `unknown variable poly_Cp`, to one refusal:
+  `only a name is subscripted in a walked body, not
+Index(Call("dgelsy", ...))`. The m301 binary gives the old words on
+  the same tree of the library, and so does the key, so the move is
+  this step. `poly_Cp` is a constant the medium binds on
+  `Polynomials.fitting(...)`; carried under the medium, the call is
+  now written out as far as the least-squares solver `dgelsy`, and the
+  walk is handed the solver's answer subscripted, which it cannot
+  take. The literal layer of m296 and m297 is therefore still alive
+  but has moved a storey: it is no longer a name the walk cannot see,
+  but a constant the medium computes by a call to LAPACK that the walk
+  would have to run.
+- The small models of that chain: `T2` 16 as step 1 left it, and `T5`
+  still `unknown variable c` - a package constant array bound on a
+  call, with no medium in the question, which this series does not
+  touch.
+
+### The damper of the initialisation's Newton, probed and not taken
+
+The shift was told not to touch the Newton code, so the damper named at
+the end of m301 was probed out of the tree
+(`~/oxideflow/state/damped_probe_m302.patch`, behind `OX_DAMPED_INIT`):
+the outer step of `solve_initialization` is halved while the squared
+residual does not fall or stops being a number, up to thirty times,
+and where no halving helps the full step is taken as before.
+
+- `N1` gives x = 3 where the tree calls the problem singular, and `N2`
+  gives x = 19, y = 4 where the tree says the loop `y` did not
+  converge. Both are the right answers.
+- `IdealGases.Air` leaves the block wall of m301 and stops one storey
+  on: the block is NaN at t = 0 because `solveOneNonlinearEquation`
+  refuses its bracket, `u_min = 200`, `u_max = 6000`,
+  `f(u_min) = 0.0201`, `f(u_max) = 7.3e6`. The temperature asked for
+  lies below 200 K, so the outer iterate is still somewhere
+  unphysical, though no longer where the full step sent it.
+- `SeriesPipes1` does not move. The trace
+  (`/tmp/m302/damp_sp_trace.txt`) shows why: on the first outer step,
+  from a squared residual of 1.2e9, no halving down to 9.3e-10 of the
+  step lowers it, so the probe falls back to the full step and the
+  run is the old one. The direction is wrong, not its length, which a
+  line search cannot mend. The sixteen unknowns start at
+  `[411115.7, 4.90, 0, 0, 205557.8, ...]`, and the two zeros are
+  worth a look before anything else: the retry off a zero start
+  (`starts_badly`, `compile.rs`) fires only on a residual that is not
+  a number, and this one is a number.
+
+So the damper is a real cure for the overshoot of `N1` and `N2` and
+half of one for `Air`, and does nothing for `SeriesPipes1`. It
+changes the point every steady-start model begins from, so it wants a
+pair of its own and a diff of the run lists before it goes in.
+
+### The pair of step 3
+
+One binary (`/tmp/m302/ox`, the same bytes as the build of the tree
+committed), `.msl` without the heavy models, twenty-gigabyte ceiling:
+`on` the default (`/tmp/m302/on.txt`, peak 15.0 GB) and `off` under
+`OXIDELICA_NO_CARRIED_MARK` (`/tmp/m302/off.txt`, 14.0 GB). Both give
+flatten 961 and run 668, runnable 845 and 626. The flatten lists and
+the run lists are identical between the halves in both directions,
+and the `off` lists are identical to m301's `off2`. The run work is
+the same to the digit in both (32448769 points, 44917072 Newton
+steps, 606 Jacobians). Names looked up: 1916711132 on against the
+reference 1916826359, 60 per million below it, inside the band.
+
+No model arrived, which the section above explains: every model this
+step moved (`Inverse_sh_TX` and the three `TableBased`) moved to a
+wall behind it, not past it. With no arrivals the census of m299
+stands, and none was taken.

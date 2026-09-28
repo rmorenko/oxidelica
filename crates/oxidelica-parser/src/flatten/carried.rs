@@ -435,13 +435,62 @@ pub(super) fn paired_under(
     if !super::arrays::reads_its_medium(class, registry, medium) {
         return None;
     }
+    Some(minted_pair(class, medium))
+}
+
+/// Keep the pair of a body and its medium, and give back the name the
+/// flat model calls the copy by.
+fn minted_pair(class: &ClassDef, medium: &str) -> String {
     let name = format!("{}@{medium}", class.name);
     PAIRS.with(|pairs| {
         pairs
             .borrow_mut()
             .insert(name.clone(), (class.name.clone(), medium.to_string()))
     });
-    Some(name)
+    name
+}
+
+/// The name a function handed to another is called by in the copy
+/// made for the hand-over: the pair's, where the medium on the mark
+/// stands over the class that wrote the function and changes something
+/// it reads, and nothing otherwise.
+///
+/// The third place a medium was lost. A body hands `function g(s = s)`
+/// to `solveOneNonlinearEquation`, and the copy made of the solver
+/// called `g` under the name that wrote it, so a local of `g` bound on
+/// the medium's `data.MM` reached the walk as a name nobody declares.
+/// The function handed over is often written inside the function that
+/// hands it, `T_s.g`, so what the medium must extend is the nearest
+/// class enclosing it that the registry holds as a package - each one
+/// asked of the registry, not guessed from the spelling. A function
+/// written in the medium itself reads the medium already.
+pub(super) fn handed_under_mark(
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<String> {
+    if !carried_mark_open() || class.kind != ClassKind::Function {
+        return None;
+    }
+    let medium = asked_as_mark();
+    registry
+        .get(medium.as_str())
+        .filter(|found| found.kind == ClassKind::Package)?;
+    let mut enclosing = class.name.as_str();
+    let package = loop {
+        let (outer, _) = enclosing.rsplit_once('.')?;
+        enclosing = outer;
+        let held = registry.get(outer)?;
+        if held.kind == ClassKind::Package {
+            break outer;
+        }
+    };
+    if package == medium || !descends_from(registry, &medium, package) {
+        return None;
+    }
+    if !super::arrays::reads_its_medium(class, registry, &medium) {
+        return None;
+    }
+    Some(minted_pair(class, &medium))
 }
 
 /// Whether a function is written in a package `medium` extends, however

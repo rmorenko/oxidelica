@@ -3634,6 +3634,53 @@ fn a_walked_body_s_callee_reads_the_medium_s_list() {
     assert!(why.contains("unknown variable `data.MM`"), "{why}");
 }
 
+/// The same list read by a function handed to another: `T_s` hands its
+/// own `g`, whose local is bound on `data.MM`, to a solver that bisects
+/// and so is walked. The copy made of the solver called `g` under the
+/// name that wrote it, and the walk met `data.MM` as a name nobody
+/// declares. Called under the pair, `g` reads the medium's `{2, 4}`:
+/// `Y = {0.25, 0.125}`, and the root of `0.375 u = 10 + time` at one
+/// second is `11 / 0.375 = 29.333`. Held back, the old refusal stands.
+#[test]
+fn a_function_handed_over_reads_the_medium_it_was_asked_under() {
+    const SOURCE: &str = "package B9 \
+         record D Real MM; end D; \
+         function toY input Real X[:]; input Real MM[:]; output Real Y[size(X, 1)]; \
+         algorithm for i in 1:size(X, 1) loop Y[i] := X[i] / MM[i]; end for; end toY; \
+         partial function Scalar input Real u; output Real y; end Scalar; \
+         function solve input Scalar f; input Real lo; input Real hi; output Real x; \
+         protected Real mid; Real step; \
+         algorithm \
+           x := lo; step := hi - lo; \
+           while abs(step) > 1e-10 loop \
+             step := step / 2; mid := x + step; \
+             if f(mid) < 0 then x := mid; end if; \
+           end while; \
+         end solve; \
+         partial package Base \
+           constant Integer nX = 2; \
+           constant D[:] data; \
+           function T_s input Real s; input Real X[nX]; output Real T; \
+           protected \
+             function g extends Scalar; input Real s; input Real X[nX]; \
+             protected Real[nX] Y = toY(X, data.MM); \
+             algorithm y := u * (Y[1] + Y[2]) - s; end g; \
+           algorithm T := solve(function g(s = s, X = X), 0, 100); \
+           end T_s; \
+         end Base; \
+         package Med extends Base(data = {D(MM = 2), D(MM = 4)}); end Med; \
+         model M \
+           Real T = Med.T_s(10 + time, {0.5, 0.5}); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); \
+         end M; \
+       end B9;";
+    let t = last_of(&run(SOURCE), "T");
+    assert!((t - 11.0 / 0.375).abs() < 1e-6, "{t}");
+    let _held = oxidelica_parser::hold_back_carried_mark_here();
+    let why = run_err(SOURCE);
+    assert!(why.contains("unknown variable `data.MM`"), "{why}");
+}
+
 /// A pair of copies handed a list, inside a body the inliner writes out:
 /// `o` inlines to `h(st(x, X))`, and both are carried under the medium.
 /// A copy is not in the registry, so the list handed to `st` was spread

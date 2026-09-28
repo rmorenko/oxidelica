@@ -2564,6 +2564,13 @@ fn specialized_as(
     // never heard of it.
     let target = lookup(registry, target, scope, imports)
         .ok_or_else(|| format!("`{target}` is handed over and is not a function here"))?;
+    // What the copy calls the target by: the pair's name, where the
+    // medium the hand-over was asked under changes what the target
+    // reads, so that its body is carried under that medium. The name
+    // the copy is made under carries the same pair, so two media over
+    // one base make two copies, as they make two sets of numbers.
+    let called =
+        super::carried::handed_under_mark(target, registry).unwrap_or_else(|| target.name.clone());
     // Through the gatherer: a receiving function may be written
     // `redeclare function extends` and take its inputs from a base,
     // and the one being replaced is found by position among them.
@@ -2715,7 +2722,7 @@ fn specialized_as(
                     .unwrap_or(Expr::Number(0.0)),
             });
         }
-        Expr::Call(target.name.clone(), all)
+        Expr::Call(called.clone(), all)
     };
     copy.components.retain(|held| held.name != replaced);
     copy.components.extend(extra);
@@ -2724,7 +2731,7 @@ fn specialized_as(
     });
     // A name of its own, worked out from what went into it, so the
     // same pair is specialized once however many models ask for it.
-    copy.name = format!("{}${}", class.name, target.name.replace('.', "_"));
+    copy.name = format!("{}${}", class.name, called.replace('.', "_"));
     // The body may not call the function at all and hand it on
     // instead: the adaptive quadrature gives `f` to `quadStep`, which
     // calls it and hands it to itself. Left standing, `f` is a name
@@ -2779,7 +2786,7 @@ fn specialized_as(
             // `quadStep` inside `quadStep` - names the copy being
             // made rather than making a second one, which would make
             // a third and never stop. One name, one copy.
-            let name = format!("{}${}", callee.name, target.name.replace('.', "_"));
+            let name = format!("{}${}", callee.name, called.replace('.', "_"));
             if MAKING.with(|making| making.borrow().contains(&name)) {
                 let (_, rest) =
                     specialized_as(callee, &args, registry, scope, imports, false).ok()?;
