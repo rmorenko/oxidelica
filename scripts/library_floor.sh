@@ -379,7 +379,17 @@ FILES_FLOOR=2671
 # writer's medium. The desk counts the same 959 on that tree
 # (/tmp/m292/e/on.txt, /tmp/m293/p/on.txt). The runner's log names only
 # the models that run, so the flatten lists were compared by count.
-FLATTEN_FLOOR=959
+#
+# And flatten 961 is the runner's count of 50b0413 (job 108722878063 of
+# run 36355702803, /tmp/m297/runner.log): 959 plus
+# ModelicaTest.Math.Random.TestDistributions and
+# TestTruncatedDistributions, whose `derTwoSided` answers `Y[size(X,
+# 1)]` and is now taken at the length the call hands in. Both flatten
+# and neither runs: their run wall is `unknown function linspace`. The
+# desk counts the same 961 on that tree (/tmp/m296/q/on.txt), and run
+# stays 665 on both. The run lists differ by the two names known to
+# swing, Dimmer_RL on the runner and SpringWithMass on the desk.
+FLATTEN_FLOOR=961
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -985,7 +995,13 @@ RUN_FLOOR=665
 # `RUN_FLOOR`, all runnable examples; runnable flatten stays 843. The
 # runner's count of 82f6834 (/tmp/m295/runner8a0.log), the same as the
 # desk's (/tmp/m295/p/ox1.txt).
-RUNNABLE_FLATTEN_FLOOR=843
+#
+# And runnable flatten 845 = 843 plus TestDistributions and
+# TestTruncatedDistributions, both runnable examples set out at
+# `FLATTEN_FLOOR`; runnable run stays 623. The runner's count of
+# 50b0413 (/tmp/m297/runner.log), the same as the desk's
+# (/tmp/m296/pffull.txt).
+RUNNABLE_FLATTEN_FLOOR=845
 RUNNABLE_RUN_FLOOR=623
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
