@@ -25260,3 +25260,21 @@ made, and which stops at that call without the fold. So the fold is
 the first model this series can buy, and the next plan has a
 candidate with a witness (`S4`, 278.76 checked against `h_T`) and a
 subset pair behind it. A whole-library pair is what it still needs.
+
+A second switch in the same probe patch (`OX_FOLD_SLICE`) takes a
+literal list sliced by a range of numbers as the slice, inside the
+walked copy. With both, `S3` runs: at one second s = 200 gives
+Ts = 289.1025, and `s_T` of that temperature called forward (`S6.mo`)
+gives 199.999999. `InverseIncompressible_sh_T` runs under `library
+check --only` from `.msl` as well. Its own check, h2 against h1 and s2
+against s1, holds to 3.5e-10 over all 991 points to t = 0.99
+(`S7.mo`, which extends it, under `simulate --stop 0.99`). At exactly
+t = 1, which `simulate`'s grid lands on and the check's does not, the
+entropy inverse is refused: the root is `T_max = 373.15` itself, the
+upper end of the bracket, and `f(u_max)` comes out as -4.5e-13 rather
+than zero or above it. That is the bracket test in
+`solveOneNonlinearEquation` meeting a root on its edge, a separate
+question from the series and worth its own small model.
+`Glycol47` and `Essotherm650` stay at the block wall. The fold and
+the slice together want a whole-library pair before either goes into
+the tree.
