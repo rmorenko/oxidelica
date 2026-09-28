@@ -25412,3 +25412,35 @@ scheduled at all (`next_time_event` in `events.rs` reads only
 `sample`), so each solver meets it as a state event and loses a
 different amount of the ramp past it. The next plan's small model is
 `E11` itself, with the answer 1 known by hand.
+
+### `Test87` and `Test88` are not about the shape of a table
+
+The two `CombiTimeTable` tests the queue listed as external code
+refuse at `ModelicaStandardTables_CombiTimeTable_getValue`, but a
+`CombiTimeTable` with the same table, the same four smoothness choices,
+and `table = table` from a constant of its own model runs
+(`/tmp/m304/TT1.mo` to `TT5.mo`). So does
+`extends TestDer2(t_new(table = [...]))` with the matrix written out
+(`TT7`). What refuses is `extends TestDer2(t_new(table = table))` with
+`table` a constant of the model doing the extending (`TT9`, and `TT6`,
+`TT8` with `final` and without): the table never reaches the call, and
+the refusal about the external body is the second wall, not the first.
+
+Without the library it is four lines (`X4.mo`): a block with
+`parameter Real t[2]`, a base holding one, and
+`model M constant Real c[2] = {1, 2}; extends Base(b(t = c)); end M`
+stops at `cannot evaluate parameters [b.t[1] = c, b.t[2] = c]: nothing
+gives a value to c`. The same with a scalar (`X2`, `X3`) runs; with
+the array as a modifier of a component of M itself rather than of an
+inherited one (`X5`) runs; with `c` a constant of the enclosing package
+(`X7`) runs; with `c` a parameter (`X8`) or declared after the
+`extends` (`X6`) refuses the same way. So the fault is one layer: an
+array named in a modifier of an `extends` clause, where the name is an
+element of the class that writes the clause, is split into elements
+that still read `c` whole, and `c` is looked for in the scope of the
+base rather than of the class. `why` on `b.t` does not answer it
+(`declared: nowhere`), which is itself worth fixing where the fix is
+made. It is a candidate for a series of its own, with `X4` as the test
+and `Test87`/`Test88` as the models it is expected to move; whether
+they then run depends on the modified Akima smoothness behind it, which
+`TT3` shows is already answered.
