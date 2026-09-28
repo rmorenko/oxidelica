@@ -25188,3 +25188,27 @@ library's route to that call is still unmade small, and the next map
 starts by shrinking `InverseIncompressible_sh_T` itself rather than
 growing another synthetic model, as AGENTS.md says for exactly this
 case.
+
+Shrinking the real model does what the synthetic ones did not. One
+line against the library is enough (`/tmp/m302/sh/`, run with
+`OXIDELICA_LIB=.msl`):
+
+- `S1`, `Glycol47.specificEntropy(setState_pT(1e5, 280 + 10 time))`,
+  and `S2`, `Glycol47.s_T(...)` called directly, both run, s = 211.006
+  at one second. The entropy itself is not the wall.
+- `S3`, `Glycol47.temperature_psX(1e5, 100 + 100 time, fill(0.0, 0))`,
+  stops at the library's words, `only a name is subscripted in a
+walked body, not Array([Index(Call("dgelsy", ...` and under the key
+  at `1:2` in `TableBased.s_T`.
+- `S4`, the same through `temperature_phX`, stops at `not
+Call("dgelsy", ...)` and under the key at `unknown variable poly_Cp`.
+
+So the wall is the inverse: `s_T` and `h_T` reached through the
+function handed to `solveOneNonlinearEquation`, which is the road
+step 3 opened. The pair of the handed target is prepared under the
+medium, `poly_Cp` settles to its binding, and the binding is the
+`fitting` call written out down to `dgelsy` rather than the numbers it
+comes to. The next step is to have that constant folded to its value
+before it goes into the copy (the fold already answers `dgelsy`, per
+`a_least_squares_fit_is_answered_here`), with `S3` and `S4` as its
+small models.
