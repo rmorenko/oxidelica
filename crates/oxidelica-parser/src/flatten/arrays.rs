@@ -2921,10 +2921,40 @@ fn walked_medium_constants_checked() -> bool {
     std::env::var_os("OXIDELICA_WALKED_MEDIUM_CONSTANTS_UNCHECKED").is_none()
 }
 
+/// Whether the constants a walked body's locals are bound to are asked
+/// about as its statements are. `OXIDELICA_WALKED_BINDINGS_UNCHECKED`
+/// asks only the statements, as before, so that one binary gives both
+/// numbers.
+fn walked_bindings_checked() -> bool {
+    std::env::var_os("OXIDELICA_WALKED_BINDINGS_UNCHECKED").is_none()
+}
+
+/// Whether every name a walked body reads differently under its medium's
+/// mark and without it is printed, whatever the two readings are.
+/// `OXIDELICA_SHOW_WALK_READINGS` turns it on; it measures how many
+/// bodies a walk told its medium would change, and decides nothing.
+fn walk_readings_shown() -> bool {
+    std::env::var_os("OXIDELICA_SHOW_WALK_READINGS").is_some()
+}
+
+/// A reading as the print of [`walk_readings_shown`] names it: a number
+/// by its value, anything else by its kind and its spelling.
+pub(super) fn reading_kind(reading: &Expr) -> String {
+    match reading {
+        Expr::Number(value) => format!("number {value}"),
+        Expr::Ref(name) => format!("name `{name}`"),
+        other => format!("expression {other:?}"),
+    }
+}
+
 thread_local! {
     /// What [`constant_the_walk_misreads`] found, by body and by the
     /// medium it was asked under. Held for as long as one registry
     /// stands and cleared with it.
+    /// The bodies [`constant_the_walk_misreads`] is in the middle of
+    /// asking about, by body and medium, innermost last.
+    static ASKING: std::cell::RefCell<Vec<(String, String)>> =
+        const { std::cell::RefCell::new(Vec::new()) };
     pub(super) static MISREAD: std::cell::RefCell<HashMap<(String, String), Option<String>>> =
         std::cell::RefCell::new(HashMap::new());
 }
@@ -2963,7 +2993,15 @@ pub(super) fn constant_the_walk_misreads(
             return found;
         }
     }
+    // Settling a local's binding may inline a call, and the inlining
+    // asks this again of the same body under the same medium: the
+    // question already being answered one storey up is not asked twice.
+    if ASKING.with(|asking| asking.borrow().contains(&key)) {
+        return None;
+    }
+    ASKING.with(|asking| asking.borrow_mut().push(key.clone()));
     let found = misread_below(class, registry, &mark);
+    ASKING.with(|asking| asking.borrow_mut().pop());
     if stands {
         MISREAD.with(|held| held.borrow_mut().insert(key, found.clone()));
     }
@@ -2995,6 +3033,20 @@ fn misread_below(
         let held: Vec<&str> = own.iter().map(String::as_str).collect();
         let mut exprs = Vec::new();
         statement_exprs(&body.algorithm, &mut exprs);
+        // A local's binding is worked out by the same preparation as a
+        // statement (`carried.rs`), so a constant read there is read
+        // under the same name: `protected Real a = k` is `k` of the
+        // author's package however the body is asked.
+        let bindings: Vec<&Expr> = if walked_bindings_checked() {
+            body.components
+                .iter()
+                .flat_map(|component| [&component.binding, &component.start])
+                .flatten()
+                .collect()
+        } else {
+            Vec::new()
+        };
+        exprs.extend(bindings.iter().copied());
         let mut names: Vec<&str> = Vec::new();
         for expr in &exprs {
             expr.for_each(&mut |inner| {
@@ -3025,6 +3077,15 @@ fn misread_below(
                     &held,
                 )
             };
+            if walk_readings_shown() && asked != walked {
+                eprintln!(
+                    "walk reading: body `{}` under `{mark}` via `{}`: `{named}` asked {} walked {}",
+                    body.name,
+                    class.name,
+                    reading_kind(&asked),
+                    reading_kind(&walked)
+                );
+            }
             if let (Expr::Number(asked), Expr::Number(walked)) = (&asked, &walked) {
                 if asked != walked {
                     return Some(format!(
@@ -3043,6 +3104,9 @@ fn misread_below(
             &body.imports,
             &mut calls,
         );
+        for written in bindings {
+            super::carried::gather_calls(written, registry, &body.name, &body.imports, &mut calls);
+        }
         wanted.extend(calls);
     }
     None

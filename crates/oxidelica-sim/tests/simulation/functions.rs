@@ -3477,6 +3477,61 @@ fn a_walked_body_that_would_read_its_base_s_constant_over_the_medium_s_is_refuse
     assert_eq!(last_of(&inlined, "y"), 4.0);
 }
 
+/// The same misreading through a local's binding rather than a
+/// statement: `protected Real a = k` is prepared by the walk as the
+/// statements are, under the name of the package that wrote the body,
+/// so `Med.w` ran to `y = 2` where the medium's `k = 2` makes it 4.
+/// Asked only about the statements, the guard saw `s * a` and nothing
+/// of `k`, and the wrong number went out without a word.
+#[test]
+fn a_walked_body_that_would_read_its_base_s_constant_in_a_binding_is_refused() {
+    let why = parse_model(
+        "package P partial package Base constant Real k = 1; \
+           function w input Real x; output Real y; protected Real s = 0; Real a = k; \
+           algorithm while s < x loop s := s + 0.25; end while; y := s * a; end w; \
+         end Base; \
+         package Med extends Base(k = 2); end Med; \
+         model M Real y = Med.w(1 + time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
+    )
+    .expect_err("a walk that would read the base's constant in a binding is refused")
+    .message;
+    assert!(
+        why.contains(
+            "`P.Base.w` is left for the run to walk under `P.Med`, and the walk would read \
+             `k` of `P.Base.w` as 1 where `P.Med` makes it 2"
+        ),
+        "{why}"
+    );
+}
+
+/// A binding that names a constant the body itself defines: settling
+/// `a = if x > 10 then r else k` reaches `r = w(0.5)`, which inlines `w`
+/// under the same medium and asks the guard about `w` again. Asked
+/// again from inside its own answer, the guard went round until the
+/// stack gave out - `Modelica.Fluid.Examples.HeatingSystem` took the
+/// whole corpus pass down this way. The question already being
+/// answered is not asked twice, and `k` is still refused by name.
+#[test]
+fn a_binding_that_leads_back_to_its_own_body_is_asked_once() {
+    let why = parse_model(
+        "package P partial package Base constant Real k = 1; constant Real r = w(0.5); \
+           function w input Real x; output Real y; protected Real s = 0; \
+             Real a = if x > 10 then r else k; \
+           algorithm while s < x loop s := s + 0.25; end while; y := s * a; end w; \
+         end Base; \
+         package Med extends Base(k = 2); end Med; \
+         model M Real y = Med.w(1 + time); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
+    )
+    .expect_err("the binding's constant is refused, not recursed into")
+    .message;
+    assert!(
+        why.contains("the walk would read `k` of `P.Base.w` as 1 where `P.Med` makes it 2"),
+        "{why}"
+    );
+}
+
 /// A walked body that lays its grid out with `linspace` and reads it
 /// back through the array operations the random-number tests of the
 /// standard library write: a length given by an input's default, a

@@ -1081,3 +1081,12 @@ fn a_name_an_extends_gives_is_read_where_the_extends_was_written() {
          model M parameter Real r = Water.Steam.data.d; Real x; equation der(x) = r; end M;";
     assert_eq!(settled_parameter(source, "r"), Some(7.0));
 }
+
+#[test]
+fn a_walk_reading_is_named_by_what_it_came_to() {
+    use crate::ast::Expr;
+    let named = super::arrays::reading_kind;
+    assert_eq!(named(&Expr::Number(2.0)), "number 2");
+    assert_eq!(named(&Expr::Ref("data.MM".into())), "name `data.MM`");
+    assert!(named(&Expr::Array(vec![Expr::Number(1.0)])).starts_with("expression Array"));
+}

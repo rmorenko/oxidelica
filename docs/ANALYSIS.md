@@ -24628,3 +24628,95 @@ stands at the m298 desk count, 1914710601 (`/tmp/m298/q2/on.txt`).
 Replaying the runner's own report of 006e952 through
 `library_floor.sh` with a stub binary passes at 203 per million
 below it.
+
+## m299: the guard reads the locals' bindings, and what a walk told its medium would change
+
+### The guard's blind spot, closed
+
+The guard of 006e952 asked a walked body about the names its
+statements read and nothing else, while the preparation that carries
+the body settles its locals' bindings too. `K1b`, a twin of `K1` that
+reads the constant through `protected Real a = k` and then
+`y := s * a`, ran to a silent y = 2 where the medium makes it 4. The
+guard now asks about the bindings and start values of a body's locals
+and follows the calls written there, as the preparation does.
+`OXIDELICA_WALKED_BINDINGS_UNCHECKED` keeps the old question, so that
+one binary gives both sides. With it `K1b` runs to y = 2 again, and
+the test written for it goes red. `K1` is refused as before. `B4` and
+`B8` stand at `unknown variable data.MM` either way. (The 0.75 the
+m298 chapter gave for `B4b` was the number under the fable probe, not
+on the tree.)
+
+The first pair died on the three hundred and eighty-second model with
+a stack overflow (exit 134, peak 6.6 GB, far under the 20 GB cap, so
+not memory). A pass with `OXIDELICA_TRACE` narrowed it to forty
+models, a serial run of those to `Modelica.Fluid.Examples.HeatingSystem`,
+and the same model under the old key passed. The cause was a cycle.
+Settling a binding substitutes the package's constants. A constant of
+the package that is a call to the body inlines the body under the same
+medium, and the inlining asks the guard about the same body again. The
+seventeen-line `R2` shows it: `a = if x > 10 then r else k` with
+`r = w(0.5)`. The guard now keeps the list of the questions it is in
+the middle of answering, by body and medium, and does not ask one
+twice. The test built from `R2` overflowed without that and refuses
+`k` by name with it.
+
+The pair, one binary `/tmp/m299/ox2` with and without the key,
+`--without scripts/heavy_models.txt`, files `/tmp/m299/on2.txt` and
+`/tmp/m299/off2.txt`: 961 flatten and 667 run on both sides, runnable
+845 and 625, the lists identical both ways, and the register below
+`of the 961 that flatten` identical line for line (438 lines each).
+No model came and none went. Against the m298 desk (668) the one
+missing is `Modelica.Mechanics.MultiBody.Examples.Elementary.SpringWithMass`,
+which is absent from both halves of this pair and is one of the two
+models known to swing between machines. Names looked up: 1914516126
+with the guard reading bindings and 1913728034 without, 412 per
+million apart, and 102 per million under the reference of 1914710601,
+so the reference stays.
+
+### Who the gates would admit (step 0 of the series)
+
+`OXIDELICA_SHOW_WALK_READINGS` prints every name a walked body reads
+differently under its medium's mark and without it, whatever the two
+readings are, as `(body, mark, name, both readings)`. It decides
+nothing. On the whole corpus (`/tmp/m299/on2.txt`, 70 lines,
+`/tmp/m299/probe.txt`) it printed 19 distinct body and medium pairs:
+
+| asked under the mark | walked without it | lines |
+| -------------------- | ----------------- | ----: |
+| array                | array             |    56 |
+| array                | name              |     3 |
+| `if` expression      | name              |     4 |
+| derivative wrapper   | name              |     4 |
+| number               | name              |     2 |
+| name                 | number            |     1 |
+
+No two scalar numbers disagree, so the guard's own refusal fires
+nowhere in the corpus. The population holds both bodies the fable
+answer named: `MixtureGasNasa.setState_psX` under
+`FlueGasSixComponents` (`nX`: 6 under the mark, the bare name
+without) and `PartialLinearFluid.setState_phX` under
+`LinearWater_pT_Ambient` (`reference_d`, `reference_h`, `cp_const`,
+`beta_const`).
+
+The 56 array-against-array lines are what prediction 2 did not
+foresee, and they are one name: `reference_X` of `PartialMedium`,
+read by `setState_pTX` and `specificEnthalpy_pTX` as the default of
+their input `X`. Under the medium it is the medium's composition, and
+without it the base's `{1}`. So there are numbers against numbers,
+only in array form, and the guard compares scalars only. Run one model
+at a time (`/tmp/m299/per/`), seven models that run carry it:
+`Modelica.Media.Examples.MoistAir`, `PsychrometricData`,
+`ModelicaTest.Fluid.TestComponents.Fittings.TestMultiPort`,
+`Sensors.TestTraceSubstances`, and `ModelicaTest.Media.TestOnly.FlueGas`,
+`MixIdealGasAir` and `MoistAir`. Their numbers are not wrong for this
+reason. A walk that has to take an array input's default refuses
+loudly: `D1` (`input Real X[:] = ref`, called without `X`) stops at
+`unknown variable X` on both binaries. So the default is not read in
+silence, and a model that runs never made the walk take it: these
+seven reach the bodies with `X` passed, or inlined under the medium,
+and the base's `{1}` is never used. The gates of
+the series will still see them, and should count arrays as numbers
+when they choose. Fifteen more models that flatten and do not run carry
+the same prints (`BranchingDynamicPipes`, `HeatingSystem`, both
+`Inverse_sh_TX`, the trace-substance tests and others).
