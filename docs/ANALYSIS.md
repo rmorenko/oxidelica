@@ -25278,3 +25278,12 @@ question from the series and worth its own small model.
 `Glycol47` and `Essotherm650` stay at the block wall. The fold and
 the slice together want a whole-library pair before either goes into
 the tree.
+
+The same subset pair with both switches (`/tmp/m302/oxs`,
+`fs_on.txt` against `fs_off.txt`, the 55 models of
+`media_run.lst`): flatten lists identical, run 29 against 26, three
+arriving and none leaving - `InverseIncompressible_sh_T`,
+`TestValvesIncompressibleReverse` and
+`TestAllProperties.IncompleteMedia.Glycol47`. That is the literal
+layer's first measured payment, and the whole-library pair of the
+probe patch is the next plan's first item.
