@@ -2371,3 +2371,30 @@ fn a_stream_member_that_is_an_array_is_mixed_element_by_element() {
     assert!((last("ca[1]") - 10.0).abs() < 1e-6, "{}", last("ca[1]"));
     assert!((last("ca[2]") - 20.0).abs() < 1e-6, "{}", last("ca[2]"));
 }
+
+/// An array of the class that extends, handed to a component of the
+/// base through the `extends` modifier, as `Test87` and `Test88` of the
+/// tables hand theirs. The name `c` is known to the sizing table and
+/// not to what was handed down, so it was spread whole over `b.t` and
+/// every element bound to the entire array. Cut by its shape, each
+/// element takes its own: `b.y = (1 + 2) * time`, 3 at one second.
+/// Held back, the old refusal about `c` returns.
+#[test]
+fn an_array_handed_down_an_extends_clause_is_cut_into_its_elements() {
+    let source = "package X4 \
+         block B parameter Real t[2] = {0, 0}; Real y = (t[1] + t[2]) * time; end B; \
+         partial model Base B b; end Base; \
+         model M \
+           constant Real c[2] = {1, 2}; \
+           extends Base(b(t = c)); \
+           annotation(experiment(StopTime = 1, Interval = 0.5)); \
+         end M; \
+       end X4;";
+    let result = run(source);
+    let at = result.columns.iter().position(|c| c == "b.y").unwrap();
+    let y = result.rows.last().unwrap()[at];
+    assert!((y - 3.0).abs() < 1e-12, "{y}");
+    let _held = oxidelica_parser::hold_back_sizing_fallback_here();
+    let why = refused(source);
+    assert!(why.contains("nothing gives a value to `c`"), "{why}");
+}

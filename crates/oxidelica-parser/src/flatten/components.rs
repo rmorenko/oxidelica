@@ -899,6 +899,37 @@ fn measure_dimensions(
     Ok(sizes)
 }
 
+/// Whether an array binding that names an array of the class that
+/// extends is cut into its elements by the shape the sizing table
+/// knows. `OXIDELICA_NO_SIZING_SHAPES_FALLBACK` spreads it whole, as
+/// before, so that one binary gives both numbers.
+fn sizing_shapes_fallback_open() -> bool {
+    !SIZING_FALLBACK_HELD.with(std::cell::Cell::get)
+        && std::env::var_os("OXIDELICA_NO_SIZING_SHAPES_FALLBACK").is_none()
+}
+
+thread_local! {
+    /// Whether this thread asked for the fallback to be held back -
+    /// what a test does to see the refusal it replaces.
+    static SIZING_FALLBACK_HELD: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Spread an array named from the class that extends whole, on this
+/// thread, until the guard is dropped.
+pub fn hold_back_sizing_fallback_here() -> SizingFallbackGuard {
+    SIZING_FALLBACK_HELD.with(|held| held.set(true));
+    SizingFallbackGuard(())
+}
+
+/// Puts the fallback back where it was.
+pub struct SizingFallbackGuard(());
+
+impl Drop for SizingFallbackGuard {
+    fn drop(&mut self) {
+        SIZING_FALLBACK_HELD.with(|held| held.set(false));
+    }
+}
+
 /// One value of a whole array handed out to its elements.
 ///
 /// A declaration bound or started as a whole, as `Real k[3] = {2, 4,
@@ -965,9 +996,21 @@ fn spread_over_elements(
     // element. Spread rather than subscripted, that element
     // is bound to the array itself, which is a name no
     // parameter can be worked out from.
+    // The array may also belong to the class that extends, handed
+    // to a component of the base through the `extends` modifier:
+    // `extends Base(b(t = c))` with `c` an array declared beside
+    // the clause. Its shape is known to the sizing table and not
+    // to the table of what was handed down, so it is looked for
+    // there too. `OXIDELICA_NO_SIZING_SHAPES_FALLBACK` keeps the
+    // old road, where such a name was spread whole.
+    let sizing_fallback = sizing_shapes_fallback_open();
     if items.len() == 1 && !element_names.is_empty() {
         if let Expr::Ref(name) = &items[0] {
-            if let Some(shape) = env.handed_shapes.get(name.as_str()) {
+            if let Some(shape) = env.handed_shapes.get(name.as_str()).or_else(|| {
+                sizing_fallback
+                    .then(|| env.sizing_shapes.get(name.as_str()))
+                    .flatten()
+            }) {
                 let indices = index_tuples(shape);
                 if indices.len() == element_names.len() {
                     return Ok(indices
