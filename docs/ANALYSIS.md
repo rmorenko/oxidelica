@@ -25235,3 +25235,15 @@ answers) and stop at the block wall, the Newton direction of the loop
 residual from |f| = 1.8e4 and 9.2e3 at t = 0: the same family as the
 initialisation walls of `Air` and `SeriesPipes1` above. So the fold
 buys one wall on each of the three, and none of them runs yet.
+
+`IdealGases.Air` has no parameter left to the initialisation (its
+outer unknowns are `volume.U` and `volume.m` alone,
+`/tmp/m302/air_pfd.txt`), so holding the states for a first step
+changes nothing there. Under the damper the trace shows why the
+bracket refusal follows: each accepted step moves `volume.m` up, 0.12,
+0.33, 0.35, ... 0.38 kg in 0.1 m³, while the mass residual stays near
+9.2e5 and only the energy row falls. The damper accepts a smaller
+norm bought on one row, and the iterate drifts toward three times the
+physical density. Its cure is not the damper either: the mass row is
+scaled a thousand times above the energy row, and the norm the damper
+compares is dominated by it without moving it.
