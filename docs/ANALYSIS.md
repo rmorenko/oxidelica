@@ -24812,10 +24812,10 @@ time wants its own look on a quiet machine.
 ### The top of the run register, probed: the Newton direction
 
 The row `the Newton direction of algebraic loop` holds 21 models in the
-m299 census (`/tmp/m299/raw.txt`). Three were run one at a time from the
-root `.msl` with `OXIDELICA_NEWTON_TRAIL` (`/tmp/m300/dry1t.txt`,
-`/tmp/m300/bp17.txt`), and they are three different mechanisms, not one
-family:
+m299 census (`/tmp/m299/census.txt`). Four were run one at a time from
+the root `.msl` with `OXIDELICA_NEWTON_TRAIL` (`/tmp/m300/dry1t.txt`,
+`/tmp/m300/bp17.txt`, `/tmp/m300/r6.txt`), and they show three
+mechanisms, not one family:
 
 - `Media.Examples.ReferenceAir.DryAir1` solves its loop at t = 0 to a
   residual of 2e-6, then fails on the first step at t = 2e-4. The fifth
@@ -24837,8 +24837,15 @@ semiLinear(port.m_flow, port.h, medium.h)`, whose value does not
   with the second residual stuck at 16.42. The pump's `head` is a
   piecewise polynomial in `V_flow_single` built with `dgesv`, and the
   iteration sits on a kink or a flat piece of it.
+- `Modelica.Electrical.Machines.Examples.Transformers.Rectifier6pulse`
+  (`/tmp/m300/r6.txt`) fails in its first microseconds on a loop of
+  the ideal diodes' switch parameters `idealDiode[i].s`. The residual
+  is 1e-4 and falling, while the unknowns walk to 1e8 and then 1e13.
+  The piecewise-linear diode leaves `s` free along whichever branch is
+  off, and the iteration runs down that free direction.
 
-So the row is a count of the same symptom rather than a family. The
-next shift should read the rest of the 21 the same way, one trail
-each, and group by mechanism before choosing work. The loop code was
-not touched.
+So the row is a count of the same symptom rather than a family. Of the
+four read, two (`DryAir1`, `Rectifier6pulse`) are a block nearly flat
+along one unknown and are one mechanism. The next shift should read
+the rest of the 21 the same way, one trail each, and group by mechanism
+before choosing work. The loop code was not touched.
