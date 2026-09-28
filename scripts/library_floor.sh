@@ -389,7 +389,13 @@ FILES_FLOOR=2671
 # desk counts the same 961 on that tree (/tmp/m296/q/on.txt), and run
 # stays 665 on both. The run lists differ by the two names known to
 # swing, Dimmer_RL on the runner and SpringWithMass on the desk.
-FLATTEN_FLOOR=961
+#
+# And flatten 963 = 961 plus ModelicaTest.Tables.CombiTimeTable.Test87
+# and Test88, whose array handed down an extends clause is now cut into
+# its elements (f999f45). The runner counts 963 in job 109136903901 of
+# run 36484179633 (/tmp/m306/runner_job.log), the desk 963 on the same
+# code (/tmp/m305/on.txt).
+FLATTEN_FLOOR=963
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -924,7 +930,12 @@ FLATTEN_FLOOR=961
 # code (/tmp/m303/on.txt). The two lists differ by the swing alone:
 # Dimmer_RL on the runner, SpringWithMass on the desk. Flatten stays
 # 961 on both.
-RUN_FLOOR=671
+#
+# And run 673 = 671 plus the same Test87 and Test88, both of which
+# run: 673 on the runner in job 109136903901 (/tmp/m306/runner_job.log)
+# and 673 on the desk (/tmp/m305/on.txt), the lists differing by the
+# swing alone, Dimmer_RL on the runner and SpringWithMass on the desk.
+RUN_FLOOR=673
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1044,8 +1055,12 @@ RUN_FLOOR=671
 # `RUN_FLOOR`, all runnable examples: the runner's 629 in job
 # 109072163529 (/tmp/m305/runner_job.log) and the desk's 629
 # (/tmp/m303/on.txt); runnable flatten stays 845.
-RUNNABLE_FLATTEN_FLOOR=845
-RUNNABLE_RUN_FLOOR=629
+#
+# And runnable 847 and 631 = 845 and 629 plus Test87 and Test88, both
+# runnable examples: the runner's 847/631 in job 109136903901
+# (/tmp/m306/runner_job.log) and the desk's 847/631 (/tmp/m305/on.txt).
+RUNNABLE_FLATTEN_FLOOR=847
+RUNNABLE_RUN_FLOOR=631
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
