@@ -25903,10 +25903,24 @@ Where it happens: a continuous variable's binding is worked out by
 array layer, with the shapes known at that point of the walk. A
 component declared further down has not been instantiated, so
 `basic.r_0` has no shape yet and the product of the two names comes
-through as a scalar, which is pushed as the declaration equation.
-Later the name does have a shape, and the product is read again as
-element by element, with the scalar left side copied to each element.
-Which later reading copies it was not pinned down in this shift. The
+through as a scalar, which is pushed as the declaration equation. A
+probe print at the push (not committed) shows exactly that on `O6.mo`:
+`L = Bin(Mul, Ref("basic.r_0"), Ref("basic.r_0"))`. The copying is
+done at the end of flattening by `settle_member_slices`
+(`flatten/mod.rs`), the pass written for the same late-arrival case -
+a name that reaches the flat model whole because its array was not
+instantiated yet where it was read. Its `whole_shape` finds the shape
+`[3]` in the product, `L` has none, and every equation holding a whole
+array is written out once per index with `per_element` on both sides.
+For a sum that is right; for a product of two whole arrays it is the
+element-wise reading, and the scalar left side is copied three times.
+The pass skips what stands under `sum`, `max` and `min`, but a dot
+product written as `a * b` is a reduction too, and the pass cannot see
+it. So there are two fixes on the table, and they are not the same
+fix: the pass can learn that `*` between two vectors is a scalar (the
+narrow one, and still a spelling test of sorts), or the binding can be
+read with the whole class's shapes in view so that no product ever
+reaches the pass unread (the root). The
 fault is the one this document keeps meeting in other coats: a
 reading taken before the thing it reads exists. The value is not
 refused, and it is not right either, and here the unbalanced count is
