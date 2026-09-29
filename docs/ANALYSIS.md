@@ -25987,3 +25987,116 @@ the connections the pass was written for (`r_0`, `T`, `w`, `f`, `t`,
 `v_`). The last 98 models were not reached before the shift closed, so
 the count is a lower bound. The vector exit, `spread_over_elements`,
 was not counted over the library.
+
+## m308: a value that reads a sibling declared below it
+
+The wrong number of the m307 chapter is closed at its root, and the
+root turned out to be one road wider than the chapter mapped. Before
+the change, with the binary of the clean tree (`46bbf22`), the four
+small models of `/tmp/m307/keep` gave what the chapter wrote down:
+`Q4.mo` ran with y = {6, 8}, `Q5.mo` with the right {7, 7}, `O5.mo`
+was refused with six equations for four unknowns, and `O7.mo` gave
+L = 5.
+
+The first attempt put a variable's binding off to the class's
+equations when it read a member of a component declared further down,
+the way a record's value already waits in `record_values` until the
+array layer can say it. That closed `Q4.mo` and `O5.mo` and moved none
+of the four library models: they do not read forward through a
+binding at all. `Forces.Torque` writes `Shape connectionLine(length =
+Modelica.Math.Vectors.length(basicTorque.r_0))` - a modifier on a
+component declared above `basicTorque`, worked out when the shape is
+built, which is before `basicTorque` has been measured. Two small
+models show that road on its own, both under `/tmp/m308`: `M1.mo`, a
+component handed `length = sqrt(basic.r_0 * basic.r_0)`, is refused as
+two equations over, and `M3.mo`, handed `v = {1, 1} * basic.r_0 * {1,
+1}`, runs with {6, 8}. So there are three entrances, not two - a
+scalar binding, a vector binding and a modifier - and a fix at the
+binding covers two of them.
+
+What covers all three is the order in which the components are built.
+Modelica gives the order of declarations no meaning, and every reading
+of the same model with the sibling written first was already right.
+So `instantiate_components` now builds a component whose member a
+declaration above it reads (through its binding, start or modifiers,
+as `head.member`) before that declaration, and leaves every other
+declaration where the text put it. Only a read of a later sibling
+makes an edge, so the edges all point down the list and a depth-first
+order always exists; a class with no such read is built exactly as
+written. `OXIDELICA_NO_READER_ORDER=1` builds as written.
+
+With the change: `Q4.mo` {7, 7}, `O5.mo` L = 5, `M1.mo` L = 5, `M3.mo`
+{7, 7}, `W15.mo` and `AD8.mo` run. The test
+`a_value_reading_a_component_declared_below_is_read_with_its_shape`
+reads all three entrances in both orders and asks for 7 and 5; under
+the switch it fails with 13 equations for 11 unknowns. Under `--only`
+from the root of `.msl`, `ForceAndTorque` runs; `ActuatedDrive` and
+`MovingActuatedDrive` stop at the known wall, "no equation determines
+`der(rotor1D.rotorWith3DEffects...`"; `GearConstraint` stops at a new
+one, a structurally singular model naming `gearConstraint`.
+
+The first corpus pass of this order was lost, and how is worth keeping.
+Both halves ran side by side from one binary under a 20 GB ceiling;
+the `off` half finished at 963 flatten and 675 run with its run list
+identical name for name to the m307 baseline
+(`/tmp/m308/off.txt` against `/tmp/m307/desk_ran.lst`, peak 13.0 GB),
+and the `on` half was taken by the ceiling at 21.0 GB after 728 of
+1034 models, twice. Of the nine models in flight when the second one
+died (`OXIDELICA_TRACE`, `/tmp/m308/inflight.lst`), one run each under
+`--only` named the giant at once: `Loops.Engine1b_analytic`, over
+22 GB on its own, where the baseline flattens it in under one and
+refuses it on its parameters. A probe print of the edges (not
+committed) showed why. `JointUSP` declares `final parameter Real
+eRod1_ia[3] = rod1.eRod_ia` above `rod1`, and so do two neighbours;
+building `rod1` first changed what the rounds that settle parameters
+see, and the engine went from a refusal to a blow-up. A parameter is
+not read too early to be right - its value is settled by those rounds
+as lengths arrive, which is what they are for - so a parameter or
+constant is no longer a reader for this order. With that,
+`Engine1b_analytic` is back at 0.8 GB and its old refusal, and the
+small models and the test are unchanged.
+
+### The `der(volume.medium.T)` row, read by name
+
+The census row "4 der(volume.medium.T): `X` is not a state of the
+model" (`/tmp/m307/census.txt`) is four models of
+`ModelicaTest.Media.TestsWithFluid.MediaTestModels`: `Air.MoistAir`,
+`IdealGases.SimpleNaturalGasFixedComposition`,
+`LinearFluid.LinearWater_pT` and `Water.WaterIF97_pT`. All four are the
+same test rig, a `ClosedVolume` under `system(energyDynamics =
+SteadyStateInitial)`, and the equation that refuses is the one
+`PartialLumpedVolume` writes for a medium whose states are p and T:
+`der(medium.T) = 0` among the initial equations. The refusal is raised
+by `substitute_derivatives_with` (`compile.rs`) when neither the states
+nor the derivatives worked out for algebraic names answer. Read one
+`--only` each from the root of `.msl` with `OXIDELICA_INIT_DER_PROBE`
+on the binary of the clean tree, every one of them answers the same:
+`volume.medium.T` and `volume.medium.p` are torn unknowns of one
+simultaneous block of the plan - k = 8 in a block of 67 for
+`MoistAir`, k = 3 of 50 for `LinearWater_pT`, k = 4 of 47 for the
+natural gas and k = 4 of 60 for `WaterIF97_pT` - with the residual
+being the medium's own `d` or `h` written from p and T. So it is one
+layer and not four: the volume holds the mass and the energy as
+states, the medium's p and T come out of a loop that inverts `h(p, T)`
+and `d(p, T)`, and the derivative of a torn unknown of a loop is what
+the m228 map already named a genuinely simultaneous block, which the
+guard in `symbolic.rs` refuses rather than answer with a slope that
+means nothing. `WaterIF97_pT` is the one the earlier map recorded; the
+other three were not on that list, and where they stood then was not
+looked up. Nothing was changed here: the
+differentiation of a torn block is the parked line, and this row
+belongs to it.
+
+The pair that counts was taken after that change, from one binary of
+the final tree (`/tmp/ox308e`), both halves side by side under a 22 GB
+ceiling, each peaking at 14.0 GB: `/tmp/m308/off2.txt` with
+`OXIDELICA_NO_READER_ORDER=1` and `/tmp/m308/on3.txt` without it. The
+`off` half is 963 flatten and 675 run, 847 and 633 of the runnable,
+and its run list is identical name for name to the m307 baseline. The
+`on` half is 963 and 676, 847 and 634. The flattened lists of the two
+halves are identical, and the run lists differ by exactly one name,
+`Elementary.ForceAndTorque`, which joins; nothing leaves. Time per
+model moved the right way if at all, 9144 ms against 9310 ms to
+flatten and 10512 ms against 10605 ms to run, inside the noise. The
+floors are not moved here: the desk says 676 and 634, and the floors
+are set from the build machine's number.

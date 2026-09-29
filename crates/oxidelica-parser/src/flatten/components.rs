@@ -52,7 +52,7 @@ pub(super) fn instantiate_components(
     // them.
     let mut settled: HashMap<String, f64> = HashMap::new();
     let mut first_round = true;
-    for component in &class.components {
+    for component in built_in_reading_order(&class.components) {
         // Whether anything new was measured since the last round of
         // this loop. The first time through it is true whatever the
         // model has measured elsewhere: the parameters of this class
@@ -2077,6 +2077,94 @@ fn sibling_written_shape(
         shape.push(length);
     }
     (!shape.is_empty()).then_some(shape)
+}
+
+/// The components of a class in the order they are built: as written,
+/// except that a component whose members a declaration above it reads
+/// is built before that declaration.
+///
+/// A value is worked out with the shapes known where it is read, and a
+/// sibling declared further down has not been measured yet. `Real y[2]
+/// = {1, 1} * basic.r_0 * {1, 1}` above `Src basic` took `basic.r_0`
+/// for a scalar and came to `{6, 8}` where the answer is `{7, 7}`, and
+/// nothing refused it; a dot product handed to a component as a
+/// modifier - `Shape connectionLine(length = length(basicTorque.r_0))`,
+/// which is how every force element of the multibody library draws its
+/// line - was copied once per element and left the model two equations
+/// over. Read after the sibling, both come out right, and the order
+/// the text happens to use is not something the language gives a
+/// meaning to.
+///
+/// Only a read of a later sibling moves anything, so the edges all
+/// point one way and the order is always there to be had.
+/// `OXIDELICA_NO_READER_ORDER=1` builds them as written, as before.
+fn built_in_reading_order(components: &[Component]) -> Vec<&Component> {
+    if std::env::var_os("OXIDELICA_NO_READER_ORDER").is_some() {
+        return components.iter().collect();
+    }
+    let position: HashMap<&str, usize> = components
+        .iter()
+        .enumerate()
+        .map(|(at, component)| (component.name.as_str(), at))
+        .collect();
+    let reads_below = |at: usize| -> Vec<usize> {
+        let component = &components[at];
+        // A parameter's value is settled by the rounds that ask the
+        // parameters again as lengths arrive, and building the thing
+        // it reads before it changes what those rounds see: moved
+        // ahead of `eRod1_ia = rod1.eRod_ia`, the rod of every
+        // `JointUSP` took the engine models of the library from a
+        // refusal about parameters to more than twenty gigabytes.
+        // Only what the run itself computes is read too early to be
+        // right, so only a variable, or a component handed a value,
+        // is a reader here.
+        if matches!(
+            component.variability,
+            Variability::Parameter | Variability::Constant
+        ) {
+            return Vec::new();
+        }
+        let mut read = Vec::new();
+        for value in component
+            .binding
+            .iter()
+            .chain(component.start.iter())
+            .chain(component.modifiers.iter().map(|(_, value)| value))
+        {
+            value.collect_refs(&mut read);
+        }
+        let mut below: Vec<usize> = read
+            .iter()
+            .filter_map(|name| {
+                let (head, _) = name.split_once('.')?;
+                let head = head.split('[').next().unwrap_or(head);
+                position.get(head).copied().filter(|later| *later > at)
+            })
+            .collect();
+        below.sort_unstable();
+        below.dedup();
+        below
+    };
+    let edges: Vec<Vec<usize>> = (0..components.len()).map(reads_below).collect();
+    if edges.iter().all(Vec::is_empty) {
+        return components.iter().collect();
+    }
+    fn visit(at: usize, edges: &[Vec<usize>], placed: &mut [bool], order: &mut Vec<usize>) {
+        if placed[at] {
+            return;
+        }
+        placed[at] = true;
+        for later in &edges[at] {
+            visit(*later, edges, placed, order);
+        }
+        order.push(at);
+    }
+    let mut placed = vec![false; components.len()];
+    let mut order = Vec::with_capacity(components.len());
+    for at in 0..components.len() {
+        visit(at, &edges, &mut placed, &mut order);
+    }
+    order.into_iter().map(|at| &components[at]).collect()
 }
 
 /// What `sibling.member` comes to where the sibling is declared in this

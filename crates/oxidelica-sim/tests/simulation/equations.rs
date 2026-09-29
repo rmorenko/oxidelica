@@ -2280,6 +2280,49 @@ fn a_table_handed_from_a_block_declared_below_reads_the_same() {
     assert!((below - above).abs() < 1e-12, "{below} against {above}");
 }
 
+/// A value that reads a vector of a component declared below it comes
+/// to the same number as with the component declared first.
+///
+/// Where the value was worked out, the component below had not been
+/// measured, so its vector was taken for a scalar: the value
+/// `{1, 1} * basic.r_0 * {1, 1}` came to `{6, 8}` where the answer is
+/// `{7, 7}`, and nothing
+/// refused it. Handed down as a modifier, a dot product of the same
+/// kind was copied once per element and left the model over-determined,
+/// which is how every force element of the multibody library draws its
+/// connection line.
+#[test]
+fn a_value_reading_a_component_declared_below_is_read_with_its_shape() {
+    let source = |order: &str| {
+        format!(
+            "model M \
+               model Src Real r_0[2]; equation r_0 = {{3, 4}}; end Src; \
+               model Line input Real v[2]; input Real len = 1; \
+                 Real out[2] = v; Real l = len; end Line; \
+               {order} \
+               annotation(experiment(StopTime = 0.01, Interval = 0.01)); end M;"
+        )
+    };
+    let reading = "Real y[2] = {1, 1} * basic.r_0 * {1, 1}; \
+         Real L = sqrt(basic.r_0 * basic.r_0); \
+         Line line(v = {1, 1} * basic.r_0 * {1, 1}, len = sqrt(basic.r_0 * basic.r_0));";
+    for order in [
+        format!("{reading} Src basic;"),
+        format!("Src basic; {reading}"),
+    ] {
+        let result = run(&source(&order));
+        let last = |name: &str| {
+            let at = result.columns.iter().position(|c| c == name).unwrap();
+            result.rows.last().unwrap()[at]
+        };
+        for name in ["y[1]", "y[2]", "line.out[1]", "line.out[2]"] {
+            assert_eq!(last(name), 7.0, "{name} with {order}");
+        }
+        assert_eq!(last("L"), 5.0, "{order}");
+        assert_eq!(last("line.l"), 5.0, "{order}");
+    }
+}
+
 #[test]
 fn a_member_of_one_element_of_an_array_of_components_keeps_its_shape() {
     // `ports[1].Xi = {0.5}` where each port carries `Xi[1]`: how every
