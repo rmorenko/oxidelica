@@ -26100,3 +26100,165 @@ model moved the right way if at all, 9144 ms against 9310 ms to
 flatten and 10512 ms against 10605 ms to run, inside the noise. The
 floors are not moved here: the desk says 676 and 634, and the floors
 are set from the build machine's number.
+
+## m309: the m308 census read by name, and the two tops of it
+
+The census of m308 (`/tmp/m308/census.txt`, raw half
+`/tmp/m308/raw.txt`) was taken on the binary of `5ad730f`. Counted
+between the section markers, it holds 71 models that would not flatten
+in 40 rows and 287 that flattened and would not run in 156 rows, which
+is 1034 - 963 and 963 - 676. The raw half closes on `963 flatten and
+676 run` and `847 flatten and 634 run`. Against m307 the rows of the
+run half are the same in number (156) and one lighter in sum (288 to
+287).
+
+Read by name rather than by row, the two raw halves agree on every
+model but one: the list of refused and built-but-not-run names of m307
+is 359 long, that of m308 358, and `diff` over the sorted lists prints
+exactly `Elementary.ForceAndTorque`. The reasons are another matter.
+With digits folded to `N`, the reasons differ for eighteen names, and
+three kinds of difference are among them:
+
+- the same wall with other names on it, for thirteen: the `IMC_*` and
+  `IMS_Start` of both machine libraries, `SMPM_Mains`,
+  `ParallelPumpDropOut` and `PressureLoss.Bend` list the members of
+  their loop in another order or another choice, and the two
+  `IMC_withLosses` name other undetermined unknowns of the same
+  unbalanced model - no wall moved;
+- the MultiBody trio the m308 chapter already named: `ActuatedDrive`
+  and `MovingActuatedDrive` left `unbalanced ... bodyCylinder.frame_a.r_0`
+  for `no equation determines der(rotor1D...w_a[1])`, and
+  `GearConstraint` left the same `unbalanced` row for `constrains no
+state` over `gearConstraint.fixedTranslation1.frame_a.R.T`. So the
+  `unbalanced ... r_0` family of m307 is emptied not by one model but
+  by four: one ran, three climbed a storey;
+- `Electrical.Machines...SMEE_LoadDump`, which the m308 chapter did not
+  name. Under `--only` from `.msl` on the binary of `5ad730f`, it stops
+  at `singular Jacobian` in the air gap loop with
+  `OXIDELICA_NO_READER_ORDER=1` and at `constrains no state` over
+  `voltageQuasiRMSSensor.VoltageSensor1.plug_p.pin[1].i` without it.
+  The reader order moved it a wall sideways; it did not run either
+  way. Its `FundamentalWave` namesake stays a `singular Jacobian` on
+  both sides, with a different loop listed.
+
+### The top of the flatten half: five partial functions
+
+`function X is partial and nothing redeclared it with a body`, five
+models: `AST_BatchPlant.BaseClasses.TankWithTopPorts` on
+`setState_pTX`, and `ModelicaTest.Media.TestAllProperties.PartialMediumFunctions`
+with its three `IncompleteMedia` copies on `dynamicViscosity`. None of
+the five is an example: none extends `Icons.Example` or carries an
+`experiment` (Media.mo lines 6-113 and 283-330), and every one declares
+`replaceable package Medium = Modelica.Media.Interfaces.PartialMedium`
+for the examples below it to redeclare. Asked as they stand, the medium
+really is partial and the refusal is owed. The row is the census
+counting templates, not a fault, and none of the five is in the
+runnable count. Nothing to change here.
+
+### The top of the run half: the Constraints four
+
+`the equation determining X does not depend on it, differentiating the
+equation Ref("world...`, four models, all of
+`MultiBody.Examples.Constraints`: `Prismatic`, `Revolute`, `Spherical`
+and `Universal`. The refusal is `symbolic.rs:737`: the implicit rule
+differentiates through an unknown by the implicit function theorem
+and refuses a slope of zero.
+
+`why` on `springOfConstraint.lineForce.frame_a.R.T[3,1]` names the
+equation the rule took for it: the line shape's
+`widthDirection[1] = T[1,1]*0 + T[2,1]*1 + T[3,1]*0`. `T[3,1]` is
+written there and not used, and the rule counted it as the single
+unsettled name of the equation because `reduce_index`
+(`compile.rs`, the `implicit_defs` loop) collected the names of the
+equation as written. Counted on the folded equation, it does not
+stand there at all. That is link one, and it is one line. It was
+built behind `OXIDELICA_NO_FOLDED_IMPLICIT` (patch kept at
+`/tmp/m309/folded_implicit.patch`) and, one `--only` each, it moves
+all four: `Revolute` and `Prismatic` to `equation
+world.frame_b.R.w[2] = fixedRotation.frame_a.R.w[2]` and
+`world.frame_b.R.T[3,1] = ...` constraining no state
+(`compile.rs:2017`), `Universal` to `constrains no state` on
+`der(constraint.frame_a.r_0[1])`, `Spherical` to a `singular
+Jacobian` whose loop holds `der(joint.Q[..])`. None runs. Two small
+models with a name multiplied by zero inside an equation the rule
+would take (`/tmp/m309/X.mo`, `Y.mo`) run either way: the rule is
+reached only where the names around it settle as they do in the
+corpus, which is the blind spot of the small suite this document has
+already named.
+
+Link two is the choice of victims, and it is of another family.
+`OXIDELICA_VICTIM_PROBE` on `RevoluteConstraint` prints twenty
+reductions (`/tmp/m309/vp_rev.txt`). The first twelve differentiate
+the connections of body frames and demote the bodies' `r_0`; from the
+thirteenth the reduction differentiates `world.frame_b.R.T[i,j] =
+fixedRotation.frame_a.R.T[i,j]`, the world's orientation, which is a
+constant `nullRotation()` written as equations under `Connections.root`
+(`MultiBody/package.mo:329-334`), and each of those demotes a position -
+`bodyOfJoint.r_0[k]`, `bodyOfConstraint.r_0[k]` - with a raw reach of
+zero. On the twentieth there is nothing left to demote. The same
+shape holds for `Prismatic` (15 reductions, the 15th on
+`world.frame_b.R.T[3,1]` with no victim, `/tmp/m309/vp_pri.txt`) and
+`Universal` (38, `/tmp/m309/vp_uni.txt`). So link two is index
+reduction differentiating an equation between two constants of
+orientation, the loop the constraint joints close through the world,
+and spending states on it. That is the parked question of the closed
+kinematic loop, not a line, and the chain is left mapped here rather
+than taken a link at a time. `Rotational3DEffects.GearConstraint`, which
+climbed to this family with m308, stands at the same second link
+without needing the first: fifteen reductions
+(`/tmp/m309/vp_gear.txt`), the last three on `world.frame_b.r_0[k] =
+gearConstraint.bearing.r_0[k]`, the fifteenth on
+`gearConstraint.fixedTranslation1.frame_a.R.T[3,1] =
+gearConstraint.bearing.R.T[3,1]` with no victim left. So the wall
+behind the fold is five models wide, not four.
+
+Link one was measured whole before it was set aside. One binary with
+the fold in it (`/tmp/m309/ox2`), the corpus once with
+`OXIDELICA_NO_FOLDED_IMPLICIT=1` (`/tmp/m309/off.txt`) and once without
+(`/tmp/m309/on.txt`, peak 13.0 GB under a 22 GB ceiling). Both halves
+print 963 flatten and 676 run, 847 and 634 of the runnable; the lists
+of flattened and of run models are identical name for name between the
+halves, and the `off` run list is identical to `/tmp/m308/on3_ran.lst`.
+The census tail moved by one row, `singular Jacobian` from 18 to 19,
+which is `SphericalConstraint` arriving. So the fold costs nothing and
+buys nothing on its own; it is the first link of a chain whose second
+is architecture. It is not in the tree: the patch is kept at
+`/tmp/m309/folded_implicit.patch` for whoever takes the kinematic loop.
+
+### A solve inside a solve loses its local function
+
+The run half's row `at t = N.N: unknown variable X` holds four models,
+all raised by the evaluator at `code.rs:174` (`OXIDELICA_WHERE=1`, one
+`--only` each from `.msl`): `ReferenceAir.Inverse_sh_TX` on
+`Tsub_res`, `FlueGasSixComponents` on `X`,
+`IncompleteMedia.ReferenceAir_dT` on `dT_explicit` and
+`R134a_setState_phX` on `id.a[1]`. They name four different things,
+so the row is a lower bound on the families and only the first was
+followed.
+
+`Tsub_res` is a protected function written inside
+`ReferenceMoistAir.Utilities.Ice09_Utilities.Basic.Tsub` and handed to
+`solveOneNonlinearEquation` as `function Tsub_res(p = p)`. `Tsub` is
+called from the bodies that give the saturation limit (lines 2668 and
+2730 of `ReferenceMoistAir.mo`), and those are reached from
+`temperature_phX`, which itself solves for T with a residual function
+of its own. Three small models under `/tmp/m309` separate the cases:
+
+- `F.mo` and `H.mo`, a local function handed to the solver from a
+  function the model calls directly: they run, T = 2.236068 at t = 1,
+  which is the square root of five it should be;
+- `N3.mo`, the same function one call further down (`h` calls `Tsub`):
+  it runs, T = 6 at t = 1, which is right;
+- `N2.mo`, where `Tsub` is called from inside the residual of another
+  `solveOneNonlinearEquation`: refused, `unknown variable Tsub_res`,
+  from the same `code.rs:174`.
+
+So the local function is lost when the solve that hands it over is
+itself reached from inside a function that was handed over, not when
+it is merely deep. The hand-over is the path `handed_under_mark` in
+`flatten/carried.rs` names for a medium, and a partial call carries
+the name `PARTIAL_CALL` (`ast.rs`). Whether the inner hand-over's
+name is written under the outer copy's name, or never collected into
+the programs of the outer copy, is the next question, and `N2.mo` (49
+lines) is the model to ask it with. Not taken this shift: the
+question was found with less than an hour left.
