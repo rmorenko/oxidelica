@@ -36,6 +36,13 @@ models would have passed without a word. Where the two machines
 disagree, name the difference model by model and set the floor from
 the lower of them.
 
+A floor rises to what the runner has printed, not ahead of it. A desk
+pair taken on a tree the runner has not yet counted is a reason to
+wait for the runner's number, not a licence to move the floor to the
+desk's: the two machines already differ by a swinging model, and a
+floor set on the desk alone can turn the next commit red for a
+difference nobody changed.
+
 Something long is started so that it outlives the shell and not the
 shift. A census died with its shell and cost four minutes; a measure
 that outlived its shift burned two cores for five hours. The two

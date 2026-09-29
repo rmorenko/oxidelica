@@ -951,7 +951,17 @@ FLATTEN_FLOOR=963
 # (/tmp/m309/runner_job.log) and 676 on the desk (/tmp/m308/on3.txt),
 # the lists differing by the swing alone, Dimmer_RL on the runner and
 # SpringWithMass on the desk.
-RUN_FLOOR=676
+#
+# And run 679 = 676 plus ModelicaTest.Media.TestOnly.R134a_setState_phX,
+# R134a_setState_pTX and R134a_setState_pTX_high_T, which run since
+# d81de04 gave a walked body's local records the values their
+# declarations write: 679 on the runner in job 109491191619 of run
+# 36593157901 on ea2e93e (/tmp/m312/ci_ea2.log), the same list as run
+# 36593103106 on d81de04 (/tmp/m312/ci_d81.log), and 679 on the desk
+# (/tmp/m312/on.txt), the lists differing by the swing alone, Dimmer_RL
+# on the runner and SpringWithMass on the desk. Raised to what the
+# runner printed rather than ahead of it, which is what ea2e93e undid.
+RUN_FLOOR=679
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1083,8 +1093,12 @@ RUN_FLOOR=676
 # And runnable run 634 = 633 plus ForceAndTorque, a runnable example:
 # the runner's 847/634 in job 109306337264 (/tmp/m309/runner_job.log)
 # and the desk's 847/634 (/tmp/m308/on3.txt).
+#
+# And runnable run 637 = 634 plus the same three R134a models, all
+# runnable examples: the runner's 847/637 in job 109491191619
+# (/tmp/m312/ci_ea2.log) and the desk's 847/637 (/tmp/m312/on.txt).
 RUNNABLE_FLATTEN_FLOOR=847
-RUNNABLE_RUN_FLOOR=634
+RUNNABLE_RUN_FLOOR=637
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
