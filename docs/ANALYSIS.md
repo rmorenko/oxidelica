@@ -26913,3 +26913,410 @@ leaving. Each half stays under the time ceiling per model (the new half
 their last forty minutes, so the times are not a comparison between
 them. The floors stay where they are until the runner prints 681 and 639. The CI run for 827689d printed 963/679 and 847/637, which is the
 present floor.
+
+## m315: the algebraic complex, probed by layer
+
+The brief for this shift allowed no change to the compiler outside the
+floors, so everything below was probed and not changed. The probes are
+in `/tmp/m315/p/` and `/tmp/m315/q/`, one file per model, each taken
+under `--only` from the root `.msl` with `OXIDELICA_WHERE`,
+`OXIDELICA_NEWTON_TRAIL` and `OXIDELICA_DEAD_PROBE`, and the binary
+`/tmp/m315/ox`, built from 02121e2 with a clean tree.
+
+### The twenty-one of the singular subset, a step further on
+
+The twenty-three models the m314 change was aimed at, less its two
+arrivals, were run together (`/tmp/m315/bcd21.txt`): 21 flatten and 0
+run. They stand at three walls:
+
+- seventeen at `constrains no state ... nor did the N other equations of
+its singular subset tried in its place`
+  (`compile.rs:1901`). The subset was exhausted, not cut short, in
+  twelve (N from 2 to 19); five stand at 31 others, which is the
+  ceiling of 32 tries: `ActuatorWithNoise`, `LineForceWithTwoMasses`,
+  `PlanarFourbar`, and the `Electrical.Machines` `SMPM_CurrentSource`
+  and `SMPM_NoLoad`. The twelve are mostly a rotor angle against its
+  speed (`der(inertiaRotor.phi) = wMechanical`) or a quasi-static
+  reference angle (`der(reference.gamma) = omega`): the row D of the
+  m312 table, which the new road does not reach.
+- four in the algebraic complex, which is where this chapter goes:
+  `SMEE_LoadDump` (singular Jacobian over the air gap),
+  `IMC_DOL_CommonLeakage` (a solution on either side of two rotor
+  angles `aimc0.airGap.gamma`, `aimcH.airGap.gamma`),
+  `PointGravityWithPointMasses2` (the equations do not mention a point
+  mass acceleration and four derivatives of `R.T` entries), and
+  `DoublePendulumInitTip` (a NaN before any Newton step in the
+  `revolute2` block, the same residual as `DoublePendulum`).
+
+So none of the twenty-one fell back; they met the next wall, and four
+of them are now members of the complex.
+
+### Seven rows, read by the layer that raised them
+
+The m313 raw half holds 95 models whose refusal names an algebraic
+loop. All of them are raised in one file,
+`crates/oxidelica-sim/src/solvers/mod.rs`, from eight places:
+
+| row (m313)                | models | raised at             |
+| ------------------------- | ------ | --------------------- |
+| the Newton direction      | 25     | `mod.rs:1700`         |
+| singular Jacobian         | 19     | `mod.rs:1575`         |
+| do not mention            | 18     | `mod.rs:1580`         |
+| `X` of algebraic loop     | 11     | `mod.rs:1098`, `1103` |
+| did not converge          | 8      | `mod.rs:1728`         |
+| a solution on either side | 7      | `mod.rs:1556`         |
+| underdetermined           | 6      | `mod.rs:1253`         |
+| outside the domain        | 1      | `mod.rs:1002`         |
+
+The place in the code is therefore the Newton loop in every case, and
+it cannot separate families: it is the place where each fault is
+noticed and never the place where it enters. What separates them is
+the trail. Folded by what the block is built of
+(`/tmp/m315/fold313.txt`), the 95 are 41 Fluid and Media models, 30
+machines whose block holds an air gap or a rotor angle, 7 Spice3
+devices, 5 ideal switches, 5 MultiBody, 3 friction models and 4
+others. Across the seven rows that is at least eight separate layers,
+listed here with the models probed and what the trail showed.
+
+**1. A converged block the acceptance test does not accept.** Three
+models of the Newton direction row are refused at a residual of 1e-9
+or less: `Rectifier6pulse` (|f| = 2.4e-10), `BranchingPipes2`
+(1.0e-9) and FundamentalWave `IMC_Transformer` (1.1e-9). In
+`IMC_Transformer` (`/tmp/m315/p/InductionMachines_IMC_Transformer.txt`)
+every row of the last point passes one of the two tests the solver
+already has: rows 12, 31 and 33 (currents of 2.4e6 A cancelling to
+5e-10) pass the loudness floor `on_arithmetic_floor`, and row 38, a
+residual of 4.8e-34 on an unknown of 5e-34, passes the convergence
+test `|f| <= 1e-10 (1 + |v|)`. Neither test passes every row, and
+each is asked of the whole block, so the block is refused. Asked row
+by row, as either-or, it is accepted. In `BranchingPipes2` rows 1, 8
+and 13 fail both (4.6e-10 against an unknown of 8.9e-5), so there the
+same question does not settle it. `Rectifier6pulse` has one row, 11,
+at 2.4e-10 against a loudness of 73: 15000 ulps, not the floor. A
+probe binary (`/tmp/m315/oxr`, reverted) asked the floor row by row,
+either test for each row. `IMC_Transformer` then passes that block
+and stops one wall on, at `underdetermined algebraic loop` in a later
+block. So the row-wise question is real but moves no model on its
+own. The acceptance layer is one link of a chain at least two long in
+its only candidate. A change there is a change to what every block
+accepts, and it wants the pair and the victims before anything else.
+
+**2. The rotor angle at rest.** Thirty machines, spread across five of
+the seven rows: 13 `do not mention`, 8 `singular Jacobian`, 5 `either
+side`, 2 `Newton direction`, 1 `did not converge` and 1
+`underdetermined`. The induction machines are dead on `i_sr[1]` and
+`squirrelCageR.spacePhasor_r.v_[1]` at t = 0 (`IMC_DOL`, trail in
+`/tmp/m315/q/`). This is the link mapped long ago under "The matching
+may prefer to multiply": `aimc.airGap.gamma` enters the block through
+`RotationMatrix[1,2] = -sin(gamma)` and `gamma = 0` at rest, so the
+column goes flat. The synchronous `SMEE_DOL` and `SMPM_VoltageSource`
+show it from the other side: the dead probe calls `airGap.gamma`
+"flat here only", not "never mentioned". The rotor angle is not a
+state of the loop and is only in it because the matching gave the
+angle equation to it. The FundamentalWave twins are the same
+mechanism a layer further in: `SMEE_DOL`
+(`/tmp/m315/p/SynchronousMachines_SMEE_DOL.txt`) has a block of 22
+whose Jacobian has rank 1 at t = 0, and the singular vector sits on
+`airGap.Phi_sr.im = Phi_ss.re * (-rotator.im) + Phi_ss.im *
+rotator.re`, with `rotator.im = sin(gamma) = 0`. Thirty models on one
+link make it the largest single family in the complex. It is also the
+one where "the equations do not mention" is literally true at t = 0
+and false one step later.
+
+The rotation matrix alone is not the wall, and a witness says so. Two
+library-free models with the same matrix and the rotor at rest
+(`/tmp/m315/w/RA.mo`, `RB.mo`) run. So does an `IM_SquirrelCage` on a
+sine source with a load (`/tmp/m315/imc/I1.mo`). Put an
+`IdealClosingSwitch` between the source and the terminal box
+(`I5.mo`) and the model is refused, `underdetermined algebraic loop`
+over `airGap.i_sr`, the three switch `s` and the stator currents. The
+same closer in front of a plain three-phase inductor (`I4.mo`) runs,
+with currents of 13 to 62 A after it closes at 0.02 s. So the wall
+needs both: an open ideal switch, which leaves the stator current to
+the switch's `s`, and the air gap, whose rotor-frame current is then
+read through `-sin(gamma) = 0`. Of the thirteen `do not mention`
+machines, eleven hold an ideal closer or a diode bridge's `s` in the
+refused block. Two do not: `IMC_Inverter` and `SMPM_VoltageSource`,
+which are driven through a signal voltage, so they are either the
+same air-gap link without the switch or a second one.
+`I5.mo` is twenty-two lines, and it is the small model for the largest
+part of the largest family in the complex.
+
+While writing it, a mistake in the witness itself turned into a
+finding. The first `I3.mo` gave the source `amplitude = ...`, a name
+`SineVoltage` does not declare (its parameter is `V`). The model ran
+without a word, on the declared start of 1 V instead of 100. The
+library-free `/tmp/m315/w/MOD.mo` (`A a(nosuch = 5)`) shows the same
+thing: a modifier on a name the class does not have is dropped
+silently. The language makes that an error. It is the "guessing is
+worse than refusing" rule, and it is parked here for its own shift.
+
+**3. Spice3 device cards with a zero resistance.** Seven models:
+`Oscillator` and `Spice3BenchmarkDifferentialPair` in `do not
+mention`, and `MNmos`, `MPmos`, `NAND`, `ONEBIT` and `RtlInverter` in
+`underdetermined`. `why` shows the same equation each time,
+`Spice3.mo:4957`: `irc * p1.m_collectorResist = C.v - Cinternal`, and
+its twins for the emitter and the diode's `ir * param.m_resist`. The
+model cards leave the resistance at 0 (`T1.p1.m_collectorResist`,
+start 0). The matching gave `irc` to that equation, where it has a
+coefficient of zero, so the block of one never mentions it. The
+equation says `C.v = Cinternal`, and the current belongs to the KCL
+row beside it. The MOS pair is the same shape seen through a
+capacitance: `icBS = cc.cBS * (der(B.v) - der(Sinternal))` with `cBS`
+at 1e-15 while `m_bInit`. A first reading took this for the matching
+giving the current to the zero-coefficient equation. The witnesses
+correct it. Four small models where the internal node is held by an
+algebraic equation run (`/tmp/m315/w/ZR2.mo`, `ZR6.mo`, `ZR8.mo`, and
+`ZRF.mo`/`ZRC.mo` with the zero reached through an initial equation
+or a record), and `OXIDELICA_NO_MATCH_ORDER` does not move
+`Oscillator` or `RtlInverter`. The real model shrinks to a bare
+`Q_NPNBJT` with a source on the base and one on the collector
+(`/tmp/m315/rtl/R5.mo`). It is refused the same way, on `Q1.irc`,
+and the default card leaves all three series resistances at 0.
+
+The witness that does fail is eleven lines (`/tmp/m315/w/ZRX.mo`): a
+capacitor `C*der(vC) = i` fed through `i*R = vs - vC` with `R = 0`.
+It is refused `underdetermined algebraic loop ["i"]`. With `R = 1e-3`
+(`ZRY.mo`) it runs. With the equation written without `R`, as
+`vs = vC` (`ZRZ.mo`), it runs and gives `i = cos(1) = 0.540302`. So the
+layer is not the matching's preference. It is structure read from a
+symbol: `i*R` mentions `i`, so the structure takes the equation for
+`i`, while the value is `0 = vs - vC`, a constraint on a state. That
+is an index hidden behind a parameter at zero, and index reduction
+never sees it because the equation's incidence says otherwise. The
+Spice3 transistor is this exactly: the base, collector and emitter
+junction capacitances are states, and a zero series resistance ties
+each internal node to its terminal. Seven models, and the small model
+is written.
+
+**4. Friction in its locked mode.** Three models: `GearType2`,
+`TestBearingConversion` (`do not mention`) and `LossyGearDemo2`
+(`singular Jacobian`). In `GearType2` the block is `bearingFriction.sa`
+alone, and the equation it was given is `a_relfric/unitAngular... =
+if locked then 0 else ...`, which does not read `sa` in the locked
+branch. The equation that determines `sa` when locked is `tau = if
+locked then sa*unitTorque else ...`, and it was solved outside the
+block. In `LossyGearDemo2` the null vector of the Jacobian lies on
+`gear.sa`, `bearingFriction.sa`, both quadrants and the flange torque,
+through the same pair of rows (`a_a = ... if locked then 0 else sa
+...`). This is the mixed-mode friction of the standard library: the
+unknown that is an acceleration in one mode is a torque in the other,
+and the matching is made once for both. The witness is four lines
+(`/tmp/m315/w/FR3.mo`): a `BearingFriction` with its flanges left
+free, as `GearType2` is checked on its own. It is refused on `f.sa` at
+the same place. With both flanges free the torque balance gives
+`tau = 0`, and in the locked mode that start takes, `tau = sa *
+unitTorque` then gives `sa = 0`. The model is well posed there, and
+the equation that settles `sa` is not the one it was given. The same
+friction driven by a torque through an inertia (`FR.mo`, `FR2.mo`)
+runs, because the start leaves the locked mode at once.
+
+**5. Ideal switches off their knee.** Five models: four `singular
+Jacobian` rectifiers and `Rectifier6pulse`'s earlier cousin
+(`DiodeBridge2mPulse`, `PolyphaseRectifier`, `ThyristorBridge2mPulse_RLV`,
+quasi-static `Rectifier`). In `DiodeBridge2mPulse`
+(`/tmp/m315/p/RectifierBridge2mPulse_DiodeBridge2mPulse.txt`) the
+refusal comes at t = 0.00169, not at the start. The block of eight
+has rank 7, and the dead direction is the star point
+`rectifier.star_p.pin_n.v`: its column holds one entry of 1.9e-8,
+which is the `Goff` of an open diode. With every diode on one side
+off, the star floats, held only by the off conductance, and the
+equilibration does not lift a column that small. A physical floating
+node, not a solver fault. Three small bridges were written and all
+three run: one diode path (`/tmp/m315/w/DB.mo`), two phases into one
+star (`DB2.mo`) and a full three-phase bridge (`DB3.mo`), each on
+ideal diodes into a resistor. So the floating star does not come from
+the bridge alone. `DiodeBridge2mPulse` refuses at t = 0.00169, deep
+into the first cycle and not at the start, and what the small bridges
+lack is the source inductance of the real one. Adding it
+(`/tmp/m315/w/DB4.mo`, three 1 mH inductors in front of the bridge)
+makes the model red: `underdetermined algebraic loop` over the six
+diode `s`, a pole voltage and a phase current. With resistors in
+place of the inductors (`DB5.mo`) it runs. DB4 is refused at t = 0,
+with every `s` at zero on the knee, and the real bridge is refused at
+t = 0.00169. So DB4 is a witness that the inductor-fed bridge is the
+ingredient, but whether its t = 0 wall and the real model's mid-cycle
+floating star are one link is not shown yet.
+
+**6. The Fluid residual that does not descend.** 22 of the 25 in the
+Newton direction row and 7 of the 8 in `did not converge` are Fluid or
+Media. The m300 chapter read four of them and found three mechanisms.
+Two more were read here. `Bend` and `TankWithEmptyingPipe2` swing
+between two points to the end of the budget: `from_mflow.dp` goes
++999.8 and -989.9, and the tank's `m_flows[1]` goes -0.076 and -0.150,
+with the residual the same at both. That is a regularised
+characteristic whose Newton step overshoots it symmetrically, the
+limiter case the `circling` guard was written for, but with a step
+that shrinks slightly each turn, so the guard never sees an exact
+return. `BranchingPipes17` stays where m300 left it: the upstream
+block leaves the pressure at 1036 Pa. The Fluid half is several
+mechanisms and has not been folded further here.
+
+**7. A NaN before any step.** Of the eleven `X of` models, two read
+the same walked-function refusal:
+`solveOneNonlinearEquation(f, u_min, u_max) do not bracket the root`,
+in `RoomCO2WithControls` (moist air `T_phX`, 190 to 647 K) and
+`IdealSteam` (200 to 6000). The walk hands the solver a medium state
+that the bracket cannot contain, which is the start values again and
+not the loop. `ThreeSprings` gives `-inf` from `e_rel_0 = r_rel_0 /
+s`, with `s = if length > s_small then length else s_small`, which
+cannot be zero unless `s_small` is. `why` on `s_small` finds it bound
+to `spring2.s_small` with no number read here, so whether that
+parameter reaches the run as zero is the next question for this model.
+`DoublePendulum` gives NaN in rows 3 to 5 whatever the
+start (0, 1e-6, 1e-3, 1, 1000 all give NaN), so the NaN does not come
+from the block's unknowns. It comes from a value the block reads
+from outside.
+
+**8. Singles.** `CCCV_Stack` is singular with a null vector on
+`cellBus[1,1].lossPower` and `heatFlowSensor.port_a.Q_flow` at equal
+weight: two variables the block cannot tell apart, which is an
+equation missing from the bus. `OvervoltageProtection` refuses at
+t = 0.0008 on `zDiode.v`, which is flat there on both sides, the Zener
+knee. `SMPM_Mains` (quasi-static) stops at |f| = 1.8e-4 on row 7, the
+rotor cage converter's current, with the loudness at 9425. It is
+neither the floor nor the solution, and it is a machine, so it is
+probably layer 2 in the quasi-static coat.
+
+### The count, and where the small models are
+
+Eight layers in seven rows. The thirty machines in five rows are the
+clearest case of what the notes call a row that is not a family, seen
+from the other side: one family in five rows. The rows are the
+solver's words for the symptom, and the family is whatever gave the
+block its unknowns.
+
+| layer                        | models | small model                                         |
+| ---------------------------- | ------ | --------------------------------------------------- |
+| 2 rotor angle at rest        | 30     | `/tmp/m315/imc/I5.mo` (machine + ideal closer), red |
+| 6 Fluid descent              | 29     | none; m300 and m294 trails                          |
+| 3 Spice3 zero resistance     | 7      | `/tmp/m315/w/ZRX.mo`, eleven lines, red             |
+| 7 NaN before any step        | 11     | none; two are a bracket, one `-inf`                 |
+| 5 ideal switch floating node | 5      | `/tmp/m315/w/DB4.mo` red at t = 0; link unproven    |
+| 4 friction locked mode       | 3      | `/tmp/m315/w/FR3.mo`, four lines, red               |
+| 1 acceptance test            | 0 to 3 | the trail of `IMC_Transformer`; a chain behind it   |
+| 8 singles                    | 3      |                                                     |
+
+The column is not a partition and does not add up to 95. The fold by
+what the block is built of does (`/tmp/m315/fold313.txt`): 41 Fluid
+and Media, 30 machines, 7 Spice3, 5 ideal switches, 5 MultiBody, 3
+friction, 4 others, which is 95. The layers cut across it. Layer 7
+takes five Fluid models, four MultiBody and the two `Heating*_NORGate`
+models. Layer 1 overlaps three others, because each of its three
+candidates also belongs to a family by what it is built of
+(`BranchingPipes2` Fluid, `Rectifier6pulse` switch, `IMC_Transformer`
+machine). And the Fluid 41 are more than layer 6's 29: there are 12
+more, spread over five other rows.
+
+Six of the eight have a mechanism named from a trail, and of those the
+cause is measured for five: the acceptance test, the rotor angle
+(mapped earlier), the floating star, the friction branch and the
+Spice3 cards (the witness `ZRX.mo`). Two of them share one shape, a
+coefficient that is zero in value and present in structure: the
+Spice3 card's `R = 0`, and the friction's locked branch, which keeps
+`sa` in the incidence of an equation whose value in that mode does
+not read it. The rotor angle is the same shape on a variable,
+`sin(gamma)` at `gamma = 0`, and holds only at the start. Index
+reduction and the matching work from the incidence, so a zero they
+cannot see is the common cause of forty models across the three. The
+Spice3 layer is the cheapest to take. Its value is a parameter, so a
+structure that drops a term whose coefficient is a parameter settled
+at zero is decidable before the run, and ZRX is its test (`i =
+cos(1)` at t = 1). It moves which equations index reduction sees, so
+it wants a key and the pair with its victims.
+
+The ranking this gives for the complex, by models per link: the rotor
+angle (30), then Fluid descent (29, not one link), then the Spice3
+cards (7). `ReferenceAir_dT` below is a single model, but it has the
+only link found this shift that is exactly located and has a one-line
+repair.
+
+## m315: the ReferenceAir_dT link, found
+
+The m314 map left the question of what the first line does to the
+second. It shrinks further. `/tmp/m315/ra/P1.mo` has three lines:
+`state`, `Pr = Medium.prandtlNumber(state)` and `a =
+Medium.velocityOfSound(state)`, and it refuses with `unknown variable
+dT_explicit`. Written `a` first (`A1.mo`), it runs. `Pr`'s own formula
+written out by hand as `eta * cp / lambda` in front of `a` (`M1.mo`)
+also runs, and so does any single one of those three calls in front of
+`a` (`C1`, `E1`, `L1`, `EL`). So it is the call of `prandtlNumber`,
+the body written in `PartialMedium`, that matters, and not what it
+computes. After it, of twenty-one media functions asked second
+(`gen4.py`), `velocityOfSound` alone is left standing as a call to
+`Air_Base.velocityOfSound`. `cp`, `cv`, entropy, `kappa` and `beta`
+all inline.
+
+A probe binary (`/tmp/m315/oxp3`, reverted) printed each asking of the
+inliner's table `INLINED` and each fallback. What differs between the
+two orders is one body, three calls down:
+`Air_Utilities.velocityOfSound_props_dT` at depth 8. After
+`prandtlNumber` it folds whole (`ok`). Without it, it is refused with
+`nested deeper than the compiler follows`, and so left standing
+inside an inlined outer body. In both orders
+`Air_Base.velocityOfSound` itself folds (`ok` at depth 1). The
+difference is what happens next, in `arrays.rs` (around line 1500):
+the folded result is expanded once more, and in P1 that expansion,
+now carrying the whole Helmholtz tree, goes past `MAX_DEPTH` and
+returns `NO_BOTTOM`. The fallback there stands the call as
+`Expr::Call(class.name.clone(), arguments)`, which is the name of the
+class that wrote the body. It does not ask `carried_under_mark`, which
+the probe shows would have answered
+`Air_Base.velocityOfSound@Air_dT`. `left_standing` in `inlining.rs`
+asks it, and this fallback is the one path that does not. The run
+then walks `Air_Base`'s body with `dT_explicit`, a constant only the
+medium gives a value to.
+
+Why `props_dT` folds in one order and not the other is the `INLINED`
+table. The Helmholtz calls inside it are asked at different depths in
+the two orders (`Basic.Helmholtz`: 16 askings in P1 against 23 in C1,
+with different depths at which they are refused). The table is keyed
+by depth, so a body folded shallow by `prandtlNumber`'s `cp` is
+answered from the table deeper down in `velocityOfSound`. That is the
+depth-keyed table doing what its comment says. The fault is not the
+order. It is the fallback in `arrays.rs` naming the writer rather
+than the flat model's name. This is the invariant the working notes
+state: anything that survives flattening carries the flat model's
+names. The one-line repair is to make that fallback go through
+`left_standing` (or `carried_under_mark`) like the other. It is parked
+here with its test: `P1.mo` must run and give `a = 346.291922` (the
+value `A1` and `C1` print). It is not taken, by the brief. It is kin
+to `setSat_T`, and a series should look for the other fallbacks that
+build `Expr::Call(class.name ...)` by hand.
+
+## m315: the census on the singular-subset road
+
+The census m315 (`/tmp/m315/census.txt`, raw half in
+`/tmp/m315/raw.txt`) was taken on 02121e2 with no key set, so on the
+new road of m314. Counted within the section boundaries: flatten 71
+models over 40 rows, which is m313's to the row, and run 282 over 153,
+against 284 over 156. Two models fewer and three rows fewer.
+
+By name (`/tmp/m315/k313.txt` against `k315.txt`), the two that left
+the run half are `AsymmetricalLoad` and `GearConstraint`, the m314
+arrivals, and no model joined it. Twelve models changed their refusal.
+Nine are from `/tmp/m313/bcd.lst`:
+
+- four went into the algebraic complex: `SMEE_LoadDump` to singular
+  Jacobian (19 to 20), `IMC_DOL_CommonLeakage` to a solution on either
+  side (8 to 9), `PointGravityWithPointMasses2` to do not mention (18
+  to 19) and `DoublePendulumInitTip` to `X` of algebraic loop (11 to
+  12). The seven rows of the complex go from 95 to 99, exactly these
+  four;
+- five stay at `constrains no state` but on another equation of their
+  subset: `ActuatorWithNoise`, `Engine1b`, `LineForceWithTwoMasses`,
+  `PlanarFourbar` (at the ceiling of 32 tries) and `SMPM_OpenCircuit`.
+
+The other twelve of the twenty-one refuse with the same leading text
+as before and a new tail naming the subset tried. The three movers
+that are not in the list are FluxTubes helper classes,
+`PermeanceActuator` and the two hysteresis transformers. The new road
+tried their subsets too (6, 6 and 16 others) and stopped on another
+member, so they stand at the same wall with a different equation
+quoted. That is the whole of the movement, and it matches what the
+brief expected. The rows do not simply lose three: 16 rows of m313
+are gone and 13 new ones stand (`/tmp/m315/r313.txt` against
+`r315.txt`), all of them `constrains no state`. Most are the same
+equation with a new tail, `nor did the N other equations ...`, which
+the counter's 120-character cut now reaches. The rest are the
+movements above, onto another member of the subset.
