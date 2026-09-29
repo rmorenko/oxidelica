@@ -25687,3 +25687,109 @@ The off half, the old road on the same binary (`/tmp/m306/off.txt`),
 started at the close of the shift and did not finish within it. The
 identity of the old road with the last pair is therefore still to be
 read from that file, not from here.
+
+The pair was closed after the shift, on the same binary: the off half
+(`/tmp/m306/off.txt`) is identical name by name to the on half of the
+last pair, 963 and 673, 847 and 631, with nothing either way, and
+against the on half it lacks exactly the two `Noise` models above. The
+key gives back the old road, so the difference is the key's and not the
+binary's.
+
+## m307: the FFT row of the census is a chain, and the other survey
+
+### The subscript row: one layer at the door, a chain behind it
+
+The census row `the subscript of X must be a whole number the compiler
+can see` holds four models, and all four are refused at the same place,
+the assignment of one element in `statements.rs`:
+
+- `Modelica.Blocks.Examples.Rectifier12pulseFFT` and
+  `Rectifier6pulseFFT`, through `Modelica.Blocks.Math.RealFFT`, which
+  writes `buf[iTick] := u`;
+- `Modelica.Math.FastFourierTransform.Examples.RealFFT1` and `RealFFT2`,
+  which write `y_buf[iTick] := y` themselves.
+
+The subscript is in every case a discrete counter, `iTick :=
+pre(iTick) + 1` in the same `when sample(...)`, under `if iTick <= ns`.
+Nothing the compiler could fold: the index is a value of the run.
+
+A probe key (never committed, `/tmp/m307/probe_dynidx.diff`) walked the
+chain. The smallest model is twelve lines (`/tmp/m307/s/A.mo`): a
+counter, a four-element buffer, the write under the `if`. The links, in
+the order the probe met them:
+
+1. The element written by a run-time subscript. The probe wrote it as a
+   choice per element, `buf[k] := if iTick == k then value else buf[k]`.
+   Without the surrounding `if` that alone runs the small model right
+   (`A2.mo`: 0, 0.1, 0.2, 0.3 after six ticks).
+2. The `if` around it drops the elements. The merge after an `if`
+   leaves out an array that no later statement of the section reads,
+   a rule written for the working arrays of function bodies. In a
+   model's algorithm the array is an output of the section, and the
+   elements vanish: `nothing determines buf[1] ... buf[4]`. This link
+   stands on its own, without link 1: `A3.mo` writes `buf[1]` with a
+   constant subscript under the same `if` and is refused the same way
+   on the clean binary.
+3. Where the probe let the merge through, an element has no value on
+   the branch that does not write it. The rule that a branch leaves a
+   variable of a `when` at `pre` of itself is kept for scalars
+   (`!name.contains('[')`). Widened in the probe to elements of a
+   model's algorithm, `A.mo` runs right and so does a hundred-element
+   buffer.
+4. All four library models then stop at "nested deeper than the
+   compiler follows". The library
+   form reads the buffer whole after the loop - `realFFT(y_buf, nfi)`,
+   whose body starts with `sum(u)`, a sum of 100 elements (1000 in the
+   rectifiers) that expansion builds as a nest deeper than
+   `MAX_DEPTH`. This link is not the probe's: `D1.mo`, `s := sum(buf)`
+   over a hundred elements with a constant subscript, is refused the
+   same way on the clean binary, and at twenty elements it is not.
+5. Behind that stands `Internal.rawRealFFT`, an external C function
+   (`ModelicaFFT_kiss_fftr`), which the compiler has none of its own
+   for.
+6. And `realFFTwriteToFile`, which writes a matrix to a file from
+   inside the `when` - the file family the census already carries.
+
+Two earlier surveys had parts of this: m287 saw links 1 and 5, m291
+saw links 1 and 2 (`/tmp/m291s/fft`). What is new here is the walk
+itself, with the probe carrying the model past each link rather than
+reasoning about it: links 3 and 4, and that link 4 is a wall of its own
+standing between the subscript and the C function.
+
+So the row is one layer at the door and a chain of at least six links
+behind it, two of them (4 and 5) separate walls of their own. By the
+rule of the chain it is not taken a link at a time: links 2 and 3 alone
+would move no model. The map is here for the round that plans it.
+Links 2 and 3 are the cheapest and are the same question - what an
+`if` in a model's algorithm does with an element it does not write -
+and link 4 is a question about `MAX_DEPTH` that the notes on raising
+it already answer with caution.
+
+### The run row `initialization is not square`: already mapped
+
+The five models of this row were surveyed again, one `--only` each
+from the root, and the refusals are word for word the shapes the m287
+survey recorded: `CompareLineTrunks` 60 written equations for 57
+states, `IMC_Initialize` 6 for 5, `NonCircularPipes` 8 for 6, all
+three with no fixed start (more conditions than states, left behind by
+reduction); `InitSpringConstant` 0 equations and 2 fixed starts for 3
+unknowns with `spring.c` among them, `Fourbar2` 1 and 1 for 3 with the
+rod length among them (a fixed start on a non-state dropped, and a
+parameter left to initialization). Two layers, not five, and the same
+two as then; the m287 map and its small models (`/tmp/m287/I.mo`,
+`/tmp/m287/O.mo`) stand, and the question they leave - whether a
+surplus equation is redundant or contradicts - is unchanged. Nothing
+was touched.
+
+### The census after the time-event series
+
+Taken on the tree of the series (`/tmp/m307/census.txt`, raw half
+`/tmp/m307/raw.txt`), against the last one (`/tmp/m305/census.txt`).
+The flatten half holds 71 models in 40 rows, the same 71 and 40 as
+before, and 71 is 1034 less the 963 that flatten. The run half holds
+288 in 156 rows, from 290 in 157, and 288 is 963 less the 675 that run.
+The raw halves differ by exactly two names, `Noise.NormalNoiseProperties`
+and `Noise.UniformNoiseProperties`, and the row that lost them is the
+second of the two `step size underflow at t = N.N` rows, which held
+those two and is gone; the other, with `Analog.Examples.Rectifier` and
+`IMC_Steinmetz`, stands. Nothing else moved.

@@ -196,6 +196,27 @@ fn collect_members(
     }
 }
 
+/// How many characters of a binding the note about a parameter carried
+/// into the run shows.
+const NOTE_BINDING_CHARS: usize = 120;
+
+/// The binding of a parameter carried into the run, as the note shows it.
+///
+/// The start of the expression is what says which call or which name
+/// stopped it; printed whole, one binding ran to a hundred kilobytes,
+/// and a hundred and seven such notes came to 920 of the 1072 KB a
+/// library check wrote. So the head is kept and the length is named,
+/// which says how much was left out without printing it.
+fn bound_to_note(binding: &Expr) -> String {
+    let whole = format!("{binding:?}");
+    let length = whole.chars().count();
+    if length <= NOTE_BINDING_CHARS {
+        return format!("it is bound to `{whole}`");
+    }
+    let head: String = whole.chars().take(NOTE_BINDING_CHARS).collect();
+    format!("it is bound to `{head}...` ({length} characters in all)")
+}
+
 /// What an annotation said under a given name, where it said anything:
 /// the string it carries, or an empty one where it is a bare word or
 /// carries something else.
@@ -402,7 +423,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
                  the compiler can work out: {}; it is carried into the run instead",
                 component.name,
                 match &component.binding {
-                    Some(binding) => format!("it is bound to `{binding:?}`"),
+                    Some(binding) => bound_to_note(binding),
                     None => "it is bound to nothing".to_string(),
                 }
             );

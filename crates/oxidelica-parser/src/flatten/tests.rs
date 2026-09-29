@@ -1090,3 +1090,22 @@ fn a_walk_reading_is_named_by_what_it_came_to() {
     assert_eq!(named(&Expr::Ref("data.MM".into())), "name `data.MM`");
     assert!(named(&Expr::Array(vec![Expr::Number(1.0)])).starts_with("expression Array"));
 }
+
+#[test]
+fn a_carried_parameter_note_shows_the_head_of_a_long_binding() {
+    use crate::ast::Expr;
+    let short = Expr::Ref("k".into());
+    assert_eq!(super::bound_to_note(&short), "it is bound to `Ref(\"k\")`");
+    // A sum of four hundred names prints as some eight thousand
+    // characters; the note keeps the first hundred and twenty and says
+    // how many there were.
+    let long = (0..400)
+        .map(|i| Expr::Ref(format!("x{i}")))
+        .reduce(|a, b| Expr::Bin(crate::ast::BinOp::Add, Box::new(a), Box::new(b)))
+        .unwrap();
+    let whole = format!("{long:?}").chars().count();
+    let note = super::bound_to_note(&long);
+    assert!(note.starts_with("it is bound to `Bin(Add, Bin(Add, "));
+    assert!(note.ends_with(&format!("...` ({whole} characters in all)")));
+    assert!(note.chars().count() < 200, "{note}");
+}
