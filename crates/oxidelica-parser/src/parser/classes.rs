@@ -174,6 +174,52 @@ impl Parser {
                 self.annotation_body(&mut Annotated::default())?;
             }
             self.expect(&Token::Semi, "semicolon after the class alias")?;
+            // A short function definition that fills some inputs in
+            // and replaces nothing is a class of its own: `function g2
+            // = BaseIF97.Basic.g2(final checkLimits = false)` means
+            // `function g2 extends BaseIF97.Basic.g2(final checkLimits
+            // = false); end g2;`, which is what the language says it
+            // is. Kept as a second name for the target, the name was
+            // the target and the modifiers went nowhere a call reads:
+            // the moist air's copy of IF97 ran the validity checks it
+            // was written to switch off, and refused the first
+            // temperature below freezing. A replaceable or redeclared
+            // one stays an alias, since that is what a redeclaration
+            // replaces. And only where every value is a literal: a
+            // value that names something - `function accel = Scaled(c
+            // = k)` in a model - means the holder's `k`, and the alias
+            // road is what puts the holder's prefix on it. A literal
+            // names nothing, so where it is read does not matter.
+            fn literal(value: &Expr) -> bool {
+                match value {
+                    Expr::Number(_) | Expr::Bool(_) | Expr::Str(_) => true,
+                    Expr::Neg(inner) => literal(inner),
+                    _ => false,
+                }
+            }
+            if kind == ClassKind::Function
+                && !modifiers.is_empty()
+                && modifiers.iter().all(|(_, value)| literal(value))
+                && !replaceable
+                && !redeclaration
+                && constrained_by.is_none()
+                && std::env::var_os("OXIDELICA_SHORT_FUNCTIONS_AS_ALIASES").is_none()
+            {
+                return Ok(ClassItem::Class(Box::new(ClassDef {
+                    kind,
+                    name,
+                    partial,
+                    encapsulated,
+                    extends: vec![Extend {
+                        base: target,
+                        modifiers,
+                        redeclares: Vec::new(),
+                        broken: Vec::new(),
+                        from_base: false,
+                    }],
+                    ..ClassDef::empty()
+                })));
+            }
             return Ok(ClassItem::Alias(ClassAlias {
                 name,
                 target,

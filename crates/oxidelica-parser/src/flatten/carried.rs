@@ -241,8 +241,17 @@ pub(super) fn programs_used(
             .iter()
             .map(|component| component.name.clone())
             .collect();
-        carried.algorithm = qualified_calls(
+        // A function the body hands over is specialized here, as it
+        // would have been had the body been inlined: see
+        // `handed_over_in_walked_body`.
+        let algorithm = super::arrays::handed_over_in_walked_body(
             &class.algorithm,
+            registry,
+            &class.name,
+            &class.imports,
+        );
+        carried.algorithm = qualified_calls(
+            &algorithm,
             registry,
             &class.name,
             &class.imports,
@@ -287,7 +296,7 @@ pub(super) fn programs_used(
             }
         }
         gather_calls_in_statements(
-            &class.algorithm,
+            &algorithm,
             registry,
             &class.name,
             &class.imports,

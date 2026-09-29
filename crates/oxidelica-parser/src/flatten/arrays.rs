@@ -2517,6 +2517,53 @@ fn specialized(
     specialized_as(class, args, registry, scope, imports, true)
 }
 
+/// A body carried out to the walk with every function it hands over
+/// specialized the way an inlined one is.
+///
+/// Specializing happens where a call is expanded, and a body that is
+/// walked rather than inlined is never expanded: its statements are
+/// carried as written. So a hand-over inside it reached the run as the
+/// partial call itself, and the walk read the handed function's name
+/// as a variable. The reference air solves for a temperature with a
+/// residual that calls the saturation limit, and the saturation limit
+/// solves for its own temperature with a local function: the outer
+/// solve was specialized, its residual walked, and the inner one lost,
+/// as `unknown variable Tsub_res`. A hand-over this cannot specialize
+/// is left exactly as written, for the walk to refuse by name.
+pub(super) fn handed_over_in_walked_body(
+    body: &[Statement],
+    registry: &HashMap<&str, &ClassDef>,
+    scope: &str,
+    imports: &[(String, String)],
+) -> Vec<Statement> {
+    if walked_hand_over_off() {
+        return body.to_vec();
+    }
+    calls_rewritten(body, &|head, args| {
+        if !args
+            .iter()
+            .any(|arg| matches!(arg, Expr::Call(held, _) if held == PARTIAL_CALL))
+        {
+            return None;
+        }
+        let class = lookup(registry, head, scope, imports)?;
+        if class.kind != ClassKind::Function {
+            return None;
+        }
+        let (copy, rest) = specialized(class, args, registry, scope, imports).ok()?;
+        let name = copy.name.clone();
+        super::statements::remember_specialization(copy);
+        Some(Expr::Call(name, rest))
+    })
+}
+
+/// Whether a hand-over inside a walked body is left as the partial call
+/// it was written as. `OXIDELICA_NO_WALKED_HAND_OVER` keeps that, so
+/// that one binary gives both numbers.
+fn walked_hand_over_off() -> bool {
+    std::env::var_os("OXIDELICA_NO_WALKED_HAND_OVER").is_some()
+}
+
 /// Whether a function handed on to another is left standing, as it was
 /// before. `OXIDELICA_NO_HANDING_ON` is kept so that one binary can be
 /// measured against itself over the whole library.

@@ -702,6 +702,126 @@ fn a_function_may_be_handed_over_with_its_inputs_filled_in() {
     );
 }
 
+/// A function handed over inside a body that is walked rather than
+/// inlined is specialized all the same.
+///
+/// The reference air solves for a temperature with a residual that
+/// calls the saturation limit, and the saturation limit solves for a
+/// temperature of its own with a local function. The outer solve was
+/// specialized and its residual walked, and the inner hand-over reached
+/// the run as written: `unknown variable Tsub_res`. Here the inner
+/// root is `sqrt(4) = 2`, so the outer one is `3 + time - 2`, which at
+/// the end of the run is 1.1.
+#[test]
+fn a_hand_over_inside_a_walked_body_is_specialized() {
+    let result = run("package P \
+           partial function Scalar input Real u; output Real y; end Scalar; \
+           function solve \
+             input Scalar f; input Real lo; input Real hi; output Real x; \
+           protected \
+             Real mid; Real step; \
+           algorithm \
+             x := lo; \
+             step := hi - lo; \
+             while abs(step) > 1e-9 loop \
+               step := step/2; \
+               mid := x + step; \
+               if f(mid) < 0 then x := mid; end if; \
+             end while; \
+           end solve; \
+           function psub input Real T; output Real p; algorithm p := T*T; end psub; \
+           function Tsub \
+             input Real p; output Real T; \
+           protected \
+             function Tsub_res extends Scalar; input Real p; \
+               algorithm y := psub(u) - p; end Tsub_res; \
+           algorithm \
+             T := solve(function Tsub_res(p = p), 0, 10); \
+           end Tsub; \
+           model M \
+             function res extends Scalar; input Real p; input Real hh; \
+               algorithm y := u + Tsub(p) - hh; end res; \
+             Real T; \
+           equation \
+             T = solve(function res(p = 4, hh = 3 + time), 0, 10); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 1.1).abs() < 1e-6,
+        "3 + time less the root of u^2 - 4 is 1.1 at the end, and this said {}",
+        last[1]
+    );
+}
+
+/// What a function's base is modified with is the value of the input
+/// it modifies, in the short form and the long.
+///
+/// `function g2 = BaseIF97.Basic.g2(final checkLimits = false)` is how
+/// the moist air takes IF97's region 2 without its validity checks.
+/// The short form was kept as a second name for the target and the
+/// long form read the base's own default, so either way the checks
+/// that had been switched off fired - on the first temperature below
+/// freezing of a bracket that starts at 143 K.
+#[test]
+fn a_function_base_modifier_gives_the_input_its_value() {
+    let result = run("model M \
+           function g \
+             input Real x; input Boolean check = true; output Real y; \
+           algorithm \
+             if check then assert(x > 10, \"the check was switched off\"); end if; \
+             y := 2*x; \
+           end g; \
+           function short = g(final check = false); \
+           function long extends g(final check = false); end long; \
+           Real a = short(1 + time); \
+           Real b = long(1 + time); \
+           annotation(experiment(StopTime=0.1)); \
+         end M;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 2.2).abs() < 1e-9 && (last[2] - 2.2).abs() < 1e-9,
+        "twice 1.1 is 2.2 by either road, and this said {} and {}",
+        last[1],
+        last[2]
+    );
+}
+
+/// The short form in a package of its own, called by its path, keeps
+/// its modifier.
+///
+/// Declared in the model that calls it the short form happened to keep
+/// the modifier on the alias road as well, so only a definition in
+/// another package - where `IF97_new.g2` stands - shows the alias
+/// losing it: the check that was switched off fires at the first
+/// value.
+#[test]
+fn a_short_function_in_a_package_keeps_its_base_modifier() {
+    let result = run("package U \
+           package Base \
+             function g \
+               input Real x; input Boolean check = true; output Real y; \
+             algorithm \
+               if check then assert(x > 10, \"the check was switched off\"); end if; \
+               y := 2*x; \
+             end g; \
+           end Base; \
+           package New \
+             function g2 = U.Base.g(final check = false); \
+           end New; \
+           model M \
+             Real a = New.g2(1 + time); \
+             annotation(experiment(StopTime=0.1)); \
+           end M; \
+         end U;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 2.2).abs() < 1e-9,
+        "twice 1.1 is 2.2, and this said {}",
+        last[1]
+    );
+}
 /// A function handed on rather than called is specialized one call
 /// deeper, and a receiver handing it to itself calls its own copy.
 ///

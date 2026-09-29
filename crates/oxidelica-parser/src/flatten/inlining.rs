@@ -857,7 +857,21 @@ pub(super) fn function_components(
             false => lookup(registry, &extend.base, &class.name, &class.imports),
         };
         if let Some(base) = base {
-            out.extend(function_components(registry, base, depth + 1));
+            let mut inherited = function_components(registry, base, depth + 1);
+            // What the `extends` wrote on an inherited input is that
+            // input's value here: `function g2 = g(final checkLimits =
+            // false)` is how the moist air takes IF97's region 2
+            // without its validity checks, and read with the base's
+            // own default the checks it switched off fired on the
+            // first temperature of a bracket below freezing.
+            if base_modifiers_open() {
+                for (name, value) in &extend.modifiers {
+                    if let Some(held) = inherited.iter_mut().find(|held| held.name == *name) {
+                        held.binding = Some(value.clone());
+                    }
+                }
+            }
+            out.extend(inherited);
         }
     }
     for component in &class.components {
@@ -867,6 +881,13 @@ pub(super) fn function_components(
         out.push(component.clone());
     }
     out
+}
+
+/// Whether a function's `extends` modifiers give the inherited inputs
+/// their values. `OXIDELICA_NO_FUNCTION_BASE_MODIFIERS` reads the base's
+/// own defaults, as before, so that one binary gives both numbers.
+fn base_modifiers_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_FUNCTION_BASE_MODIFIERS").is_none()
 }
 
 /// What a body came to last time it was handed exactly this, for as

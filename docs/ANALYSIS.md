@@ -26267,11 +26267,23 @@ question was found with less than an hour left.
 
 The chain behind `ReferenceAir.Inverse_sh_TX`, mapped at the end of
 m309, turned out to have three links. The first two were built, tested
-and measured, and are not in the tree: the third is a layer of its own,
-so the chain was not walked to an end, and a chain is taken whole or
-not at all. The two links are kept as a series with their tests at
-`/tmp/m310/series/` (`0001-*.patch`), and the measurement that says
-they cost nothing is below.
+and measured, and are in the tree since m311. They were first kept
+out of it on the reading that a chain whose third link was not taken
+had not been walked to its end. That reading is stricter than the rule
+it cites: a chain ends where the model runs or reaches something that
+is not the same family, and the third link, an array of records in
+the walk, is a layer of representation and not a third hand-over. So
+the chain was walked to its end, and the two links are taken as its
+series; the third stays parked for a series of its own. The
+measurement that says they cost nothing is below.
+
+The test for the short form's modifier was not seen red under
+`OXIDELICA_SHORT_FUNCTIONS_AS_ALIASES` when the series was brought in:
+declared inside the model that calls it, the short form keeps its
+modifier on the alias road too, so the test passed with the key on. A
+second test, `a_short_function_in_a_package_keeps_its_base_modifier`,
+puts the definition in a package of its own as `IF97_new.g2` stands,
+and there the alias road fires the check that was switched off.
 
 The measurement, one binary built from the tree with both series in it
 (`/tmp/m310/ox3`), every key on, `--without scripts/heavy_models.txt`:
