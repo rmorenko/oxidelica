@@ -1193,6 +1193,39 @@ impl AskedAs {
             .filter(|owner| owner.kind == ClassKind::Package && !owner.extends.is_empty())
             .and_then(|_| AskedAs::under(head))
     }
+
+    /// The package a call was written in, where the function it found
+    /// is inherited into that package from a base.
+    ///
+    /// `R134a_ph.R134a_liqofdT` calls `setSat_T`, which R134a does not
+    /// redeclare: the name lands on the interface's body, whose own
+    /// call to `saturationPressure` then looks where the interface
+    /// wrote it and finds the partial one. The medium that redeclared
+    /// it is the package the call was written in, and nothing said so:
+    /// a mark is pushed for a call through a name of its own
+    /// (`Medium.density`), and this one had none. Only where no mark
+    /// already stands on that package's line, since a medium extending
+    /// it says more than it does.
+    pub(super) fn inherited_into(
+        found: &ClassDef,
+        scope: &str,
+        registry: &HashMap<&str, &ClassDef>,
+    ) -> Option<AskedAs> {
+        let package = inherited_into_package(found, scope, registry)?;
+        let standing = ASKED_AS.with(|held| held.borrow().last().cloned());
+        if standing.is_some_and(|under| descends_from(registry, &under, &package)) {
+            return None;
+        }
+        AskedAs::under(&package)
+    }
+}
+
+/// Whether a call to a function inherited into the package it was
+/// written in is worked out under that package.
+/// `OXIDELICA_NO_INHERITED_INTO` closes the road, so that one binary
+/// gives both numbers.
+pub(super) fn inherited_into_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_INHERITED_INTO").is_none()
 }
 
 /// Whether a top model keeps the package it is written in as the name
@@ -1290,15 +1323,55 @@ pub(super) fn function_asked_under<'a>(
     let Some(under) = ASKED_AS.with(|held| held.borrow().last().cloned()) else {
         return class;
     };
+    redeclared_under(class, registry, &under)
+}
+
+/// The function `under` means by the one `class` names: its own, where
+/// it extends the package that wrote `class` and declares the same
+/// name again, and `class` otherwise. What [`function_asked_under`]
+/// asks of the mark, asked of a medium in hand.
+pub(super) fn redeclared_under<'a>(
+    class: &'a ClassDef,
+    registry: &HashMap<&'a str, &'a ClassDef>,
+    under: &str,
+) -> &'a ClassDef {
     let Some((wrote, tail)) = class.name.rsplit_once('.') else {
         return class;
     };
-    if under == wrote || !descends_from(registry, &under, wrote) {
+    if class.kind != ClassKind::Function || under == wrote || !descends_from(registry, under, wrote)
+    {
         return class;
     }
-    super::lookup::lookup(registry, tail, &under, &class.imports)
+    super::lookup::lookup(registry, tail, under, &class.imports)
         .filter(|found| found.kind == ClassKind::Function && found.name != class.name)
         .unwrap_or(class)
+}
+
+/// The package a body written at `scope` stands in, where a function it
+/// calls is inherited into that package from `callee`'s writer: the
+/// medium the callee's own calls were meant to be read under. The same
+/// question [`AskedAs::inherited_into`] asks on the road that inlines,
+/// asked where bodies are carried out to the walk.
+pub(super) fn inherited_into_package(
+    callee: &ClassDef,
+    scope: &str,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<String> {
+    if !inherited_into_open() || callee.kind != ClassKind::Function {
+        return None;
+    }
+    let (wrote, _) = callee.name.rsplit_once('.')?;
+    let mut enclosing = scope;
+    let package = loop {
+        if registry
+            .get(enclosing)
+            .is_some_and(|held| held.kind == ClassKind::Package)
+        {
+            break enclosing;
+        }
+        enclosing = enclosing.rsplit_once('.')?.0;
+    };
+    (package != wrote && descends_from(registry, package, wrote)).then(|| package.to_string())
 }
 
 /// A name that could not be found where it was written, looked for

@@ -888,6 +888,58 @@ fn a_walked_body_reads_a_local_record_its_base_fills_in() {
     );
 }
 
+/// A function a medium only inherits, called from a body written in
+/// the medium, reads the medium's redeclarations - inlined or walked.
+///
+/// R134a writes `R134a_liqofdT` and `derivsOf_ph`, which call
+/// `setSat_T`; R134a does not redeclare `setSat_T`, and the interface's
+/// body calls `saturationPressure`, which the interface left partial and
+/// R134a redeclared. Nothing said the call was made in R134a: it was
+/// written by the path the function has, so no mark was pushed, and the
+/// interface's partial body was reached - refused inlined, and walked it
+/// assigned nothing. The same shape here: `D.liq` calls `st`, which `B`
+/// writes as `2*T` through `sp`. At `T = 2` the answer is 4.
+#[test]
+fn a_body_written_in_a_medium_calls_what_it_inherits_under_the_medium() {
+    let package = "package P \
+           partial package B \
+             replaceable partial function sp input Real T; output Real p; end sp; \
+             replaceable function st input Real T; output Real p; algorithm p := sp(T); end st; \
+             replaceable function stw \
+               input Real T; output Real p; \
+             algorithm \
+               p := 0; \
+               while p < T loop p := p + sp(T); end while; \
+             end stw; \
+           end B; \
+           package D \
+             extends B; \
+             redeclare function extends sp algorithm p := 2*T; end sp; \
+             function inlined input Real T; output Real y; algorithm y := st(T); end inlined; \
+             function walked \
+               input Real T; output Real y; \
+             algorithm \
+               y := 0; \
+               while y < T loop y := y + st(T); end while; \
+             end walked; \
+           end D; \
+           model M \
+             package Medium = P.D; \
+             Real a = P.D.inlined(1 + time); \
+             Real b = P.D.walked(1 + time); \
+             Real c = Medium.stw(1 + time); \
+           end M; \
+         end P;";
+    let last = run(package).rows.last().expect("a final row").clone();
+    for (column, name) in [(1, "inlined"), (2, "walked"), (3, "the base's walked body")] {
+        assert!(
+            (last[column] - 4.0).abs() < 1e-9,
+            "{name}: 2*T at T = 2 is 4, and this said {}",
+            last[column]
+        );
+    }
+}
+
 /// A local record a walked body declares with modifiers of its own is
 /// laid out with what they give it, not with zeros.
 ///

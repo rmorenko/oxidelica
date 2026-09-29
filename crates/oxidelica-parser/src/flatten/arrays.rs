@@ -1442,6 +1442,10 @@ pub(super) fn expand_call(
                     // The function the call really means: the medium
                     // this was asked under may have redeclared it
                     // with inputs its base never had.
+                    // And a call with no name of its own for the package
+                    // it was written in, to a function that package only
+                    // inherits: see `AskedAs::inherited_into`.
+                    let _inherited = inlining::AskedAs::inherited_into(class, scope, registry);
                     let class = inlining::function_asked_under(class, registry);
                     let result = inlining::inline_function(
                         class,
@@ -3209,8 +3213,18 @@ fn medium_read_here(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, mediu
     }
     calls.into_iter().any(|called| {
         registry.get(called.as_str()).is_some_and(|callee| {
-            super::carried::on_the_line(callee, registry, medium)
-                && reads_its_medium(callee, registry, medium)
+            // A callee the medium redeclared is a different body under
+            // it: `setSat_T` of the interface calls the interface's
+            // partial `saturationPressure`, and under R134a the call
+            // means R134a's. The copy reads nothing of the medium
+            // itself and is still another body.
+            (super::inlining::inherited_into_open()
+                && !std::ptr::eq(
+                    inlining::redeclared_under(callee, registry, medium),
+                    *callee,
+                ))
+                || super::carried::on_the_line(callee, registry, medium)
+                    && reads_its_medium(callee, registry, medium)
         })
     })
 }

@@ -863,6 +863,10 @@ pub(super) fn resolve(
                             inlining::AskedAs::under(&package.name)
                         })?
                     });
+                    // And a call with no name of its own for the package
+                    // it was written in, to a function that package only
+                    // inherits: see `AskedAs::inherited_into`.
+                    let _inherited = inlining::AskedAs::inherited_into(class, scope, registry);
                     let class = inlining::function_asked_under(class, registry);
                     inlining::inline_function(class, &args, &shapes, consts, registry, depth)?
                 }

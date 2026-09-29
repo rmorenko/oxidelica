@@ -309,17 +309,26 @@ pub(super) fn programs_used(
             }
             calls.push(called);
         }
-        if let Some((_, medium)) = &pair {
-            for called in &mut calls {
-                let Some(callee) = registry.get(called.as_str()).copied() else {
-                    continue;
-                };
-                if let Some(paired) = paired_under(callee, registry, medium) {
-                    if optional.remove(called.as_str()) {
-                        optional.insert(paired.clone());
-                    }
-                    *called = paired;
+        for called in &mut calls {
+            let Some(callee) = registry.get(called.as_str()).copied() else {
+                continue;
+            };
+            // Named exactly as the copy's statements name it: under
+            // the copy's medium, or under the package the body stands
+            // in where the callee is only inherited into it.
+            let medium = pair
+                .as_ref()
+                .map(|(_, medium)| medium.clone())
+                .or_else(|| inherited_into_package(callee, &class.name, registry));
+            let Some(medium) = medium else {
+                continue;
+            };
+            let named = called_under(callee, registry, &medium);
+            if named != *called {
+                if optional.remove(called.as_str()) {
+                    optional.insert(named.clone());
                 }
+                *called = named;
             }
         }
         // What an optional body calls is wanted only as much as it is:
@@ -610,11 +619,33 @@ impl Drop for PreparingCopy {
 
 /// A call made by the copy being prepared, under the pair's name where
 /// the callee is paired under the copy's medium.
-fn named_in_copy(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> String {
-    COPY_MEDIUM
+///
+/// And under the medium's own function where the medium redeclared the
+/// one the body names: a body of the base calls `saturationPressure`,
+/// which the base left partial, and a copy carried under R134a means
+/// R134a's. A body written in the medium itself that calls what the
+/// medium only inherits - `R134a_liqofdT` calling `setSat_T` - is
+/// carried with no medium on it, and the medium it stands in is the one
+/// its callee is read under.
+fn named_in_copy(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, scope: &str) -> String {
+    let medium = COPY_MEDIUM
         .with(|held| held.borrow().clone())
-        .and_then(|medium| paired_under(class, registry, &medium))
-        .unwrap_or_else(|| class.name.clone())
+        .or_else(|| inherited_into_package(class, scope, registry));
+    match medium {
+        Some(medium) => called_under(class, registry, &medium),
+        None => class.name.clone(),
+    }
+}
+
+/// The name a body carried under `medium` calls `class` by: the
+/// medium's own function where it redeclared this one, and a copy
+/// carried under the medium where the medium changes what it reads.
+fn called_under(class: &ClassDef, registry: &HashMap<&str, &ClassDef>, medium: &str) -> String {
+    let meant = match inherited_into_open() {
+        true => redeclared_under(class, registry, medium),
+        false => class,
+    };
+    paired_under(meant, registry, medium).unwrap_or_else(|| meant.name.clone())
 }
 
 /// Whether the calls a local's binding makes are named the way the
@@ -906,7 +937,7 @@ fn qualified_calls(
             }
             Statement::Call(name, args) => Statement::Call(
                 lookup(registry, name, scope, imports)
-                    .map(|class| named_in_copy(class, registry))
+                    .map(|class| named_in_copy(class, registry, scope))
                     .unwrap_or_else(|| name.clone()),
                 args.iter().map(&expr).collect(),
             ),
@@ -1217,7 +1248,7 @@ fn qualified_call(
     let of =
         lookup(registry, name, scope, imports).filter(|class| class.kind == ClassKind::Function);
     let named = of
-        .map(|class| named_in_copy(class, registry))
+        .map(|class| named_in_copy(class, registry, scope))
         .unwrap_or_else(|| name.to_string());
     let args: Vec<Expr> = args
         .iter()
