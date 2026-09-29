@@ -26539,8 +26539,10 @@ flatten and 679 run, runnable 847 and 637; `/tmp/m311/off6.txt`, with
 `OXIDELICA_NO_CARRIED_RECORD_LOCALS` set, gives 963 and 676, runnable
 847 and 634. The run lists (`on6_ran.lst`, `off6_ran.lst`) differ by
 the three R134a models arriving and none leaving, and the half with the
-key set is identical to `/tmp/m310/on3_ran.lst`. The run floor goes 676
-to 679 and the runnable run floor 634 to 637.
+key set is identical to `/tmp/m310/on3_ran.lst`. The floors stay at
+676 and 634 until the runner prints the new numbers: a floor is raised
+to what the build machine measured, and the desk and the runner already
+differ by one swinging model (Dimmer_RL against SpringWithMass).
 
 ### The census after the two series
 

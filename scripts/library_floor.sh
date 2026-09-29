@@ -951,15 +951,7 @@ FLATTEN_FLOOR=963
 # (/tmp/m309/runner_job.log) and 676 on the desk (/tmp/m308/on3.txt),
 # the lists differing by the swing alone, Dimmer_RL on the runner and
 # SpringWithMass on the desk.
-#
-# And run 679 = 676 plus ModelicaTest.Media.TestOnly.R134a_setState_phX,
-# R134a_setState_pTX and R134a_setState_pTX_high_T, which run now that a
-# walked body's local record is given the values its class and its
-# modifiers write: the desk's pair from one binary, /tmp/m311/on6.txt
-# (963/679) against /tmp/m311/off6.txt (963/676), three arrived and
-# none left, the half with the key set (the old reading) identical to
-# /tmp/m310/on3_ran.lst.
-RUN_FLOOR=679
+RUN_FLOOR=676
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1091,11 +1083,8 @@ RUN_FLOOR=679
 # And runnable run 634 = 633 plus ForceAndTorque, a runnable example:
 # the runner's 847/634 in job 109306337264 (/tmp/m309/runner_job.log)
 # and the desk's 847/634 (/tmp/m308/on3.txt).
-#
-# And runnable run 637 = 634 plus the same three R134a models, all
-# runnable examples: the desk's 847/637 (/tmp/m311/on6.txt).
 RUNNABLE_FLATTEN_FLOOR=847
-RUNNABLE_RUN_FLOOR=637
+RUNNABLE_RUN_FLOOR=634
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
