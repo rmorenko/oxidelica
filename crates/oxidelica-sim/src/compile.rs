@@ -3477,6 +3477,12 @@ pub(crate) fn compile_at(
         inside_a_when: false,
         params: &params,
         samples: Vec::new(),
+        clocks: Vec::new(),
+        clocks_open: std::env::var_os("OXIDELICA_NO_TIME_CONDITION_EVENTS").is_none(),
+        clock_after: resume.as_ref().map_or_else(
+            || model.experiment.start_time.unwrap_or(0.0),
+            |point| point.time,
+        ),
         delays: Vec::new(),
     };
     // An `if` equation the compiler could not decide is settled here:
@@ -3604,6 +3610,7 @@ pub(crate) fn compile_at(
         })
         .collect::<Result<Vec<_>, SimError>>()?;
     let samples = rewrite.samples;
+    let clocks = rewrite.clocks;
     let delayed = rewrite.delays;
     let pre_wanted = rewrite.pre_wanted;
 
@@ -4142,6 +4149,17 @@ pub(crate) fn compile_at(
     let sample_slots: Vec<Slot> = (0..samples.len())
         .map(|index| table.slot(&format!("$sample{index}")))
         .collect();
+    // A relation on `time` starts out holding what it holds before its
+    // threshold, which is ahead of the start by construction.
+    let clocks: Vec<(f64, bool, Slot)> = clocks
+        .iter()
+        .enumerate()
+        .map(|(index, &(at, turns_true))| {
+            let slot = table.slot(&format!("$clock{index}"));
+            table.template[slot] = truth(!turns_true);
+            (at, turns_true, slot)
+        })
+        .collect();
     let delay_slots: Vec<Slot> = (0..delayed.len())
         .map(|index| table.slot(&format!("$delay{index}")))
         .collect();
@@ -4410,6 +4428,7 @@ pub(crate) fn compile_at(
         initial_slot,
         terminal_slot,
         sample_slots,
+        clocks,
         delays: delayed
             .iter()
             .zip(&delay_slots)
@@ -4624,7 +4643,7 @@ pub(crate) fn asks_to_hide(annotations: &[Expr]) -> bool {
 }
 
 /// Whether an expression names `time` anywhere below it.
-fn names_time(expr: &Expr) -> bool {
+pub(crate) fn names_time(expr: &Expr) -> bool {
     if matches!(expr, Expr::Time) {
         return true;
     }

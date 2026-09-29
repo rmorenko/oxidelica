@@ -339,6 +339,9 @@ impl CompiledModel {
                     sample(t_event, &mut interp);
                     y.copy_from_slice(&interp);
                     self.eval_point(t_event, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
+                    // See the adaptive solver: a threshold due on the
+                    // instant of a crossing is turned with it.
+                    state.turn_clocks(t_event, &self.clocks, &mut values);
                     let outcome = or_stall!(self.handle_event(
                         t_event,
                         &mut y,
@@ -441,12 +444,29 @@ impl CompiledModel {
                 // here raise their flags and the `when` clauses read them.
                 if state.next_time_event().is_some_and(|next| next <= t + 1e-9) {
                     self.eval_point(t, &y, &mut values, &mut f_scratch, &mut alg_guess)?;
-                    state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
+                    let turned = self.raise_time_events(t, &mut state, &mut values);
                     let outcome =
                         self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
                     self.eval_point(t, &y, &mut values, &mut f_last, &mut alg_guess)?;
                     indicators_prev = self.indicator_values(t, &values);
                     handled_at = t;
+                    if turned && !outcome.changed {
+                        // The right-hand side changed branch and the
+                        // history was taken on the other one.
+                        self.record_row(
+                            t,
+                            &y,
+                            &mut values,
+                            &mut f_scratch,
+                            &mut alg_guess,
+                            &mut rows,
+                        )?;
+                        t_hist.truncate(1);
+                        y_hist.truncate(1);
+                        order = 1;
+                        consecutive_ok = 0;
+                        jac = None;
+                    }
                     if outcome.changed {
                         // A jump the history cannot represent: restart
                         // from order one, and record both sides of it.
@@ -467,6 +487,14 @@ impl CompiledModel {
                     if let Some(message) = outcome.terminated {
                         terminated = Some(message);
                         break;
+                    }
+                    if turned && !self.mode_holds(&values, t) {
+                        let mut outcome =
+                            self.stall_at_last_row(columns, rows, SolverMethod::Bdf, true)?;
+                        if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                            stall.partial.rows.pop();
+                        }
+                        return Ok(outcome);
                     }
                 }
             } else {

@@ -927,3 +927,129 @@ fn a_when_in_an_algorithm_reads_pre_once() {
         last[y]
     );
 }
+
+/// A relation of `time` against a threshold known before the run is a
+/// time event, not a crossing to be searched for. Searched for, the
+/// ramp below ended short of one by what the solver's tolerance left
+/// it - 0.999899 under dopri45 over a longer run - and under RK4 by a
+/// twelfth, the last stage of the last step standing on the threshold
+/// and reading the far side of the switch for the whole step.
+#[test]
+fn a_ramp_switched_off_by_time_ends_exactly_where_it_was_told() {
+    for (stop, condition) in [
+        (1.0, "time < 1.0"),
+        (1.5, "time < 1.0"),
+        (1.5, "1.0 > time"),
+    ] {
+        let source = format!(
+            "model E Real s1(start = 0, fixed = true); \
+             equation der(s1) = if {condition} then 1 else 0.0; \
+             annotation(experiment(StopTime = {stop}, Interval = 0.5)); end E;"
+        );
+        for method in [SolverMethod::Dopri45, SolverMethod::Bdf, SolverMethod::Rk4] {
+            let result = run_on(&source, method).expect("runs");
+            let s1 = result.columns.iter().position(|c| c == "s1").unwrap();
+            let last = result.rows.last().unwrap();
+            assert!(
+                (last[s1] - 1.0).abs() < 1e-6,
+                "{method:?}, {condition}, stop {stop}: s1 = {}",
+                last[s1]
+            );
+        }
+    }
+}
+
+/// The same instant read by a `when`: it fires on the threshold, not
+/// wherever a search for the crossing happened to settle past it.
+#[test]
+fn a_when_on_time_fires_on_the_threshold() {
+    let result = run(
+        "model W Real x(start = 0, fixed = true); discrete Real at(start = -1, fixed = true); \
+         equation der(x) = 1; when time >= 0.3 then at = x; end when; \
+         annotation(experiment(StopTime = 1, Interval = 0.25)); end W;",
+    );
+    let at = result.columns.iter().position(|c| c == "at").unwrap();
+    let last = result.rows.last().unwrap();
+    assert!(
+        (last[at] - 0.3).abs() < 1e-12,
+        "fired with x = {}",
+        last[at]
+    );
+}
+
+/// A threshold between two grid points: RK4 splits its step there
+/// rather than letting a stage read past it, and the adaptive solvers
+/// step onto it the same way.
+#[test]
+fn a_threshold_between_grid_points_is_stepped_onto() {
+    let source = "model E Real s1(start = 0, fixed = true); \
+         equation der(s1) = if time < 0.7 then 1 else 0.0; \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end E;";
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf, SolverMethod::Rk4] {
+        let result = run_on(source, method).expect("runs");
+        let s1 = result.columns.iter().position(|c| c == "s1").unwrap();
+        let last = result.rows.last().unwrap();
+        assert!(
+            (last[s1] - 0.7).abs() < 1e-9,
+            "{method:?}: s1 = {}",
+            last[s1]
+        );
+    }
+}
+
+/// A run-time `if` equation decided by a relation on `time`, in a
+/// model that also integrates: the mode is left at the scheduled
+/// instant, and the run continues in the other one from there.
+#[test]
+fn a_mode_decided_by_time_changes_on_the_threshold() {
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model X Real x(start = 0, fixed = true); Real a; Real b; \
+             equation der(x) = 1; \
+             if time < 0.5 then a = x; b = 2 * a; \
+             else b = x; a = b / 2; end if; \
+             annotation(experiment(StopTime = 1, Interval = 0.1)); end X;",
+            method,
+        )
+        .expect("runs");
+        let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+        let (a, b) = (index("a"), index("b"));
+        let last = result.rows.last().unwrap();
+        assert!(
+            (last[a] - 0.5).abs() < 1e-6 && (last[b] - 1.0).abs() < 1e-6,
+            "{method:?}: a = {}, b = {}",
+            last[a],
+            last[b]
+        );
+    }
+}
+
+/// A crossing the solver finds in the same step as a scheduled
+/// threshold, a hair past it: the pulse's `T_start + T_width` turns at
+/// 0.3 + 1e-9 while `time < 0.3` is due at 0.3. The state event is
+/// handled first and the step goes round again, so the threshold has
+/// to turn there too - left for the next step, it turned one step late
+/// and the integral of the step came to 1.36 where it is 1.4.
+#[test]
+fn a_threshold_due_with_a_crossing_turns_with_it() {
+    for method in [SolverMethod::Dopri45, SolverMethod::Bdf] {
+        let result = run_on(
+            "model C parameter Real startTime = 0.1, period = 0.4, width = 50; \
+             Real T_width = period*width/100; \
+             discrete Integer count; discrete Real T_start; Real p; \
+             Real x(start = 0, fixed = true); \
+             initial algorithm count := integer((time - startTime)/period); \
+             T_start := startTime + count*period; \
+             equation when time >= (pre(count) + 1)*period + startTime then \
+             count = pre(count) + 1; T_start = time; end when; \
+             p = if time < startTime then 0 else if time < T_start + T_width then 1 else 0; \
+             der(x) = if time < 0.3 then 0 else 2; \
+             annotation(experiment(StopTime = 1, Interval = 0.25)); end C;",
+            method,
+        )
+        .expect("runs");
+        let x = result.columns.iter().position(|c| c == "x").unwrap();
+        let last = result.rows.last().unwrap();
+        assert!((last[x] - 1.4).abs() < 1e-6, "{method:?}: x = {}", last[x]);
+    }
+}

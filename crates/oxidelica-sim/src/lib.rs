@@ -304,6 +304,11 @@ pub struct CompiledModel {
     profiles: std::cell::RefCell<Vec<Vec<(f64, f64)>>>,
     /// Slot of the flag raised by each `sample(...)` source.
     sample_slots: Vec<Slot>,
+    /// Every relation of `time` against a threshold known before the
+    /// run - `time < 1` - with the slot holding its truth. The truth
+    /// is held still between events and turned at a scheduled one,
+    /// exactly on the threshold; see [`EventState::next_clock`].
+    clocks: Vec<(f64, bool, Slot)>,
     /// Algebraic variables in evaluation order.
     pub algebraics: Vec<String>,
     /// Initial Newton guesses for algebraic variables (start attributes).
@@ -427,6 +432,13 @@ struct EventState {
     when_prev: Vec<Vec<bool>>,
     /// Next occurrence of each `sample(...)` source.
     next_sample: Vec<f64>,
+    /// The threshold of each relation on `time` not yet passed, and
+    /// infinity for one that has been. A relation `time < C` is not a
+    /// crossing to be searched for: its instant is known before the
+    /// run, and searched for, the stage of a step landing on it reads
+    /// the far side of the switch while the step is still on the near
+    /// one - a ramp meant to end on 1 ended on 0.9166 under RK4.
+    next_clock: Vec<f64>,
     /// The instant the last event was handled at, and how many have
     /// been handled there. A model whose switches chase each other
     /// across events - each one settling, and the next one following
@@ -463,6 +475,15 @@ struct EventRewrite<'a> {
     params: &'a HashMap<String, f64>,
     /// Schedules found so far, in flag order.
     samples: Vec<(f64, f64)>,
+    /// Relations of `time` against a threshold known before the run,
+    /// in flag order: the threshold, and whether the relation turns
+    /// true there (`time >= C`) rather than false (`time < C`).
+    clocks: Vec<(f64, bool)>,
+    /// Whether relations on `time` are scheduled at all, and the
+    /// instant this compilation starts from: a threshold at or before
+    /// it is not ahead of the run and stays a relation.
+    clocks_open: bool,
+    clock_after: f64,
     /// Delayed expressions found so far, with how far back each looks.
     delays: Vec<(Expr, f64)>,
 }

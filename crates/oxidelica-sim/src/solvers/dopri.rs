@@ -385,6 +385,12 @@ impl CompiledModel {
                         &mut derivatives_scratch,
                         &mut alg_guess,
                     ));
+                    // A step that ends on a scheduled threshold may also
+                    // hold a crossing, and this branch goes round the
+                    // loop without reaching the one below: the relation
+                    // on `time` is turned here, or the next step would
+                    // start past its threshold and turn it a step late.
+                    state.turn_clocks(t_event, &self.clocks, &mut values);
                     let outcome = or_stall!(self.handle_event(
                         t_event,
                         &mut y,
@@ -486,7 +492,7 @@ impl CompiledModel {
                         &mut derivatives_scratch,
                         &mut alg_guess
                     ));
-                    state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
+                    let turned = self.raise_time_events(t, &mut state, &mut values);
                     let outcome = or_stall!(self.handle_event(
                         t,
                         &mut y,
@@ -497,7 +503,11 @@ impl CompiledModel {
                     or_stall!(self.eval_point(t, &y, &mut values, &mut k[0], &mut alg_guess));
                     indicators_prev = self.indicator_values(t, &values);
                     handled_at = t;
-                    if outcome.changed {
+                    // A relation on `time` that turned here is a jump
+                    // like any other, and may have left the mode this
+                    // model was built for.
+                    let mode_left = turned && !self.mode_holds(&values, t);
+                    if outcome.changed || turned {
                         // The discrete values jumped here, so the point
                         // is recorded twice: before and after the event.
                         self.record_row(
@@ -512,6 +522,14 @@ impl CompiledModel {
                     if let Some(message) = outcome.terminated {
                         terminated = Some(message);
                         break;
+                    }
+                    if mode_left {
+                        let mut outcome =
+                            self.stall_at_last_row(columns, rows, SolverMethod::Dopri45, true)?;
+                        if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                            stall.partial.rows.pop();
+                        }
+                        return Ok(outcome);
                     }
                 }
             }

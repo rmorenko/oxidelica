@@ -60,28 +60,55 @@ impl CompiledModel {
             if terminated.is_some() {
                 break;
             }
-            let t = i as f64 * self.step;
-            let h = (self.stop_time - t).min(self.step);
-
-            self.eval_point(t, &y, &mut values, &mut k1, &mut alg_guess)?;
-            for j in 0..n {
-                scratch[j] = y[j] + 0.5 * h * k1[j];
+            let mut t = i as f64 * self.step;
+            let end = (t + self.step).min(self.stop_time);
+            // A relation on `time` turns at an instant known before the
+            // run, and the grid need not land on it: the step is split
+            // there so that no stage reads the far side of the switch
+            // while the step is still on the near one.
+            while t < end - 1e-12 {
+                let h = match state.next_time_event() {
+                    Some(next) if next > t + 1e-12 && next < end - 1e-12 => next - t,
+                    _ => end - t,
+                };
+                self.eval_point(t, &y, &mut values, &mut k1, &mut alg_guess)?;
+                for j in 0..n {
+                    scratch[j] = y[j] + 0.5 * h * k1[j];
+                }
+                self.eval_point(t + 0.5 * h, &scratch, &mut values, &mut k2, &mut alg_guess)?;
+                for j in 0..n {
+                    scratch[j] = y[j] + 0.5 * h * k2[j];
+                }
+                self.eval_point(t + 0.5 * h, &scratch, &mut values, &mut k3, &mut alg_guess)?;
+                for j in 0..n {
+                    scratch[j] = y[j] + h * k3[j];
+                }
+                self.eval_point(t + h, &scratch, &mut values, &mut k4, &mut alg_guess)?;
+                for j in 0..n {
+                    y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
+                }
+                t += h;
+                if t < end - 1e-12 {
+                    // Inside the grid step, on a scheduled instant.
+                    self.eval_point(t, &y, &mut values, &mut k1, &mut alg_guess)?;
+                    self.raise_time_events(t, &mut state, &mut values);
+                    terminated = self
+                        .handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?
+                        .terminated;
+                    if terminated.is_some() {
+                        break;
+                    }
+                }
             }
-            self.eval_point(t + 0.5 * h, &scratch, &mut values, &mut k2, &mut alg_guess)?;
-            for j in 0..n {
-                scratch[j] = y[j] + 0.5 * h * k2[j];
+            if terminated.is_some() {
+                record(t, &y, &mut values, &mut k1, self, &mut alg_guess)?;
+                break;
             }
-            self.eval_point(t + 0.5 * h, &scratch, &mut values, &mut k3, &mut alg_guess)?;
-            for j in 0..n {
-                scratch[j] = y[j] + h * k3[j];
-            }
-            self.eval_point(t + h, &scratch, &mut values, &mut k4, &mut alg_guess)?;
-            for j in 0..n {
-                y[j] += h / 6.0 * (k1[j] + 2.0 * k2[j] + 2.0 * k3[j] + k4[j]);
-            }
-            record(t + h, &y, &mut values, &mut k1, self, &mut alg_guess)?;
+            let t = end;
+            record(t, &y, &mut values, &mut k1, self, &mut alg_guess)?;
+            self.raise_time_events(t, &mut state, &mut values);
             terminated = self
-                .handle_event(t + h, &mut y, &mut values, &mut alg_guess, &mut state)?
+                .handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?
                 .terminated;
         }
 

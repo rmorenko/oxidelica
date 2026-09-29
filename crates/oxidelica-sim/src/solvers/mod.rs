@@ -295,7 +295,7 @@ impl CompiledModel {
             self.seed_delays(t0, &y, &mut values, &mut scratch, &mut alg_guess);
             // The initial event comes before the first output point: a
             // `when initial()` or a `sample(0, …)` has already fired by then.
-            state.raise_samples(t0, &self.samples, &self.sample_slots, &mut values);
+            self.raise_time_events(t0, &mut state, &mut values);
             let start_event =
                 self.handle_event(t0, &mut y, &mut values, &mut alg_guess, &mut state)?;
             if let Some(message) = start_event.terminated {
@@ -482,9 +482,18 @@ impl CompiledModel {
                 last_out_t = t;
                 out_i += 1;
             }
-            state.raise_samples(t, &self.samples, &self.sample_slots, &mut values);
+            let turned = self.raise_time_events(t, &mut state, &mut values);
+            // A relation on `time` turning here can leave the mode just
+            // as a crossing can; see above.
+            if turned && !self.mode_holds(&values, t) {
+                let mut outcome = self.stall_at_last_row(columns, rows, method, true)?;
+                if let AdaptiveOutcome::Stalled(stall) = &mut outcome {
+                    stall.partial.rows.pop();
+                }
+                return Ok(outcome);
+            }
             let outcome = self.handle_event(t, &mut y, &mut values, &mut alg_guess, &mut state)?;
-            if outcome.changed {
+            if outcome.changed || turned {
                 self.record_row(t, &y, &mut values, &mut scratch, &mut alg_guess, &mut rows)?;
             }
             indicators_prev = self.indicator_values(t, &values);

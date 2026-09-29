@@ -6,7 +6,12 @@ use crate::*;
 impl EventState {
     /// The next scheduled time event, if the model has any.
     pub(crate) fn next_time_event(&self) -> Option<f64> {
-        self.next_sample.iter().copied().reduce(f64::min)
+        self.next_sample
+            .iter()
+            .chain(&self.next_clock)
+            .copied()
+            .filter(|at| at.is_finite())
+            .reduce(f64::min)
     }
 
     /// Raise the flag of every `sample(...)` occurring at `t` and move
@@ -25,9 +30,115 @@ impl EventState {
             }
         }
     }
+
+    /// Turn every relation on `time` whose threshold is `t`: from here
+    /// on it holds the value it has past the threshold, and it is never
+    /// due again. Says whether any turned.
+    pub(crate) fn turn_clocks(
+        &mut self,
+        t: f64,
+        clocks: &[(f64, bool, Slot)],
+        values: &mut [f64],
+    ) -> bool {
+        let mut turned = false;
+        for (index, &(_, turns_true, slot)) in clocks.iter().enumerate() {
+            if self.next_clock[index] <= t + 1e-9 {
+                values[slot] = truth(turns_true);
+                self.next_clock[index] = f64::INFINITY;
+                turned = true;
+            }
+        }
+        turned
+    }
+}
+
+impl CompiledModel {
+    /// Everything scheduled for `t`: the `sample(...)` flags due here
+    /// go up, and the relations on `time` whose threshold is `t` turn.
+    /// Says whether a relation turned, which changes the right-hand
+    /// side the integration was following: a history of past points
+    /// kept for a multistep method no longer describes it.
+    pub(crate) fn raise_time_events(
+        &self,
+        t: f64,
+        state: &mut EventState,
+        values: &mut [f64],
+    ) -> bool {
+        state.raise_samples(t, &self.samples, &self.sample_slots, values);
+        state.turn_clocks(t, &self.clocks, values)
+    }
 }
 
 impl EventRewrite<'_> {
+    /// `time < C` with `C` known before the run, as the flag that
+    /// stands for it.
+    ///
+    /// Such a relation turns at an instant the compiler already knows,
+    /// and watched as a crossing it is found only as well as the solver
+    /// can find it: a ramp `der(s) = if time < 1 then 1 else 0` meant
+    /// to end on 1 ended on 0.999899 under dopri45 and on 0.916667
+    /// under RK4, whose last stage stood on the threshold and read the
+    /// far side of the switch for the whole step. As a flag it holds
+    /// its value between events - which is what a relation does - and
+    /// the run steps exactly onto the threshold and turns it there.
+    ///
+    /// Only `time` alone against a side that names nothing but
+    /// parameters qualifies. A threshold at or before the start is
+    /// left to the relation, which has already turned or turns on the
+    /// very first instant.
+    fn clock_of(&mut self, op: RelOp, l: &Expr, r: &Expr) -> Option<Expr> {
+        if !self.clocks_open {
+            return None;
+        }
+        let (op, other) = match (l, r) {
+            (Expr::Time, other) => (op, other),
+            (other, Expr::Time) => (
+                match op {
+                    RelOp::Lt => RelOp::Gt,
+                    RelOp::Le => RelOp::Ge,
+                    RelOp::Gt => RelOp::Lt,
+                    RelOp::Ge => RelOp::Le,
+                    same @ (RelOp::Eq | RelOp::Ne) => same,
+                },
+                other,
+            ),
+            _ => return None,
+        };
+        let turns_true = match op {
+            RelOp::Lt | RelOp::Le => false,
+            RelOp::Gt | RelOp::Ge => true,
+            RelOp::Eq | RelOp::Ne => return None,
+        };
+        if names_time(other) {
+            return None;
+        }
+        let threshold = eval(
+            other,
+            &EvalCtx {
+                vars: self.params,
+                time: f64::NAN,
+                programs: None,
+                depth: 0,
+            },
+        )
+        .ok()?;
+        if !threshold.is_finite() || threshold <= self.clock_after + 1e-9 {
+            return None;
+        }
+        let index = match self
+            .clocks
+            .iter()
+            .position(|&(at, up)| at == threshold && up == turns_true)
+        {
+            Some(index) => index,
+            None => {
+                self.clocks.push((threshold, turns_true));
+                self.clocks.len() - 1
+            }
+        };
+        Some(Expr::Ref(format!("$clock{index}")))
+    }
+
     /// The `$pre.` reference of a variable that has a value from
     /// before the event.
     ///
@@ -172,7 +283,10 @@ impl EventRewrite<'_> {
             Expr::Neg(inner) => Expr::Neg(Box::new(self.expr(inner)?)),
             Expr::Not(inner) => Expr::Not(Box::new(self.expr(inner)?)),
             Expr::Bin(op, l, r) => Expr::Bin(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
-            Expr::Rel(op, l, r) => Expr::Rel(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            Expr::Rel(op, l, r) => match self.clock_of(*op, l, r) {
+                Some(flag) => flag,
+                None => Expr::Rel(*op, Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
+            },
             Expr::And(l, r) => Expr::And(Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
             Expr::Or(l, r) => Expr::Or(Box::new(self.expr(l)?), Box::new(self.expr(r)?)),
             Expr::If(c, a, b) => Expr::If(
@@ -271,6 +385,7 @@ impl CompiledModel {
                     }
                 })
                 .collect(),
+            next_clock: self.clocks.iter().map(|&(at, _, _)| at).collect(),
             last_event_t: f64::NAN,
             events_here: 0,
         }
