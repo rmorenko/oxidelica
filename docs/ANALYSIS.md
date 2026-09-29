@@ -25529,3 +25529,161 @@ one of the two models refused as written outside Modelica with a table
 in the model, which were `Test87` and `Test88`: they passed from the
 first wall straight through to running, so the run half neither
 gained nor lost a row.
+
+## m306: relations on time scheduled as time events
+
+### The mechanism
+
+A condition such as `time < 1.0` names an instant the compiler knows
+before the run. Until now it was watched as a crossing, like any other
+relation: `next_time_event` read only the `sample(...)` schedules, and
+the threshold was found by the solver's own search with the solver's
+own tolerance. Under RK4, which has no search at all, the last stage
+of the last step stood on the threshold and read the far side of the
+switch for the whole step.
+
+The rewrite of the event built-ins now takes a relation with `time`
+alone on one side and, on the other, a side naming only parameters
+(`time < C`, `C > time`, `time >= C` and their mirrors), and puts a
+flag `$clockN` in its place. The flag holds its value between events,
+starting from what the relation says before its threshold, and the
+threshold joins the schedule beside the samples. Every solver steps
+exactly onto it and turns the flag there: dopri45 and BDF through the
+existing time-event step, the walk without states through its own,
+and RK4 by splitting the grid step at the threshold. A turned flag is
+counted as a jump - the row is written twice, BDF drops its history,
+and a run-time `if` whose mode it decides is handed back for a fresh
+compilation at that instant. `OXIDELICA_NO_TIME_CONDITION_EVENTS`
+restores the old road.
+
+### The numbers, three solvers, before and after
+
+E10 (`der(s1) = if time < 1.0 then 1 else 0`, StopTime 1), where
+`s1` must end on 1 exactly:
+
+| solver  | old road           | new road           |
+| ------- | ------------------ | ------------------ |
+| dopri45 | 0.9999988749006128 | 0.9999999999999998 |
+| bdf     | 0.9999994450082502 | 1                  |
+| rk4     | 0.9166666666666666 | 1                  |
+
+E11, the same ramp run on to 1.5: the old road gives
+0.9998994464498535, 0.9999992292444505 and 0.9166666666666666, and the
+new one gives 0.9999999999999998, 1 and 1. The shortfall of a twelfth
+under RK4 is gone. The test
+`a_ramp_switched_off_by_time_ends_exactly_where_it_was_told` holds all
+three solvers to 1e-6 and goes red under the switch at 0.99999887
+(dopri45). `a_when_on_time_fires_on_the_threshold` goes red at x =
+0.3000000007506366.
+
+### The neighbouring basket
+
+- E3 (bracket to 373.2): it already ran, and the end of its ramp is
+  now exact. `d = s1 - s_max` reads 4.4e-16 against -4.2e-6 before, and
+  `Ts` reads 373.1499999999995 against 373.1496189673351.
+- E1 and E7 (bracket to 373.15 exactly): not cured. Both still refuse
+  at t = 1 with `no bracket: fb = -4.44e-16`, and E7 now refuses at 1.0
+  rather than 1.3. The ramp now lands on `s_max` to the last bit, so
+  the root sits exactly on the upper end of the bracket, and
+  `s_min + (s_max - s_min)` against `sq(373.15)` differs by one
+  rounding. That is not the event family. The overshoot of the trial
+  estimate has gone, and what is left is a root on the edge of a
+  bracket written with no room, which is the model's own business.
+
+### A threshold due in the same step as a crossing
+
+The first binary of the pair (`/tmp/m306/ox2`) was withdrawn before
+its numbers were read. A check of the new road against the old on
+`Modelica.Blocks.Sources.Step` beside a `Pulse` gave, under dopri45,
+x = 1.36 on the new road where 2 * 0.7 = 1.4 is the answer, and 1.4 on
+the old. Reproduced small (`/tmp/m306/C5.mo`): the step's `time < 0.3`
+is due at 0.3, and the pulse's `time < T_start + T_width` crosses at
+0.3 too, found by the search a hair past it. The step ended on the
+threshold, the state event was handled first, and that branch goes
+round the loop without reaching the one that turns the scheduled
+flags, so the next step started past 0.3 with the flag unturned and
+turned it a whole step late. The state event now turns every flag due
+at its instant, in dopri45 and in BDF.
+`a_threshold_due_with_a_crossing_turns_with_it` is red without the two
+lines (x = 1.3599999995996357) and green with them. The pair was
+restarted on `/tmp/m306/ox3`, built from the final tree.
+
+On six library examples the two roads were then set side by side at
+the last point: `Translational.Examples.Friction` identical,
+`PID_Controller` within 6.4e-4, `CoupledClutches` within 3.9e-3 at the
+default tolerance. At a tolerance of 1e-10, `CoupledClutches` gives
+`J1.w` = 2.498543 on the new road and 2.498544 on the old, so the
+default-tolerance gap belongs to the solver on both roads, not to one
+of them.
+
+### What stays on the state road
+
+These relations stay relations and are searched for as before, by
+design:
+
+- `time` inside an expression (`time - t0 < T`, `2*time > 1`,
+  `mod(time, p) < d`);
+- a threshold that names anything other than a parameter, such as a
+  discrete variable or a state;
+- `==` and `<>` on time;
+- a threshold at or before the start of the run or the resume point,
+  which has already turned or turns on the first instant;
+- relations inside the bodies of walked functions, which the rewrite
+  does not reach (a `when` condition and a `when` body are rewritten
+  and do take the flag).
+
+### The `partial` row of the census is one layer, and not a fault
+
+The row "function `X` is partial and nothing redeclared it with a
+body" (5 models, `/tmp/m305/census.txt`, flatten half) is, by name
+from `/tmp/m305/raw.txt`:
+
+- `ModelicaTest.Media.TestAllProperties.PartialMediumFunctions`,
+  `IncompleteMedia.PartialMediumFunctionsForIncompressible`,
+  `ForTwoPhase` and `ForRealCondensingGases`, all refused on
+  `PartialMedium.dynamicViscosity`;
+- `Modelica.Fluid.Examples.AST_BatchPlant.BaseClasses.TankWithTopPorts`,
+  refused on `PartialMedium.setState_pTX`.
+
+All five declare `replaceable package Medium =
+Modelica.Media.Interfaces.PartialMedium` and are templates: the four
+test models are extended by the concrete media tests (`DryAirNasa`,
+`Glycol47`, `WaterIF97_pT` and the rest, which run), and the tank is a
+component of the batch plant. `--only` from the root `.msl` counts each
+of them as 0 runnable examples. So they sit in the 1034 only because
+the example filter admits every model under a test or examples package,
+and the refusal is the right answer: a partial medium has no viscosity.
+One layer, the example filter, and not five. Nothing is to be fixed in
+the compiler. At most the filter could leave out a model whose
+replaceable medium is still partial, which would lower the example
+count by five and move no run.
+
+### The whole-library pair: two arrive, none leave
+
+The new road over the whole library, one binary built from the final
+tree (`/tmp/m306/ox3`, `/tmp/m306/on.txt`): 963 flatten and 675 run,
+847 and 633 of them runnable. Against the on half of the last pair
+(`/tmp/m305/on.txt`, 963 and 673) the flatten lists are identical name
+by name, and the run list gains two and loses none:
+
+- `Modelica.Blocks.Examples.Noise.NormalNoiseProperties`
+- `Modelica.Blocks.Examples.Noise.UniformNoiseProperties`
+
+Both refused before with `step size underflow at t = 0.000000`. Their
+`ContinuousMean` and `Variance` switch on at `time >= t_0 + t_eps`,
+where `t_0 = time` is settled at the start and `t_eps = 1e-7`: a
+threshold a tenth of a microsecond into the run. Searched for as a
+crossing, the step fell under the floor chasing it; scheduled, the run
+steps onto 1e-7 and goes on. The relations are written under
+`noEvent`, which flattening strips; the flag turns exactly where the
+relation turns, so the values are those the relation gives at every
+point, and what is added is only a step boundary on a known instant.
+
+The names counter reads 1916711172, 18 fewer than the last pair and
+60 ppm under the reference 1916826359. The withdrawn binary
+(`/tmp/m306/ox2run/on.txt`) had given the same run list name by name.
+
+The off half, the old road on the same binary (`/tmp/m306/off.txt`),
+started at the close of the shift and did not finish within it. The
+identity of the old road with the last pair is therefore still to be
+read from that file, not from here.
