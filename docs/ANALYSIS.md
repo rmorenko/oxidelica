@@ -25975,3 +25975,15 @@ two of them (`ActuatedDrive`, `MovingActuatedDrive`) have the known
 `Rotor1D` half of `ActuatedDrive` (`AD2.mo`) is refused on
 `der(rotor1D.rotorWith3DEffects.w_a[1])`, the row `BevelGear1D` and
 `GyroscopicEffects` already stand in.
+
+How far the scalar exit reaches in the library was counted with the
+probe binary (`/tmp/m307probe6`, `OX_PROBE_SLICE`,
+`/tmp/m307/slice_corpus.txt`): over the first 936 of the 1034 models,
+the pass wrote 4884 distinct equations out per element, and exactly
+three of them were a product of two whole vectors -
+`connectionLine.length` of `forceAndTorque`, `torque` and `torque1`,
+the three models above whose element is named that way. The rest are
+the connections the pass was written for (`r_0`, `T`, `w`, `f`, `t`,
+`v_`). The last 98 models were not reached before the shift closed, so
+the count is a lower bound. The vector exit, `spread_over_elements`,
+was not counted over the library.
