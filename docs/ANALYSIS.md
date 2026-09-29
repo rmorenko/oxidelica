@@ -25835,3 +25835,88 @@ SI.Time T` with no default and are neither experiments nor examples;
 `OpAmps.ControlCircuit`, which builds on them with `T` given, is in the
 run list. Checked alone a part owes a value its user supplies, and the
 refusal names it correctly.
+
+### A binding that reads an array declared after it
+
+Four models refused as two equations too many,
+`Elementary.ForceAndTorque`, `Rotational3DEffects.ActuatedDrive`,
+`MovingActuatedDrive` and `GearConstraint`, all name the positions of a
+frame in "nothing is left for". They are the four MultiBody examples
+that hold a `Forces.Torque` or `Forces.ForceAndTorque` between two
+frames, and all three of those elements declare `connectionLine`, with
+its `length` read from the inner basic element, before that element.
+Whether each of the four gets past this wall with animation switched
+off was measured on the small models below, not on the four
+themselves.
+The walk down, every step a small model under `/tmp/m307/keep`:
+
+- `AD8.mo`, fourteen lines: a body on a revolute joint with a
+  `Forces.Torque` from the world to the body is refused the same way;
+  `AD9.mo`, the same with a `WorldTorque` (one frame), runs and gives
+  w = 0.5 and phi = 0.25 after one second under a unit torque on an
+  inertia of 2, which is right. `AD19.mo`, the torque between the world
+  and a `Fixed` frame with nothing moving at all, is still refused.
+- `AD22.mo` and `AD23.mo`: `animation = false` on the torque, or
+  `enableAnimation = false` on the world, and it runs. `AD21.mo`, the
+  inner `BasicTorque` with a `ZeroPosition` and no visualizers, runs.
+- A local copy of `Forces.Torque` with one visualizer taken out at a
+  time: without the arrow still refused, without the connection line
+  it runs (`PNoLine.mo`). Within the line, `length =
+Modelica.Math.Vectors.length(basicTorque.r_0)` is the cause: written
+  as `length = 1` it runs (`PLengthConst.mo`), written over
+  `frame_b.r_0 - frame_a.r_0` it runs (`PFrame.mo`). `why` shows the
+  refused form as three equations, `connectionLine.length =
+sqrt(r_0[k] * r_0[k])` for each k, where one was meant.
+- What differs between the two spellings is the order of declaration:
+  `Forces.Torque` declares `connectionLine` before `basicTorque`. A
+  wrapper written with the line after `basicTorque` is right
+  (`W12.mo`), and the same wrapper with the two lines swapped splits
+  (`W15.mo`). With the library taken out entirely, nine lines
+  (`O5.mo`):
+
+  ```modelica
+  model O5
+    model Src
+      Real r_0[3];
+    equation
+      r_0 = {3, 4*time, 0};
+    end Src;
+    Real L = sqrt(basic.r_0 * basic.r_0);
+    Src basic;
+  end O5;
+  ```
+
+  is refused with two equations too many; `O7.mo`, the same with `Src
+basic` declared first, gives L = 5 at t = 1. The same relation
+  written as an equation of the class rather than a binding is right
+  whatever the order (`O4.mo`). Without the root, `L = basic.r_0 *
+basic.r_0` (`O6.mo`) splits into `L = basic.r_0[k] * basic.r_0[k]`
+  for each k, so the square root has nothing to do with it.
+
+Where it happens: a continuous variable's binding is worked out by
+`resolve_value` in `instantiate_one` (`components.rs`) through the
+array layer, with the shapes known at that point of the walk. A
+component declared further down has not been instantiated, so
+`basic.r_0` has no shape yet and the product of the two names comes
+through as a scalar, which is pushed as the declaration equation.
+Later the name does have a shape, and the product is read again as
+element by element, with the scalar left side copied to each element.
+Which later reading copies it was not pinned down in this shift. The
+fault is the one this document keeps meeting in other coats: a
+reading taken before the thing it reads exists. The value is not
+refused, and it is not right either, and here the unbalanced count is
+the only thing that caught it. A model where the copied equations
+happened to balance would run with a wrong number.
+
+A fix would give the binding the shapes of the whole class - measured
+before any component is instantiated, as `measure_dimensions` already
+does for the lengths - or put the declaration equation off until the
+class's components all stand. That was not started: it changes what
+every forward-reading binding of the library comes to, the pair over
+the whole library needs one binary and most of an hour, and neither
+fits what was left of the shift. The four models stand behind it, and
+two of them (`ActuatedDrive`, `MovingActuatedDrive`) have the known
+`rotorWith3DEffects` wall behind it as well: split in two, the
+`Rotor1D` half of `ActuatedDrive` (`AD2.mo`) is refused on
+`der(rotor1D.rotorWith3DEffects.w_a[1])`, the row `BevelGear1D` and
+`GyroscopicEffects` already stand in.
