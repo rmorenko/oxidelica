@@ -25927,6 +25927,31 @@ refused, and it is not right either, and here the unbalanced count is
 the only thing that caught it. A model where the copied equations
 happened to balance would run with a wrong number.
 
+And one does. `Q4.mo`, eight lines:
+
+```modelica
+model Q4
+  model Src
+    Real r_0[2];
+  equation
+    r_0 = {3, 4};
+  end Src;
+  Real y[2] = {1, 1} * basic.r_0 * {1, 1};
+  Src basic;
+end Q4;
+```
+
+runs without a word and gives `y = {6, 8}`. The value is the dot
+product 7 times a vector of ones, so `{7, 7}`, and `Q5.mo` - the same
+model with `Src basic` declared first - gives exactly that. Here the
+left side is itself a vector of two, so writing the equation out once
+per index leaves the count square and nothing refuses it: `y[k] = 1 *
+r_0[k] * 1`. This is the compiler's worst kind of answer, a wrong
+number presented as a right one, and it is why the entry in the queue
+comes before the four models it would move. `Q1.mo`, a matrix times a
+forward-read vector, is at least refused ("`y` has 2 element(s) but
+its value has 4"); its ordered twin `Q2.mo` gives the right `{5, 11}`.
+
 A fix would give the binding the shapes of the whole class - measured
 before any component is instantiated, as `measure_dimensions` already
 does for the lengths - or put the declaration equation off until the
