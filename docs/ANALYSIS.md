@@ -26584,3 +26584,149 @@ choice made in `compile.rs` around line 2412), and in that mode the
 system is truly singular. What would have to change is how an `if`
 equation whose branches set different unknowns is matched, not one
 link of it - the layer is named, and not taken.
+
+## m312: a function a medium only inherits, and the row that is not one row
+
+### `setSat_T` under R134a: not the m289 wall, a link of its own
+
+`R134a1` and `R134a2` stood on `the output p of the walked body
+PartialTwoPhaseMedium.saturationPressure was not assigned`. The m289
+wall is a body keyed by its registry name and reached under two media;
+this is not that. Shrunk from the model (`/tmp/m312/p/`), the fault
+wants one medium and no media library at all: a package `D` extends
+`B`, redeclares `B`'s partial `sp`, and writes a function `liq` that
+calls `st` - which `B` writes as `sp(T)` and `D` does not redeclare.
+Called as `D.liq`, it runs (`S13`); called as `B15.D.liq`, the path the
+function actually has, it is refused with `B15.B.sp is partial`
+(`S15`). In R134a every body written in the medium itself that calls
+`setSat_T` fails the same way: `R134a_liqofdT`, `setState_dTX`,
+`derivsOf_ph`. The same function copied into a package extending
+R134a works (`S11`), because the call then carries a head of its own.
+
+The cause is where the mark is pushed. `AskedAs::under` is taken for a
+call written through a name that is not the class's own path -
+`Medium.density` - and never for a call whose written path is the
+path of the class that wrote it. Inside R134a nothing is written
+through a name of its own, so `setSat_T` was worked out where the
+interface wrote it, and its bare `saturationPressure` found the
+interface's partial one. Two roads carry the same fault:
+
+- inlined (`names.rs`, `arrays.rs`, `constants.rs`, the three places
+  that already push a mark before `function_asked_under`): the package
+  the call was written in is now pushed when the function found is
+  inherited into it from a base, unless a mark on its line already
+  stands (`AskedAs::inherited_into`);
+- walked (`carried.rs`): a carried body calls its callees by registry
+  name, so a callee the medium redeclared is now called by the
+  medium's own function (`redeclared_under`), both where a copy is
+  carried under a medium and where the body is written in the medium
+  itself; and a body that calls such a callee counts as reading its
+  medium (`medium_read_here`), so it is carried as a copy under it.
+  The second half was needed on its own: a walked body of the base
+  called through `Medium.stw` (`lib18`) was refused the same way on
+  the tree before the change.
+
+`OXIDELICA_NO_INHERITED_INTO` closes both roads. The test
+`a_body_written_in_a_medium_calls_what_it_inherits_under_the_medium`
+reads 4 in three columns (inlined, walked in the medium, walked in the
+base) and is refused under the key. On R134a the walked `derivsOf_ph`
+gives the inlined numbers to the digit (`/tmp/m312/p/DO.mo`): 1510.716641
+kg/m3 and 199.963568 K at one bar in the liquid, 13.258618 kg/m3 and
+246.788816 K in two phases; under the key it is refused on the
+partial `saturationPressure`.
+
+The chain ends there. `R134a1` now stops on `the Newton direction of
+algebraic loop ["volume.medium.p", "ambient.port.h"] does not reduce
+the residual at t = 0` - the Newton family, which is not taken.
+`BP.mo`, the medium's `BaseProperties` at the model's own start (1 bar,
+107390 J/kg), gives the same state on and off the key: d = 1510.72,
+T = 199.96 K. The loop's trouble is the loop, not a value.
+
+### The census of the final tree
+
+`/tmp/m312/census.txt`, taken from `ea2e93e` with the binary built
+from it, counted by the section boundaries (lines 140, 181, 338): 71
+models over 40 rows would not flatten, identical row for row to
+`/tmp/m311/census.txt`; 284 over 156 rows flattened and would not run,
+against 287 over 156. The whole difference is one row: `at t = N.N:
+unknown variable X` went 5 to 2, the three R134a `id.a[1]` models
+having run. The two left are `FlueGasSixComponents` (`X`) and
+`ReferenceAir_dT` (`dT_explicit`), by name in `/tmp/m312/raw.txt`.
+
+### `constrains no state`: 39 models, one of them on the `if` layer
+
+The m311 map named the layer of `TanksWithOverflow`: an `if` equation
+whose branches set different unknowns. The question was how many of
+the 39 stand on it. Counted by the phrase in `/tmp/m312/raw.txt`, 39
+models, the same as m310 and m311 (`/tmp/m312/cns.lst`). Each was
+asked with `why` about the unknown its refusal names
+(`/tmp/m312/why/`), and the equations were sorted by what they are
+(`/tmp/m312/classes_final.tsv`):
+
+| kind | models | what the refused equation is                                                                                                     |
+| ---- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| A    | 13     | a helper class run on its own: a flow of its own top-level connector set to zero, `n2.i = 0` in `OpAmpCircuits.Gain`             |
+| B    | 8      | MultiBody: an orientation entry `R.T[i,j]` equated across a joint or a loop, or `der(der(r_0))` against `a_0`                    |
+| C    | 8      | polyphase: the sum of one pin's currents across a plug, `terminalBox`, `voltageQuasiRMSSensor`, `resistor[k].p.i`                |
+| D    | 9      | a rotor angle against its speed, `der(inertiaRotor.phi) = wMechanical`, or a quasi-static reference angle `der(reference.gamma)` |
+| E    | 1      | the `if` branches of a vessel's port: `TanksWithOverflow`                                                                        |
+
+So one model of 39 is on the `if` layer. The price of that layer is
+one model, and closing it moves nothing else in the row.
+
+Kind A is not a fault. All thirteen are classes of `Utilities`,
+`Components` or `OpAmpCircuits` with neither an `experiment` nor the
+example icon; the census counts them because they flattened. Run on
+their own they have connectors nobody connects, whose flows are set
+to zero, and a circuit whose outer pins carry no current is singular
+by construction - `n1.i = 0` and `n2.i = 0` for a two-port with a
+current that must go somewhere. The refusal is right. That the count
+of models includes them is a question for the example filter, not for
+index reduction.
+
+Kinds B, C and D are the real work in the row, 25 models, and none of
+them is an `if`. What follows is a reading of the refused equations,
+not a probe of the layer behind them. B reads as the MultiBody
+orientation question: the nine entries of `R.T` are not independent,
+and an equation between two of them across a joint looks like one of
+the redundant ones the library's `Connections.root`/`branch` machinery
+exists to drop. C is a plug's per-pin current balance where the plug
+is connected on both sides. D is a rotor or reference angle whose
+derivative the speed already fixes. Each looks like a family of its
+own; none was probed further this shift.
+
+### `an array reached the evaluator` and its kin, counted
+
+The neighbour the m311 brief left undone. By the phrase in
+`/tmp/m312/raw.txt`, `an array reached the evaluator` holds two
+models, both named `Inverse_sh_TX`: `Media.Examples.ReferenceAir`
+(a list `{0.0368, 0.0511}` standing whole in a walked body of
+`ReferenceMoistAir`, the `Complex`-array link 3 of the Tsub chain) and
+`Media.Examples.SolveOneNonlinearEquation` (a comprehension
+`s0_T(data[i], T) * X[i] for i in 1:size(X, 1)` under a `sum`, standing
+whole in a walked body). No other run-half refusal names an array.
+The kin sit in the flatten half and are other walls: an array where a
+scalar is expected (eight models - `fire_p` of the space-vector PWM
+twice, `dewEnthalpy` of `EquilibriumDrumBoiler`, the saved field of the
+Preisach hysteresis, `Xorshift64star.initialState`, `TestNonlinear`,
+and the moist-air `state.X` twice), `min` of an empty array (two), an
+array as a divisor (the two `ComplexMath` tests), a scalar product of
+lengths 2 and 6 (`SimpleNaturalGas`), and one nesting refusal in
+`TestRandomNumbers`. The walked-body array row is two models; it is
+not a queue on its own.
+
+### The pair, and what it does not move
+
+One binary built from the final tree (`/tmp/m312/ox3`), `--without
+scripts/heavy_models.txt`: `/tmp/m312/on.txt` gives 963 flatten and 679
+run, runnable 847 and 637; `/tmp/m312/off.txt`, with
+`OXIDELICA_NO_INHERITED_INTO` set, gives the same four numbers, and the
+lists of models flattened and run (`on_ran.lst` against `off_ran.lst`,
+`on_flat.lst` against `off_flat.lst`) are identical by name. The run
+list is also identical to `/tmp/m311/on6_ran.lst`. So the change moves
+no count: `R134a1` and `R134a2` travel from a partial body nobody wrote
+to the Newton wall, and the two correct numbers it buys are the walked
+R134a properties above. It is kept because the refusal it removes was
+a wrong resolution - the base's body standing where the medium's was
+meant - and a body that now resolves right is a body that can no
+longer give a quiet wrong answer once the loop in front of it is gone.
