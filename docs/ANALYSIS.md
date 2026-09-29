@@ -25793,3 +25793,45 @@ and `Noise.UniformNoiseProperties`, and the row that lost them is the
 second of the two `step size underflow at t = N.N` rows, which held
 those two and is gone; the other, with `Analog.Examples.Rectifier` and
 `IMC_Steinmetz`, stands. Nothing else moved.
+
+### Two rows further down, read while the preflight ran
+
+`unbalanced model: ... nothing is left for initStep.inPort[1].occupied`
+(3) is `StateGraph.Examples.Utilities.CompositeStep`, `CompositeStep1`
+and `CompositeStep2`. None of them is a runnable example: they are the
+parts `ShowCompositeStep` and `ShowExceptions` are built from, checked
+alone. `PartialCompositeStep` writes `if cardinality(inPort) < 2 then
+inPort.occupied = false; inPort.set = false; end if` to give an
+unconnected port its value, and checked alone the port has only its
+inside connection, so the default and the connection both stand - two
+equations too many, as the library meant for a part that nobody
+connected. The refusal is right, and the row is noise.
+
+`structurally singular model: the equation determining X does not
+depend on it` (4) is `IMC_Conveyor` and the three `Constraints`
+examples, the latter all on `springOfConstraint.lineForce.frame_a.R.T
+[3,1]` against `world.frame_b.R.T[3,1] = fixedRotation.frame_a.R.T
+[3,1]`. Shrunk from the real model by throwing components out, the wall
+stands in sixteen lines (`/tmp/m307/keep/C1.mo`): a world, a
+`FixedRotation` into `Joints.Constraints.Spherical` into a body, and a
+spring from the world through a `FixedTranslation` to the same body.
+With an ordinary `Joints.Spherical` in place of the constraint
+(`C3.mo`) it runs. Dropping the power equation of the constraint joint,
+the only one holding `der` of a position, changes nothing, and taking
+the rotation out moves the wall to `R.T[3,3]` of the constraint's own
+frame. With the spring's animation switched off (`C7.mo`) the wall
+moves to `-der(fixedRotation.frame_a.R.T[3,1]) = 0 constrains no
+state`. What is measured is that index reduction differentiates an
+alias of the world's orientation, which is a constant, and does so only
+with the cut joint in the loop. The reading, not yet checked against
+the connection graph, is that a cut joint passes no orientation through
+`Connections.branch` and leaves the body's orientation a root of its
+own. Either way it is the layer of index reduction and of what the
+connection graph hands it, and it was not touched.
+
+`parameter T has no value` (3) is the same kind of noise:
+`OpAmpCircuits.PI`, `FirstOrder` and `Derivative` declare `parameter
+SI.Time T` with no default and are neither experiments nor examples;
+`OpAmps.ControlCircuit`, which builds on them with `T` given, is in the
+run list. Checked alone a part owes a value its user supplies, and the
+refusal names it correctly.
