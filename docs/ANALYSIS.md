@@ -26410,9 +26410,9 @@ so it was not taken. The chain is three links through the parser's
 carrying and the run's walk together, and wants a series of its own:
 a guard carried, walked for its checks, and answering nothing.
 
-Built after all, once the three links were seen to be small, and
-kept with the others at `/tmp/m310/series/` (`0002-*.patch`) rather
-than in the tree, for the same reason: a guard written in Modelica is carried
+Built after all, once the three links were seen to be small, and in
+the tree since m311: the chain ends at `id.a[1]`, a wall of another
+family, which is the end the rule asks for. A guard written in Modelica is carried
 (`gather_calls_in_statements`), `walkable` lets a body with no
 outputs through when it is written in Modelica, and the walk runs a
 call statement to such a body for its checks instead of reading it as

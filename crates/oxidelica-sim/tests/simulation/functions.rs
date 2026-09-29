@@ -822,6 +822,45 @@ fn a_short_function_in_a_package_keeps_its_base_modifier() {
         last[1]
     );
 }
+
+/// A guard - a function with no outputs, called as a statement - in a
+/// body the run walks is carried and walked for its checks.
+///
+/// R134a guards every property it reads from `p` and `T` with
+/// `phaseBoundaryAssert(p, T)`. A body with no outputs was left behind
+/// when bodies were carried, so the walk met the guard as a function
+/// nobody had heard of. Here the guard holds while `2*(1 + time) < 3`
+/// and fails at exactly t = 0.5, so a run to 0.4 ends at `3*1.4` and a
+/// run to 1 stops with the guard's own words.
+#[test]
+fn a_guard_in_a_walked_body_is_walked_for_its_checks() {
+    let model = |stop: f64| {
+        format!(
+            "model M \
+               function guard input Real x; protected Real lim; \
+               algorithm lim := 2*x; assert(lim < 3, \"the guard fired\"); end guard; \
+               function f input Real x; output Real y; \
+               algorithm guard(x); y := 3*x; \
+                 while y > 1e9 loop y := y/2; end while; end f; \
+               Real y = f(1 + time); \
+               annotation(experiment(StopTime={stop})); \
+             end M;"
+        )
+    };
+    let result = run(&model(0.4));
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 4.2).abs() < 1e-9,
+        "three times 1.4 is 4.2, and this said {}",
+        last[1]
+    );
+    let refused = run_err(&model(1.0));
+    assert!(
+        refused.contains("the guard fired"),
+        "the guard's own words, and this said {refused}"
+    );
+}
+
 /// A function handed on rather than called is specialized one call
 /// deeper, and a receiver handing it to itself calls its own copy.
 ///

@@ -1366,7 +1366,19 @@ pub(super) fn gather_calls_in_statements(
                         .components
                         .iter()
                         .any(|held| held.causality == Causality::Output);
-                    if answers {
+                    // A guard written in Modelica is another matter:
+                    // it answers nothing, but its body is statements a
+                    // walk can run, and the checks in them are the
+                    // point of calling it. R134a guards every
+                    // property it reads from `p` and `T` with
+                    // `phaseBoundaryAssert(p, T)`; left behind, the
+                    // walk met it as a function nobody had heard of.
+                    let guard = !answers
+                        && !class.external
+                        && class.builtin.is_none()
+                        && walkable(class, registry).is_ok()
+                        && std::env::var_os("OXIDELICA_NO_CARRIED_GUARDS").is_none();
+                    if answers || guard {
                         out.push(class.name.clone());
                     }
                 }
@@ -1482,6 +1494,12 @@ pub(super) fn walkable(
         .filter(|c| c.causality == Causality::Output)
         .collect();
     match outputs.len() {
+        // A guard answers nothing and is walked for its checks alone:
+        // it is called as a statement, where nothing asks it for a
+        // number. See `gather_calls_in_statements`.
+        0 if !class.external
+            && class.builtin.is_none()
+            && std::env::var_os("OXIDELICA_NO_CARRIED_GUARDS").is_none() => {}
         0 => {
             return Err(format!(
                 "`{}` is called where nothing could inline it, so the run walks its body - \

@@ -1319,6 +1319,25 @@ fn run(
             // refused the whole body at its first line.
             Statement::Call(name, _)
                 if name == "Modelica.Utilities.Streams.print" && walked_linspace_open() => {}
+            // A guard - a body with no outputs, carried for the checks
+            // it makes - is walked for those and answers nothing, so it
+            // is not read as a number: the evaluator's call asks the
+            // walk for its first number and a guard has none.
+            Statement::Call(name, args)
+                if programs.get(name).is_some_and(|class| {
+                    !class
+                        .components
+                        .iter()
+                        .any(|held| held.causality == Causality::Output)
+                }) && std::env::var_os("OXIDELICA_NO_CARRIED_GUARDS").is_none() =>
+            {
+                let given = args
+                    .iter()
+                    .map(|arg| number_of(arg, frame, programs, time, depth))
+                    .collect::<Result<Vec<f64>, SimError>>()?;
+                let shapes = vec![Vec::new(); given.len()];
+                walk(programs, name, &given, &shapes, time, depth + 1)?;
+            }
             // A call on its own: nothing takes its outputs, so it is
             // walked for the checks its body makes and for nothing
             // else. Reading its value is what runs those checks.
