@@ -25944,24 +25944,24 @@ end Q4;
 runs without a word and gives `y = {6, 8}`. The value is the dot
 product 7 times a vector of ones, so `{7, 7}`, and `Q5.mo` - the same
 model with `Src basic` declared first - gives exactly that. `why`
-names what was built: `y[1] = ((1 * basic.r_0[1]) * 1) + ((1 *
-basic.r_0[1]) * 1)`, the dot product taken with the same element on
-both sides, where the ordered twin has `y[1] = ((1 * basic.r_0[1]) + (1
-
-- basic.r_0[2])) * 1`. The late pass is not what did it here: a probe
-print on its per-element branch (binary `/tmp/m307probe6`, not
-committed) fires on `O6.mo`and not on`Q4.mo`. An array's binding
-takes the other road of `spread_over_elements` (`components.rs`), and
-the same missing shape leaves the product for a per-element reading
-there. So the fault has two exits, one per kind of left side, and the
-root fix - the binding read with the class's shapes in view - is the
-one that closes both. With a vector on the left, the count stays square
-and nothing refuses it. This is the compiler's worst kind of answer, a
-wrong
-number presented as a right one, and it is why the entry in the queue
-comes before the four models it would move. `Q1.mo`, a matrix times a
-forward-read vector, is at least refused ("`y`has 2 element(s) but
-its value has 4"); its ordered twin`Q2.mo`gives the right`{5, 11}`.
+names what was built. In `Q4.mo` the first element reads
+`y[1] = ((1 * basic.r_0[1]) * 1) + ((1 * basic.r_0[1]) * 1)`, the dot
+product taken with the same element on both sides; in the ordered
+twin it reads `y[1] = ((1 * basic.r_0[1]) + (1 * basic.r_0[2])) * 1`.
+The late pass is not what did it here: a probe print on its
+per-element branch (binary `/tmp/m307probe6`, not committed) fires on
+`O6.mo` and not on `Q4.mo`. An array's binding takes the other road,
+`spread_over_elements` in `components.rs`, and the same missing shape
+leaves the product for a per-element reading there. So the fault has
+two exits, one per kind of left side, and the root fix - the binding
+read with the class's shapes in view - is the one that closes both.
+With a vector on the left the count stays square and nothing refuses
+it. This is the compiler's worst kind of answer, a wrong number
+presented as a right one, and it is why the entry in the queue comes
+before the four models it would move. `Q1.mo`, a matrix times a
+forward-read vector, is at least refused, with "`y` has 2 element(s)
+but its value has 4"; its ordered twin `Q2.mo` gives the right
+`{5, 11}`.
 
 A fix would give the binding the shapes of the whole class - measured
 before any component is instantiated, as `measure_dimensions` already
