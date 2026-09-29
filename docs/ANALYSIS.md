@@ -26434,3 +26434,151 @@ walked loop runs (`RR6.mo`), `fid_R134a` alone runs (`RR8.mo`), and
 storey small model of the same shape - a record answer, a local record
 with an `extends` modifier read in a `for` range - runs and gives 96 as
 it should (`W4.mo`), so what `f_R134a` adds is still unnamed.
+
+## m311: a local record the walk was never given, and the overflow tank
+
+### `id.a[1]` and `res.ns1`: a carried body's local record
+
+The wall `unknown variable id.a[1]` held three R134a models after the
+m310 series, and `/tmp/m310/RR7.mo` stopped on its sibling `res.ns1`.
+Cut down statement by statement (`/tmp/m311/G1.mo` is `fres_R134a`
+copied whole, then `P1.mo`, `Y1.mo`, and at last `AA.mo`, 45 lines with
+nothing of the library in it) the refusal needs three things together:
+a body the flattener carries to the walk rather than inlines, reached
+through a loop the model decides; a local record declared with no
+binding, `R134aData.Residual res`, whose every field is given by the
+`extends EOSResidualCoeff(nc = 21, ns1 = 8, c = {...})` of its class;
+and a body large enough to be carried. With eighteen coefficients the
+same body is inlined and runs (`TM18.mo`), with twenty-one it is carried
+and refuses (`TM21.mo`), which is why every small model of m310 ran.
+
+A local probe printing the carried bodies named the layer: the body
+reached the run with `res` among its components bound to nothing. An
+inlined body has its record locals bound field by field
+(`record_locals_as_declared` in `flatten/inlining.rs`); a carried one
+had no such step. `records_as_arrays` (`flatten/carried.rs`) laid a
+record of plain numbers out as an array and left every element at the
+zero an unwritten local starts at, and a record holding `Real[nc] c`
+was not laid out at all, so the walk met `res.ns1` as a name nobody
+declares. One link, so it was taken.
+
+`records_by_their_fields` writes such a local, before the renaming,
+as one local per field bound to its number or its list - `res.ns1 = 8`,
+`res.c` a list of 21 - so a subscript the body decides is read like any
+other local array. Only a local nothing writes, nothing hands on whole
+and nothing modifies, and only where every field comes to numbers; the
+rest is left to the roads below. `OXIDELICA_NO_CARRIED_RECORD_LOCALS`
+gives the old reading back, and the test
+`a_walked_body_reads_a_local_record_its_base_fills_in` (29 at the end of
+the run) fails under it.
+
+The numbers were checked against a second road. `RR7.mo` walks
+`f_R134a(1000 + d, 300)` and now gives -4.120254; `RR9.mo` calls the same
+function where it is inlined and gives -4.120254. `RR2.mo`, the density
+at 10 bar and 300 K, gives 1201.53 kg/m3, liquid R134a. The vapour at
+10.4 bar and 400 K (`PH.mo`) comes to 34.47 kg/m3, h = 511.1 kJ/kg and
+cp = 1.067 kJ/(kg K), against 31.9 kg/m3 for an ideal gas at the same
+point.
+
+By `--only` from `.msl` with `/tmp/m311/ox2`:
+`ModelicaTest.Media.TestOnly.R134a_setState_phX` and
+`R134a_setState_pTX_high_T` run, where `/tmp/m311/ox` (the tree before
+the change) stops both on `id.a[1]`. `R134a_setState_pTX` moves on to a
+wall of another family: `the output p of the walked body
+Modelica.Media.Interfaces.PartialTwoPhaseMedium.saturationPressure was
+not assigned` (`/tmp/m311/PT.mo`), the base's partial function reached
+in place of the medium's own. Not taken.
+
+#### A second link, found by a wrong number
+
+The first build of the change was checked property by property on
+liquid R134a at 10.4 bar and 298.15 K (five models, `/tmp/m311/UA.mo` onwards, one property each),
+and `UD.mo` gave cp = 0. Liquid R134a has a heat capacity near 1.4
+kJ/(kg K). The tree before the change refused the same model on
+`id.a[1]`, so the change had turned a refusal into a wrong number, and
+it was held back until the cause was named.
+
+`ZD.mo` (a state given by equations, cp of it) shows it in a second.
+The walked `specificHeatCapacityCp` answers `if getPhase_ph(p, h) == 2
+then 0 else ...`, and the walked `getPhase_ph` declares
+`SaturationProperties sat(psat = p, Tsat = 0)` and hands it to
+`bubbleEnthalpy` and `dewEnthalpy`. Carried, `sat` was laid out as an
+array with no binding, its modifiers dropped, and held zeros: the
+saturation enthalpies were those of zero pressure, the liquid was taken
+for two phases, and cp came out as 0. The same shape written small
+(`/tmp/m311/ST.mo`) gives 0 on the tree before the change too, so the
+fault is older than the change and was hidden behind the refusal.
+
+`record_local_whole` binds such a local whole, in the order the walk
+lays a record out, to what its modifiers and its record's defaults
+give each field. Only three declarations in the library have the shape,
+all in R134a (`getPhase_ph`, `getPhase_ps` and one more at
+`R134a.mo:1846`). With it `ZD.mo`, `UD.mo` and `CP.mo` give cp =
+1420.260913 J/(kg K), which is what the same formula gives inlined
+(`WE.mo`), and `GP.mo` still tells liquid, two phases and vapour apart
+(1, 2, 1). The test `a_walked_body_lays_out_a_local_record_with_its_modifiers`
+reads 1400 and reads 0 under `OXIDELICA_NO_CARRIED_RECORD_LOCALS`,
+which keys both links.
+
+The wall `R134a_setState_pTX` had moved on to, the base's
+`saturationPressure` reached with no body, turned out to stand on the
+same false phase: with both links `/tmp/m311/PT.mo` runs whole (h =
+234.6 kJ/kg, rho = 1209 kg/m3, mu = 2.1e-4 Pa s, cp = 1.420 kJ/(kg K),
+k = 0.0815 W/(m K) at 10.4 bar and 298.15 K), and by `--only` the model
+runs. `R134a1` and `R134a2` still stop there, for their own reason: a
+two-phase road through `R134a_liqofdT`, which calls
+`bubbleDensity(setSat_T(T))`. R134a does not redeclare `setSat_T`, so
+the inherited body's `saturationPressure(T)` is looked up where the base
+wrote it and finds the partial one (`/tmp/m311/LQ.mo`, refused the same
+way on the tree before the change). That is where a name in an
+inherited function is resolved, a layer of its own, and it is not taken.
+
+The pair, one binary built from the final tree (`/tmp/m311/ox6`),
+`--without scripts/heavy_models.txt`: `/tmp/m311/on6.txt` gives 963
+flatten and 679 run, runnable 847 and 637; `/tmp/m311/off6.txt`, with
+`OXIDELICA_NO_CARRIED_RECORD_LOCALS` set, gives 963 and 676, runnable
+847 and 634. The run lists (`on6_ran.lst`, `off6_ran.lst`) differ by
+the three R134a models arriving and none leaving, and the half with the
+key set is identical to `/tmp/m310/on3_ran.lst`. The run floor goes 676
+to 679 and the runnable run floor 634 to 637.
+
+### The census after the two series
+
+`/tmp/m311/census.txt`, taken after both m310 series reached the tree.
+Counted by the section boundaries: 71 models over 40 rows would not
+flatten and 287 over 156 flattened and would not run, the same sums
+and the same row counts as `/tmp/m308/census.txt`. Inside the run half
+the rows moved exactly as the series said they would: `unknown function
+X` at run time (2, `phaseBoundaryAssert`) is gone, the row of `unknown
+variable X` at run time went 4 to 5, and a row `an array reached the
+evaluator ... of the walked body` (1, `ReferenceAir.Inverse_sh_TX`) is
+new. By name in `/tmp/m311/raw.txt`: the three R134a models stand on
+`id.a[1]`, and `Inverse_sh_TX` on the `Complex` array of link 3.
+
+### `constrains no state`: the row folded, and the overflow tank
+
+A row of the census cut at its own width hides the words it is named
+by. Counted with the phrase alone, the refusal comes to 15 models; the
+rows that say `structurally singular model: equation ...` come to 39
+models over 34 rows, and all 39 lines of `raw.txt` carrying the phrase
+are among them. 39 is the figure from m310. The spread is wide: 23
+rows of one, and the largest is three (`nN.i = 0`, and the
+`voltageQuasiRMSSensor` sum).
+
+`Modelica.Fluid.Examples.Tanks.TanksWithOverflow` (`/tmp/m311/TO.mo`,
+`OXIDELICA_WHERE=1`) is refused at `compile.rs:1997` on
+`lowerTank.ports[2].m_flow = 0`. With `OXIDELICA_VICTIM_PROBE=1` the
+first two reductions demote the tanks' `U` against `medium.p =
+p_ambient`, and the third finds no candidate at all: the raw reach is
+empty. The equation is the `else` branch of the vessel's port `if`
+(`Vessels.mo:381`): the overflow port sits at 6 m, the lower tank
+starts at 2 m, so at the start the port is above the level with no
+inflow and its flow is held at zero. The other end of the same pipe is
+the upper tank's port 3, also at 6 m above a level of 2 m, and also in
+that branch. So one pipe's one flow is fixed twice, once by each tank,
+and neither branch says anything about the pressures at the pipe's
+ends. The mode is compiled for the branch in force at the start (the
+choice made in `compile.rs` around line 2412), and in that mode the
+system is truly singular. What would have to change is how an `if`
+equation whose branches set different unknowns is matched, not one
+link of it - the layer is named, and not taken.

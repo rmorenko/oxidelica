@@ -207,6 +207,7 @@ pub(super) fn programs_used(
                 }
             }
         }
+        records_by_their_fields(&mut carried, class, registry);
         let renamed = records_as_arrays(&mut carried, registry);
         // A local's binding reads a record input the way a statement
         // does, and has to be spelled the way the walk's frame holds it.
@@ -621,6 +622,170 @@ fn named_in_copy(class: &ClassDef, registry: &HashMap<&str, &ClassDef>) -> Strin
 /// `OXIDELICA_NO_LOCAL_BINDING_CALLS` leaves them as they were written.
 fn local_binding_calls_open() -> bool {
     std::env::var_os("OXIDELICA_NO_LOCAL_BINDING_CALLS").is_none()
+}
+
+/// A local record whose every field the declaration already settles,
+/// carried as one local per field, each bound to its number.
+///
+/// A body left for the walk declares `R134aData.Residual res` and reads
+/// `res.ns1` and `res.c[i]`, and the values are nowhere but in the
+/// record: `extends EOSResidualCoeff(nc = 21, ns1 = 8, c = {...})`.
+/// Inlined, such a local is bound field by field before the body runs;
+/// carried, it was bound to nothing. Where the record was laid out as
+/// an array the walk read each field as the zero an unwritten local
+/// starts at, and where a field's length was a name it was not laid
+/// out at all and the walk met `res.ns1` as a name nobody declares -
+/// which is where the R134a properties stopped, three models on
+/// `id.a[1]`. The fields are written as locals of their own - `res.ns1`
+/// bound to 8, `res.c` a list of 21 - so a subscript the body decides
+/// is read like any other local array.
+///
+/// Only a local nothing writes and nothing hands on whole, with no
+/// modifier of its own, and only where every field comes to a number
+/// or a list of numbers. Anything else is left as it was, for the
+/// roads below. `OXIDELICA_NO_CARRIED_RECORD_LOCALS` leaves every one
+/// as it was, so that one binary gives both numbers.
+fn records_by_their_fields(
+    carried: &mut ClassDef,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) {
+    if std::env::var_os("OXIDELICA_NO_CARRIED_RECORD_LOCALS").is_some() {
+        return;
+    }
+    let read = names_read(class);
+    let mut out: Vec<Component> = Vec::new();
+    for mut local in std::mem::take(&mut carried.components) {
+        match settled_fields(&local, class, registry, &read) {
+            Some(fields) => out.extend(fields),
+            None => {
+                if let Some(whole) = record_local_whole(&local, class, registry) {
+                    local.binding = Some(whole);
+                }
+                out.push(local);
+            }
+        }
+    }
+    carried.components = out;
+}
+
+/// A local record of plain numbers bound, whole, to what its own
+/// modifiers and its record's defaults give each field, in the order
+/// the walk lays the record out.
+///
+/// `getPhase_ph` declares `SaturationProperties sat(psat = p, Tsat =
+/// 0)` and reads `bubbleEnthalpy(sat)`. Laid out as an array with no
+/// binding, `sat` held the zero an unwritten local starts at, the
+/// saturation enthalpies were those of zero pressure, a liquid at ten
+/// bar was taken for two phases and its heat capacity came out as 0 -
+/// a wrong number where the body used to refuse. A field neither the
+/// local nor the record gives a value is left alone, and so is a record
+/// holding an array or text.
+fn record_local_whole(
+    local: &Component,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+) -> Option<Expr> {
+    if local.causality != Causality::None || local.binding.is_some() || !local.dimensions.is_empty()
+    {
+        return None;
+    }
+    let record = lookup(registry, &local.type_name, &class.name, &class.imports)
+        .filter(|of| of.kind == ClassKind::Record)?;
+    let declared = record_fields::record_components(registry, record, 0);
+    let order = record_fields::handed_record_fields(registry, record);
+    if order.is_empty() {
+        return None;
+    }
+    let mut values = Vec::new();
+    for name in &order {
+        let field = declared.iter().find(|field| &field.name == name)?;
+        if !field.dimensions.is_empty() {
+            return None;
+        }
+        let value = match local.modifiers.iter().find(|(given, _)| given == name) {
+            Some((_, value)) => value.clone(),
+            None => substitute_class_constants(
+                field.binding.as_ref()?,
+                registry,
+                &record.name,
+                &record.imports,
+                &[],
+            ),
+        };
+        values.push(value);
+    }
+    Some(Expr::Array(values))
+}
+
+/// The fields of one local record as locals of their own, each bound to
+/// the number or list the declaration gives it, or nothing where any
+/// field is not settled so.
+fn settled_fields(
+    local: &Component,
+    class: &ClassDef,
+    registry: &HashMap<&str, &ClassDef>,
+    read: &[String],
+) -> Option<Vec<Component>> {
+    if local.causality != Causality::None
+        || local.binding.is_some()
+        || !local.dimensions.is_empty()
+        || !local.modifiers.is_empty()
+        || read.iter().any(|name| name == &local.name)
+        || writes_to(&class.algorithm, &local.name)
+    {
+        return None;
+    }
+    let record = lookup(registry, &local.type_name, &class.name, &class.imports)
+        .filter(|of| of.kind == ClassKind::Record)?;
+    let mut known: HashMap<String, f64> = HashMap::new();
+    let mut out = Vec::new();
+    for field in record_fields::record_components(registry, record, 0) {
+        let value = substitute_class_constants(
+            field.binding.as_ref()?,
+            registry,
+            &record.name,
+            &record.imports,
+            &[],
+        );
+        let mut held = field.clone();
+        held.name = format!("{}.{}", local.name, field.name);
+        held.type_name = "Real".to_string();
+        held.causality = Causality::None;
+        held.modifiers = Vec::new();
+        held.start = None;
+        match field.dimensions.as_slice() {
+            [] => {
+                let number = const_eval(&value, &known)?;
+                known.insert(field.name.clone(), number);
+                held.binding = Some(Expr::Number(number));
+            }
+            [length] => {
+                let Expr::Array(items) = &value else {
+                    return None;
+                };
+                let numbers: Vec<f64> = items
+                    .iter()
+                    .map(|item| const_eval(item, &known))
+                    .collect::<Option<_>>()?;
+                let length = substitute_class_constants(
+                    length,
+                    registry,
+                    &record.name,
+                    &record.imports,
+                    &[],
+                );
+                if const_eval(&length, &known)? != numbers.len() as f64 {
+                    return None;
+                }
+                held.dimensions = vec![Expr::Number(numbers.len() as f64)];
+                held.binding = Some(Expr::Array(numbers.into_iter().map(Expr::Number).collect()));
+            }
+            _ => return None,
+        }
+        out.push(held);
+    }
+    (!out.is_empty()).then_some(out)
 }
 
 /// Every record a body deals in written as an array of its members.

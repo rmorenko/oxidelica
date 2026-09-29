@@ -823,6 +823,125 @@ fn a_short_function_in_a_package_keeps_its_base_modifier() {
     );
 }
 
+/// A local record whose fields its declaration settles is read by a
+/// walked body with those values.
+///
+/// R134a writes its Helmholtz coefficients as `R134aData.Residual res`,
+/// a record given every field by `extends EOSResidualCoeff(nc = 21, ns1
+/// = 8, c = {...})`, and walks a loop to `res.ns1`. Carried to the walk
+/// the local was bound to nothing, and the walk met `res.ns1` as a name
+/// nobody declares. Here, as in R134a, the body is large enough to be
+/// carried rather than inlined (at eighteen coefficients it was still
+/// inlined and ran): the loop takes 2^1 + 2^3 and then nineteen ones,
+/// so at the end of the run, where the argument is 2, the answer is 29.
+#[test]
+fn a_walked_body_reads_a_local_record_its_base_fills_in() {
+    let result = run("package P \
+           package Common \
+             record Co \
+               parameter Integer nc = 20; \
+               parameter Integer ns1; \
+               parameter Real[nc] t; \
+               parameter Real[nc] c; \
+             end Co; \
+           end Common; \
+           package Data \
+             record Residual \
+               extends Common.Co(nc = 21, ns1 = 2, \
+                 t = {1, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, \
+                 c = {0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}); \
+             end Residual; \
+           end Data; \
+           model M \
+             record Rc Real f; Real tau; end Rc; \
+             function leaf \
+               input Real tau; output Rc f; \
+             protected \
+               P.Data.Residual res; \
+             algorithm \
+               f.tau := abs(tau); \
+               f.f := 0; \
+               for i in 1:res.ns1 loop f.f := f.f + f.tau^res.t[i]; end for; \
+               for i in res.ns1 + 1:21 loop f.f := f.f + res.c[i]; end for; \
+             end leaf; \
+             function hop \
+               input Real d; output Rc f; \
+             algorithm \
+               f := leaf(d); \
+             end hop; \
+             function w \
+               input Real d; output Real y; \
+             protected \
+               Rc f; Integer j = 0; \
+             algorithm \
+               while j < 1 loop f := hop(d); j := j + 1; end while; \
+               y := f.f; \
+             end w; \
+             Real y = w(1 + time); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 29.0).abs() < 1e-9,
+        "2 + 8 + 19 is 29 at the end, and this said {}",
+        last[1]
+    );
+}
+
+/// A local record a walked body declares with modifiers of its own is
+/// laid out with what they give it, not with zeros.
+///
+/// R134a's `getPhase_ph` declares `SaturationProperties sat(psat = p,
+/// Tsat = 0)` and hands it to the saturation enthalpies. Walked, `sat`
+/// was laid out with no binding and held zeros, the enthalpies were
+/// those of zero pressure, a liquid at ten bar was taken for two phases
+/// and its heat capacity answered as 0 - without a word. Here the
+/// "bubble enthalpy" counts the halvings of `psat` down to one, ten for
+/// a thousand, so a body at `h = 5` is below it, in phase 1, and the
+/// answer is 1400; read with zeros it was 0.
+#[test]
+fn a_walked_body_lays_out_a_local_record_with_its_modifiers() {
+    let result = run("package P \
+           record Sat Real psat; Real Tsat; end Sat; \
+           model M \
+             function bubble \
+               input Sat sat; output Real h; \
+             protected Real x; \
+             algorithm \
+               x := sat.psat; h := 0; \
+               while x >= 1 loop x := x/2; h := h + 1; end while; \
+             end bubble; \
+             function phase \
+               input Real p; input Real h; output Real ph; \
+             protected \
+               Sat sat(psat = p, Tsat = 0); \
+               Real hl = bubble(sat); \
+             algorithm \
+               ph := if h < hl then 1 else 2; \
+             end phase; \
+             function cp \
+               input Real p; input Real h; output Real c; \
+             algorithm \
+               c := if phase(p, h) == 2 then 0 else 1400; \
+             end cp; \
+             function w \
+               input Real p; input Real h; output Real y; \
+             protected Real x; \
+             algorithm \
+               x := p; y := 0; \
+               while x >= 1 loop x := x/2; y := cp(p, h); end while; \
+             end w; \
+             Real y = w(1000 + time, 5); \
+           end M; \
+         end P;");
+    let last = result.rows.last().expect("a final row");
+    assert!(
+        (last[1] - 1400.0).abs() < 1e-9,
+        "a thousand halves ten times, so h = 5 is liquid and cp is 1400, and this said {}",
+        last[1]
+    );
+}
+
 /// A guard - a function with no outputs, called as a statement - in a
 /// body the run walks is carried and walked for its checks.
 ///

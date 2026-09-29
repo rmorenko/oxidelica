@@ -2645,7 +2645,7 @@ fn record_locals_as_declared(
 }
 
 /// Whether any statement of a body assigns `name` or a field of it.
-fn writes_to(body: &[Statement], name: &str) -> bool {
+pub(super) fn writes_to(body: &[Statement], name: &str) -> bool {
     let hit = |target: &str| {
         target == name
             || target
