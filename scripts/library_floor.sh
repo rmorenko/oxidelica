@@ -943,7 +943,15 @@ FLATTEN_FLOOR=963
 # 109207542783 of run 36506020824 on b7f04a3 (/tmp/m307/runner_raw.log)
 # and 675 on the desk (/tmp/m307/pfq.txt), the lists differing by the
 # swing alone, Dimmer_RL on the runner and SpringWithMass on the desk.
-RUN_FLOOR=675
+#
+# And run 676 = 675 plus Modelica.Mechanics.MultiBody.Examples.
+# Elementary.ForceAndTorque, which runs now that a component is built
+# before the declaration above it that reads its members: 676 on the
+# runner in job 109306337264 of run 36537969995 on 5ad730f
+# (/tmp/m309/runner_job.log) and 676 on the desk (/tmp/m308/on3.txt),
+# the lists differing by the swing alone, Dimmer_RL on the runner and
+# SpringWithMass on the desk.
+RUN_FLOOR=676
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1071,8 +1079,12 @@ RUN_FLOOR=675
 # And runnable run 633 = 631 plus the same two Noise models, both
 # runnable examples: the runner's 847/633 in job 109207542783
 # (/tmp/m307/runner_raw.log) and the desk's 847/633 (/tmp/m307/pfq.txt).
+#
+# And runnable run 634 = 633 plus ForceAndTorque, a runnable example:
+# the runner's 847/634 in job 109306337264 (/tmp/m309/runner_job.log)
+# and the desk's 847/634 (/tmp/m308/on3.txt).
 RUNNABLE_FLATTEN_FLOOR=847
-RUNNABLE_RUN_FLOOR=633
+RUNNABLE_RUN_FLOOR=634
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
