@@ -25845,9 +25845,14 @@ frame in "nothing is left for". They are the four MultiBody examples
 that hold a `Forces.Torque` or `Forces.ForceAndTorque` between two
 frames, and all three of those elements declare `connectionLine`, with
 its `length` read from the inner basic element, before that element.
-Whether each of the four gets past this wall with animation switched
-off was measured on the small models below, not on the four
-themselves.
+Each of the four was then extended with its force element's
+`animation = false` (`/tmp/m307/keep/X1.mo` to `X4.mo`) and all four
+got past this wall: `ForceAndTorque` runs, and at t = 1 gives
+`revolute1.phi = -9.483461`, not checked against another tool; the two
+drives stop at the known `rotorWith3DEffects` wall; `GearConstraint`
+stops at a new one, `gearConstraint.fixedTranslation1.frame_a.R.T[3,1]
+= gearConstraint.bearing.R.T[3,1] constrains no state`. So the wall
+holds one model on its own and stands first in front of three more.
 The walk down, every step a small model under `/tmp/m307/keep`:
 
 - `AD8.mo`, fourteen lines: a body on a revolute joint with a
