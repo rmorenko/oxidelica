@@ -26262,3 +26262,163 @@ name is written under the outer copy's name, or never collected into
 the programs of the outer copy, is the next question, and `N2.mo` (49
 lines) is the model to ask it with. Not taken this shift: the
 question was found with less than an hour left.
+
+## m310: the solve inside a solve, walked to its third link
+
+The chain behind `ReferenceAir.Inverse_sh_TX`, mapped at the end of
+m309, turned out to have three links. The first two were built, tested
+and measured, and are not in the tree: the third is a layer of its own,
+so the chain was not walked to an end, and a chain is taken whole or
+not at all. The two links are kept as a series with their tests at
+`/tmp/m310/series/` (`0001-*.patch`), and the measurement that says
+they cost nothing is below.
+
+The measurement, one binary built from the tree with both series in it
+(`/tmp/m310/ox3`), every key on, `--without scripts/heavy_models.txt`:
+`/tmp/m310/on3.txt` gives 963 flatten and 676 run, runnable 847 and
+634, the floors to the model. Its run list, `/tmp/m310/on3_ran.lst`,
+is identical to the m308 reference `/tmp/m308/on3_ran.lst`: no model
+arrived and none left. The half with every key off was stopped once
+the first half showed nothing to compare against. Both series are
+therefore clean and win nothing yet, which is what a middle link of a
+chain measures by construction.
+
+1. **A hand-over inside a walked body was never specialized.**
+   Specializing happens where a call is expanded
+   (`flatten/arrays.rs`, the `PARTIAL_CALL` branch of `expand_call`),
+   and a body carried out to the walk is never expanded: its
+   statements went to the run as written, so the inner
+   `solveOneNonlinearEquation(function Tsub_res(p = p), ...)` reached
+   the evaluator with `Tsub_res` read as a variable. Neither guess of
+   m309 was right - the name was not written under the outer copy, and
+   it was not missing from the programs: the partial call itself was
+   still standing. `programs_used` in the series specializes such a call the way
+   inlining would (`handed_over_in_walked_body`), before the body's
+   calls are gathered. `N2.mo` runs, T = 1 + time (T = 2.0 at t = 1),
+   which is `hh - Tsub(4) = 3 + time - 2`. `OXIDELICA_NO_WALKED_HAND_OVER`
+   gives the old refusal back.
+2. **A function's base modifiers never reached the input they
+   modify.** `IF97_new.g2` is written `function g2 =
+BaseIF97.Basic.g2(final checkLimits = false)`. The short form was
+   parsed as a second name for the target, so the modifier went
+   nowhere a call reads; and the long form, `function g2 extends
+g(final check = false); end g2;`, lost it too, because
+   `function_components` took the base's inputs with the base's
+   defaults. Both are mended in the series: a short function definition with
+   modifiers that is not replaceable and whose values are all
+   literals is now the class the language says it is (one `extends`
+   with the modifiers), and `function_components` writes an `extends`
+   modifier into the inherited input's binding. A value that names
+   something - `function accel = Scaled(c = k)` in a model - stays on
+   the alias road, which is what puts the holder's prefix on `k`; made
+   a class, the bare `k` reached the flat model, and the test
+   `a_filled_input_carries_the_flat_model_s_names` said so. In the moist air the checks it switched
+   off fired on the first temperature of a bracket starting at
+   173.15 K: `IF97 medium function g2: the temperature (= 173.15 K) is
+lower than 273.15 K!`. The same shape stands on `IF97_new.visc_dT`
+   and `cond_dT`, where `final p = 0, final phase = 0` were being read
+   at the base's own defaults. Keys: `OXIDELICA_SHORT_FUNCTIONS_AS_ALIASES`
+   and `OXIDELICA_NO_FUNCTION_BASE_MODIFIERS`.
+3. **An array of `Complex` records inside a walked body.** Past link 2
+   the model stops at `an array reached the evaluator:
+{0.0368017112855051, 0.0510878114959572}` in the walked
+   `Ice09_Utilities.ice09BaseProp_pT`, which is the first element of
+   `final Complex[2] t = {Complex(...), Complex(...)}` in
+   `Ice09_Utilities.Basic.Gibbs`. `records_as_arrays`
+   (`flatten/carried.rs`) writes a record as an array of its fields,
+   and an array of records - a matrix of fields - is outside what it
+   takes. `/tmp/m310/C3.mo` (18 lines) shows it small: `Complex o[2]`
+   in a function with `Inline = false`, refused as `unknown variable
+o[2].re`. `/tmp/m310/G3.mo`, one call of `s_pTX`, reproduces the
+   corpus refusal word for word. This is not one link: an array of
+   records in the walk is a representation question, parked for a
+   series of its own.
+
+The other three of the `unknown variable X` row were asked with
+`--only` from `.msl` and `OXIDELICA_WHERE=1`. All three are raised at
+`code.rs:174`, and none of them has the shape of a solve inside a solve:
+
+- `R134a_setState_phX` on `id.a[1]`: `fid_R134a` declares a local
+  `R134aData.Ideal id`, a record whose array field is given by an
+  `extends EOSIdealCoeff(nc = 5, a = {...})` modifier. A local record
+  with its values in an `extends` modifier, in a walked body.
+- `IncompleteMedia.ReferenceAir_dT` on `dT_explicit`: a constant of
+  the medium package read in `redeclare function extends
+specificEntropy` as `if dT_explicit then`, where the package gives
+  it by `final dT_explicit = true` on the medium's `extends`.
+- `FlueGasSixComponents` on `X`: `isentropicEnthalpy(..., exact =
+true)` specializes `T_hX`'s `f_nonlinear` with the mass fractions.
+  `/tmp/m310/X.mo`, a mass-fraction array handed over through a solve
+  the same way, runs and gives 2.666667 as it should, so the layer is
+  not the hand-over of an array as such. Not narrowed further.
+
+Three different layers, each one model; none is in the expectations of
+this series.
+
+### The `der() outside a state equation` row, asked again
+
+The three `FluxTubes.Examples.Hysteresis` models were probed once more
+while the pair ran, and the answer is the one shift 227 wrote down: the
+indicator `asc = der(Hstat) > 0` wants the derivative of `Hstat`, and
+`Hstat` is neither a state nor a demoted one there. One narrower road
+was tried and put on the shelf. A state index reduction demoted has
+its derivative as a dummy the plan computes, and giving those dummies
+to the indicator substitution makes `/tmp/m310/D4.mo` run: the
+indicator `asc = der(H) > 0` beside `der(x) = 2*der(H)` gives x =
+1.682942 at t = 1, which is 2 sin 1. The three models do not move on
+it, because `Hstat` is not demoted in them, so the patch is kept at
+`/tmp/m310/dummies_in_relations.patch` and not in the tree. What the
+models want is the derivative of an algebraic name worked out by the
+chain rule at an event indicator, which is the same box as the
+`der(volume.medium.T)` row.
+
+### `unknown function phaseBoundaryAssert`, mapped
+
+Two models, `R134a_setState_pTX` and `R134a_setState_pTX_high_T`. The
+R134a medium guards every property it reads from `p` and `T` with
+`Modelica.Media.R134a.R134a_ph.phaseBoundaryAssert(p, T)`, a function
+with no outputs whose body is a saturation temperature and an
+`assert`. `/tmp/m310/A2.mo` (21 lines) shows it small: a guard called
+as a statement from a body the walk runs is refused as `unknown
+function A2.guard`; the same guard in a body that inlines (`A.mo`)
+runs. Three links stand in the way, found in order:
+
+1. `gather_calls_in_statements` (`flatten/carried.rs`) leaves out a
+   called body with no outputs on purpose, for `Streams.error` and
+   `print`. Letting through one written in Modelica is a few lines,
+   kept at `/tmp/m310/carried_guards.patch`.
+2. `walkable` refuses a body with no outputs outright: "a body walked
+   at run time answers with something, not nothing".
+3. The evaluator's call into the walk takes `answer.first()` and
+   refuses an empty answer as `gave nothing back`, and the walk's own
+   statement `Statement::Call` reads the call as a number.
+
+Link 1 alone moves nothing, since link 2 then drops the guard again,
+so it was not taken. The chain is three links through the parser's
+carrying and the run's walk together, and wants a series of its own:
+a guard carried, walked for its checks, and answering nothing.
+
+Built after all, once the three links were seen to be small, and
+kept with the others at `/tmp/m310/series/` (`0002-*.patch`) rather
+than in the tree, for the same reason: a guard written in Modelica is carried
+(`gather_calls_in_statements`), `walkable` lets a body with no
+outputs through when it is written in Modelica, and the walk runs a
+call statement to such a body for its checks instead of reading it as
+a number. `OXIDELICA_NO_CARRIED_GUARDS` gives all three back. The test
+`a_guard_in_a_walked_body_is_walked_for_its_checks` runs to 0.4 and
+reads `3*1.4`, and to 1 and hears the guard's own words at t = 0.5.
+The two R134a models then stop one wall further on, at `unknown
+variable id.a[1]` - the wall `R134a_setState_phX` already stands at,
+so that row goes from one model to three. `/tmp/m310/RR2.mo`, one call
+of `density_pT`, reproduces it; `/tmp/m310/RR5.mo`, `f_R134a` and
+`Helmholtz_pT` in a walked loop, stops on the sibling name `res.ns1`
+of `fres_R134a`'s local `Residual` record. Small models of a local
+record whose array is given by an `extends` modifier (`W2.mo`,
+`W3.mo`) run, so the layer is not that shape alone; not narrowed
+further this shift.
+One more cut was made while the pair ran: `fres_R134a` alone in a
+walked loop runs (`RR6.mo`), `fid_R134a` alone runs (`RR8.mo`), and
+`f_R134a`, which calls both, stops on `res.ns1` (`RR7.mo`). A three
+storey small model of the same shape - a record answer, a local record
+with an `extends` modifier read in a `for` range - runs and gives 96 as
+it should (`W4.mo`), so what `f_R134a` adds is still unnamed.
