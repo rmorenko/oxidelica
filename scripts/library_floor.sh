@@ -935,7 +935,15 @@ FLATTEN_FLOOR=963
 # run: 673 on the runner in job 109136903901 (/tmp/m306/runner_job.log)
 # and 673 on the desk (/tmp/m305/on.txt), the lists differing by the
 # swing alone, Dimmer_RL on the runner and SpringWithMass on the desk.
-RUN_FLOOR=673
+#
+# And run 675 = 673 plus Modelica.Blocks.Examples.Noise.
+# NormalNoiseProperties and UniformNoiseProperties, which fell to a
+# step size underflow chasing `time >= t_0 + 1e-7` and run now that the
+# threshold is scheduled as a time event: 675 on the runner in job
+# 109207542783 of run 36506020824 on b7f04a3 (/tmp/m307/runner_raw.log)
+# and 675 on the desk (/tmp/m307/pfq.txt), the lists differing by the
+# swing alone, Dimmer_RL on the runner and SpringWithMass on the desk.
+RUN_FLOOR=675
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1059,8 +1067,12 @@ RUN_FLOOR=673
 # And runnable 847 and 631 = 845 and 629 plus Test87 and Test88, both
 # runnable examples: the runner's 847/631 in job 109136903901
 # (/tmp/m306/runner_job.log) and the desk's 847/631 (/tmp/m305/on.txt).
+#
+# And runnable run 633 = 631 plus the same two Noise models, both
+# runnable examples: the runner's 847/633 in job 109207542783
+# (/tmp/m307/runner_raw.log) and the desk's 847/633 (/tmp/m307/pfq.txt).
 RUNNABLE_FLATTEN_FLOOR=847
-RUNNABLE_RUN_FLOOR=631
+RUNNABLE_RUN_FLOOR=633
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
