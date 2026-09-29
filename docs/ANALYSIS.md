@@ -26730,3 +26730,186 @@ R134a properties above. It is kept because the refusal it removes was
 a wrong resolution - the base's body standing where the medium's was
 meant - and a body that now resolves right is a body that can no
 longer give a quiet wrong answer once the loop in front of it is gone.
+
+## m313 and m314: an equation that constrains no state, and the subset it stands in
+
+### What the m313 shift found before it was cut short
+
+The m313 shift was cut off half an hour in, and its chapter was never
+written. What it measured is kept here, because the m314 change stands
+on it.
+
+Twenty-three models, listed in `/tmp/m313/bcd.lst` and spanning the
+layers the m307 reading called B, C and D plus `TanksWithOverflow` from
+E, were run under `OXIDELICA_VICTIM_PROBE`
+(`/tmp/m313/bcd_probe.txt`). The probe printed 755 reductions between
+them. Every model ends on exactly one line reading `raw reach: []`, 23
+lines for 23 models, after anywhere from one to forty reductions that
+succeeded. So the four layers are one link rather than four: index
+reduction differentiates the equation the matching stumbled on, and when
+that equation reaches no state the model is refused with `constrains no
+state`. The m313 note had read layer B as a missing connection graph,
+an architectural question. A small model refuted it: a world, two
+`FixedTranslation`s and a `LineForceWithTwoMasses`, a tree with no loop
+and nothing moving (`/tmp/m313/b/B5.mo`), is refused at the same wall.
+The cut joint plays no part in it. The equation it stops on is
+`world.frame_b.R.T[3,2] = rod3.frame_a.R.T[3,2]`, two aliases of a
+constant orientation.
+
+### The change: differentiate another member of the singular subset
+
+`reduce_index` (`compile.rs`) threw away the `visited` set of the
+augmenting search that failed. That set is exactly the singular subset:
+the equation that could not be matched, plus the equations holding the
+unknowns its search walked through. That is more equations than
+unknowns, and Pantelides may differentiate any of them. The equation
+the matching stumbled on is still tried first, so a model that reduced
+before reduces exactly as it did. The other members are tried only
+where that equation reaches no state. For such a member the matching is
+shifted: the member gives up its unknown and the stumbling equation
+takes it. Whatever a failed attempt added (unknowns, equations, minted
+derivatives, and the two tables keyed by equation index) is taken back
+before the next member is tried. `choose_the_victim` now answers `None`
+instead of refusing, and the refusal is worded by the caller. Where
+there was nothing else to try it keeps its old words, so the row does
+not move. Otherwise it adds `nor did the N other equations of its
+singular subset tried in its place`.
+
+The phase has a size of its own, and it gets a ceiling of its own:
+`MAX_SINGULAR_ATTEMPTS = 32`. Measured without the ceiling,
+`PlanarFourbar` found a member only at try 79 of 555, then at
+reduction 72 went on for more than seven minutes of CPU and 2.7 GB
+before it was stopped. The models that reached a run found their member
+at tries 4 to 27. With the ceiling, `PlanarFourbar` is refused in 79 s
+against 47 s on the old road. `OXIDELICA_NO_SINGULAR_SET=1` restores
+the old road, and `OXIDELICA_VICTIM_PROBE` now also prints which member
+a reduction took (`singular-set: reduction N took member K of M`).
+
+The test is `OpenPhase` (`systems.rs`). It was not synthetic from the
+start: about three hundred synthetic orderings of constant aliases
+never reproduced the refusal, because aliases fold before reduction.
+It was found by shrinking `AsymmetricalLoad`: a two-phase source, a
+delta winding, an ideal three-winding core, a star secondary with only
+the first phase loaded, and the plug wrappers kept, since a flat copy
+without the wrappers runs on both roads. The open phase's
+`r2.n[2].i = 0` is where the matching stumbles. On the new road the
+loaded phase comes to `2.5 L di/dt + 0.55 i = -200 sin(wt)`, and the
+current agrees with the closed form to 0.009 A on 168 A. The flat twin,
+which both roads run, agrees to 4e-6. The second test is a model that
+states `Ra = Rb` with both fixed: it is refused on both roads, with the
+subset's count on the new one. Both tests are red under the old key.
+
+### The twenty-three, one at a time on the new road
+
+Each model was run under `--only` with the pinned binary, one per model
+(`/tmp/m314/one/`). Old road: 23 flatten and 0 run
+(`/tmp/m314/bcd_old.txt`). New road:
+
+- run: `AsymmetricalLoad` and `GearConstraint`. Both were checked
+  against physics, not only for running. In `AsymmetricalLoad` (Dy01,
+  one secondary phase loaded) the primary current flows in two phases,
+  equal and opposite, with the third at zero. Its amplitude is the load
+  current over the square root of three (24.15 A against 41.83 A at
+  t = 0.01), which the model's own documentation states ("Dy: load
+  current in two primary phases"). In `GearConstraint`,
+  `inertia1.phi = 10 * gearConstraint.phi_b` to the digit across the
+  run.
+- moved to another wall (`/tmp/m314/one/*.txt`): `ActuatorWithNoise`
+  (a structurally singular refusal of another kind: no equation
+  determines `motor.u...`), `DoublePendulumInitTip` (a residual in
+  `revolute2.e`), `IMC_DOL_CommonLeakage` (an algebraic loop over the
+  closing switches), `PointGravityWithPointMasses2` and `SMPM_NoLoad`
+  (the equations of an algebraic loop), `SMEE_LoadDump` (a singular
+  Jacobian). `B5`, the small model of the m313 shift, gets past the
+  reduction and stops on a NaN in an `lf.*` loop at t = 0;
+- still at a structurally singular refusal, later in the chain:
+  `Engine1a`, `Engine1b`, `IMC_Transformer`, `LineForceWithTwoMasses`,
+  `SMEE_Generator`, `SMPM_CurrentSource`, `SMPM_FieldWeakening`,
+  `SMPM_MTPA`, `SMPM_OpenCircuit`, `SMR_CurrentSource`,
+  `TanksWithOverflow`, `TransformerTestbench`;
+- `PlanarFourbar`: refused at the ceiling, as above.
+
+The runs above used the first build, which had no ceiling. The corpus
+pair below uses the final one (`/tmp/m314/ox3`), which has it, and every
+arrival took its member at a try below 32.
+
+### The census m313, read to its end
+
+The m313 census (`/tmp/m313/census.txt`, raw half in
+`/tmp/m313/raw.txt`) was taken on 827689d, the tree without this
+change. Counted within the section boundaries: flatten 71 models over
+40 rows, run 284 over 156, both identical to m312. Two models moved
+between rows and none moved out, as expected: `R134a1` and `R134a2`
+left `` `X` of algebraic loop `` (13 to 11) and joined `the Newton
+direction of algebraic loop` (23 to 25), and the raw half names both
+at that wall (lines 307 and 308). That is the m312 change, seen from
+the register.
+
+### Three neighbours, probed and parked with a map
+
+The brief allowed one change to the code, so these were probed with
+the new binary and not changed. None moved.
+
+`ReferenceAir_dT` (`unknown variable dT_explicit`, raised at run time
+in `code.rs:174`). It shrinks to two lines under
+`Modelica.Media.Air.ReferenceAir.Air_dT`: `Pr =
+Medium.prandtlNumber(state)` followed by `a =
+Medium.velocityOfSound(state)`. The order matters. Written `a` first,
+the model runs, and `why` shows `a` inlined as `if true then
+Air_Utilities.velocityOfSound_props_dT(...)`, with the constant
+settled. Written `Pr` first, `a` is left as a walked call to
+`Modelica.Media.Air.ReferenceAir.Air_Base.velocityOfSound`, named by
+the class that wrote it and not by the medium, so its `if dT_explicit`
+reads a name nothing gives a value to. Each line runs on its own, and
+so does each pairing with `Pr` except this one: entropy, `cv`,
+`beta`, the isentropic exponent. Air_pT, Air_ph and WaterIF97_pT run
+the same pair. So the fault is a record of the first asking that
+changes how the second is carried. It is not the `READS_MEDIUM`
+table: a probe that kept that table from remembering answers given
+inside another asking left the refusal where it was. A library-free
+copy of the shape, with an interface `pr` calling a replaceable `cp`
+and a base redeclaring `cp` and `vs` on a constant set by extends
+(`/tmp/m314/alib/A2.mo`, `A4.mo`), runs correctly (a = 40 and 20,
+b = 200), so the missing ingredient is still unnamed. The next step is
+to shrink the medium itself, starting from `Air_Base`, rather than to
+grow the copy.
+
+`FlueGasSixComponents` (`unknown variable X`). It shrinks to one line:
+`Medium.isentropicEnthalpy(2*Medium.reference_p, state, exact=true)`.
+The same call without `exact` runs, giving 365108 J/kg through
+`isentropicEnthalpyApproximation`. With `exact=true` the body goes
+through `setState_psX`, then `T_psX`, then a `solveOneNonlinearEquation`
+over `f_nonlinear(p, s, X)`. Asked directly, `setState_psX` and
+`temperature_psX` stop one wall earlier on a neighbouring refusal: `an
+array reached the evaluator: s0_T(data[i], T) * X[i] for i in
+1:size(X, 1)` inside the walked `MixtureGasNasa.s_TX`. That is the
+comprehension row the m312 chapter counted as two models. The
+library-free copies (`/tmp/m314/alib/X2.mo`, `X3.mo`: a solver over a
+function carrying an array argument, inside a medium) run and give
+2.666667 and 26.666667. What they lack is exactly the `sum(...)` over
+a record array `data[i]`. So `X` is that comprehension row seen from
+inside the solver, not a wall of its own.
+
+`jointRRP` (`cannot evaluate parameters`, six models). It stands where
+it stood. `why` on `CylinderBase` gives the chain
+`jointRRP.e_ia[k] = jointRRP.jointUSP.e2_ia`, then
+`jointUSP.e2_ia[k] = jointUSP.rod1.e2_ia`. Each element is bound to
+the whole array with no subscript, and `rod1.e2_ia` reads `eRod_ia`,
+which reads `rodLength` (`fixed=false`), so no value is available
+before the run. The subscript lost on the way down is the first link.
+
+### The pair for the singular subset
+
+One binary, built from the final tree (`/tmp/m314/ox3`), was run with
+`--without scripts/heavy_models.txt`. With `OXIDELICA_NO_SINGULAR_SET=1`
+(`/tmp/m314/old.txt`) it gives 963 flatten and 679 run, runnable 847
+and 637. That is the floors, and a run list identical by name to
+`/tmp/m312/on_ran.lst`. Without the key (`/tmp/m314/new.txt`) it gives
+963 and 681, runnable 847 and 639. The flatten lists are identical, and
+the run lists (`old_ran.lst` against `new_ran.lst`) differ by exactly
+two arrivals, `AsymmetricalLoad` and `GearConstraint`, with no model
+leaving. Each half stays under the time ceiling per model (the new half
+6565 ms to flatten and 9823 ms to run). The two halves overlapped for
+their last forty minutes, so the times are not a comparison between
+them. The floors stay where they are until the runner prints 681 and 639. The CI run for 827689d printed 963/679 and 847/637, which is the
+present floor.

@@ -780,6 +780,18 @@ fn probe_mode_conditions(ordered_algs: &[String], stages: &[PlanStage]) {
 /// that is a small number.
 const MAX_INDEX_REDUCTIONS: usize = 256;
 
+/// How many members of a structurally singular subset one reduction
+/// may try differentiating before it refuses.
+///
+/// A failed attempt differentiates an equation and throws the result
+/// away, so the phase has a size of its own and needs a ceiling of its
+/// own. The subsets run to hundreds of equations in the multibody
+/// loops: `PlanarFourbar` found its member only at the seventy-ninth
+/// try of 555 and then ground on for minutes and gigabytes, while the
+/// models this search brought to a run found theirs at the 4th, 6th
+/// and 27th.
+const MAX_SINGULAR_ATTEMPTS: usize = 32;
+
 /// How large a differentiated constraint may grow before index
 /// reduction gives up on it.
 ///
@@ -1001,6 +1013,41 @@ pub(crate) fn assignment_lines(
 /// On by default; `OXIDELICA_NO_MATCH_ORDER=1` gives the old order.
 fn match_order_enabled() -> bool {
     std::env::var_os("OXIDELICA_NO_MATCH_ORDER").is_none()
+}
+
+/// Whether a reduction may differentiate another member of the
+/// structurally singular subset when the equation the matching
+/// stumbled on constrains no state.
+///
+/// Behind a switch so that one binary can produce both numbers.
+/// On by default; `OXIDELICA_NO_SINGULAR_SET=1` refuses as before.
+fn singular_set_enabled() -> bool {
+    std::env::var_os("OXIDELICA_NO_SINGULAR_SET").is_none()
+}
+
+/// The equations a reduction may differentiate, in the order it tries
+/// them: the one the matching stumbled on, then the equations holding
+/// the unknowns its failed search walked through - together they are
+/// the subset with more equations than unknowns.
+fn attempt_order(failed: usize, visited: &[bool], matched_eq: &[Option<usize>]) -> Vec<usize> {
+    let mut order = vec![failed];
+    if !singular_set_enabled() {
+        return order;
+    }
+    for (var, seen) in visited.iter().enumerate() {
+        if order.len() >= MAX_SINGULAR_ATTEMPTS {
+            break;
+        }
+        if !seen {
+            continue;
+        }
+        if let Some(eq) = matched_eq[var] {
+            if !order.contains(&eq) {
+                order.push(eq);
+            }
+        }
+    }
+    order
 }
 
 /// What ranking an equation for one of its names depends on, with the
@@ -1238,6 +1285,10 @@ fn pair_lost_enabled() -> bool {
 /// term), then demote one state appearing in it to an algebraic
 /// unknown. Its former state equation determines the dummy that
 /// replaces its derivative, which restores the balance.
+///
+/// Where that equation constrains no state, another member of the
+/// singular subset the failed matching walked through is
+/// differentiated in its place - see [`attempt_order`].
 #[allow(clippy::too_many_arguments)]
 fn reduce_index(
     mut states: Vec<String>,
@@ -1336,329 +1387,240 @@ fn reduce_index(
         for eq in 0..algebraic_eqs.len() {
             let mut visited = vec![false; n_alg];
             if !try_match(eq, &eq_vars, &mut matched_eq, &mut visited) {
-                failed = Some(eq);
+                failed = Some((eq, visited));
                 break;
             }
         }
-        let Some(eq) = failed else {
+        let Some((failed_eq, visited)) = failed else {
             break (matched_eq, eq_vars, n_alg);
         };
 
-        let (lhs, rhs) = algebraic_eqs[eq].clone();
         if reductions >= MAX_INDEX_REDUCTIONS {
+            let (lhs, rhs) = &algebraic_eqs[failed_eq];
             return err(format!(
             "structurally singular model: equation {lhs:?} = {rhs:?} still cannot be matched after {MAX_INDEX_REDUCTIONS} index reductions"
         ));
         }
         reductions += 1;
 
-        let mut candidates: Vec<(String, Expr)> = Vec::new();
-        for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
-            // The equation under reduction cannot define its own
-            // way out: `u = 3` must be read through `u = 2*x`.
-            if index == eq {
-                continue;
-            }
-            if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
-                if unknowns.contains(name) {
-                    candidates.push((name.clone(), simplify(other)));
+        // The equation the matching stumbled on is one member of a
+        // structurally singular subset, not the whole of it: the search
+        // that failed walked through every unknown the equation could
+        // have taken, and the equations holding those unknowns are the
+        // rest of the subset. Any member of it may be the one
+        // differentiated. The one the matching stumbled on is tried
+        // first, so every model that reduced before reduces exactly as
+        // it did; the others are tried only where it constrains no
+        // state - a connection equating two aliases of a constant
+        // orientation, `world.frame_b.R.T[3,2] = rod3.frame_a.R.T[3,2]`,
+        // stops the matching and pins nothing, while the equation that
+        // reaches the joint's angle stands in the same subset.
+        let order = attempt_order(failed_eq, &visited, &matched_eq);
+        let saved_unknowns = unknowns.len();
+        let saved_eqs = algebraic_eqs.len();
+        let saved_minted = minted_defs.clone();
+        let mut refusal: Option<SimError> = None;
+        let mut reached = false;
+        for (attempt, &eq) in order.iter().enumerate() {
+            // For another member the matching is shifted so that the
+            // equation stumbled on holds an unknown and the member
+            // under differentiation holds none: its unknown was on the
+            // failed search's path, so freeing it opens one.
+            let base_match = if eq == failed_eq {
+                matched_eq.clone()
+            } else {
+                let mut shifted = matched_eq.clone();
+                for slot in shifted.iter_mut() {
+                    if *slot == Some(eq) {
+                        *slot = None;
+                    }
                 }
-            }
-            let mut named = Vec::new();
-            l.collect_refs(&mut named);
-            r.collect_refs(&mut named);
-            named.sort_unstable();
-            named.dedup();
-            for name in named {
-                if !unknowns.iter().any(|u| u == name) {
-                    continue;
-                }
-                let answer = solved_for
-                    .entry((index, name.to_string()))
-                    .or_insert_with(|| {
-                        // Solved out of a connection equation, an
-                        // equality arrives wrapped in the signs it
-                        // was moved across and the coefficient it
-                        // was divided by: `-p.i + r.p.i = 0` gives
-                        // `-(-r.n.i)/-1`. Folded here, what is a
-                        // plain name is written as one, and
-                        // everything after this reads the shape
-                        // rather than the wrapping.
-                        reduction_solve(l, r, name, params).map(|solved| simplify(&solved))
-                    });
-                if let Some(solved) = answer {
-                    candidates.push((name.to_string(), solved.clone()));
-                }
-            }
-        }
+                let mut seen = vec![false; n_alg];
+                try_match(failed_eq, &eq_vars, &mut shifted, &mut seen);
+                shifted
+            };
+            let outcome = (|| -> Result<bool, SimError> {
+                let (lhs, rhs) = algebraic_eqs[eq].clone();
+                let matched_eq = &base_match;
 
-        // Definitions to differentiate through, built to a fixpoint so
-        // the graph is acyclic and grounds out in states, parameters
-        // and whatever is already grounded. A definition is accepted
-        // only once everything it references is itself grounded, which
-        // is what keeps `a := b` and `b := a` from chasing each other.
-        let settle = |grounded: &HashMap<String, (Expr, Expr)>| {
-            let mut accepted: HashMap<String, Expr> = HashMap::new();
-            loop {
-                let mut progress = false;
-                for (name, expr) in &candidates {
-                    // A name the implicit rule already grounds keeps
-                    // that grounding. Taking a definition for it as
-                    // well is how a two-name cycle gets built: `i = p.i`
-                    // and `p.i = i` are both candidates, and with `i`
-                    // grounded implicitly both would be accepted and
-                    // chase each other until the depth guard fired.
-                    if accepted.contains_key(name) || grounded.contains_key(name) {
+                let mut candidates: Vec<(String, Expr)> = Vec::new();
+                for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
+                    // The equation under reduction cannot define its own
+                    // way out: `u = 3` must be read through `u = 2*x`.
+                    if index == eq {
                         continue;
                     }
-                    let mut refs = Vec::new();
-                    expr.collect_refs(&mut refs);
-                    let ok = refs.iter().all(|r| {
-                        *r != name
-                            && (!unknowns.iter().any(|u| u == *r)
-                                || accepted.contains_key(*r)
-                                || grounded.contains_key(*r))
-                    });
-                    if ok {
-                        accepted.insert(name.clone(), expr.clone());
-                        progress = true;
+                    if let (Expr::Ref(name), other) | (other, Expr::Ref(name)) = (l, r) {
+                        if unknowns.contains(name) {
+                            candidates.push((name.clone(), simplify(other)));
+                        }
+                    }
+                    let mut named = Vec::new();
+                    l.collect_refs(&mut named);
+                    r.collect_refs(&mut named);
+                    named.sort_unstable();
+                    named.dedup();
+                    for name in named {
+                        if !unknowns.iter().any(|u| u == name) {
+                            continue;
+                        }
+                        let answer =
+                            solved_for
+                                .entry((index, name.to_string()))
+                                .or_insert_with(|| {
+                                    // Solved out of a connection equation, an
+                                    // equality arrives wrapped in the signs it
+                                    // was moved across and the coefficient it
+                                    // was divided by: `-p.i + r.p.i = 0` gives
+                                    // `-(-r.n.i)/-1`. Folded here, what is a
+                                    // plain name is written as one, and
+                                    // everything after this reads the shape
+                                    // rather than the wrapping.
+                                    reduction_solve(l, r, name, params)
+                                        .map(|solved| simplify(&solved))
+                                });
+                        if let Some(solved) = answer {
+                            candidates.push((name.to_string(), solved.clone()));
+                        }
                     }
                 }
-                if !progress {
-                    break;
-                }
-            }
-            accepted
-        };
 
-        // The unknowns nothing above grounds. `Psi = Linf*i +
-        // c*atan(i/Ipar)` determines the current and cannot be solved
-        // for it, so the fixpoint has nothing to say and the walk
-        // refused the whole model. Its equation is kept whole instead,
-        // for the implicit function theorem to differentiate.
-        //
-        // Read after the first settling rather than before it, because
-        // the names that need this are exactly the ones a rearrangement
-        // *appears* to define and does not: `i = p.i` and `p.i = i` are
-        // each a definition of the other and ground nothing, so a name
-        // tested against the candidate list alone is never offered
-        // here. What settles is the test.
-        //
-        // Two conditions, and the second was paid for. The name must be
-        // the single unsettled one in the equation - an equation naming
-        // two determines neither on its own, and dividing by a slope
-        // belonging to a different variable is a wrong number where a
-        // refusal was owed. And the equation must be one no
-        // rearrangement solves: `0 = p.i + n.i` names one unsettled
-        // current and is perfectly linear in it, so taken here it would
-        // answer `der(p.i)` with `-der(n.i)` and go round the circuit
-        // for ever rather than reach the flux that actually moves. What
-        // this rule is for is the equation that *cannot* be rearranged,
-        // which is the one carrying the physics.
-        let empty = HashMap::new();
-        let settled = settle(&empty);
-        let implicit_defs: HashMap<String, (Expr, Expr)> = if implicit_enabled() {
-            let mut found: HashMap<String, (Expr, Expr)> = HashMap::new();
-            for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
-                if index == eq {
-                    continue;
-                }
-                let mut named = Vec::new();
-                l.collect_refs(&mut named);
-                r.collect_refs(&mut named);
-                named.sort_unstable();
-                named.dedup();
-                let unsettled: Vec<&str> = named
-                    .iter()
-                    .copied()
-                    .filter(|n| {
-                        unknowns.iter().any(|u| u == *n)
-                            && !dummies.contains_key(*n)
-                            && !settled.contains_key(*n)
-                    })
-                    .collect();
-                if let [only] = unsettled[..] {
-                    if reduction_solve(l, r, only, params).is_none() {
-                        found
-                            .entry(only.to_string())
-                            .or_insert_with(|| (l.clone(), r.clone()));
+                // Definitions to differentiate through, built to a fixpoint so
+                // the graph is acyclic and grounds out in states, parameters
+                // and whatever is already grounded. A definition is accepted
+                // only once everything it references is itself grounded, which
+                // is what keeps `a := b` and `b := a` from chasing each other.
+                let settle = |grounded: &HashMap<String, (Expr, Expr)>| {
+                    let mut accepted: HashMap<String, Expr> = HashMap::new();
+                    loop {
+                        let mut progress = false;
+                        for (name, expr) in &candidates {
+                            // A name the implicit rule already grounds keeps
+                            // that grounding. Taking a definition for it as
+                            // well is how a two-name cycle gets built: `i = p.i`
+                            // and `p.i = i` are both candidates, and with `i`
+                            // grounded implicitly both would be accepted and
+                            // chase each other until the depth guard fired.
+                            if accepted.contains_key(name) || grounded.contains_key(name) {
+                                continue;
+                            }
+                            let mut refs = Vec::new();
+                            expr.collect_refs(&mut refs);
+                            let ok = refs.iter().all(|r| {
+                                *r != name
+                                    && (!unknowns.iter().any(|u| u == *r)
+                                        || accepted.contains_key(*r)
+                                        || grounded.contains_key(*r))
+                            });
+                            if ok {
+                                accepted.insert(name.clone(), expr.clone());
+                                progress = true;
+                            }
+                        }
+                        if !progress {
+                            break;
+                        }
                     }
+                    accepted
+                };
+
+                // The unknowns nothing above grounds. `Psi = Linf*i +
+                // c*atan(i/Ipar)` determines the current and cannot be solved
+                // for it, so the fixpoint has nothing to say and the walk
+                // refused the whole model. Its equation is kept whole instead,
+                // for the implicit function theorem to differentiate.
+                //
+                // Read after the first settling rather than before it, because
+                // the names that need this are exactly the ones a rearrangement
+                // *appears* to define and does not: `i = p.i` and `p.i = i` are
+                // each a definition of the other and ground nothing, so a name
+                // tested against the candidate list alone is never offered
+                // here. What settles is the test.
+                //
+                // Two conditions, and the second was paid for. The name must be
+                // the single unsettled one in the equation - an equation naming
+                // two determines neither on its own, and dividing by a slope
+                // belonging to a different variable is a wrong number where a
+                // refusal was owed. And the equation must be one no
+                // rearrangement solves: `0 = p.i + n.i` names one unsettled
+                // current and is perfectly linear in it, so taken here it would
+                // answer `der(p.i)` with `-der(n.i)` and go round the circuit
+                // for ever rather than reach the flux that actually moves. What
+                // this rule is for is the equation that *cannot* be rearranged,
+                // which is the one carrying the physics.
+                let empty = HashMap::new();
+                let settled = settle(&empty);
+                let implicit_defs: HashMap<String, (Expr, Expr)> = if implicit_enabled() {
+                    let mut found: HashMap<String, (Expr, Expr)> = HashMap::new();
+                    for (index, (l, r)) in algebraic_eqs.iter().enumerate() {
+                        if index == eq {
+                            continue;
+                        }
+                        let mut named = Vec::new();
+                        l.collect_refs(&mut named);
+                        r.collect_refs(&mut named);
+                        named.sort_unstable();
+                        named.dedup();
+                        let unsettled: Vec<&str> = named
+                            .iter()
+                            .copied()
+                            .filter(|n| {
+                                unknowns.iter().any(|u| u == *n)
+                                    && !dummies.contains_key(*n)
+                                    && !settled.contains_key(*n)
+                            })
+                            .collect();
+                        if let [only] = unsettled[..] {
+                            if reduction_solve(l, r, only, params).is_none() {
+                                found
+                                    .entry(only.to_string())
+                                    .or_insert_with(|| (l.clone(), r.clone()));
+                            }
+                        }
+                    }
+                    found
+                } else {
+                    HashMap::new()
+                };
+
+                // Settled again, now that the implicit names count as ground:
+                // `p.i = i` is a definition once `i` has one.
+                let mut alg_defs = if implicit_defs.is_empty() {
+                    settled
+                } else {
+                    settle(&implicit_defs)
+                };
+                for (minted, value) in &minted_defs {
+                    alg_defs
+                        .entry(minted.clone())
+                        .or_insert_with(|| value.clone());
                 }
-            }
-            found
-        } else {
-            HashMap::new()
-        };
 
-        // Settled again, now that the implicit names count as ground:
-        // `p.i = i` is a definition once `i` has one.
-        let mut alg_defs = if implicit_defs.is_empty() {
-            settled
-        } else {
-            settle(&implicit_defs)
-        };
-        for (minted, value) in &minted_defs {
-            alg_defs
-                .entry(minted.clone())
-                .or_insert_with(|| value.clone());
-        }
-
-        if std::env::var_os("OXIDELICA_DEFS_PROBE").is_some() {
-            eprintln!(
+                if std::env::var_os("OXIDELICA_DEFS_PROBE").is_some() {
+                    eprintln!(
                 "defs-probe: reduction {reductions} on {lhs:?} = {rhs:?}: {} candidates, {} settled, {} implicit, {} dummies",
                 candidates.len(),
                 alg_defs.len(),
                 implicit_defs.len(),
                 dummies.len()
             );
-            let mut ds: Vec<&String> = dummies.keys().collect();
-            ds.sort();
-            eprintln!("defs-probe:   dummies: {ds:?}");
-            for (name, expr) in &candidates {
-                if !alg_defs.contains_key(name) {
-                    eprintln!("defs-probe:   candidate not settled: {name} := {expr:?}");
+                    let mut ds: Vec<&String> = dummies.keys().collect();
+                    ds.sort();
+                    eprintln!("defs-probe:   dummies: {ds:?}");
+                    for (name, expr) in &candidates {
+                        if !alg_defs.contains_key(name) {
+                            eprintln!("defs-probe:   candidate not settled: {name} := {expr:?}");
+                        }
+                    }
                 }
-            }
-        }
 
-        let residual = Expr::Bin(
-            oxidelica_parser::BinOp::Sub,
-            Box::new(lhs.clone()),
-            Box::new(rhs.clone()),
-        );
-        let derivative = match differentiate(
-            &residual,
-            &DiffTarget::Time {
-                state_rhs: &*state_rhs,
-                params,
-                dummies: &dummies,
-                alg_defs: &alg_defs,
-                implicit_defs: &implicit_defs,
-                holding: &[],
-            },
-        ) {
-            Ok(d) => {
-                let folded = simplify(&d);
-                let mut nodes = 0usize;
-                folded.for_each(&mut |_| nodes += 1);
-                let ceiling = max_constraint_nodes();
-                if nodes > ceiling {
-                    return err(format!(
-                        "structurally singular model: differentiating the equation \
-                 {lhs:?} = {rhs:?} grew to {nodes} terms at reduction {reductions}, \
-                 past the {ceiling} this compiler will carry"
-                    ));
-                }
-                if std::env::var_os("OXIDELICA_GROWTH_PROBE").is_some() {
-                    eprintln!(
-                        "growth-probe: {reductions}\t{}",
-                        format!("{folded:?}").len()
-                    );
-                }
-                folded
-            }
-            Err(reason) => {
-                // The reason first, the equation after it. Written the
-                // other way the equation is a tree printed in full - some
-                // of them run for lines - and the reason, which is the
-                // only part that says what to do, fell off the end of
-                // every list and every terminal. A dozen models looked
-                // like a kind with no cause given.
-                return err(format!(
-                    "structurally singular model: {reason}, differentiating the equation \
-                 {lhs:?} = {rhs:?}"
-                ));
-            }
-        };
-
-        // Every definition the walk gave a name to needs that name's
-        // equation in the system, once. Minted afresh each reduction,
-        // so a name already carrying its equation is skipped rather
-        // than given a second one, which would unbalance the model.
-        for (minted, value) in take_minted_derivatives() {
-            if minted_defs.contains_key(&minted) {
-                continue;
-            }
-            // A name the model already carries is not this walk's to
-            // define: `der(x)` is an unknown in its own right wherever
-            // the model wrote `der(x)` itself, and defining it a second
-            // time would state one equation too many.
-            if unknowns.iter().any(|u| u == &minted) || states.iter().any(|s| s == &minted) {
-                continue;
-            }
-            let value = simplify(&value);
-            minted_defs.insert(minted.clone(), value.clone());
-            unknowns.push(minted.clone());
-            algebraic_eqs.push((Expr::Ref(minted), value));
-        }
-
-        // A name the walk answered with a bare `der(x)` needs the
-        // equation that determines `x`, differentiated. Substitution
-        // could not find it - round a circuit it never terminates -
-        // but the matching assigns every unknown exactly one equation,
-        // and that is the one Pantelides differentiates.
-        //
-        // The matching in hand stopped at the equation under
-        // reduction, so it is finished first over the rest: a name
-        // matched by nobody even then is one nothing determines, and
-        // that is the old refusal in its old words.
-        //
-        // Each supplier is differentiated at most once per reduction,
-        // and differentiating it may name further unknowns, so the
-        // loop runs to emptiness. The ledger is exact by construction:
-        // one name in, one unknown and one equation out.
-        let mut needed = take_needed_derivatives();
-        // The equation the matching assigns to each name the walk had
-        // to mint for. `choose_the_victim` reaches through these as it
-        // already reaches through implicit ones: minting takes the
-        // derivative past a name, and a reach that stops there reports
-        // a constraint that does pin a state as pinning none.
-        let mut matched_defs: HashMap<String, (Expr, Expr)> = HashMap::new();
-        if !needed.is_empty() {
-            let mut matched_eq = matched_eq.clone();
-            // Only the equations the matching was built over. The
-            // minting above pushed equations of its own onto
-            // `algebraic_eqs`, and those have no row in `eq_vars`:
-            // each defines a name outright and so needs no matching.
-            for other in 0..eq_vars.len() {
-                if other == eq || matched_eq.contains(&Some(other)) {
-                    continue;
-                }
-                let mut visited = vec![false; n_alg];
-                try_match(other, &eq_vars, &mut matched_eq, &mut visited);
-            }
-            let mut supplied: Vec<usize> = Vec::new();
-            while let Some(name) = needed.pop() {
-                let minted = derivative_name(&name);
-                if minted_defs.contains_key(&minted)
-                    || unknowns.iter().any(|u| u == &minted)
-                    || states.iter().any(|s| s == &minted)
-                {
-                    continue;
-                }
-                let index = unknowns.iter().position(|u| u == &name);
-                let Some(source) = index.and_then(|i| matched_eq.get(i).copied().flatten()) else {
-                    return err(format!(
-                        "structurally singular model: no equation determines `{name}`, \
-                 whose derivative the equation {lhs:?} = {rhs:?} needs"
-                    ));
-                };
-                if supplied.contains(&source) {
-                    return err(format!(
-                        "structurally singular model: the equation determining `{name}` \
-                 has already been differentiated in this reduction"
-                    ));
-                }
-                supplied.push(source);
-                let (sl, sr) = algebraic_eqs[source].clone();
-                matched_defs.insert(name.clone(), (sl.clone(), sr.clone()));
-                let source_residual = Expr::Bin(
+                let residual = Expr::Bin(
                     oxidelica_parser::BinOp::Sub,
-                    Box::new(sl.clone()),
-                    Box::new(sr.clone()),
+                    Box::new(lhs.clone()),
+                    Box::new(rhs.clone()),
                 );
-                let supply = match differentiate(
-                    &source_residual,
+                let derivative = match differentiate(
+                    &residual,
                     &DiffTarget::Time {
                         state_rhs: &*state_rhs,
                         params,
@@ -1668,93 +1630,281 @@ fn reduce_index(
                         holding: &[],
                     },
                 ) {
-                    Ok(d) => simplify(&d),
+                    Ok(d) => {
+                        let folded = simplify(&d);
+                        let mut nodes = 0usize;
+                        folded.for_each(&mut |_| nodes += 1);
+                        let ceiling = max_constraint_nodes();
+                        if nodes > ceiling {
+                            return err(format!(
+                                "structurally singular model: differentiating the equation \
+                 {lhs:?} = {rhs:?} grew to {nodes} terms at reduction {reductions}, \
+                 past the {ceiling} this compiler will carry"
+                            ));
+                        }
+                        if std::env::var_os("OXIDELICA_GROWTH_PROBE").is_some() {
+                            eprintln!(
+                                "growth-probe: {reductions}\t{}",
+                                format!("{folded:?}").len()
+                            );
+                        }
+                        folded
+                    }
                     Err(reason) => {
+                        // The reason first, the equation after it. Written the
+                        // other way the equation is a tree printed in full - some
+                        // of them run for lines - and the reason, which is the
+                        // only part that says what to do, fell off the end of
+                        // every list and every terminal. A dozen models looked
+                        // like a kind with no cause given.
                         return err(format!(
                             "structurally singular model: {reason}, differentiating the equation \
-                     {sl:?} = {sr:?} that determines `{name}`"
+                 {lhs:?} = {rhs:?}"
                         ));
                     }
                 };
-                for (also, value) in take_minted_derivatives() {
-                    if minted_defs.contains_key(&also)
-                        || unknowns.iter().any(|u| u == &also)
-                        || states.iter().any(|s| s == &also)
+
+                // Every definition the walk gave a name to needs that name's
+                // equation in the system, once. Minted afresh each reduction,
+                // so a name already carrying its equation is skipped rather
+                // than given a second one, which would unbalance the model.
+                for (minted, value) in take_minted_derivatives() {
+                    if minted_defs.contains_key(&minted) {
+                        continue;
+                    }
+                    // A name the model already carries is not this walk's to
+                    // define: `der(x)` is an unknown in its own right wherever
+                    // the model wrote `der(x)` itself, and defining it a second
+                    // time would state one equation too many.
+                    if unknowns.iter().any(|u| u == &minted) || states.iter().any(|s| s == &minted)
                     {
                         continue;
                     }
                     let value = simplify(&value);
-                    minted_defs.insert(also.clone(), value.clone());
-                    unknowns.push(also.clone());
-                    algebraic_eqs.push((Expr::Ref(also), value));
+                    minted_defs.insert(minted.clone(), value.clone());
+                    unknowns.push(minted.clone());
+                    algebraic_eqs.push((Expr::Ref(minted), value));
                 }
-                needed.extend(take_needed_derivatives());
-                unknowns.push(minted);
-                algebraic_eqs.push((supply, Expr::Number(0.0)));
-            }
-        }
 
-        // Demote a state the constraint actually constrains, choosing
-        // the one it determines most strongly.
-        // Reached through the equations the matching supplied as well
-        // as the implicit ones - both are equations that determine a
-        // name without defining it, and the reach cannot tell them
-        // apart nor should it.
-        let reach_defs = if matched_defs.is_empty() {
-            implicit_defs.clone()
-        } else {
-            let mut both = implicit_defs.clone();
-            for (name, pair) in matched_defs {
-                both.entry(name).or_insert(pair);
+                // A name the walk answered with a bare `der(x)` needs the
+                // equation that determines `x`, differentiated. Substitution
+                // could not find it - round a circuit it never terminates -
+                // but the matching assigns every unknown exactly one equation,
+                // and that is the one Pantelides differentiates.
+                //
+                // The matching in hand stopped at the equation under
+                // reduction, so it is finished first over the rest: a name
+                // matched by nobody even then is one nothing determines, and
+                // that is the old refusal in its old words.
+                //
+                // Each supplier is differentiated at most once per reduction,
+                // and differentiating it may name further unknowns, so the
+                // loop runs to emptiness. The ledger is exact by construction:
+                // one name in, one unknown and one equation out.
+                let mut needed = take_needed_derivatives();
+                // The equation the matching assigns to each name the walk had
+                // to mint for. `choose_the_victim` reaches through these as it
+                // already reaches through implicit ones: minting takes the
+                // derivative past a name, and a reach that stops there reports
+                // a constraint that does pin a state as pinning none.
+                let mut matched_defs: HashMap<String, (Expr, Expr)> = HashMap::new();
+                if !needed.is_empty() {
+                    let mut matched_eq = matched_eq.clone();
+                    // Only the equations the matching was built over. The
+                    // minting above pushed equations of its own onto
+                    // `algebraic_eqs`, and those have no row in `eq_vars`:
+                    // each defines a name outright and so needs no matching.
+                    for other in 0..eq_vars.len() {
+                        if other == eq || matched_eq.contains(&Some(other)) {
+                            continue;
+                        }
+                        let mut visited = vec![false; n_alg];
+                        try_match(other, &eq_vars, &mut matched_eq, &mut visited);
+                    }
+                    let mut supplied: Vec<usize> = Vec::new();
+                    while let Some(name) = needed.pop() {
+                        let minted = derivative_name(&name);
+                        if minted_defs.contains_key(&minted)
+                            || unknowns.iter().any(|u| u == &minted)
+                            || states.iter().any(|s| s == &minted)
+                        {
+                            continue;
+                        }
+                        let index = unknowns.iter().position(|u| u == &name);
+                        let Some(source) = index.and_then(|i| matched_eq.get(i).copied().flatten())
+                        else {
+                            return err(format!(
+                                "structurally singular model: no equation determines `{name}`, \
+                 whose derivative the equation {lhs:?} = {rhs:?} needs"
+                            ));
+                        };
+                        if supplied.contains(&source) {
+                            return err(format!(
+                                "structurally singular model: the equation determining `{name}` \
+                 has already been differentiated in this reduction"
+                            ));
+                        }
+                        supplied.push(source);
+                        let (sl, sr) = algebraic_eqs[source].clone();
+                        matched_defs.insert(name.clone(), (sl.clone(), sr.clone()));
+                        let source_residual = Expr::Bin(
+                            oxidelica_parser::BinOp::Sub,
+                            Box::new(sl.clone()),
+                            Box::new(sr.clone()),
+                        );
+                        let supply = match differentiate(
+                            &source_residual,
+                            &DiffTarget::Time {
+                                state_rhs: &*state_rhs,
+                                params,
+                                dummies: &dummies,
+                                alg_defs: &alg_defs,
+                                implicit_defs: &implicit_defs,
+                                holding: &[],
+                            },
+                        ) {
+                            Ok(d) => simplify(&d),
+                            Err(reason) => {
+                                return err(format!(
+                            "structurally singular model: {reason}, differentiating the equation \
+                     {sl:?} = {sr:?} that determines `{name}`"
+                        ));
+                            }
+                        };
+                        for (also, value) in take_minted_derivatives() {
+                            if minted_defs.contains_key(&also)
+                                || unknowns.iter().any(|u| u == &also)
+                                || states.iter().any(|s| s == &also)
+                            {
+                                continue;
+                            }
+                            let value = simplify(&value);
+                            minted_defs.insert(also.clone(), value.clone());
+                            unknowns.push(also.clone());
+                            algebraic_eqs.push((Expr::Ref(also), value));
+                        }
+                        needed.extend(take_needed_derivatives());
+                        unknowns.push(minted);
+                        algebraic_eqs.push((supply, Expr::Number(0.0)));
+                    }
+                }
+
+                // Demote a state the constraint actually constrains, choosing
+                // the one it determines most strongly.
+                // Reached through the equations the matching supplied as well
+                // as the implicit ones - both are equations that determine a
+                // name without defining it, and the reach cannot tell them
+                // apart nor should it.
+                let reach_defs = if matched_defs.is_empty() {
+                    implicit_defs.clone()
+                } else {
+                    let mut both = implicit_defs.clone();
+                    for (name, pair) in matched_defs {
+                        both.entry(name).or_insert(pair);
+                    }
+                    both
+                };
+                let Some(victim) = choose_the_victim(
+                    &residual,
+                    &lhs,
+                    &rhs,
+                    &states,
+                    &alg_defs,
+                    &reach_defs,
+                    &companions,
+                    start_env,
+                    at_time,
+                    &mut selection_records,
+                    anchored,
+                    state_rhs,
+                    &dummies,
+                    reductions,
+                )?
+                else {
+                    return Ok(false);
+                };
+                let dummy = derivative_name(&victim);
+                let victim_rhs = state_rhs
+                    .remove(&victim)
+                    .expect("a state has a defining derivative");
+                {
+                    let mut named = Vec::new();
+                    victim_rhs.collect_refs(&mut named);
+                    companions.extend(
+                        named
+                            .into_iter()
+                            .filter(|name| states.iter().any(|s| s == name))
+                            .map(str::to_string),
+                    );
+                }
+                states.retain(|s| s != &victim);
+                unknowns.push(victim.clone());
+                dummies.insert(victim.clone(), dummy.clone());
+                // A state whose derivative nothing stated on its own already
+                // has an unknown of exactly this name, and the equations
+                // holding it are already in the system: there is no former
+                // state equation to hand the dummy, and adding one would say
+                // `der(v) = der(v)`.
+                if !matches!(&victim_rhs, Expr::Ref(name) if name == &dummy) {
+                    unknowns.push(dummy.clone());
+                    // The former state equation `der(v) = rhs` now determines
+                    // the dummy, and the differentiated constraint joins the
+                    // system.
+                    algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
+                }
+                algebraic_eqs.push((derivative, Expr::Number(0.0)));
+                Ok(true)
+            })();
+            match outcome {
+                Ok(true) => {
+                    if attempt > 0 && std::env::var_os("OXIDELICA_VICTIM_PROBE").is_some() {
+                        eprintln!(
+                            "singular-set: reduction {reductions} took member {attempt} of {}",
+                            order.len()
+                        );
+                    }
+                    reached = true;
+                    break;
+                }
+                // The one the matching stumbled on refuses as it always
+                // did; only a member tried in its place is let go.
+                Err(e) if attempt == 0 => return Err(e),
+                Ok(false) | Err(_) => {
+                    if attempt == 0 {
+                        let (lhs, rhs) = &algebraic_eqs[eq];
+                        refusal = Some(SimError(format!(
+                            "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
+                        )));
+                    }
+                    // Whatever the attempt added is taken back, so the
+                    // next member starts from the system the matching
+                    // failed on.
+                    unknowns.truncate(saved_unknowns);
+                    algebraic_eqs.truncate(saved_eqs);
+                    // The tables are keyed by an equation's index, and
+                    // an index past the truncation will hold another
+                    // equation on the next attempt.
+                    solved_for.retain(|(index, _), _| *index < saved_eqs);
+                    solve_shapes.retain(|(index, _), _| *index < saved_eqs);
+                    minted_defs = saved_minted.clone();
+                    let _ = take_minted_derivatives();
+                    let _ = take_needed_derivatives();
+                }
             }
-            both
-        };
-        let victim = choose_the_victim(
-            &residual,
-            &lhs,
-            &rhs,
-            &states,
-            &alg_defs,
-            &reach_defs,
-            &companions,
-            start_env,
-            at_time,
-            &mut selection_records,
-            anchored,
-            state_rhs,
-            &dummies,
-            reductions,
-        )?;
-        let dummy = derivative_name(&victim);
-        let victim_rhs = state_rhs
-            .remove(&victim)
-            .expect("a state has a defining derivative");
-        {
-            let mut named = Vec::new();
-            victim_rhs.collect_refs(&mut named);
-            companions.extend(
-                named
-                    .into_iter()
-                    .filter(|name| states.iter().any(|s| s == name))
-                    .map(str::to_string),
-            );
         }
-        states.retain(|s| s != &victim);
-        unknowns.push(victim.clone());
-        dummies.insert(victim.clone(), dummy.clone());
-        // A state whose derivative nothing stated on its own already
-        // has an unknown of exactly this name, and the equations
-        // holding it are already in the system: there is no former
-        // state equation to hand the dummy, and adding one would say
-        // `der(v) = der(v)`.
-        if !matches!(&victim_rhs, Expr::Ref(name) if name == &dummy) {
-            unknowns.push(dummy.clone());
-            // The former state equation `der(v) = rhs` now determines
-            // the dummy, and the differentiated constraint joins the
-            // system.
-            algebraic_eqs.push((Expr::Ref(dummy), victim_rhs));
+        if !reached {
+            let refused = refusal.expect("the first attempt either reduced or refused");
+            // Worded as before where there was nothing else to try, so
+            // a refusal that did not move keeps its row in the census.
+            return match order.len() {
+                1 => err(refused.0),
+                n => err(format!(
+                    "{}, nor did the {} other equations of its singular subset tried in its place",
+                    refused.0,
+                    n - 1
+                )),
+            };
         }
-        algebraic_eqs.push((derivative, Expr::Number(0.0)));
     };
     Ok(Reduction {
         states,
@@ -1793,7 +1943,7 @@ fn choose_the_victim(
     state_rhs: &HashMap<String, Expr>,
     dummies: &HashMap<String, String>,
     reduction: usize,
-) -> Result<String, SimError> {
+) -> Result<Option<String>, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
     // demoted variable, so prefer the state with the largest
@@ -1993,15 +2143,16 @@ fn choose_the_victim(
             chosen.as_deref().unwrap_or("<none>")
         );
     }
+    // A constraint that reaches no state is not refused here: the
+    // caller may have another member of the singular subset to try,
+    // and it words the refusal when none is left.
     let Some(victim) = chosen else {
-        return err(format!(
-        "structurally singular model: equation {lhs:?} = {rhs:?} constrains no state, so index reduction cannot help"
-    ));
+        return Ok(None);
     };
 
     selection_records.push((residual.clone(), victim.clone(), all_candidates));
 
-    Ok(victim)
+    Ok(Some(victim))
 }
 
 /// Whether a derivative multiplied by a zero parameter is quenched.

@@ -1147,3 +1147,94 @@ fn a_branch_that_settles_a_sign_differentiates_the_abs_inside_it() {
         at("yd")
     );
 }
+
+/// A two-phase source feeding a delta winding through an ideal core,
+/// with only the first phase of the star secondary loaded. The second
+/// phase carries no current, and one of its connection equations -
+/// the resistor's open end, `r2.n[2].i = 0` - is where the matching
+/// stumbles: it constrains no state, while other equations of the same
+/// singular subset do. Reduced on one of those instead, the circuit
+/// comes down to `2.5 L di/dt + 0.55 i = -200 sin(wt)` for the loaded
+/// phase.
+const OPEN_PHASE: &str = "model OpenPhase
+  connector Pin Real v; flow Real i; end Pin;
+  model L parameter Real L = 0.001; Pin p; Pin n; Real i; Real v;
+  equation v = p.v - n.v; 0 = p.i + n.i; i = p.i; L*der(i) = v; end L;
+  model R parameter Real R = 0.1; Pin p; Pin n; Real i; Real v;
+  equation v = p.v - n.v; 0 = p.i + n.i; i = p.i; v = R*i; end R;
+  model PL Pin p[2]; Pin n[2]; L e[2];
+  equation for j in 1:2 loop connect(p[j], e[j].p); connect(e[j].n, n[j]); end for; end PL;
+  model PR Pin p[2]; Pin n[2]; R e[2];
+  equation for j in 1:2 loop connect(p[j], e[j].p); connect(e[j].n, n[j]); end for; end PR;
+  model Core Pin p1[2]; Pin n1[2]; Pin p2[2]; Pin n2[2]; Pin p3[2]; Pin n3[2];
+  equation
+    for j in 1:2 loop
+      p1[j].i + n1[j].i = 0; p2[j].i + n2[j].i = 0; p3[j].i + n3[j].i = 0;
+      p1[j].i + p2[j].i + p3[j].i = 0;
+      p1[j].v - n1[j].v = p2[j].v - n2[j].v;
+      p1[j].v - n1[j].v = p3[j].v - n3[j].v;
+    end for;
+  end Core;
+  model Src Pin p[2]; Pin n[2];
+  equation
+    for j in 1:2 loop
+      p[j].v - n[j].v = 100*sin(2*3.14159265*50*time + (j - 1)*3.14159265);
+      p[j].i + n[j].i = 0;
+    end for;
+  end Src;
+  model Ground Pin p; equation p.v = 0; end Ground;
+  Src src; Ground g; Ground gl; Core core; PL l1; PL l2; PR r2; R load(R = 1);
+equation
+  connect(src.n[1], g.p); connect(src.n[2], g.p);
+  connect(src.p[1], l1.p[2]); connect(src.p[2], l1.p[1]);
+  connect(l1.n[1], core.p1[1]); connect(l1.n[2], core.p1[2]);
+  connect(core.n1[1], src.p[1]); connect(core.n1[2], src.p[2]);
+  connect(core.p2[1], l2.p[1]); connect(core.p2[2], l2.p[2]);
+  connect(core.n2[1], core.p3[1]); connect(core.n2[2], core.p3[2]);
+  connect(core.n3[1], gl.p); connect(core.n3[2], gl.p);
+  connect(l2.n[1], r2.p[1]); connect(l2.n[2], r2.p[2]);
+  connect(r2.n[1], load.p);
+  connect(load.n, gl.p);
+  annotation(experiment(StopTime = 0.02, Interval = 0.001));
+end OpenPhase;";
+
+#[test]
+fn an_equation_constraining_no_state_hands_the_reduction_to_its_subset() {
+    let result = run(OPEN_PHASE);
+    let column = result.columns.iter().position(|c| c == "load.i").unwrap();
+    let (l, w) = (0.001f64, 2.0 * std::f64::consts::PI * 50.0);
+    let a = 0.55 / (2.5 * l);
+    let b = -200.0 / (2.5 * l);
+    for row in &result.rows {
+        let t = row[0];
+        let expected =
+            b / (a * a + w * w) * (a * (w * t).sin() - w * (w * t).cos() + w * (-a * t).exp());
+        assert!(
+            (row[column] - expected).abs() < 0.05,
+            "t = {t}: load.i = {} vs {expected}",
+            row[column]
+        );
+    }
+    // The open phase carries nothing.
+    let open = result
+        .columns
+        .iter()
+        .position(|c| c == "r2.e[2].i")
+        .unwrap();
+    assert!(result.rows.iter().all(|row| row[open].abs() < 1e-9));
+}
+
+#[test]
+fn a_subset_with_no_member_to_differentiate_is_still_refused() {
+    // `Ra = Rb` with both fixed says the same thing twice, and nothing
+    // in its subset moves a state: the wider search tries the others
+    // and refuses, naming how many it tried.
+    let message = refused(
+        "model W Real Ra; Real Rb; Real y; Real z; Real f; \
+         Real x(start = 1); Real v(start = 1); \
+         equation x = y*Ra + z; y = z*Rb; Ra = 1; Rb = 1; Ra = Rb; \
+         der(x) = v; der(v) = f; end W;",
+    );
+    assert!(message.contains("constrains no state"), "{message}");
+    assert!(message.contains("singular subset"), "{message}");
+}
