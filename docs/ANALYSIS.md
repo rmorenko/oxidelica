@@ -28194,3 +28194,78 @@ property of the block rather than one constant - the ladder that grows
 a dead column is the present answer to that for columns that come back
 zero, and a column that comes back as noise is the case it does not
 reach yet.
+
+## m322: the weight through the definitions returned, with the three links behind it
+
+The numerical weight of m320 is back as the default, with the three
+links the map of m321 put in front of it taken as one series. The old
+weighing stays behind `OXIDELICA_PARTIAL_SENSITIVITY=1`, and every
+number below is from one binary under both keys.
+
+**Link 1, the settling criterion.** The one-unknown Newton that
+settles an implicit definition inside the weight now counts a step as
+settled when it is already small (below `1e-8 * (1 + |v|)`) and has
+stopped halving, which is the floor of the arithmetic and has no
+constant in it to be wrong about the size of the value. A small test
+feeds it a root rocked by two parts in 1e14 each iteration: settled
+under the new key, `None` under the old one. With it
+`Rectifier12pulse` and `TransformerTestbench` run under the new weight
+(`/tmp/m322/four1.txt`: 2.1 s and 0.6 s, the same as the old key).
+
+**Link 2, one evaluator for the pivot and the monitor.** The pivot of
+a rebuild reads the definitions with the bodies the run walks, as the
+monitor's compiled code does. On the tee of m321, copied as
+`/tmp/m322/TJ2_m322.mo`, the rebuild under links 1 and 2 alone now
+prints the weights m321 took with a probe - 2.43e7 for `m` against 286
+for `U` (`/tmp/m322/tj2_ox1.txt`) - and chooses `m`. That did not
+stop `TestTemperature2`: under links 1 and 2 it still went past its
+600 seconds of processor time (`/tmp/m322/four1.txt`, exit 152). The
+loop was not the pivot's alone; it needed link 3.
+
+**Link 3, a ratio held against itself.** The monitor asked for a
+rebuild whenever the victim weighed less than 0.15 of the best
+alternative. The first build weighs by the residual's own slope, the
+monitor through the definitions, and the two can differ from the
+first step by a constant: `GearConstraint`'s gear weighs its sides at
+0.1 and 1.0 for the whole run. So the monitor now takes the ratio of
+its first check in each stretch of the run as the reference, capped
+at one, and asks only when the ratio falls to 0.15 of that. A probe
+under this form alone (`/tmp/m322/gc_probe4.txt`) showed a second
+request behind the first, from another record: a cylinder's position
+against the gear's angle, with an own weight not known - a
+definition in its reach does not move with its own name there, slope
+exactly zero - beside an alternative weighing exactly zero. A rebuild
+with no alternative that weighs anything can only take the same
+victim or one by order, so an entry whose best alternative is zero no
+longer asks. With both, `GearConstraint` runs in 46 s
+(`/tmp/m322/gc_ox3.txt`, the old key 44 s) and `TestTemperature2` in
+102 s with 42 points and 463 Newton iterations, the old key's work to
+the digit (`/tmp/m322/t2_ox3.txt`, old key 106 s in
+`/tmp/m322/four1.txt`). Under the new form the tee asks for no
+rebuild at all - its ratio stands at 1e-5 from the start and does not
+fall - and ends on the same Newton wall of `der(junctionVolume.medium.h)`
+that the old key meets (`/tmp/m322/tj2_new.txt`).
+
+The small model of the gear is a test: `p = sinh(a)`, `q =
+sinh(0.1*b)`, `p = q`. Under the fixed level it is rebuilt once
+(`reselections == 1`), under the reference none, and both end at
+a = 1/11.
+
+The pendulum of m320 keeps its test, red under the old key with x =
+1.0000000001 and green under the new one. `PlanarFourbar`, the price
+guard, costs 94 s and 1.27 GB under the new key against 96 s and 1.12
+GB under the old (`/tmp/m322/pf_new.txt`, `/tmp/m322/pf_old.txt`).
+
+**The pair.** One binary, `/tmp/m322/ox`, built from the final tree
+(sha 58392f1, the same as the tree's own release build), over the
+corpus without the carved-out giants: `/tmp/m322/corpus_new.txt` under
+the new key and `/tmp/m322/corpus_old.txt` under the old. Both print
+962 flattened and 682 run, the flatten and run lists are equal name
+for name, and the run list is the same as main's in
+`/tmp/m321/preflight.txt`. No model left and none arrived. The ratio
+of the two halves is 1.415 new and 1.458 old. The floors do not move:
+what the series buys is not a model but an answer - a run that
+reaches the turning point of a pendulum written through its angle
+now goes on past it instead of standing still to the last digit with
+nothing refused, and the three models that the weight used to cost
+run under it.

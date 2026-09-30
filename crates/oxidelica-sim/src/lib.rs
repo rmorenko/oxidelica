@@ -21,6 +21,7 @@ mod continuation;
 mod events;
 mod linear;
 mod result;
+mod sensitivity;
 mod solvers;
 mod symbolic;
 #[cfg(test)]
@@ -33,6 +34,7 @@ use code::*;
 use compile::*;
 use continuation::*;
 use linear::*;
+use sensitivity::*;
 use symbolic::*;
 
 /// A compilation or simulation error.
@@ -337,7 +339,11 @@ pub struct CompiledModel {
     reselectable: bool,
     /// Sensitivity of each reduced constraint to its chosen victim and
     /// to the alternatives; see [`CompiledModel::selection_sound`].
-    selection_monitor: Vec<(Code, Vec<Code>)>,
+    selection_monitor: Vec<(Weigh, Vec<Weigh>)>,
+    /// The ratio of each monitor entry's own weight to its best
+    /// alternative at the first check of this stretch of the run, which
+    /// is what a later ratio is held against.
+    selection_baselines: std::cell::RefCell<Vec<f64>>,
     /// One entry per run-time `if` equation: the conditions and the
     /// branch this compilation was made for. A branch that no longer
     /// holds means the model on hand is the wrong one for where the

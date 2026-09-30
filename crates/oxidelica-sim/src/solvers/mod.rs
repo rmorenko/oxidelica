@@ -281,6 +281,9 @@ impl CompiledModel {
 
         // A segment remembers its own past, from its own beginning.
         self.history.borrow_mut().iter_mut().for_each(Vec::clear);
+        // And the selection monitor's reference ratios, from its first
+        // check.
+        self.selection_baselines.borrow_mut().clear();
         let t0 = self.start_time;
         let mut state = self.event_state();
         if self.resume {

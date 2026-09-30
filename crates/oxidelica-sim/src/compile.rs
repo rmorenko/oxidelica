@@ -861,6 +861,42 @@ impl Drop for CeilingGuard {
     }
 }
 
+/// One reduction's choice, kept for the monitor that asks during the
+/// run whether the pivot would still choose the same.
+pub(crate) struct SelectionRecord {
+    /// The constraint the reduction differentiated, as a residual.
+    residual: Expr,
+    /// The state it demoted.
+    victim: String,
+    /// The states the pivot weighed against it.
+    candidates: Vec<String>,
+    /// The candidates the residual does not name, which it reaches
+    /// only through the definitions of algebraic unknowns: its own
+    /// slope in such a name is zero by construction, whatever the
+    /// constraint does with it, so these are weighed through `cone`.
+    through: Vec<String>,
+    /// The definitions the residual reads, in the order they are
+    /// worked out.
+    cone: Vec<ConeDef>,
+}
+
+/// Whether a state the constraint reaches only through algebraic
+/// definitions is weighed, at a re-selection and by the monitor, by its
+/// slope in the residual alone - which
+/// is zero, since the residual does not name it - and whether a start
+/// declared fixed still binds the pivot after the run has left it.
+///
+/// On by default is the honest weighing; `OXIDELICA_PARTIAL_SENSITIVITY=1`
+/// gives the old one, so that one binary measures both. The old one
+/// froze a pendulum: `x = cos(phi)*r` with `x` a state reads as not
+/// depending on `x` at all, so neither the pivot nor the monitor
+/// watching it could ever prefer `x`, and at the turning point, where
+/// the demoted `y` stops determining anything, the run went on with
+/// every column standing still to the last digit.
+pub(crate) fn partial_sensitivity() -> bool {
+    std::env::var_os("OXIDELICA_PARTIAL_SENSITIVITY").is_some()
+}
+
 /// What index reduction leaves behind: the system as it stands, and
 /// the matching that covers it.
 struct Reduction {
@@ -874,7 +910,7 @@ struct Reduction {
     dummies: HashMap<String, String>,
     /// Per reduction: the constraint, the victim, and what else was on
     /// offer - the run watches these to know when to choose again.
-    selection_records: Vec<(Expr, String, Vec<String>)>,
+    selection_records: Vec<SelectionRecord>,
     /// Which equation was matched to each unknown.
     matched_eq: Vec<Option<usize>>,
     /// The unknowns each equation mentions.
@@ -1299,6 +1335,8 @@ fn reduce_index(
     start_env: &HashMap<String, f64>,
     at_time: f64,
     anchored: &dyn Fn(&str) -> bool,
+    resuming: bool,
+    programs: &HashMap<String, ClassDef>,
 ) -> Result<Reduction, SimError> {
     let mut dummies: HashMap<String, String> = HashMap::new();
     // States named in the right-hand side of an already-demoted state:
@@ -1312,7 +1350,7 @@ fn reduce_index(
     // the states that were candidates - the runtime monitor watches the
     // victim's sensitivity against the alternatives and asks for a
     // re-selection while the numbers are still healthy.
-    let mut selection_records: Vec<(Expr, String, Vec<String>)> = Vec::new();
+    let mut selection_records: Vec<SelectionRecord> = Vec::new();
     let mut reductions = 0usize;
     // The derivatives the walk has given names to, carried across
     // reductions. They arrive already grounded - each was built out of
@@ -1819,6 +1857,8 @@ fn reduce_index(
                     state_rhs,
                     &dummies,
                     reductions,
+                    resuming,
+                    programs,
                 )?
                 else {
                     return Ok(false);
@@ -1938,11 +1978,13 @@ fn choose_the_victim(
     companions: &[String],
     start_env: &HashMap<String, f64>,
     at_time: f64,
-    selection_records: &mut Vec<(Expr, String, Vec<String>)>,
+    selection_records: &mut Vec<SelectionRecord>,
     anchored: &dyn Fn(&str) -> bool,
     state_rhs: &HashMap<String, Expr>,
     dummies: &HashMap<String, String>,
     reduction: usize,
+    resuming: bool,
+    programs: &HashMap<String, ClassDef>,
 ) -> Result<Option<String>, SimError> {
     // Demote a state the constraint actually constrains. The
     // choice is a pivot: the constraint has to *determine* the
@@ -2030,7 +2072,55 @@ fn choose_the_victim(
         spent.sort();
         spent.dedup();
     }
+    // A state the residual does not name is reached only through the
+    // definitions the walk above followed, and its slope in the
+    // residual is zero by construction: `x = cos(phi)*r` holds `x`,
+    // and `y = sin(phi)*r` still reads as having nothing to do with
+    // it. Such a state is weighed through those definitions instead,
+    // worked once per call and kept for the monitor.
+    let named_directly = {
+        let mut direct = Vec::new();
+        residual.collect_refs(&mut direct);
+        direct.into_iter().map(str::to_string).collect::<Vec<_>>()
+    };
+    let through: Vec<String> = if partial_sensitivity() {
+        Vec::new()
+    } else {
+        reachable
+            .iter()
+            .filter(|name| !named_directly.contains(name))
+            .cloned()
+            .collect()
+    };
+    let cone = if through.is_empty() {
+        Vec::new()
+    } else {
+        cone_of(residual, alg_defs, implicit_defs)
+    };
     let sensitivity = |name: &str| -> f64 {
+        // The first build chooses as it always did, and the weight
+        // through the definitions is read only by the monitor and by
+        // the re-selection it asks for. Read at the first build as
+        // well, it chose other victims in the MultiBody loops, and
+        // `PlanarFourbar` went from 81 seconds and 1 GB to more than
+        // 7 minutes and 12 GB in the reduction those victims led to -
+        // none of it in the weighing itself.
+        if resuming && through.iter().any(|state| state == name) {
+            // Not known is not a zero: a weight that cannot be read
+            // leaves the candidate where the old slope put it, which
+            // is exactly the zero the residual's own slope gives.
+            //
+            // The definitions are read with the bodies the run walks,
+            // as the monitor's compiled code reads them. Read without,
+            // a medium's `waterBaseProp_ph(...)[...]` was refused, both
+            // states of a volume weighed zero and the pivot took `U` by
+            // order, while the monitor weighed `m` ten million times
+            // heavier and asked for the same rebuild at every output
+            // point: two evaluators, one question, a loop between them.
+            return weigh_at_start(residual, name, &cone, start_env, at_time, programs)
+                .map(f64::abs)
+                .unwrap_or(0.0);
+        }
         differentiate(
             residual,
             &DiffTarget::Variable {
@@ -2038,8 +2128,8 @@ fn choose_the_victim(
                 params: start_env,
             },
         )
-        .ok()
         .map(|d| simplify(&d))
+        .ok()
         .and_then(|d| {
             eval(
                 &d,
@@ -2124,11 +2214,23 @@ fn choose_the_victim(
         .filter(|name| !anchored_below(name))
         .cloned()
         .collect();
+    // The monitor is shown the anchored states as well. An anchor is a
+    // reason to prefer another state at the start, where the model's
+    // own initial condition is at stake; it is no reason to keep a
+    // victim the constraint has stopped determining. Hidden from the
+    // monitor, the anchored alternative was the one state that could
+    // take over at a pendulum's turning point, and the monitor had
+    // nothing to compare against.
+    let before_anchor = candidates.clone();
     let candidates = if free.is_empty() { candidates } else { free };
     // The runtime monitor compares the victim against exactly the
     // set the pivot weighed - alternatives of another derivative
     // level would make a healthy selection look wrong.
-    let all_candidates = candidates.clone();
+    let all_candidates = if partial_sensitivity() {
+        candidates.clone()
+    } else {
+        before_anchor
+    };
     let chosen = candidates.into_iter().max_by(|a, b| {
         sensitivity(a)
             .partial_cmp(&sensitivity(b))
@@ -2150,7 +2252,13 @@ fn choose_the_victim(
         return Ok(None);
     };
 
-    selection_records.push((residual.clone(), victim.clone(), all_candidates));
+    selection_records.push(SelectionRecord {
+        residual: residual.clone(),
+        victim: victim.clone(),
+        candidates: all_candidates,
+        through,
+        cone,
+    });
 
     Ok(Some(victim))
 }
@@ -3914,12 +4022,20 @@ pub(crate) fn compile_at(
         &params,
         &start_env,
         resume.as_ref().map_or(0.0, |point| point.time),
+        // A start declared fixed binds the value at the start, and a
+        // re-selection happens after the run has left it: there the
+        // anchor protects an initial condition that was honoured long
+        // ago, and keeping it is what held a pendulum on a victim its
+        // constraint no longer determined.
         &|name: &str| {
-            model
-                .components
-                .iter()
-                .any(|c| c.name == name && c.fixed == Some(true) && c.start.is_some())
+            (resume.is_none() || partial_sensitivity())
+                && model
+                    .components
+                    .iter()
+                    .any(|c| c.name == name && c.fixed == Some(true) && c.start.is_some())
         },
+        resume.is_some(),
+        &programs,
     )?;
 
     let mut matched_var: Vec<usize> = vec![0; n_alg];
@@ -4601,9 +4717,23 @@ pub(crate) fn compile_at(
     // the constraint to the chosen victim and to each alternative, as
     // runnable code. Watching their ratio after every accepted step
     // asks for a re-selection while the current one is still sound.
-    let mut selection_monitor: Vec<(Code, Vec<Code>)> = Vec::new();
-    for (residual, victim, candidates) in &selection_records {
-        let sensitivity_of = |name: &str| -> Result<Code, SimError> {
+    let mut selection_monitor: Vec<(Weigh, Vec<Weigh>)> = Vec::new();
+    for record in &selection_records {
+        let SelectionRecord {
+            residual,
+            victim,
+            candidates,
+            through,
+            cone,
+        } = record;
+        let sensitivity_of = |name: &str| -> Result<Weigh, SimError> {
+            if through.iter().any(|state| state == name) {
+                // A name the run does not carry leaves the slope the
+                // monitor always had, rather than refusing the model.
+                if let Some(worked) = ConeCode::build(residual, name, cone, &table) {
+                    return Ok(Weigh::Through(worked));
+                }
+            }
             let derivative = differentiate(
                 residual,
                 &DiffTarget::Variable {
@@ -4612,7 +4742,7 @@ pub(crate) fn compile_at(
                 },
             )
             .map_err(SimError)?;
-            table.compile(&simplify(&derivative))
+            table.compile(&simplify(&derivative)).map(Weigh::Slope)
         };
         let own = sensitivity_of(victim)?;
         let alternatives = candidates
@@ -4726,6 +4856,7 @@ pub(crate) fn compile_at(
         resume: resume.is_some(),
         reselectable: !dummies.is_empty(),
         selection_monitor,
+        selection_baselines: std::cell::RefCell::new(Vec::new()),
         mode_monitor: mode_conditions
             .iter()
             .zip(&modes)

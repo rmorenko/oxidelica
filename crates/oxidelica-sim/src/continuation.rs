@@ -103,6 +103,14 @@ pub(crate) fn append_segment(
     Ok(merged)
 }
 
+/// Whether the selection monitor holds a ratio against its own first
+/// reading rather than against a fixed level. On by default;
+/// `OXIDELICA_PARTIAL_SENSITIVITY=1` keeps the old weighing whole, this
+/// with it.
+fn relative_selection_monitor() -> bool {
+    !crate::compile::partial_sensitivity()
+}
+
 impl CompiledModel {
     /// Whether the state selection is still the right one at this point.
     ///
@@ -113,14 +121,61 @@ impl CompiledModel {
     /// algebraic layer is still far from singular. The margin is why
     /// the switch happens in clean territory rather than at the wall.
     pub(crate) fn selection_sound(&self, values: &[f64], time: f64) -> bool {
-        self.selection_monitor.iter().all(|(own, alternatives)| {
-            let own = own.run(values, time).abs();
-            let best = alternatives
-                .iter()
-                .map(|code| code.run(values, time).abs())
-                .fold(0.0f64, f64::max);
-            own >= 0.15 * best
-        })
+        // A weight worked through the definitions moves slots and puts
+        // them back, so it is read on a copy of the point: the point
+        // itself belongs to the run.
+        let mut scratch = values.to_vec();
+        let mut baselines = self.selection_baselines.borrow_mut();
+        if baselines.len() != self.selection_monitor.len() {
+            *baselines = vec![f64::NAN; self.selection_monitor.len()];
+        }
+        self.selection_monitor.iter().zip(baselines.iter_mut()).all(
+            |((own, alternatives), baseline)| {
+                let own = own.run(&mut scratch, time).abs();
+                // A weight that could not be read is not a zero and not a
+                // winner: `f64::max` passes over it.
+                let best = alternatives
+                    .iter()
+                    .map(|code| code.run(&mut scratch, time).abs())
+                    .fold(0.0f64, f64::max);
+                // A selection goes bad by its ratio falling, not by the ratio
+                // standing below a level. The first build weighs by the
+                // residual's own slope and the monitor through the
+                // definitions, and the two can disagree from the first step
+                // by a constant: a gear of one to ten weighs its two sides
+                // at 0.1 and 1.0 for the whole run, and the level of 0.15
+                // read that ratio as a crossing and rebuilt the model into
+                // one whose algebra was NaN. So the ratio of the first check
+                // of this stretch is its own reference, capped at one so a
+                // choice the monitor agrees with is held to the level as
+                // before; a reference of zero or one not known says the
+                // choice was not sound to begin with, and gets the level.
+                let mut level = 1.0;
+                if relative_selection_monitor() {
+                    // With no alternative that weighs anything, the pivot
+                    // asked again has nothing to prefer, and a rebuild can
+                    // only take the same victim or one by order. At the
+                    // start of `GearConstraint` a cylinder's position
+                    // against the gear's angle read an own weight that was
+                    // not known - a definition in its reach does not move
+                    // with its own name there - beside an alternative of
+                    // exactly zero, and the rebuild that followed was one
+                    // nobody could have wanted.
+                    if best == 0.0 {
+                        return true;
+                    }
+                    if baseline.is_nan() && best > 0.0 && own.is_finite() {
+                        *baseline = own / best;
+                    }
+                    if baseline.is_finite() && *baseline > 0.0 {
+                        level = baseline.min(1.0);
+                    }
+                }
+                // An own weight that could not be read compares false, and
+                // the selection is made again, exactly as before.
+                own >= 0.15 * level * best
+            },
+        )
     }
 
     /// Put each delayed value in its slot, read from what the run has

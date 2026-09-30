@@ -592,6 +592,62 @@ fn a_model_with_nothing_to_integrate_still_finds_where_a_relation_turns() {
 }
 
 #[test]
+fn a_pendulum_written_through_its_angle_does_not_freeze_at_the_turning_point() {
+    // The position is a state and the angle an algebraic unknown found
+    // from `x = cos(phi)`, so the constraint on `y` reaches `x` only
+    // through that equation. Weighed by its slope in the residual
+    // alone, `x` counted for nothing: the pivot kept `y` demoted, and
+    // at phi = 0 - where `x = 1` and the angle stops being found from
+    // it - every column stood still to the last digit until the stop
+    // time, with no refusal. The reference is the same pendulum
+    // integrated in its angle by a fixed-step RK4 at h = 1e-5.
+    const P3: &str = "model P3 parameter Real r[2] = {1, 0}; parameter Real m = 1; \
+         Real x(start = 0.5, fixed = true); Real y; \
+         Real vx(start = 0, fixed = true); Real vy; Real phi(start = 0.5); Real T; \
+         equation der(x) = vx; der(y) = vy; m*der(vx) = -T*x; m*der(vy) = -T*y - m*9.81; \
+         x = cos(phi)*r[1] - sin(phi)*r[2]; y = sin(phi)*r[1] + cos(phi)*r[2]; \
+         annotation(experiment(StopTime = 1)); end P3;";
+    let result = run_on(P3, SolverMethod::Dopri45).expect("runs");
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert!((last[0] - 1.0).abs() < 1e-9);
+    let (x, y) = (last[index("x")], last[index("y")]);
+    assert!(
+        (x - -0.635_181_7).abs() < 1e-3 && (y - -0.772_362_7).abs() < 1e-3,
+        "the pendulum ended at x = {x}, y = {y}, not at (-0.6352, -0.7724)"
+    );
+}
+
+#[test]
+fn a_constant_ratio_between_victim_and_alternative_is_no_reason_to_choose_again() {
+    // The constraint `p = q` reaches `a` through `p = sinh(a)` and `b`
+    // through `q = sinh(0.1*b)`: a gear of one to ten, the same ratio
+    // at every instant. The first build weighs both at zero and demotes
+    // `b` by order; the monitor, weighing through the definitions, read
+    // 0.1 against 1.0 below its level of 0.15 and asked for a rebuild
+    // at the first step - which in `GearConstraint` built a model whose
+    // algebra was NaN. A ratio that does not fall is not a selection
+    // going bad.
+    const GEAR: &str = "model G Real a(start = 0, fixed = true); Real b; Real p; Real q; \
+         Real tau; equation der(a) = 1 - tau; der(b) = tau; \
+         p = sinh(a); q = sinh(0.1*b); p = q; \
+         annotation(experiment(StopTime = 1)); end G;";
+    let result = run_on(GEAR, SolverMethod::Dopri45).expect("runs");
+    assert_eq!(
+        result.reselections, 0,
+        "a constant ratio asked for a rebuild"
+    );
+    let index = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    // a = 0.1 b and a + b = 1.
+    let (a, b) = (last[index("a")], last[index("b")]);
+    assert!(
+        (a - 1.0 / 11.0).abs() < 1e-6 && (b - 10.0 / 11.0).abs() < 1e-6,
+        "the gear ended at a = {a}, b = {b}"
+    );
+}
+
+#[test]
 fn the_stiff_solver_reselects_states_like_the_adaptive_one() {
     // A pendulum in Cartesian coordinates given enough speed to go
     // over the top: the length constraint defines a different
