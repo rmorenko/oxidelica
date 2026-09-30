@@ -27500,3 +27500,130 @@ array and a switched-off conditional, the flat model has to record
 that the name was declared and is absent on purpose. A name
 that was never declared does not need that record. That is the whole
 design of the repair, and it is parked with this measurement.
+
+## m317: the victims of the zero-parameter quench, and a bridge that is not one link
+
+**What the six victims stood on.** The m316 patch took any product with
+a factor worth exactly zero, where before it took only a product with a
+derivative. The pair gave one arrival (`Spice3.Examples.Oscillator`) and
+six victims. They were probed one at a time with `--only`, and a
+temporary print (not kept) showed every product the quench took. The
+victims stood on two different things, neither of them the one m316
+guessed. m316 guessed a current that loses its last row.
+
+The first is a literal zero. The quasi-static components write
+`j*omega*L` out over real and imaginary parts, and the real part of `j`
+is the number `0`, so their equations carry `0 * i.re` beside the
+products that matter. `zero_parameter` answers yes for `Number(0.0)`
+as well as for a parameter, so the widened quench took these as well.
+The victim was shrunk to one phase of its electric half: source,
+resistor of 1e-5 ohm, inductor of 1 H
+(`tests/small/a_literal_zero_scaling_a_quasi_static_current.mo`,
+`/tmp/m317/P3.mo`). Under the patch it is refused with a block of two
+over `inductor.i` that converges to 5.526e-10 against a hundred volts
+and can go no further. The Newton trail shows three steps that buy
+nothing (`OXIDELICA_NEWTON_TRAIL`). With the key, the same block
+converges to 3.7e-14 in two steps. At 1e-3 ohm the model runs under the
+patch too, so the literal zeros did not make the system singular. They
+changed which rows scale the current, and at 1e-5 that leaves a floor
+the loudness test does not accept. Quenching only a zero that is a
+parameter by name returns this model, the QuasiStatic
+`PolyphaseInductance` and `IMC_DOL`.
+
+The second is a product of two parameters. In the FundamentalWave
+machines the converter writes `V_m.im = ((2/pi)*N.im + 0*N.re) * i`,
+and with `N.im = 0` the whole coefficient is a product of parameters.
+Quenched, it takes `i` out of the row, and the model is refused as
+`structurally singular: the equation determining ...
+singlePhaseElectroMagneticConverter[1].i does not depend on it`. A
+product with no unknown in it is a number, so quenching it removes no
+unknown from any equation. It only removes a symbol from the structure,
+and that symbol was holding the pairing. Quenching only where the other
+factor names an unknown returns `IMC_Conveyor`, `IMC_Inverter` and
+`SMPM_VoltageSource`.
+
+With both narrowings (`~/oxideflow/state/zero_terms_m317.patch`),
+seven models were measured through `--only-from`
+(`/tmp/m317/seven_unk.txt`). The six of the m316 map run, and the
+Oscillator arrives. The seventh victim stays: `GearConstraint`. Its
+products are genuine `p*x` with a named zero parameter and an unknown:
+`frameTranslation.frame_a.R.T[2,1] * frameTranslation.r[2]` with
+`r = {0.4, 0, 0}`. The first thing it hit was a zero of an array
+parameter, so the probe bisected by name (`OX_PROBE_SKIP`). Sparing
+the `frameTranslation`/`fixedTranslation` products alone returns it.
+The reduction trail shows why (`OXIDELICA_DEFS_PROBE`,
+`/tmp/m317/gc_old.defs`, `gc_new.defs`). With those products
+standing, the reduction takes 60 steps and ends on `der(R.T) = 0`.
+Quenched, it takes 45 steps, and steps 42 to 44 solve the constraint by
+dividing by `cyl1.frameTranslation.r[1]`. The block built there reads
+`der(cyl1.body.frame_a.r_0[1]) = NaN` at t = 0. So index reduction
+used the zero components of a position vector as symbols and chose a
+different, working set of states because of them. This is the case the
+working notes describe: a change that gives a name a definition
+changes which states reduction keeps.
+
+A third narrowing was measured and is not offered: spare a zero that is
+an element of an array parameter. With it all seven run
+(`/tmp/m317/seven_scalar.txt`). But the flat model does not record
+that a scalar came from an array, and the probe told it by a `]` at the
+end of the name. That is a test on the spelling of a name, standing in
+for a fact the structure does not record, which the working notes rule
+out. It would also be the wrong fact. The Spice3 zero resistance is a
+scalar only because the card is scalar, and nothing in the physics
+says an array's zero is worth more to the structure than a scalar's.
+
+The pair is one binary built from the probe tree (`/tmp/m317/oxa`),
+the key on and off over `.msl` (`/tmp/m317/p_old.txt`,
+`/tmp/m317/p_new.txt`, lists `p_old_ran.lst`, `p_new_ran.lst`). Both
+halves print 963 / 682 and 847 / 640, and the flattened lists are
+identical. The run lists differ by two names: `Spice3.Examples.Oscillator`
+arrives and `GearConstraint` leaves. The six models of the m316 map
+stay. One victim is the stopping rule, so the narrowed patch is parked
+with this map rather than taken. It is to be taken only when something
+tells index reduction what a zero element of a position vector is
+worth to it, and the small quasi-static model stays in
+`tests/small` as the guard against quenching a literal zero again.
+The Oscillator's cost when it arrives is written into the queue as a
+candidate for the carved-out set, 233 s alone on the desk.
+
+**The runner on 5e0d945.** The library job (109725113083 of run
+36664150519, log `/tmp/m317/ci_5e0d945.log`) printed 2671, 963 / 682
+and 847 / 640 and was red on the time ceiling alone, at 12185 ms a
+model. That is the second red in forty-seven on code measured green
+three times, and it is weather by the table below. The run floors are
+raised to 681 and 639 from the lower of that job and the desk
+(`/tmp/m316/new.txt`, 681 / 639 without either swinging model).
+
+**DB4 and the real bridge are not one link.** m315 left open whether
+the small inductor-fed bridge `DB4` (refused at t = 0) and
+`DiodeBridge2mPulse` (refused at t = 0.00169) fail at one wall. The
+Newton trail on both says they do not. `DB4` is refused before any step
+at t = 0. Every diode `s` is at zero on the knee, the residual is
+exactly zero, and the verdict is `underdetermined algebraic loop`: the
+equations admit a family of solutions and name none. The real bridge
+(copied to `/tmp/m317/RB.mo`, trail `/tmp/m317/rb.trail`) passes t = 0
+with 262 Newton lines. Its first step already throws two diode `s` to
+7.8e6 and the star voltage to -1.1e7 before it settles. It is refused
+at t = 0.0016872 with a `singular Jacobian` over the same eight
+unknowns, with `s` near 8.7e4. And the ingredient m315 named is
+absent: `DiodeBridge2mPulse` has no inductor at all. Its source is a
+`Polyphase.Sources.SineVoltage` straight into the bridge, with a
+resistor load. So `DB4` is a witness of its own wall: an
+inductor-fed bridge with every diode on the knee at the start. The
+real model's wall is a star point that floats in the middle of the
+cycle, which m315 read from the off conductance. Layer 5 of the m315
+map keeps both, as two entries.
+
+**The runner's time a model, over forty-six jobs.** The library job
+of the last fifty runs of `main` was read for its `ms each` line
+(`/tmp/m317/spread.txt`, table `/tmp/m317/spread_table.txt`). Forty-six
+have the number. The run half goes from 6622 to 12957 ms a model, a
+factor of 1.96, with a median of 10432 and a coefficient of variation
+of 14.8%. The flatten half goes from 6174 to 10879 (1.76, 13.1%). The
+12000 ceiling was crossed once in forty-six, and that was the one red
+run. 5e0d945, finished after the table was taken, is the second at 12185. The two halves move together: the three fastest runs are fastest
+in both. So the ratio of run to flatten is about half as noisy as
+either half (CV 7.8%, 0.832 to 1.295). It still moves by a third,
+since 02121e2 and 4413332 are the same code at 1.295 and 0.945. What
+to measure against is left to the owner of the ceilings. The table is
+in the queue with the options already written there.
