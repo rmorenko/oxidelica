@@ -45,30 +45,62 @@ pub(crate) fn look_back(trace: &[(f64, f64)], at: f64) -> f64 {
 
 /// Glue a continuation onto the rows already produced.
 ///
-/// The variable set is identical between segments but the column order
-/// is not: the states of each selection come first in its own rows, so
-/// a continuation's rows are reordered into the first segment's layout
-/// by name before they are appended.
-pub(crate) fn append_segment(mut merged: SimResult, segment: SimResult) -> SimResult {
-    let mapping: Vec<usize> = merged
+/// The column order differs between segments - the states of each
+/// selection come first in its own rows - so a continuation's rows are
+/// reordered into the first segment's layout by name before they are
+/// appended.
+///
+/// The column set is usually the same, and was once assumed always to
+/// be: a rebuild can mint a different set of dummy derivatives, and
+/// `TransformerTestbench` under a changed weight went from 801 columns
+/// to 799 with six `der(...)` leaving and four arriving. That used to
+/// be a panic. It is now a refusal naming the model and the columns
+/// that differ, and not a table padded with NaN or zero: every reader
+/// of the merged rows - the CSV, the final point, the plots - would
+/// hand such a value to the user as a number the run produced.
+pub(crate) fn append_segment(
+    model: &str,
+    mut merged: SimResult,
+    segment: SimResult,
+) -> Result<SimResult, SimError> {
+    let mapping: Vec<Option<usize>> = merged
         .columns
         .iter()
-        .map(|name| {
-            segment
-                .columns
-                .iter()
-                .position(|other| other == name)
-                .expect("both segments name the same variables")
-        })
+        .map(|name| segment.columns.iter().position(|other| other == name))
         .collect();
+    let left: Vec<&str> = merged
+        .columns
+        .iter()
+        .zip(&mapping)
+        .filter(|(_, found)| found.is_none())
+        .map(|(name, _)| name.as_str())
+        .collect();
+    let arrived: Vec<&str> = segment
+        .columns
+        .iter()
+        .filter(|name| !merged.columns.contains(name))
+        .map(String::as_str)
+        .collect();
+    if !left.is_empty() || !arrived.is_empty() {
+        let at = segment.rows.first().map_or(f64::NAN, |row| row[0]);
+        return err(format!(
+            "{model}: the states re-selected at t = {at} name different variables than the \
+             run so far - {} left ({}) and {} arrived ({}) - so the two stretches of the \
+             run do not make one table",
+            left.len(),
+            left.join(", "),
+            arrived.len(),
+            arrived.join(", ")
+        ));
+    }
     for row in &segment.rows {
         merged
             .rows
-            .push(mapping.iter().map(|&from| row[from]).collect());
+            .push(mapping.iter().flatten().map(|&from| row[from]).collect());
     }
     merged.terminated = segment.terminated;
     merged.method = segment.method;
-    merged
+    Ok(merged)
 }
 
 impl CompiledModel {

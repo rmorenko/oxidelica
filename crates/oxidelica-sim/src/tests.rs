@@ -728,3 +728,41 @@ fn a_slope_is_folded_in_one_walk_rather_than_one_per_name() {
         started.elapsed()
     );
 }
+
+/// A stretch of rows as a run would hand them over: the time first,
+/// then whatever the selection of that stretch put in its table.
+fn stretch(columns: &[&str], rows: &[&[f64]]) -> SimResult {
+    SimResult {
+        columns: columns.iter().map(|c| c.to_string()).collect(),
+        rows: rows.iter().map(|row| row.to_vec()).collect(),
+        parameters: Vec::new(),
+        terminated: None,
+        method: SolverMethod::Dopri45,
+        reselections: 0,
+    }
+}
+
+#[test]
+fn a_continuation_is_reordered_into_the_first_stretch_by_name() {
+    let first = stretch(&["time", "x", "y"], &[&[0.0, 1.0, 2.0]]);
+    let second = stretch(&["time", "y", "x"], &[&[1.0, 20.0, 10.0]]);
+    let merged = append_segment("M", first, second).unwrap();
+    assert_eq!(
+        merged.rows,
+        vec![vec![0.0, 1.0, 2.0], vec![1.0, 10.0, 20.0]]
+    );
+}
+
+#[test]
+fn a_continuation_naming_other_variables_is_refused_by_name() {
+    // A rebuild can mint a different set of dummy derivatives: one
+    // leaves, another arrives. The table cannot be one table then,
+    // and saying so is owed rather than a panic or a padded column.
+    let first = stretch(&["time", "x", "der(y)"], &[&[0.0, 1.0, 2.0]]);
+    let second = stretch(&["time", "der(x)", "x"], &[&[0.5, 3.0, 1.5]]);
+    let refusal = append_segment("Tank", first, second).unwrap_err().0;
+    assert!(refusal.starts_with("Tank: "), "{refusal}");
+    assert!(refusal.contains("t = 0.5"), "{refusal}");
+    assert!(refusal.contains("1 left (der(y))"), "{refusal}");
+    assert!(refusal.contains("1 arrived (der(x))"), "{refusal}");
+}

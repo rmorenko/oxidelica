@@ -1744,7 +1744,7 @@ impl CompiledModel {
             match outcome {
                 AdaptiveOutcome::Finished(result) => {
                     let mut result = match merged {
-                        Some(merged) => append_segment(merged, result),
+                        Some(merged) => append_segment(&self.name, merged, result)?,
                         None => result,
                     };
                     result.reselections = reselections;
@@ -1793,7 +1793,7 @@ impl CompiledModel {
                     )?;
                     next.method = self.method;
                     merged = Some(match merged {
-                        Some(merged) => append_segment(merged, stall.partial),
+                        Some(merged) => append_segment(&self.name, merged, stall.partial)?,
                         None => stall.partial,
                     });
                     outcome = next.run_segment_counted()?;
