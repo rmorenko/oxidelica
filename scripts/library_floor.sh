@@ -1186,8 +1186,17 @@ UNREAD_CEILING=0
 # from its weather at all. The milliseconds per model are still
 # printed, for the eye and for the next measurement of drift; they are
 # only no longer judged.
-RATIO_LOW=0.70
-RATIO_HIGH=1.50
+#
+# The band is the runner's, and a desk runs higher: 45 desk passes
+# (the list is kept beside the shift notes, desk_ratios_m319_dedup.tsv)
+# gave ratios from 1.139 to 1.795, median 1.396, 95th percentile 1.717,
+# so the runner's band turned a right desk pass red about one time in
+# three. The environment may therefore move the edges, and the
+# preflight does, to 0.97 and 2.10 - the same room of about 17% on
+# either side that the runner's band leaves round the runner's spread.
+# CI sets nothing and keeps 0.70..1.50.
+RATIO_LOW="${RATIO_LOW:-0.70}"
+RATIO_HIGH="${RATIO_HIGH:-1.50}"
 
 # The band itself, as a function, so that it can be seen red without a
 # library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`

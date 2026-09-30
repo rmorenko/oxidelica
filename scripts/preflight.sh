@@ -99,7 +99,9 @@ library_floor() {
     return 0
   fi
   cargo build --release -p oxidelica-cli || return 1
-  ./scripts/library_floor.sh "$library"
+  # The desk's own band on the ratio of the two halves; the numbers and
+  # the arithmetic behind them are at the band in library_floor.sh.
+  RATIO_LOW=0.97 RATIO_HIGH=2.10 ./scripts/library_floor.sh "$library"
 }
 
 # The band on the ratio of the two halves' times, seen to fire on
@@ -109,7 +111,15 @@ library_floor() {
 time_band_judges() {
   ./scripts/library_floor.sh --ratio-check 1000 500 > /dev/null && return 1
   ./scripts/library_floor.sh --ratio-check 1000 2000 > /dev/null && return 1
-  ./scripts/library_floor.sh --ratio-check 1000 1045
+  ./scripts/library_floor.sh --ratio-check 1000 1045 || return 1
+  # And the desk's band, at the two ends of what the desk has measured
+  # and past either end of it.
+  local desk="env RATIO_LOW=0.97 RATIO_HIGH=2.10 ./scripts/library_floor.sh --ratio-check"
+  $desk 1000 1139 > /dev/null || return 1
+  $desk 1000 1795 > /dev/null || return 1
+  $desk 1000 900 > /dev/null && return 1
+  $desk 1000 2200 > /dev/null && return 1
+  return 0
 }
 
 step "Formatting" cargo fmt --all -- --check
