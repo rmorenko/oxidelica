@@ -961,7 +961,16 @@ FLATTEN_FLOOR=963
 # (/tmp/m312/on.txt), the lists differing by the swing alone, Dimmer_RL
 # on the runner and SpringWithMass on the desk. Raised to what the
 # runner printed rather than ahead of it, which is what ea2e93e undid.
-RUN_FLOOR=679
+#
+# And run 680 = 679 less the swing plus AsymmetricalLoad and
+# GearConstraint, which run since 02121e2 differentiated another member
+# of the singular subset. The runner printed 681 in job 109671097541 of
+# run 36646659434 on a0f96f1, code identical to 02121e2
+# (/tmp/m316/ci_a0f96f1.log); the desk printed 680 with one binary
+# built from the same code (/tmp/m316/old.txt, the old half of the m316
+# pair). The lists differ by the swing alone: the runner has Dimmer_RL,
+# the desk has neither Dimmer_RL nor SpringWithMass. Set from the lower.
+RUN_FLOOR=680
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1097,8 +1106,11 @@ RUN_FLOOR=679
 # And runnable run 637 = 634 plus the same three R134a models, all
 # runnable examples: the runner's 847/637 in job 109491191619
 # (/tmp/m312/ci_ea2.log) and the desk's 847/637 (/tmp/m312/on.txt).
+#
+# And runnable run 638 by the same pair: the runner's 847/639 and the
+# desk's 847/638, set from the lower for the same swing.
 RUNNABLE_FLATTEN_FLOOR=847
-RUNNABLE_RUN_FLOOR=637
+RUNNABLE_RUN_FLOOR=638
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
