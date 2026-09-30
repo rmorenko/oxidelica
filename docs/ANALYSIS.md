@@ -27699,3 +27699,202 @@ does not come from this series. A state held at a turning point of
 the constraint that chose it should be refused or re-selected. A
 constant presented as the answer is a wrong number. It is queued as
 a finding of its own.
+
+## m319: the frozen pendulum, and what the pivot could not see
+
+**The symptom.** `P3` of m318 (kept at `~/oxideflow/state/P3_freeze.mo`)
+declares `x` as the fixed start and holds the rod through `x =
+cos(phi)*r[1] - sin(phi)*r[2]` and `y = sin(phi)*r[1] + cos(phi)*r[2]`.
+Up to t = 0.589 the run is physical. At that point `x` passes 1 by
+1e-10, `x = cos(phi)` has no root, and Newton leaves a residual of
+1.6e-10 against a loudness of 1.0, which the loudness floor accepts as
+the floor of the arithmetic. From then on `phi`, `x`, `y` and `T` hold
+their values to the last digit until t = 1, with no refusal.
+
+**Three links, all needed.** The Newton trail and the victim probe
+(`OXIDELICA_VICTIM_PROBE=1`) put the fault in the pivot. The mechanism
+that should have rescued the run was present and never fired.
+
+1. The pivot and the monitor weigh a candidate by the slope of the
+   constraint's residual in that name alone. The constraint on `y`
+   reaches `x` only through `phi`, which is determined implicitly by
+   `x = cos(phi)`, so the slope in `x` is zero by construction. The
+   probe printed a reach of 0.0 for `x` and 1.0 for `y` at every
+   reduction, including both re-selections, so `y` was demoted each
+   time.
+2. `x` is anchored (`fixed = true`), and the anchor filter removed it
+   from the candidates even when compiling at a resume point, long
+   after the initial condition had been honoured.
+3. The monitor compared the victim only against the candidates left
+   after the anchor filter. With `x` filtered out it had no
+   alternative to compare against, so it could never ask for a
+   re-selection.
+
+The fix was built and then parked, not shipped. It is kept as a patch
+at `~/oxideflow/state/0001-Weigh-a-state-the-constraint-reaches-through-a-defin.patch`,
+behind one switch (`OXIDELICA_PARTIAL_SENSITIVITY=1` gives the old
+behaviour):
+
+1. A candidate the residual does not name is weighed through the
+   definitions the reach already follows. The time-derivative walk is
+   asked twice, once with that state moving at unit speed and all
+   others still, and once with nothing moving. The difference is the
+   sensitivity. It is capped at 20000 nodes, and a walk that has to
+   mint a name falls back to the old slope.
+2. The anchor binds only the first compilation.
+3. The monitor is shown the anchored candidates as well.
+
+On the small model, taking the links apart one at a time with a
+temporary switch (`/tmp/m319/oxtmp`) shows why all three go together:
+
+```text
+all three links         x(1) = -0.635147   (reference -0.635182)
+without link 2          refusal: step size underflow at t = 0.584 (re-selection did not help)
+without link 3          x(1) =  0.700550   -- a different wrong number, no refusal
+without links 2 and 3   x(1) =  1.000000   -- the freeze
+```
+
+Link 1 alone therefore moves a silent wrong number to another silent
+wrong number. The reference is the same pendulum integrated in its
+angle by a fixed-step RK4 at h = 1e-5. The patch carries a test,
+`a_pendulum_written_through_its_angle_does_not_freeze_at_the_turning_point`,
+which checks `(x, y)` at t = 1 against it to 1e-3. It passes with
+the patch and fails under the switch with `x = 1.0000000000999998`. The
+same model with no fixed start (`/tmp/m319/P3u.mo`) matches its own
+reference to 1e-4. The workspace tests pass with the patch.
+
+**Why it is parked: the price on the corpus.** The half of the pair
+under the old switch (`/tmp/m319/p_old.txt`) finished normally, at
+962 / 682 and 846 / 640 in 43 minutes. The half without the switch
+was still on its last hundred models at 59 minutes, on one thread,
+and a sample of it sat in `compile_at`, `reduce_index` and
+`substitute`. It was stopped, so it gives no counts. The victim probe
+of this shift ran `PlanarFourbar` without the switch and did not finish
+in 83 minutes. It grew to 50 GB and was stopped for memory. Measured
+alone under `cap.sh`, one binary:
+
+```text
+PlanarFourbar, old switch on    ran its check in 64 s, peak 1.0 GB   (/tmp/m319/pf_old.txt)
+PlanarFourbar, new weighing     stopped by the 8 GB cap at 9.2 GB    (/tmp/m319/pf_new.txt)
+```
+
+So link 1 as written has no ceiling of its own in the one place it
+matters. The 20000-node cap applies to the finished sensitivity, but
+the walk that builds it inlines every definition it passes through,
+twice per candidate and once per reduction. On a MultiBody loop that
+is the unbounded phase AGENTS.md warns about. The pendulum's fix
+stands or falls with a walk that has a bound before it starts, and
+the choice is not this shift's to make. Two roads are open:
+
+- keep link 1 only where the reach is short, with the depth of
+  definitions it went through as the key; or
+- compute the sensitivity numerically at the pivot's point, by
+  perturbing the state and re-solving the definitions, which costs
+  one evaluation per candidate and no symbolic tree at all.
+
+Links 2 and 3 cost nothing on their own, but without link 1 they do
+not help the pendulum, which still weighs `x` at zero. The shift has
+no guard test on the present behaviour, because a guard would
+enshrine a wrong answer. The freeze stands until the choice is made.
+
+## m319: the top of the run half probed, a map and no fix
+
+Taken from the census of m318 (`/tmp/m318/census.txt`, by name
+`/tmp/m318/raw.txt`), not a new one. Each count below is of models in
+the run half, and the rows are split by probe layer rather than by
+wording.
+
+**`the Newton direction of algebraic loop` (25) is two layers.** The
+split is by the residual the block stood at when the line search gave
+up:
+
+- 6 models with |f| between 2.4e-10 and 1.8e-4, all in large blocks
+  (13 to 90 unknowns): `Rectifier6pulse`, `IMC_Transformer`
+  (FundamentalWave), `SMPM_Mains`, `BranchingPipes2`,
+  `DynamicPipesWithTraceSubstances` and `TestTemperature1`. These are
+  not the arithmetic floor in its plain form: in `Rectifier6pulse` the
+  row left at 2.44e-10 met a loudness of 73.3, about 37 ulp against
+  the 4 the floor accepts, in a block of ideal diodes at t = 2.2e-4.
+- 19 models with |f| from 14 to 1.6e6, almost all at t = 0, in small
+  blocks of 1 to 6 unknowns, all Fluid or Media, and all but one at
+  the first point of the run. `BranchingPipes17` is the
+  smallest, one unknown `junctionVolume.medium.T`: a block converged
+  to 289.3 K a moment earlier is asked again with a residual of 1.56e6,
+  its first step goes to T = 3.7e8 and the next to -1.7e12
+  (`/tmp/m319/bp17.txt`). The Newton step is fine and the residual is
+  a different function from the one that converged. What was ruled
+  out: the initialisation probe (`OXIDELICA_INIT_PROBE=1`) names no
+  state claimed by nothing, in BranchingPipes17 or in R134a1,
+  TestWaterPumpStorage, IdealGases.Air and SeriesPipes1
+  (`/tmp/m319/bp17_init.txt`, `/tmp/m319/probeN.txt`). So "a state
+  nobody initialises" is not the cause, and the mechanism is still
+  unnamed. The next probe is which equation that is.
+
+**`singular Jacobian in algebraic loop` (20) has three layers and three
+singles.** 8 blocks carry the `s` of ideal diodes, thyristors or
+switches (rectifiers, DOL starts), 5 are synchronous-machine air gaps,
+and 4 are fluid media. The singles are `RollingWheel`, `CCCV_Stack` and
+`LossyGearDemo2`. The ideal-switch layer is the known one: `s` is
+piecewise with a zero slope in the off branch, so the Jacobian loses a
+row whenever every switch in a block sits on the same side.
+
+**`the equations of algebraic loop` (18), read as "do not mention X":**
+11 are induction and synchronous machines, where the dead column is
+`airGap.i_sr[1]` together with `squirrelCageR.spacePhasor_r.v_[1]` or
+`lrsigma.v_[1]` (IMC_DOL and IMC_Steinmetz, IMC_YD and IMC_YDarc,
+IMC_Inverter, IMS_Start, both IMC_Transformer). The rest are singles:
+`der(Q2.vbx)` in the Spice3 differential pair, `bearingFriction.sa` in
+GearType2, `inertia8.w` in TestBearingConversion, `pipe1.flowPort_b.h`
+in ParallelPumpDropOut at t = 0.393, and MultiBody point masses. These
+machines are the machine chain of earlier chapters, and they are left
+to it.
+
+**`structurally singular` (66 in 57 rows) is not 57 families.** Read by
+the layer the message names and checked by the probe:
+
+```text
+33  constrains no state
+      19  a current or flow balance equal to zero
+          (OpAmpCircuits x4, Analog Utilities x2, Analysator x2, FluxTubes
+          components x4, Noise motor x2, SMPM_CurrentSource/NoLoad,
+          TransformerTestbench, TanksWithOverflow, IMC_Transformer QS)
+      14  a speed or angle equation (SMEE_Generator x2, the QS SMPM/SMR
+          machines, reference-gamma pairs, the MultiBody loops Engine1a/b,
+          PlanarFourbar, RobotR3 MechanicalStructure, LineForceWithTwoMasses,
+          and SpringDamperNoRelativeStates x2)
+11  no equation determines der(X): damper1.s x3, rotorWith3DEffects.w_a x4,
+    HeatTransfer inverse capacity x2, core.B, loss_m.Phi
+10  no equation determines a source's start time: Spice3 vin.T0 x7 (parked)
+    and trapezoid.T_start x3 (TestSweptVolume, CombiTable2Ds/2Dv.Test33)
+ 7  cannot differentiate: abs, a non-constant exponent, a subscript that
+    survived flattening
+ 5  the equation determining X does not depend on it: the parked
+    Constraints four and IMC_Conveyor
+```
+
+The split by wording above is checked by the victim probe, one run
+per model over the 33 "constrains no state"
+(`/tmp/m319/A_probe.txt`, 29 of 33 finished and the map is incomplete
+for the rest. The probe ran on the binary of the parked fix, without
+its switch, and stuck on `PlanarFourbar`: 83 minutes and 50 GB without
+finishing, stopped for memory. That is the price measured above, and
+the four MultiBody loops after it, PlanarFourbar, MechanicalStructure
+and the two SpringDamperNoRelativeStates, went unprobed). In every one
+the last reduction finds no victim. In 9 the
+walk that follows spent states finds one: `inertiaRotor.w` in seven
+synchronous machines (SMEE_Generator in Machines and in
+FundamentalWave, SMPM_CurrentSource, SMPM_FieldWeakening, SMPM_MTPA,
+SMPM_OpenCircuit, SMR_CurrentSource), then `bodyBox2...r_0[1]` in
+LineForceWithTwoMasses and `cylinder.v` in Engine1b. Everywhere else
+nothing is spent and nothing is reached.
+
+Of the 33, 12 are `Utilities` or `Components` classes, the
+partial-template park, which leaves 21 examples. The seven machines
+are the subfamily worth a series. A constant-speed source pins `w`,
+an earlier reduction demotes `inertiaRotor.w` against it, and the
+angle equation `der(phi) = w` then reaches only a spent state. The
+probe of `SMPM_OpenCircuit` shows reductions 40 and 41 each demoting
+one machine's `w` against `constantSpeed.w`, before reduction 42
+meets the angle and finds nothing left. The summed reference for
+this family is those seven models, each printing the rotor's
+`inertiaRotor.w` as spent.
