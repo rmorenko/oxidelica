@@ -28030,3 +28030,125 @@ each of those reductions had one name. The same constraint is
 differentiated twice through two routes, the speed equation and the
 angle equation, and the second route arrives after the first has used
 its state. Fixed by a series of its own, not this shift.
+
+## m321: the seam between two stretches of a run, and where the four victims of the pendulum's weight stand
+
+**The seam.** `append_segment` glued the rows of a run rebuilt in
+mid-flight onto the rows before it, and assumed the two stretches
+named the same columns. They need not: a rebuild mints its own dummy
+derivatives. Under the parked weight of m320 `TransformerTestbench`
+went from 801 columns to 799 and died on the `expect`. The glue now
+refuses, naming the model, the instant and the columns on each side.
+It does not pad: the readers of the merged table are the CSV, the
+final point and the plots, and a padded column would reach the user as
+a number the run produced. With the patch laid on the new tree the
+panic is a refusal (`/tmp/m321/tt_new.txt`: 1 flatten, 0 run, where
+m320's `/tmp/m320/four.txt` had 0 flatten under `panicked`). On main
+the panic never fired, so no count moves.
+
+**The fifth victim.** The m320 pair fell from 962 to 961 flattened and
+the chapter said the lists did not name which model. The lists that
+the floor script prints are the run lists; it drops the flatten lines
+before writing (`library_floor.sh:1510`), so no diff of those two
+files could name it. The name comes from the register instead: the
+harness catches a panic and books it as a refusal of the flatten half
+(`crates/oxidelica-cli/src/main.rs:847`), so `TransformerTestbench`,
+whose run panicked, was counted as not flattening. The fifth victim is
+the fourth one counted twice, and with the seam it is back among the
+models that flatten. The two corpus files came from different
+binaries, which is the second reason the difference could not have
+been read off them.
+
+**The four, one binary, three keys** (`/tmp/m321/four.txt`, the patch
+of m320 on this tree): the new weight, the old one
+(`OXIDELICA_PARTIAL_SENSITIVITY=1`), and a probe key taking an own
+weight that cannot be read as sound. The victim probe on both keys
+agrees on every reduction of the first build in all four; what
+differs is that the new monitor asks for a re-selection the old one
+never asks for, and the reductions of that rebuild. So the list of
+victims that m320 blamed is not changed by the weight at the first
+build. It is changed by a rebuild that should not have happened.
+
+```text
+model                  first diverging reduction             why the monitor asked
+Rectifier12pulse       rebuild at t = 0.0007, reduction 1    own weight NaN
+TransformerTestbench   rebuild at t = 0.00045, reduction 1   own weight NaN
+TestTemperature2       rebuild at t = 0.001, then every      own weight NaN, then
+                       output point, same victims            pivot and monitor disagree
+GearConstraint         rebuild at t = 1e-4, reduction 11     own 0.1 against 1.0
+```
+
+Three of the four have one cause. The weight through an implicit
+definition settles that definition by a one-unknown Newton, and it
+declares the weight not known unless the last step falls below
+`1e-14 * (1 + |v|)`. The settle probe (`/tmp/m321/wt`, printing the
+last ten iterations) shows the iteration converged and then rocking by
+one unit in the last place: in `TransformerTestbench` v = -1.93e-4
+with the residual at +-1.4e-14 and the step at +-1.4e-14, which the
+criterion cannot accept at that size; in `TestTemperature2` v =
+1.0135e5 Pa with the step rocking between 2.2e-7 and 6.6e-7
+(`/tmp/m321/t2_settle.txt`), above a criterion of 1.0e-9. The weight
+comes out NaN, the monitor reads an own weight that is not a number as
+unsound, and the run is rebuilt. Two probe criteria were tried from
+one binary: accepting a step below `1e-12 * (1 + |v|)` runs
+`TransformerTestbench` and `Rectifier12pulse` and not
+`TestTemperature2`; accepting a small step that stopped halving (the
+arithmetic floor) runs the first two as well, with
+`TransformerTestbench` ending at `transformer.l1sigma.inductor[1].i =
+63.978258`, the old key's number to the digit, and leaves the pendulum
+of m320 at x = -0.635147. So the settling criterion is the first link
+of the return of the weight, and a small model of it is owed before it
+is taken.
+
+`TestTemperature2` has a second link behind the first. With the stall
+criterion the monitor reads an own weight of 1.57e3 for `volume1_2.U`
+against 1.92e10 for `volume1_2.m` at t = 0.001 and asks for a rebuild;
+the rebuild's pivot weighs the two at 0.0 and 0.0 and takes `U` again
+by order; the monitor asks again at the next output point, and so on
+(`/tmp/m321/t2_stall.txt`, a rebuild every millisecond). The weight
+probe says why the pivot sees zero: `weigh_at_start` evaluates the
+definitions with `programs: None`, and the medium's
+`waterBaseProp_ph(...)[...]` is refused as an `unresolved array
+subscript` (`/tmp/m321/t2_weigh2.txt`), so the weight is not known and
+the not-known weight is taken as the old slope, zero. The monitor
+reads the same definitions as compiled code and succeeds. Two
+instruments weighing one thing by two evaluators disagree, and the run
+loops between them. That is the 9.5 minutes of m320.
+
+`GearConstraint` is a different family. Reduction 11 of the first
+build ties the two sides of the gear, and the first build weighs both
+at zero and takes `actuatedRevolute_a.phi` by order. The monitor reads
+the weight through the definitions as 0.1 for it and 1.0 for
+`actuatedRevolute_b.phi` (`/tmp/m321/gc_probe_new.txt`), which is the
+gear ratio: a constant, not a selection going bad. The threshold of
+0.15 takes a ratio of one to ten for a pivot that would now choose
+otherwise, the rebuild demotes `b` instead, and the algebraic block
+of the rebuilt model is NaN at its first evaluation. The old key
+never weighs through the definitions and runs in 37 s. So the monitor
+compares weights that are not on one scale, and a ratio that holds
+the whole run is read as a crossing.
+
+**Where the weight chooses in the converged point.** `TJ2.mo` in
+`/tmp/m321` is the tee of m320 with its third port joined straight to
+the sink, which is the shape of BranchingPipes17. It reproduces the
+tie: reduction 1 on `sink.ports[2].p = junctionVolume.port_3.p` weighs
+`U` and `m` at 0.0 and 0.0 and demotes `U`, on both keys
+(`/tmp/m321/tj2_new.txt`, `/tmp/m321/tj2_old.txt`). Under the new key
+the monitor asks for a rebuild at t = 0.00044, and there, in a point
+the initialisation has already settled (m = 0.00119 kg, U = 248.9 J),
+the weight is 2.43e7 for `m` against 286 for `U` and the rebuild
+demotes `m`. So in the converged point the weight chooses `m`, the
+state m320 said the pressure should fix. The model does not run after
+it either way: the rebuilt block `[medium.T, medium.u,
+der(medium.h)]` does not converge, and the old key refuses on
+`der(junctionVolume.medium.h)` alone. The weighing answers which state
+to take; what stands behind it is the next wall.
+
+No weight was changed in this shift. The probes and their keys are
+kept off the branch as `settle_weigh_probe_m321.patch` beside the
+shift notes, with the patch of m320 inside it. The order the map
+suggests for the series that returns the weight: the settling
+criterion, with its own small model; the pivot evaluating the
+definitions with the programs the monitor has, so that the two cannot
+disagree; and a monitor that compares a victim with its alternatives
+on one scale, with `GearConstraint` as the test.
