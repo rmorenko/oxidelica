@@ -14,7 +14,7 @@ use std::cell::RefCell;
 /// changes what the body reads, and under the name that wrote it
 /// otherwise. Refused, naming the constant, where a body it calls would
 /// still read its base's value over the medium's.
-fn left_standing(
+pub(super) fn left_standing(
     class: &ClassDef,
     args: &[Expr],
     registry: &HashMap<&str, &ClassDef>,

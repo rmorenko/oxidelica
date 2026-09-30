@@ -1506,7 +1506,22 @@ pub(super) fn expand_call(
                             // numbers is taken one at a time, and
                             // saying it is a scalar would be a shape
                             // that lies.
-                            let standing = Expr::Call(class.name.clone(), arguments);
+                            //
+                            // And under the flat model's name, the
+                            // way every other call left standing is:
+                            // under the copy carried for the medium
+                            // it was asked under, where the medium
+                            // changes what the body reads. Named by
+                            // the class that wrote it, the velocity
+                            // of sound of `ReferenceAir.Air_dT` was
+                            // walked as `Air_Base`'s and stopped on
+                            // `dT_explicit`, a constant only the
+                            // medium gives.
+                            let standing = if standing_writer_on() {
+                                Expr::Call(class.name.clone(), arguments)
+                            } else {
+                                inlining::left_standing(class, &arguments, registry)?
+                            };
                             standing_call(standing, class, registry, imports)
                         }
                         answered => answered,
@@ -2471,6 +2486,13 @@ fn bare_records_off() -> bool {
 /// library.
 fn whole_into_copies_off() -> bool {
     std::env::var_os("OXIDELICA_SPREAD_COPIES").is_some()
+}
+
+/// The old road for a call whose inlined body was too deep to read
+/// again: left standing under the name of the class that wrote it,
+/// whatever medium it was asked under.
+fn standing_writer_on() -> bool {
+    std::env::var_os("OXIDELICA_STANDING_WRITER").is_some()
 }
 
 /// The fields of a record handed over to a specialized copy, each as
