@@ -970,7 +970,15 @@ FLATTEN_FLOOR=963
 # built from the same code (/tmp/m316/old.txt, the old half of the m316
 # pair). The lists differ by the swing alone: the runner has Dimmer_RL,
 # the desk has neither Dimmer_RL nor SpringWithMass. Set from the lower.
-RUN_FLOOR=680
+#
+# And run 681 = 680 plus ReferenceAir_dT, which runs since 00f3cd2 left
+# a call too deep to read again under the flat model's name. The runner
+# printed 682 in job 109725113083 of run 36664150519 on 5e0d945
+# (/tmp/m317/ci_5e0d945.log, red on the time ceiling alone); the desk
+# printed 681 on the same code without either swinging model
+# (/tmp/m316/new.txt) and 682 with SpringWithMass (/tmp/m317/p_old.txt).
+# Set from the lower.
+RUN_FLOOR=681
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1109,8 +1117,12 @@ RUN_FLOOR=680
 #
 # And runnable run 638 by the same pair: the runner's 847/639 and the
 # desk's 847/638, set from the lower for the same swing.
+#
+# And runnable run 639 = 638 plus ReferenceAir_dT, a runnable example,
+# by the same three: the runner's 847/640 on 5e0d945, the desk's 847/639
+# without the swing and 847/640 with it. Set from the lower.
 RUNNABLE_FLATTEN_FLOOR=847
-RUNNABLE_RUN_FLOOR=638
+RUNNABLE_RUN_FLOOR=639
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
