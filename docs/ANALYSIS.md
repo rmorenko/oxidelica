@@ -28269,3 +28269,13 @@ reaches the turning point of a pendulum written through its angle
 now goes on past it instead of standing still to the last digit with
 nothing refused, and the three models that the weight used to cost
 run under it.
+
+**The register after the series** (`/tmp/m322/census.txt`, the
+release build of da1ea3d): 71 models in 40 rows that would not
+flatten and 280 models in 153 rows that flattened and would not run,
+counted between the section marks. The two sections are identical
+line for line with `/tmp/m318/census.txt`, the last register taken
+before the weight was first tried. No row moved and none split, so no
+family was sent to another wall on the way. That is what a series
+that changes which answer a run gives, not which models run, should
+leave behind.
