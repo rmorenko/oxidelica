@@ -27360,3 +27360,143 @@ took its member at try 27 or earlier (m314), and `PlanarFourbar` sits
 at 32. The other is a ceiling on the run half raised by a measured
 step, as it was once before from 8000. Which one to take belongs to
 whoever reviews this shift, with the numbers above.
+
+## m316: the ReferenceAir_dT link taken, and the Spice3 zero resistance
+
+**The fallback that named the writer.** The m315 map put the fault in
+one place: in `arrays.rs`, a call whose inlined answer is too deep to
+read once more was left standing as `Expr::Call(class.name, ...)`, the
+name of the class that wrote the body, where every other call left
+standing goes through `left_standing` and so through
+`carried_under_mark`. The fallback now does the same, and
+`OXIDELICA_STANDING_WRITER=1` gives the old road. `P1.mo` (now
+`tests/small/a_call_too_deep_to_read_again_under_its_medium.mo`) runs
+and prints `a = 346.291922`, the value `A1.mo` prints. With the key
+set it stops again on `unknown variable dT_explicit`. The pair, one binary
+(`/tmp/ox316b`) with the key on and off over `.msl` (`/tmp/m316/old.txt`,
+`new.txt`), gives flatten 963 in both halves with identical lists and run
+680 to 681: `IncompleteMedia.ReferenceAir_dT` arrives and no model leaves.
+
+It has no test in the suite, and the reason should be written down
+rather than hidden. About sixty small models were written to reach
+the fallback (`/tmp/m316/w/`: deep literal bodies, statement chains,
+nested calls, record and array inputs, deep arguments and deep
+callers, and an in-crate test calling `expand` at every depth from 4
+to 28 below the ceiling). A probe on the fallback fired on none of
+them. In each case either the body is refused by the inliner itself,
+which already stands it under the medium's name, or the re-reading
+fits. What reaches the fallback in `P1` is the depth-keyed table
+handing a Helmholtz answer folded shallow by `prandtlNumber` back to
+an asking made deeper inside `velocityOfSound`. That only happens on
+a body as large as the Helmholtz tree. This is the blind spot the
+working notes name: a path that only switches on at complexity. The
+witness is the corpus pair, and the small file above is a cheap check
+against `.msl`.
+
+**A zero parameter quenching whatever it multiplies: measured, parked.**
+The probe for item 3 went a storey lower than the m315 map expected.
+The parameter's value was not the missing piece. Even a literal
+`i*0 = vs - vC`, with no parameter at all, was refused
+`underdetermined algebraic loop ["i"]`, and `0 = vs - vC` runs.
+`simplify` in `symbolic.rs` does fold `x*0` to zero, but the step that
+sorts equations and builds the matching reads the equation before any
+fold. What already existed was `quench_zero_der` (`compile.rs`, from
+99be4a8). Before `split_equations` it replaces `p*der(x)` by zero when
+`p` is a parameter worth exactly zero: the shorted inductor,
+`L*der(i) = v` with `L = 0`. It is confined to derivatives, and the
+change tried was to let it take any product with such a factor. It is
+one link, it is a local change, and it is true for the whole run: a
+parameter does not move. A test on the number (`ZRX`, `i = cos(1)` at
+`t = 1`) was green with the change and red with the key
+`OXIDELICA_ZERO_DER_ONLY=1`.
+
+The pair says no. One binary (`/tmp/ox316c`), the key on and off,
+over `.msl` (`/tmp/m316/z_old.txt`, `z_new.txt`, lists
+`z_old_ran.lst` and `z_new_ran.lst`): flatten 963 in both halves with
+identical lists, and run 681 to 676. One arrival, six victims:
+
+- arrives: `Spice3.Examples.Oscillator`, which runs dear, 233 s alone
+  under `--only` (160127 points, 456922 Newton steps over 0.025 s);
+- lost: `IMC_Conveyor`, `IMC_Inverter` and `SMPM_VoltageSource` of
+  `FundamentalWave`, `IMC_DOL` and `Components.PolyphaseInductance` of
+  `QuasiStatic.FundamentalWave`, and `GearConstraint`. `IMC_Inverter`
+  now stops at `structurally singular model: the equation determining
+...singlePhaseElectroMagneticConverter[1].i does not depend on it`,
+  and `PolyphaseInductance` at a Newton direction over
+  `converter_m.i[*]`. So the machines carry products of a zero
+  parameter that the structure used to lean on. The unknown the product
+  names was holding a pairing, and quenching the product takes the
+  pairing away. This is the behaviour the working notes warn about for
+  definition-adding changes: the victims move which states reduction
+  keeps.
+
+`Spice3BenchmarkRtlInverter` and `Spice3BenchmarkDifferentialPair`
+would not have arrived either way. With the change they move one
+storey up, from `Q1.irc` to `der(Q1.vbx)`, and stop at `icapbx = if
+m_bInit then 0 else cc.capbx * der(vbx)`, where `capbx` is an output of
+`bjtNoBypassCode`. That is a zero of a variable and not of a parameter,
+so it is a different layer again.
+
+The change is reverted, and the patch is kept with its test and the
+updated expectation of
+`a_column_flat_at_the_point_is_not_a_column_the_equations_lack_nor_an_answer`
+(`~/oxideflow/state/zero_terms_m316.patch`). One possible narrowing
+has not been measured: quench a product only where the factor it
+scales is left in no other equation of the model's structure, which
+is the Spice3 shape (the internal node's current is taken by its own
+KCL row). That is a question about the victims first: one small
+model shrunk from `PolyphaseInductance`, so that the narrowing is
+judged by the machines it would have to spare.
+
+**The runner on the ceiling.** The library job of a0f96f1 (job
+109671097541, log `/tmp/m316/ci_a0f96f1.log`) is green: 963 / 681,
+847 / 639, running at 10172 ms a model. Its code is 02121e2's to the
+byte (`git diff 02121e2 a0f96f1` touches only this file). That same
+code printed 12957 ms a model and was red on the ceiling. The library
+job of 4413332, the same code again (job 109680691538, log
+`/tmp/m316/ci_4413332.log`), is green as well: 963 / 681, 847 / 639,
+and 9670 ms a model. So one tree has been measured three times on the
+runner, at 12957, 10172 and 9670, which is 1.34x from end to end. That band is wider
+than either reading of what the m314 road costs (+309 by the desk
+ratio, +1151 by the two runner runs). Neither reading can be taken
+from two runner runs, and a red on the 12000 ceiling says nothing
+about the change that happened to be pushed under it. The run floors
+are raised from this green run and the desk pair, from the lower of
+the two (680 and 638). The desk lacks `SpringWithMass` and
+`Dimmer_RL`, and the runner has `Dimmer_RL`.
+
+**How many models carry a modifier on a name that is not there.** m315
+found that a modifier on a name the class does not declare
+(`/tmp/m315/w/MOD.mo`, `A a(nosuch = 5)`) is dropped without a word.
+Its extent was measured here and not repaired. A probe binary
+(`/tmp/ox316n2`, source reverted) printed, at the end of the
+outermost instantiation of each prefix, every modifier handed down
+whose head named nothing that prefix built (no component, constant or
+text under `prefix.head`). It was run through `why` over the 963
+flattened models of the m316 pair (`/tmp/m316/nosuch.sh`, output
+`/tmp/m316/nosuch.txt`, 209 lines at the time of writing, a few of
+the dearest media models still going). MOD fires, and a first version
+that judged at every base's instantiation fired falsely on every
+inherited block, which is why it judges only at the top of a prefix.
+
+Every hit is one of two kinds, and in neither is the dropped modifier
+a guess:
+
+- `Xi.start` on a medium's `BaseProperties` (WaterIF97 166 lines,
+  PartialSimpleMedium 20, PartialLinearFluid 8, SingleGasNasa 2), and
+  `Xi` on the batch plant's `InnerTank` (9). The declaration is
+  `Xi[nXi]` with `nXi = 0` for a single substance, so the component
+  exists with no elements and the modifier has nothing to land on;
+- `ir(each fixed = true)` on `SM_ReluctanceRotor` and
+  `SM_ElectricalExcited` (2 each), where `ir` is declared `if
+useDamperCage` and the example's card turns the cage off. The
+  language drops modifiers on a disabled conditional component.
+
+So in the corpus as it stands, the silent drop has not been seen to
+cost a number. It stays a trap for a model that misspells a name, as
+the `I3.mo` witness did, and a refusal for it would have to tell these
+two legitimate absences apart from a real misspelling. For an empty
+array and a switched-off conditional, the flat model has to record
+that the name was declared and is absent on purpose. A name
+that was never declared does not need that record. That is the whole
+design of the repair, and it is parked with this measurement.
