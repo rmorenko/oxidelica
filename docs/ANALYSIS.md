@@ -27898,3 +27898,135 @@ one machine's `w` against `constantSpeed.w`, before reduction 42
 meets the angle and finds nothing left. The summed reference for
 this family is those seven models, each printing the rotor's
 `inertiaRotor.w` as spent.
+
+## m320: the frozen pendulum weighed numerically and parked again, and two maps
+
+**The pendulum.** The three links of m319 were tried again, with link 1
+replaced, and parked again on the corpus (below). The weight of a state the constraint reaches only through
+definitions is now numerical: the definitions the residual reads are
+put in order once per reduction, the state is moved by
+`1e-6 * (1 + |x|)`, the definitions downstream of it are worked out
+again (an implicit one by a one-unknown Newton), and the residual is
+read twice. On `P3_freeze.mo` it ends at x = -0.635147 against the RK4
+reference -0.635182, the same number the symbolic weight gave.
+
+The first build of the numerical weight priced `PlanarFourbar` at more
+than 7 minutes and 12 GB of resident memory (`/tmp/m320/pf_new.txt`,
+stopped by hand), against 81 s and 1.0 GB under the old key
+(`/tmp/m320/pf_old.txt`). A five-second sample of it
+(`/tmp/m320/pf_sample.txt`) held no frame of the weighing at all:
+every frame was in `reduce_index`, under `solve_linear_known` and
+`simplify`. So the price the chapter above put on link 1 was not the
+price of the symbolic weight: a different weight at the first build
+chooses different victims in the MultiBody loop, and the reduction
+those victims lead to is the dear part. The weight is therefore read
+only at a re-selection and by the monitor, where the run has already
+left the start. With that, `PlanarFourbar` costs 81 s and 0.98 GB
+(`/tmp/m320/pf_new3.txt`). Taken without the numerical weight, the
+anchor and monitor links alone, the pendulum freezes at x = 1 again,
+so the weight is a link of the chain.
+
+The corpus pair is `/tmp/m319/preflight.txt` (the tree before the
+change, 962/682 and 846/640) against `/tmp/m320/corpus_new.txt` (the
+change, 961/678 and 845/636). Nothing came, four left, and each of the
+four was then run alone under both keys from one binary
+(`/tmp/m320/four.txt`). All four run under
+`OXIDELICA_PARTIAL_SENSITIVITY=1` and fail without it:
+
+```text
+Rectifier12pulse       step size underflow at t = 0.0007
+TransformerTestbench   panic: both segments name the same variables
+GearConstraint         refused after 64 s of running (31 s before)
+TestTemperature2       no answer after 9.5 min (95 s before), stopped
+```
+
+So the change is parked again, off the branch, as
+`pendulum_numeric_m320.patch` beside the shift notes, and the floors
+are untouched. The monitor now sees more alternatives and weighs them
+through definitions, so it asks for re-selections in models that ran
+on one selection, and the new selections are worse there. The panic
+is a fault of its own and is owed a refusal whatever becomes of the
+weight: `append_segment` (`continuation.rs:61`) assumes a continuation
+names the same variables as the segment before it, and the new
+selection broke that. A scratch build naming the columns
+(`oxpanic`, simulate on the model file) shows the first segment with
+801 columns and the continuation with 799: six dummy derivatives such
+as `der(transformer.l2sigma.plug_n.pin[2].i)` are gone and four others
+such as `der(transformer.l2sigma.plug_n.pin[1].i)` are new. A
+re-selection mints a different set of dummy derivatives, so the
+column list is not fixed across segments, and the merge has to carry
+a column that one segment lacks rather than assume it. Before the
+weight can come back, the monitor has to be shown not to ask for a
+re-selection where the old one held, and the four above are its test
+set.
+
+The flatten count fell by one in the same pair, which a change that
+leaves the first build alone should not do. The lists do not name
+flattened models, so which model it was is not known.
+
+**BranchingPipes17, the mechanism named.** `junctionVolume` declares
+`massDynamics = DynamicFreeInitial`, so its initial section is the one
+equation `medium.T = T_start`. The initialisation probe
+(`/tmp/m320/bp17_init.txt`) shows that equation reaching no state
+through the explicit walk and taking `junctionVolume.m` by the pairing
+of lost conditions. With that pairing switched off
+(`OXIDELICA_NO_PAIR_LOST=1`, `/tmp/m320/bp17_nopair.txt`) the probe
+lists every state left unclaimed, and the list answers the question
+m319 left open: `junctionIdeal.U` and `junctionIdeal.m` are both
+there, `junctionVolume.m` is there, and `junctionVolume.U` is not a
+state at all. The victim probe (`/tmp/m320/bp17_victim.txt`) says
+why, in one reduction: the junction's third port is joined straight
+to the sink, so `sink.ports[1].p = junctionVolume.port_3.p` is a
+constraint on the junction's pressure, and reduction 1 demotes
+`junctionVolume.U` on a raw reach of `[("junctionVolume.U", 0.0),
+("junctionVolume.m", 0.0)]`. Both weights are zero because the
+pressure reaches the two states only through the medium's definitions,
+which is the pendulum's blindness in another model, and the tie is
+broken by order. Physically the pressure fixes the mass at a given
+temperature, so `m` was the state to demote. With the numerical
+weight read at the first build as well (`/tmp/m320/bp17_ox1.txt`, the
+binary of the first attempt) the reach still reads 0.0 and 0.0. A
+scratch build printing the cone (`/tmp/m320/bp17_cone2.txt`) shows
+eleven definitions in it and the weight of both states as not known,
+with no evaluation refused and no implicit one failing to settle. A
+second print of the point it was weighed at
+(`/tmp/m320/bp17_cone3.txt`) shows `junctionVolume.m = 0` and
+`junctionVolume.U = 0` there, while `medium.T` stands at 293.15 and
+`medium.p` at 101325. Neither mass nor energy declares a start, so
+the cone's first step `u = U/m` is 0/0 and the weight is honestly not
+known. The pivot's point is the declarations, not the initialised
+state, and for a state with no start that point says nothing. So the
+energy was demoted, `medium.T = T_start` and the
+mass balance are all that fix the start, and the value the energy
+starts from is not established. The pressure block settles
+p = 1035.7 Pa (`/tmp/m319/bp17.txt`). With `m = V*p/(R*T)` and
+`U = m*u`, that is the pressure at which a litre of air at 293.15 K
+holds U = 2.578 J, 97.8 times less than the atmosphere, which is the
+arithmetic of a small U and not a measurement of one. The `T` block
+after it is then asked a different question from the one it answered
+a moment earlier, and its residual of 1.56e6 has no root to walk to.
+The same tee junction in a small model (`/tmp/m320/TJ.mo`: the tee
+between two valves and a closed one) runs, and there the probe shows
+the equation taking `U`, `m` claimed by nothing, and p = 101325 at the
+start (`/tmp/m320/tj_probe.txt`). So the difference between the two
+is which state the one written equation takes, `U` in the model that
+runs and `m` in the one that does not. The next probe is `why` on the
+value `junctionVolume.U` starts from in BranchingPipes17, and then a
+switch that makes the pairing prefer `U`, measured over the 19
+small-block rows.
+
+**A2, the burnt rotor, on one machine.** Victim probe of
+`Magnetic.QuasiStatic.FundamentalWave...SMPM_OpenCircuit`
+(`/tmp/m320/a2_probe.txt`, 150 reductions printed). The angle
+constraint `constantSpeed.phi = flange.phi - phi_support` is
+differentiated at reductions 11 and 21 and demotes each machine's
+`inertiaRotor.phi`. Its derivative reaches the speeds, and reductions
+40 and 41 demote `smpm.inertiaRotor.w` and `smpmQS.inertiaRotor.w`
+against `w = constantSpeed.w`, each a singleton reach with weight 1.
+Reduction 42 then meets `constantSpeed.w - der(smpmQS.inertiaRotor.phi)`,
+whose only way to a state is `der(phi) = w`, and `w` is already spent.
+So the rotor speed is not demoted too early by a wrong choice, because
+each of those reductions had one name. The same constraint is
+differentiated twice through two routes, the speed equation and the
+angle equation, and the second route arrives after the first has used
+its state. Fixed by a series of its own, not this shift.
