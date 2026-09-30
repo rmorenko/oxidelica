@@ -993,7 +993,16 @@ FLATTEN_FLOOR=962
 # printed 681 on the same code without either swinging model
 # (/tmp/m316/new.txt) and 682 with SpringWithMass (/tmp/m317/p_old.txt).
 # Set from the lower.
-RUN_FLOOR=681
+#
+# And run 682, a floor catching up with the runner rather than a model
+# won here. The runner printed 682 on f76e71b (/tmp/m318/ci_f76e71b.log)
+# and 962 / 682 again on d064889, in job 109821528831 of run 36695245820
+# (/tmp/m319/ci_d064889.log:1283), and the two lists of models run are
+# identical name for name. The desk printed 962 / 682 with the binary of
+# m319 under its old key (/tmp/m319/p_old.txt). The totals agree while
+# the swing still sits between them: the runner has Dimmer_RL and not
+# SpringWithMass, the desk the other way round.
+RUN_FLOOR=682
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1139,8 +1148,12 @@ RUN_FLOOR=681
 #
 # And runnable flatten 846 = 847 less the Oscillator, a runnable
 # example carved into the scheduled run; see `FLATTEN_FLOOR`.
+#
+# And runnable run 640 by the same runner job as `RUN_FLOOR` above: the
+# runner printed 846 / 640 on d064889 (/tmp/m319/ci_d064889.log:1284) and
+# the desk 846 / 640 (/tmp/m319/p_old.txt).
 RUNNABLE_FLATTEN_FLOOR=846
-RUNNABLE_RUN_FLOOR=639
+RUNNABLE_RUN_FLOOR=640
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
