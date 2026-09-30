@@ -28415,3 +28415,17 @@ its own for. The test is kept beside the shift notes
 (`impure_random_test_m323.rs`) for the series that lowers the call
 into the model's discrete state; it is not on main, where it would
 only be red.
+
+**Where the family went, from the pair itself.** The run half of both
+lists of the pair, counted from the line that opens it to the end of
+the file, is 280 models in 206 rows without the ladder and 281 in 207
+with it (`/tmp/m323/corpus_old.txt`, `/tmp/m323/corpus_new.txt`). The
+rows that name `the Newton direction` are 25 models in 12 rows without
+and 24 in 11 with: the one that went is BranchingPipes17's
+`junctionVolume` row, and it reappears as the `T_h` bracket of the
+medium (`u_min and u_max`). DiodeBridge2mPulse moves from `singular
+Jacobian` to `a solution on either side`, and GearConstraint adds a
+row of its own. So the ladder moved two models one wall on, and cost
+one. The register was not taken again: the code on main is the code it
+measured in m322, and the pair is the same measurement with the ladder
+in it.
