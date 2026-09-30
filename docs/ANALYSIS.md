@@ -27320,3 +27320,43 @@ are gone and 13 new ones stand (`/tmp/m315/r313.txt` against
 equation with a new tail, `nor did the N other equations ...`, which
 the counter's 120-character cut now reaches. The rest are the
 movements above, onto another member of the subset.
+
+## m315: the runner's verdict on the singular subset, and its price
+
+The CI run for 02121e2 (run 36636833786, library job 109639433092,
+log kept in `/tmp/m315/ci_02121e2.log`) printed exactly the pair the
+desk had: 963 flatten and 681 run, runnable 847 and 639. It is red
+anyway, and not on a count: `CEILING: running is 12957ms per model,
+and the ceiling is 12000ms`. The other five jobs are green. So the
+floors stay at 679 and 637. They rise only on a green run, and this
+one is not green.
+
+The run time per model on the runner, over the last seven library
+jobs on main, oldest first: 10888 (6da5d8d), 10826 (a15edfc), 9193
+(15edb91), 10667 (d81de04), 11126 (ea2e93e), 11806 (827689d), 12957
+(02121e2). The step to 02121e2 is 1151 ms a model, or 1108 s over the 963. The drift before it had already brought the job within 200 ms of
+the ceiling.
+
+What the m314 change costs was measured with one binary
+(`/tmp/m315/ox`, built from 02121e2) over the 39 models that stand at
+`constrains no state` or were in `bcd.lst` (`/tmp/m315/cns.lst`), with
+`OXIDELICA_NO_SINGULAR_SET=1` and without (`/tmp/m315/t_old.txt`,
+`t_new.txt`). Running went from 292 s to 519 s, which is +227 s. Five
+MultiBody models pay most of it: `Engine1b` +56.7 s,
+`PointGravityWithPointMasses2` +49.1, `PlanarFourbar` +36.0,
+`LineForceWithTwoMasses` +34.7 and `GearConstraint` +20.2 (an arrival,
+so that one is bought). Flattening did not move (223 s against 211).
+At the ratio this desk and the runner have shown (9459 s against
+12477 s for the whole run half, 1.32), +227 s is roughly +300 s on the
+runner, about a quarter of the step. The rest is the same drift that
+was already there.
+
+So the new road is a real cost and not the whole of the breach. Four
+of the five dear models are refusals that the road now tries up to 32
+subset members on, and each try is a reduction. Two ways out are
+visible, and neither is taken here, because the brief allowed no
+change beyond the floors. One is a lower try ceiling: every arrival
+took its member at try 27 or earlier (m314), and `PlanarFourbar` sits
+at 32. The other is a ceiling on the run half raised by a measured
+step, as it was once before from 8000. Which one to take belongs to
+whoever reviews this shift, with the numbers above.
