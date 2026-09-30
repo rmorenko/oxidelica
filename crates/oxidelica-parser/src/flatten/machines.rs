@@ -740,5 +740,6 @@ pub(super) fn blank_component() -> Component {
         protected: false,
         each_modifiers: Vec::new(),
         annotations: Vec::new(),
+        element_of_an_array: false,
     }
 }

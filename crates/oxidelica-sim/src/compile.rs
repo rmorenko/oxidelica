@@ -2162,6 +2162,19 @@ fn quench_zero_derivatives() -> bool {
     std::env::var_os("OXIDELICA_NO_ZERO_DER").is_none()
 }
 
+/// Whether a zero parameter quenches whatever it multiplies, or only a
+/// derivative. `OXIDELICA_ZERO_DER_ONLY=1` gives the old reach.
+fn quench_zero_terms() -> bool {
+    std::env::var_os("OXIDELICA_ZERO_DER_ONLY").is_none()
+}
+
+/// Whether a zero element of an array parameter quenches a term like a
+/// zero scalar does. `OXIDELICA_QUENCH_ELEMENTS=1` lets it, which is
+/// the reach that cost `GearConstraint`.
+fn spare_no_elements() -> bool {
+    std::env::var_os("OXIDELICA_QUENCH_ELEMENTS").is_some()
+}
+
 /// Is this expression a parameter, or a product of them, worth exactly
 /// zero? Only a parameter counts: a variable that happens to be zero
 /// now is not zero over the step.
@@ -2175,17 +2188,80 @@ fn zero_parameter(expr: &Expr, params: &HashMap<String, f64>) -> bool {
     }
 }
 
+/// Does the expression name anything that is not a parameter? A
+/// product of two parameters is a number, and quenching it takes no
+/// unknown out of any equation - but it does take a symbol out of the
+/// structure, and the machines' complex arithmetic leans on exactly
+/// such symbols: `(2/pi)*N.im` with `N.im = 0` is the only place
+/// `V_m.im` meets the converter's current once the other product has
+/// gone.
+fn mentions_unknown(expr: &Expr, params: &HashMap<String, f64>) -> bool {
+    let mut refs = Vec::new();
+    expr.collect_refs(&mut refs);
+    refs.iter().any(|name| !params.contains_key(*name))
+}
+
+/// Is this a parameter, or a product holding one, worth exactly zero
+/// by name? A literal zero is not: the quasi-static components write
+/// `0 * i.re` for the real part of `j*omega*L`, and quenched it takes
+/// the current out of the one row that scales it, leaving a block at
+/// `1e-5` ohm whose residual rounds to `5.5e-10` against a hundred
+/// volts and is refused.
+///
+/// Nor is a zero element of an array parameter. `r = {0.4, 0, 0}` is a
+/// position, and `R.T[2,1] * r[2]` in `frame_b.r_0 = r_0 + R*r` is
+/// what index reduction reads to see the orientation in the
+/// constraint: quenched, the reduction of `GearConstraint` solved
+/// the constraint by dividing by `r[1]` instead and started at `NaN`.
+/// A scalar the model declared as a scalar says the term is absent; a
+/// component of a vector that happens to be zero in this model says
+/// only where the vector points.
+fn named_zero(
+    expr: &Expr,
+    params: &HashMap<String, f64>,
+    elements: &std::collections::HashSet<&str>,
+) -> bool {
+    match expr {
+        Expr::Ref(name) => {
+            params.get(name.as_str()) == Some(&0.0) && !elements.contains(name.as_str())
+        }
+        Expr::Neg(inner) => named_zero(inner, params, elements),
+        Expr::Bin(BinOp::Mul, a, b) => {
+            named_zero(a, params, elements) || named_zero(b, params, elements)
+        }
+        _ => false,
+    }
+}
+
 /// Replace `p * der(x)` by zero wherever `p` is a parameter worth
 /// exactly zero, leaving everything else as it stands.
-fn quench_zero_der(expr: &Expr, params: &HashMap<String, f64>) -> Expr {
+///
+/// And `p * x` where `p` is such a parameter by name and `x` names an
+/// unknown. A resistance the card leaves at zero writes `i*R = v1 -
+/// v2`, and read with the product standing the equation names `i` for
+/// the matching while saying nothing about it: the block took it for
+/// `i` and Newton was handed a singular row, refused as an
+/// underdetermined loop. A parameter does not move over the run, so
+/// the term is zero for the whole of it and not only at the point it
+/// was read - the relation the model meant is `0 = v1 - v2`, the same
+/// one `L * der(i)` with `L = 0` already gave.
+fn quench_zero_der(
+    expr: &Expr,
+    params: &HashMap<String, f64>,
+    elements: &std::collections::HashSet<&str>,
+) -> Expr {
     if let Expr::Bin(BinOp::Mul, a, b) = expr {
-        let quenched = (zero_parameter(a, params) && b.contains_der())
-            || (zero_parameter(b, params) && a.contains_der());
+        let any = quench_zero_terms();
+        let reach = |zero: &Expr, other: &Expr| {
+            any && named_zero(zero, params, elements) && mentions_unknown(other, params)
+        };
+        let quenched = (zero_parameter(a, params) && (b.contains_der() || reach(a, b)))
+            || (zero_parameter(b, params) && (a.contains_der() || reach(b, a)));
         if quenched {
             return Expr::Number(0.0);
         }
     }
-    expr.map_children(&mut |child| quench_zero_der(child, params))
+    expr.map_children(&mut |child| quench_zero_der(child, params, elements))
 }
 
 /// The equations of a model, sorted: what each state's derivative is,
@@ -3779,11 +3855,19 @@ pub(crate) fn compile_at(
     // term goes to zero, which leaves the algebraic relation `0 = v`
     // the model meant.
     let equations = if quench_zero_derivatives() {
+        // Which parameters are elements of an array, as the flattener
+        // recorded when it expanded them - not as their names read.
+        let elements: std::collections::HashSet<&str> = model
+            .components
+            .iter()
+            .filter(|c| c.element_of_an_array && !spare_no_elements())
+            .map(|c| c.name.as_str())
+            .collect();
         equations
             .iter()
             .map(|item| EquationItem {
-                lhs: quench_zero_der(&item.lhs, &params),
-                rhs: quench_zero_der(&item.rhs, &params),
+                lhs: quench_zero_der(&item.lhs, &params, &elements),
+                rhs: quench_zero_der(&item.rhs, &params, &elements),
                 origin: item.origin.clone(),
             })
             .collect::<Vec<_>>()

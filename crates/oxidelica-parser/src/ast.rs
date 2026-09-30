@@ -204,6 +204,12 @@ pub struct Component {
     /// which dialog group it belongs to, whether its value is worth
     /// writing down.
     pub annotations: Vec<Expr>,
+    /// Whether this scalar is one element of a declaration written with
+    /// dimensions: `r[2]` of `parameter Real r[3] = {0.4, 0, 0}`. The
+    /// flat model holds arrays element by element and the name alone
+    /// cannot be trusted to say which scalars were once a vector, so
+    /// the writer that expanded the array records it here.
+    pub element_of_an_array: bool,
 }
 
 /// The operator a call names, with the leading dot of a global

@@ -654,15 +654,20 @@ fn a_column_flat_at_the_point_is_not_a_column_the_equations_lack_nor_an_answer()
     // residual altogether, and no distance brings it back, so the
     // block is refused in the words it was always refused in. This is
     // the half the secant must not swallow: a wrong number here would
-    // be worse than the refusal.
+    // be worse than the refusal. Since a zero parameter quenches the
+    // product it scales, the term is gone before the matching and the
+    // model reads `0 = v` beside `v = 1`, which no `i` can reconcile:
+    // it is refused a wall earlier, in the structure, and still with
+    // no number.
     assert_eq!(
         refused(
             "model Z parameter Real R = 0; Real i; Real v; Real s(start = 0, fixed = true); \
              equation i * R = v; v = 1.0; der(s) = i; \
              annotation(experiment(StopTime = 1, Interval = 0.1)); end Z;"
         ),
-        "the equations of algebraic loop [\"i\"] do not mention [\"i\"] at t = 0: \
-         nothing in the block changes when it does, so no step determines it"
+        "structurally singular model: equation Ref(\"v\") = Number(1.0) constrains no \
+         state, so index reduction cannot help, nor did the 1 other equations of its \
+         singular subset tried in its place"
     );
 }
 

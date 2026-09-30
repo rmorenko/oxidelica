@@ -2225,6 +2225,62 @@ fn a_derivative_scaled_by_a_zero_parameter_is_an_algebraic_relation() {
     assert!((i - 2.0).abs() < 1e-9, "current: {i}, expected 2");
 }
 
+#[test]
+fn any_term_scaled_by_a_zero_parameter_is_dropped_from_the_relation() {
+    // A Spice3 card leaves a series resistance at zero, and
+    // `i*R = vs - vC` then says `vs = vC`: a constraint on the state,
+    // with the current left to the capacitor's own equation. Read with
+    // the product standing, the equation named `i` for the matching and
+    // the block of one handed Newton a row with nothing in it, refused
+    // as an underdetermined loop. The current is `C*der(vC)`, which is
+    // `cos(time)` for a capacitor held to a sine.
+    let result = run("model ZRX parameter Real R = 0; parameter Real C = 1; \
+         Real vC(start = 0, fixed = true); Real i, vs; \
+         equation vs = sin(time); C*der(vC) = i; i*R = vs - vC; \
+         annotation(experiment(StopTime = 1)); end ZRX;");
+    let last = result.rows.last().unwrap();
+    let at = |name: &str| {
+        let column = result.columns.iter().position(|c| c == name).unwrap();
+        last[column]
+    };
+    assert!(
+        (at("i") - 1f64.cos()).abs() < 1e-4,
+        "current: {}, expected cos(1)",
+        at("i")
+    );
+}
+
+#[test]
+fn a_zero_element_of_an_array_parameter_does_not_quench_the_term_it_scales() {
+    // The same circuit as the scalar case above, with the resistance
+    // written as the one element of an array. A zero component of a
+    // vector is where the vector points rather than a term the model
+    // left out: `R.T[2,1] * r[2]` with `r = {0.4, 0, 0}` is what index
+    // reduction of a MultiBody gear reads to see the orientation, and
+    // quenched it chose states that start at NaN. So the term stands,
+    // and this circuit is refused as it was before any quench - which
+    // is how the flattener's record of the element, and not the `]`
+    // in its name, is seen to decide.
+    let source = "model ZE parameter Real R[1] = {0}; parameter Real C = 1; \
+         Real vC(start = 0, fixed = true); Real i, vs; \
+         equation vs = sin(time); C*der(vC) = i; i*R[1] = vs - vC; \
+         annotation(experiment(StopTime = 1)); end ZE;";
+    let model = parse_model(source).unwrap();
+    let element = model.components.iter().find(|c| c.name == "R[1]").unwrap();
+    assert!(element.element_of_an_array, "R[1] is an element of R");
+    let scalar = model.components.iter().find(|c| c.name == "C").unwrap();
+    assert!(!scalar.element_of_an_array, "C was declared a scalar");
+    let refusal = compile(&model)
+        .and_then(|compiled| compiled.simulate())
+        .map(|_| ())
+        .unwrap_err()
+        .to_string();
+    assert!(
+        refusal.contains("underdetermined algebraic loop [\"i\"]"),
+        "{refusal}"
+    );
+}
+
 /// A variable typed by an enumeration and settled by an equation
 /// starts at the first literal, not at zero.
 ///

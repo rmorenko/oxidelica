@@ -1405,6 +1405,7 @@ pub(super) fn instantiate_one(
         if is_primitive(&component.type_name) {
             let mut flat = component.clone();
             flat.name = flat_name.to_string();
+            flat.element_of_an_array = !flat.dimensions.is_empty();
             flat.dimensions = Vec::new();
             // Two bases of one class may each declare the same name,
             // and the flat model has one place for it. `m_flow` is

@@ -222,6 +222,9 @@ impl Parser {
                 protected: false,
                 each_modifiers,
                 annotations: annotated.kept,
+                // Nothing is expanded yet; flattening sets it on the
+                // elements it makes.
+                element_of_an_array: false,
             });
             match self.bump() {
                 Token::Comma => continue,
