@@ -28279,3 +28279,139 @@ before the weight was first tried. No row moved and none split, so no
 family was sent to another wall on the way. That is what a series
 that changes which answer a run gives, not which models run, should
 leave behind.
+
+## m323: a slope below the rounding of its row, asked from further away
+
+The step a finite difference is taken with was already relative to the
+unknown - `1e-8 * (1 + |v|)` stood in the code when the nine of m321
+were measured - and so the wall of the small tee was never the size of
+the unknown. It is the size of the terms around it. In `TJ2.mo` the
+block `[der(junctionVolume.medium.h)]` adds an unknown near 1 to energy
+terms of 7.4e9, whose sum is rounded to about 1e-6, and a step of 2e-8
+moves the unknown's part of it by a hundredth of that rounding. The
+ladder that grows a step already existed for a column that comes back
+exactly zero; a column that comes back as noise did not reach it.
+
+**Two tests for noise, one binary** (`/tmp/m323/ox2`, both behind a
+probe key). The first asks whether each row moved by no more than a
+number of units in the last place of the loudest term that row met on
+the way - the loudness the refusal path already measures. The second
+asks whether the slope from `h` and from `2h` agree, the check the zero
+ladder uses for a grown step, read the other way.
+
+```text
+TJ2, no ladder         Newton direction on der(junctionVolume.medium.h)
+TJ2, h/2h agreement    50 Newton iterations, same block
+TJ2, loudness 16 ulp   runs to 1 s, junctionVolume.m = 0.001161
+TJ2, loudness 64 ulp   runs to 1 s, junctionVolume.m = 0.001161
+TJ2, loudness 256 ulp  runs to 1 s, junctionVolume.m = 0.001161
+TJ2, loudness 1000 ulp 50 Newton iterations
+```
+
+The h/2h form fails for a reason worth writing down
+(`/tmp/m323/trail_b.txt`): a difference that is rounding is quantised,
+one ulp from `h` and two from `2h`, and those two read as the same
+slope. The test that is meant to find noise is fooled by noise that
+happens to be a whole number of ulps. So it fires on a column, grows
+one decade, meets the same quantisation there and calls it a straight
+line. The loudness form does not have that blind spot, because it asks
+about the size of the difference against the arithmetic that made it,
+not about its shape. The mass, 0.001161 kg, is p V / (R T) for a litre
+of air at 1e5 Pa and 300 K, the same number the global step of 1e-6
+gave in m321.
+
+The form carried to the corpus: the loudness test at 64 ulps, the
+middle of the band that works, with the h/2h agreement kept as the
+second half so that a grown step is still believed only where it reads
+as a straight line. A column is touched only if its first difference
+sat inside the rounding of every row. `OXIDELICA_NO_FD_NOISE_LADDER`
+switched it off for the pair. It is not on main: the pair below turned
+up a departure, and the change is parked as
+`fd_noise_ladder_m323.patch` beside the shift notes, with its test.
+
+**The small model** is one equation with the unknown at the scale of
+the tee: `0 = (7.4e9 (1 + 1e-3 sin t) + y + 0.1 y^3) - 7.4e9 (1 + 1e-3
+sin t) - 1.3 exp(-t)`, started at 5. Without the ladder it is refused
+at t = 0.9 by `Newton direction`; with it, y(1) = 0.467993, the root of
+`y + 0.1 y^3 = 1.3/e` to six figures. It is the test, seen red under
+the switch. Linear versions of it converge without the ladder, because
+a linear residual is solved by one step from whatever slope is read,
+so the cube is what makes it a test.
+
+**The nine of m321 and BranchingPipes17**, one at a time from the root
+(`/tmp/m323/n_*_off.txt`, `n_*_a.txt`):
+
+```text
+BranchingPipes17  Newton direction      -> T_h bracket, f(u) = -1.19e87 at both ends
+DiodeBridge2mPulse singular Jacobian    -> a solution on either side of star_p.pin_n.v
+QS Rectifier, IMC_Steinmetz, DryAir2,
+TestSuddenExpansion                     same refusal both ways
+HBridge_TrianglePWM_RL, Rotational
+HeatLosses, PumpAndValve,
+TestInitialization                      run both ways
+PlanarFourbar                           structurally singular both ways
+```
+
+No model left and none of the five that the global step brought in
+arrived. That is what the ladder was meant to do: the global step of
+1e-6 changed the slopes of every column of every block and exchanged
+five models for four, and the ladder changes only the columns whose
+slope was rounding. The five were not waiting on a noisy column; they
+were waiting on a different step everywhere, which is a different
+compiler. BranchingPipes17 passes the Newton wall and stops exactly
+where m321 said it would, at the energy without a start of m320.
+
+**The pair, and the departure.** One binary, `/tmp/m323/ox5`, built
+from the tree with the ladder in it after formatting, over the corpus
+without the carved-out giants: `/tmp/m323/corpus_new.txt` with the
+ladder and `/tmp/m323/corpus_old.txt` without. The ladder half prints
+962 flattened and 681 run, runnable 846 and 639; the half without it
+prints 962 and 682, runnable 846 and 640, and its run list is main's
+name for name (`/tmp/m322/corpus_new.txt`). The flatten lists are
+equal. The run lists differ by one name, and it left:
+
+```text
+left  Modelica.Mechanics.MultiBody.Examples.Rotational3DEffects.GearConstraint
+```
+
+`--only` from the root, both keys of the same binary
+(`/tmp/m323/gc_new.txt`, `/tmp/m323/gc_old.txt`): without the ladder it
+runs in 37 s; with it it is refused after 76 s, a residual of the
+gear's constraint that is NaN at t = 0 before any Newton step, while
+every value it reads is finite. The trail
+(`/tmp/m323/gc_trail_b.txt`, the probe binary `ox2` under the probe
+key) says which columns the ladder touched: 114 of them, every one
+standing at v = 0 with a step of 1e-4 and every one grown to 1e-3. At
+v = 0 the textbook step is 1e-8; nothing moves the residual there, so
+the zero ladder grows the column by hundreds to 1e-6 and then 1e-4,
+where it first answers, and its h/2h check accepts it. The noise
+ladder then reads the same column a second time, finds its difference
+inside 64 ulps of the loudest term of the row - a MultiBody row carries
+terms far louder than a coefficient at the fourth decimal - and grows
+it once more, to the ceiling of 1e-3 * (1 + |v|). So the two ladders
+stack on one column: the noise test was written for a column whose
+first difference is rounding at the textbook step, and here it judged
+a column whose step had already been chosen by the other ladder.
+
+By the rule of the brief a departure is a stop, and the criterion was
+not turned until the pair was green. What the map suggests for the
+next series, unmeasured: the noise ladder asks only about a column
+still standing at its textbook step, and leaves a column the zero
+ladder has grown to the zero ladder. That keeps the tee, whose column
+at v near 1 was never zero and never grown, and takes GearConstraint
+out of its reach by construction. It needs its own pair; nothing here
+says it costs nothing elsewhere.
+
+**The first number for the impure generator** (item 9 of the queue,
+the first measurement only). Three draws of xorshift1024* from a state
+written out by hand - the sixteen words 1 to 16, each a low half with
+a high half of zero, and the place 0 - worked from `ModelicaRandom.c`
+step by step: 0.2513150092458146, 0.5358190340172654,
+0.5259321584469488. As a test on a model that stores the state with
+`ModelicaRandom_setInternalState_xorshift1024star` and draws it with
+`ModelicaRandom_impureRandom_xorshift1024star` inside a `when`, it is
+red on this tree: the draw is refused as C the compiler has none of
+its own for. The test is kept beside the shift notes
+(`impure_random_test_m323.rs`) for the series that lowers the call
+into the model's discrete state; it is not on main, where it would
+only be red.
