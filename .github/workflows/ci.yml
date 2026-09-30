@@ -251,6 +251,14 @@ jobs:
       - name: No Cyrillic outside the files that may hold it
         run: python3 scripts/check_cyrillic.py
 
+      - name: The time band fires on both sides
+        # Written with `if` and not `!`: a negated command does not stop
+        # a `bash -e` step, so a band that stayed green would pass.
+        run: |
+          if ./scripts/library_floor.sh --ratio-check 1000 500; then exit 1; fi
+          if ./scripts/library_floor.sh --ratio-check 1000 2000; then exit 1; fi
+          ./scripts/library_floor.sh --ratio-check 1000 1045
+
       - name: Unused dependencies
         run: cargo machete
 

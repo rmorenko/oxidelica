@@ -102,6 +102,16 @@ library_floor() {
   ./scripts/library_floor.sh "$library"
 }
 
+# The band on the ratio of the two halves' times, seen to fire on
+# either side and to stay quiet in the middle. The library step is the
+# only other place it runs, and there it is green whenever the pass
+# is, so without this nobody would see it red until it mattered.
+time_band_judges() {
+  ./scripts/library_floor.sh --ratio-check 1000 500 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 2000 > /dev/null && return 1
+  ./scripts/library_floor.sh --ratio-check 1000 1045
+}
+
 step "Formatting" cargo fmt --all -- --check
 step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
 # Debug, no --release, the way CI runs them. Not a saving of time: a
@@ -112,6 +122,7 @@ step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
 # SIGABRTed CI on the next command. Measure where the failure lives.
 step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
+step "The time band fires on both sides" time_band_judges
 
 if [ -d "$library" ]; then
   step "The standard library still reads" library_floor

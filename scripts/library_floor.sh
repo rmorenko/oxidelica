@@ -1146,18 +1146,53 @@ RUNNABLE_RUN_FLOOR=639
 # file that stops parsing takes its whole tree of classes with it, and
 # the counts below would hide that behind a handful of models.
 UNREAD_CEILING=0
-# Milliseconds per model that reached each half. See the note above
-# for why these are the build machine's numbers and not a desk's.
-FLATTEN_MS_CEILING=12000
-# Raised from 8000 after it fired on weather. ce66aca is 307a790 with a
-# chapter of prose added, and the two library jobs printed 5975ms and
-# 8141ms per model running (jobs 108441560249 and 108442231140,
-# /tmp/m288/runner307.log and runnerce6.log): 36% apart over one code,
-# and the second red. The dearest of the twelve runs before them was
-# 8327ms (run 36208575512). 8327 with a 36% spread above it is 11325,
-# so the ceiling goes to 12000, the flattening one's: still under half
-# of the factor of five this trap was set for.
-RUN_MS_CEILING=12000
+# The time a model costs is held by the ratio of the two halves, and
+# not by a ceiling on either. Both halves are measured in one pass, on
+# one machine, under one weather, so the weather cancels out of their
+# ratio and does not cancel out of either alone.
+#
+# The absolute ceilings of 12000ms per model that stood here sat inside
+# the build machine's own band: over one and the same code it printed
+# anything from 6622 to 12957ms per model running, and in fifteen hours
+# three commits went red on counts that were right (02121e2 at 12957,
+# 5e0d945 at 12185, f76e71b at 12578). A threshold inside the noise
+# measures the noise.
+#
+# Over 46 library jobs the ratio of running to flattening came out
+# between 0.832 and 1.295, median 1.045, and spread 7.9% where running
+# alone spread 14.9%. The band below fired on none of the 46; it has
+# 19% of room under the lowest and 16% over the highest, so it catches
+# flattening growing dearer by 49% and running growing dearer by 44%.
+# It is two-sided on purpose: a regression in flattening moves the
+# ratio down, and a one-sided check would never see it.
+#
+# What it does not catch, said outright: both halves slowing together,
+# which the ratio cancels exactly as it cancels the weather - the job's
+# own time limit is what stops a catastrophe of that kind - and any
+# regression smaller than about 44%, which this machine cannot tell
+# from its weather at all. The milliseconds per model are still
+# printed, for the eye and for the next measurement of drift; they are
+# only no longer judged.
+RATIO_LOW=0.70
+RATIO_HIGH=1.50
+
+# The band itself, as a function, so that it can be seen red without a
+# library pass: `library_floor.sh --ratio-check <flatten ms> <run ms>`
+# judges the two numbers it is given and nothing else. A check nobody
+# has seen fail is a check nobody has checked.
+ratio_verdict() {
+  awk -v f="$1" -v r="$2" -v lo="$RATIO_LOW" -v hi="$RATIO_HIGH" 'BEGIN {
+    if (f <= 0) { printf "CEILING: flattening cost %sms per model, and a ratio over it means nothing\n", f; exit 1 }
+    x = r / f
+    if (x < lo || x > hi) { printf "CEILING: run/flatten ratio is %.3f, and the band is %.2f..%.2f\n", x, lo, hi; exit 1 }
+    printf "ratio: run/flatten is %.3f, inside %.2f..%.2f\n", x, lo, hi
+  }'
+}
+if [ "${1:-}" = "--ratio-check" ]; then
+  ratio_verdict "${2:?usage: library_floor.sh --ratio-check <flatten ms> <run ms>}" \
+    "${3:?usage: library_floor.sh --ratio-check <flatten ms> <run ms>}"
+  exit $?
+fi
 
 # The work the check did, counted in steps rather than seconds, and
 # held to within five percent of what is written here either way.
@@ -1498,16 +1533,12 @@ short() {
 # counts, so nothing there means the report changed shape, and a
 # ceiling that silently stops measuring is the thing this project has
 # already been bitten by twice.
-over() {
-  echo "CEILING: $1 is ${2}ms per model, and the ceiling is ${3}ms"
-  status=1
-}
 if [ -z "${flatten_ms_now:-}" ] || [ -z "${run_ms_now:-}" ]; then
   echo "CEILING: the report did not say what a model cost; the time line changed shape"
   status=1
 else
-  [ "$flatten_ms_now" -le "$FLATTEN_MS_CEILING" ] || over "flattening" "$flatten_ms_now" "$FLATTEN_MS_CEILING"
-  [ "$run_ms_now" -le "$RUN_MS_CEILING" ] || over "running" "$run_ms_now" "$RUN_MS_CEILING"
+  echo "time per model: ${flatten_ms_now}ms flattening, ${run_ms_now}ms running"
+  ratio_verdict "$flatten_ms_now" "$run_ms_now" || status=1
 fi
 
 # The work. Each count is read off the `work:` line by the word that

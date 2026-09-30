@@ -610,14 +610,18 @@ are `RollingWheelSetPulling` and `RollingWheelSetDriving` at 54 to
 longer the giant the note above made it - the wheel sets and the
 engines are, and MultiBody owns almost the whole list either way.
 
-`scripts/library_floor.sh` holds the time per model to a ceiling, one
-for each half, beside the five counts. Those are the numbers to move
-with a change, and the total is not: a check that grew longer because
-more models pass is the point, and a check where each model got
-dearer is a regression. The ceilings are the build machine's
-numbers - the slower of the two, the opposite way round from the
-counts and for the same reason: a threshold is set where the machine
-that fires it can reproduce it.
+`scripts/library_floor.sh` holds the time per model by the ratio of
+the two halves, running over flattening, to a band of 0.70 to 1.50,
+beside the five counts. Both halves are timed in one pass under one
+weather, which cancels out of their ratio and out of neither alone:
+the absolute ceilings that stood there before sat inside the build
+machine's own band of noise and turned three right commits red in
+fifteen hours. The band is the build machine's, and a desk's ratio
+runs higher - its median is nearer 1.4, and a desk pair can cross
+1.50 on weather - so a red band on the desk alone is read against the
+runner before anything is concluded. What the band cannot see is both
+halves slowing together, and a regression under about 44%; the
+milliseconds are still printed for the eye.
 
 ### A giant is carved out with a floor, or not at all
 
