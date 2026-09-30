@@ -28152,3 +28152,45 @@ criterion, with its own small model; the pivot evaluating the
 definitions with the programs the monitor has, so that the two cannot
 disagree; and a monitor that compares a victim with its alternatives
 on one scale, with `GearConstraint` as the test.
+
+**The wall behind the tee, and the step of a difference.** On main the
+small tee `TJ2.mo` refuses on the one-unknown block
+`der(junctionVolume.medium.h)` at t = 0.0098
+(`/tmp/m321/tj2_trail.txt`). The derivative it solves for decays
+toward zero as the volume settles - 7.9e6 at the start, 157 at the
+refusal - while the terms the block adds up stand at 7.4e9. The
+Jacobian taken with the textbook step `1e-8 * (1 + |v|)` moves such a
+residual by less than its rounding, and the Newton trail jumps 531, 7,
+-1.2, ..., 40.8, 357 without settling. With `OXIDELICA_FD_STEP` at
+1e-6, 1e-5 and 1e-4 the same binary runs the model to the end, with
+the mass at 0.001161 kg, which is p V / (R T) for a litre of air at
+1e5 Pa and 300 K. `BranchingPipes17` under 1e-6 passes the Newton wall
+and stops at the next one: `T_h` of the ideal-gas medium is asked for
+the temperature of an enthalpy near -1.05e87 and the bracket [200,
+6000] cannot hold it, which is the energy without a start of m320
+arriving by another road.
+
+The step is a knob over every block of every model, so it was measured
+over the whole corpus from one binary (`/tmp/m321/ox_main`, the
+preflight's build of a00be09): `/tmp/m321/preflight.txt` at 1e-8
+against `/tmp/m321/fd6.txt` at 1e-6. The totals are 962/682 and
+962/683, runnable 846/640 and 846/641, and the run lists say it is not
+a gain of one:
+
+```text
+arrived  DiodeBridge2mPulse, QuasiStatic.SinglePhase.Examples.Rectifier,
+         IMC_Steinmetz, ReferenceAir.DryAir2, TestSuddenExpansion
+left     HBridge_TrianglePWM_RL, Rotational.Examples.HeatLosses
+         (step size underflow at t = 0.0341),
+         FluidHeatFlow PumpAndValve (Newton direction),
+         Vessels.TestInitialization (50 Newton iterations)
+```
+
+Five came and four went, a scattered exchange rather than a family
+moving, and so a different compiler rather than a fix. The larger step
+is not taken. What the measurement does say is that the step decides
+which models run, in both directions, and that the right step is a
+property of the block rather than one constant - the ladder that grows
+a dead column is the present answer to that for columns that come back
+zero, and a column that comes back as noise is the case it does not
+reach yet.
