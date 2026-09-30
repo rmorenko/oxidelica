@@ -395,7 +395,22 @@ FILES_FLOOR=2671
 # its elements (f999f45). The runner counts 963 in job 109136903901 of
 # run 36484179633 (/tmp/m306/runner_job.log), the desk 963 on the same
 # code (/tmp/m305/on.txt).
-FLATTEN_FLOOR=963
+#
+# And flatten 962 = 963 less Modelica.Electrical.Spice3.Examples.Oscillator,
+# carved into `scripts/heavy_models.txt` on 2026-09-30. It runs since
+# the zero-parameter quench took `i*R` with `R = 0` (e45a2aa), and it
+# costs 233s and 456922 Newton steps alone: a solver benchmark of the
+# adders' class. This is a deepening by the carving rule, not a loss:
+#
+#   flatten          963 = 962 here + 1 in the scheduled run
+#   runnable flatten 847 = 846 here + 1 in the scheduled run
+#   run 681 and runnable run 639 are unmoved: the Oscillator did not
+#   run on the tree those floors were set from.
+#
+# Main numbers from one binary over the corpus (/tmp/m318/p_new.txt,
+# 963/683 and 847/641 with the Oscillator still in), the scheduled
+# half from the same binary (/tmp/m318/heavy.txt, 10/2 and 8/2).
+FLATTEN_FLOOR=962
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1121,7 +1136,10 @@ RUN_FLOOR=681
 # And runnable run 639 = 638 plus ReferenceAir_dT, a runnable example,
 # by the same three: the runner's 847/640 on 5e0d945, the desk's 847/639
 # without the swing and 847/640 with it. Set from the lower.
-RUNNABLE_FLATTEN_FLOOR=847
+#
+# And runnable flatten 846 = 847 less the Oscillator, a runnable
+# example carved into the scheduled run; see `FLATTEN_FLOOR`.
+RUNNABLE_FLATTEN_FLOOR=846
 RUNNABLE_RUN_FLOOR=639
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one

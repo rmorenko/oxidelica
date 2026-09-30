@@ -34,10 +34,21 @@ set -euo pipefail
 # floors and is held here instead, so the run floor stops being zero
 # for the first time. Nine models, all nine flatten, one runs; seven of
 # them are runnable examples (/tmp/m266/heavy.txt).
-FLATTEN_FLOOR=9
-RUN_FLOOR=1
-RUNNABLE_FLATTEN_FLOOR=7
-RUNNABLE_RUN_FLOOR=1
+#
+# On 2026-09-30 `Spice3.Examples.Oscillator` joined, a runnable example
+# that runs: 233s and 456922 Newton steps alone. It left the main
+# flatten floors and is held here:
+#
+#   flatten          10 = 9 + 1
+#   run               2 = 1 + 1
+#   runnable flatten  8 = 7 + 1
+#   runnable run      2 = 1 + 1
+#
+# Measured from one binary built from e45a2aa (/tmp/m318/heavy.txt).
+FLATTEN_FLOOR=10
+RUN_FLOOR=2
+RUNNABLE_FLATTEN_FLOOR=8
+RUNNABLE_RUN_FLOOR=2
 
 directory="${1:?usage: heavy_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."

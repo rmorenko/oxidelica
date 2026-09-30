@@ -60,3 +60,10 @@ Modelica.Media.Examples.ReferenceAir.MoistAir2
 Modelica.Media.Examples.ReferenceAir.MoistAir1
 # 369.4s to flatten, 2026-09-24
 Modelica.Media.Examples.ReferenceAir.MoistAir
+
+# 233s to run, 2026-09-29, 456922 Newton steps: a Spice3 oscillator
+# that runs since the zero-parameter quench, and a solver benchmark of
+# the same class as the adders above. Spread over the runner's run
+# half it would add about 242ms to every model, against a ceiling the
+# weather already reaches.
+Modelica.Electrical.Spice3.Examples.Oscillator
