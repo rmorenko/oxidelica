@@ -27627,3 +27627,75 @@ either half (CV 7.8%, 0.832 to 1.295). It still moves by a third,
 since 02121e2 and 4413332 are the same code at 1.295 and 0.945. What
 to measure against is left to the owner of the ceilings. The table is
 in the queue with the options already written there.
+
+## m318: the zero-parameter quench taken, with the element recorded by the flattener
+
+**What the structure now records.** m317 left the quench parked on one
+victim, `GearConstraint`, and on a third narrowing that returned it
+but told an array's element by the `]` at the end of its name. That is
+a test on the spelling of a name standing in for a fact the structure
+did not record, so it was not taken. The fact is known in one place:
+`instantiate_one` in `flatten/components.rs`, where a primitive
+component is copied into the flat model and its dimensions are
+cleared. The copy now sets `Component::element_of_an_array` before the
+dimensions go, and the quench in `compile.rs` reads that field. A zero
+that is one element of an array parameter is spared, as a literal zero
+and a product of parameters already were. `OXIDELICA_QUENCH_ELEMENTS=1`
+brings back the reach that cost `GearConstraint`, and
+`OXIDELICA_ZERO_DER_ONLY=1` brings back the reach before m316.
+
+This is also the right fact on its own terms, and not only a way
+round the spelling. A scalar parameter set to zero says the term is
+absent from the model. A component of a vector that is zero here says
+only where the vector points, and index reduction of a MultiBody
+constraint reads `R.T[2,1] * r[2]` to see the orientation.
+
+**The pair.** One binary built from the fix (`/tmp/m318/oxs`), the old
+key on and off over `.msl`: `/tmp/m318/p_old.txt` prints 963 / 682 and
+847 / 640, `/tmp/m318/p_new.txt` prints 963 / 683 and 847 / 641. The
+flattened lists are identical. The run lists differ by one name,
+`Spice3.Examples.Oscillator`, which arrives. The list of victims is
+empty. The six of the m316 map and `GearConstraint` all run, as the
+probe of m317 said the third narrowing would (`/tmp/m318/six_new.txt`
+for the six with the new binary). SpringWithMass runs in both halves.
+The same binary under `OXIDELICA_QUENCH_ELEMENTS=1` refuses
+`GearConstraint` with the division by `cyl1.frameTranslation.r[1]` m317
+traced.
+
+**What is tested, and what is not.** `ZRX`, a capacitor held to a sine
+through a resistance the model sets to zero, now runs to `i = cos(1)`
+at t = 1. It is red under `OXIDELICA_ZERO_DER_ONLY`. The same circuit
+with the resistance written as `R[1] = {0}` checks that the flattener
+marks `R[1]` and not `C`, and that the term stands, so the circuit is
+refused as it was before any quench. It is red under
+`OXIDELICA_QUENCH_ELEMENTS`. What was not found is a small mechanical
+model where sparing an element changes the outcome. A planar pendulum
+with the rod written as `r = {1, 0}` and rotated by an angle gives the
+same trajectory to the digit with and without the key
+(`/tmp/m318/s/P2.mo`). So the element rule guards a path that only
+switches on at complexity, and its only mechanical witness is the
+corpus: `GearConstraint` under the key.
+
+**The carve.** The Oscillator costs 233 s and 456922 Newton steps to
+run on the desk. That is a solver benchmark of the Spice3 adders'
+class, and it now sits in `scripts/heavy_models.txt`. The main flatten
+floors come down by exactly that one model, 963 to 962 and 847 to 846. The main run floors do not move, because the Oscillator did not
+run on the tree they were set from. The scheduled half, measured with
+the same binary over the list with the Oscillator in it
+(`/tmp/m318/heavy.txt`), prints 10 / 2 and 8 / 2, the Oscillator and
+`ReferenceAir.MoistAir` being the two that run. `heavy_floor.sh`
+moves to those four numbers. Expected on the main pass after the
+carve: 962 / 682 and 846 / 640, with SpringWithMass.
+
+**A frozen pendulum, found on the way and not taken.** While looking
+for the small model, one variant froze. It declares `x` as the fixed
+start and holds the rod length through `x = cos(phi)*r[1] -
+sin(phi)*r[2]` (`/tmp/m318/P3_freeze.mo`). The trajectory is
+physical up to t = 0.594. There `phi` reaches zero, `x` reaches 1 and
+`dx/dphi` vanishes, and from that step on every column holds its value
+to the last digit until t = 1, with no refusal. The same happens with
+the quench switched off entirely (`OXIDELICA_NO_ZERO_DER=1`), so it
+does not come from this series. A state held at a turning point of
+the constraint that chose it should be refused or re-selected. A
+constant presented as the answer is a wrong number. It is queued as
+a finding of its own.
