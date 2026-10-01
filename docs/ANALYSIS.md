@@ -29061,3 +29061,37 @@ a column that reads flat at a step of 1e-8 of 3734 V, against currents
 of 1.4e6, looks like the rounding case of m321 and m325 from another
 model. That is a reading, not a measurement: the row loudness was not
 printed. Not taken further here.
+
+## The top of the run half's queue, probed on one model (m327)
+
+The census taken on this tree (`/tmp/m327c/census.txt`, raw half in
+`/tmp/m327c/raw.txt`) counts 67 models in 39 rows that do not flatten
+and 281 in 154 rows that flatten and do not run, which is 1033 - 966
+and 966 - 685, the pair's numbers. The top row is `the Newton
+direction of algebraic loop [...] does not reduce the residual`, 26
+models. Sorted by the residual they stall at, four stand below 5e-7:
+`Rectifier6pulse` (2.4e-10), `BranchingPipes2` (1.0e-9),
+`IMC_Transformer` (1.1e-9) and `DynamicPipesWithTraceSubstances`
+(4.7e-7). Those four look like blocks that have converged and are
+refused on the last ulps, so the cheapest was probed.
+
+`Rectifier6pulse`, 32 unknowns, at t = 2.15e-4 (Newton trail, and a
+scratch print naming the rows at this refusal, `/tmp/m327/rowprint.diff`,
+not on main): two Newton steps take the residual from 52 to 2.4e-10,
+and three more line searches do not move it. The floor test asks each
+row against its loudest term, and every row is within 17 ulps of its
+floor except two:
+
+| row | equation                                                        | residual | loudest |  ulps |
+| --- | --------------------------------------------------------------- | -------: | ------: | ----: |
+| 11  | `der(transformer1.core.i2[2]) - der(core.plug_p2.pin[2].i) = 0` | 2.44e-10 |    73.3 | 1.5e4 |
+| 12  | `der(transformer1.core.i2[1]) - der(core.plug_p2.pin[1].i) = 0` | 1.56e-11 |     5.5 | 1.3e4 |
+
+`core.i2[k] = core.plug_p2.pin[k].i` is an alias, so the two rows are
+the differentiated alias, and they hold the same 2.44e-10 and 1.56e-11
+through the last three iterations while every other row settles. A
+row that is an identity in exact arithmetic and stays at ten thousand
+ulps is not the floor test being too strict. Something computes the
+two derivatives by different routes, and the difference is what is
+left. Which routes, and whether the same holds in the other three
+models below 5e-7, is the next probe; nothing was changed.
