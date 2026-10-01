@@ -29137,3 +29137,101 @@ other 25 keep their refusals word for word. So the blind floor is a
 real link, worth one line in the floor test when that test is next
 touched, and it is not the last wall in front of `IMC_Transformer`.
 The key is not on main.
+
+## The warm start under both solvers, and the Jacobians counted apart (m327, second shift)
+
+Two answers came back on the parked questions of this stage, and they
+were taken in that order: the warm start restored on a rejected step,
+in the explicit solver and the implicit one together, with the old
+behaviour kept under `OXIDELICA_REJECT_KEEPS_GUESS`; and the two
+solenoids taken out of the count of Jacobians, onto a line of their own.
+
+**The warm start, measured once more and parked again.** The patch
+`state/m327_reject_keeps_guess_with_bdf.patch` applied to main as it
+stood. Its explicit half's test is red on main (`y left its branch at t
+= 0.0001: 1.879`) and green under the change. Its implicit half was
+behind a scratch key that switched it on; it was made the default under
+the same key as the explicit half, and given a witness of its own: the
+cubic started on its upper root, `--solver bdf`, red on main at
+`-1.532` and green under the change. The pair is one binary
+`/tmp/m327b/ox3`, both halves at once under a ceiling of 24 GB,
+`/tmp/m327b/old.txt` with the old behaviour and `/tmp/m327b/new.txt`
+without. The expectation written before it ran was 966/685 and 849/643
+in both halves, and one model swapped for one. What came back:
+
+| half | flatten | run | runnable flatten | runnable run |   points |   newton |
+| ---- | ------: | --: | ---------------: | -----------: | -------: | -------: |
+| old  |     966 | 685 |              849 |          643 | 32450181 | 44916212 |
+| new  |     966 | 686 |              849 |          644 | 27528282 | 40179245 |
+
+The flatten lists are equal name for name. The run lists differ by
+three: `ThyristorBridge2mPulse_RLV_Characteristic` out and
+`IMC_Steinmetz` in, the swap named and accepted, and `Dimmer_RL` in
+as well. The last is new: the explicit half alone did not move it
+(`/tmp/m327/new.txt` ran 685 without it), so it is the implicit half's.
+That is a departure the answer did not allow, so the change is parked
+and nothing of it is on main. The patch as it stood at the pair, both
+halves and both tests, is `state/m327_reject_keeps_guess_dopri_bdf_final.patch`.
+
+The points and Newton steps fell by 15% and 11%, out of the band, and
+`Dimmer_RL` alone is the fall (`OXIDELICA_WORK_EACH`, which prints each
+model's work by name, `--only` each way): refused, it spent 30415181
+points and 41888615 Newton steps before `solver exceeded the
+evaluation budget at t = 0.000894`, and running it spends 25482572
+and 37132737. That is 4932609 of the fall of 4921899 points and 4755878 of
+the 4736967 steps. The rest is the swap. So the WORK band would have
+been red on the new half for a reason worth knowing: a model that used
+to burn the budget now finishes inside it.
+
+Whether `Dimmer_RL` now runs honestly was probed once and not settled
+(`/tmp/m327b/dim/`, the model run to t = 8.5e-4 both ways, where both
+still run). Both halves agree on what physics fixes: both thyristors
+off, the load current 8.336e-8 against 8.314e-8, the source at
+41.049 V. They part on what physics barely fixes. The current
+circulating through the two antiparallel thyristors splits 3.99e-8 /
+-4.34e-8 against 4.30e-8 / -4.01e-8, and the potential of the node
+between them reads 1.12 V against -1.97 V. That potential is the
+inductor's voltage, `L di/dt`, and with both thyristors off the load
+current is fixed by their conductances alone, `i = 2 Goff (v_s - v_L)`
+to within the resistor's 9e-7 V. That is a mode with a time constant
+of `2 L Goff`, with `Goff` at 1e-5 that is 2e-5 s per henry of load,
+against an interval of 1e-4 (the value of `LLoad` was not read). So the 1.12 and the -1.97 are
+what two paths leave in the derivative of a stiff state at its
+equilibrium, not two roots, and they read differently on two paths
+for that reason. It is not a branch picked silently. But one probe at
+one time is not a verdict on eight seconds, and the swap rule names
+its models. So the next link
+is a reference for `Dimmer_RL` over the ten steps the check runs:
+the node's potential and the thyristor currents against a run at a
+tolerance a hundred times tighter, both ways.
+
+That run was tried (`/tmp/m327b/dim/T.mo`, a tolerance of 1e-8 to t =
+8.5e-4) and gives no reference: the old behaviour exceeds the budget
+at t = 1.16e-4, and the new one chatters, refused for more than ten
+thousand events by t = 5.4e-7. So at its own tolerance the model
+stands on a knife either way, and the reference has to come from
+outside this solver.
+
+Nor can the implicit half be cut so as to keep its witness and leave
+`Dimmer_RL` where it was (`/tmp/m327b/oxp`, a scratch key for each of
+the two places the implicit solver restores the start). The restore
+on a step whose Newton iteration failed moves neither. The restore on
+a step rejected by its error estimate moves both: without it the
+witness ends on the wrong branch at -1.532 and `Dimmer_RL` is refused
+again. The witness's repair and the third model's arrival are one
+line of code.
+
+**The Jacobians counted apart, taken.** `scripts/loose_jacobians.txt`
+names the two solenoids, and `library check` adds their Jacobians to a
+second number on the work line, `N jacobians apart`, read from where
+the check runs the way `scripts/heavy_models.txt` is. The pair above
+printed it on main's code as 323 and 274, which is 597, the sum the
+pair of the first shift printed for the same code (`/tmp/m327/old.txt`).
+`scripts/library_floor.sh` holds 323 to the five percent band as
+before, and 274 to a band of its own, 90% either side, so that a
+refusal of either model (0) or the swing of `ComparisonQuasiStatic` to
+2812 fires while a wander between steps that both run does not. Both
+bands were seen red through a new `--work-check` mode of the same
+script: 360 and 290 against 323, and 0, 25 and 2962 against 274.
+The preflight now runs that mode as a step of its own, as it already
+does for the band on times.
