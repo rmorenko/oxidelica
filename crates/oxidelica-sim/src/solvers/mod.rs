@@ -27,6 +27,15 @@ fn fd_growth_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_FD_GROWTH").is_some())
 }
 
+/// Whether a step either adaptive solver rejects may leave the
+/// algebraic blocks warm-started from the roots its trial found. Off by
+/// default; the switch exists so that the two halves of a measurement
+/// come from one binary.
+pub(crate) fn reject_keeps_guess() -> bool {
+    static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ON.get_or_init(|| std::env::var_os("OXIDELICA_REJECT_KEEPS_GUESS").is_some())
+}
+
 /// Whether to print the Newton iteration of every algebraic block.
 ///
 /// What a block does before it refuses is the only thing that says

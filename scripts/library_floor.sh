@@ -1411,8 +1411,16 @@ fi
 WORK_CLASSES=287278
 WORK_EXPANSIONS=105355315
 WORK_BODIES=1546158
-WORK_POINTS=32447051
-WORK_NEWTON=44913964
+#
+# Refreshed from /tmp/m328/new.txt, the warm start restored on a
+# rejected step; its off side, /tmp/m328/old.txt
+# (OXIDELICA_REJECT_KEEPS_GUESS, one binary /tmp/m328/ox), printed
+# 32450181 points and 44916212 Newton steps. The fall of 4921899 points
+# and 4736967 steps is Dimmer_RL, which burned 30415181 and 41888615
+# before it was refused and spends 25482572 and 37132737 running
+# (/tmp/m328/each_old.txt, each_new.txt, OXIDELICA_WORK_EACH).
+WORK_POINTS=27528282
+WORK_NEWTON=40179245
 # Jacobians refreshed from /tmp/m278/k_on.txt, 605, after the m278
 # series; the off side of one binary (/tmp/m278/off.txt, all three
 # switches of the series set) printed 327. 275 of the 278 are named
@@ -1439,12 +1447,26 @@ WORK_NEWTON=44913964
 # against 605 written before, the 597 being the sum the pair of m327
 # printed for the same code (/tmp/m327/old.txt). The 274 is the two at
 # the default step, 124 and 150, as measured one at a time.
-WORK_JACOBIANS=323
+#
+# Moved by the warm start restored on a rejected step (m328), the pair
+# /tmp/m328/old.txt and new.txt of one binary:
+#
+#   323 here + 274 apart  ->  130 here + 733 apart
+#
+# Apart, ComparisonQuasiStatic went 124 to 615 and ComparisonPullInStroke
+# 150 to 118 (/tmp/m328/each_*.txt), 274 to 733. Here the fall of 193
+# is named model by model (/tmp/m328/w_*.txt, OXIDELICA_WORK_EACH over
+# the union of both run lists): ControlledSwitchWithArc 100 to 32,
+# Dimmer_RL 146 to 13, IMC_Steinmetz 0 to 6 (runs now), SMPM_Braking
+# 7 to 9, and three thyristor bridges 3 to 4, 5 to 6 and 7 to 5.
+WORK_JACOBIANS=130
 # The pair is held on a line of its own and to a band of its own, an
 # order of magnitude wide in either direction rather than five percent:
 # 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
 # 2812 fires, and a wander between the steps that both run does not.
-WORK_JACOBIANS_APART=274
+# Around 733 (m328) the same width is 73 to 1393: a refusal still fires,
+# and so does the swing to 2812.
+WORK_JACOBIANS_APART=733
 WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
 # The names looked up, held to a band of their own in parts per

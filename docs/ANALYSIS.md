@@ -29235,3 +29235,116 @@ bands were seen red through a new `--work-check` mode of the same
 script: 360 and 290 against 323, and 0, 25 and 2962 against 274.
 The preflight now runs that mode as a step of its own, as it already
 does for the band on times.
+
+## A reference for Dimmer_RL from outside the solver, and the warm start taken (m328)
+
+The warm start restored on a rejected step was parked on one question:
+whether `Dimmer_RL`, which the change brings into the run list, comes
+in on an honest number. The answer was looked for in three ways, the
+cheapest first, and came from the third.
+
+**A ladder of tolerances gives no reference.** The model run to t =
+8.5e-4 at tolerances of 1e-7 and 3e-7 under both behaviours, one binary
+`/tmp/m327b/ox3` (`/tmp/m328/lad/*.log`): every one of the four runs
+exceeds the evaluation budget, the old behaviour at t = 2.29e-4 and
+5.07e-4, the new at 2.70e-4 and 4.75e-4. With 1e-8 from the shift
+before, no tolerance tighter than the model's own runs either way.
+
+**A fixed step gives none either.** `--solver rk4` refuses the model
+outright (`sample() needs a solver that steps onto the event`), so the
+precedent of `P3_freeze` does not carry over.
+
+**The physics gives one in closed form.** The check runs ten output
+intervals, to t = 1e-3. The reference voltage is a trapezoid that
+starts at t = 1 s, so over the whole horizon `vRef` is 0, the firing
+angle is pi and neither thyristor fires: both are off from start to
+end (`fire1` and `fire2` read 0 in every row printed). The triac is
+then two conductances `Goff` = 1e-9 S in parallel, 2e-9 S against a
+load of 10.527 ohm and 18.99 mH, and the load current is `2 Goff
+v_s` to one part in 1e8; the potential of the node between triac and
+load is `R i + L di/dt`, at most 2.8e-6 V. `Dimmer_R`, the same circuit
+without the inductor, runs on main and prints exactly that current to
+every digit shown (`/tmp/m328/full/r.csv`), which checks the reading.
+
+Against that reference, both behaviours run to t = 8.5e-4 at the
+model's own tolerance and an interval of 5e-5 (`/tmp/m328/full/old.csv`
+and `new.csv`):
+
+| behaviour | load current, worst relative error | node potential, range | V and I of a thyristor of opposite sign |
+| --------- | ---------------------------------: | --------------------: | --------------------------------------: |
+| old       |                               4.7% |       -0.45 to 0.83 V |                                       0 |
+| new       |                               4.6% |       -0.29 to 2.02 V |                                       0 |
+
+So neither behaviour lies about what the circuit does: the current is
+right to the absolute tolerance (1e-9 A against a current of 1e-7 A),
+the thyristors stay off, and no thyristor carries a current against
+its voltage. The node potential of 1.12 V and -1.97 V that parted the
+two at t = 8.5e-4 is the same thing in both: a voltage seen through
+the off resistance of 5e8 ohm, where an error of 4e-9 A in the current
+reads as 2 V. Neither is a root picked silently; both are noise at
+the tolerance, and the new behaviour's is no worse than the old. The
+difference between them is that the old one burns the budget before
+the ten intervals the check runs are over, and the new one finishes
+them. Past the check's horizon the new one is refused as well: run to
+the experiment's eight seconds it exceeds the budget at t = 1.096e-3
+(`/tmp/m328/full/new.log`), so what comes in is the check's
+millisecond, not the experiment. Under
+the decision of review 264 this is the outcome where the change goes
+in: the third model arrives on a checked number.
+
+**The ladder of m325 and its narrowing on main as it stands**
+(`/tmp/m328/oxL`, main with `state/m326_probes_and_narrow2.patch`,
+`--only-from scripts/loose_jacobians.txt`, `/tmp/m328/p2/*.txt`).
+Counted apart, the two solenoids build 274 Jacobians without the
+ladder, 4124 with it and 2014 narrowed, against a band of 27 to 520.
+The rest of the library, measured with the same patch in m326, moved
+by two Jacobians at most, so the main band of 323 would hold. The
+counting apart does not therefore unblock the series by itself: the
+ladder and its narrowing both land outside the pair's own band, eight
+and four times over it. That is the table the question for Roman
+stands on.
+
+**BranchingPipes17, link 5, the floor of `U(T)`.** With the medium's
+own polynomial (`Air` of the NASA tables) and V = 1e-3 m3 at p = 1e5
+Pa, `U(T) = p V (h(T) - R T) / (R T)` has no minimum above 50 K: it
+falls monotonically from 252.19 J at 577.82 K through 248.89 J at
+293.15 K to 248.62 J at 200 K and 200.55 J at 50 K. The floor Newton
+falls through is therefore not a minimum of the curve but the lower
+end of the bracket, 200 K, at 248.62 J. The whole span from 200 K to
+577 K is 3.6 J, since an ideal gas at fixed p and V holds U close to
+`p V cv / R`, and the start of `U` taken at the default `p_start` of
+101325 Pa instead of 1e5 is 1.3% high, 3.3 J, which on this curve is
+worth 285 K. That is the whole of link 5: no step from that start can
+land inside the bracket, and a start at the pressure the connection
+fixes needs no step. The map of m327 stands, now with the curve's
+shape measured rather than assumed.
+
+**The pair, and the change taken.** The patch of the shift before,
+`state/m327_reject_keeps_guess_dopri_bdf_final.patch`, applied to main
+as it stood; its two tests were red on main alone (`y left its branch
+at t = 0.001: -1.532`) and green with the change. One binary
+`/tmp/m328/ox` of the final tree ran both halves at once under a
+ceiling of 24 GB, `/tmp/m328/old.txt` with `OXIDELICA_REJECT_KEEPS_GUESS`
+and `/tmp/m328/new.txt` without. The expectation written before it
+ran: 966/686 and 849/644 in the new half, the swap of
+`ThyristorBridge2mPulse_RLV_Characteristic` for `IMC_Steinmetz` and
+`Dimmer_RL` in, nothing else out. What came back:
+
+| half | flatten | run | runnable flatten | runnable run |   points |   newton | jacobians | apart |
+| ---- | ------: | --: | ---------------: | -----------: | -------: | -------: | --------: | ----: |
+| old  |     966 | 685 |              849 |          643 | 32450181 | 44916212 |       323 |   274 |
+| new  |     966 | 686 |              849 |          644 | 27528282 | 40179245 |       130 |   733 |
+
+The flatten lists are equal name for name and the run lists differ by
+exactly the three names expected. The counts of work moved, and they
+moved in the same commit. The points and Newton steps are
+`Dimmer_RL`, as the shift before found. The pair counted apart went
+from 274 to 733: `ComparisonQuasiStatic` 124 to 615 and
+`ComparisonPullInStroke` 150 to 118 (`/tmp/m328/each_*.txt`), inside
+the pair's band either way. The Jacobians of the rest fell from 323
+to 130, and the fall of 193 is named model by model
+(`/tmp/m328/w_old.txt` and `w_new.txt`, `OXIDELICA_WORK_EACH` over the
+687 names either half ran): `ControlledSwitchWithArc` 100 to 32,
+`Dimmer_RL` 146 to 13, `IMC_Steinmetz` 0 to 6, `SMPM_Braking` 7 to 9,
+and three thyristor bridges by one or two each. Why a restored start
+saves a Jacobian in `ControlledSwitchWithArc` was not traced.

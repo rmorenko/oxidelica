@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::{turned, Segment, SegmentStart};
+use super::{reject_keeps_guess, turned, Segment, SegmentStart};
 
 impl CompiledModel {
     /// Variable-order (1..5), variable-step BDF with Newton iteration
@@ -131,6 +131,13 @@ impl CompiledModel {
                 }
             }
             y_new.copy_from_slice(&y_pred);
+            // What the algebraic blocks start from at the point this
+            // step leaves. A step too long for a stiff state predicts
+            // it where it never goes, a block with more than one root
+            // solves there, and a rejected step must not hand that
+            // root on as the start of every shorter try.
+            let footing_guess = alg_guess.clone();
+            let restore = !reject_keeps_guess();
 
             // Constant part of the BDF residual.
             let mut hist_sum = vec![0.0; n];
@@ -239,6 +246,9 @@ impl CompiledModel {
             }
 
             if newton_failed || !converged {
+                if restore {
+                    alg_guess.copy_from_slice(&footing_guess);
+                }
                 // Shrink the step, drop to first order and refresh the
                 // Jacobian: the linear model is clearly stale.
                 h *= 0.25;
@@ -499,6 +509,9 @@ impl CompiledModel {
                 }
             } else {
                 consecutive_ok = 0;
+                if restore {
+                    alg_guess.copy_from_slice(&footing_guess);
+                }
                 if order > 1 {
                     order -= 1;
                 }

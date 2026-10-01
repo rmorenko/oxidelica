@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::{turned, Segment, SegmentStart};
+use super::{reject_keeps_guess, turned, Segment, SegmentStart};
 
 impl CompiledModel {
     /// Adaptive Dormand-Prince 5(4) integration with dense output.
@@ -152,6 +152,20 @@ impl CompiledModel {
                 }
             }
             // Stages 2..7 (stage 1 is FSAL from the previous step).
+            // What the algebraic blocks start from at the point this
+            // step leaves, kept so that a step thrown away does not
+            // hand its stages' roots on as the start of the next try.
+            // A stage at t + h/5 of a step too long for a stiff state
+            // stands where the state never goes, and a block with more
+            // than one root - a saturating iron, `y^3 - 3 y = x` -
+            // converges there onto a root the run never reaches.
+            // Every shorter try then starts its blocks from that root
+            // and is solved on it: `ComparisonQuasiStatic` at a
+            // difference step of 1.1e-8 halved its step from 2e-4 down
+            // to 1e-15 with each try starting the magnetic circuit from
+            // 7e24, and was refused at t = 0. Rejected, the step leaves
+            // nothing behind.
+            let footing_guess = alg_guess.clone();
             let mut stage_failed = false;
             for s in 1..7 {
                 for j in 0..n {
@@ -224,6 +238,9 @@ impl CompiledModel {
                     // selection, reject the step and shrink instead.
                     Err(_) if self.reselectable => {
                         h *= 0.2;
+                        if !reject_keeps_guess() {
+                            alg_guess.copy_from_slice(&footing_guess);
+                        }
                         if h < stop * 5e-14 {
                             return self.stall_at_last_row(
                                 columns,
@@ -534,6 +551,9 @@ impl CompiledModel {
                 }
             }
 
+            if !accepted && !reject_keeps_guess() {
+                alg_guess.copy_from_slice(&footing_guess);
+            }
             let factor = if !err_norm.is_finite() {
                 0.2
             } else if err_norm == 0.0 {

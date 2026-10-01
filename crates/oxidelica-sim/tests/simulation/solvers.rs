@@ -1115,3 +1115,69 @@ fn a_residual_that_cancelled_inside_one_side_is_judged_against_what_it_cancelled
     let x = result.rows.last().expect("a row")[column];
     assert!((x - 1.0).abs() < 1e-6, "x = {x}");
 }
+
+/// A step the explicit solver throws away leaves nothing behind. The
+/// cubic `y^3 - 3 y = x` has three roots for `x` near one, and the
+/// run starts on the lowest of them, at -1.38 for x = 1.5. The state
+/// falls to one in a few microseconds, so the first step tried is far
+/// too long for it: its stages put `x` at 50 and beyond, where the
+/// cubic has a single root on the upper branch, and the block solves
+/// there. Before this was repaired the rejected step handed that root
+/// on as the start of every shorter try, the block went on being
+/// solved on the upper branch, and the run reported y = 1.879 - a
+/// root of the equation, and not the one a continuous `y` reaches
+/// from where it began. Along the run `y` follows `x` down its own
+/// branch to -1.532, the lowest root of `y^3 - 3 y = 1`.
+#[test]
+fn a_rejected_step_does_not_hand_its_roots_to_the_next_try() {
+    let result = run(
+        "model W Real x(start = 1.5, fixed = true); Real y(start = -2); \
+         equation der(x) = -1e5*(x - 1); y^3 - 3*y = x; \
+         annotation(experiment(StopTime = 0.0005, Interval = 0.0001)); end W;",
+    );
+    let column = result.columns.iter().position(|c| c == "y").expect("y");
+    for row in &result.rows {
+        assert!(
+            row[column] < 0.0,
+            "y left its branch at t = {}: {}",
+            row[0],
+            row[column]
+        );
+    }
+    let y = result.rows.last().expect("a row")[column];
+    // y = 2 cos(theta) turns the cubic into cos(3 theta) = 1/2.
+    let lowest = 2.0 * (7.0 * std::f64::consts::PI / 9.0).cos();
+    assert!((y - lowest).abs() < 1e-5, "y = {y}, lowest root {lowest}");
+}
+
+/// The same for the implicit solver. Started on the upper root of
+/// `y^3 - 3 y = x`, 1.942 for x = 1.5, the run follows `x` down to one
+/// along the upper branch and ends on its root of 1.879. The first step
+/// BDF tries is far too long for the stiff `x`: its predictor puts `x`
+/// near -48, where the cubic has a single root of about -3.9 on the
+/// lower branch, and the block solves there. Before this was repaired
+/// the rejected step handed that root on to every shorter try, and the
+/// run ended on the lower branch at -1.532 without a word.
+#[test]
+fn a_rejected_implicit_step_does_not_hand_its_roots_to_the_next_try() {
+    let result = run_on(
+        "model W Real x(start = 1.5, fixed = true); Real y(start = 2); \
+         equation der(x) = -1e5*(x - 1); y^3 - 3*y = x; \
+         annotation(experiment(StopTime = 0.01, Interval = 0.001)); end W;",
+        SolverMethod::Bdf,
+    )
+    .expect("runs");
+    let column = result.columns.iter().position(|c| c == "y").expect("y");
+    for row in &result.rows {
+        assert!(
+            row[column] > 0.0,
+            "y left its branch at t = {}: {}",
+            row[0],
+            row[column]
+        );
+    }
+    let y = result.rows.last().expect("a row")[column];
+    // y = 2 cos(theta) turns the cubic into cos(3 theta) = 1/2.
+    let upper = 2.0 * (std::f64::consts::PI / 9.0).cos();
+    assert!((y - upper).abs() < 1e-5, "y = {y}, upper root {upper}");
+}
