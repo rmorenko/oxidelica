@@ -29124,3 +29124,16 @@ same case, and they come apart into two:
 So the row of 26 is at least three families by layer: a differentiated
 alias, a floor test blind to absolute zeros, and the zero-flow
 junction. The counter shows one row.
+
+**The blind floor, tried on the row alone** (`/tmp/m327/ox9`, a scratch
+key `OXIDELICA_FLOOR_ABSOLUTE` that also takes a row with
+`|f| <= 1e-10 eps` as on the floor; the 26 models of the row by
+`--only-from`, both halves at once, `/tmp/m327/fl_old.txt` and
+`fl_new.txt`). Nothing runs that did not: 0 of 26 under both.
+`IMC_Transformer` moves one wall up. The block of 55 is accepted, and a
+block refuses it next as an underdetermined loop (where in the run was
+not read). The
+other 25 keep their refusals word for word. So the blind floor is a
+real link, worth one line in the floor test when that test is next
+touched, and it is not the last wall in front of `IMC_Transformer`.
+The key is not on main.
