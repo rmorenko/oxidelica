@@ -29393,3 +29393,144 @@ its own stop time by one binary, `/tmp/m328/arc/old.csv` and
 `new.csv`, the worst difference over every column is 1.8e-10 of that
 column's largest value. What the restored start saves there is work,
 not a different trajectory.
+
+## A value read through `pre` caught up one event late, and the ladder over the warm start (m329)
+
+**The ladder's pair over main is clean.** One binary, main with
+`state/fd_noise_ladder_narrow_m325.patch` (two conflicts with the warm
+start, both additive), both halves at once under a ceiling of 24 GB:
+`/tmp/m329/off.txt` with `OXIDELICA_NO_FD_NOISE_LADDER`, 966/686 and
+849/644, and `/tmp/m329/on.txt` without, 966/687 and 849/645. The run
+lists differ by one name, `ThyristorBridge2mPulse_RLV_Characteristic`
+arriving, and nothing leaves. The Jacobians the band counts went 130
+to 128 and the solenoid pair 733 to 600, both inside their bands.
+
+**But the model it brings comes in on a wrong number, and the ladder
+is not why.** The check runs ten intervals of 2e-4, to 2 ms. Over
+that horizon the bridge has a closed form: the firing angle is the
+ramp `pi t / 10`, under 6.3e-4 rad, so every thyristor is fired at
+its natural commutation and the bridge is a diode bridge. The DC side
+is then `max - min` of the three phase voltages, and `L di/dt =
+v_dc + 260 - 20 i` integrated by RK4 at 1e-7 gives the load current
+the model should print. Against that reference (`/tmp/m329/rlv/check.py`)
+the run under the ladder ends at 0.9128 A against 1.0083 A, and its
+worst relative error over the rows above 1 mA is 96%. Each row taken
+alone is physical: every thyristor sits on its own branch, `i = Goff
+v` while off and `v = Ron i` with a forward current while on, no
+violation in 206 rows (`sign.py`). What is wrong is when they switch.
+`p3` and `n2` are fired at t = 0 and conduct from 1.856e-4. `p1` is
+fired at 1.6683e-3 and conducts from 2.0e-3. Both lags end at the
+next output point, which is an event, not at anything the circuit
+does.
+
+**The lag is `pre`, and it is on main.** The rectifier hands its
+firing signals through `Blocks.Logical.Pre`, `y = pre(u)`. The
+language's event iteration goes on until every discrete value equals
+its `pre`, so `y` takes the new `u` in the same instant. The event
+handler copied `pre` once, when the event began, and stopped when a
+pass came to rest, with `y` still holding the old `u`. Twelve lines
+show it:
+
+```modelica
+model P
+  Boolean u = time > 0.1;
+  Boolean y;
+  Real x(start = 0, fixed = true);
+equation
+  y = pre(u);
+  der(x) = if y then 1 else 0;
+end P;
+```
+
+`x(1)` should be 0.9. Main prints 0, the binary of m328 prints 0,
+and the ladder's prints 0: no later event comes, so `y` never moves.
+The same model written with `when u then y = true` prints 0.9, which
+is why nothing in the suite saw it. The fix takes the event round
+again with the values as the new `pre`, until none differs, bounded
+by one pass per such value plus one, and refuses by name if it does
+not come to rest. The initial event keeps one pass, because there
+the start of a discrete value is read as `pre(v) = start` (MLS 8.6),
+and `a_discrete_start_pins_what_it_was_and_not_what_it_is` holds
+exactly that (it went red under the first draft, which iterated at
+t = 0 as well). `OXIDELICA_NO_PRE_ITERATION` keeps the old behaviour.
+
+Under the fix the bridge switches at the instant it is fired (`p1`
+on at 1.6683e-3), and the load current matches the reference to
+3.3e-5 relative over the whole horizon, ending at 1.00826 A against
+1.00826 A, with the ladder or without it (`PL.csv`, `P_noL.csv`).
+
+So the ladder brings `RLV_Characteristic` in and the `pre` fix makes
+its number right. Neither goes in alone: the ladder alone would add a
+model that runs on a current ten percent short.
+
+**The pair of the fix with the ladder, and what it costs.** One
+binary `/tmp/m329/oxPL2`, main with the fix and the ladder, both
+switches set for `/tmp/m329/base.txt` and neither for `both.txt`.
+`base.txt` repeats the ladder pair's `off.txt` name for name. `both.txt`
+is 966/686 and 849/644: `RLV_Characteristic` comes in and
+`ThyristorBridge2mPulse_DC_Drive` leaves. The Jacobians go 130 to
+20132, and 20009 of them are that one model refusing (`--only`, step
+size underflow at t = 4.62e-4). The ladder plays no part in it: the
+fix without the ladder refuses at the same instant.
+
+**The model that leaves was running on a wrong number.** Under the
+old behaviour (`/tmp/m329/dc/old.csv`, to 2 ms) `n2` is fired at
+4.62e-4 with 8.7 V across it in the forward direction. It stays off
+until t = 2e-3, the next event, with the forward voltage rising to
+13 V the whole way. A fired thyristor with a forward voltage
+conducts. So the old run of `DC_Drive` held a switch open for 1.5 ms
+against its own equation, and the check counted it as running. With
+the fix, `n2` turns on at the instant it is fired, and BDF then dies
+on the commutation that follows. That is a wall of its own, behind a
+number that was wrong before.
+
+**Decision: parked, not merged.** Merged as they stand, the two
+changes would trade a wrong run for a refusal and a right one,
+leaving the counts level, and the Jacobian band would read 20132
+against 130 because of one refusing model. Merging needs the floors
+untouched and the band explained, and the full preflight on that
+tree takes an hour this shift did not have. Patches:
+`state/pre_iteration_m329.patch` (the fix, its witness
+`a_value_read_through_pre_catches_up_within_the_event`, seen red
+under the switch and green without, and
+`a_value_that_never_equals_its_pre_is_refused_by_name`), and
+`state/ladder_on_pre_m329.patch` (the ladder with W2, seen red under
+`OXIDELICA_NO_FD_NOISE_LADDER`, which applies on top of the first).
+The next step is `DC_Drive`'s underflow under the fix: the first
+commutation after a firing that now happens on time.
+
+**Why the library job went red on the three runs of m328.** All
+three test jobs died at Clippy, not at a test. The runner's stable
+toolchain moved to 1.99.0, whose clippy reads a borrowed closure
+handed to `Option::map` as a needless borrow, and seven such places
+stood in the parser and the walker. That is mended in 91abc03, and
+its tests are green on all three platforms. The library job is red
+for a reason of its own, the same on all three runs:
+
+```text
+966 flatten, 685 run; 849 flatten, 643 run
+WORK: points evaluated is 33122763 against 27528282 written here (1.203227x)
+WORK: newton iterations is 47567421 against 40179245 written here (1.183880x)
+```
+
+(`/tmp/m329/ci_691b9e3.log`). The runner's list differs from the
+desk's by three names: it runs `RLV_Characteristic` and not
+`Dimmer_RL` or `SpringWithMass`. `Dimmer_RL` owns the band. Counted
+model by model on the desk (`/tmp/m329/swing_main.txt` and
+`swing_old.txt`, `OXIDELICA_WORK_EACH`), it spends 25482572 points
+when it runs and 30415181 when it burns the budget and is refused.
+That is 92.6% of the corpus's points either way. The points were
+rewritten in m328 from a desk where it runs, and the runner refuses
+it. So the band of five percent is held by one model's swing between
+a run and a refusal, the way the Jacobians were held by the
+solenoids. Taking its refusal off the runner's total still leaves
+2.71 million points against the desk's 2.05 million for everything
+else, and that 0.66 million is not named: the runner prints no
+per-model work. The floors stand where they were, 966/685 and
+849/643, which is what the runner printed. Nothing rises.
+
+The repair needs two things this shift did not measure: `Dimmer_RL`
+counted apart for points and Newton steps, the way
+`scripts/loose_jacobians.txt` does for Jacobians, and the runner's
+own list of what each model spends, so that the 0.66 million gets a
+name before a number is written over it.
