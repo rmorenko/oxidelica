@@ -1053,3 +1053,40 @@ fn a_threshold_due_with_a_crossing_turns_with_it() {
         assert!((last[x] - 1.4).abs() < 1e-6, "{method:?}: x = {}", last[x]);
     }
 }
+
+/// `y = pre(u)` is how `Blocks.Logical.Pre` breaks a loop of switches,
+/// and the event iteration of the language goes on until every
+/// discrete value equals its `pre`, so `y` takes the new `u` within
+/// the instant `u` changes. Copying `pre` only when the event began
+/// left `y` false until some later event came along, and in this model
+/// none does: the integral stayed at zero for the whole run. In a
+/// thyristor bridge the same lag was a third of a millisecond of
+/// firing delay and a load current ten percent short.
+#[test]
+fn a_value_read_through_pre_catches_up_within_the_event() {
+    let result = run(
+        "model P Boolean u = time > 0.1; Boolean y; Real x(start = 0, fixed = true); \
+         equation y = pre(u); der(x) = if y then 1 else 0; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end P;",
+    );
+    let x = result.columns.iter().position(|c| c == "x").unwrap();
+    let last = result.rows.last().expect("a row")[x];
+    assert!((last - 0.9).abs() < 1e-6, "x(1) = {last}");
+}
+
+/// A value defined against its own `pre` that flips on every pass is
+/// an event that never comes to rest, and the iteration that goes on
+/// until `pre(v) = v` must stop and say so, naming the value, rather
+/// than carry whichever pass it gave up on into the run.
+#[test]
+fn a_value_that_never_equals_its_pre_is_refused_by_name() {
+    let message = run_err(
+        "model F Boolean u = time > 0.1; Boolean y(start = false, fixed = true); \
+         equation y = if u then not pre(y) else false; \
+         annotation(experiment(StopTime=1.0, Interval=0.1)); end F;",
+    );
+    assert!(
+        message.contains("differs from its `pre`") && message.contains("\"y\""),
+        "{message}"
+    );
+}

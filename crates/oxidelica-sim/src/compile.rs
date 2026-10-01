@@ -4790,6 +4790,7 @@ pub(crate) fn compile_at(
         discrete_slots,
         discrete_definitions,
         pre_slots,
+        pre_names: discretes.iter().chain(&pre_wanted).cloned().collect(),
         initial_slot,
         terminal_slot,
         sample_slots,

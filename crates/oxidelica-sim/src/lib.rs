@@ -289,6 +289,10 @@ pub struct CompiledModel {
     /// a Boolean or an Integer is discrete-valued whatever assigns it,
     /// so `pre` reaches it too and it needs a slot of its own here.
     pre_slots: Vec<(Slot, Slot)>,
+    /// The name of each pair of [`CompiledModel::pre_slots`], in the
+    /// same order, so that an event that will not come to rest can
+    /// say which value would not catch up with its `pre`.
+    pre_names: Vec<String>,
     /// Slot of the flag raised during the initial event.
     initial_slot: Slot,
     /// Slot of `$terminal`, raised once the run reaches its stop time.

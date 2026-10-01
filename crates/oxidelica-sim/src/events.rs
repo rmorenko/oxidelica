@@ -445,190 +445,244 @@ impl CompiledModel {
         for &(slot, pre) in &self.pre_slots {
             values[pre] = values[slot];
         }
-        let before_event = state.when_prev.clone();
+        let mut before_event = state.when_prev.clone();
+        // The language's event iteration goes on until every discrete
+        // value equals its `pre`: `y = pre(u)` in `Blocks.Logical.Pre`
+        // is how a library breaks a loop of switches, and it is meant
+        // to take the new `u` within the same instant. Copying `pre`
+        // once, when the event began, left `y` at the old value until
+        // whatever event came next - in a thyristor bridge, the next
+        // output point, a third of a millisecond of firing delay that
+        // nothing in the model asked for. So each pass that ends with
+        // a discrete value away from its `pre` takes the values as the
+        // new `pre` and goes round again; the bound is one pass per
+        // discrete value and one more, the same reasoning as the rounds
+        // inside a pass.
+        // The initial event is the exception: there the start of a
+        // discrete-valued name is read as `pre(v) = start` (MLS 8.6),
+        // a condition of the initial problem rather than a value the
+        // iteration may move, and `y = pre(aux)` must show the start.
+        let passes = if pre_iteration_off() || values[self.initial_slot] != 0.0 {
+            1
+        } else {
+            self.pre_slots.len() + 2
+        };
         // A `reinit` is collected rather than applied: the event
         // iteration works on the discrete variables, and the new value
         // of a state is what the integration resumes from afterwards.
         let mut pending_reinit: Vec<(usize, f64)> = Vec::new();
-        let mut fired: Vec<Vec<bool>> = before_event
-            .iter()
-            .map(|branches| vec![false; branches.len()])
-            .collect();
         let mut scratch = Vec::new();
+        let mut pass = 0;
+        loop {
+            pass += 1;
+            let mut fired: Vec<Vec<bool>> = before_event
+                .iter()
+                .map(|branches| vec![false; branches.len()])
+                .collect();
 
-        // Every branch fires at most once per event, so one round per
-        // branch plus a final quiet one is all the iteration can need.
-        // Each branch may fire once, and each discrete definition may
-        // settle once more after it: that many rounds are enough for
-        // an event that comes to rest, and one more is the round that
-        // proves it has.
-        let rounds = self
-            .when_clauses
-            .iter()
-            .map(|clause| clause.branches.len())
-            .sum::<usize>()
-            + self.discrete_definitions.len()
-            + 1;
-        let mut settled = false;
-        // Which discrete-valued names moved on the last round. A name
-        // that settled early is not what stopped the event coming to
-        // rest, and listing it beside the ones that did is the same
-        // fault as a refusal that quotes whichever parameter came
-        // first: the reader cannot tell the cause from the company it
-        // keeps. `Counter`'s list went from seventy-nine names to
-        // forty - four triggers of ten names apiece, which is the
-        // ring that actually turns rather than every discrete value
-        // the model holds.
-        let mut moved: Vec<usize> = Vec::new();
-        for _ in 0..rounds {
-            let mut acted = false;
-            moved.clear();
-            // What a discrete-valued name is worth now. Unlike the
-            // body of a `when`, which fires on an edge, these hold at
-            // every moment of the event, so they are asked every round
-            // rather than when something just became true. A value
-            // that moves is a reason to go round again: the algebraic
-            // part is solved with the switches held still, and a
-            // switch that flips changes the system it was solved in.
-            //
-            // They are settled among themselves before any `when` is
-            // allowed to fire, and the reason is the whole of what a
-            // `when initial()` is for. A definition reads the
-            // algebraic part, and the algebraic part is only
-            // re-evaluated at the top of a pass, so a definition whose
-            // input is another definition's output reads the value
-            // from before the event on the first pass through. That is
-            // harmless for a definition, which is asked again next
-            // pass - but a `when initial()` fires exactly once, and if
-            // it fires on that pass it writes what it read from a
-            // half-built point. In `Modelica.Electrical.Digital` the
-            // half-built point is `bUF3S.yy = NaN`, the delay's body
-            // stores the NaN, and because NaN is equal to nothing at
-            // all - not even itself - the definition that holds it
-            // reports a change on every pass for ever and the event
-            // never comes to rest.
-            for _ in 0..=self.discrete_definitions.len() {
-                self.eval_point(t, y, values, &mut scratch, alg_guess)?;
-                let mut again = false;
-                for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
-                    let new = code.run(values, t);
-                    // A value that is NaN twice running has not moved.
-                    // The comparison below is the one the language
-                    // means - a discrete value holds until something
-                    // assigns it another - and IEEE's answer that NaN
-                    // differs from itself is about arithmetic rather
-                    // than about whether an assignment happened.
-                    if values[*slot] != new && !(values[*slot].is_nan() && new.is_nan()) {
-                        values[*slot] = new;
-                        outcome.changed = true;
-                        acted = true;
-                        again = true;
-                        if !moved.contains(&at) {
-                            moved.push(at);
+            // Every branch fires at most once per event, so one round per
+            // branch plus a final quiet one is all the iteration can need.
+            // Each branch may fire once, and each discrete definition may
+            // settle once more after it: that many rounds are enough for
+            // an event that comes to rest, and one more is the round that
+            // proves it has.
+            let rounds = self
+                .when_clauses
+                .iter()
+                .map(|clause| clause.branches.len())
+                .sum::<usize>()
+                + self.discrete_definitions.len()
+                + 1;
+            let mut settled = false;
+            // Which discrete-valued names moved on the last round. A name
+            // that settled early is not what stopped the event coming to
+            // rest, and listing it beside the ones that did is the same
+            // fault as a refusal that quotes whichever parameter came
+            // first: the reader cannot tell the cause from the company it
+            // keeps. `Counter`'s list went from seventy-nine names to
+            // forty - four triggers of ten names apiece, which is the
+            // ring that actually turns rather than every discrete value
+            // the model holds.
+            let mut moved: Vec<usize> = Vec::new();
+            for _ in 0..rounds {
+                let mut acted = false;
+                moved.clear();
+                // What a discrete-valued name is worth now. Unlike the
+                // body of a `when`, which fires on an edge, these hold at
+                // every moment of the event, so they are asked every round
+                // rather than when something just became true. A value
+                // that moves is a reason to go round again: the algebraic
+                // part is solved with the switches held still, and a
+                // switch that flips changes the system it was solved in.
+                //
+                // They are settled among themselves before any `when` is
+                // allowed to fire, and the reason is the whole of what a
+                // `when initial()` is for. A definition reads the
+                // algebraic part, and the algebraic part is only
+                // re-evaluated at the top of a pass, so a definition whose
+                // input is another definition's output reads the value
+                // from before the event on the first pass through. That is
+                // harmless for a definition, which is asked again next
+                // pass - but a `when initial()` fires exactly once, and if
+                // it fires on that pass it writes what it read from a
+                // half-built point. In `Modelica.Electrical.Digital` the
+                // half-built point is `bUF3S.yy = NaN`, the delay's body
+                // stores the NaN, and because NaN is equal to nothing at
+                // all - not even itself - the definition that holds it
+                // reports a change on every pass for ever and the event
+                // never comes to rest.
+                for _ in 0..=self.discrete_definitions.len() {
+                    self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+                    let mut again = false;
+                    for (at, (slot, code)) in self.discrete_definitions.iter().enumerate() {
+                        let new = code.run(values, t);
+                        // A value that is NaN twice running has not moved.
+                        // The comparison below is the one the language
+                        // means - a discrete value holds until something
+                        // assigns it another - and IEEE's answer that NaN
+                        // differs from itself is about arithmetic rather
+                        // than about whether an assignment happened.
+                        if values[*slot] != new && !(values[*slot].is_nan() && new.is_nan()) {
+                            values[*slot] = new;
+                            outcome.changed = true;
+                            acted = true;
+                            again = true;
+                            if !moved.contains(&at) {
+                                moved.push(at);
+                            }
+                        }
+                    }
+                    if !again {
+                        break;
+                    }
+                }
+                // A probe rather than a feature: what the event iteration
+                // held after each round, so that a refusal naming three
+                // names that keep moving can be read as the ring they
+                // actually turn in. `OXIDELICA_EVENT_TRAIL=1` runs it.
+                if std::env::var_os("OXIDELICA_EVENT_TRAIL").is_some() {
+                    let held: Vec<String> = self
+                        .discrete_definitions
+                        .iter()
+                        .filter_map(|(slot, _)| {
+                            let at = self.discrete_slots.iter().position(|held| held == slot)?;
+                            Some(format!("{} = {}", self.discretes.get(at)?, values[*slot]))
+                        })
+                        .collect();
+                    eprintln!("event t = {t}: {held:?}");
+                }
+                let now = self.when_conditions(t, values);
+                for (index, clause) in self.when_clauses.iter().enumerate() {
+                    // `elsewhen` is a priority list: the first branch that
+                    // just became true is the one that fires.
+                    let Some(branch) = (0..clause.branches.len())
+                        .find(|&b| now[index][b] && !before_event[index][b] && !fired[index][b])
+                    else {
+                        continue;
+                    };
+                    fired[index][branch] = true;
+                    acted = true;
+                    for action in &clause.branches[branch].actions {
+                        match action {
+                            CompiledAction::Terminate(message) => {
+                                outcome.terminated =
+                                    Some(format!("terminated at t = {t:.6}: {message}"));
+                            }
+                            // A check made when the event fires: what a
+                            // model means by writing it here is that the
+                            // thing must hold at that moment, and a run
+                            // where it does not is wrong rather than over.
+                            CompiledAction::Assert(condition, message) => {
+                                if condition.run(values, t) == 0.0 {
+                                    return crate::err(format!(
+                                        "assertion failed at t = {t:.6}: {message}"
+                                    ));
+                                }
+                            }
+                            CompiledAction::Reinit(state_index, code) => {
+                                pending_reinit.push((*state_index, code.run(values, t)));
+                                outcome.reinitialized = true;
+                                outcome.changed = true;
+                            }
+                            CompiledAction::Assign(discrete_index, code) => {
+                                let new = code.run(values, t);
+                                let slot = self.discrete_slots[*discrete_index];
+                                if values[slot] != new {
+                                    outcome.changed = true;
+                                }
+                                // Later equations of the same branch see the
+                                // new value, the way a simultaneous solution
+                                // of a triangular system would.
+                                values[slot] = new;
+                            }
                         }
                     }
                 }
-                if !again {
+                if !acted {
+                    settled = true;
                     break;
                 }
             }
-            // A probe rather than a feature: what the event iteration
-            // held after each round, so that a refusal naming three
-            // names that keep moving can be read as the ring they
-            // actually turn in. `OXIDELICA_EVENT_TRAIL=1` runs it.
-            if std::env::var_os("OXIDELICA_EVENT_TRAIL").is_some() {
-                let held: Vec<String> = self
-                    .discrete_definitions
+            // An event that never comes to rest is a model whose switches
+            // chase each other: saying so with the names of what was still
+            // moving is worth more than a step that quietly carries the
+            // last round's values forward as though they had settled.
+            if !settled {
+                // The discrete-valued names, which is where a definition
+                // that keeps moving has to be: the slots run alongside.
+                let names: Vec<String> = moved
                     .iter()
-                    .filter_map(|(slot, _)| {
+                    .filter_map(|&which| {
+                        let (slot, _) = self.discrete_definitions.get(which)?;
                         let at = self.discrete_slots.iter().position(|held| held == slot)?;
-                        Some(format!("{} = {}", self.discretes.get(at)?, values[*slot]))
+                        let name = self.discretes.get(at)?;
+                        Some(format!("{name} = {}", values[*slot]))
                     })
                     .collect();
-                eprintln!("event t = {t}: {held:?}");
+                // The list cannot come out empty, and the reason is worth
+                // writing down rather than guarded against: a refusal that
+                // named `among []` would tell the reader less than the long
+                // one this replaced, so the question is real. But a `when`
+                // branch fires at most once an event - `fired` sees to
+                // that - and the bound is the branch count plus the
+                // definition count plus one, so by the round the loop runs
+                // out, every branch that could fire has, and the only thing
+                // that can still set `acted` is a definition that moved.
+                // Whatever the loop gave up on, it gave up on with a name.
+                return Err(SimError(format!(
+                    "the event at t = {t} does not come to rest after {rounds} round(s): \
+                 what changes on every round is among {names:?}"
+                )));
             }
-            let now = self.when_conditions(t, values);
-            for (index, clause) in self.when_clauses.iter().enumerate() {
-                // `elsewhen` is a priority list: the first branch that
-                // just became true is the one that fires.
-                let Some(branch) = (0..clause.branches.len())
-                    .find(|&b| now[index][b] && !before_event[index][b] && !fired[index][b])
-                else {
-                    continue;
-                };
-                fired[index][branch] = true;
-                acted = true;
-                for action in &clause.branches[branch].actions {
-                    match action {
-                        CompiledAction::Terminate(message) => {
-                            outcome.terminated =
-                                Some(format!("terminated at t = {t:.6}: {message}"));
-                        }
-                        // A check made when the event fires: what a
-                        // model means by writing it here is that the
-                        // thing must hold at that moment, and a run
-                        // where it does not is wrong rather than over.
-                        CompiledAction::Assert(condition, message) => {
-                            if condition.run(values, t) == 0.0 {
-                                return crate::err(format!(
-                                    "assertion failed at t = {t:.6}: {message}"
-                                ));
-                            }
-                        }
-                        CompiledAction::Reinit(state_index, code) => {
-                            pending_reinit.push((*state_index, code.run(values, t)));
-                            outcome.reinitialized = true;
-                            outcome.changed = true;
-                        }
-                        CompiledAction::Assign(discrete_index, code) => {
-                            let new = code.run(values, t);
-                            let slot = self.discrete_slots[*discrete_index];
-                            if values[slot] != new {
-                                outcome.changed = true;
-                            }
-                            // Later equations of the same branch see the
-                            // new value, the way a simultaneous solution
-                            // of a triangular system would.
-                            values[slot] = new;
-                        }
-                    }
+            let lagging: Vec<usize> = self
+                .pre_slots
+                .iter()
+                .enumerate()
+                .filter(|(_, &(slot, pre))| {
+                    values[slot] != values[pre] && !(values[slot].is_nan() && values[pre].is_nan())
+                })
+                .map(|(at, _)| at)
+                .collect();
+            if lagging.is_empty() || pass >= passes {
+                if !lagging.is_empty() && passes > 1 {
+                    let names: Vec<String> = lagging
+                        .iter()
+                        .filter_map(|&at| self.pre_names.get(at).cloned())
+                        .collect();
+                    return Err(SimError(format!(
+                        "the event at t = {t} does not come to rest after {passes} pass(es): \
+                     a discrete value still differs from its `pre` among {names:?}"
+                    )));
                 }
-            }
-            if !acted {
-                settled = true;
                 break;
             }
-        }
-        // An event that never comes to rest is a model whose switches
-        // chase each other: saying so with the names of what was still
-        // moving is worth more than a step that quietly carries the
-        // last round's values forward as though they had settled.
-        if !settled {
-            // The discrete-valued names, which is where a definition
-            // that keeps moving has to be: the slots run alongside.
-            let names: Vec<String> = moved
-                .iter()
-                .filter_map(|&which| {
-                    let (slot, _) = self.discrete_definitions.get(which)?;
-                    let at = self.discrete_slots.iter().position(|held| held == slot)?;
-                    let name = self.discretes.get(at)?;
-                    Some(format!("{name} = {}", values[*slot]))
-                })
-                .collect();
-            // The list cannot come out empty, and the reason is worth
-            // writing down rather than guarded against: a refusal that
-            // named `among []` would tell the reader less than the long
-            // one this replaced, so the question is real. But a `when`
-            // branch fires at most once an event - `fired` sees to
-            // that - and the bound is the branch count plus the
-            // definition count plus one, so by the round the loop runs
-            // out, every branch that could fire has, and the only thing
-            // that can still set `acted` is a definition that moved.
-            // Whatever the loop gave up on, it gave up on with a name.
-            return Err(SimError(format!(
-                "the event at t = {t} does not come to rest after {rounds} round(s): \
-                 what changes on every round is among {names:?}"
-            )));
+            for &(slot, pre) in &self.pre_slots {
+                values[pre] = values[slot];
+            }
+            // A condition that held at the end of the last pass is not a
+            // fresh edge on the next: a `when` fires on what changed.
+            self.eval_point(t, y, values, &mut scratch, alg_guess)?;
+            before_event = self.when_conditions(t, values);
         }
         // The one-shot flags go down with the event, so the conditions
         // remembered for the next one do not see them still raised - a
@@ -682,6 +736,15 @@ impl CompiledModel {
         }
         Ok(outcome)
     }
+}
+
+/// Whether the event iteration stops after one pass even where a
+/// discrete value still differs from its `pre`, the behaviour before
+/// it went on. `OXIDELICA_NO_PRE_ITERATION` keeps the old one, so that
+/// one binary gives both numbers.
+fn pre_iteration_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_PRE_ITERATION").is_some())
 }
 
 /// Whether a list written out and read at a number is taken as the
