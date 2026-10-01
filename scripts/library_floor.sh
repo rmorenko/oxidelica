@@ -1419,8 +1419,62 @@ WORK_BODIES=1546158
 # and 4736967 steps is Dimmer_RL, which burned 30415181 and 41888615
 # before it was refused and spends 25482572 and 37132737 running
 # (/tmp/m328/each_old.txt, each_new.txt, OXIDELICA_WORK_EACH).
-WORK_POINTS=27528282
-WORK_NEWTON=40179245
+#
+# Split in two on 2026-10-01 (m330), the precedent of the Jacobians
+# apart. Dimmer_RL is 92.6% of the corpus's points, runs on a desk and
+# is refused on the build machine, and the band of five percent stood on
+# which way it fell: the library job for 691b9e3 printed 33122763
+# points and 47567421 Newton steps against 27528282 and 40179245 here,
+# x1.2032 and x1.1839, red three runs running with every floor held
+# (/tmp/m329/ci_691b9e3.log:1303-1307). Its run lists differ from the
+# desk's by Dimmer_RL and SpringWithMass one way and RLV_Characteristic
+# the other.
+#
+# So Dimmer_RL is held on lines of its own, and the band here is the
+# corpus without it. What the two places are known to print for that:
+#
+#   desk     27528282 - 25482572 =  2045710 points
+#            40179245 - 37132737 =  3046508 newton
+#            (/tmp/m329/off.txt, /tmp/m328/each_new.txt)
+#   machine  33122763 - 30415181 =  2707582 points
+#            47567421 - 41888615 =  5678806 newton
+#
+# The machine's pair is a subtraction and not a print: 30415181 and
+# 41888615 are what Dimmer_RL burned before its refusal on a desk
+# (/tmp/m328/each_old.txt), and whether the build machine's refusal
+# costs the same is not known. Read the other way, with the desk's rest,
+# the machine's Dimmer_RL is 31077053 and 44520913. Both readings are
+# covered below. The script now prints the dearest models by name, so
+# the next log of the build machine says its own split, and the band is
+# drawn tight on that print rather than on this subtraction.
+#
+# The rest, centred between the two places:
+#
+#   points  2376646 +- 20%  =  1901317 .. 2851975
+#           desk 2045710 is x0.861, machine 2707582 x1.139
+#   newton  4362657 +- 40%  =  2617594 .. 6107720
+#           desk 3046508 is x0.698, machine 5678806 x1.302
+WORK_POINTS=2376646
+WORK_POINTS_PPM=200000
+WORK_NEWTON=4362657
+WORK_NEWTON_PPM=400000
+# And Dimmer_RL, whichever way it falls, centred between the desk's run
+# and the machine's refusal read the dearer way:
+#
+#   points  28279812 +- 20%  =  22623850 .. 33935774
+#           desk run 25482572 x0.901, machine 30415181..31077053
+#           x1.076..x1.099
+#   newton  40826825 +- 20%  =  32661460 .. 48992190
+#           desk run 37132737 x0.910, machine 41888615..44520913
+#           x1.026..x1.090
+#
+# A refusal early in the run, or a run that doubles its work, fires.
+WORK_APART_MODEL=Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL
+WORK_POINTS_APART=28279812
+WORK_NEWTON_APART=40826825
+WORK_APART_PPM=200000
+# How many of the dearest models the log names on each count.
+WORK_DEAREST=12
 # Jacobians refreshed from /tmp/m278/k_on.txt, 605, after the m278
 # series; the off side of one binary (/tmp/m278/off.txt, all three
 # switches of the series set) printed 327. 275 of the 278 are named
@@ -1596,7 +1650,13 @@ cd "$(dirname "$0")/.."
 # difference nobody can fix. The list goes to a file rather than the
 # log, and the log gets the run half of it, which is where the
 # machines disagree.
-report="$(./target/release/oxidelica library check --list --without scripts/heavy_models.txt "$directory")"
+report="$(OXIDELICA_WORK_EACH=1 ./target/release/oxidelica library check --list --without scripts/heavy_models.txt "$directory")"
+# The work of each model by name, taken out of the report and kept for
+# the band below: a total that moved on the build machine and not on a
+# desk said by how much and not who, and the build machine's log is the
+# only place its own models can be named.
+each_work="$(echo "$report" | grep '^  work  ' || true)"
+report="$(echo "$report" | grep -v '^  work  ' || true)"
 ran_list="$(echo "$report" | grep '^  ran   ' | sed 's/^  ran   //' | sort)"
 printf '%s\n' "$ran_list" > /tmp/oxidelica_ran.txt
 echo "models that ran: $(wc -l < /tmp/oxidelica_ran.txt)"
@@ -1668,8 +1728,35 @@ held "classes instantiated" "$(work_of classes)" "$WORK_CLASSES"
 held "expansions" "$(work_of expansions)" "$WORK_EXPANSIONS"
 held "bodies worked out" "$(work_of bodies)" "$WORK_BODIES"
 held "names looked up" "$(work_of names)" "$WORK_NAMES" "$WORK_NAMES_PPM"
-held "points evaluated" "$(work_of points)" "$WORK_POINTS"
-held "newton iterations" "$(work_of newton)" "$WORK_NEWTON"
+# The dearest models by the run half's two counts, named in the log so
+# that a band that fires on the build machine says which models it
+# fired for without a desk having to guess by subtraction.
+if [ -z "$each_work" ]; then
+  echo "WORK: the report named no model's work; OXIDELICA_WORK_EACH changed shape"
+  status=1
+fi
+# A measuring pipe is not cut short by `head` (see below), so the top
+# is taken by `awk`, which reads its input to the end.
+echo "dearest by points:"
+echo "$each_work" | awk '{ print $3, $2 }' | sort -nr | awk -v n="$WORK_DEAREST" 'NR <= n { print "  " $0 }'
+echo "dearest by newton:"
+echo "$each_work" | awk '{ print $5, $2 }' | sort -nr | awk -v n="$WORK_DEAREST" 'NR <= n { print "  " $0 }'
+# The model held apart, and the rest of the corpus without it.
+apart_line="$(echo "$each_work" | awk -v m="$WORK_APART_MODEL" '$2 == m' || true)"
+apart_points="$(echo "$apart_line" | awk '{ print $3 }')"
+apart_newton="$(echo "$apart_line" | awk '{ print $5 }')"
+if [ -z "$apart_points" ] || [ -z "$apart_newton" ]; then
+  echo "WORK: the report did not say what $WORK_APART_MODEL cost"
+  status=1
+else
+  echo "work apart: $WORK_APART_MODEL $apart_points points, $apart_newton newton"
+  held "points evaluated apart" "$apart_points" "$WORK_POINTS_APART" "$WORK_APART_PPM"
+  held "newton iterations apart" "$apart_newton" "$WORK_NEWTON_APART" "$WORK_APART_PPM"
+  points_all="$(work_of points)"
+  newton_all="$(work_of newton)"
+  held "points evaluated" "${points_all:+$((points_all - apart_points))}" "$WORK_POINTS" "$WORK_POINTS_PPM"
+  held "newton iterations" "${newton_all:+$((newton_all - apart_newton))}" "$WORK_NEWTON" "$WORK_NEWTON_PPM"
+fi
 held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS"
 held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
 
