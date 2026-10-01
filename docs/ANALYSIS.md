@@ -29095,3 +29095,32 @@ ulps is not the floor test being too strict. Something computes the
 two derivatives by different routes, and the difference is what is
 left. Which routes, and whether the same holds in the other three
 models below 5e-7, is the next probe; nothing was changed.
+
+The other three below 5e-7 (`/tmp/m327/q_imct.txt`, `q_bp2.txt`,
+`q_dpts.txt`, the same Newton trail with the rows named) are not the
+same case, and they come apart into two:
+
+- `IMC_Transformer`, 55 unknowns: every row is within 20 ulps of its
+  floor except one, the alias row of `transformer.r2` at pin 3, whose residual is 4.76e-34 against a
+  loudest term of 4.76e-34. Both sides of that row are zero to 34
+  places, so the row is solved by any absolute measure. The floor
+  test only asks it in ulps of its own loudness, and a row whose every
+  term is itself 1e-34 can never come under four of them. That makes
+  it the cheapest candidate on the list. The floor test would accept
+  this block if it also took a row the main convergence test already
+  calls solved. It was not tried, because a change to when every block
+  is called converged is one to measure by the run lists, and the
+  shift had no second pair left.
+- `BranchingPipes2` and `DynamicPipesWithTraceSubstances`: the rows
+  above the floor are the junctions' mixing rules, which weigh each
+  side's enthalpy by `max(-m_flow, 1e-10)`, at flows of order 1e-10. Their residuals of
+  3e-10 to 2e-9 are 5 to 92 parts per million of loudest terms of
+  7e-6 to 9e-5, which is
+  the regularised zero-flow corner and not rounding. In the trace
+  model the media's `T(h)` inversions (`solveOneNonlinearEquation`,
+  2e-7 at 300 K) ride on them. This is the zero-flow family of the
+  earlier BranchingPipes chapters, not the alias of `Rectifier6pulse`.
+
+So the row of 26 is at least three families by layer: a differentiated
+alias, a floor test blind to absolute zeros, and the zero-flow
+junction. The counter shows one row.
