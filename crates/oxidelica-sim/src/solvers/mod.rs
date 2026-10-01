@@ -237,6 +237,40 @@ pub(crate) fn turned(was: f64, now: f64) -> bool {
     was * now < 0.0 || (was == 0.0 && now != 0.0)
 }
 
+/// Whether a crossing found on the instant an event was just handled
+/// keeps being placed a hair past that instant. Off by default; the
+/// switch exists so that the two halves of a measurement come from one
+/// binary.
+fn crossing_on_handled_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_CROSSING_AT_STEP_END").is_some())
+}
+
+/// Where BDF puts the event for a crossing bisected to between `lo`
+/// and `hi` on the step from `t` to `t_new`, `handled_at` being the
+/// instant an event was last handled.
+///
+/// Normally a hair past `hi`. But a bisection whose every midpoint read
+/// the other sign, so that `lo` never left the step's start, has found
+/// the sign already changed at that start. When the start is the instant
+/// just handled, that is the residue of the algebraic solve there
+/// (-1.76e-12 for a thyristor of `DC_Drive`), which the interpolant
+/// re-evaluated at the same instant reads with the other sign (+8.6e-9),
+/// and not a new crossing. Placed a hair past `t`, the event is handled
+/// again where it already was, the step is quartered, the next try finds
+/// the same, and the run walks the step down to an underflow (m330). The
+/// relation has turned somewhere in the step, so the event goes to its
+/// end, which is what the explicit solver already does for a reading of
+/// exactly zero on the handled instant. Dropping the crossing instead
+/// would leave a fired thyristor off with its voltage forward until some
+/// other event came.
+pub(crate) fn place_crossing(t: f64, t_new: f64, handled_at: f64, lo: f64, hi: f64) -> f64 {
+    if t == handled_at && lo == t && !crossing_on_handled_off() {
+        return t_new;
+    }
+    (hi + 1e-9 * (t_new - t)).min(t_new)
+}
+
 /// Everything a segment carries that has nothing to do with how the
 /// stepping is done: the run's own bookkeeping.
 ///
@@ -2032,5 +2066,35 @@ mod dead_column_tests {
         let mut flat_here = |w: &[f64]| vec![0.5 * w[0] * w[0] - 2.0];
         let f = vec![-2.0];
         assert!(column_moves_far(&[0.0], 0, &f, &mut flat_here));
+    }
+}
+
+#[cfg(test)]
+mod crossing_tests {
+    use super::place_crossing;
+
+    // A bisection that never left the instant just handled has found
+    // the residue of that event and not a new crossing. Placed a hair
+    // past it, the same event is handled again on the same instant,
+    // which is how `DC_Drive` walked its step down to an underflow; the
+    // event goes to the step's end instead.
+    #[test]
+    fn a_crossing_found_on_the_handled_instant_is_not_an_event_there() {
+        let (t, t_new) = (4.6e-4, 4.7e-4);
+        let hi = t + (t_new - t) * 0.5f64.powi(40);
+        assert_eq!(place_crossing(t, t_new, t, t, hi), t_new);
+    }
+
+    // A crossing a real distance into the step stays where it was found,
+    // on the handled instant or not, and a crossing on a step's start
+    // that is not the handled instant keeps its hair.
+    #[test]
+    fn a_crossing_inside_the_step_keeps_its_place() {
+        let (t, t_new) = (1.0, 2.0);
+        let hi = 1.25;
+        let hair = hi + 1e-9;
+        assert_eq!(place_crossing(t, t_new, t, 1.2, hi), hair);
+        assert_eq!(place_crossing(t, t_new, f64::NAN, 1.2, hi), hair);
+        assert_eq!(place_crossing(t, t_new, 0.5, t, t), t + 1e-9);
     }
 }

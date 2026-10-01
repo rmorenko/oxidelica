@@ -2,7 +2,7 @@
 
 use crate::*;
 
-use super::{reject_keeps_guess, turned, Segment, SegmentStart};
+use super::{place_crossing, reject_keeps_guess, turned, Segment, SegmentStart};
 
 impl CompiledModel {
     /// Variable-order (1..5), variable-step BDF with Newton iteration
@@ -322,7 +322,7 @@ impl CompiledModel {
                             lo = mid;
                         }
                     }
-                    let crossed = (hi + 1e-9 * (t_new - t)).min(t_new);
+                    let crossed = place_crossing(t, t_new, handled_at, lo, hi);
                     event_t = Some(event_t.map_or(crossed, |c: f64| c.min(crossed)));
                 }
 
