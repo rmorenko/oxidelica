@@ -1486,7 +1486,7 @@ pub(super) fn instantiate_one(
             });
             flat.start = match site.start {
                 Some(expr) => Some(expr.clone()),
-                None => flat.start.as_ref().map(&resolve_value).transpose()?,
+                None => flat.start.as_ref().map(resolve_value).transpose()?,
             };
             flat.binding = match site.binding {
                 // Already expanded from the array the declaration bound.
@@ -1504,7 +1504,7 @@ pub(super) fn instantiate_one(
                         Variability::Parameter | Variability::Constant
                     )
                     .then(constants::SettlingParameter::now);
-                    flat.binding.as_ref().map(&resolve_value).transpose()?
+                    flat.binding.as_ref().map(resolve_value).transpose()?
                 }
             };
             // A bound is read the same way: `timeScale(min = Modelica

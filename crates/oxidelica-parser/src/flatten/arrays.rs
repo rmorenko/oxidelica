@@ -2935,7 +2935,7 @@ fn calls_rewritten(
         branches
             .iter()
             .map(|branch| StatementBranch {
-                condition: branch.condition.as_ref().map(&expr),
+                condition: branch.condition.as_ref().map(expr),
                 body: inner(&branch.body),
             })
             .collect()
@@ -2965,7 +2965,7 @@ fn calls_rewritten(
             Statement::If(branches) => Statement::If(rebranch(branches)),
             Statement::When(branches) => Statement::When(rebranch(branches)),
             Statement::For(variable, range, body) => {
-                Statement::For(variable.clone(), range.as_ref().map(&expr), inner(body))
+                Statement::For(variable.clone(), range.as_ref().map(expr), inner(body))
             }
             Statement::While(condition, body) => Statement::While(expr(condition), inner(body)),
             Statement::Break => Statement::Break,

@@ -872,7 +872,7 @@ fn flatten_when_clauses(
                                     resolve_here(&equation.rhs)?,
                                 ));
                             }
-                            let condition = condition.map(&resolve_here).transpose()?;
+                            let condition = condition.map(resolve_here).transpose()?;
                             branches.push((condition, given));
                         }
                         for target in targets {

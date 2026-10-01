@@ -1592,7 +1592,7 @@ fn loop_over(
     match range {
         Expr::Range(from, step, to) => {
             let (from, to) = (number(from)?, number(to)?);
-            let step = step.as_deref().map(&mut number).transpose()?.unwrap_or(1.0);
+            let step = step.as_deref().map(number).transpose()?.unwrap_or(1.0);
             if step == 0.0 {
                 return err("a range cannot step by zero".to_string());
             }

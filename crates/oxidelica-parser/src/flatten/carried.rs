@@ -944,7 +944,7 @@ fn qualified_calls(
             Statement::If(branches) => Statement::If(rebranch(branches, &expr, &inner)),
             Statement::When(branches) => Statement::When(rebranch(branches, &expr, &inner)),
             Statement::For(variable, range, body) => {
-                Statement::For(variable.clone(), range.as_ref().map(&expr), inner(body))
+                Statement::For(variable.clone(), range.as_ref().map(expr), inner(body))
             }
             Statement::While(condition, body) => Statement::While(expr(condition), inner(body)),
             Statement::Break => Statement::Break,
