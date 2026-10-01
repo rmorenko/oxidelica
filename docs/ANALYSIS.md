@@ -28527,3 +28527,175 @@ answers `result = 1` with the three generators' streams folded from
 numbers. The floors are not moved in this commit; they wait for the
 runner's number. The ratio of the halves on the desk is 9498 s of
 running over 6529 s of flattening, 1.45, inside the desk's band.
+
+## m325: the noise ladder narrowed to the column at its textbook step, and a witness that sees it
+
+The ladder of m323 asks a finite-difference column again from further
+away when its difference sits inside the rounding of the loudest term
+its row met. Carried to the corpus it cost `GearConstraint`, because it
+also judged columns the zero ladder had already grown. The narrow form
+asks only about a column still at its textbook step `1e-8 (1 + |v|)`
+and leaves a grown column to the ladder that grew it.
+`OXIDELICA_NO_FD_NOISE_LADDER` turns it off; the wide form of m323 is
+kept behind `OXIDELICA_WIDE_NOISE_LADDER` for measurement only.
+
+It is not on main. The pair below is clean by every count, and the
+floor check on the final tree is red on the work it holds: the change
+and its test are parked beside the shift notes as
+`fd_noise_ladder_narrow_m325.patch`, for the series that finds which
+models carry the Jacobians it adds.
+
+**The witness.** The test of m323 was a synthetic equation, and m324
+showed it blind to the narrow form: its column stands at zero on the
+textbook step, so it is the zero ladder's and not this one's. The
+witness had to be the tee itself. A test cannot read the standard
+library, so the volume of `TJ2` is written out flat: a litre of dry
+air at 1e5 Pa, `m = V p/(R T)`, `U = m u`, the NASA enthalpy of
+`DryAirNasa`, and the balances `der(m) = m_in + m_out`,
+`der(U) = m_in h_in + m_out h`. With the pressure fixed the block that
+is left is the one of `TJ2`, `der(h)` alone with terms of 7.4e9 around
+it.
+
+The first copies were not red. At the flow of the full tee, 1.363
+kg/s, and its start of 293.15 K, the flat copy walks the same trail as
+`TJ2` - `der(h)` 531.8 at t = 0.0098, then the jump to 4.55 - and
+lands, where `TJ2` jumps to 7.0 and wanders for fifty steps. Eleven
+starts from 250 to 350 K and twenty volumes from 3e-4 to 1e-2 all ran
+both ways. The same arithmetic, a different lottery of rounding. A
+synthetic equation in the same spirit, with the loud terms depending
+on the unknown so that they do not cancel to the bit, ran both ways
+too, and so did a cube scaled down by 1e-4: the ladder fired in all of
+them and nothing needed it.
+
+A sweep over flow and start found the corner instead
+(`/tmp/m325/sweep.txt`, `/tmp/m325/sweep2.txt`). Of 32 points of flow
+0.5 to 3 kg/s against 260 to 330 K, one was refused without the ladder;
+of 42 points around it, six, and at a flow of 0.45 kg/s every start
+from 310 to 360 K. The test takes 0.45 kg/s from 330 K. Without the
+ladder it is refused at t = 0.039 with `algebraic loop did not converge
+in 50 Newton iterations: ["der(h)"]`, the trail swinging around -0.69
+with residuals of 1e-2 that grow back each time they fall; with the
+narrow form, and with the wide one, the volume ends at p V / (R T) for
+300 K, 0.0011612276 kg. The test holds the mass to 1e-9 relative and
+was watched red under the switch and green without it, with one
+binary.
+
+What the sweep says is worth more than the test. The wall `TJ2` stands
+at is not a property of the block's shape alone: the slope Newton is
+handed is the rounding, and whether a wrong slope still lands is a
+matter of where the trail happens to be. Most of the plane lands. So
+the ladder cannot be expected to bring many models; what it buys is
+that a block of this shape no longer depends on the lottery.
+
+**Measuring with an empty key.** One trap cost ten minutes and is
+written down so it is not paid again: `OXIDELICA_NO_FD_NOISE_LADDER=`
+with nothing after it is a key that is set, because the switch asks
+`var_os(...).is_some()`. A loop that wrote `KEY=$k` with `$k` empty for
+the half with the ladder measured the half without it twice and found
+the two halves equal. The halves are taken with the key either written
+with a value or not written at all.
+
+**The small measures**, one binary `/tmp/m325/ox`, both keys, `--only`
+from the root (`/tmp/m325/nine_out.txt`, `/tmp/m325/n_*_old.txt`,
+`/tmp/m325/n_*_new.txt`). `TJ2` runs to 1 s with the mass at 0.001161
+and is refused without the ladder on `der(junctionVolume.medium.h)`.
+`GearConstraint` runs under both keys, 43 s without the ladder. Of the
+eleven of m321, ten keep their verdict to the word under both keys;
+`BranchingPipes17` moves from `the Newton direction of algebraic loop
+["junctionVolume.medium.h"...` to the `T_h` bracket, as it did under
+the wide form. `PlanarFourbar` takes 79 s each way.
+
+**Where BranchingPipes17 stands behind the ladder** (a map, not a
+change; `/tmp/m325/bp17_*.txt`). With the narrow form it is refused at
+t = 0 by the medium's own bracket, word for word: `The arguments u_min
+and u_max provided in the function call solveOneNonlinearEquation(f,
+u_min,u_max) do not bracket the root ... u_min = 200 u_max = 6000 fa =
+f(u_min) = -1.185e87 fb = f(u_max) = -1.185e87`. That is the energy
+without a start of m320, unchanged by the weight that came back in
+m322: reduction 1 on `sink.ports[1].p = junctionVolume.port_3.p` still
+reads `[("junctionVolume.U", 0.0), ("junctionVolume.m", 0.0)]` and
+demotes `U` by order, the initial equation `medium.T = T_start` takes
+`m`, the start settles the value m320 read as a pressure of 1035.7,
+and the one-unknown `T` block walks to 1.26e20.
+
+The probe patch of m321, which weighs in the converged point, no
+longer applies to this tree - its weight half is on main since m322 -
+so the tie was probed more bluntly instead: a scratch build
+(`/tmp/m325/ox2`, a key that reverses the order of the candidates
+before the pivot takes the largest) breaks the 0.0 against 0.0 tie the
+other way. Then `m` is demoted, the initial equation takes `U`, as in
+the small tee of m320 that runs, and the bracket is gone. The model
+stops one wall on: the nine-unknown block `[pipe1.mediums[1].T,
+valve1.dp_turbulent, valve2.dp_turbulent, pipe2.mediums[1].T,
+pipe3.mediums[1].T, junctionIdeal.medium.T, junctionVolume.medium.T,
+junctionVolume.medium.u, der(junctionVolume.medium.h)]` steps outside
+the domain of its equations at t = 0 on Newton iteration 20. The trail
+(`/tmp/m325/bp17_tie_trail.txt`, its vectors in the order of the
+refusal's list) says why: the block settled during the start with both
+`dp_turbulent` at 2003.5 and `junctionVolume.medium.T` at 577.8 K,
+against a `T_start` of 293.15 K that the initial equation now holds
+through `U`. The first evaluation of the run then reads a residual of
+4.7e9 in the eighth row, the one of `junctionVolume.medium.u`, and the
+first Newton step sends `valve1.dp_turbulent` to -6.3e11, where the
+energy rows are NaN. So the tie was the first link and not the last:
+a junction temperature of 577.8 K at the start, twice what it was
+told, is the second, and why the start reaches it is the next probe.
+One number for it: the first row the block starts from is the one of
+`junctionVolume.medium.u`, and what it settles to is u = 418288 J/kg,
+1.997 times the 209437 J/kg of air at 293.15 K. Since `U = m u` with
+both `U` and `m` states, the start handed the run a ratio `U/m` near
+twice the one `T_start` asks for - an energy counted twice or a mass
+counted half is what to look for first, not the medium.
+
+The cost guard says the blunt key is not a candidate in any case.
+`PlanarFourbar` under it ran 9 min 53 s and reached 12.0 GB before it
+was stopped by hand (the reference is 79 s and 1.27 GB): reversing
+every tie of a MultiBody loop is a different compiler. A tie-breaker
+for this road has to know why `m` is the right victim - the pressure
+fixes the mass at a given temperature - rather than flip an order.
+
+**The pair** (one binary, `/tmp/m325/ox`, the old half under
+`OXIDELICA_NO_FD_NOISE_LADDER`; `/tmp/m325/corpus_old.txt` and
+`/tmp/m325/corpus_new.txt`, under a ceiling of 24 GB, peaks 8.6 and
+8.2 GB). Both halves print 966 flattening and 685 running, 849 and 643
+of the runnable examples, and the lists by name are equal in both
+halves: no model arrived and none left. That was the honest
+expectation - the wide form of m323 brought none either, and the
+narrow one differs from it only in what it does not touch.
+
+What the change pays for with the numbers standing is the witness:
+a block of the tee's shape no longer converges or fails by where the
+rounding happens to throw the trail, and the corner of the plane the
+sweep found refused is run. That is a link of the road of the
+`Newton direction` family (item 13 of the queue), not a model.
+
+What it costs. The work counters of the two halves agree to 0.3% in
+Newton steps (44916212 against 45057889) and 0.2% in points, while
+the count of state Jacobians the stiff solver took goes from 597 to
+4445: somewhere a block now solved with another slope moves a stiff
+run onto a different path, and the counter does not say which model.
+The times went 10232 s to 11063 s running and 7186 s to 6503 s
+flattening, a ratio of 1.42 against 1.70 on the desk, inside the
+desk's band of 0.97 to 2.10. The flattening half does not touch the
+ladder at all and moved by 10%, which is the size of the weather
+between two halves on this desk; `RollingWheelSetPulling`, the
+dearest model to run, took 55953 and 56805 ms without the ladder and
+56526 and 56918 ms with it, keys taken in turn
+(`/tmp/m325/cost.txt`). Which models carry the extra
+Jacobians is the open measurement this pair leaves.
+
+**Why it is parked.** The pair was not the last word. The floors were
+raised to the runner's number while the pair was running, so a
+substitution of the pair for the library step was not open, and the
+step was run on the final tree (`/tmp/m325/floor_final.txt`). It
+printed 2671 / 966 / 685 / 849 / 643, every count at its floor, and a
+ratio of 1.746 inside the desk's band - and stopped on
+`WORK: jacobians is 4445 against 605 written here (7.347107x),
+outside 50000 per million`. The count that the work band holds is
+the same 597 to 4445 the pair showed, and the band is there for
+exactly this: a change that leaves every list equal and makes the
+stiff solver work seven times as often somewhere. Raising the band to
+let it through would be writing down a cost nobody has named. The
+next step is the list by model of state Jacobians under both keys,
+which says whether this is one model on a new path or a slope the
+stiff runs share.
