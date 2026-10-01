@@ -29624,3 +29624,63 @@ genuinely a hair past it. Only `OX_AT_END` keeps the firing on time.
 Merging stays as the chapter above put it: the `pre` fix, the ladder
 and this together, as one series, with the Jacobian band read on the
 whole of it.
+
+**The verdicts of m329's two pushes.** Both library jobs went red on
+the old band, which the split above now replaces. 91abc03 and 23fd9d7
+printed 966/685 and 849/643, the floors, with 33122763 points and
+47567421 Newton steps, the same pair as 691b9e3, and the same list of
+models that ran, name for name (`/tmp/m330/ci_91abc03.log`,
+`ci_23fd9d7.log`). The 91abc03 job took 2 h 20 min from start to end,
+inside the ceiling of 150 minutes but not by much. Nothing rises.
+
+**The census on this tree** (`/tmp/m330/census.txt`, raw half
+`/tmp/m330/raw.txt`), counted between the section markers: 67 models
+in 39 rows that do not flatten, and 280 in 153 rows that flatten and
+do not run. Against m327's census (281 in 154) one row of one has
+gone, `solver exceeded the evaluation budget`, which was `Dimmer_RL`.
+Every other row reads the same. The algebraic loop family is still on
+top. Its first seven rows (`the Newton direction`, `singular
+Jacobian`, `the equations of`, `` `X` of ``, `algebraic loop`, `did
+not converge`, `underdetermined`) add to 26 + 20 + 18 + 12 + 10 + 7 +
+6 = 99, and no other row is larger than 5.
+
+**Rectifier6pulse, the alias row, routed.** m327 left the question of
+which two routes compute `der(core.i2[k])` and
+`der(core.plug_p2.pin[k].i)`, the alias whose rows stay ten thousand
+ulps off their floor. A print of the inner assignments and the torn
+values at the refusal (`state/rowprint_inner_m330.patch`, scratch, not
+on main) answers it. `der(core.plug_p2.pin[2].i)` is torn, a Newton
+unknown, 1.1655992492268734. `der(core.i2[2])` is an inner
+assignment, solved out of the core's current balance:
+
+```text
+der(core.i2[2]) = (l1sigma.inductor[2].v / l1sigma.inductor[2].L
+                   + der(core.i3[2]) / core.n13) / (-(1 / core.n12))
+                = 1.1655992495194356
+```
+
+and `l1sigma.inductor[2].v = p.v - n.v` is -5.247e-5 V, the
+difference of two potentials near 73.3 V. `L1sigma` is 7.797e-5 H
+(`TransformerData`, worked out by hand from `V1 = 100`,
+`SNominal = 30e3`, `v_sc = 0.05`, `P_sc = 300`). One ulp of 73.3 is
+1.6e-14 V, and divided by the leakage inductance it becomes 2.1e-10
+in the derivative. The row's residual is 2.93e-10, 17972 ulps of its
+loudest term of 73.31. Dividing that loudest term's ulp by `L` gives a
+factor of 12825. That is the residual's scale. The floor test asks
+`|f| <= 4 eps loud`, and `loud` here is the largest magnitude the row
+met, 73.3, but the arithmetic multiplied the rounding of that
+subtraction by 1/L before it reached the row. So the loudness walk
+measures how loud a term was, and not how far a division amplified
+what rounding had left in it.
+
+That makes this layer the floor test, and not a differentiated alias
+computed two ways by mistake. Both routes are right. One goes through
+a subtraction of nearly equal voltages and then a division by a small
+inductance, and no Newton step on the torn unknowns can make that
+smaller. The way out the map points to is a loudness walk that
+carries an error bound through division, `|a|/|b|` as the loudness of
+`a / b`, which would put this row's floor near 73.3/7.8e-5 = 9.4e5
+and accept it. That is a change to when every block is called
+converged, so it is measured by the run lists both ways and not by
+this model. Not taken this shift: the map is the deliverable, as for
+DC_Drive above.
