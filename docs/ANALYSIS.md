@@ -28919,14 +28919,15 @@ by name are not equal, though: one model each way.
   behaviours (`/tmp/m327/thy_old_trail.txt`, `thy_new_trail.txt`) are
   the same up to the event at t = 0.002, with the block's start
   residual 5.811e-12 against 5.803e-12. At the event both iterations
-  step the six thyristor unknowns to 1.43e6 - a root that is not the
-  circuit's. The old one then throws Newton to 3.5e7, comes back, and
-  lands by chance on the physical point (0.9155). The new one, from a
+  step to 1.43e6 A, the line voltage short-circuited through two
+  conducting thyristors in the trial mode (below). The old one then
+  throws Newton to 3.5e7, converges back on that root, and the next
+  mode lands on the physical point (0.9155). The new one, from a
   start one rounding away, settles at 1.42e6 with a residual of 0.376,
   and is refused there.
 
 So the change is not what takes the bridge. The bridge sits on a knife
-of its own, in the event iteration of an ideal switch. But a
+of its own, in the Newton iteration of one trial mode of the event. But a
 measurement that swaps one model for another does not have equal
 lists, and a pair that leaves a victim stops the series: the change is
 parked, the victim is named, and nothing went to main. The one-for-one swap
@@ -29005,20 +29006,25 @@ question: ten steps in 342 s.
 the parked change, `/tmp/m327/ox` with `OXIDELICA_REJECT_KEEPS_GUESS`,
 `--only`, Newton trail on). Each thyristor is `v = s (if off then 1
 else Ron)` and `i = s (if off then Goff else 1)`, with `Ron` and
-`Goff` at 1e-5. In the event iteration at t = 0.002 the mode under
-trial has a root with two thyristors carrying `s` of about 1.408e6
-against each other, and the first two Newton steps go there under
-both behaviours, to a residual of 3.8e-4 and 1.9e-4. From there the
-old path takes a full step to 4.3e4, then 7.3e12, and walks back into
-that root to 1.5e-5. The event then moves on to the next mode, which
-converges on the physical point (0.9155) in three steps. The new path's
-third step comes out at 0.376. The line search shrinks it to 1.9e-6
-and then to 9.5e-7, it no longer descends, and the block is refused
-with the root stuck between the two. So neither behaviour solves this
-mode honestly. The old one escapes because a step of 7e12 happened to
-land in the basin of the next mode. That is the next link for the
-bridge, and it belongs to the event iteration of ideal switches rather
-than to the warm start.
+`Goff` at 1e-5. At the event at t = 0.002 `thyristor_p[1]` fires
+while `thyristor_p[3]` still conducts (the modes are printed by
+`OXIDELICA_EVENT_TRAIL` and are the same under both behaviours). In
+that mode the two conducting thyristors short the line voltage of
+28.1646 V across two `Ron`, and the root is 28.1646 / 2e-5 =
+1.408228e6 A circulating through them: `s` of +1.408e6 and -1.408e6
+in the trail. It is a root of the mode as the model writes it, and the
+first Newton step goes straight to it under both behaviours. The old
+path converges there, to a residual of 1.5e-5 after a detour through
+7.3e12. The event iteration then finds `s` of `thyristor_p[3]`
+negative, turns it off, and the next mode converges on the physical
+point (0.9155) in three steps. The new path, from a start one rounding
+away, comes out of its third step at a residual of 0.376. Its line
+search shrinks the step to 1.9e-6 and then 9.5e-7 without descending,
+and the block is refused there. So the bridge is a block with
+unknowns of 1.4e6 and a convergence test scaled to them. Whether a
+start one rounding away converges or stalls is the knife, and it is
+not the warm start's. The next link for the bridge is why the line
+search stalls at 0.376 on a block whose root is known exactly.
 
 **The same breed in the implicit solver** (`/tmp/m327/ox5` with a
 scratch key `OXIDELICA_BDF_RESTORE`, `/tmp/m327/w2.mo`). The witness
