@@ -29000,3 +29000,22 @@ the bracket, and from the right start Newton has nothing to do. The
 chain is closed by links 1 to 4 together with a start of `U` taken at
 the pressure the connection fixes. The cost after that is a separate
 question: ten steps in 342 s.
+
+**The bridge's knife, walked one step further** (`/tmp/m327/ox4` with
+the parked change, `/tmp/m327/ox` with `OXIDELICA_REJECT_KEEPS_GUESS`,
+`--only`, Newton trail on). Each thyristor is `v = s (if off then 1
+else Ron)` and `i = s (if off then Goff else 1)`, with `Ron` and
+`Goff` at 1e-5. In the event iteration at t = 0.002 the mode under
+trial has a root with two thyristors carrying `s` of about 1.408e6
+against each other, and the first two Newton steps go there under
+both behaviours, to a residual of 3.8e-4 and 1.9e-4. From there the
+old path takes a full step to 4.3e4, then 7.3e12, and walks back into
+that root to 1.5e-5. The event then moves on to the next mode, which
+converges on the physical point (0.9155) in three steps. The new path's
+third step comes out at 0.376. The line search shrinks it to 1.9e-6
+and then to 9.5e-7, it no longer descends, and the block is refused
+with the root stuck between the two. So neither behaviour solves this
+mode honestly. The old one escapes because a step of 7e12 happened to
+land in the basin of the next mode. That is the next link for the
+bridge, and it belongs to the event iteration of ideal switches rather
+than to the warm start.
