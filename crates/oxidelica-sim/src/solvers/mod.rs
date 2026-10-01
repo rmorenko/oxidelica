@@ -36,6 +36,45 @@ pub(crate) fn reject_keeps_guess() -> bool {
     *ON.get_or_init(|| std::env::var_os("OXIDELICA_REJECT_KEEPS_GUESS").is_some())
 }
 
+/// Whether to leave a finite-difference column whose difference sits
+/// inside the rounding of its rows alone instead of asking it again
+/// from further away. Off by default; the switch exists so that the
+/// two halves of a measurement come from one binary.
+fn fd_noise_ladder_off() -> bool {
+    static OFF: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_FD_NOISE_LADDER").is_some())
+}
+
+/// How many units in the last place of a row's loudest term a
+/// difference may move by and still be read as that term's rounding.
+/// Measured on the small tee of m321: 16, 64 and 256 all run it and
+/// 1000 does not; the middle of the working band is taken.
+const FD_NOISE_ULPS: f64 = 64.0;
+
+/// Whether a perturbed residual `moved` differs from `base` only by
+/// the rounding of the loudest term each row met on the way, `loud`.
+/// A column that did not move at all is the other ladder's case and
+/// answers no here.
+fn moved_only_by_rounding(moved: &[f64], base: &[f64], loud: &[f64]) -> bool {
+    moved.iter().zip(base).any(|(p, b)| p != b)
+        && moved
+            .iter()
+            .zip(base)
+            .zip(loud)
+            .all(|((p, b), l)| (p - b).abs() <= FD_NOISE_ULPS * f64::EPSILON * l.abs().max(b.abs()))
+}
+
+/// Whether the slopes read from a step `h` and from twice as far agree:
+/// a straight line reads the same from both, rounding and an extremum
+/// do not.
+fn slopes_agree(near: &[f64], far: &[f64], base: &[f64], h: f64) -> bool {
+    near.iter().zip(far).zip(base).all(|((near, far), base)| {
+        let a = (near - base) / h;
+        let b = (far - base) / (h * 2.0);
+        (a - b).abs() <= 0.25 * a.abs().max(b.abs())
+    })
+}
+
 /// Whether to print the Newton iteration of every algebraic block.
 ///
 /// What a block does before it refuses is the only thing that says
@@ -1285,6 +1324,17 @@ impl CompiledModel {
             }
             // Finite-difference Jacobian of the residual.
             let mut jac = vec![vec![0.0f64; n]; n];
+            // How loud each row got, for the ladder below that tells a
+            // slope from the rounding. The residual is evaluated once more
+            // after it so that the slots hold the point the differences
+            // are taken from, not the loudness walk's leftovers.
+            let loud_rows = if fd_noise_ladder_off() {
+                vec![f64::INFINITY; n]
+            } else {
+                let loud = loudness(values, &v);
+                residual(values, &v);
+                loud
+            };
             for j in 0..n {
                 let mut h = fd_step_scale() * (1.0 + v[j].abs());
                 // A column that comes back all zeros is asked again with a
@@ -1342,6 +1392,48 @@ impl CompiledModel {
                         });
                         if !steady {
                             fp = f.clone();
+                        }
+                    }
+                }
+                // A column that moved, but by no more than the rounding of
+                // the loudest term its rows met, is asked again from further
+                // away, the same way as a column that did not move at all.
+                // The small tee of m321 is the case: `der(medium.h)` near 1
+                // is added to energy terms of 7.4e9, whose sum is rounded to
+                // about 1e-6, and the step of 1e-8 moves the unknown's part of
+                // it by a hundredth of that. The slope read back is the
+                // rounding, the Newton trail jumps 531, 7, -1.2, ..., 357 and
+                // the block is refused for a direction that does not descend.
+                // The step is grown tenfold until the difference stands clear
+                // of the rounding and reads the same from twice as far; a
+                // column that never does keeps the step it had. The step of
+                // a column that already stood clear is not touched, which is
+                // why this cannot move a block whose slopes were sound.
+                // Only a column still at its textbook step: one the zero
+                // ladder above has already grown is that ladder's, and a
+                // second ladder on it is what took GearConstraint in m323.
+                let textbook = h == fd_step_scale() * (1.0 + v[j].abs());
+                if !fd_noise_ladder_off()
+                    && (textbook || std::env::var_os("OXIDELICA_WIDE_NOISE_LADDER").is_some())
+                    && moved_only_by_rounding(&fp, &f, &loud_rows)
+                {
+                    let ceiling = 1e-3 * (1.0 + v[j].abs());
+                    let mut hh = h;
+                    while hh * 10.0 <= ceiling {
+                        hh *= 10.0;
+                        let mut near = v.clone();
+                        near[j] += hh;
+                        let near = residual(values, &near);
+                        if moved_only_by_rounding(&near, &f, &loud_rows) {
+                            continue;
+                        }
+                        let mut far = v.clone();
+                        far[j] += hh * 2.0;
+                        let far = residual(values, &far);
+                        if slopes_agree(&near, &far, &f, hh) {
+                            h = hh;
+                            fp = near;
+                            break;
                         }
                     }
                 }

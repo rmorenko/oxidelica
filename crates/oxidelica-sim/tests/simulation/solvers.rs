@@ -1181,3 +1181,58 @@ fn a_rejected_implicit_step_does_not_hand_its_roots_to_the_next_try() {
     let upper = 2.0 * (std::f64::consts::PI / 9.0).cos();
     assert!((y - upper).abs() < 1e-5, "y = {y}, upper root {upper}");
 }
+
+/// The volume of the small tee of m321, written out flat: the energy
+/// balance of a litre of dry air held at 1e5 Pa, with the enthalpy of
+/// the NASA polynomial the library's `DryAirNasa` gives it. With the
+/// pressure fixed the mass is not free, so the block that is left is
+/// one unknown, `der(h)`, solved from `der(U) = Hb` where `U = m u`
+/// and the terms of the balance stand at 7.4e9 while `der(h)` decays
+/// toward zero. A slope read with the textbook step `1e-8 (1 + |v|)`
+/// moves that sum by less than its rounding, Newton is handed the
+/// rounding for a slope and the trail jumps without settling until
+/// it runs out of steps. The column is asked again from further away
+/// when its difference sits inside the rounding of the loudest term
+/// its row met, and the volume settles at p V / (R T) for 300 K.
+///
+/// `TJ2` in the standard library's own components stands on the same
+/// wall, but a test cannot read the library, so the flow and the
+/// start are chosen where the flat copy meets it too: at the flow of
+/// the full tee, 1.363 kg/s, and a start of 293.15 K, Newton happens
+/// to land, and a sweep over flow and start found this corner
+/// (`m_in` 0.45, 310 to 360 K) refused without the ladder at every
+/// point. The tolerance is not to the bit: the number is the
+/// solver's, and 1e-9 relative is three orders below what a wrong
+/// slope would leave and well above what the step control moves.
+#[test]
+fn a_slope_lost_in_the_rounding_of_an_energy_balance_is_read_from_further_away() {
+    let enthalpy = |t: &str| {
+        "R*((-10099.5016) + X*(((-176.796731) + ((-196.827561)*log(X))) + X*(5.00915511 \
+         + X*(0.5*(-0.00576101373) + X*((1/3)*0.0000106685993 + X*(0.25*(-0.00000000794029797) \
+         + 0.2*0.00000000000218523191*X))))))/X + 4333.833858403446 + 298609.6803431054"
+            .replace('X', t)
+    };
+    let source = format!(
+        "model W parameter Real V = 1e-3; parameter Real R = 8.31451/0.0289651159; \
+         parameter Real T_in = 300; \
+         Real p(start = 1e5, stateSelect = StateSelect.prefer); \
+         Real T(start = 293.15, stateSelect = StateSelect.prefer); \
+         Real d; Real h; Real u; Real m; Real U; Real m_in; Real m_out; Real h_in; \
+         Real m2; Real Hb; \
+         initial equation T = 330; \
+         equation h = {}; h_in = {}; u = h - p/d; d = p/(R*T); m = V*d; U = m*u; \
+         p = 1e5; m_in = 0.45; der(m) = m_in + m_out + m2; der(U) = Hb; \
+         Hb = m_in*h_in + m_out*h + m2*h; m2 = 0; \
+         annotation(experiment(StopTime = 1)); end W;",
+        enthalpy("T"),
+        enthalpy("T_in")
+    );
+    let result = run(&source);
+    let column = result.columns.iter().position(|c| c == "m").expect("m");
+    let m = result.rows.last().expect("a row")[column];
+    let expected = 1e5 * 1e-3 / (8.31451 / 0.0289651159 * 300.0);
+    assert!(
+        ((m - expected) / expected).abs() < 1e-9,
+        "m = {m}, p V / (R T) = {expected}"
+    );
+}
