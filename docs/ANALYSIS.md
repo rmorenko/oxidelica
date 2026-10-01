@@ -29049,3 +29049,15 @@ is still refused and `IMC_Steinmetz` and `ComparisonQuasiStatic`
 still run. Both changes, with the test, are in
 `state/m327_reject_keeps_guess_with_bdf.patch`. They are parked with
 the explicit solver's change and want the same pair.
+
+What the refusal stands on, one probe further (`OXIDELICA_DEAD_PROBE`
+on `/tmp/m327/ox4`): at the stalled point the Jacobian column of
+`rectifier.star_p.pin_n.v`, the DC rail's voltage, is all zero, and
+moving the unknown a long way does move the residual - "flat here
+only". Through the stalled iterations that unknown wanders 168,
+-4034, 2518, 3734 while the thyristor currents hold to six digits. The
+rail is fixed by two thyristors at `Ron` in parallel with a load, and
+a column that reads flat at a step of 1e-8 of 3734 V, against currents
+of 1.4e6, looks like the rounding case of m321 and m325 from another
+model. That is a reading, not a measurement: the row loudness was not
+printed. Not taken further here.
