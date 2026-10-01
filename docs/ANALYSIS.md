@@ -29348,3 +29348,41 @@ to 130, and the fall of 193 is named model by model
 `Dimmer_RL` 146 to 13, `IMC_Steinmetz` 0 to 6, `SMPM_Braking` 7 to 9,
 and three thyristor bridges by one or two each. Why a restored start
 saves a Jacobian in `ControlledSwitchWithArc` was not traced.
+
+**The ladder of m325 over the warm start, measured locally** (not on
+main: `/tmp/m328/oxLV` is this commit with
+`state/m326_probes_and_narrow2.patch`, one binary, the ladder switched
+off by `OXIDELICA_NO_FD_NOISE_LADDER`). The two solenoids counted
+apart (`/tmp/m328/p2v/*.txt`) build 733 without the ladder, 600 with it
+and 3019 narrowed, against the pair's band of 73 to 1393: the ladder
+fits it and the narrowing does not. Model by model over the 687 names
+either half of the pair ran (`/tmp/m328/lw_off.txt`, `lw_on.txt`):
+
+| model                            | no ladder | ladder |
+| -------------------------------- | --------: | -----: |
+| `ComparisonQuasiStatic` (apart)  |       615 |     18 |
+| `ComparisonPullInStroke` (apart) |       118 |    582 |
+| `Rectifier12pulse`               |         8 |      7 |
+| `SMPM_Braking`                   |         9 |      7 |
+| the rest, here                   |       124 |    121 |
+
+So over the warm start the ladder holds both bands, 121 against 130
+written (the corpus counts six more on the models that do not run)
+and 600 against 733, where on main as it stood it took the pair to
+4124 (`/tmp/m328/p2/ladder.txt`). The two solenoids trade places
+again, as they did at every step measured: the pair's band holds
+only because it was made wide enough to hold the knife. And the ladder
+changes one more thing that no band sees: with it
+`ThyristorBridge2mPulse_RLV_Characteristic` runs again, 687 against 686. That is the model whose earlier run stood on a root of 1.408e6 A,
+and whether the ladder brings it back on that root or on an honest
+one was not looked at. So the series is no longer blocked by the
+count of work. What blocks it now is that model's number.
+
+One look was taken at it before the shift closed (`/tmp/m328/rlv/on.csv`,
+`oxLV` with the ladder, the first 2 ms): the load current rises to
+0.913 A, not 1.4e6 A, and each thyristor sits on its own branch, 28.16
+V with 2.8e-4 A while off (`Goff` = 1e-5) and 0.9155 A with 9.2e-6 V
+while on (`Ron` = 1e-5). So on its first two milliseconds the ladder
+brings it back on a physical root. The run the check makes, ten
+intervals of 2e-4, is the same horizon. A pair of the ladder over
+this commit is what decides it, and it was not run.
