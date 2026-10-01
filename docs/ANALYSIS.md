@@ -29684,3 +29684,30 @@ and accept it. That is a change to when every block is called
 converged, so it is measured by the run lists both ways and not by
 this model. Not taken this shift: the map is the deliverable, as for
 DC_Drive above.
+
+**The division carried into the loudness, tried on the row alone.** A
+scratch key `OX_DIV_LOUD` (`state/div_loudness_m330.patch`, not on
+main) makes a quotient as loud as `loud(a) / |b|` and a product as
+loud as `loud(a) |b|` or `loud(b) |a|`, whichever is larger. One
+binary, `/tmp/m330/oxDiv`, ran the 26 models of the row under
+`--only-from` with the key off and on (`/tmp/m330/div_off.txt`,
+`div_on.txt`): 26 flatten and 0 run both ways. The list file has 28
+lines, two of them the raw report's own summary rows caught by the
+grep, which name no model. The check counted 26 models, the row's
+number. Two models move one
+wall up, and the other 24 keep their refusals word for word:
+
+- `Rectifier6pulse` is accepted at t = 2.15e-4, which is the row
+  above. It then refuses at t = 2.155e-4 with `did not converge in 50
+Newton iterations`, the residual creeping from 2.2495e-10 down by
+  2e-16 an iteration. The two rows left above their floor (6 and 10)
+  are 19 and 20 ulps of 1.166, so the next wall stands near the
+  floor's own constant of 4.
+- `SMPM_Mains` leaves the row for `the initialization problem is
+singular`.
+
+So the division is a real link in front of `Rectifier6pulse`, the
+second after the blind floor of m327 in front of `IMC_Transformer`,
+and neither is the last wall. Two scratch keys on the same floor test
+now each move one model up a storey. When that test is next touched,
+both belong in it together, with a pair over the whole corpus.
