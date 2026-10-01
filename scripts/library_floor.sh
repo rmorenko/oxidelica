@@ -410,7 +410,16 @@ FILES_FLOOR=2671
 # Main numbers from one binary over the corpus (/tmp/m318/p_new.txt,
 # 963/683 and 847/641 with the Oscillator still in), the scheduled
 # half from the same binary (/tmp/m318/heavy.txt, 10/2 and 8/2).
-FLATTEN_FLOOR=962
+#
+# And flatten 966 = 962 plus the four of the impure generator, which
+# hold its state in the model rather than in C since 7ba42fa:
+# ImpureGenerator, TestRandomIntegers, TestRandomNumbers and the block
+# Noise.Utilities.ImpureRandom. The runner printed 966 / 685 and
+# 849 / 643 on 7ba42fa, in job 110171228157 of run 36799759552
+# (/tmp/m325/ci_7ba42fa.log), the desk the same four numbers with the
+# binary of m324 (/tmp/m324/corpus_new.txt:140-141). Set from the
+# runner, which is not above the desk on any of them.
+FLATTEN_FLOOR=966
 # The two run floors came down by one, and the one is named: giving a
 # record constructor called with no arguments the values its `extends`
 # stated took `Modelica.Thermal.FluidHeatFlow.Examples.WaterPump` out
@@ -1002,7 +1011,13 @@ FLATTEN_FLOOR=962
 # m319 under its old key (/tmp/m319/p_old.txt). The totals agree while
 # the swing still sits between them: the runner has Dimmer_RL and not
 # SpringWithMass, the desk the other way round.
-RUN_FLOOR=682
+#
+# And run 685 = 682 plus ImpureGenerator, TestRandomIntegers and
+# TestRandomNumbers, by the same runner job as `FLATTEN_FLOOR`. The
+# lists of models run on the runner and on the desk are 685 each and
+# differ by the swing alone, Dimmer_RL on the runner and SpringWithMass
+# on the desk, so the lower of the two is the same number.
+RUN_FLOOR=685
 # And runnable flatten 755 = 754 above, plus Filter, which is a
 # runnable example and flattens without running.
 #
@@ -1152,8 +1167,12 @@ RUN_FLOOR=682
 # And runnable run 640 by the same runner job as `RUN_FLOOR` above: the
 # runner printed 846 / 640 on d064889 (/tmp/m319/ci_d064889.log:1284) and
 # the desk 846 / 640 (/tmp/m319/p_old.txt).
-RUNNABLE_FLATTEN_FLOOR=846
-RUNNABLE_RUN_FLOOR=640
+#
+# And runnable 849 / 643, the three runnable examples of the impure
+# generator, by the runner job of `FLATTEN_FLOOR` on 7ba42fa; the
+# helper block is not runnable and moves only the flatten count.
+RUNNABLE_FLATTEN_FLOOR=849
+RUNNABLE_RUN_FLOOR=643
 # Every file of the library parses. This is a ceiling reached rather
 # than a floor to hold, so it is written as the number left over: one
 # file that stops parsing takes its whole tree of classes with it, and
