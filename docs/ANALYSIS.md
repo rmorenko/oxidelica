@@ -28699,3 +28699,100 @@ let it through would be writing down a cost nobody has named. The
 next step is the list by model of state Jacobians under both keys,
 which says whether this is one model on a new path or a slope the
 stiff runs share.
+
+## Whose Jacobians the ladder bought (m326)
+
+The parked ladder of m325 stopped on `WORK: jacobians is 4445 against
+605`. The question was whose they are, and the answer is two models.
+
+**The instrument.** A scratch print by model of the run half's work
+counters (`OXIDELICA_WORK_BY_NAME`, a probe, not on main) over the
+corpus, one binary `/tmp/m326/ox` for both halves and the old half
+under `OXIDELICA_NO_FD_NOISE_LADDER=1`, under a ceiling of 24 GB
+(`/tmp/m326/old.txt`, `/tmp/m326/new.txt`). The unit is state
+Jacobians built by differences, the one place the counter ticks
+(`CompiledModel::jacobian`), over the 792 models that took at least one
+point. The per-model rows add up to the totals the check prints: 597
+and 4445. Both halves print 966 flattening and 685 running, 849 and
+643 runnable, and the lists by name are equal line for line.
+
+| model                                                 | without | with | narrowed |
+| ----------------------------------------------------- | ------: | ---: | -------: |
+| `FluxTubes...SolenoidActuator.ComparisonQuasiStatic`  |     124 | 3542 |      761 |
+| `FluxTubes...SolenoidActuator.ComparisonPullInStroke` |     150 |  582 |     1253 |
+| `FundamentalWave...SynchronousMachines.SMPM_Braking`  |       7 |    5 |        7 |
+| `Machines.Examples.Transformers.Rectifier12pulse`     |       8 |    7 |        8 |
+| `Machines.Examples.Transformers.Rectifier6pulse`      |       4 |    5 |        4 |
+| the 787 other models that ran a point                 |     304 |  304 |      304 |
+| total                                                 |     597 | 4445 |     2337 |
+
+The two solenoids carry +3850 of the +3848. The dear runners guessed
+first (`RollingWheelSetPulling`, `Engine1a`, `DoublePendulum`) take no
+state Jacobian under either key.
+
+**What the ladder does there.** `ComparisonQuasiStatic` has one
+26-unknown block of the magnetic circuit - the iron's `H` and `R_m`,
+the leakage fluxes, the sources' currents - and the ladder fires in it
+708825 times in one run (`/tmp/m326/qs_rel.txt`). A probe printing
+how far the textbook slope was from the one the ladder settled on
+says that 609036 of those, 86%, agree to better than one part in a
+million: the rows are loud (reluctances of 4.6e7 against residuals of
+8e4), 64 units in the last place of that loudness is wider than the
+honest move of the column, and a slope that was right is asked again
+from a hundred times further away. The answer does not change: the
+coil currents and the air-gap forces of both halves agree to 2e-5
+relative over the whole 10 s (`/tmp/m326/qs_old.csv`,
+`qs_new.csv`). The ladder changes the cost of this model and not its
+physics.
+
+**And the cost was never a stable number.** Without the ladder at
+all, the same model under a difference step moved by ten percent is
+another run (`OXIDELICA_FD_STEP`, one binary):
+
+| difference step | QuasiStatic Jacobians | PullInStroke Jacobians |
+| --------------- | --------------------: | ---------------------: |
+| 1e-8 (default)  |                   124 |                    150 |
+| 1.1e-8          |   0, refused at t = 0 |                    127 |
+| 2e-8            |                  2812 |                    144 |
+| 5e-9            |   0, refused at t = 0 |                    131 |
+
+At 1.1e-8 and 5e-9 `ComparisonQuasiStatic` is refused with `step
+size underflow at t = 0.000000: probable singularity`. So the 124 the
+band of 605 stands on is one face of a model on a knife edge, and the
+same knife takes the model out of the run list on a nudge. The work
+band was built to say "the same binary does the same walk", which is
+true; what it cannot say is that a different walk of one chaotic
+model is not a regression of the compiler.
+
+**The narrowing, measured.** The ladder is asked only of a column
+whose textbook slope does not read the same from twice the step
+(`OXIDELICA_LADDER_NARROW2`, a third half from one binary
+`/tmp/m326/ox13`, `/tmp/m326/n2.txt`). It cuts the firings in
+`QuasiStatic` from 708825 to 7189 and keeps the witness of m325 red
+without the ladder and green with it. The corpus moves no model, and
+the Jacobians come out 2337: QuasiStatic falls to 761, PullInStroke
+rises to 1253. The rise is the same knife from the other side - under
+the ladder PullInStroke takes 211 at a step of 1.1e-8 and 162 at 2e-8,
+and the narrowed form 109 and 4161 - and not a cost the narrowing
+adds.
+
+**Decision, not a change.** Neither the ladder nor its narrowing goes
+to main, and the band of `WORK_JACOBIANS` is not widened: that is for
+Roman. What this measurement puts in front of that decision:
+
+- The whole price is two FluxTubes solenoids, and the answer they give
+  is the same to 2e-5. Nothing else in the library moved by more than
+  two Jacobians.
+- The price is not a property of the ladder. The base itself swings
+  between 0, 124 and 2812 on one model, and refuses it on a nudge.
+- So the band that stopped the series is standing on the noise of one
+  model. Either the band learns to ignore a model that is chaotic in
+  itself (a per-model count beside the total, or the solenoids carved
+  out of the count the way the heavy models are carved out of the
+  time), or the solenoids' block is the next work - why a stiff run
+  of a quasi-static circuit takes a state Jacobian at all, and why a
+  difference step of 1.1e-8 refuses it at t = 0.
+- The narrowed form costs one extra residual per column whose step
+  was already in the noise band, and is the honest version of the
+  ladder: it changes nothing where the slope was sound. The probe
+  patch, with both keys, is `state/m326_probes_and_narrow2.patch`.
