@@ -1448,30 +1448,52 @@ WORK_BODIES=1546158
 # the next log of the build machine says its own split, and the band is
 # drawn tight on that print rather than on this subtraction.
 #
-# The rest, centred between the two places:
+# Drawn tight on 2026-10-01 (m331) on the build machine's own print.
+# The library job for 1b8eadb (run 36904852421, the first under this
+# split) named Dimmer_RL 31079574 points and 44524678 Newton steps, so
+# the subtraction above guessed the machine's refusal 0.66 million
+# points too cheap: the rest of the corpus is the same there as here.
+# The two later runs, 40b5309 and 936f265, printed the same to the
+# digit (/tmp/m331/lib_*.txt). What the places print for the rest:
 #
-#   points  2376646 +- 20%  =  1901317 .. 2851975
-#           desk 2045710 is x0.861, machine 2707582 x1.139
-#   newton  4362657 +- 40%  =  2617594 .. 6107720
-#           desk 3046508 is x0.698, machine 5678806 x1.302
-WORK_POINTS=2376646
-WORK_POINTS_PPM=200000
-WORK_NEWTON=4362657
-WORK_NEWTON_PPM=400000
+#   machine  33122763 - 31079574 = 2043189 points
+#            47567421 - 44524678 = 3042743 newton
+#   desk     27528282 - 25482572 = 2045710 points    (main, m330)
+#            40179245 - 37132737 = 3046508 newton
+#   desk     25740111 - 23662990 = 2077121 points    (the m331 series
+#            37426193 - 34340892 = 3085301 newton     of the pre fix,
+#                                                     the ladder and
+#                                                     the crossing)
+#
+# the last from /tmp/m331/on.txt, one binary whose other half
+# /tmp/m331/off.txt repeats main's 27528282 and 40179245. The series
+# adds 31411 points and 38558 Newton steps to the rest, named model by
+# model in /tmp/m331/w_diff.txt: DemoPowerSupplyWithBuffer +21724,
+# ComparisonPullInStroke +12777, ComparisonQuasiStatic -10773 among
+# them. Centred on the three and held to five percent again:
+#
+#   points  2060155 +- 5%  =  1957147 .. 2163163
+#           x0.992 .. x1.008
+#   newton  3064022 +- 5%  =  2910821 .. 3217223
+#           x0.993 .. x1.007
+WORK_POINTS=2060155
+WORK_POINTS_PPM=50000
+WORK_NEWTON=3064022
+WORK_NEWTON_PPM=50000
 # And Dimmer_RL, whichever way it falls, centred between the desk's run
-# and the machine's refusal read the dearer way:
+# under the series and the machine's printed refusal:
 #
-#   points  28279812 +- 20%  =  22623850 .. 33935774
-#           desk run 25482572 x0.901, machine 30415181..31077053
-#           x1.076..x1.099
-#   newton  40826825 +- 20%  =  32661460 .. 48992190
-#           desk run 37132737 x0.910, machine 41888615..44520913
-#           x1.026..x1.090
+#   points  27371282 +- 20%  =  21897026 .. 32845538
+#           desk run 23662990 x0.865 (main's 25482572 x0.931),
+#           machine 31079574 x1.135
+#   newton  39432785 +- 20%  =  31546228 .. 47319342
+#           desk run 34340892 x0.871 (main's 37132737 x0.942),
+#           machine 44524678 x1.129
 #
 # A refusal early in the run, or a run that doubles its work, fires.
 WORK_APART_MODEL=Modelica.Electrical.PowerConverters.Examples.ACAC.Dimmer_RL
-WORK_POINTS_APART=28279812
-WORK_NEWTON_APART=40826825
+WORK_POINTS_APART=27371282
+WORK_NEWTON_APART=39432785
 WORK_APART_PPM=200000
 # How many of the dearest models the log names on each count.
 WORK_DEAREST=12

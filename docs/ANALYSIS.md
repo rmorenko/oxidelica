@@ -29711,3 +29711,71 @@ second after the blind floor of m327 in front of `IMC_Transformer`,
 and neither is the last wall. Two scratch keys on the same floor test
 now each move one model up a storey. When that test is next touched,
 both belong in it together, with a pair over the whole corpus.
+
+## The pre fix, the ladder and the crossing guard, merged as one series (m331)
+
+**The guard, chosen by measurement.** The m330 map left two forms for
+a crossing whose bisection collapses onto `handled_at`. Both were
+built behind a scratch key in one binary and run on
+`ThyristorBridge2mPulse_DC_Drive` and on the small `C1`
+(`/tmp/m331/dc/*.out`, `*.csv`):
+
+```text
+form                         DC_Drive              mean I    E        bad rows
+none (pre fix + ladder)      underflow 4.62e-4     -         -        -
+(i) tolerance |before|<1e-10 runs to 1 s           99.918 A  79.128   3
+end of step if lo == t       runs to 1 s           99.945 A  79.125   0
+```
+
+"Bad rows" counts rows where a thyristor is fired, off and more than
+1 V forward. Form (i) drops the crossing, so `p[3]` sits fired and
+off at t = 1e-3 with 4.86 V forward, the old fault again. It also
+moves `C1` by up to 96% relative. The end-of-step form leaves `C1`
+within 1.6e-3 on the grid rows, all of it on `l1.v` around zero
+(8e-4 V). A third variant, re-evaluating the indicator at `t` before
+bisecting, ran under `simulate` but still underflowed under `library
+check`, so it was discarded. The end-of-step form is
+`solvers::place_crossing`. When the bisection never left `t` and `t`
+is the instant just handled, the event goes to `t_new`, which is
+what the explicit solver already does for a reading of exactly zero
+there. `OXIDELICA_NO_CROSSING_AT_STEP_END` keeps the old placement.
+The test `a_crossing_found_on_the_handled_instant_is_not_an_event_there`
+is red under the key and green without it.
+
+**The series' numbers.** On the final binary (`/tmp/m331/ox`):
+`DC_Drive` runs to 1 s with 2039 points, 4822 Newton steps and 9
+Jacobians. Its mean current is 99.945 A, induced voltage 79.125 V
+and speed 124.289 rad/s, and no row has a thyristor fired, off and
+forward (1917 rows). `P.mo` prints x(1) = 0.9, and 0 under
+`OXIDELICA_NO_PRE_ITERATION`. `ThyristorBridge2mPulse_RLV_Characteristic`
+over 2 ms against the bridge's closed form (`/tmp/m331/rlv/check.py`)
+ends at 1.00826 A against 1.00826 A, worst relative error 3.31e-5.
+
+**The pair.** One binary, all three keys set for `/tmp/m331/off.txt`
+and none for `on.txt`: 966/686 and 849/644 against 966/687 and
+849/645. The run lists differ by one name, `RLV_Characteristic`
+arriving. Nothing leaves, and `DC_Drive` runs in both halves.
+The off half repeats main's work to the digit (27528282 points,
+40179245 Newton steps). Points went 27528282 to 25740111, Newton
+40179245 to 37426193, Jacobians 130 to 136, and the solenoid pair
+733 to 600. 113 models changed their work (`/tmp/m331/w_diff.txt`).
+`Dimmer_RL` went 25482572 to 23662990 points, and its Jacobians went
+from 13 to 19. The rest of the corpus rose 31411 points, of which
+`DemoPowerSupplyWithBuffer` has 21724, `ComparisonPullInStroke` 12777
+and `ComparisonQuasiStatic` -10773.
+
+**The work band, drawn on the runner's print.** All three library
+jobs of m330 went green (1b8eadb, 40b5309, 936f265). They printed the
+same counts to the digit, the floors, and the first named models on
+the build machine: `Dimmer_RL` refused there at 31079574 points and
+44524678 Newton steps. So the rest is 2043189 and 3042743 on the
+runner, 2045710 and 3046508 on main at the desk, and 2077121 and
+3085301 under the series. m330's subtraction had put the runner's
+rest at 2.71 million, and that subtraction was wrong: the 0.66
+million it could not name was `Dimmer_RL`'s refusal costing more on
+the runner than on a desk. The band of the rest is back to five
+percent around the three, and `Dimmer_RL` stays at twenty around its
+desk run and the runner's refusal.
+
+The floors are not moved: 687 and 645 are desk numbers, and the
+floor rises to what the runner prints.
