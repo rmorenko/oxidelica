@@ -29019,3 +29019,27 @@ mode honestly. The old one escapes because a step of 7e12 happened to
 land in the basin of the next mode. That is the next link for the
 bridge, and it belongs to the event iteration of ideal switches rather
 than to the warm start.
+
+**The same breed in the implicit solver** (`/tmp/m327/ox5` with a
+scratch key `OXIDELICA_BDF_RESTORE`, `/tmp/m327/w2.mo`). The witness
+started on the upper root, with `--solver bdf`, ends on the lower one
+on today's tree (y = -1.532 from a start of 1.942). The trail shows
+why. BDF's first step of 1e-3 takes the stiff `x` to -48.5 by its
+predictor, the block solves the cubic there on its only root of
+-3.92, the step is rejected, and every shorter step starts the block
+from -3.92 and lands on the lower branch. The same restore of the
+warm start on a rejected step (both of the step's ways to fail) keeps
+the upper branch. Over the sweep's twenty-four runs at stiffnesses of
+1e5 and 1e6 under `--solver bdf` and a stop of 0.01 s
+(`/tmp/m327/sw/`), ten end today on a branch other than the one they
+started on: six started on the upper root, four on the lowest. Under
+the restore all ten end on their own branch, the twelve that were
+right stay right, and two are refused with `algebraic loop did not
+converge in 50 Newton iterations` - both with a declared `y` of 2,
+at (1e5, x = 1.2) and (1e6, x = 1.5). Why those two do not converge
+was not probed, but they are refusals and not a branch picked
+silently. Under the explicit solver's change and this one together, the bridge
+is still refused and `IMC_Steinmetz` and `ComparisonQuasiStatic`
+still run. Both changes, with the test, are in
+`state/m327_reject_keeps_guess_with_bdf.patch`. They are parked with
+the explicit solver's change and want the same pair.
