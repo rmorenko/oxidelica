@@ -28816,3 +28816,187 @@ the curve's knee allows, and a slope one rounding apart decides it.
 That is the next probe for the solenoids, and a guard on it - a block
 that converges to a point far from where it started, on a step that
 small - is the candidate. Not taken here.
+
+## The knife was a rejected step's roots (m327)
+
+The guard m326 named as the candidate - a block that converges far
+from where it started on a small step - was probed first, and the
+criterion is not clean. A scratch print of the largest relative move
+of any unknown between a block's start and its accepted root, on
+`--only` for both solenoids under difference steps of 5e-9, 1e-8,
+1.1e-8 and 2e-8 (`/tmp/m327/p_*.err`), and on `Dimmer_RL`:
+
+- The healthy run of `ComparisonQuasiStatic` (1e-8, the one that runs)
+  prints the same moves as the refused one (1.1e-8): 4.5e5 at
+  t = 3e-4, 4.9e5 at 8e-4, 5.5e6 at 1.6e-4. They are the same lines to
+  the tenth digit.
+- `Dimmer_RL`, a control that runs, prints 21 moves above 1e3 and 164
+  between 10 and 1e3, on its two-unknown thyristor block.
+- `ComparisonPullInStroke`, which runs at every step, prints 15 above
+  1e3 under each of the four steps.
+
+So no threshold separates the knife from an honest run, and no guard
+was built on it. What the probe did show is where the far roots come
+from. Every one of them belongs to a stage of a Dormand-Prince step
+that was then thrown away: the first step from t = 0 is 1e-3 long, its
+stages stand at t = 2e-4, 3e-4, 8e-4, 8.9e-4 and 1e-3 - the very
+times of the far roots - and a stiff coil flux extrapolated that far
+lands where the iron's curve has another root. The step is rejected.
+What it leaves behind is the warm start of the algebraic blocks
+(`alg_guess`), which the stages wrote and nobody restored.
+
+Then the two difference steps part. At 1e-8 the first step is rejected
+by a stage that fails outright, `err = inf`; at 1.1e-8 the stages all
+converge, the step is rejected by its error estimate (2.3e10), and the
+FSAL evaluation that ran at the far end has left the circuit's
+unknowns at 7e24. Every shorter try - 2e-4, 4e-5, down to 1.3e-15 -
+starts its blocks from there, fails a stage, and the run is refused at
+t = 0 (`/tmp/m327/dB.txt`, a scratch print of each step's verdict).
+So the slope one rounding apart did not decide which root of the
+saturation curve the block lands on. It decided which way the first
+step was rejected, and one of the two ways leaves garbage behind.
+
+**The change, measured and parked.** The warm start is taken at the
+top of each explicit step and put back when the step is rejected, by
+its error or by a stage that will not hold, with
+`OXIDELICA_REJECT_KEEPS_GUESS` keeping the old behaviour. It is not on
+main: the patch, with its test, is
+`state/m327_reject_keeps_guess.patch`, and why it was parked is below
+the pair. `ComparisonQuasiStatic` under it runs at every difference
+step tried, with state Jacobians:
+
+| difference step |     before | after |
+| --------------- | ---------: | ----: |
+| 1e-8 (default)  |        124 |   124 |
+| 1.1e-8          | 0, refused |    25 |
+| 5e-9            | 0, refused |    32 |
+| 2e-8            |       2812 |  2812 |
+
+and the coil currents and air-gap forces at 1.1e-8 agree with the
+reference of m326 (`/tmp/m326/qs_old.csv`) to 1.4e-5 relative on a
+grid of 0.01 s. `ComparisonPullInStroke` gives 150, 127, 131 and 144,
+as before.
+
+**The witness** is three lines: `der(x) = -1e5 (x - 1)` from x = 1.5,
+and `y^3 - 3 y = x` started on its lowest root. The first step is too
+long for the state, its stages put x at 50 where the cubic has only
+its upper root, and with the old behaviour every shorter try starts
+there and the run follows the upper branch to y = 1.879 - a root of
+the equation and not the one a continuous `y` reaches. With the change
+it follows its own branch to -1.532. A sweep over the stiffness (1e3
+to 1e6), the start of x and the start of y found the two behaviours
+apart at a stiffness of 1e5 in 7 of 12 cases, each time with the old
+one off the branch. It is a wrong number the present code gives
+without a word. The test in the patch is red under the old behaviour
+and green under the change.
+
+What this change does not touch, and the witness found it as well:
+given a stop time of 1 s instead of 5e-4 s, the same model started on
+the upper root ends on the lower one, -1.532, with or without the
+change. The explicit solver's stiffness watch hands the run to the
+implicit one, which starts again from t = 0, and its first step of
+1e-3 puts x at -48.5, where the cubic has only its lower root; the
+block is solved there and the run follows that branch
+(`/tmp/m327/wtrail.txt`). At a stiffness of 1e6 the short runs land
+on either branch under both behaviours, by the same path. The same
+breed in the second solver, and the next link if a model of the
+library is found standing on it.
+
+**The pair, and why the change was parked** (`/tmp/m327/old.txt` under
+the old behaviour and `/tmp/m327/new.txt` under the change, one binary
+`/tmp/m327/ox`, both at once under a ceiling of 24 GB). Both halves
+print 966 flattening and 685 running, 849 and 643 runnable. The lists
+by name are not equal, though: one model each way.
+
+- `IMC_Steinmetz` comes in. Under the old behaviour a rejected step
+  leaves its stage at t = 3e-5 as the start of every shorter try, the
+  stage's block crawls toward a residual of 0.38 for fifty iterations,
+  and the run ends in `step size underflow at t = 0`. The change is
+  what was meant for it.
+- `ThyristorBridge2mPulse_RLV_Characteristic` goes out, refused at
+  t = 0.002 by the check for two-sided roots, which names
+  `rectifier.star_p.pin_n.v`. Its Newton trails under the two
+  behaviours (`/tmp/m327/thy_old_trail.txt`, `thy_new_trail.txt`) are
+  the same up to the event at t = 0.002, with the block's start
+  residual 5.811e-12 against 5.803e-12. At the event both iterations
+  step the six thyristor unknowns to 1.43e6 - a root that is not the
+  circuit's. The old one then throws Newton to 3.5e7, comes back, and
+  lands by chance on the physical point (0.9155). The new one, from a
+  start one rounding away, settles at 1.42e6 with a residual of 0.376,
+  and is refused there.
+
+So the change is not what takes the bridge. The bridge sits on a knife
+of its own, in the event iteration of an ideal switch. But a
+measurement that swaps one model for another does not have equal
+lists, and a pair that leaves a victim stops the series: the change is
+parked, the victim is named, and nothing went to main. The one-for-one swap
+moves no count. The WORK line of the pair is points 32452120 against
+32450181, Newton 44916155 against 44916212, and Jacobians 603 against
+597, all inside the bands. So taking the change later costs no
+threshold. What it does cost is a decision about the bridge.
+
+**The ladder over the change** (`/tmp/m327/ladder_over.txt`, one
+binary `/tmp/m327/oxL` from the change with the probe patch of m326
+on top, `--only` each solenoid). The change takes the refusal out of
+the knife and not the swing: the count of state Jacobians is still a
+property of which step the run happens to take.
+
+| model, difference step | no ladder | ladder | narrowed |
+| ---------------------- | --------: | -----: | -------: |
+| QuasiStatic, 1e-8      |       124 |   3542 |      761 |
+| QuasiStatic, 1.1e-8    |        25 |    191 |       32 |
+| QuasiStatic, 2e-8      |      2812 |   1066 |       15 |
+| PullInStroke, 1e-8     |       150 |    582 |     1253 |
+| PullInStroke, 1.1e-8   |       127 |    211 |      109 |
+| PullInStroke, 2e-8     |       144 |    162 |     4161 |
+
+With the old warm start kept (`OXIDELICA_REJECT_KEEPS_GUESS`) the
+ladder's 3542 and 582 come out the same: the ladder's walk never takes
+the rejection that leaves the garbage. So the ladder does not fit the
+band of `WORK_JACOBIANS` over this change either, and the question of
+m326 stands as it was for Roman: the band is standing on the noise of
+two models, which now at least run under every step tried.
+
+## The fifth link of BranchingPipes17 (m327)
+
+A map, not a change: the scratch binary `/tmp/m327/oxL` carries the
+probe keys of m325 and m326, and the outputs are in
+`/tmp/m327/bp17_link1.txt` and `/tmp/m327/bp17_short.txt`.
+
+**Where the step lands.** With `DryAirNasa` at fixed p and V the
+internal energy is `U(T) = p V (h(T) - R T) / (R T)`. Evaluated from the
+medium's own polynomial at V = 1e-3 m3, its slope is 0.0036 J/K at
+293.15 K and 0.0211 J/K at 577.82 K. The second of these is the
+reciprocal of the column m326 found clean, 47.43 K/J, to four digits.
+So the column is right. Newton's step is the tangent at 577.82 K
+carried down to 293.15 K: 6.00 J, which takes `U` from 252.185 to
+246.183. That is the 246.18 of m326 to the last digit printed. At the
+sink's 1e5 Pa that `U` belongs to 96.4 K. The medium inverts `h` for
+`T` with `solveOneNonlinearEquation` bracketed at 200 and 6000 K, and
+`U(200 K)` at 1e5 Pa is 248.617. The step goes 2.4 J past the floor
+of the bracket, and that is the refusal "fa and fb must have opposite
+sign". The curve is convex, so a tangent from above always overshoots
+it. A damped step would not help either: any start above 577 K steps
+past 200 K.
+
+**Starting at the sink's pressure.** With `system(p_start = 1e5)` in
+an extension of the model, the start of `U` is the 248.887 that
+293.15 K asks for at that pressure, and the residual of
+`medium.T = T_start` is zero from the first iteration:
+
+| keys                                     | default p_start | p_start = 1e5     |
+| ---------------------------------------- | --------------- | ----------------- |
+| none                                     | bracket, t = 0  | bracket, t = 0    |
+| the tie of m325                          | domain, t = 0   | bracket, t = 0    |
+| tie, tolerance by row, one guess per col | bracket, t = 0  | initialises, runs |
+
+Under all three keys and the honest start, the model initialises and
+runs to t = 0.01 with `junctionVolume.U` = 248.77, a physical point.
+It takes 342 s to do so, and the 5 s run was stopped after sixteen
+minutes so that it would not compete with the corpus pair. So link 5
+is not a link of its own. It is link 2 met from the other side: from
+the start at the wrong pressure no Newton step on this curve reaches
+the bracket, and from the right start Newton has nothing to do. The
+chain is closed by links 1 to 4 together with a start of `U` taken at
+the pressure the connection fixes. The cost after that is a separate
+question: ten steps in 342 s.
