@@ -28796,3 +28796,23 @@ Roman. What this measurement puts in front of that decision:
   was already in the noise band, and is the honest version of the
   ladder: it changes nothing where the slope was sound. The probe
   patch, with both keys, is `state/m326_probes_and_narrow2.patch`.
+
+**Where the knife cuts** (`/tmp/m326/qs_11_trail.txt`, the base
+without the ladder at a difference step of 1.1e-8, Newton trail on).
+The start and the first steps are the same as at 1e-8: the 26-unknown
+block of the magnetic circuit settles in two or three iterations up
+to t = 0.0002, with the first unknown, a yoke's reluctance
+`advancedSolenoid.g_mFeYokeBot.R_m`, at 78794. The step to 0.0003
+starts it with a residual of 2.6e8, and Newton converges in three
+iterations, to `R_m` = 3.15e7: a root where the iron's permeability
+has fallen by a factor of four hundred. The block is solved there, to
+2.9e-6, so nothing refuses it. The next step starts from that point
+with a residual of 1.3e14, and every halving of the step after it
+starts the block from the same root and gets the same 3.6e27, down to
+a step of 3e-14 and the refusal. So the knife is not the Jacobian of
+the states: it is which root of the saturation curve the block lands
+on when a step of the stiff solver moves the coil's flux further than
+the curve's knee allows, and a slope one rounding apart decides it.
+That is the next probe for the solenoids, and a guard on it - a block
+that converges to a point far from where it started, on a step that
+small - is the candidate. Not taken here.
