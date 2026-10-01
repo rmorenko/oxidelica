@@ -1172,6 +1172,13 @@ fn walked_slices_open() -> bool {
     std::env::var_os("OXIDELICA_NO_WALKED_SLICES").is_none()
 }
 
+/// Whether a walk writes a run of an array element by element.
+/// `OXIDELICA_NO_IMPURE_DRAWS` turns it back with the rest of the
+/// impure generator's road, so that one binary gives both numbers.
+fn walked_slice_writes_open() -> bool {
+    std::env::var_os("OXIDELICA_NO_IMPURE_DRAWS").is_none()
+}
+
 /// A fold written out: `sum` of nothing is nothing, of one is itself.
 fn fold(name: &str, items: Vec<Expr>) -> Result<Expr, SimError> {
     let joined = match name {
@@ -1257,6 +1264,37 @@ fn run(
     for statement in body {
         match statement {
             Statement::Assign(target, subscripts, value) => {
+                // `state[i:i+1] := aux` fills a run of one array from
+                // another, element by element: the generators' seeding
+                // steps a state two numbers at a time this way.
+                if let [Expr::Range(from, None, to)] = subscripts.as_slice() {
+                    if walked_slice_writes_open() {
+                        let from = index_of(from, frame, programs, time, depth)?;
+                        let to = index_of(to, frame, programs, time, depth)?;
+                        let items =
+                            elements_of(value, frame, programs, time, depth)?.ok_or_else(|| {
+                                SimError(format!(
+                                    "`{target}[{from}:{to}]` is given something that is not \
+                                     a list: {value:?}"
+                                ))
+                            })?;
+                        if items.len() as i64 != (to - from + 1).max(0) {
+                            return err(format!(
+                                "`{target}[{from}:{to}]` is {} long and was given {}",
+                                (to - from + 1).max(0),
+                                items.len()
+                            ));
+                        }
+                        let mut worths = Vec::new();
+                        for item in &items {
+                            worths.push(number_of(item, frame, programs, time, depth)?);
+                        }
+                        for (at, worth) in (from..=to).zip(worths) {
+                            frame.numbers.insert(format!("{target}[{at}]"), worth);
+                        }
+                        continue;
+                    }
+                }
                 // `q[i] := ...` lands on the element's own name, which
                 // is how an array is held here.
                 let mut named = target.clone();
@@ -1426,6 +1464,17 @@ fn run(
                             elements_of(arg, frame, programs, time, depth)?
                         }
                         Expr::Array(_) | Expr::Range(..) if tuple_arrays_open() => {
+                            elements_of(arg, frame, programs, time, depth)?
+                        }
+                        // A run of an array - `random(state[i-2:i-1])`
+                        // steps the seeding two numbers at a time - is
+                        // its elements too; a single element is not.
+                        Expr::Index(_, subscripts)
+                            if walked_slice_writes_open()
+                                && subscripts.iter().any(|subscript| {
+                                    matches!(subscript, Expr::Range(..) | Expr::ColonSubscript)
+                                }) =>
+                        {
                             elements_of(arg, frame, programs, time, depth)?
                         }
                         _ => None,

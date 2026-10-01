@@ -497,6 +497,16 @@ pub(super) fn inline_function_checks(
             .iter()
             .any(|c| c.causality == Causality::Output)
     {
+        // Save the one whose effect is a state this compiler holds in
+        // the model instead: the impure generator's, handed over here
+        // and drawn from by every `impureRandom` after.
+        let sets = class
+            .external_call
+            .as_ref()
+            .is_some_and(|call| call.called == super::impure::SET);
+        if sets && !super::impure::draws_off() {
+            super::impure::state_handed(class, args)?;
+        }
         return Ok(Vec::new());
     }
     let mut checks = Vec::new();
@@ -547,6 +557,40 @@ fn numbers_in(expr: &Expr) -> usize {
     match expr {
         Expr::Array(items) => items.iter().map(numbers_in).sum(),
         _ => 1,
+    }
+}
+
+/// The numbers of a value written out, in order, where every one of
+/// them is a number already.
+fn numbers_laid(expr: &Expr, into: &mut Vec<f64>) -> bool {
+    match expr {
+        Expr::Array(items) => items.iter().all(|item| numbers_laid(item, into)),
+        Expr::Number(value) => {
+            into.push(*value);
+            true
+        }
+        _ => false,
+    }
+}
+
+/// An output laid out as places of `made`, with each place read off
+/// the answer the body gave.
+fn answered(value: &Expr, made: &Expr, answer: &[f64]) -> Expr {
+    match value {
+        Expr::Index(base, at) if base.as_ref() == made => match at.as_slice() {
+            [Expr::Number(place)] => (*place as usize)
+                .checked_sub(1)
+                .and_then(|place| answer.get(place))
+                .map_or_else(|| value.clone(), |number| Expr::Number(*number)),
+            _ => value.clone(),
+        },
+        Expr::Array(items) => Expr::Array(
+            items
+                .iter()
+                .map(|item| answered(item, made, answer))
+                .collect(),
+        ),
+        _ => value.clone(),
     }
 }
 
@@ -1517,12 +1561,17 @@ fn inline_body(
     FOLDING.with(|held| held.borrow_mut().insert(circle.clone()));
     let _folding = Folding(circle);
     let mut said = Vec::new();
+    let draws_before = super::impure::draws_made();
     let answer = worked_body(class, args, shapes, consts, registry, depth, &mut said);
     let told: Remembered = match &answer {
         Ok(outputs) => Ok((outputs.clone(), said.clone())),
         Err(why) => Err(why.clone()),
     };
-    INLINED.with(|held| held.borrow_mut().insert(asked, told));
+    // A body that drew from the impure generator is another draw each
+    // time it is asked, so what it came to is not an answer to keep.
+    if super::impure::draws_made() == draws_before {
+        INLINED.with(|held| held.borrow_mut().insert(asked, told));
+    }
     checks.extend(said);
     answer
 }
@@ -2061,6 +2110,15 @@ fn body_written_elsewhere(
     // standing for whoever can work it out; where nobody answers, the
     // refusal says which name was wanted.
     if class.external {
+        // A draw of the impure generator: numbered here, and written
+        // out as the state it moves once the `when` it stands in is.
+        let draws = class
+            .external_call
+            .as_ref()
+            .is_some_and(|call| call.called == super::impure::DRAW);
+        if draws && !super::impure::draws_off() {
+            return super::impure::draw(class).map(Some);
+        }
         let Some(call) = class.external_call.as_ref().filter(|call| {
             external::answered_here(&call.called) || crate::outside::written_here(&call.called)
         }) else {
@@ -2110,8 +2168,30 @@ fn body_written_elsewhere(
             {
                 given_shapes.insert(input.name.clone(), shape.clone());
             }
-            return numbered_outputs(class, registry, consts, &given_shapes, &made, answers)
-                .map(Some);
+            let outputs = numbered_outputs(class, registry, consts, &given_shapes, &made, answers)?;
+            // Where everything it was handed is a number already, the
+            // answer is worked out here rather than left as a call for
+            // later. A generator seeded by stepping itself ten times
+            // is ten calls each nested in the one before, and left
+            // standing that pile ran past the depth this compiler
+            // follows, so the seed of every impure generator went to
+            // the walk and stopped there. Only the generators: they
+            // are what nests itself, and the solvers are left to fold
+            // where they always have.
+            if call.called.starts_with("ModelicaRandom_") && !super::impure::draws_off() {
+                let mut given = Vec::new();
+                if args.iter().all(|arg| numbers_laid(arg, &mut given)) {
+                    if let Some(answer) = crate::outside::answer(&call.called, &given) {
+                        return Ok(Some(
+                            outputs
+                                .into_iter()
+                                .map(|(name, value)| (name, answered(&value, &made, &answer)))
+                                .collect(),
+                        ));
+                    }
+                }
+            }
+            return Ok(Some(outputs));
         }
         if crate::outside::written_here(&call.called) {
             return Err(format!(

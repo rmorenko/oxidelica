@@ -28429,3 +28429,101 @@ row of its own. So the ladder moved two models one wall on, and cost
 one. The register was not taken again: the code on main is the code it
 measured in m322, and the pair is the same measurement with the ladder
 in it.
+
+## m324: the impure generator held in the model rather than in C
+
+`Modelica.Math.Random.Utilities` keeps one generator outside the
+model. `initializeImpureRandom(seed)` builds a state of thirty-three
+integers and hands it to `ModelicaRandom_setInternalState_xorshift1024star`,
+which keeps it in C; every `impureRandom(id)` after that draws a
+number and moves the state on. The `id` is not a key - the library
+says it is there "in order that sorting is correct" - so there is one
+state, and the order of the draws is the order the model writes them
+in. The two roads were to keep that state in the simulator or to write
+it into the model. The simulator stays pure: the state is lowered into
+the flat model as discrete variables while flattening.
+
+**What the lowering is** (`flatten/impure.rs`). A call of the setter
+is a statement with no output, and was dropped as one; it now records
+the state it was handed. A draw is inlined as a numbered marker. Once
+every `when` of the model is in, each marker standing among the
+actions of a `when` becomes thirty-three `$randomState` words started
+at the recorded state, a draw `$randomDraw` read off the generator
+already written in `outside.rs`, and the state moved on through
+thirty-three `$randomNext` words, all as actions put in front of the
+one that reads the draw. A marker anywhere a `when` does not order it,
+such as an equation, a binding or a condition, is refused by name, and so is
+a draw with no setter behind it and two setters handing over two
+different states. Two tables of answers kept inside one class's
+instantiation would have handed the second draw the first one's
+answer, so an expansion or a body that made a draw is not remembered.
+`OXIDELICA_NO_IMPURE_DRAWS` turns the whole road back.
+
+**The chain behind it, walked to its end on small models.** The draw
+was the first wall and not the last. The state the setter is handed is
+`initialStateWithXorshift64star(715827883, seed, 33)`, and that had
+never been worked out for thirty-three words:
+
+1. Its first line calls `Xorshift64star.initialState`, which steps a
+   generator ten times, each call nested inside the one before. Left
+   as calls, that pile ran past the depth the compiler follows
+   (`NO_BOTTOM`) and the whole seeding went to the walk. Now a body
+   written here that is handed nothing but numbers is answered where
+   it is made, for the `ModelicaRandom_` generators only. With the
+   seed a number, `TestRandomIntegers` runs after this link.
+2. Where the seed is a parameter settled at the start of the run -
+   `globalSeed.seed` is `fixed = false` - the seeding is walked, and
+   the walk refused its answer `state[nState]` because the length is
+   an input. The walk already reads such a length from its frame; the
+   check in front of it now lets it through.
+3. The walk could not write `state[i:i+1] := aux`, a run of an array,
+   and could not hand `state[i-2:i-1]` to a tuple call. Both are taught
+   now, behind the same key.
+
+After the third link `ImpureGenerator` runs. `/tmp/m324/W.mo`, where
+the seeding is an equation between an array and the call rather than a
+binding, still refuses - `an equation between shapes [33] and []` - and
+is a wall of its own that no standard-library model on this road meets.
+
+**The numbers.** The stream is held to the bit against the three draws
+worked by hand in m323 from the state 1..16 (0.2513150092458146,
+0.5358190340172654, 0.5259321584469488), and a second test holds two
+draws in one algorithm to the first and second numbers of that stream
+and a draw read twice - the integer generator reads its real draw in
+two places - to one draw. The seed walked and the seed folded agree:
+`ImpureGenerator` and a model calling `initializeImpureRandom(67867967)`
+with the seed written as a number both open at 0.8307364638768926.
+Nothing is compared against another tool's output, since the reference
+directory of the library names signals and holds no values.
+
+One test changed its verdict and says so. A walked body declaring
+`Real[2] Y = toY(X, MM, 2)` with `toY` answering `Y[n]` was refused,
+because the walk could not carry a length that is an input; it now
+runs, and the test holds it to the body's own numbers, 0.375 and 0.75,
+rather than to the refusal. What that test was written against - an
+array quietly laid out as zeros - stays guarded: the numbers are the
+body's, not zero. The test of the generator's seeding that counted
+seven nested calls of `ModelicaRandom_xorshift64star` in the flat
+binding now finds the two numbers the three rounds come to, taken from
+the body written here.
+
+The third model the register of m322 put in this family is
+`Noise.Utilities.ImpureRandom`, the block the example is built from.
+It is not an example and has no `samplePeriod`; it now flattens and
+stops at `parameter samplePeriod has no value`, which is the model
+and not the compiler.
+
+**The pair** (one binary, `/tmp/m324/ox`, the old half under
+`OXIDELICA_NO_IMPURE_DRAWS`; `/tmp/m324/corpus_old.txt` and
+`/tmp/m324/corpus_new.txt`). The examples go from 962 flattening and
+682 running to 966 and 685, the runnable ones from 846 and 640 to 849
+and 643, and the diff of the lists by name has no departure in either
+half. Flattened: `ImpureGenerator`, `Noise.Utilities.ImpureRandom`,
+`TestRandomIntegers` and `TestRandomNumbers`. Running: the same less
+the helper block. `TestRandomNumbers` was not in the family the brief
+named: it stood at `NO_BOTTOM` on the nested generator calls of its
+seedings, which is the first link of the chain above, and it now
+answers `result = 1` with the three generators' streams folded from
+numbers. The floors are not moved in this commit; they wait for the
+runner's number. The ratio of the halves on the desk is 9498 s of
+running over 6529 s of flattening, 1.45, inside the desk's band.

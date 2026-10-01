@@ -115,6 +115,7 @@ pub(super) fn expand(
             return held;
         }
     }
+    let draws_before = super::impure::draws_made();
     let recur = |e: &Expr| expand(e, shapes, registry, scope, imports, depth + 1);
     let scalar = |e: &Expr| -> Result<Value, String> {
         Ok(Value::Scalar(resolve(
@@ -619,7 +620,9 @@ pub(super) fn expand(
             other => scalar(other)?,
         })
     })();
-    if let Some(key) = key {
+    // A draw of the impure generator is another draw each time it is
+    // asked, so an expression that made one is not an answer to keep.
+    if let Some(key) = key.filter(|_| super::impure::draws_made() == draws_before) {
         EXPANDED.with(|held| held.borrow_mut().insert(key, answer.clone()));
     }
     answer

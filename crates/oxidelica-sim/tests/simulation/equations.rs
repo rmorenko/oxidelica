@@ -2497,3 +2497,77 @@ fn an_array_handed_down_an_extends_clause_is_cut_into_its_elements() {
     let why = refused(source);
     assert!(why.contains("nothing gives a value to `c`"), "{why}");
 }
+
+/// The impure generator of `Modelica.Math.Random.Utilities`, drawn
+/// from a state written out by hand. Sixteen words 1, 2, ..., 16 (each
+/// as its low half and a high half of zero) and the place 0: the first
+/// draw reads words 0 and 1 (1 and 2), writes `3 + 2^21 + 2^32` into
+/// word 1 and multiplies it by the generator's constant, and the three
+/// numbers below are that draw and the next two, worked from
+/// Vigna's definition in `ModelicaRandom.c` step by step
+/// (`/tmp/m323/IR.mo`). The examples compare the stream name by name,
+/// so a generator that draws some other stream is a wrong number, not
+/// a different sample. Red on the tree of m323: the draw is refused as
+/// C the compiler has none of its own for.
+#[test]
+fn the_impure_generator_draws_the_stream_its_state_says() {
+    let result = run("model IR \
+         function setState input Integer s[33]; input Integer id; \
+           external \"C\" ModelicaRandom_setInternalState_xorshift1024star(s, size(s, 1), id); \
+         end setState; \
+         impure function draw input Integer id; output Real y; \
+           external \"C\" y = ModelicaRandom_impureRandom_xorshift1024star(id); \
+         end draw; \
+         impure function init input Integer seed; output Integer id; \
+         algorithm setState({1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 0}, seed); id := seed; end init; \
+         parameter Integer id = init(7); \
+         discrete Real y(start = 0); \
+         equation when sample(0.1, 0.1) then y = draw(id); end when; \
+         annotation(experiment(StopTime = 0.35, Interval = 0.05)); end IR;");
+    let at = result.columns.iter().position(|c| c == "y").unwrap();
+    let after = |t: f64| {
+        result
+            .rows
+            .iter()
+            .find(|row| (row[0] - t).abs() < 1e-9)
+            .map(|row| row[at])
+            .unwrap()
+    };
+    assert_eq!(after(0.15), 0.2513150092458146);
+    assert_eq!(after(0.25), 0.5358190340172654);
+    assert_eq!(after(0.35), 0.5259321584469488);
+}
+
+/// Two draws in one algorithm are the first number of the stream and
+/// the second, in the order the statements are written: the state is
+/// one, and each draw moves it on before the next reads it. The same
+/// hand-worked stream as the test above, so the second draw of the
+/// first tick is the second number of that stream and the first draw
+/// of the second tick is the third. And a draw read twice - the
+/// integer generator reads its real draw in two places - is one draw:
+/// `twice` is `a + a` and the stream is not moved for the second `a`.
+#[test]
+fn two_draws_in_one_algorithm_are_taken_in_the_order_written() {
+    let result = run("model IR2 \
+         function setState input Integer s[33]; input Integer id; \
+           external \"C\" ModelicaRandom_setInternalState_xorshift1024star(s, size(s, 1), id); \
+         end setState; \
+         impure function draw input Integer id; output Real y; \
+           external \"C\" y = ModelicaRandom_impureRandom_xorshift1024star(id); \
+         end draw; \
+         impure function doubled input Integer id; output Real y; protected Real a; \
+         algorithm a := draw(id); y := a + a; end doubled; \
+         impure function init input Integer seed; output Integer id; \
+         algorithm setState({1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11, 0, 12, 0, 13, 0, 14, 0, 15, 0, 16, 0, 0}, seed); id := seed; end init; \
+         parameter Integer id = init(7); \
+         discrete Real first(start = 0); discrete Real second(start = 0); \
+         discrete Real twice(start = 0); \
+         algorithm when sample(0.1, 1) then first := draw(id); second := draw(id); end when; \
+         when sample(0.2, 1) then twice := doubled(id); end when; \
+         annotation(experiment(StopTime = 0.3, Interval = 0.05)); end IR2;");
+    let column = |name: &str| result.columns.iter().position(|c| c == name).unwrap();
+    let last = result.rows.last().unwrap();
+    assert_eq!(last[column("first")], 0.2513150092458146);
+    assert_eq!(last[column("second")], 0.5358190340172654);
+    assert_eq!(last[column("twice")], 2.0 * 0.5259321584469488);
+}

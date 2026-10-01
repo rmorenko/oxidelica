@@ -2285,15 +2285,22 @@ fn a_body_written_here_answers_with_as_many_numbers_as_it_declares() {
             .find(|c| c.name == name)
             .and_then(|c| c.binding.clone())
     };
-    // Three rounds, each the outside call asked for its own place of
-    // the answer: the first for the value it drew, the second and
-    // third for the halves of the state it moved to.
-    let written = format!("{:?}", value("s[1]"));
-    assert_eq!(written.matches("ModelicaRandom_xorshift64star").count(), 7);
-    assert!(written.contains("Number(7.0), Number(3.0)"), "{written}");
-    assert!(written.ends_with("[Number(2.0)]))"), "{written}");
+    // Three rounds of the generator from the state {7, 3}. Each round
+    // is handed numbers only, so each is worked out where it is made
+    // rather than left as a call nested in the one before - a pile the
+    // ten rounds of the library's own seeding ran past the depth this
+    // compiler follows with. What is left is the two numbers the
+    // third round moved the state to, the same the body written here
+    // gives when asked three times over.
+    let mut state = vec![7.0, 3.0];
+    for _ in 0..3 {
+        let answer =
+            oxidelica_parser::outside::answer("ModelicaRandom_xorshift64star", &state).unwrap();
+        state = answer[1..].to_vec();
+    }
+    assert_eq!(value("s[1]"), Some(Expr::Number(state[0])));
+    assert_eq!(value("s[2]"), Some(Expr::Number(state[1])));
     let second = format!("{:?}", value("s[2]"));
-    assert!(second.ends_with("[Number(3.0)]))"), "{second}");
 
     // A run of elements assigned at once: `state[1:2] := aux` is what
     // the standard library fills a longer state with.
@@ -3540,4 +3547,71 @@ fn a_length_a_package_states_is_a_length_the_answer_has() {
             "no place {place} of the answer: {said}"
         );
     }
+}
+
+/// The impure generator's two outside names, declared the way the
+/// standard library declares them, and an initializer handing over a
+/// state written out.
+const IMPURE: &str = "function setState input Integer s[33]; input Integer id; \
+       external \"C\" ModelicaRandom_setInternalState_xorshift1024star(s, size(s, 1), id); \
+     end setState; \
+     impure function draw input Integer id; output Real y; \
+       external \"C\" y = ModelicaRandom_impureRandom_xorshift1024star(id); \
+     end draw; \
+     impure function init input Integer seed; input Integer first; output Integer id; \
+     algorithm setState(cat(1, {first}, fill(0, 31), {0}), seed); id := seed; end init;";
+
+#[test]
+fn an_impure_draw_is_held_to_the_order_a_when_gives_it() {
+    // A draw among the equations has no place in any order: each one
+    // moves the generator on, and nothing says when this one does.
+    let loose = parse_model(&format!(
+        "model M {IMPURE} parameter Integer id = init(7, 1); Real y; \
+         equation y = draw(id) * time; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(loose.contains("is drawn in an equation"), "{loose}");
+
+    // A draw with no initializer behind it draws from nothing.
+    let unseeded = parse_model(&format!(
+        "model M {IMPURE} discrete Real y(start = 0); \
+         equation when sample(0, 1) then y = draw(3); end when; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(
+        unseeded.contains("draws from a state nothing handed"),
+        "{unseeded}"
+    );
+
+    // Two initializers handing over two different states: which the
+    // draws read would be the order the C was called in.
+    let twice = parse_model(&format!(
+        "model M {IMPURE} parameter Integer a = init(7, 1); parameter Integer b = init(8, 2); \
+         discrete Real y(start = 0); \
+         equation when sample(0, 1) then y = draw(a) + draw(b); end when; end M;"
+    ))
+    .unwrap_err()
+    .to_string();
+    assert!(twice.contains("two different states"), "{twice}");
+
+    // The same state handed over twice is one state, and the draws
+    // become the state's names: thirty-three words, thirty-three more
+    // for the state moved on, and one per draw.
+    let flat = parse_model(&format!(
+        "model M {IMPURE} parameter Integer a = init(7, 1); parameter Integer b = init(7, 1); \
+         discrete Real y(start = 0); \
+         equation when sample(0, 1) then y = draw(a) + draw(b); end when; end M;"
+    ))
+    .unwrap();
+    let minted = |prefix: &str| {
+        flat.components
+            .iter()
+            .filter(|c| c.name.starts_with(prefix))
+            .count()
+    };
+    assert_eq!(minted("$randomState"), 33);
+    assert_eq!(minted("$randomNext"), 33);
+    assert_eq!(minted("$randomDraw"), 2);
 }

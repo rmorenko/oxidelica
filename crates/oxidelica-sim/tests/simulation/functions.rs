@@ -3711,25 +3711,27 @@ fn a_constant_written_as_array_call_is_laid_out_in_a_walked_body() {
 }
 
 #[test]
-fn a_local_array_the_walk_cannot_lay_out_is_refused_not_zero() {
+fn a_local_array_as_long_as_an_input_says_is_walked_to_its_value() {
     // A walked body declaring `Real[2] Y = toY(X, MM)` on a function
     // the run was never handed laid `Y` out as zeros, and answered as
     // though every element were nothing: `y = 0` where the body gives
     // `2 * (0.5/2 + 0.5/4) = 0.75`. The loop keeps `w` from inlining.
-    // `toY` answers with `Y[n]`, a length only its call could say,
-    // which the walk still cannot carry; one answering `Y[size(X, 1)]`
-    // is carried now and has a test of its own below.
-    let why = run_err(
-        "package P \
+    // `toY` answers with `Y[n]`, a length the call hands in as `n`:
+    // this was refused while the walk could not carry such a length,
+    // and it carries one now - the frame holds `n` before the outputs
+    // are laid out, as the generators' seeding `state[nState]` needs.
+    // What matters is still that the answer is the body's and not a
+    // zero: at the start `s` climbs to 1, at the end to 2.
+    let result = run("package P \
          function toY input Real X[:]; input Real MM[:]; input Integer n; output Real Y[n]; \
          algorithm for i in 1:n loop Y[i] := X[i] / MM[i]; end for; end toY; \
          function w input Real x; input Real X[2]; output Real y; \
          protected Real[2] Y = toY(X, {2, 4}, 2); Real s = 0; \
          algorithm while s < x loop s := s + 0.25; end while; y := s * (Y[1] + Y[2]); end w; \
          model M Real y = w(1 + time, {0.5, 0.5}); \
-         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;",
-    );
-    assert!(why.contains("`Y`") && why.contains("`P.w`"), "{why}");
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    assert_eq!(result.rows.first().unwrap()[1], 0.375);
+    assert_eq!(last_of(&result, "y"), 0.75);
 }
 
 #[test]
@@ -4277,4 +4279,33 @@ fn a_walked_body_works_elementwise_over_a_linspace_grid() {
     for row in &result.rows {
         assert!((row[y] - expected).abs() < 1e-12, "y = {}", row[y]);
     }
+}
+
+#[test]
+fn a_walked_body_writes_a_run_of_an_array_and_hands_one_over() {
+    // The generators' seeding steps a state two numbers at a time:
+    // `(r, aux) := random(state[i-2:i-1]); state[i:i+1] := aux`. The
+    // `while` keeps the body from inlining, so the run walks it, and
+    // the walk has to read a run of an array as its elements where a
+    // tuple hands it over, and write one element by element where a
+    // statement fills it. The pair function answers its two inputs
+    // swapped, so four numbers `a, b` come out `a, b, b, a`.
+    let result = run("package P \
+         function pair input Real v[2]; output Real r; output Real w[2]; \
+         algorithm r := v[1]; w := {v[2], v[1]}; end pair; \
+         function seed input Real a; input Real b; input Integer n; output Real s[n]; \
+         protected Real r; Real aux[2]; Real k = 0; \
+         algorithm while k < a loop k := k + 1; end while; \
+         s[1:2] := {a, b}; \
+         for i in 3:2:n loop (r, aux) := pair(s[i-2:i-1]); s[i:i+1] := aux; end for; \
+         end seed; \
+         function w input Real x; output Real y; protected Real s[4]; \
+         algorithm s := seed(x, 2 * x, 4); y := s[1] + 10 * s[2] + 100 * s[3] + 1000 * s[4]; \
+         end w; \
+         model M Real y = w(1 + time); \
+         annotation(experiment(StopTime = 1, Interval = 0.5)); end M; end P;");
+    // At the start a = 1 and b = 2: 1 + 20 + 200 + 1000.
+    assert_eq!(result.rows.first().unwrap()[1], 1221.0);
+    // At the end a = 2 and b = 4.
+    assert_eq!(last_of(&result, "y"), 2442.0);
 }

@@ -1653,8 +1653,16 @@ pub(super) fn walkable(
                 [Expr::Call(size, args)] if size == "size" && args.len() == 2
                     && matches!(&args[0], Expr::Ref(of) if is_input(class, of))
             ) && super::arrays::size_of_input_open();
+            // A length that is itself an input - `state[nState]` of the
+            // generators' seeding, handed `33` by every caller - is a
+            // number the walk lays in its frame before the outputs, and
+            // one the call site reads from what it hands over.
+            let an_input = matches!(
+                component.dimensions.as_slice(),
+                [Expr::Ref(of)] if is_input(class, of)
+            ) && !super::impure::draws_off();
             let [Expr::Number(_)] = component.dimensions.as_slice() else {
-                if settled_length || of_an_input {
+                if settled_length || of_an_input || an_input {
                     continue;
                 }
                 return Err(format!(

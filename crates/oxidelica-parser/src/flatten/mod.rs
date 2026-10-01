@@ -41,6 +41,7 @@ pub(crate) fn resource_for_test(uri: &str) -> Option<String> {
     external::resource_named(uri)
 }
 mod grids;
+mod impure;
 mod inheritance;
 mod inlining;
 mod instantiate;
@@ -282,6 +283,7 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
     // walk out of the enclosing packages is asked the same question
     // thousands of times over.
     let _standing = lookup::StandingNames::open();
+    impure::forget();
     let top_class = registry
         .get(top)
         .ok_or_else(|| format!("unknown class `{top}`"))?;
@@ -476,6 +478,9 @@ pub fn flatten(classes: &[ClassDef], top: &str) -> Result<Model, String> {
         acc.conditional = kept;
     }
     partitions::partition_clocks(&mut model)?;
+    // A draw of the impure generator is written out as the state it
+    // reads and moves, now that every `when` it can stand in is here.
+    impure::lower_draws(&mut model)?;
     crate::check::verify(&model)?;
     // Each branch is still checked as it was written, against the
     // model it belongs to: a mistake inside a branch the run may take
