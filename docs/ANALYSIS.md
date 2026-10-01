@@ -29386,3 +29386,10 @@ while on (`Ron` = 1e-5). So on its first two milliseconds the ladder
 brings it back on a physical root. The run the check makes, ten
 intervals of 2e-4, is the same horizon. A pair of the ladder over
 this commit is what decides it, and it was not run.
+
+`ControlledSwitchWithArc`, the largest single fall of Jacobians under
+the warm start (100 to 32), gives the same answer both ways: run to
+its own stop time by one binary, `/tmp/m328/arc/old.csv` and
+`new.csv`, the worst difference over every column is 1.8e-10 of that
+column's largest value. What the restored start saves there is work,
+not a different trajectory.
