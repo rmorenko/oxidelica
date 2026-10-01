@@ -29534,3 +29534,93 @@ counted apart for points and Newton steps, the way
 `scripts/loose_jacobians.txt` does for Jacobians, and the runner's
 own list of what each model spends, so that the 0.66 million gets a
 name before a number is written over it.
+
+## The work band split around Dimmer_RL, and why DC_Drive underflows under the `pre` fix (m330)
+
+**The band.** The library job was red three runs running on the points
+and the Newton steps with every floor held (`/tmp/m329/ci_691b9e3.log`,
+33122763 and 47567421 against 27528282 and 40179245). `Dimmer_RL` is
+92.6% of the corpus's points and falls one way on a desk and the other
+on the build machine, so the band was a wager on one model.
+`scripts/library_floor.sh` now holds it on lines of its own and the
+rest of the corpus apart, with the arithmetic written at the numbers:
+the rest is 2045710 points on a desk and, by subtraction, 2707582 on
+the build machine, and both lie inside the new bands. The script also
+runs the check with `OXIDELICA_WORK_EACH` and prints the twelve
+dearest models by points and by Newton steps, so the next log of the
+build machine names its own split. The bands are to be drawn tight on
+that print and not on the subtraction.
+
+**The probe.** `ThyristorBridge2mPulse_DC_Drive` under
+`state/pre_iteration_m329.patch` refuses with `step size underflow at
+t = 0.000462` after 1342492 points, 1750696 Newton steps and 20009
+Jacobians (binary `/tmp/m329/oxPonly`, `--only` from `.msl`). With
+`OXIDELICA_EVENT_TRAIL` the run holds 40029 events, and 39985 of them
+fall on two instants 8.5e-16 apart, 0.00046196767018823095 and
+0.00046196767018908227. No discrete value moves between them: the
+held set reads the same on every round. So this is not an event
+iteration that fails to converge, and it is not stiffness either.
+
+A probe in the BDF crossing search (`state/dc_drive_probe_m330.patch`,
+`OX_IND_TRAIL`) names the mechanism. One indicator turns every time,
+`rectifier.thyristor_p.idealThyristor[3].s`. At the instant an event
+was just handled it reads -1.76e-12, the residue of an algebraic
+solve converged to its tolerance. The next step's end reads +1.2e-4,
+so `turned` is true. The bisection looks for the sign change between
+`t` and `t_new` on the interpolant, and the interpolant at `t` itself,
+re-evaluated, reads +8.6e-9: the sign has already changed at the left
+end. The bisection collapses to `hi = t`, the crossing is placed at
+`t` plus 1e-9 of the step, the event is handled again at the same
+place, the step is quartered, and the next attempt finds the same
+thing. The step falls to its floor of 1e-12, the crossing is placed
+1e-21 along, the instant does not move in floating point, and BDF
+rebuilds a Jacobian on each restart until it calls the step an
+underflow. The guard that already exists for this, `before == 0.0`
+with `t != handled_at`, only catches an indicator reading exactly
+zero; a residue of -1.76e-12 walks past it.
+
+Two experiments from the same probe binary, neither of them a fix:
+
+```text
+                       DC_Drive           points   newton  jacobians
+oxPonly (the pre fix)  underflow 4.62e-4  1342492  1750696  20009
+OX_SKIP_SELF           runs to 1 s          2398     5654     11
+OX_AT_END              runs to 1 s          2162     4975     11
+```
+
+`OX_SKIP_SELF` drops a crossing whose bisection lands on `handled_at`;
+the thyristor then does not fire until the next real crossing, which
+is the old fault again (`p[3]` fired with its voltage at the switch
+and held off). `OX_AT_END` puts the event at the end of the step
+instead. Under it `p[3]` turns on at 4.6197e-4, and over the whole run
+no row has a thyristor fired, off and more than 1 V forward
+(`/tmp/m330/dc/s2.csv`, 1919 rows). The armature current climbs to
+98.04 A and the speed settles at 124.29 rad/s. There is no reference
+from outside the solver yet, but the end of the run checks against
+the machine's own balances. The mean current is 99.94 A against a
+load torque of 63.66 N.m, which is the example's `tauNominal` at
+`IaNominal` = 100 A. The induced voltage is 79.12 V at 124.29 rad/s,
+0.6366 V.s/rad, and `DcPermanentMagnetData` gives `ViNominal` = 100 -
+0.05 x 100 = 95 V at `wNominal` = 1425 rpm, 149.23 rad/s: 0.6366. The
+mean voltage behind the rectifier is 84.13 V against 79.12 V plus
+0.05 ohm times 99.94 A, 84.12 V (the smoothing inductor holds no mean).
+
+A small model was tried as the witness and is not one: two diodes and
+two source inductances feeding an RL load (`/tmp/m330/small/C1.mo`).
+It shows the same shape three times (a crossing bisected onto
+`handled_at` with a residue of -1.3e-11 on one side and +2.9e-7 on the
+other), but each time the next step gets out. So the mechanism is
+shared and the trap is not. What closes it in DC_Drive is a residue
+that keeps its sign on every retry. The next witness has to pin that
+down, likely by solving the switch's algebraic loop to a residue of a
+chosen sign.
+
+**Map, not a fix.** The road out is the crossing search. A sign
+change whose left end has already changed sign on re-evaluation is a
+crossing at `t` that has already been handled, and the event belongs
+either at the step's end or nowhere. Which of the two needs a test of
+its own: a crossing standing exactly on the handled instant, and one
+genuinely a hair past it. Only `OX_AT_END` keeps the firing on time.
+Merging stays as the chapter above put it: the `pre` fix, the ladder
+and this together, as one series, with the Jacobian band read on the
+whole of it.
