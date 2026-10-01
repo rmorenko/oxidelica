@@ -412,10 +412,10 @@ FILES_FLOOR=2671
 # half from the same binary (/tmp/m318/heavy.txt, 10/2 and 8/2).
 #
 # And flatten 966 = 962 plus the four of the impure generator, which
-# hold its state in the model rather than in C since 7ba42fa:
+# hold its state in the model rather than in C since 7ba42fa5961357cefd4efcd27be59702a71dec10:
 # ImpureGenerator, TestRandomIntegers, TestRandomNumbers and the block
 # Noise.Utilities.ImpureRandom. The runner printed 966 / 685 and
-# 849 / 643 on 7ba42fa, in job 110171228157 of run 36799759552
+# 849 / 643 on 7ba42fa5961357cefd4efcd27be59702a71dec10, in job 110171228157 of run 36799759552
 # (/tmp/m325/ci_7ba42fa.log), the desk the same four numbers with the
 # binary of m324 (/tmp/m324/corpus_new.txt:140-141). Set from the
 # runner, which is not above the desk on any of them.
@@ -1169,7 +1169,7 @@ RUN_FLOOR=685
 # the desk 846 / 640 (/tmp/m319/p_old.txt).
 #
 # And runnable 849 / 643, the three runnable examples of the impure
-# generator, by the runner job of `FLATTEN_FLOOR` on 7ba42fa; the
+# generator, by the runner job of `FLATTEN_FLOOR` on 7ba42fa5961357cefd4efcd27be59702a71dec10; the
 # helper block is not runnable and moves only the flatten count.
 RUNNABLE_FLATTEN_FLOOR=849
 RUNNABLE_RUN_FLOOR=643
