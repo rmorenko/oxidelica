@@ -122,6 +122,18 @@ time_band_judges() {
   return 0
 }
 
+# The band on the counts of work, seen the same way: five percent
+# either side of the written number fires, inside it is quiet, and a
+# band of its own in parts per million is honoured.
+work_band_judges() {
+  ./scripts/library_floor.sh --work-check 640 605 > /dev/null && return 1
+  ./scripts/library_floor.sh --work-check 570 605 > /dev/null && return 1
+  ./scripts/library_floor.sh --work-check 630 605 || return 1
+  ./scripts/library_floor.sh --work-check 1003000 1000000 2000 > /dev/null && return 1
+  ./scripts/library_floor.sh --work-check 1001000 1000000 2000 || return 1
+  return 0
+}
+
 step "Formatting" cargo fmt --all -- --check
 step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
 # Debug, no --release, the way CI runs them. Not a saving of time: a
@@ -133,6 +145,7 @@ step "Clippy" cargo clippy --workspace --all-targets -- -D warnings
 step "Tests" cargo test --workspace
 step "The examples all simulate" examples_all_simulate
 step "The time band fires on both sides" time_band_judges
+step "The work band fires on both sides" work_band_judges
 
 if [ -d "$library" ]; then
   step "The standard library still reads" library_floor

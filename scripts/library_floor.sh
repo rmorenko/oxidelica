@@ -1424,7 +1424,28 @@ WORK_NEWTON=44913964
 # takes 5642 points where it took 3105 - the same answer to 4e-6, at a
 # cost in one model; SMPM_Braking 0 to 7 and IMC_DOL 1 to 3, which run
 # now. Points and Newton steps rose 0.6% and 0.9%, inside the band.
-WORK_JACOBIANS=605
+#
+# Split in two on 2026-10-01 (m327). The two solenoids named in
+# `scripts/loose_jacobians.txt` build a number of Jacobians that says
+# which difference step the run happened to take: ComparisonQuasiStatic
+# built 0, 124 and 2812 at steps of 5e-9, 1e-8 and 2e-8, and
+# ComparisonPullInStroke 131 to 150 (/tmp/m327/p_*.out). Summed with the
+# rest they owned the band. `library check` now counts them apart, and
+# one pass of one binary over the code of main (/tmp/m327b/old.txt)
+# printed
+#
+#   597 = 323 here + 274 apart
+#
+# against 605 written before, the 597 being the sum the pair of m327
+# printed for the same code (/tmp/m327/old.txt). The 274 is the two at
+# the default step, 124 and 150, as measured one at a time.
+WORK_JACOBIANS=323
+# The pair is held on a line of its own and to a band of its own, an
+# order of magnitude wide in either direction rather than five percent:
+# 90% either side of 274 is 27 to 520, so a refusal (0) or the swing to
+# 2812 fires, and a wander between the steps that both run does not.
+WORK_JACOBIANS_APART=274
+WORK_JACOBIANS_APART_PPM=900000
 WORK_PERCENT=5
 # The names looked up, held to a band of their own in parts per
 # million. Measured on 2026-09-25 over one binary of 3103c80 and `.msl`
@@ -1513,6 +1534,38 @@ WORK_PERCENT=5
 WORK_NAMES=1916826359
 WORK_NAMES_PPM=2000
 
+# The band, as a function, so that it can be seen red without a library
+# pass: `library_floor.sh --work-check <now> <written> [<band ppm>]`
+# judges the one count it is given against the one number and nothing
+# else, the way `--ratio-check` does for the times.
+status=0
+held() {
+  local what="$1" now="$2" written="$3"
+  # A count may bring a band of its own, in parts per million, where
+  # its noise is so far below a percent that a percent would catch
+  # nothing. The rest go under WORK_PERCENT, which is 10000 per
+  # million per point. The largest product is about 1.8e9 * 1e6, far
+  # inside the shell's 9.2e18.
+  local band="${4:-$((WORK_PERCENT * 10000))}"
+  if [ -z "$now" ]; then
+    echo "WORK: the report did not say how many $what; the work line changed shape"
+    status=1
+    return
+  fi
+  # Within the band of the written number, in integers: now * 1e6
+  # against written * (1e6 +- band).
+  if [ $((now * 1000000)) -gt $((written * (1000000 + band))) ] ||
+    [ $((now * 1000000)) -lt $((written * (1000000 - band))) ]; then
+    echo "WORK: $what is $now against $written written here ($(awk "BEGIN { printf \"%.6f\", $now / $written }")x), outside $band per million"
+    status=1
+  fi
+}
+if [ "${1:-}" = "--work-check" ]; then
+  held "the count" "${2:?usage: library_floor.sh --work-check <now> <written> [<band ppm>]}" \
+    "${3:?usage: library_floor.sh --work-check <now> <written> [<band ppm>]}" ${4:+"$4"}
+  exit "$status"
+fi
+
 directory="${1:?usage: library_floor.sh <library directory>}"
 cd "$(dirname "$0")/.."
 
@@ -1589,27 +1642,6 @@ work_line="$(echo "$report" | grep '^work:' || true)"
 work_of() {
   echo "$work_line" | sed -n "s/.* \([0-9][0-9]*\) $1[;,].*/\1/p; s/.* \([0-9][0-9]*\) $1\$/\1/p" | head -n 1
 }
-held() {
-  local what="$1" now="$2" written="$3"
-  # A count may bring a band of its own, in parts per million, where
-  # its noise is so far below a percent that a percent would catch
-  # nothing. The rest go under WORK_PERCENT, which is 10000 per
-  # million per point. The largest product is about 1.8e9 * 1e6, far
-  # inside the shell's 9.2e18.
-  local band="${4:-$((WORK_PERCENT * 10000))}"
-  if [ -z "$now" ]; then
-    echo "WORK: the report did not say how many $what; the work line changed shape"
-    status=1
-    return
-  fi
-  # Within the band of the written number, in integers: now * 1e6
-  # against written * (1e6 +- band).
-  if [ $((now * 1000000)) -gt $((written * (1000000 + band))) ] ||
-    [ $((now * 1000000)) -lt $((written * (1000000 - band))) ]; then
-    echo "WORK: $what is $now against $written written here ($(awk "BEGIN { printf \"%.6f\", $now / $written }")x), outside $band per million"
-    status=1
-  fi
-}
 held "classes instantiated" "$(work_of classes)" "$WORK_CLASSES"
 held "expansions" "$(work_of expansions)" "$WORK_EXPANSIONS"
 held "bodies worked out" "$(work_of bodies)" "$WORK_BODIES"
@@ -1617,6 +1649,7 @@ held "names looked up" "$(work_of names)" "$WORK_NAMES" "$WORK_NAMES_PPM"
 held "points evaluated" "$(work_of points)" "$WORK_POINTS"
 held "newton iterations" "$(work_of newton)" "$WORK_NEWTON"
 held "jacobians" "$(work_of jacobians)" "$WORK_JACOBIANS"
+held "jacobians counted apart" "$(work_of "jacobians apart")" "$WORK_JACOBIANS_APART" "$WORK_JACOBIANS_APART_PPM"
 
 if [ "$status" -eq 0 ]; then
   echo "OK: $read_now files read, $flatten_now flatten, $run_now run; runnable $runnable_flatten_now flatten, $runnable_run_now run"

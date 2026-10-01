@@ -1,0 +1,11 @@
+# The models whose Jacobians `library check` counts apart from the
+# rest, and `scripts/library_floor.sh` holds on a line of their own.
+#
+# Both solenoids build a number of Jacobians that says which difference
+# step the run happened to take rather than what the solver costs:
+# ComparisonQuasiStatic built 0, 124 and 2812 at steps of 5e-9, 1e-8
+# and 2e-8, ComparisonPullInStroke 131 to 150 (/tmp/m327/p_*.out). In
+# the sum with every other model they owned the band of five percent.
+# They are still run and still counted, apart.
+Modelica.Magnetic.FluxTubes.Examples.SolenoidActuator.ComparisonQuasiStatic
+Modelica.Magnetic.FluxTubes.Examples.SolenoidActuator.ComparisonPullInStroke

@@ -558,6 +558,94 @@ fn the_carved_out_set_is_left_out_without_being_asked_for_and_asked_back_by_name
 }
 
 #[test]
+fn the_jacobians_of_a_named_set_are_counted_on_a_line_of_their_own() {
+    // Two solenoids build 0, 124 or 2812 Jacobians depending on the
+    // difference step the run happened to take, and summed with every
+    // other model they owned the band the count is held to. They are
+    // run and counted as before, apart from the rest: the models still
+    // run, the Jacobians move from one number to the other, and their
+    // sum stays what it was. A stiff state is what makes a run build a
+    // Jacobian at all.
+    let library = TempDir::new("loose jacobians");
+    std::fs::write(
+        library.0.join("Lib.mo"),
+        "package Lib package Examples \
+         model Loop Real x(start = 2, fixed = true); \
+         equation der(x) = -1e5*(x - 1); end Loop; \
+         model Other Real x(start = 2, fixed = true); \
+         equation der(x) = -1e5*(x - 1); end Other; \
+         end Examples; end Lib;",
+    )
+    .unwrap();
+    let count = |text: &str, word: &str| -> u64 {
+        let line = text
+            .lines()
+            .find(|line| line.starts_with("work:"))
+            .unwrap_or_else(|| panic!("no work line: {text}"));
+        line.split([',', ';'])
+            .find_map(|part| {
+                part.trim()
+                    .strip_suffix(word)?
+                    .trim()
+                    .split(' ')
+                    .next_back()?
+                    .parse()
+                    .ok()
+            })
+            .unwrap_or_else(|| panic!("no `{word}` on: {line}"))
+    };
+    let check = || {
+        let out = bin()
+            .current_dir(&library.0)
+            .args(["library", "check", library.0.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(out.status.success(), "{}", stderr(&out));
+        stdout(&out)
+    };
+    let together = check();
+    assert!(
+        together.contains("of which 2 flatten and 2 run"),
+        "{together}"
+    );
+    let all = count(&together, "jacobians");
+    assert_eq!(count(&together, "jacobians apart"), 0, "{together}");
+    assert!(all > 0, "{together}");
+
+    let scripts = library.0.join("scripts");
+    std::fs::create_dir_all(&scripts).unwrap();
+    std::fs::write(
+        scripts.join("loose_jacobians.txt"),
+        "# a note\nLib.Examples.Loop\n",
+    )
+    .unwrap();
+    let apart = check();
+    assert!(apart.contains("of which 2 flatten and 2 run"), "{apart}");
+    let rest = count(&apart, "jacobians");
+    let loose = count(&apart, "jacobians apart");
+    assert!(rest > 0 && loose > 0, "{apart}");
+    assert_eq!(rest + loose, all, "{apart}");
+
+    // And by name, for the pair whose totals moved and whose lists
+    // did not say who moved them.
+    let out = bin()
+        .current_dir(&library.0)
+        .env("OXIDELICA_WORK_EACH", "1")
+        .args(["library", "check", library.0.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let text = stdout(&out);
+    for model in ["Lib.Examples.Loop", "Lib.Examples.Other"] {
+        assert!(
+            text.lines()
+                .any(|line| line.starts_with(&format!("  work  {model} "))
+                    && line.ends_with(" jacobians")),
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn a_list_of_models_that_cannot_be_read_is_a_refusal_and_not_an_empty_set() {
     // Read as empty, `--without` measures the giant it was meant to
     // carve out and `--only-from` measures nothing while holding its

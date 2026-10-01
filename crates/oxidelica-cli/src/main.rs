@@ -530,6 +530,15 @@ fn name_of_repository(url: &str) -> String {
 /// their own, where the list lives.
 const HEAVY_MODELS: &str = "scripts/heavy_models.txt";
 
+/// The models whose Jacobians are counted apart, where the list lives.
+///
+/// The two solenoids of `FluxTubes` build 124 Jacobians at one
+/// difference step, 2812 at another and none at a third: their count
+/// says which step the run happened to take, not what the solver costs.
+/// Summed with the rest they own a band of five percent, so they are
+/// still run and still counted, on a line of their own.
+const LOOSE_JACOBIANS: &str = "scripts/loose_jacobians.txt";
+
 /// The models one file names, or a refusal.
 ///
 /// A file that is not there is a failure and not an empty set. Read as
@@ -603,6 +612,13 @@ fn library_check(args: &[String]) -> Result<(), String> {
     ) {
         (None, None, false, true) => named_in_file(HEAVY_MODELS)?,
         _ => without,
+    };
+    // Read the way the carved-out set is, from where the check is run,
+    // so the scripts and a hand at the terminal count the same thing.
+    let loose = if std::path::Path::new(LOOSE_JACOBIANS).is_file() {
+        named_in_file(LOOSE_JACOBIANS)?.unwrap_or_default()
+    } else {
+        HashSet::new()
     };
     // The dearest models by name, both halves apart. A time per model
     // says the compiler got slower; it does not say where, and a
@@ -907,10 +923,28 @@ fn library_check(args: &[String]) -> Result<(), String> {
     let mut ran_count = 0usize;
     let mut flattening_work = oxidelica_parser::work::Work::default();
     let mut running_work = oxidelica_parser::work::Work::default();
-    for (_, (answer, spent)) in &answers {
+    let mut loose_jacobians = 0u64;
+    let work_each = std::env::var_os("OXIDELICA_WORK_EACH").is_some();
+    for (at, (answer, spent)) in &answers {
         flattening += spent.flattening;
         flattening_work = flattening_work.plus(spent.flattening_work);
-        running_work = running_work.plus(spent.running_work);
+        // The work of each model by name. A total that moved says that
+        // something did and not who: a pair whose points fell by a sixth
+        // with the lists one model apart wanted exactly this, and the
+        // diff of two such lists names the model.
+        if work_each {
+            let w = spent.running_work;
+            println!(
+                "  work  {} {} points {} newton {} jacobians",
+                models[*at], w.points, w.newton, w.jacobians
+            );
+        }
+        let mut run_work = spent.running_work;
+        if loose.contains(&models[*at]) {
+            loose_jacobians += run_work.jacobians;
+            run_work.jacobians = 0;
+        }
+        running_work = running_work.plus(run_work);
         // The two halves of that total, kept apart. A model refused
         // early costs almost nothing and a model that goes all the
         // way is dear, so a total divided by every model says the
@@ -1045,14 +1079,15 @@ fn library_check(args: &[String]) -> Result<(), String> {
     // a few percent wide.
     println!(
         "work: flattening {} classes, {} expansions, {} bodies, {} names; \
-         running {} points, {} newton, {} jacobians",
+         running {} points, {} newton, {} jacobians, {} jacobians apart",
         flattening_work.instantiated,
         flattening_work.expanded,
         flattening_work.inlined,
         flattening_work.names,
         running_work.points,
         running_work.newton,
-        running_work.jacobians
+        running_work.jacobians,
+        loose_jacobians
     );
     if list {
         let mut named: Vec<&&String> = flat.iter().collect();
