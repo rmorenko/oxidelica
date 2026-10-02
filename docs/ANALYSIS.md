@@ -30709,3 +30709,163 @@ stalled point and sees whether row 14 drops under its floor. The
 repair this points to is an inner test and an outer test that agree
 on what solved means, not a new tolerance on either. It is not drawn
 here.
+
+## Where the hold's third goes: the count of outer iterations, and a lock every thread shares (m338)
+
+m337 put the hold's price at +4637 s of the run half over the corpus
+(`/tmp/m337/sbc8.txt` against `sb69.txt`) and listed it by name: every
+model in the list is Fluid. This shift asked where inside a model that
+time goes, with one binary and the old reading behind
+`OXIDELICA_INIT_DRIFT_GUESS`. A probe, `OXIDELICA_INIT_PHASES`
+(`state/hold_price_probe_m338.patch`, never merged), prints per outer
+iteration of the initialisation the elapsed time, the points and the
+Newton iterations spent so far, the residual's norm, and with
+`OXIDELICA_INIT_PHASES_FULL` the point, the residual, the step and the
+Jacobian. Files `/tmp/m338/`.
+
+**A held column is not dearer than a drifting one.** The brief's
+mechanism - every column re-solving its inner blocks from the base
+point, `n` full re-solves per outer iteration - is real, and costs
+nothing measurable. One outer iteration of SeriesPipes12 takes 8.1 s
+and 17 points held and 10.8 s and 17 points drifting
+(`ph_sp12_hold.txt`, `ph_sp12_drift.txt`); BranchingPipes1 19.1 s
+against 25.3 s, SeriesPipes2 1.25 s against 2.17 s, WaterIF97 3.0 s
+against 3.6 s. Held, a column starts from the converged base and
+settles in fewer Newton steps than it does from the previous column's
+answer: 25 against 29 per iteration on SeriesPipes12. Whatever the
+hold costs, it is not in what an iteration does.
+
+**It is in how many there are.** Each witness alone, one thread, one
+binary (`/tmp/ox338d`), held against drifting:
+
+```text
+model                               run s held / drift   outer its   refusal, both keys
+BranchingPipes18                    479 / 18             50 / 1      same family, later wall
+SeriesPipes12                       196 / 11             24 / 1      init solves held, run refuses
+BranchingPipes1                      98 / 47              3 / 1      init solves held, run refuses
+WaterIF97                            60 / 92             41 / 42     same
+SeriesPipes2                         10 / 97              3 / 50     drift wanders, held solves
+DynamicPipeEnergyConservationCheck  227 / 228             - / -      runs, both
+BranchingPipes12                    392 / 397             0 / 0      refuses before the Jacobian
+TestWaterPumpDCMotorHeatTransfer    242 / 246             1 / 1      runs, both
+```
+
+Under the drift SeriesPipes12 and BranchingPipes18 die on the second
+outer evaluation: the first Jacobian carries `-1.6e7` in six columns
+of `pipe3`'s row that the row does not read (`full2_sp12_drift.txt`,
+`jac[12]` columns 10 to 15; held, those entries are exactly zero),
+the step puts `1.1e8` on `pipe3.Us[1]`, and IF97 refuses an enthalpy
+of `-2.3e7`. That is the gate test's own disease, at full size, and
+the drift's cheapness on these two is the cheapness of dying at once.
+Held, SeriesPipes12 initialises - in 24 iterations, linearly, the
+residual of `pipe3`'s pressure row falling by 0.77 an iteration from
+1.1e5 to 5.0e2 (`ph_sp12_hold.txt`) - and the run then refuses at
+once with the family's `Newton direction`. BranchingPipes18 held
+reaches `|f| = 4.35e-3` on its third iteration and stands there for
+47 more, bit for bit: row 14, `junctionVolume.m`, asks for a step of
+2.15e-10, the step is taken, and the residual does not move
+(`full_bp18_hold.txt`). The same stall m337 traced on BranchingPipes17
+under the row scale, here without it: the inner block holding
+`junctionVolume.medium.h` is satisfied by its absolute 1e-10 before a
+step that small reaches it.
+
+**And alone the bill is a seventh of the corpus's.** Summed alone,
+the hold costs these eight +568 s (BranchingPipes18 +461,
+SeriesPipes12 +185, BranchingPipes1 +51, WaterIF97 -32, SeriesPipes2
+-87, the other three within 5 s). In the corpus the same names cost
++4355 s. DynamicPipeEnergyConservationCheck, 227 s alone under either
+key, took 644.6 s in the corpus without the hold and 1276.4 s with it;
+BranchingPipes12 likewise 392 alone, 1636.9 and 2076.1 in the corpus.
+Neither one's work moves by a digit between the keys. So the hold
+does not make them dearer: something their neighbours do in the same
+process does.
+
+**The neighbours, measured.** Three models - DPEC, BranchingPipes18,
+SeriesPipes12 - in one process on three threads, held
+(`trio_hold.txt`): DPEC 416.8 s, BranchingPipes18 815.5 s,
+SeriesPipes12 496.0 s. The same three drifting (`trio_drift.txt`):
+DPEC 246.4 s. The same three held as three separate processes at the
+same time (`sep_*.txt`): DPEC 212.0 s, SeriesPipes12 222.3 s. So the
+machine is not what is shared - three processes do not slow each
+other - and inside one process a model stuck in an IF97 walk doubles
+the time of the model beside it.
+
+**What they share is `getenv`.** `sample` on the held
+BranchingPipes18 (`/tmp/m338/sample2.txt`, 8 s) puts 899 of 5992 busy
+samples in `__findenv_locked`, nearly all of them (886 of the 918
+callers' lines) under `walk::elements_of`, which asks `walked_linspace_open()` and
+`walked_slices_open()` - `std::env::var_os` - on every node it walks.
+macOS's `getenv` takes a lock the whole process holds, so every walk
+on every thread queues behind every other. A model whose
+initialisation stands in IF97 for fifty iterations does nothing but
+walk, and every other model that walks pays for it. That is the
+hold's corpus price: not a dearer initialisation, but a longer one,
+spent holding a lock its neighbours want.
+
+**The three candidates of the brief, measured; none survives.** All
+behind keys on one binary (`/tmp/ox338e`, `/tmp/ox338f`), each first
+put through `a_column_an_initial_equation_does_not_read_moves_nothing`:
+
+- Hold the first K outer iterations only (`OXIDELICA_INIT_HOLD_FIRST`).
+  Gate green at K = 1, 3, 5. BranchingPipes17 runs (43 to 47 s). But
+  SeriesPipes12 converges just as linearly and dearer: 318, 313, 292 s
+  against 213 held; BranchingPipes18 still spends 50 iterations, 830,
+  808, 795 s against 479. K buys nothing on the two that carry the
+  price. Dead.
+- Drift, with the inner blocks tightened while the Jacobian is built
+  (`OXIDELICA_INIT_TIGHT`, 1e-12 and 1e-14). Gate green. But
+  SeriesPipes12 diverges - `|f|` 8.8e7 on iteration 33, 1.8e8 on 20 -
+  and WaterIF97 changes its refusal from `medium.h` to `medium.p`.
+  Dead.
+- Candidate 1 of the brief, hold only the columns a row reads, was not
+  built: the Jacobian is taken column by column and a column does not
+  know which rows will read it until it has been computed, and the
+  phase probe had by then shown that the iteration's cost is not where
+  the price lives.
+
+A fourth was built in their place, aimed at the count rather than the
+cost: refuse the initialisation, in the words the fiftieth iteration
+would use, once its residual has come back bit for bit the same N
+times running (`OXIDELICA_INIT_STALL`). At N = 3 it takes
+BranchingPipes18 from 479 s to 66 s and leaves BranchingPipes17,
+SeriesPipes2, SeriesPipes12 and BranchingPipes1 as they were - but it
+also refuses WaterIF97, which stands at the same `8.0e-3` four times
+in a row and then walks off it on its own, as `did not converge`
+instead of its own refusal: a row of the census would move. At N = 8
+WaterIF97 is untouched and BranchingPipes18 takes 115 s. Gate green
+at 3, 8 and 10. Its corpus pair is below.
+
+**Reading a switch once a thread, measured.** The twelve
+`std::env::var_os` calls the walk and the evaluator ask on their hot
+path were routed through a per-thread table that asks the environment
+once per switch (`state/switch_cache_m338.patch`, binary
+`/tmp/ox338g`, sim tests 398 + 39 + 30 green). The trio again, held,
+both binaries started together in the same weather
+(`trio_cached.txt`, `trio_uncached.txt`):
+
+```text
+                                      uncached   cached
+DynamicPipeEnergyConservationCheck    512.2 s    309.2 s
+SeriesPipes12                         652.7 s    389.4 s
+BranchingPipes18                     1086.9 s    722.4 s
+run half                              2252 s     1421 s    (-37 %)
+```
+
+Both ran beside the corpus pair below, so the absolute seconds carry
+its weather and only the ratio is the finding. Nothing here touches
+what any model computes: a switch is set before the run and never
+during it, and no test sets one of the twelve in-process. This is not
+merged - the brief forbids merging in this shift - and goes to the
+queue as the cheapest repair the shift found: it does not narrow the
+hold, it removes what turned the hold's longer initialisations into
+everyone else's cost.
+
+That holds for the desk, and only the desk is measured. The lock is
+macOS's: its `getenv` serialises on `__findenv_locked`. The library
+job runs on `ubuntu-latest` (`ci.yml:86`), where glibc's `getenv`
+takes no lock of the process and Rust's `std::env` wraps it in a
+shared read lock only. So how much of the runner's slowdown this
+explains is not known. What carries over for certain is the longer
+initialisations themselves, +568 s over the eight models alone. The
+runner's print before and after merging the patch is the measurement
+still owed.
