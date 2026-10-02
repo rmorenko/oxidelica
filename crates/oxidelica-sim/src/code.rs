@@ -243,7 +243,7 @@ pub(crate) fn eval(expr: &Expr, ctx: &EvalCtx) -> Result<f64, SimError> {
             // `{random(...)[2], random(...)[3]}[1]` - and it is the
             // k-th item, worked out alone.
             if let (Expr::Array(items), [which]) = (base.as_ref(), subscripts.as_slice()) {
-                if std::env::var_os("OXIDELICA_NO_LIST_SUBSCRIPT").is_none() {
+                if !crate::walk::switch_set("OXIDELICA_NO_LIST_SUBSCRIPT") {
                     let place = eval(which, ctx)?;
                     let item = (place.fract() == 0.0 && place >= 1.0)
                         .then(|| items.get(place as usize - 1))
@@ -1142,7 +1142,7 @@ impl SlotTable {
 /// `OXIDELICA_STANDING_STRINGS_REFUSED` keeps the old reading so one
 /// binary can be measured against itself.
 fn standing_strings_refused() -> bool {
-    std::env::var_os("OXIDELICA_STANDING_STRINGS_REFUSED").is_some()
+    crate::walk::switch_set("OXIDELICA_STANDING_STRINGS_REFUSED")
 }
 
 /// The numbers of a record argument written out with text among its
