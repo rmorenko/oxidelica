@@ -796,6 +796,18 @@ impl Code {
                     RelOp::Ne => a != b,
                 })
             }
+            // Probe, not adopted: OXIDELICA_LOUD_BRANCH walks into the
+            // branch the condition takes, which is the only one
+            // evaluated, so an upwind choice is as loud as its side.
+            Code::If(condition, then, otherwise)
+                if crate::walk::switch_set("OXIDELICA_LOUD_BRANCH") =>
+            {
+                if condition.run(values, time) != 0.0 {
+                    then.loudest_carrying(values, time, loud, carried)
+                } else {
+                    otherwise.loudest_carrying(values, time, loud, carried)
+                }
+            }
             Code::And(_, _) | Code::Or(_, _) | Code::If(_, _, _) => {
                 // Short-circuiting and branching: which children are
                 // evaluated at all is the point of these, so the walk
