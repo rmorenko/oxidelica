@@ -31082,17 +31082,23 @@ running. Once the step may shrink, BranchingPipes2 drives it down to
 `pipe1.H_flows[2]` and `pipe2.H_flows[1]`, whose values at that instant
 are 5.6e-5 and 5.9e-5. The block's absolute test `1e-10 * (1 + |v|)`
 asks an enthalpy flow that has barely left zero to agree to 1e-10 W.
-It is not the arithmetic's floor: the trail's loudness print gives the
-loudest number those rows met as 5.6e-5 and 5.9e-5 themselves, so
-their floor is near 5e-20 and the 2.5e-10 left is a relative miss of
-4e-6 that the direction cannot close, not rounding. With
+The trail says what stands there: over iterations 5 to 10 the two flows
+move by up to 8.6e-5 while their rows' residuals wander between -8.9e-10
+and +2.9e-10 without following them - a band of noise, not a distance
+from a root. The trail's loudness print gives those rows' loudest
+number as 5.6e-5, their own value, while the same print gives 5e5 for
+the pressure rows of the block. The flow is made from those pressures,
+and one ulp of 5e5 is 1.2e-10, the width of the band. That is a
+reading and not yet a measurement: if the band is the pressures'
+rounding carried through the flow, the loudness arm would accept these
+rows if it saw through the carried flow, and today it does not. With
 `OXIDELICA_BLOCK_TOL=3e-10` as well, BranchingPipes2 runs (109 s,
 `/tmp/m340/srt_BranchingPipes2.txt`), but the same looser tolerance
 makes SeriesPipes12's initialization singular (`srt_SeriesPipes12.txt`).
-So the second link cannot be loosened away, and the loudness arm will
-not reach it either: what stands there is a direction that stops short
-of a root a hair away, on rows whose values are near zero, and the
-next probe is the Jacobian of those two rows at that point.
+So the second link cannot be loosened away. If the reading holds, it is
+the floor of the arithmetic under-read by its instrument, and the next
+probe is what `loudest_carrying` sees on these two rows and what the
+floor arm says once it carries the pressures.
 The inverse case, Rectifier6pulse at 2.46e-10, was named in m334 as
 item 18 of the queue, and it is the same wall.
 
