@@ -5945,6 +5945,19 @@ impl CompiledModel {
         let tight: Option<f64> = std::env::var("OXIDELICA_INIT_TIGHT")
             .ok()
             .and_then(|k| k.parse().ok());
+        // Probe, not adopted: tighten the inner blocks only once the
+        // outer residual has stalled, by the multiplier the key gives
+        // on `1e-10`, after as many identical residuals running as
+        // OXIDELICA_STALL_TIGHTEN_AFTER says (3 unless set).
+        let stall_tighten: Option<f64> = std::env::var("OXIDELICA_STALL_TIGHTEN")
+            .ok()
+            .and_then(|k| k.parse().ok());
+        let tighten_after: usize = std::env::var("OXIDELICA_STALL_TIGHTEN_AFTER")
+            .ok()
+            .and_then(|k| k.parse().ok())
+            .unwrap_or(3);
+        let mut tight = tight;
+        let mut same_for_tighten = 0usize;
         let mut last_f: Option<Vec<f64>> = None;
         let mut same_f = 0usize;
         for outer in 0..50 {
@@ -5977,6 +5990,29 @@ impl CompiledModel {
                 }
             }
             let f = f?;
+            if let Some(multiplier) = stall_tighten.filter(|_| tight.is_none()) {
+                if last_f.as_ref() == Some(&f) {
+                    same_for_tighten += 1;
+                } else {
+                    same_for_tighten = 0;
+                }
+                if same_for_tighten >= tighten_after {
+                    tight = Some(1e-10 * multiplier);
+                    same_f = 0;
+                    if phases {
+                        eprintln!(
+                            "init-phase outer {outer} stalled, inner tolerance {:e}",
+                            1e-10 * multiplier
+                        );
+                    }
+                    // The residual in hand was taken at the loose
+                    // tolerance; the next outer takes it again tight.
+                    continue;
+                }
+                if stall_after.is_none() {
+                    last_f = Some(f.clone());
+                }
+            }
             if let Some(most) = stall_after {
                 if last_f.as_ref() == Some(&f) {
                     same_f += 1;
