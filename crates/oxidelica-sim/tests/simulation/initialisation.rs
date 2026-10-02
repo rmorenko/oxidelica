@@ -1480,3 +1480,42 @@ fn a_start_modifier_subscripting_a_parameter_array_is_worked_out() {
     assert_eq!(start("t.core1.H"), 0.5);
     assert_eq!(start("t.core2.H"), 2.0);
 }
+
+/// Every column of the initialisation's difference Jacobian starts the
+/// inner blocks from where they settled for the residual it is taken
+/// against. `z` is a block of its own, solved again at each column, and
+/// the three `w` are unknowns its equation never reads. Solved again
+/// from whatever the previous column left behind, the block settled a
+/// rounding's width away, and over a step of `1e-7 * (1 + 1e7)` that
+/// width read as a slope: the row of `z = 2e6` grew entries in the
+/// columns of the `w`, the step it asked for sent `x` below zero, and
+/// `sqrt(x)` refused the model as NaN. In BranchingPipes17 the same
+/// drift put -1560 kg of air into a litre.
+#[test]
+fn a_column_an_initial_equation_does_not_read_moves_nothing() {
+    let model = parse_model(
+        "model U \
+           Real x(start = 1e6); Real w1(start = 1); Real w2(start = 1); Real w3(start = 1); \
+           Real z(start = 1); \
+         equation \
+           der(x) = 0; der(w1) = 0; der(w2) = 0; der(w3) = 0; \
+           z + 1e-20*z^3 = 1e3*sqrt(x); \
+         initial equation \
+           z = 2e6; w1 = 1e7; w2 = 1e7; w3 = 1e7; \
+         end U;",
+    )
+    .unwrap();
+    let compiled = compile(&model).unwrap();
+    let start = |name: &str| {
+        let index = compiled
+            .states
+            .iter()
+            .position(|had| had == name)
+            .unwrap_or_else(|| panic!("{name} among {:?}", compiled.states));
+        compiled.initial[index]
+    };
+    // z = 2e6 makes 1e3 * sqrt(x) = 2e6 + 1e-20 * 8e18 = 2000000.08.
+    let x = (2_000_000.08f64 / 1e3).powi(2);
+    assert!((start("x") - x).abs() < 1e-6 * x, "x(0) = {}", start("x"));
+    assert_eq!(start("w1"), 1e7);
+}

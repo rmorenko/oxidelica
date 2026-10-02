@@ -5919,13 +5919,27 @@ impl CompiledModel {
             }
         }
 
+        // Every column of the difference Jacobian starts the inner
+        // blocks from where they settled for the residual it is taken
+        // against, not from wherever the previous column left them. An
+        // inner block solved again from a different guess settles a
+        // rounding's width away, and over a step of 2e-7 that width is
+        // a slope: in BranchingPipes17 the row of a tee's mass read
+        // -10 in six columns of unknowns it does not contain, and the
+        // step it asked for put -1560 kg of air in a litre. With the
+        // guess held, a column the row does not read is exactly zero.
+        let drift_guess = std::env::var_os("OXIDELICA_INIT_DRIFT_GUESS").is_some();
         for _ in 0..50 {
             let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
+            let held_guess = alg_guess.clone();
             let mut jac = vec![vec![0.0; n]; n];
             for j in 0..n {
                 let h = 1e-7 * (1.0 + y[j].abs());
                 let mut probe = y.clone();
                 probe[j] += h;
+                if !drift_guess {
+                    alg_guess.clone_from(&held_guess);
+                }
                 let fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess)?;
                 for (i, row) in jac.iter_mut().enumerate() {
                     row[j] = (fp[i] - f[i]) / h;
