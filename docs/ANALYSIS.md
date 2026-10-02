@@ -30903,3 +30903,10 @@ work identical to the digit, 4823 points and 11580 Newton iterations
 on both. DynamicPipeEnergyConservationCheck 194.8 to 180.2 s,
 BranchingPipes12 850.7 to 426.7 s, BranchingPipes17 93.0 to 46.4 s.
 Same caveat as above: macOS, the desk, one weather for both halves.
+
+Sampled again on the cached binary, held BranchingPipes18 alone
+(`/tmp/m338/sample_g.txt`, 8 s): no `__findenv_locked` frame at all,
+and the top of the busy stack is now the allocator - `_xzm_free` 896
+and `_xzm_xzone_malloc_tiny` 695 samples against 337 for
+`walk::to_scalar` itself. The allocator is the next shared thing the
+walk leans on, and the obvious next instrument.
