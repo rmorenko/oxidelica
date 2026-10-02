@@ -29943,3 +29943,120 @@ the desk printed 687 and 645, the difference SpringWithMass alone. The
 Jacobian line had been left at 130 when the series moved the desk to
 136; it is recentred on 137 and the run floors raised to 686 and 644
 in the same commit.
+
+## The held guess merged, what it costs at the edge, and why the tie at zero does not break at the start (m333)
+
+**What was merged.** The initialisation's difference Jacobian
+(`compile.rs`, the loop after `starts_badly`) now starts every column's
+inner blocks from the point the residual was taken at, not from the
+`alg_guess` the previous column left behind. The polarity is the
+series': the hold is the default, and `OXIDELICA_INIT_DRIFT_GUESS`
+brings the old drift back so that one binary measures both. The
+parked patch of m332 applied as it stood; only the switch was turned
+round and the comment written.
+
+**The test, and which road it came by.** The first road, cutting
+BranchingPipes17 down rather than growing a synthetic, gave a model in
+a quarter of an hour (`/tmp/m333/s/`): a pipe, a valve and the tee
+volume between two boundaries (`B4`) keeps the split between the keys,
+running under the hold and refused without it with `the equations of
+algebraic loop [pipe3.mediums[1].T, valve2.dp_turbulent,
+der(junctionVolume.medium.h)] do not mention
+[der(junctionVolume.medium.h)]`. Cutting further lost the sign: the
+tee without the pipe, or the pipe without the valve, is not square on
+either key (`B5`, `B6`), and so are the two cuts of the whole model
+that drop one branch at the ideal tee (`B1`, `B2`). B4 needs the
+standard library, which the suite does not carry, so it went into
+`tests/small` as
+`a_column_an_initial_equation_does_not_read_moves_nothing.mo`.
+
+The suite's test came by the second road, a model of the mechanism in
+`tests/simulation/initialisation.rs`: a state `x`, an inner block `z +
+1e-20 z^3 = 1e3 sqrt(x)`, and three states `w` pinned at 1e7 that the
+block never reads. The `w` columns are stepped by `1e-7 * (1 + 1e7) =
+1`, and with the drift the block settles a rounding's width away at
+each of them; the row of `z = 2e6` grows entries in columns it does
+not contain, and `sqrt(x)` refuses the model as NaN. The same shape
+with `x` read straight (`U2.mo`, which `sqrt` cannot refuse) shows the
+step behind it: the first Newton step sends `x` from 1e6 to -1.6e9. With the hold `x(0)` comes out at
+4000000.32, the equations' answer. Red on the old key, green on the
+new, one environment variable apart.
+
+**What the hold costs, seen small.** A sweep of shapes beside the test
+(`/tmp/m333/t/S*.mo`, `U4.mo`) found the other side of it.
+`z + 1e-20 z^3 = x` with `z = 2e7` and one `w` stepped by 1, and `z +
+1e-20 z^3 = 1.5e5 log(x)` with three, both **do not converge in 50
+iterations under the hold** and converge or refuse differently without
+it. The trail of S2 shows why: under the hold the outer residual
+stands at +-8e-4 and -1.6e-3 and walks back and forth, because the
+inner block's convergence test admits `1e-10 * (1 + |z|) = 2e-3` at z
+= 2e7, so the block's answer is good only to the third decimal and the
+outer Newton stands on that noise. Under the drift the noise is
+different at each column and happened to land within reach. Swapping
+the order of `x` and `w` in S2's declaration (`S2w.mo`) makes both
+keys converge alike, to the same digits. So the hold removes a slope that was false, and it does not
+make the inner tolerance any finer; where the inner tolerance is the
+coarser of the two, the outer Newton stands on its noise, and whether
+a given column order lands within reach is down to rounding - the
+drift did not stall in this sweep, but it had no reason not to. That is the same test as the
+runaway `T` of m332 (`solvers/mod.rs`, `1e-10 * (1 + |v|)`), seen from
+the outer loop - queue item 18 - and it is not this change's to fix.
+
+**The pair.** One binary built from the final tree (`/tmp/m333/ox2`,
+the same bytes as `target/release/oxidelica` of the commit), both keys,
+`--without scripts/heavy_models.txt` (`/tmp/m333/off.txt`,
+`/tmp/m333/on.txt`): 966 / 687 and runnable 849 / 645 with the drift,
+966 / 688 and 849 / 646 with the hold. The run lists (`ran_off.txt`,
+`ran_on.txt`, 687 and 688 lines) differ by one name,
+BranchingPipes17 gained, and nothing is lost; the flattened lists are
+identical. The off half reproduces m332's off half to the model and
+to the work line (136 Jacobians, 600 apart). Under the hold points
+rise 4865 and Newton steps 11679, Jacobians go 136 to 135 - inside the
+band of 137 - and the pair apart 600 to 707, all of it m332's numbers
+again. The floors are not moved: this is a desk pair, and the runner
+has not counted the tree.
+
+The run half took 19252 s under the hold against 14736 s under the
+drift, and m332's pair the same way round (19756 s and 14043 s). The
+two halves ran side by side, so that is not a measurement by itself,
+and the work behind it differs by 0.02 % of the points. So the
+seventy models of the Fluid libraries that run were timed again one
+key after the other, nothing beside them (`/tmp/m333/fl_on.txt`,
+`/tmp/m333/fl_off.txt`, `--only-from /tmp/m333/fluid.txt` with
+`DynamicPipeEnergyConservationCheck` timed apart in
+`/tmp/m333/dear_*.txt`): the run half took 1848 s under the hold and
+1855 s under the drift, the hold's side carrying BranchingPipes17's 56
+s that the drift's side does not run, and the dearest checker 191.7 s,
+192.0 s and 189.2 s on hold, drift and hold again. The thirty percent
+is the weather of two passes sharing one desk, not the change.
+
+**The runner's verdict on bc8c2e7.** Run 36957367979, library job
+110683229120, head bc8c2e7: green, 966 / 686 and 849 / 644, 138
+Jacobians against the band of 137, the ratio 1.473 inside 0.70 to
+1.50. That is the print the floors were set on, so they stand.
+
+**The tie at 0.0 in two neighbours of `singular Jacobian`**
+(`/tmp/m333/w*_*.txt`, the probe kept as
+`settle_weigh_probe_m333.patch` beside the shift notes). The m321
+probe's idea, weighing through the definitions where they have settled,
+was carried onto today's tree as a switch that reads the weight through
+the definitions already at the first build, where today only a resumed
+reduction does. It changes nothing: `TestMixingVolumesPressureStates`
+and `PumpingSystem` keep the same victim (`mixingVolume1.U`,
+`reservoir.U`) and the same refusal. Every weight comes back unknown,
+not zero, and the probe names the definition that cannot be read:
+`medium.u = U / m` and `medium.d = m / fluidVolume`, at `U = m = 0`,
+and in PumpingSystem `fluidVolume = 0` as well. The states stand at the
+zero their declarations leave them because their values are the
+initialisation's to give, and the initialisation comes after the
+reduction. Moving the zero states off zero (1e-6 to 1e3) still leaves
+`d = m / fluidVolume` at `fluidVolume = 0`, and settling every
+definition of the cone first gives `d = 0` and `u = 0` and the same
+0/0 one storey down. So there is no point where the definitions hold
+before the reduction has chosen: the weight wants the initialisation,
+and the initialisation wants the reduction's choice. The next wall is
+that circle, not the settling criterion; a weight read at a point the
+initialisation has produced means reducing twice, once to initialise
+and once again with the weights read at the initialised point, which
+is what the re-selection at a resumed reduction already does in
+mid-run.
