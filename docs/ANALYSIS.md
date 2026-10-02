@@ -30869,3 +30869,37 @@ explains is not known. What carries over for certain is the longer
 initialisations themselves, +568 s over the eight models alone. The
 runner's print before and after merging the patch is the measurement
 still owed.
+
+**The stall guard over the corpus.** One binary (`/tmp/ox338f`), the
+hold as it stands against the same with `OXIDELICA_INIT_STALL=8`, run
+side by side, `--without scripts/heavy_models.txt --slow 80`, under 24
+GB each (`/tmp/m338/pair_base.txt`, `pair_st8.txt`):
+
+```text
+          flatten  run   runnable    points     newton     flatten s  run s
+held      966      688   849 / 646   25744976   37437872   11033      21127
+held+st8  966      688   849 / 646   25744353   37436304   11395      19225
+```
+
+The run lists are equal name for name (688 each), and the run half's
+census is equal line for line, 203 rows and 278 models both
+(`refb.txt`, `refs.txt`). BranchingPipes18 goes from 2191.6 s to
+703.8 s; WaterIF97 386.0 against 404.3, as the witness said. The run
+half falls by 9 % (21870 to 19902 ms a model), where the getenv cache
+took 37 % off the trio. So the guard is safe and buys a little, and it
+does not reach the price: the stalled model is one of several that
+hold the lock, and the others - SeriesPipes12 converging linearly,
+BranchingPipes12 refusing before the Jacobian - are not stalls a guard
+on repeated residuals can see. The pair ran beside other measurements
+on the same desk (load 23 to 138), so its seconds against m337's are
+not comparable; only its two halves are.
+
+**The cache over the sixteen dearest Fluid models.** The same two
+binaries, held, three threads each, started together
+(`/tmp/m338/f16_uncached.txt`, `f16_cached.txt`, list
+`fluid16.txt`): the run half 5306 s uncached against 3090 s cached
+(-42 %), every one of the sixteen faster, the same six run, and the
+work identical to the digit, 4823 points and 11580 Newton iterations
+on both. DynamicPipeEnergyConservationCheck 194.8 to 180.2 s,
+BranchingPipes12 850.7 to 426.7 s, BranchingPipes17 93.0 to 46.4 s.
+Same caveat as above: macOS, the desk, one weather for both halves.
