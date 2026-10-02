@@ -30910,3 +30910,122 @@ and the top of the busy stack is now the allocator - `_xzm_free` 896
 and `_xzm_xzone_malloc_tiny` 695 samples against 337 for
 `walk::to_scalar` itself. The allocator is the next shared thing the
 walk leans on, and the obvious next instrument.
+
+## The stall tightened instead of refused, and the census at f2fcca2 (m340)
+
+**The question.** BranchingPipes18 refuses its initialization after 47
+outer iterations whose residual stands at 4.35e-3 bit for bit. The root
+found in m338: the inner block of `junctionVolume.medium.h` is accepted
+by its own test, `|f| <= 1e-10 * (1 + |v|)`, before the outer step of
+2e-10 reaches it, so the outer Newton keeps asking the same question and
+getting the same answer. Tightening the inner test always was dead
+(SeriesPipes12 diverges). The probe here tightens only once the stall is
+seen: `OXIDELICA_STALL_TIGHTEN=m` multiplies the inner tolerance by `m`
+after three identical outer residuals running, and takes the residual
+again at the new tolerance before the next Jacobian. Unset, it changes
+nothing. The patch is `~/oxideflow/state/stall_tighten_m340.patch`, on
+the branch `probe/stall-tighten-m340`, not for merge.
+
+**The witnesses**, one binary (`/tmp/ox340t`), `--only`, one thread
+each, under a 6 GB ceiling, files in `/tmp/m340/`:
+
+```text
+model             key    outer iterations to init   run points / newton    verdict
+BranchingPipes18  none   47, refused (m338)         800 / 2015             init refused
+BranchingPipes18  1e-2   stall at 6, solved at 8    129 / 337 at init      init solved
+BranchingPipes18  1e-3   stall at 6, solved at 8    129 / 339 at init      init solved
+BranchingPipes18  1e-4   stall at 6, solved at 8    129 / 345 at init      init solved
+SeriesPipes12     none   solved at 24               435 / 697              refused, as before
+SeriesPipes12     1e-2   solved at 24               435 / 697              identical
+SeriesPipes2      none   solved at 2                43 / 77                refused, as before
+SeriesPipes2      1e-2   solved at 2                43 / 77                identical
+BranchingPipes17  none   solved at 3                624 / 2631             runs
+BranchingPipes17  1e-2   solved at 3                624 / 2631             identical
+WaterIF97         none   solved at 40               164 / 264              refused, `medium.h`
+WaterIF97         1e-2   stall at 30, solved at 32  129 / 212              refused, `medium.p`
+```
+
+So BranchingPipes18 is repaired and not merely refused faster: its
+residual goes 4.35e-3 five times running, then 1.65e-2 at the new
+tolerance, then 4.98e-8 and solved, on every multiplier from 1e-2 to
+1e-4 (`tt_BranchingPipes18_*.txt`). The model then integrates, and that
+is where its price moves to: the 1e-2 run was still in `dopri` after
+fifty minutes of CPU at the time of writing, sampled with its busy stack
+in `walk::to_scalar` and the allocator. Whether it finishes its five
+seconds, and against what, is the open half of this answer. A repair at
+initialization that turns a 115 s refusal under ST8 into an hour's run
+is not a thing the library job can afford, whatever it does to the run
+count.
+
+SeriesPipes12, SeriesPipes2 and BranchingPipes17 are bit-identical: their
+residuals never repeat three times, so the probe never fires. WaterIF97
+does stall (at outer 30), converges eight iterations sooner, and then
+refuses the run with the same words about a different variable,
+`medium.p` instead of `medium.h`. That is a census row changing its
+spelling without a model moving, which a corpus pair would have to
+show before anything is adopted. The gate test
+`a_column_an_initial_equation_does_not_read_moves_nothing` passes with
+the key unset, at 1e-2 and at 1e-4.
+
+**The census at f2fcca2**, taken by m339 with `/tmp/m339/ox_head`,
+`--without scripts/heavy_models.txt` (`/tmp/m339/census.txt`, raw
+`/tmp/m339/raw.txt`), counted between the section marks: would not
+flatten 67 models in 39 rows; flattened and would not run 278 models in
+152 rows. The 278 agrees with 966 - 688 and with m338's `refb.txt`. The
+rows do not agree, 152 against 203, and that is the instrument and not
+the library: m338's file keeps the loop's variable names in the row,
+this census folds them to `[...]`, so 51 rows of m338 are names of one
+kind. Read by kind, the top of the run half is:
+
+```text
+26  the Newton direction of algebraic loop [...]
+20  singular Jacobian in algebraic loop [...]
+18  the equations of algebraic loop [...]
+11  `X` of algebraic loop [...]
+ 8  algebraic loop [...]
+ 7  algebraic loop did not converge in N Newton iterations
+```
+
+The 26 by library: ModelicaTest.Fluid.TestPipesAndValves 8
+(BranchingPipes1, 2, 4, 14, DynamicPipeInitialization, SeriesPipes1, 2,
+12), ModelicaTest.Media.TestsWithFluid 7 (DryAirNasa, IdealGases.Air,
+Nitrogen, Essotherm650, Glycol47, WaterIF97OnePhase_ph, WaterIF97_ph),
+ModelicaTest.Fluid.TestComponents 5 (TestMultiPortTraceSubstances, three
+TestWaterPump models, TestTemperature1), Modelica.Media.Examples 3
+(R134a1, R134a2, ReferenceAir.DryAir1), and one each from the machines
+(Rectifier6pulse, IMC_Transformer, SMPM_Mains). The 20 singular
+Jacobians are led by Modelica.Magnetic.FundamentalWave with 7. The top
+of the flatten half is six models refused for a function written in C
+that the compiler has none of its own for - WriteRealMatrixToFile,
+TestColorMapToSvg, TestMatrices, TestMatrices2, TestVectors,
+TestInternal - and three FORTRAN ones (the `_usertab` tables).
+
+**The representative of the top row**, R134a1 under `--only` (127 s,
+`/tmp/m340/r134a1.txt`): the block `["volume.medium.p",
+"ambient.port.h"]` at t = 0, from |f| = 14.5, three steps running buy a
+smaller residual only below 1.5e-5 of the step. `oxidelica why` puts
+`volume.medium.p` in the R134a property call `derivsOf_ph` with a
+branch on `bubbleEnthalpy`, and pins it by the initial equation
+`volume.medium.p = volume.p_start`. The wall is the line search of the
+inner block, the word is "does not reduce", and the layer is the
+medium's two-phase property function: a Newton direction built across a
+phase boundary. SeriesPipes2 refuses with the same words at t = 0.0008
+on `pipe1.mediums[1].p`, so the row holds at least two shapes. Split by
+the time each refusal names (read from `raw.txt`): 15 at t = 0 - the
+seven MediaTestModels, both R134a, two machines, three TestComponents
+and DynamicPipeInitialization; 4 at t = 0.0002 (DryAir1,
+TestTemperature1, BranchingPipes14, and Rectifier6pulse at 0.000214);
+6 at exactly t = 0.0008, every one of them a TestPipesAndValves pipe
+(BranchingPipes1, 2, 4, SeriesPipes1, 2, 12); and TestWaterPumpCheckValve
+at 0.0022. The six at one instant are the likeliest single family in the
+row and the cheapest to probe next; the fifteen at the start are the
+largest and, by R134a1, a medium's property call.
+
+**The runner.** Two draft PRs carry the work on the desk to the build
+machine, neither for merge: #1, the per-thread switch cache alone
+(`probe/switch-cache-m338`), and #2, the same with the hold-price probe
+keys and `OXIDELICA_INIT_STALL: 8` in its own library job
+(`probe/switch-cache-stall8-m338`). The base to read them against is
+434c12f, run 37018075088: flattening 6441 s, running 9669 s, ratio
+1.605. Their verdicts, and those of 37063161539 (b1a237d) and
+37063360325 (f2fcca2), were not in when this was written.
