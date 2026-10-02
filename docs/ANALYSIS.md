@@ -30180,7 +30180,8 @@ residuals of 5e-10 to 4e-7, and the unknown they are judged against is
 not the row's own.
 
 What the arm hides at its worst is four models that run, and run on
-residuals the size of a whole side:
+residuals the size of a whole side (the first three numbers from the
+ladder's representative acceptance, `/tmp/m334/top_growth.txt`):
 
 - `ComparisonPullInStroke`: `advancedSolenoid.armature.mass.a` at
   1.74e17 from 7.1e5, `|f| = 1.9e4`, at t = 0.0008, in 4453 of 34394
@@ -30198,21 +30199,73 @@ are not physics. Two refused models carry the same shape at smaller
 size, `DryAir2` (`ambient.port.h` at 2.3e11, `|f| = 0.73`) and
 `IMC_YDarc` (three closing switches at 1e8, `|f| = 6.6e-3`).
 
+**A correction to those numbers, from a second reading.** The `|f|`
+above is the largest residual over all rows of the kept acceptance,
+not over the rows the arm alone took. A probe that records the latter
+separately, as a maximum over every acceptance, was run over the seven
+names (`/tmp/m334/v6.txt`), and the worst is far worse than the
+ladder:
+
+```text
+                                 largest |f|, arm alone   largest |v|
+Dimmer_RL                        3.7e18                   1.0e30
+ComparisonPullInStroke           5.6e16                   7.3e26
+ThyristorBridge2Pulse_DC_Drive   62                       1.0e16
+IMC_DOL                          1.0 exactly              1.7e21
+DryAir2                          0.73                     2.3e11
+IMC_YDarc                        6.6e-3                   1.0e8
+```
+
+`ComparisonPullInStroke` also has a row the sides arm alone let
+through at `|f| = 4`, and `IMC_DOL`'s residual of 2 belongs to a row
+both arms pass, so the sides arm is not innocent either. The residual
+ladder above stays as printed, but it is the floor of what the arm
+took and these are the ceilings.
+
+**Two candidate arms, measured** (the probe tree with two switches,
+`/tmp/ox334j`, three passes of the same binary over the 152 models the
+arm alone ever took, `--only-from /tmp/m334/alone151.txt`, files
+`p_base.txt`, `p_cap1.txt`, `p_row.txt`, run lists `r_*.txt`):
+
+```text
+                                     run   points     Newton     Jacobians
+as it stands                         121   25558381   37411910   108
+relative arm capped at |f| <= 1      121   25559269   37413308   159
+relative arm scaled by the row       121    4778355    7471882   171
+  (max(|lhs|, |rhs|) instead of |v_i|)
+```
+
+Capping the arm at an absolute 1 moves no model at all, and the run
+list is the same name for name. The two victims looked at under it
+(`v_cap_*.txt`) show why: `ThyristorBridge2Pulse_DC_Drive`'s soft
+residual falls from 62 to 3.4e-3, because Newton refused at the old
+point goes on and finds a point the capped arm takes - with the switch
+parameter still at 7.6e11. `IMC_DOL` is untouched, since its worst row
+sits at 1 exactly. A cap removes the largest residuals and not the
+runaway unknowns, so it is not the repair.
+
+Scaling the arm by the row's own sides keeps the count and changes the
+names: it loses `AsymmetricalLoad`, `Rectifier12pulse`,
+`TransformerTestbench` and `BranchingPipes17`, and gains
+`ThyristorBridge2mPulse_RLV`, `DryAir1`, `DryAir2` and
+`TestWaterPumpCheckValve`. The four it loses are four of the six running models of the positional-pairing shape named above - a row judged against an unknown of 7.9e5 to 2.4e6 that is not its own; SMPM_VoltageSource runs under both arms and IMC_Transformer under neither. Why the four it gains were refused before is not measured here.
+DryAir2 runs, which is the runaway of the list above: under the row
+scale it must be asked whether it runs on a number that is right.
+The points fall by a factor of five over the same 121 models; Dimmer_RL alone made 23.7 million acceptances under the arm as it stands, which makes it the likely place, but which models gave the points back is the next instrument's question, not this one's.
+
 **What the map says for the series.** The sign the queue hoped for,
 growth from the block's start, does not separate: it fires on a zero
 start whatever the answer is, it fires on the control S2w, and it
-cannot see U4. The residual's own size can, in the corpus as measured:
-a row taken by the arm alone with `|f| > 1e-3` is six models, and four
-of them are the four runaways above; with `|f| > 1` it is exactly
-those four - on this reading, which is a lower bound, so the pair has
-the last word. What the series has to decide is the scale a row is judged
-by - the arm pairs row `i` with unknown `i` by position, and in a torn
-block that is a stranger - and the cost is the four running models
-whose run stands on an unphysical number. Losing them is the honest
-outcome, since their counted run is a wrong answer presented as a
-right one; the pair will say whether anything else goes with them,
-and BranchingPipes17 is the one to watch, since its soft row would
-fail an absolute 1e-10 and pass any threshold above 3.5e-7.
+cannot see U4. The residual's own size separates the runaways but a
+threshold on it does not repair them: the cap measured above leaves
+every one of them running, a little further on. What a series has to
+decide is the scale a row is judged by - the arm pairs row `i` with
+unknown `i` by position, and in a torn block that is a stranger - and
+the row scale is the one candidate that moved anything, by trading
+four models for four. Its pair over the whole corpus, with the run
+list diffed and DryAir2's number checked against the medium, is the
+next step, and BranchingPipes17's soft row (3.5e-7 on a balance of
+order one) is the price it already names.
 
 **The loop family by name** (queue item 2 of m334, `/tmp/m334/fam_*.txt`,
 the same probe with the Newton trail). Five names from three
