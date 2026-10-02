@@ -31157,12 +31157,13 @@ density, where four ulps are 8.9e-13. Its equation is again a
 conditional, `V_flow = m_flow / (if m_flow > m_flow_small then
 state_a.d else ...)`, and `m_flow` is itself a conditional on
 `dp_fg >= dp_turbulent`. With the branch walk on, the loudness reached
-is the density on the branch taken, 998; what the row is made of
-further in - the regularised square root of a pressure drop behind
-pressures of 5e5 - sits inside the `m_flow` slot the block solves for,
-and the walk stops at the slot. So the third link is the same breed
-one storey down: a flow solved inside the block whose loudness is not
-carried with it. WaterIF97 moving from
+is the density on the branch taken, 998; the pressures of 5e5 behind
+the regularised square root of the pressure drop did not reach the
+row's loudness. `m_flow` is not among the block's named unknowns, so
+it is an inner value of the torn block or a value outside it, and
+which of the two - and why its loudness was not carried - is the
+question the next probe answers, not this one. The third link is, as
+far as measured, the same breed one storey down. WaterIF97 moving from
 164 to 124 points with the same refusal says the branch walk reaches
 its initialization too, which a corpus pair would have to account for.
 None of the three keys is adopted; together they are the map of a chain
