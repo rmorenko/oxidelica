@@ -31029,3 +31029,68 @@ keys and `OXIDELICA_INIT_STALL: 8` in its own library job
 434c12f, run 37018075088: flattening 6441 s, running 9669 s, ratio
 1.605. Their verdicts, and those of 37063161539 (b1a237d) and
 37063360325 (f2fcca2), were not in when this was written.
+
+**Why the six pipes stop at exactly t = 0.0008.** It is not a moment of
+the physics. The adaptive solver starts with `h = 1e-3` on these
+models, and Dormand-Prince evaluates its stages at `t + C[s] * h` with
+`C = [0, 0.2, 0.3, 0.8, 8/9, 1, 1]` (`solvers/dopri.rs:31`). The Newton
+trail of BranchingPipes2 (`/tmp/m340/trail_BP2.txt`) visits t = 0,
+0.0002, 0.0003, 0.0008 and then nothing else: the six die on the fourth
+stage of the first step, before a single step was accepted, and the
+four at t = 0.0002 die on its second. A block that refuses on a trial
+stage rejects the step only on a model whose index reduction demoted a
+state (`Err(_) if self.reselectable`, `dopri.rs:199`, `bdf.rs:160`).
+Everywhere else the refusal of a point the solver was only trying ends
+the run, where shrinking the step was the ordinary answer.
+
+The probe `OXIDELICA_STAGE_REJECTS` lets a stage failure reject the step
+on every model, with "step size underflow" as the refusal if the step
+collapses; it is on the branch `probe/stall-tighten-m340`, in
+`~/oxideflow/state/stall_tighten_m340.patch`, and the sim tests pass
+with it set. Over the sixteen refusals in the census that name a time
+after zero, one binary `/tmp/ox340v`, `--only`, files
+`/tmp/m340/sr_*.txt` and `sr3_*.txt`:
+
+```text
+model                         base refusal                      with the key
+DryAir1                       direction at t = 0.0002           runs, 6 s
+TestWaterPumpCheckValve       direction at t = 0.0022           runs, 36 s
+OvervoltageProtection         both sides of zDiode.v, t=0.0008  runs, 0 s
+TestJunctionVolume            bracket at t = 0.000008           runs, 2 s
+BranchingPipes14              direction at t = 0.0002           runs, 736 s
+BranchingPipes2               direction at t = 0.0008           direction at t = 4e-14, |f| 7e-10
+SeriesPipes12                 direction at t = 0.0008           direction at t = 1.7e-7, |f| 1.8e-10
+BranchingPipes1               direction at t = 0.0008           direction at t = 4.3e-4, |f| 1.2e-9, 1185 s
+Rectifier6pulse               direction at t = 0.000214         unchanged
+ParallelPumpDropOut           equations of the loop             unchanged
+Friction                      step size underflow at t = 0.006  unchanged
+SeriesPipes2, SeriesPipes1,
+BranchingPipes4, TestTemperature1,
+DynamicPipesWithTraceSubstances                                  still running after 20 to 44 min
+```
+
+Five models run that did not, with nothing else changed. This is a
+witness count from `--only` and not a corpus number: what the key does
+to the 688 that run now is not measured, and the three pipes still
+running after forty minutes say what it would cost the library job. It
+is a different compiler and wants a corpus pair with the run lists
+diffed before it is anything more.
+
+The second link of the chain shows on the three that moved without
+running. Once the step may shrink, BranchingPipes2 drives it down to
+4e-14 and refuses with `|f| = 7.1e-10`, made of two rows at 2.5e-10:
+`pipe1.H_flows[2]` and `pipe2.H_flows[1]`, whose values at that instant
+are 5.6e-5 and 5.9e-5. The block's absolute test `1e-10 * (1 + |v|)`
+asks an enthalpy flow that has barely left zero to agree to 1e-10 W,
+and the rounding of the terms that make it is larger than that. With
+`OXIDELICA_BLOCK_TOL=3e-10` as well, BranchingPipes2 runs (109 s,
+`/tmp/m340/srt_BranchingPipes2.txt`), but the same looser tolerance
+makes SeriesPipes12's initialization singular (`srt_SeriesPipes12.txt`).
+So the second link is a tolerance that is too tight for a flow near
+zero and cannot simply be loosened. The rows' own loudness, which the
+floor arm of the same test already reads, is the likely place for it.
+The inverse case, Rectifier6pulse at 2.46e-10, was named in m334 as
+item 18 of the queue, and it is the same wall.
+
+BranchingPipes18 under the stall tightening was still integrating when
+this was written, 103 minutes of CPU on its five seconds.
