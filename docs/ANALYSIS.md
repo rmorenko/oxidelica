@@ -31153,10 +31153,16 @@ tolerance gave it, without loosening the test for anybody. SeriesPipes12
 is a different second link: its trail (`trail_SP12_lb.txt`) leaves two
 rows at 1.0e-10 and 1.5e-10, and the second of them is
 `simpleGenericOrifice.V_flow` at -5.0e-5 with a loudness of 998 - a
-density, where four ulps are 8.9e-13. A volume flow through an orifice
-near zero, measured against a density, is the same breed as the upwind
-flow and a different spelling of it; the loudness walk does not reach
-whatever square root or regularisation makes it. WaterIF97 moving from
+density, where four ulps are 8.9e-13. Its equation is again a
+conditional, `V_flow = m_flow / (if m_flow > m_flow_small then
+state_a.d else ...)`, and `m_flow` is itself a conditional on
+`dp_fg >= dp_turbulent`. With the branch walk on, the loudness reached
+is the density on the branch taken, 998; what the row is made of
+further in - the regularised square root of a pressure drop behind
+pressures of 5e5 - sits inside the `m_flow` slot the block solves for,
+and the walk stops at the slot. So the third link is the same breed
+one storey down: a flow solved inside the block whose loudness is not
+carried with it. WaterIF97 moving from
 164 to 124 points with the same refusal says the branch walk reaches
 its initialization too, which a corpus pair would have to account for.
 None of the three keys is adopted; together they are the map of a chain
