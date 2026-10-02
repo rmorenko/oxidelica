@@ -104,6 +104,23 @@ fn inner_loudness_off() -> bool {
     *OFF.get_or_init(|| std::env::var_os("OXIDELICA_NO_INNER_LOUDNESS").is_some())
 }
 
+thread_local! {
+    /// The relative tolerance a block's first convergence test asks
+    /// for, where a probe has set one other than `1e-10`. Measured, not
+    /// adopted: the third candidate for the price of the initial hold
+    /// tightens the inner blocks while the outer Jacobian is built.
+    static BLOCK_TOLERANCE: std::cell::Cell<Option<f64>> = const { std::cell::Cell::new(None) };
+}
+
+/// Set or clear the probe's block tolerance on this thread.
+pub(crate) fn set_block_tolerance(tolerance: Option<f64>) {
+    BLOCK_TOLERANCE.with(|cell| cell.set(tolerance));
+}
+
+fn block_tolerance() -> f64 {
+    BLOCK_TOLERANCE.with(|cell| cell.get()).unwrap_or(1e-10)
+}
+
 /// Whether a converged block keeps the reason a walk left behind on a
 /// trial point it stepped away from. Off by default; the switch keeps
 /// both halves of a measurement in one binary.
@@ -1209,8 +1226,10 @@ impl CompiledModel {
             // the numbers it came from is not a distance from the
             // solution, it is the floor of the arithmetic, and no
             // iteration can go under it.
+            let tolerance = block_tolerance();
             let converged = f.iter().zip(&v).zip(&parts).all(|((fi, vi), (lhs, rhs))| {
-                fi.abs() <= 1e-10 * (1.0 + vi.abs()) || fi.abs() <= 1e-12 * (lhs.abs() + rhs.abs())
+                fi.abs() <= tolerance * (1.0 + vi.abs())
+                    || fi.abs() <= 1e-12 * (lhs.abs() + rhs.abs())
             });
             if converged {
                 for (j, &index) in block.iter().enumerate() {

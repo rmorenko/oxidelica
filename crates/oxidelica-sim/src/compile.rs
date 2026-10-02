@@ -5929,18 +5929,89 @@ impl CompiledModel {
         // step it asked for put -1560 kg of air in a litre. With the
         // guess held, a column the row does not read is exactly zero.
         let drift_guess = std::env::var_os("OXIDELICA_INIT_DRIFT_GUESS").is_some();
-        for _ in 0..50 {
-            let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess)?;
+        let phases = std::env::var_os("OXIDELICA_INIT_PHASES").is_some();
+        let phase_start = std::time::Instant::now();
+        let phase_work = oxidelica_parser::work::Work::here();
+        // Probe candidates for the price of the hold, measured and not
+        // yet adopted: hold only the first K outer iterations, and
+        // refuse at once a residual that has come back bit for bit the
+        // same N times running, with the words the fiftieth would use.
+        let hold_first: Option<usize> = std::env::var("OXIDELICA_INIT_HOLD_FIRST")
+            .ok()
+            .and_then(|k| k.parse().ok());
+        let stall_after: Option<usize> = std::env::var("OXIDELICA_INIT_STALL")
+            .ok()
+            .and_then(|k| k.parse().ok());
+        let tight: Option<f64> = std::env::var("OXIDELICA_INIT_TIGHT")
+            .ok()
+            .and_then(|k| k.parse().ok());
+        let mut last_f: Option<Vec<f64>> = None;
+        let mut same_f = 0usize;
+        for outer in 0..50 {
+            if phases {
+                let done = oxidelica_parser::work::Work::here().since(phase_work);
+                eprintln!(
+                    "init-phase outer {outer} n={n} at {:.3}s points {} newton {}",
+                    phase_start.elapsed().as_secs_f64(),
+                    done.points,
+                    done.newton
+                );
+            }
+            crate::solvers::set_block_tolerance(tight);
+            let f = residual(&y, &mut values, &mut derivatives, &mut alg_guess);
+            crate::solvers::set_block_tolerance(None);
+            if phases {
+                match &f {
+                    Ok(f) => {
+                        let norm = f.iter().map(|r| r * r).sum::<f64>().sqrt();
+                        eprintln!("init-phase outer {outer} |f|={norm:e}");
+                        if std::env::var_os("OXIDELICA_INIT_PHASES_FULL").is_some() {
+                            if outer == 0 {
+                                eprintln!("init-phase states {:?}", self.states);
+                            }
+                            eprintln!("init-phase outer {outer} y={y:?}");
+                            eprintln!("init-phase outer {outer} f={f:?}");
+                        }
+                    }
+                    Err(e) => eprintln!("init-phase outer {outer} residual refused: {}", e.0),
+                }
+            }
+            let f = f?;
+            if let Some(most) = stall_after {
+                if last_f.as_ref() == Some(&f) {
+                    same_f += 1;
+                } else {
+                    same_f = 0;
+                }
+                if same_f >= most {
+                    return err(
+                        "initialization did not converge in 50 Newton iterations".to_string()
+                    );
+                }
+                last_f = Some(f.clone());
+            }
             let held_guess = alg_guess.clone();
             let mut jac = vec![vec![0.0; n]; n];
             for j in 0..n {
                 let h = 1e-7 * (1.0 + y[j].abs());
                 let mut probe = y.clone();
                 probe[j] += h;
-                if !drift_guess {
+                let held_here = match hold_first {
+                    Some(k) => outer < k,
+                    None => !drift_guess,
+                };
+                if held_here {
                     alg_guess.clone_from(&held_guess);
                 }
-                let fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess)?;
+                crate::solvers::set_block_tolerance(tight);
+                let fp = residual(&probe, &mut values, &mut derivatives, &mut alg_guess);
+                crate::solvers::set_block_tolerance(None);
+                if phases {
+                    if let Err(e) = &fp {
+                        eprintln!("init-phase outer {outer} column {j} refused: {}", e.0);
+                    }
+                }
+                let fp = fp?;
                 for (i, row) in jac.iter_mut().enumerate() {
                     row[j] = (fp[i] - f[i]) / h;
                 }
@@ -5971,6 +6042,15 @@ impl CompiledModel {
                 terms.is_finite() && r.abs() <= 1e-12 * terms
             });
             if solved {
+                if phases {
+                    let done = oxidelica_parser::work::Work::here().since(phase_work);
+                    eprintln!(
+                        "init-phase solved after {outer} at {:.3}s points {} newton {}",
+                        phase_start.elapsed().as_secs_f64(),
+                        done.points,
+                        done.newton
+                    );
+                }
                 // Satisfied is not the same as determined: a singular
                 // Jacobian means the equations leave a whole family of
                 // starting points and this one is just the guess.
@@ -5998,6 +6078,9 @@ impl CompiledModel {
                 return Ok(());
             }
             let Some(step) = solve_linear(&mut jac.clone(), &f) else {
+                if phases {
+                    eprintln!("init-phase outer {outer} singular");
+                }
                 return err(format!(
                     "the initialization problem is singular: the Newton step does not solve, \
                      because its equations do not pin down [{}]",
@@ -6006,6 +6089,12 @@ impl CompiledModel {
             };
             for j in 0..n {
                 y[j] -= step[j];
+            }
+            if std::env::var_os("OXIDELICA_INIT_PHASES_FULL").is_some() {
+                eprintln!("init-phase outer {outer} step={step:?}");
+                for (i, row) in jac.iter().enumerate() {
+                    eprintln!("init-phase outer {outer} jac[{i}]={row:?}");
+                }
             }
             if y.iter().any(|value| !value.is_finite()) {
                 return err("initialization diverged".to_string());
