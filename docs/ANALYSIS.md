@@ -31126,3 +31126,40 @@ item 18 of the queue, and it is the same wall.
 
 BranchingPipes18 under the stall tightening was still integrating when
 this was written, 103 minutes of CPU on its five seconds.
+
+**The loudness that stops at an `if`.** The flows of the second link are
+upwind choices: `pipe1.H_flows[2] = -(if pipe1.port_b.m_flow >= 0 then
+... else ...)`, as `oxidelica why` prints it. `loudest_carrying`
+(`code.rs`) does not walk into a conditional and gives the conditional's
+own value as its loudness, which is why the trail printed 5.6e-5 for
+those rows. The probe `OXIDELICA_LOUD_BRANCH` walks into the branch the
+condition takes, the only one evaluated (same branch, same patch file;
+sim tests pass with it set and without). Files `/tmp/m340/lb_*.txt`:
+
+```text
+model             keys                        result
+BranchingPipes2   stage rejects + branch      runs, 126 s, tolerance untouched
+BranchingPipes2   branch alone                refused at t = 0.0008, as base
+SeriesPipes12     stage rejects + branch      refused at t = 1.7e-7, as with stage alone
+BranchingPipes17  branch alone                runs, 33 s, points and newton as base
+BranchingPipes1   branch alone                refused at t = 0.0008, |f| as base
+SeriesPipes2      branch alone                43 points, 77 newton, as base
+WaterIF97         branch alone                same refusal, 124 points against 164
+Rectifier6pulse   branch alone                same refusal, |f| 2.46e-10
+```
+
+So the two keys together give BranchingPipes2 the run that the looser
+tolerance gave it, without loosening the test for anybody. SeriesPipes12
+is a different second link: its trail (`trail_SP12_lb.txt`) leaves two
+rows at 1.0e-10 and 1.5e-10, and the second of them is
+`simpleGenericOrifice.V_flow` at -5.0e-5 with a loudness of 998 - a
+density, where four ulps are 8.9e-13. A volume flow through an orifice
+near zero, measured against a density, is the same breed as the upwind
+flow and a different spelling of it; the loudness walk does not reach
+whatever square root or regularisation makes it. WaterIF97 moving from
+164 to 124 points with the same refusal says the branch walk reaches
+its initialization too, which a corpus pair would have to account for.
+None of the three keys is adopted; together they are the map of a chain
+of at least two links on the six pipes (a stage that ends the run, then
+a floor the loudness under-reads), and the corpus pair with the run
+lists diffed is what decides whether it is taken.
