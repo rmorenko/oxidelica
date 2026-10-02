@@ -144,6 +144,10 @@ jobs:
           path: .msl
 
       - name: Read it
+        # Measurement branch only: the stall guard switched on so the
+        # runner times the cache and the guard together.
+        env:
+          OXIDELICA_INIT_STALL: 8
         run: |
           cargo build --release -p oxidelica-cli
           ./scripts/library_floor.sh .msl
