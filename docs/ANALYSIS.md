@@ -30302,3 +30302,149 @@ So of five, three are honest dead ends of the direction at the start
 start that leaned on the arm (BranchingPipes1), and one is refused for
 a residual a hair above 1e-10 (Rectifier6pulse). None of them is the
 runaway of item 18 at the point of refusal.
+
+## The runner's first print with the hold, red on the band (m336)
+
+Run 36992824472, library job 110792738383, head b69198f: the counts
+966 / 686 and 849 / 644, exactly the floors, with the run list against
+bc8c2e7's green print (`/tmp/m333/ci_bc8c2e7.log`) differing by one name
+each way: BranchingPipes17 in, which is the hold's gain, and `IMC_DOL`
+out, which is one of the four models m334 found running on a residual
+of a whole side and so is expected to swing. The job is red on the
+ratio, 1.625 against the band of 0.70 to 1.50: 8225 ms per model
+flattening and 13362 ms running, against bc8c2e7's 7890 and 11619
+(1.473) and earlier prints of 1.430 and 1.22 to 1.26. The only code
+between bc8c2e7 and b69198f is the held guess, and its work is the same
+to 0.014 % of the points.
+
+So the hold was timed one key after the other on the seven models the
+runner's print names dearest by points, one binary built from HEAD (`/tmp/ox336h`,
+`--only-from /tmp/m336/dear.txt`): 179 s held, 179 s drifting, 174 s
+held again (`/tmp/m336/dear_hold1.txt`, `dear_drift.txt`,
+`dear_hold2.txt`), the work identical but for 0.01 % of the points.
+m333's timing over the seventy Fluid models said the same (1848 s held
+against 1855 s drifting). The change does not cost time on the desk,
+so the 1.625 is read as the runner's weather until a second print says
+otherwise, and the floors are not moved on it: the counts equal them.
+
+## The row scale over the corpus, and why its four leavers leave (m335, m336)
+
+This chapter is a probe and a map, not a change. m334 measured one
+candidate for the block's relative arm on the 152 models that ever
+lean on it: judge row `i` by `max(|lhs_i|, |rhs_i|)` instead of by the
+unknown `v_i` it is paired with by position. That kept the count and
+changed four names each way. Here the four that left are taken apart
+one row at a time, with the hydraulic part of the loop family beside
+them, and the pair over the whole corpus is set down below.
+
+**The instrument.** A dump behind `OXIDELICA_ROW_DUMP` (binary
+`/tmp/ox335a`, the m334 probe tree plus one `eprintln!`, never merged)
+prints every row the test refuses: the iteration, the row's name, `|f|`,
+the paired `|v_i|`, both sides and the larger of them. One `--only`
+run per model and per arm, files `/tmp/m336/dump_row_<Model>.txt` and
+`dump_base_<Model>.txt`; AsymmetricalLoad's pair is m335's
+(`/tmp/m335/dump_row_AsymmetricalLoad.txt`).
+
+**The four leavers, the last refusing row of each** (table in
+`/tmp/m336/leavers.txt`):
+
+```text
+model                 refused under the row scale          row                                       |f|        |v_i|     max side
+AsymmetricalLoad      Newton direction, t = 0               der(transformer.core.plug_p3.pin[3].i)    1.164e-10  7.854e5   1.164e-10
+Rectifier12pulse      Newton direction, t = 0               der(transformer1.core.plug_p2.pin[2].i)   2.328e-10  1.571e6   2.328e-10
+TransformerTestbench  step size underflow, t = 0.000300     der(transformer.core.plug_p3.pin[2].i)    2.037e-10  1.769e5   2.037e-10
+BranchingPipes17      initialization, 50 Newton iterations  (no block refuses; the outer Newton does)
+```
+
+The three transformers are one shape. The refusing row is a core
+current's derivative, its right side is exactly zero, and its residual
+is one or two units in the last place of the unknown it is paired with:
+1.1641532182693481e-10 is 2^-33, one ulp of 7.85e5, and 2.33e-10 is one
+ulp of 1.57e6. The row has been normalised to `expr = 0`, so the large
+quantity whose rounding the residual is never appears on either side,
+and `max(|lhs|, |rhs|)` sees only the residual itself. Judged against
+its own sides the row asks for a residual below 1e-10 on numbers of a
+million, which double precision cannot give. In the transformers the
+positional pairing is right by accident and the row scale is wrong by
+construction. TransformerTestbench gets through the start this way and
+dies at t = 3.33e-4 on a residual of 2.04e-10 against an unknown of
+1.77e5, seven ulps.
+
+BranchingPipes17 is not that shape, and the dump's last line for it
+is not its cause. The dump prints a row on every iteration that does
+not yet pass, and its lines for BranchingPipes17 are the steps on the
+way to a root: the one-unknown block `[junctionVolume.medium.T]` is
+refused at 8.33e-9 on sides of 1.188 and lands at exactly zero on the
+next step (`/tmp/m336/trail_row_BP17.txt`, the same run with
+`OXIDELICA_NEWTON_TRAIL`: `|f|` 1.0e-4, 8.3e-9, 0). Over the trail's
+2165 Newton steps no block numbers more than four, and its last
+lines are residuals of 3e-13 and 7.5e-11.
+What refuses is the initialisation's own Newton, `initialization did
+not converge in 50 Newton iterations`, which the block dump does not
+see. So under the row scale BranchingPipes17's inner blocks are solved
+more tightly than under the arm as it stands - where the commonest
+refused row on the way to each acceptance is
+`der(junctionVolume.medium.h)` (878 of 3857 rows in
+`dump_base_BranchingPipes17.txt`), the stranger pairing m334 named -
+and the outer iteration that stands on them stops converging. Why a
+tighter inner answer costs the outer one is not measured here; the
+outer residual is the next instrument's question.
+
+**Rectifier6pulse (m334's inverse case).** Under the arm as it stands
+it is refused at t = 2.14e-4 on `der(transformer1.core.plug_p2.pin[2].i)`
+at 2.46e-10 against an unknown of 1.17
+(`dump_base_Rectifier6pulse.txt`). Under the row scale it does not get
+that far: it is refused at t = 0, on the transformers' 1-ulp row
+(`dump_row_Rectifier6pulse.txt`). So the row scale does not rescue it,
+and the reason is the same as for the three leavers above.
+
+So the three transformers want a floor in the form, something that
+counts the ulps of the quantity the row cancelled, and BranchingPipes17
+wants its outer initialisation measured before any test is drawn
+around its blocks. Neither is the row scale. Where
+the floor should go is a question for a series and its own pair; m334's
+loudness form is ruled out on the small models (`1e-20 z^3` at
+`z = 2e7` passes through 8e21 and drowns the residual).
+
+**DryAir2 under the row scale** (`/tmp/m335/row_DryAir2.txt:11`):
+accepted with `ambient.port.h` at 8.7510e4 J/kg, growth 1.32, residual
+5.09e-10. The arm as it stands takes the same unknown to 2.2835e11 and
+is caught by the guard `ambient.port.h went above`
+(`/tmp/m335/base_DryAir2.txt:19`). For dry air from 0 °C to 86.7 °C,
+`cp * dT` with cp between 1006 and 1010 J/(kg K) gives 8.72e4 to
+8.76e4. The instrument's number lies inside that range. cp is a function
+of T, and ReferenceAir is a real-gas model, so the range is the honest
+check, not a single product. The base misses by six orders of
+magnitude. This one gain of the row scale is a number that is right.
+
+**The hydraulic part of the loop family** (`/tmp/m336/hyd_<Model>.txt`,
+`OXIDELICA_ROW_DUMP` and `OXIDELICA_ACCEPT_PROBE` together, the arm as
+it stands). All four are refused for `the Newton direction` on the
+block that begins `pipe1.mediums[1].p`, and all four lean on the
+relative arm alone before that, at or near the start:
+
+- `BranchingPipes2`: accepted at t = 0.0002 with `pipe1.H_flows[2]` at
+  1.53e4 from zero, residual 3.6e-10, 37 of 48 acceptances on the arm
+  alone. At t = 0.0008 the 17-unknown block starts at `|f| = 149` and
+  climbs to 2.5e6 by the fourth iteration, the enthalpy flows reaching
+  4.4e6. A diverging direction.
+- `BranchingPipes4`: accepted at t = 0.0003 with residual 4.0e-5 on
+  `splitter.medium.p` at 7.2e5, 9.1e7 ulps of the row. At t = 0.0008
+  the 6-unknown block stands at `|f| = 232` for fifteen iterations,
+  the row being `splitter.medium.p` with sides 767 and 998 - two
+  densities that disagree by a quarter. A stall.
+- `BranchingPipes14`: accepted at t = 0 on `valve1.dp_turbulent`,
+  residual 8.4e-6 on 1.08e5. At t = 0.0002 it stands at `|f| = 0.18`
+  on `junctionIdeal.medium.p` (sides 996.3 and 996.5) for ten
+  iterations. A stall a hair from a root.
+- `SeriesPipes1`: accepted at t = 0 on `valve.dp_turbulent`, residual
+  8.4e-6, 45 of 61 on the arm alone. At t = 0.0008 the block runs
+  away: `pipe2.mediums[2].p` to 1.65e6 and `valve.dp_turbulent` left
+  at `|f| = 3.8e4` on a side of 7.7e4.
+
+So none of the four is a runaway accepted by the arm at the point of
+refusal; each is an honest dead end of the direction in mid-run, after
+a start that was taken on residuals of 1e-5 to 1e-10 judged against a
+pressure of 1e5 to 7e5. Whether that soft start is what puts the later
+block where its direction fails is not measured here. It is the
+question a series tightening the arm has to answer for these four.
