@@ -34,11 +34,37 @@ const MAX_ROUNDS: usize = 10_000_000;
 /// ran on it.
 const UNASSIGNED: u64 = 0x7ff8_dead_0000_0001;
 
+/// Whether a switch is set in the environment, read once per process.
+///
+/// The walk asks its switches inside its innermost loop, and on macOS
+/// `getenv` takes a lock the whole process shares. Sampled while a
+/// water model walked IF97 on one thread of a corpus check, fifteen
+/// percent of its busy time was `__findenv_locked` under
+/// `elements_of`, and every other thread asking any switch queued on
+/// the same lock: DynamicPipeEnergyConservationCheck ran in 212s alone
+/// and in 417s beside two such models in one process. A switch is set
+/// before the run and never during it, so its first answer is its
+/// answer, and each thread asks the environment once per switch.
+pub(crate) fn switch_set(name: &'static str) -> bool {
+    thread_local! {
+        static SEEN: std::cell::RefCell<Vec<(&'static str, bool)>> =
+            const { std::cell::RefCell::new(Vec::new()) };
+    }
+    SEEN.with(|seen| {
+        if let Some((_, set)) = seen.borrow().iter().find(|(had, _)| *had == name) {
+            return *set;
+        }
+        let set = std::env::var_os(name).is_some();
+        seen.borrow_mut().push((name, set));
+        set
+    })
+}
+
 /// Whether an unassigned output reads as zero, as it did before the
 /// refusal: `OXIDELICA_UNASSIGNED_OUTPUT_ZERO` keeps the old reading so
 /// one binary can be measured against itself.
 fn unassigned_is_zero() -> bool {
-    std::env::var_os("OXIDELICA_UNASSIGNED_OUTPUT_ZERO").is_some()
+    switch_set("OXIDELICA_UNASSIGNED_OUTPUT_ZERO")
 }
 
 /// Whether a local array whose written value the walk cannot lay out
@@ -46,7 +72,7 @@ fn unassigned_is_zero() -> bool {
 /// `OXIDELICA_LOCAL_ARRAY_ZERO` keeps the old reading so one binary can
 /// be measured against itself.
 fn local_arrays_zero() -> bool {
-    std::env::var_os("OXIDELICA_LOCAL_ARRAY_ZERO").is_some()
+    switch_set("OXIDELICA_LOCAL_ARRAY_ZERO")
 }
 
 /// Whether a walk lays out a local sized by a number it holds and
@@ -54,7 +80,7 @@ fn local_arrays_zero() -> bool {
 /// reading, which left both to the evaluator, so one binary can be
 /// measured against itself.
 fn walked_linspace_open() -> bool {
-    std::env::var_os("OXIDELICA_NO_WALKED_LINSPACE").is_none()
+    !switch_set("OXIDELICA_NO_WALKED_LINSPACE")
 }
 
 /// Where a walk left off: running on, out of a loop, or out of the
@@ -333,7 +359,7 @@ fn outside_answer(
     let Some(call) = class.external_call.as_ref().filter(|call| {
         class.external
             && oxidelica_parser::outside::written_here(&call.called)
-            && std::env::var_os("OXIDELICA_NO_WALKED_OUTSIDE").is_none()
+            && !switch_set("OXIDELICA_NO_WALKED_OUTSIDE")
     }) else {
         return Ok(None);
     };
@@ -384,7 +410,7 @@ struct Frame {
 /// Laid out with nothing, such a table reached the evaluator whole at
 /// the first element the body read.
 fn declared_table(component: &Component) -> Option<(Vec<usize>, Vec<f64>)> {
-    if component.dimensions.len() < 2 || std::env::var_os("OXIDELICA_NO_WALKED_TABLES").is_some() {
+    if component.dimensions.len() < 2 || switch_set("OXIDELICA_NO_WALKED_TABLES") {
         return None;
     }
     fn gather(expr: &Expr, shape: &mut Vec<usize>, depth: usize, out: &mut Vec<f64>) -> Option<()> {
@@ -460,7 +486,7 @@ fn declared_length(component: &Component, frame: &Frame) -> Option<usize> {
         // literal was taken for one number, and the water's saturation
         // pressure - Wagner's six coefficients, declared this way -
         // refused every moist-air model that walked it.
-        Expr::ColonSubscript if std::env::var_os("OXIDELICA_NO_COLON_LENGTH").is_none() => {
+        Expr::ColonSubscript if !switch_set("OXIDELICA_NO_COLON_LENGTH") => {
             match component.binding.as_ref().or(component.start.as_ref()) {
                 Some(Expr::Array(items)) => Some(items.len()),
                 _ => None,
@@ -1169,14 +1195,14 @@ fn vectorised(
 /// `OXIDELICA_NO_WALKED_SLICES` leaves the slice whole, so that one
 /// binary gives both numbers.
 fn walked_slices_open() -> bool {
-    std::env::var_os("OXIDELICA_NO_WALKED_SLICES").is_none()
+    !switch_set("OXIDELICA_NO_WALKED_SLICES")
 }
 
 /// Whether a walk writes a run of an array element by element.
 /// `OXIDELICA_NO_IMPURE_DRAWS` turns it back with the rest of the
 /// impure generator's road, so that one binary gives both numbers.
 fn walked_slice_writes_open() -> bool {
-    std::env::var_os("OXIDELICA_NO_IMPURE_DRAWS").is_none()
+    !switch_set("OXIDELICA_NO_IMPURE_DRAWS")
 }
 
 /// A fold written out: `sum` of nothing is nothing, of one is itself.
@@ -1367,7 +1393,7 @@ fn run(
                         .components
                         .iter()
                         .any(|held| held.causality == Causality::Output)
-                }) && std::env::var_os("OXIDELICA_NO_CARRIED_GUARDS").is_none() =>
+                }) && !switch_set("OXIDELICA_NO_CARRIED_GUARDS") =>
             {
                 let given = args
                     .iter()
@@ -1614,5 +1640,5 @@ fn loop_over(
 /// number per argument and per target, so that one binary gives both
 /// numbers.
 fn tuple_arrays_open() -> bool {
-    std::env::var_os("OXIDELICA_NO_WALKED_TUPLE_ARRAYS").is_none()
+    !switch_set("OXIDELICA_NO_WALKED_TUPLE_ARRAYS")
 }
